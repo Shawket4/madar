@@ -1,0 +1,51 @@
+// Builds madar-frb (the Rust FFI crate) with the Android NDK via Cargokit.
+group 'com.madar.rust_bridge'
+version '1.0'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.3.0'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    if (project.android.hasProperty("namespace")) {
+        namespace 'com.madar.rust_bridge'
+    }
+
+    compileSdkVersion 33
+
+    // Uses the NDK version declared by the app (NDK r27+ for 16 KB pages).
+    ndkVersion android.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        minSdkVersion 21
+    }
+}
+
+apply from: "../cargokit/gradle/plugin.gradle"
+cargokit {
+    // madar-frb lives in the madar-pos repo's cargo workspace (a sibling of
+    // this repo on disk) — binding wrapper over madar-core.
+    manifestDir = "../../../../madar-pos/rust-core/crates/madar-frb"
+    libname = "madar_frb"
+}

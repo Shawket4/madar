@@ -12,6 +12,10 @@ analyzer:
     - '**/*.g.dart'
     - '**/*.freezed.dart'
     - '**/src/generated/**'
+    # Vendored Cargokit (the FRB native build tool) — not our code.
+    - '**/cargokit/**'
+    # Build outputs (Cargokit copies its build_tool under app build dirs).
+    - '**/build/**'
 
 linter:
   rules:

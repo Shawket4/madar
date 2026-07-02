@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:madar/spike_screen.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // The POS runs in a single landscape orientation, matching the native apps.
@@ -39,21 +41,9 @@ class MadarApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: _ink,
       ),
-      home: Builder(
-        builder: (context) {
-          final dark = Theme.of(context).brightness == Brightness.dark;
-          return Scaffold(
-            body: Center(
-              child: Image.asset(
-                dark
-                    ? 'assets/brand/lockup_latin_reversed.png'
-                    : 'assets/brand/lockup_latin.png',
-                width: 220,
-              ),
-            ),
-          );
-        },
-      ),
+      // M1: the hello-core spike is the home screen; M3 replaces this with
+      // the router-driven shell.
+      home: const SpikeScreen(),
     );
   }
 }

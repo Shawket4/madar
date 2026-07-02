@@ -1,15 +1,21 @@
 PODS:
   - FlutterMacOS (1.0.0)
+  - rust_bridge (0.1.0):
+    - FlutterMacOS
 
 DEPENDENCIES:
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - rust_bridge (from `Flutter/ephemeral/.symlinks/plugins/rust_bridge/macos`)
 
 EXTERNAL SOURCES:
   FlutterMacOS:
     :path: Flutter/ephemeral
+  rust_bridge:
+    :path: Flutter/ephemeral/.symlinks/plugins/rust_bridge/macos
 
 SPEC CHECKSUMS:
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  rust_bridge: dfb1197b12deab0828b2088c10c41ad9772861f1
 
 PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
 

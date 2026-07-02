@@ -1,0 +1,31 @@
+Pod::Spec.new do |s|
+  s.name             = 'rust_bridge'
+  s.version          = '0.1.0'
+  s.summary          = 'Madar POS Rust core FFI (madar-frb) built via Cargokit.'
+  s.description      = <<-DESC
+Builds the madar-frb Rust crate (flutter_rust_bridge wrapper over madar-core)
+and links it into the app. No Objective-C/Swift sources beyond a forwarder.
+                       DESC
+  s.homepage         = 'https://madar.example'
+  s.license          = { :type => 'UNLICENSED' }
+  s.author           = { 'Madar' => 'dev@madar.example' }
+
+  s.source           = { :path => '.' }
+  s.source_files     = 'Classes/**/*'
+  s.dependency 'FlutterMacOS'
+
+  s.platform = :osx, '10.14'
+  s.swift_version = '5.0'
+
+  s.script_phase = {
+    :name => 'Build Rust library',
+    :script => 'sh "$PODS_TARGET_SRCROOT/../cargokit/build_pod.sh" ../../../../madar-pos/rust-core/crates/madar-frb madar_frb',
+    :execution_position => :before_compile,
+    :input_files => ['${BUILT_PRODUCTS_DIR}/cargokit_phony'],
+    :output_files => ["${BUILT_PRODUCTS_DIR}/libmadar_frb.a"],
+  }
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libmadar_frb.a',
+  }
+end

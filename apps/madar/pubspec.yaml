@@ -20,6 +20,7 @@ dependencies:
   feature_shift: ^0.1.0
   flutter:
     sdk: flutter
+  path_provider: ^2.1.5
   rust_bridge: ^0.1.0
 
 # Launcher icons are copied directly from the native apps' sources (pixel parity)
