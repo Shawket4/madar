@@ -762,12 +762,20 @@ class _DeliveryFinalizeSheetState extends State<_DeliveryFinalizeSheet> {
   }
 
   Future<void> _finalize(CheckoutResult result) async {
+    _checkout.error = null;
     final ok = await widget.model.finalizeDelivery(
       widget.order,
       result.primaryMethodId,
     );
-    if (!mounted || !ok) return;
-    await Navigator.of(context).maybePop();
+    if (!mounted) return;
+    if (ok) {
+      await Navigator.of(context).maybePop();
+    } else {
+      // Surface the failure INSIDE the drawer (the natives' model.error) —
+      // the board's own banner sits behind the modal scrim. The model's
+      // pending notify rebuilds the ListenableBuilder above.
+      _checkout.error = widget.model.error;
+    }
   }
 
   @override
@@ -932,6 +940,14 @@ class _CancelSheetState extends State<_CancelSheet> {
               widget.order.customerName,
               style: MadarType.bodySm.copyWith(color: colors.textSecondary),
             ),
+            // A failed cancel surfaces INSIDE the sheet — the board's own
+            // banner sits behind the modal scrim (the natives' model.error).
+            if (model.error case final error?)
+              NoticeBanner(
+                text: error,
+                tone: ChipTone.danger,
+                icon: 'exclamationmark.circle',
+              ),
             IncomingTextField(
               controller: _reason,
               placeholder: model.tr('delivery.cancel_reason'),

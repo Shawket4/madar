@@ -144,10 +144,29 @@ class OrderController extends ChangeNotifier {
     } else {
       await reconcileShift();
       await loadCatalog();
+      await loadShiftStats();
     }
     await loadCart();
     await loadDrafts();
     await refreshConnectivity();
+  }
+
+  // ── shift stats (top-bar pill) ─────────────────────────────────────────────
+  /// Live shift totals — "EGP X · N orders", voided excluded, summed in the
+  /// core (the natives' loadHistory → core.shiftStats). Refreshed on init
+  /// and after the tender drawer closes.
+  int shiftSalesMinor = 0;
+  int shiftOrderCount = 0;
+
+  Future<void> loadShiftStats() async {
+    if (isWaiter) return;
+    final orders = await _quiet(bridge.listShiftOrders);
+    if (orders == null) return;
+    final stats = await _quiet(() => bridge.shiftStats(orders: orders));
+    if (stats == null) return;
+    shiftSalesMinor = stats.salesMinor;
+    shiftOrderCount = stats.orderCount;
+    _notify();
   }
 
   /// Sync the open shift with the server (online) or read the cache. The
@@ -265,7 +284,18 @@ class OrderController extends ChangeNotifier {
       _applyCart(() => bridge.cartSetQty(itemId: lineKey, qty: qty));
 
   /// Swipe-to-delete: remove the whole line and offer an Undo toast.
+  ///
+  /// The row is dropped from [cartLines] SYNCHRONOUSLY (and listeners
+  /// notified) before the bridge round-trip: any rebuild landing in the
+  /// await window (the 15s heartbeat notify, a toast) with the dismissed
+  /// Dismissible still in the tree throws "A dismissed Dismissible widget
+  /// is still part of the tree". The bridge result reconciles after.
   Future<void> swipeRemoveCartLine(CartLineView line) async {
+    cartLines = cartLines
+        .where((l) => l.key != line.key)
+        .toList(growable: false);
+    _syncCartStartedAt();
+    _notify();
     await _applyCart(() => bridge.cartRemove(itemId: line.key));
     showToast(
       '${tr('order.removed')} ${line.name}',

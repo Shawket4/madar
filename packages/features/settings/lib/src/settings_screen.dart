@@ -1137,7 +1137,7 @@ class _SettingsTextFieldState extends State<_SettingsTextField> {
         boxShadow: _focused
             ? [
                 BoxShadow(
-                  color: colors.accent.withValues(alpha: 0.35),
+                  color: colors.accent.withValues(alpha: Opacities.focusGlow),
                   blurRadius: 8,
                 ),
               ]

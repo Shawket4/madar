@@ -1,0 +1,233 @@
+[
+ {
+  "audit": "theme",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/packages/features/settings/lib/src/settings_screen.dart:1140",
+  "title": "Inline 0.35 focus-glow alpha duplicates _fieldGlowAlpha defined in three other packages",
+  "detail": "The focused-field BoxShadow uses `colors.accent.withValues(alpha: 0.35)` as a bare literal, while the identical value is already a named constant `_fieldGlowAlpha = 0.35` in auth/lib/src/widgets.dart:28, shift/lib/src/controls.dart:32, and history/lib/src/widgets.dart:32 \u2014 four copies of the same design decision. Fix: promote it to the design_system tokens (e.g. `Opacities.focusGlow = 0.35` in packages/design_system/lib/src/tokens/dimens.dart) and replace the settings literal plus the three per-package `_fieldGlowAlpha` constants with the token, so a future glow tweak lands in one place."
+ },
+ {
+  "audit": "theme",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/apps/madar/lib/spike_screen.dart:183",
+  "title": "Spike screen hardcodes light-theme success/danger hexes, wrong in dark theme",
+  "detail": "SpikeScreen uses `const Color(0xFF16A34A)` / `const Color(0xFFDC2626)` (lines 183-184 for the AppBar background, 194 for the ListTile icons). These are exactly MadarColors.light.success/danger, so in dark theme the screen paints the light-palette values instead of the dark roles (0xFF3BCE7E / 0xFFF4655A), giving muddier contrast on the dark bg. The screen is a dev harness but is user-reachable from the chrome menu ('Core spike (dev)', apps/madar/lib/app/chrome.dart:289). Fix: it already imports design_system \u2014 replace the four literals with `context.madarColors.success` / `context.madarColors.danger`."
+ },
+ {
+  "audit": "perf",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/packages/features/order/lib/src/order_screen.dart:195",
+  "title": "Whole-screen ListenableBuilder + screen-level setState rebuilds catalog grid AND cart panel on every notify/keystroke",
+  "detail": "The single ListenableBuilder at the top of _OrderScreenState.build wraps the entire screen (top bar, banners, catalog, cart panel, toast host). OrderController.notifyListeners fires from the 15s connectivity heartbeat, every cart mutation, every toast show/dismiss, and every open-tickets poll \u2014 each one rebuilds the whole tree, re-running CatalogColumn's O(n) filter and the ~1100-line CartPanel. Worse, the search field and category tabs use setState on _OrderScreenState (lines 278/281), so EVERY search keystroke also rebuilds the cart panel, top bar, and banners. Fix: keep search/category state inside a StatefulWidget CatalogColumn (or a ValueListenableBuilder on the existing TextEditingController) so keystrokes rebuild only the grid area, and split the one ListenableBuilder into scoped builders per region \u2014 one around the catalog, one around the cart panel, one around the top bar/banners (which also stops the _SyncChip/_ChromeBanners sync-FFI reads like clockSkewMinutes from re-running on unrelated notifies)."
+ },
+ {
+  "audit": "perf",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/packages/features/order/lib/src/catalog_column.dart:517",
+  "title": "Grid product photos decoded at full resolution \u2014 Image.network without cacheWidth",
+  "detail": "MenuItemCard (line 517) and BundleCard (line 689) load item/bundle photos with Image.network(url, fit: BoxFit.cover) and no cacheWidth/cacheHeight. Grid cells are capped at Grid.cellMax = 208 logical px, but a 2\u20134 MP product photo is decoded at native size \u2014 large decode jank on first paint and a bloated image cache holding many full-res bitmaps for a busy menu. Fix: pass cacheWidth: (Grid.cellMax * MediaQuery.devicePixelRatioOf(context)).round() (and the same in BundleCard) so decodes are bounded to the displayed size."
+ },
+ {
+  "audit": "perf",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/packages/features/history/lib/src/history_screen.dart:216",
+  "title": "History filter+sort recomputed on every build, plus 7 extra full-history passes for chip counts",
+  "detail": "_filtered is a getter that re-filters AND re-sorts the entire shift history on every build (line 216\u2013222, called from build at line 304), and _buildFilterBar's typeCount/syncCount closures (lines 346\u2013348) each do another full _history.where(...).length pass \u2014 7 chips = 7 passes. Every search keystroke (line 394 onChanged \u2192 setState), every toast, and every detail-row toggle re-runs all of it: ~8 full passes + an O(n log n) sort per frame over a shift that can hold hundreds of orders. Fix: memoize \u2014 compute the filtered+sorted list and the per-chip counts (one single pass can produce all 7 counts) only in the setState paths that change their inputs (_search, _sync, _type, _sortCol/_sortAscending, _history) and store them in fields read by build."
+ },
+ {
+  "audit": "perf",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/packages/features/history/lib/src/history_screen.dart:486",
+  "title": "History list uses non-builder ListView \u2014 all visible rows built eagerly",
+  "detail": "_buildContent renders the order list as ListView(children: [ ...for (final o in visible) _OrderCard(...) ]) (and _OrderTable similarly builds every row as a Column). visible starts at 20 but grows by _pageSize on each 'show more' tap with no upper bound \u2014 after a few taps on a busy shift, hundreds of _OrderCard widgets (each with borders, shadows, per-row bridge.tr calls) are built and laid out even when far off-screen. Fix: convert to a CustomScrollView with a SliverToBoxAdapter for _StatsHeader and a SliverList.builder for the rows (indexes into `visible`), so only on-screen rows are built; the card path benefits most since wide-table rows share one container anyway."
+ },
+ {
+  "audit": "perf",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/packages/features/order/lib/src/catalog_column.dart:687",
+  "title": "BundleCard hero photo wrapped in an Opacity widget \u2014 saveLayer per paint",
+  "detail": "The bundle photo is rendered as Opacity(opacity: 0.55, child: Image.network(...)). A partial-opacity Opacity widget forces a saveLayer on every paint of the card. Since the target is an Image, use the Image widget's built-in opacity parameter instead \u2014 Image.network(url, fit: BoxFit.cover, opacity: const AlwaysStoppedAnimation(0.55), ...) \u2014 which modulates alpha during rasterization with no extra layer."
+ },
+ {
+  "audit": "perf",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/packages/features/order/lib/src/item_detail_sheet.dart:536",
+  "title": "Addon/optional search keystrokes setState the entire item sheet",
+  "detail": "_AddonGroupCard's onQueryChange (line 535\u2013536) and the optionals search onChanged (line 609) call setState on _ItemDetailSheetState, so every keystroke in a group's search field rebuilds the WHOLE sheet \u2014 _buildGroups re-derivation, all group cards, header, footer, and the pricing folds \u2014 when only one card's chip Wrap needs to refilter. _AddonGroupCard is already a StatefulWidget owning its TextEditingController; move the query into its own state (setState local to the card, filter there) and drop the parent's _addonSearch map \u2014 parent state is only needed if queries must survive the show-all group insert/remove, which the ValueKey(g.id) already handles for live cards. Same for _optionalSearch: extract the optionals section into a small StatefulWidget."
+ },
+ {
+  "audit": "parity",
+  "severity": "high",
+  "file": "/Users/shawket/Desktop/madar/packages/features/order/lib/src/order_screen.dart:469",
+  "title": "Token-expiry re-auth flow is unreachable \u2014 ReauthSheet is never presented",
+  "detail": "Kotlin: tapping the auth-paused banner sets model.showReauth = true, opening ReauthScreen where the SAME teller re-enters their PIN to un-park the outbox (reauth(pin) -> refreshPending + 'chrome.sync_resumed' toast), with a 'switch teller' escape that routes into close-shift (OrderScreen.kt:265 AuthPausedBanner -> showReauth; ReauthScreen.kt). Flutter: the fully-built showReauthSheet(...) in packages/features/auth/lib/src/reauth_sheet.dart:57 is exported but has ZERO call sites (grep confirms). The order screen's auth-paused banner onTap is wired to widget.onStateChanged (order_screen.dart:227, 469-481) which only re-reads the route \u2014 it does nothing \u2014 and the OpenShiftScreen banner (packages/features/shift/lib/src/open_shift_screen.dart:289-297) isn't tappable at all. So when the JWT expires mid-shift, queued sales stay parked on 401 with no recovery path except a full sign-out. Fix: on banner tap (both surfaces) call showReauthSheet(context, core: core, onStateChanged: ...); on ReauthOutcome.resumed refresh the sync chrome and show tr('chrome.sync_resumed'); on ReauthOutcome.switchTeller push CloseShiftScreen (the outcome enum already documents this contract)."
+ },
+ {
+  "audit": "parity",
+  "severity": "high",
+  "file": "/Users/shawket/Desktop/madar/apps/madar/lib/app/chrome.dart:323",
+  "title": "More-sheet sign-out skips the natives' open-shift guard",
+  "detail": "Kotlin blocks sign-out while a shift is open in BOTH exits: the More drawer (OrderScreen.kt:527-531 \u2014 `if (model.hasOpenShift) model.flagError(t(\"settings.sign_out_shift_open\"))`) and Settings (SettingsScreen.kt:137). The Flutter Settings screen has the guard (settings_screen.dart:326), but the chrome More sheet's `_signOut()` (chrome.dart:323-332, invoked from the sheet row at 310-314) logs out unconditionally. Since the Order route implies an open shift for a teller, every sign-out from that sheet abandons a live shift \u2014 the drawer is never declared/closed and the next login opens a second shift on top. Fix: in `_signOut()` first read `await _bridge.currentShift()`; if `isOpen`, close the sheet and surface tr('settings.sign_out_shift_open') (toast or banner) instead of logging out \u2014 mirroring settings_screen.dart:325-336."
+ },
+ {
+  "audit": "parity",
+  "severity": "high",
+  "file": "/Users/shawket/Desktop/madar/apps/madar/lib/app/shell.dart:80",
+  "title": "Kitchen device has no path to Settings \u2014 the KDS gear is never wired",
+  "detail": "Kotlin's KDS header always shows a settings gear that opens SettingsScreen as an overlay (KitchenDisplayScreen.kt:88 `onSettings = { model.showSettings = true }`, rendered at :118) \u2014 it's the ONLY nav a kitchen device has (printer config, language, station rebinding, reconfigure, sign-out). The Flutter KitchenDisplayScreen only renders the gear when `onOpenSettings` is provided (kitchen_display_screen.dart:340), and the shell never passes it (shell.dart:80-86 passes only core/onStateChanged/stationId/realtimeTick). A configured KDS device is therefore a dead end: no settings, no reconfigure, no sign-out. Fix: in shell.dart pass `onOpenSettings: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsScreen(core: core, onStateChanged: onChanged, onLocaleChanged: state.setLocale, onThemeChanged: ...)))` (the same wiring MadarChrome._footer uses at chrome.dart:210-223; requires a BuildContext, e.g. via a Builder around the KDS branch)."
+ },
+ {
+  "audit": "parity",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/apps/madar/lib/app/app_state.dart:144",
+  "title": "SSE connection state is dropped \u2014 KDS 'reconnecting' banner and dot can never show disconnected",
+  "detail": "Kotlin tracks `realtimeConnected` and drives the KDS header dot + the 'kds.reconnecting' warning banner from it (KitchenDisplayScreen.kt:87-95), plus the Settings realtime diagnostic. Flutter's `_onRealtimeEvent` explicitly discards `RealtimeMessage_ConnectionChanged` (app_state.dart:144-146 `break`), and the shell never passes `realtimeConnected` to KitchenDisplayScreen (shell.dart:80-86), whose fallback reads null-as-connected (kitchen_display_screen.dart:135 `widget.realtimeConnected?.value ?? true`). A kitchen that silently lost its event stream shows a green dot and no banner \u2014 the exact failure the natives surface. Fix: add `final realtimeConnected = ValueNotifier<bool>(true);` to MadarAppState, set it in the ConnectionChanged case, and pass it to KitchenDisplayScreen from shell.dart (the widget already accepts and listens to it)."
+ },
+ {
+  "audit": "parity",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/packages/features/order/lib/src/order_screen.dart:58",
+  "title": "Waiter's held-ticket strip is not SSE-live \u2014 15s poll only",
+  "detail": "Kotlin reloads the waiter's open tickets instantly on every ticket event: `if (isWaiter) LaunchedEffect(model.ticketTick) { model.loadOpenTickets() }` (OrderScreen.kt:179), so a settle/void/fire from another device updates the cart strip immediately. The Flutter OrderScreen only polls `loadOpenTickets()` every 15 seconds inside the heartbeat (order_screen.dart:58-62) and never observes the shell's `ticketTick` (MadarChrome only uses ticks for the rail badge; OrderScreen takes no tick parameter). A waiter can add a round to a ticket that was just settled/voided elsewhere for up to 15s. Fix: add an optional `Listenable? ticketTick` to OrderScreen, pass `state.ticketTick` from MadarChrome/shell for the WaiterTickets route, and addListener -> `_model.loadOpenTickets()` in initState (remove/re-add in didUpdateWidget/dispose)."
+ },
+ {
+  "audit": "parity",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/packages/features/order/lib/src/order_screen.dart:290",
+  "title": "Live shift stats pill (sales \u00b7 order count) missing from the order top bar",
+  "detail": "Kotlin's OrderTopBar shows ShiftStatsPill \u2014 'EGP X \u00b7 N orders' \u2014 whenever the shift is open (OrderScreen.kt:743, 784-796), fed by loadHistory() -> core.shiftStats(history) (AppModel.kt:745-752, called on appear at OrderScreen.kt:175 and refreshed after checkout/void). The Flutter _OrderTopBar (order_screen.dart:290-356) renders only the teller chip + sync controls; a workspace-wide grep shows `shiftSalesMinor`/`shiftOrderCount` are used nowhere, so the teller has no at-a-glance shift total anywhere (the narrow More-drawer stats are covered by the accepted no-phone-drawer deviation, but the WIDE bar pill is not). Fix: in OrderController load `bridge.listShiftOrders()` + `bridge.shiftStats(orders: ...)` (bridge.dart:572) on init and after tender/void sheets close, and render the pill in _OrderTopBar next to the teller chip for non-waiter wide layouts."
+ },
+ {
+  "audit": "parity",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/packages/features/order/lib/src/order_screen.dart:360",
+  "title": "Sync status chip is not tappable (natives open the Sync center from it)",
+  "detail": "Kotlin's SyncChip is clickable \u2014 tap runs `model.loadOutbox(); model.showSync = true`, jumping straight from the 'Needs attention (N)' / 'Syncing (N)' chip to the outbox screen (OrderScreen.kt:819-830). The Flutter _SyncChip (order_screen.dart:360-395) returns a bare StatusChip with no gesture, so the natural affordance ('something is stuck \u2014 tap it') dead-ends and the teller must find Sync in the rail footer instead. Fix: wrap the StatusChip in TactileScale/GestureDetector and push SyncScreen(core, onStateChanged) \u2014 the same wiring the rail's sync tile uses in chrome.dart:200-209 (pass a callback into _OrderTopBar since chrome owns the push)."
+ },
+ {
+  "audit": "correctness",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/packages/features/incoming/lib/src/tickets_settle_body.dart:377",
+  "title": "Failed ticket settle shows no error inside the settle drawer",
+  "detail": "`_TicketSettleSheetState._settle` does `if (!mounted || !ok) return;` on failure. The failure message lands in `IncomingController.error`, which renders as a banner in the board Column \u2014 BEHIND the modal sheet scrim. The CheckoutDrawer's own error banner reads `CheckoutController.error` (checkout_drawer.dart:278), which is never set here, so the teller sees the spinner stop and nothing else after a failed settle (offline, dedup, server reject). The Kotlin native shows `model.error` inside the drawer (TenderScreen.kt:269), and the sibling Flutter surface already patched this (open_tickets_screen.dart:213 copies `_model.error` into `_checkout.error` after a failed settle). Fix: do the same here \u2014 after `ok == false`, set `_checkout.error = widget.model.error` (the model's pending notify rebuild makes it visible)."
+ },
+ {
+  "audit": "correctness",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/packages/features/incoming/lib/src/delivery_body.dart:769",
+  "title": "Failed delivery finalize (and cancel) give no in-sheet feedback",
+  "detail": "`_DeliveryFinalizeSheet._finalize` (line 769: `if (!mounted || !ok) return;`) and `_CancelSheet._confirm` (line 910, same pattern) swallow failures: `IncomingController.error` is only rendered by DeliveryBody's banner behind the modal sheet, and the finalize drawer's banner reads the never-assigned `CheckoutController.error`. A failed finalize (e.g. no open shift, network error) leaves the teller staring at an idle drawer believing nothing/anything happened. Fix: on `!ok`, surface the model error inside the sheet \u2014 for the finalize drawer set `_checkout.error = widget.model.error`; for the cancel sheet add a NoticeBanner bound to `model.error` inside the sheet Column."
+ },
+ {
+  "audit": "correctness",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/packages/features/floor/lib/src/floor_sheets.dart:431",
+  "title": "Failed table settle shows no error inside TableSettleSheet",
+  "detail": "`_TableSettleSheetState._settle` ends with `if (ok && mounted) await Navigator...maybePop(true);` \u2014 on failure `FloorController.error` is set but only FloorPlanScreen (behind the modal) renders it; the drawer's banner reads `_checkout.error` (CheckoutController), which is never written. Same silent-failure gap as the incoming settle sheets, and a regression vs the Kotlin drawer which displays the shared AppModel error. Fix: on `!ok`, assign `_checkout.error = widget.model.error;` (the sheet already listens to `Listenable.merge([model, _checkout])`, so it repaints)."
+ },
+ {
+  "audit": "correctness",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/packages/features/order/lib/src/item_detail_sheet.dart:375",
+  "title": "Add-to-cart commit has no busy state \u2014 double-tap duplicates the configured line",
+  "detail": "`_commit` awaits `model.addConfigured(...)` then pops, but the footer button (line 579: `onCommit: () => unawaited(_commit(extrasMinor))`, gated only by `canAdd`) stays fully tappable during the await \u2014 no loading flag exists in this sheet at all. A double-tap adds the configured item twice; in EDIT mode the second call re-runs `cartRemove(replaceLineKey)` (quietly fails) then `cartAddConfigured` again, leaving a duplicated line. Same gap in bundle_detail_sheet.dart:65 (`_add`). Fix: add a `_committing` latch (`if (_committing) return; setState(() => _committing = true);`) and feed it to the footer button as `loading`/`enabled`."
+ },
+ {
+  "audit": "correctness",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/packages/features/order/lib/src/cart_panel.dart:368",
+  "title": "Dismissible removal is async \u2014 a rebuild in the window throws 'dismissed Dismissible still part of the tree'",
+  "detail": "`onDismissed: (_) => unawaited(model.swipeRemoveCartLine(line))` removes the line via an async bridge call (`_applyCart` awaits `bridge.cartRemove` + `cartTotals`) before `cartLines` updates and notifies. If any rebuild lands in that window \u2014 the 15s connectivity heartbeat calls `refreshConnectivity()` which ALWAYS `_notify()`s (order_controller.dart:596), plus toast/setState rebuilds \u2014 Flutter throws 'A dismissed Dismissible widget is still part of the tree' (error box in debug, row visually resurrecting then vanishing in release). Fix: remove optimistically \u2014 in `swipeRemoveCartLine`, synchronously drop the line from `cartLines` and notify BEFORE awaiting the bridge call (reconcile from the bridge result after), or track locally-dismissed keys and filter them out of `_cartLineRows`."
+ },
+ {
+  "audit": "correctness",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/apps/madar/lib/app/app_state.dart:76",
+  "title": "Vault commands applied unawaited \u2014 Save/Clear can complete out of order",
+  "detail": "`_vaultSub = core.attachVault((cmd) => unawaited(vault.apply(cmd)))` fires each secure-storage write concurrently on the platform channel. A token-refresh `Save` closely followed by a sign-out `Clear` (or vice versa) can complete out of order, persisting a stale session blob after logout \u2014 on next launch the device restores a session the core thinks is gone. The doc comment demands immediate durable ordering. Fix: serialize writes with a promise chain, e.g. keep `Future<void> _vaultQueue = Future.value();` and do `_vaultQueue = _vaultQueue.then((_) => vault.apply(cmd));`."
+ },
+ {
+  "audit": "correctness",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/packages/features/history/lib/src/search_screen.dart:87",
+  "title": "Concurrent searches race \u2014 stale responses clobber results and skip pages",
+  "detail": "`_run` has no in-flight guard or sequence token: rapid filter-chip taps launch overlapping `searchOrders` calls; each completion does `_results = reset ? pg.orders : [..._results, ...pg.orders]` and `_page += 1`, so a slow stale response can overwrite a newer query's results, and out-of-order completions double-increment `_page` (skipped/duplicated pages on load-more). Fix: keep an `int _querySeq`; capture `final seq = ++_querySeq;` at entry and bail in the completion (`if (seq != _querySeq || !mounted) return;`) \u2014 or simply ignore taps while `_searching`."
+ },
+ {
+  "audit": "correctness",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/packages/features/incoming/lib/src/incoming_controller.dart:235",
+  "title": "settleTicket's shift lookup is outside the try \u2014 a throw escapes the unawaited caller",
+  "detail": "`final shift = await bridge.currentShift();` sits before the try/catch; if it throws MadarError the exception propagates out of `settleTicket` into `unawaited(_settle(...))` (tickets_settle_body.dart) \u2014 swallowed as an unhandled async error, no `error` set, no notify, teller gets zero feedback. FloorController already does this safely (`(await _quiet(bridge.currentShift))?.id`, floor_controller.dart:169). Fix: wrap the lookup the same way: `final shift = await _quietShift();` / `_quiet(bridge.currentShift)` and keep the existing null \u2192 `waiter.need_shift` branch."
+ },
+ {
+  "audit": "correctness",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/packages/features/kds/lib/src/kitchen_display_screen.dart:150",
+  "title": "KDS ignores stationId changes in didUpdateWidget (and the shell never wires settings/connection state)",
+  "detail": "`didUpdateWidget` re-attaches tick/connection listeners but never checks `oldWidget.stationId != widget.stationId` \u2014 after a station rebind the board keeps rendering the OLD station's tickets for up to 60s (the shell keys the subtree by `route.runtimeType` only, shell.dart:52-54, so the widget updates in place rather than remounting). Related wiring gap: shell.dart:80 constructs KitchenDisplayScreen without `onOpenSettings` or `realtimeConnected`, so a bound kitchen device has no settings/sign-out affordance (the gear only renders when provided) and the reconnecting banner can never show. Fix: in didUpdateWidget add `if (oldWidget.stationId != widget.stationId) { unawaited(_load()); }`, and pass `onOpenSettings` + a connection ValueListenable from the shell."
+ },
+ {
+  "audit": "i18n",
+  "severity": "high",
+  "file": "/Users/shawket/Desktop/madar/apps/madar/lib/app/shell.dart:47",
+  "title": "tr('common.retry') key does not exist in i18n.rs \u2014 raw key leaks onto the boot-failure retry button",
+  "detail": "The boot-failed screen's retry button calls state.tr('common.retry'), but 'common.retry' is defined nowhere in madar-pos/rust-core/crates/madar-core/src/i18n.rs (the common.* table only has common.done, common.void, common.cancel; the only retry-ish key is 'sync.retry' = 'Retry failed', which has the wrong wording). Since tr() falls back en -> key (i18n.rs line 15: .unwrap_or(key)), the button will literally render the text 'common.retry' in both English and Arabic whenever boot fails (e.g. first launch offline). This was verified as the ONLY missing key across the entire app (all 298 other key-shaped literals resolve). Fix: add the key to both language tables in i18n.rs \u2014 en: \"common.retry\" => \"Retry\", ar: \"common.retry\" => \"\u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629\" \u2014 the same pattern as the adjacent common.* entries (en table near line 75, ar table near line 488). The referenced doc comment at design_system/lib/src/states.dart:76 also cites 'common.retry', so adding the key (rather than changing the call site) keeps both consistent."
+ },
+ {
+  "audit": "i18n",
+  "severity": "low",
+  "file": "/Users/shawket/Desktop/madar/apps/madar/lib/app/chrome.dart:289",
+  "title": "Dev-only 'Core spike (dev)' / 'Design gallery (dev)' rows are unlocalized and visible in release builds",
+  "detail": "The More sheet unconditionally lists two rows with hardcoded English labels 'Core spike (dev)' (chrome.dart:288-291) and 'Design gallery (dev)' (chrome.dart:293-296) that open SpikeScreen and GalleryScreen. The screens themselves are exempt dev tools, but the entry rows live in the production chrome, are shown to every teller (no kDebugMode/kReleaseMode gate anywhere in chrome.dart), and bypass tr(). Fix: wrap both row(...) entries (and the Divider that follows if desired) in `if (kDebugMode) ...[ ... ]` (import 'package:flutter/foundation.dart'), which both hides them from production users and makes localization moot."
+ },
+ {
+  "file": "/Users/shawket/Desktop/madar/packages/features/shift/lib/src/shift_report_sheet.dart:443",
+  "title": "Signed drawer-movement amounts flip their sign in Arabic (no LTR pin)",
+  "detail": "_MovementRow renders `(out ? '\u2212' : '+') + Money.format(...)` in a plain Text with no `textDirection: TextDirection.ltr`. Under the RTL Directionality the leading sign is a bidi-neutral character at the paragraph boundary, so it jumps to the trailing side \u2014 '+EGP 12.50' displays as 'EGP 12.50+' in the Z-report's cash-movements list. Every other money sink in the workspace pins LTR (cart _TotalRow, checkout _SummaryRow, shift _MetricRow/_Stat, TotalsBlock, MoneyText); this is the outlier. Fix: add `textDirection: TextDirection.ltr` to the Text at line 443 (style is already MadarType.money/tabular).",
+  "severity": "medium",
+  "audit": "rtl"
+ },
+ {
+  "file": "/Users/shawket/Desktop/madar/packages/features/shift/lib/src/shift_report_sheet.dart:492",
+  "title": "Z-report totals rows lose the minus sign position in Arabic",
+  "detail": "_TotalRow's value Text (line 492) has no `textDirection: TextDirection.ltr`, yet it receives sign-prefixed money: '\u2212${_money(report.cashOutMinor)}' (line 227), '\u2212${_money(report.voidedAmountMinor)}' (line 246), and `_signed(diff)` for the drawer over/short line (line 343). In RTL the leading \u2212/+ renders on the wrong (trailing) side of the amount, so 'Cash out \u2212EGP 50.00' reads 'EGP 50.00\u2212'. Fix: add `textDirection: TextDirection.ltr` to the value Text in _TotalRow, matching the sibling _MetricRow in shift_history_screen.dart:596.",
+  "severity": "medium",
+  "audit": "rtl"
+ },
+ {
+  "file": "/Users/shawket/Desktop/madar/packages/features/shift/lib/src/close_shift_screen.dart:688",
+  "title": "Close-shift 'Voided' amount renders with the minus on the wrong side in Arabic",
+  "detail": "_InfoRow's money branch \u2014 `Text(value, style: MadarType.money...)` at line 688 \u2014 is not LTR-pinned, and it is fed a sign-prefixed value at line 383: `value: '\u2212${money(report.voidedAmountMinor)}'`. Under RTL the leading '\u2212' flips to the trailing edge ('EGP 12.50\u2212'). The plain openings/payments values are single LTR runs and happen to survive, but the voided line is visibly wrong. Fix: add `textDirection: TextDirection.ltr` to the money-branch Text (line 687-688).",
+  "severity": "medium",
+  "audit": "rtl"
+ },
+ {
+  "file": "/Users/shawket/Desktop/madar/packages/features/history/lib/src/history_screen.dart:656",
+  "title": "History stats-bar money value not LTR-pinned",
+  "detail": "_StatCell's value Text (lines 656-658) omits `textDirection: TextDirection.ltr` while rendering `Money.format(total, ...)` from line 617. Today the value is unsigned so the 'EGP 12.50' LTR run survives RTL, but it breaks the workspace's money-always-LTR convention and will silently regress the moment a signed or bare-decimal value ('.50', '\u2212...') is passed, as happened in the shift report. Fix: add `textDirection: TextDirection.ltr` to the value Text (MadarType.money already carries tabular figures).",
+  "severity": "low",
+  "audit": "rtl"
+ },
+ {
+  "file": "/Users/shawket/Desktop/madar/packages/design_system/lib/src/icons.dart:149",
+  "title": "'arrow.right.circle' CTA/advance glyph does not mirror in RTL",
+  "detail": "_iconMirror only covers the four chevron names, so 'arrow.right.circle' \u2014 used as the forward/submit affordance on the login CTA (packages/features/auth/lib/src/login_screen.dart:289), device-setup form (device_setup_form.dart:229), reauth sheet (reauth_sheet.dart:218) and, most visibly, the delivery advance-status button (packages/features/incoming/lib/src/delivery_body.dart:600) \u2014 keeps pointing right in Arabic, i.e. backwards against the reading direction. Fix: add `'arrow.left.circle': LucideIcons.circleArrowLeft` to madarIconCatalog and the pair `'arrow.right.circle': 'arrow.left.circle'` / `'arrow.left.circle': 'arrow.right.circle'` to _iconMirror. Note: the Kotlin/Swift natives share this gap (their iconMirror is chevron-only), so mirror there too to keep the three apps pixel-identical.",
+  "severity": "low",
+  "audit": "rtl"
+ },
+ {
+  "file": "/Users/shawket/Desktop/madar/packages/design_system/lib/src/icons.dart:16",
+  "title": "Delivery details sheet drops the phone and address icons (unmapped catalog names)",
+  "detail": "packages/features/incoming/lib/src/details_sheets.dart:175 uses icon 'phone.fill' and line 181 uses 'mappin.and.ellipse', but neither name exists in madarIconCatalog, and MadarIcon renders SizedBox.shrink for unmapped names \u2014 so the customer phone and address rows in the delivery details sheet show no leading glyph and lose their row alignment with the person/creditcard rows. Fix: add `'phone.fill': LucideIcons.phone` and `'mappin.and.ellipse': LucideIcons.mapPin` to madarIconCatalog. (The natives' IconCatalog.kt has the same hole \u2014 OrderDetailsSheet.kt:128-129 passes the same names \u2014 so fixing it here also un-breaks parity intent.)",
+  "severity": "low",
+  "audit": "rtl"
+ },
+ {
+  "audit": "correctness",
+  "severity": "medium",
+  "file": "/Users/shawket/Desktop/madar/apps/madar/lib/app/chrome.dart + app_state.dart",
+  "title": "Repeated identical realtime alerts are swallowed",
+  "detail": "MadarAppState.alert is a ValueNotifier<AlertCommand?>; AlertCommand is a freezed value type, so two successive identical notify commands (same title/body/tag \u2014 e.g. two 'New order' alerts) compare equal and the second never notifies listeners: no chime, no toast. Fix: make the notifier carry a monotonically increasing sequence alongside the command (e.g. ValueNotifier<(int, AlertCommand)?> or bump a separate int counter notifier the chrome listens to), so every event fires."
+ }
+]

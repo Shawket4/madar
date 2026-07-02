@@ -10,76 +10,98 @@ const String kCombosCategory = '__combos__';
 /// Catalog column — category tab strip on top, then search + the adaptive
 /// item grid (or the combo grid when the Combos tab is active). Mirror of
 /// the natives' CatalogColumn.
-class CatalogColumn extends StatelessWidget {
+///
+/// Owns its search + selected-category state so a keystroke or tab tap
+/// rebuilds only this region — never the cart panel or top-bar chrome. The
+/// grid re-filters through a [ValueListenableBuilder] on the search
+/// controller, keeping keystrokes scoped to the field + grid alone.
+class CatalogColumn extends StatefulWidget {
   const CatalogColumn({
     required this.model,
-    required this.selectedCategory,
-    required this.onSelectCategory,
-    required this.searchController,
-    required this.search,
-    required this.onSearch,
     required this.onItemTap,
     required this.onBundleTap,
     super.key,
   });
 
   final OrderController model;
-  final String? selectedCategory;
-  final ValueChanged<String?> onSelectCategory;
-  final TextEditingController searchController;
-  final String search;
-  final ValueChanged<String> onSearch;
   final ValueChanged<MenuItemView> onItemTap;
   final ValueChanged<BundleView> onBundleTap;
 
   @override
+  State<CatalogColumn> createState() => _CatalogColumnState();
+}
+
+class _CatalogColumnState extends State<CatalogColumn> {
+  final _searchField = TextEditingController();
+  String? _selectedCategory;
+
+  @override
+  void dispose() {
+    _searchField.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final combos = selectedCategory == kCombosCategory;
-    // One pass, no intermediate lists — the natives' memoized filter.
-    final query = search.trim().toLowerCase();
-    final visible = model.menuItems
-        .where(
-          (item) =>
-              item.isActive &&
-              (selectedCategory == null ||
-                  item.categoryId == selectedCategory) &&
-              (query.isEmpty ||
-                  item.name.toLowerCase().contains(query) ||
-                  (item.description?.toLowerCase().contains(query) ?? false)),
-        )
-        .toList(growable: false);
+    final model = widget.model;
+    final combos = _selectedCategory == kCombosCategory;
 
     return Column(
       children: [
         _CategoryTabs(
           model: model,
-          selected: selectedCategory,
-          onSelect: onSelectCategory,
+          selected: _selectedCategory,
+          onSelect: (id) => setState(() => _selectedCategory = id),
           showCombos: model.bundles.isNotEmpty,
         ),
         if (combos)
           Expanded(
-            child: _BundleGrid(model: model, onBundleTap: onBundleTap),
+            child: _BundleGrid(model: model, onBundleTap: widget.onBundleTap),
           )
         else ...[
           Padding(
             padding: const EdgeInsetsDirectional.all(Space.lg),
-            child: _SearchField(
-              controller: searchController,
-              placeholder: model.tr('order.search'),
-              value: search,
-              onChanged: onSearch,
+            // Rebuilds the field chrome (clear affordance) per keystroke.
+            child: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _searchField,
+              builder: (context, search, _) => _SearchField(
+                controller: _searchField,
+                placeholder: model.tr('order.search'),
+                value: search.text,
+              ),
             ),
           ),
           Expanded(
             child: model.isLoadingCatalog
                 ? const _CatalogSkeleton()
-                : _ItemGridOrEmpty(
-                    model: model,
-                    items: visible,
-                    searching: query.isNotEmpty,
-                    gridKey: selectedCategory,
-                    onItemTap: onItemTap,
+                : ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _searchField,
+                    builder: (context, search, _) {
+                      // One pass, no intermediate lists — the natives'
+                      // memoized filter.
+                      final query = search.text.trim().toLowerCase();
+                      final visible = model.menuItems
+                          .where(
+                            (item) =>
+                                item.isActive &&
+                                (_selectedCategory == null ||
+                                    item.categoryId == _selectedCategory) &&
+                                (query.isEmpty ||
+                                    item.name.toLowerCase().contains(query) ||
+                                    (item.description?.toLowerCase().contains(
+                                          query,
+                                        ) ??
+                                        false)),
+                          )
+                          .toList(growable: false);
+                      return _ItemGridOrEmpty(
+                        model: model,
+                        items: visible,
+                        searching: query.isNotEmpty,
+                        gridKey: _selectedCategory,
+                        onItemTap: widget.onItemTap,
+                      );
+                    },
                   ),
           ),
         ],
@@ -221,13 +243,11 @@ class _SearchField extends StatelessWidget {
     required this.controller,
     required this.placeholder,
     required this.value,
-    required this.onChanged,
   });
 
   final TextEditingController controller;
   final String placeholder;
   final String value;
-  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -249,7 +269,6 @@ class _SearchField extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
-              onChanged: onChanged,
               cursorColor: colors.accent,
               style: MadarType.title.copyWith(
                 fontWeight: FontWeight.w500,
@@ -266,10 +285,7 @@ class _SearchField extends StatelessWidget {
           ),
           if (value.isNotEmpty)
             GestureDetector(
-              onTap: () {
-                controller.clear();
-                onChanged('');
-              },
+              onTap: controller.clear,
               behavior: HitTestBehavior.opaque,
               child: MadarIcon(
                 'xmark',
@@ -512,11 +528,18 @@ class MenuItemCard extends StatelessWidget {
                     ),
                     // Real photo (when present) covers the gradient once
                     // loaded; while loading / on failure nothing draws, so
-                    // the gradient + monogram show through.
+                    // the gradient + monogram show through. Decode is
+                    // bounded to the displayed cell size (a full-res menu
+                    // photo would otherwise jank the first paint and bloat
+                    // the image cache).
                     if (url != null && url.isNotEmpty)
                       Image.network(
                         url,
                         fit: BoxFit.cover,
+                        cacheWidth:
+                            (Grid.cellMax *
+                                    MediaQuery.devicePixelRatioOf(context))
+                                .round(),
                         errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
                     if (inCartQty > 0)
@@ -683,14 +706,19 @@ class BundleCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // Image's own opacity param modulates alpha during
+                    // rasterization — an Opacity widget would force a
+                    // saveLayer on every paint of the card.
                     if (url != null && url.isNotEmpty)
-                      Opacity(
-                        opacity: 0.55,
-                        child: Image.network(
-                          url,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                        ),
+                      Image.network(
+                        url,
+                        fit: BoxFit.cover,
+                        opacity: const AlwaysStoppedAnimation(0.55),
+                        cacheWidth:
+                            (Grid.cellMax *
+                                    MediaQuery.devicePixelRatioOf(context))
+                                .round(),
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
                     PositionedDirectional(
                       top: Space.sm,

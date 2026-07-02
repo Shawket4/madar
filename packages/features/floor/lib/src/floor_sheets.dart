@@ -416,6 +416,7 @@ class _TableSettleSheetState extends State<TableSettleSheet> {
   /// The natives' onTerminal: cash tender + tip only when present, the tip
   /// defaulting to the charge method.
   Future<void> _settle(CheckoutResult result) async {
+    _checkout.error = null;
     final tipped = result.tipMinor > 0;
     final ok = await widget.model.settleTicket(
       ticketId: widget.ticket.id,
@@ -428,7 +429,15 @@ class _TableSettleSheetState extends State<TableSettleSheet> {
           ? (result.tipPaymentMethodId ?? result.primaryMethodId)
           : null,
     );
-    if (ok && mounted) await Navigator.of(context).maybePop(true);
+    if (!mounted) return;
+    if (ok) {
+      await Navigator.of(context).maybePop(true);
+    } else {
+      // Surface the failure INSIDE the drawer (the natives' model.error) —
+      // the floor plan's own banner sits behind the modal scrim. The merged
+      // ListenableBuilder above repaints on the checkout notify.
+      _checkout.error = widget.model.error;
+    }
   }
 
   @override

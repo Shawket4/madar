@@ -156,6 +156,7 @@ class _SpikeScreenState extends State<SpikeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.madarColors;
     final failed = _checks.where((c) => !c.ok).length;
     return Scaffold(
       appBar: AppBar(
@@ -180,8 +181,8 @@ class _SpikeScreenState extends State<SpikeScreen> {
         backgroundColor: _running
             ? null
             : failed == 0
-            ? const Color(0xFF16A34A)
-            : const Color(0xFFDC2626),
+            ? colors.success
+            : colors.danger,
       ),
       body: ListView.builder(
         itemCount: _checks.length,
@@ -191,7 +192,7 @@ class _SpikeScreenState extends State<SpikeScreen> {
             dense: true,
             leading: Icon(
               c.ok ? Icons.check_circle : Icons.error,
-              color: c.ok ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+              color: c.ok ? colors.success : colors.danger,
             ),
             title: Text(c.name),
             subtitle: Text(c.detail),

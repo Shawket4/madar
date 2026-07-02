@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:design_system/design_system.dart';
 import 'package:feature_auth/feature_auth.dart';
 import 'package:feature_kds/feature_kds.dart';
 import 'package:feature_order/feature_order.dart';
+import 'package:feature_settings/feature_settings.dart';
 import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/material.dart';
 import 'package:madar/app/app_state.dart';
@@ -43,8 +46,8 @@ class MadarShell extends StatelessWidget {
         return Scaffold(
           key: const ValueKey('boot-failed'),
           body: ErrorState(
-            message: state.bootError ?? 'Boot failed',
-            retryLabel: state.tr('common.retry'),
+            message: state.bootError ?? state.tr('err.generic'),
+            retryLabel: state.tr('sync.retry'),
             onRetry: state.boot,
           ),
         );
@@ -75,13 +78,47 @@ class MadarShell extends StatelessWidget {
       ),
       AppRoute_Order() || AppRoute_WaiterTickets() => MadarChrome(
         state: state,
-        child: OrderScreen(core: core, onStateChanged: onChanged),
+        child: Builder(
+          builder: (context) => OrderScreen(
+            core: core,
+            onStateChanged: onChanged,
+            ticketTick: state.ticketTick,
+            onOpenSync: () => unawaited(
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      SyncScreen(core: core, onStateChanged: onChanged),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
-      AppRoute_KitchenDisplay(:final stationId) => KitchenDisplayScreen(
-        core: core,
-        onStateChanged: onChanged,
-        stationId: stationId,
-        realtimeTick: state.kitchenTick,
+      // A Builder supplies the Navigator-scoped context the settings push
+      // needs — the KDS gear is a kitchen device's ONLY nav (the natives'
+      // KitchenDisplayScreen.kt settings overlay).
+      AppRoute_KitchenDisplay(:final stationId) => Builder(
+        builder: (context) => KitchenDisplayScreen(
+          core: core,
+          onStateChanged: onChanged,
+          stationId: stationId,
+          realtimeTick: state.kitchenTick,
+          realtimeConnected: state.realtimeConnected,
+          onOpenSettings: () => unawaited(
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SettingsScreen(
+                  core: core,
+                  onStateChanged: onChanged,
+                  onLocaleChanged: state.setLocale,
+                  onThemeChanged: (dark) => state.setThemeMode(
+                    dark ? ThemeMode.dark : ThemeMode.light,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     };
   }

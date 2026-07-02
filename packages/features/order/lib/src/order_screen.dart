@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:design_system/design_system.dart';
+import 'package:feature_auth/feature_auth.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_order/src/bundle_detail_sheet.dart';
 import 'package:feature_order/src/cart_panel.dart';
@@ -24,6 +25,8 @@ class OrderScreen extends StatefulWidget {
   const OrderScreen({
     required this.core,
     required this.onStateChanged,
+    this.ticketTick,
+    this.onOpenSync,
     super.key,
   });
 
@@ -31,6 +34,15 @@ class OrderScreen extends StatefulWidget {
 
   /// Fired after any bridge call that can move `app_route()` / the session.
   final void Function() onStateChanged;
+
+  /// Shell-owned realtime tick — bumps on every `ticket.*` SSE event so a
+  /// waiter board reloads its open tickets instantly (the 15s heartbeat
+  /// poll stays as a safety net). Null = poll only.
+  final Listenable? ticketTick;
+
+  /// Opens the sync center (outbox) — makes the top-bar sync status chip
+  /// tappable like the natives' SyncChip. Null leaves the chip inert.
+  final VoidCallback? onOpenSync;
 
   @override
   State<OrderScreen> createState() => _OrderScreenState();
@@ -40,9 +52,9 @@ class _OrderScreenState extends State<OrderScreen> {
   late final OrderController _model;
   Timer? _heartbeat;
 
-  final _searchField = TextEditingController();
-  String _search = '';
-  String? _selectedCategory;
+  /// Keeps the catalog's search/category state alive when the responsive
+  /// layout flips the column between the wide Row and the narrow Column.
+  final GlobalKey _catalogKey = GlobalKey();
 
   @override
   void initState() {
@@ -52,6 +64,7 @@ class _OrderScreenState extends State<OrderScreen> {
       onStateChanged: widget.onStateChanged,
     );
     unawaited(_model.init());
+    widget.ticketTick?.addListener(_onTicketTick);
     // Connectivity heartbeat — refresh online + sync chrome every 15s; a
     // waiter board also re-polls its open tickets (safety net under the
     // shell-owned realtime session).
@@ -62,11 +75,27 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   @override
+  void didUpdateWidget(OrderScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.ticketTick, widget.ticketTick)) {
+      oldWidget.ticketTick?.removeListener(_onTicketTick);
+      widget.ticketTick?.addListener(_onTicketTick);
+    }
+  }
+
+  @override
   void dispose() {
+    widget.ticketTick?.removeListener(_onTicketTick);
     _heartbeat?.cancel();
-    _searchField.dispose();
     _model.dispose();
     super.dispose();
+  }
+
+  /// A ticket moved somewhere (fired / settled / voided on another device)
+  /// — refresh the waiter's held-ticket strip immediately (the natives'
+  /// `LaunchedEffect(model.ticketTick) { loadOpenTickets() }`).
+  void _onTicketTick() {
+    if (_model.isWaiter) unawaited(_model.loadOpenTickets());
   }
 
   // ── sheet launchers ────────────────────────────────────────────────────────
@@ -120,6 +149,8 @@ class _OrderScreenState extends State<OrderScreen> {
         ),
       );
       await _model.loadCart();
+      // A placed order moves the shift totals — refresh the top-bar pill.
+      await _model.loadShiftStats();
       return;
     }
     if (_model.activeTicketId == null) {
@@ -145,6 +176,30 @@ class _OrderScreenState extends State<OrderScreen> {
         ),
       ),
     );
+  }
+
+  /// Sync parked on a 401 → the auth-paused banner opens the re-auth sheet:
+  /// the SAME teller re-enters their PIN to un-park the outbox (natives:
+  /// AuthPausedBanner → ReauthScreen). Resumed → refresh the sync chrome +
+  /// success toast; the switch-teller escape routes into close-shift.
+  Future<void> _handleAuthPaused() async {
+    final outcome = await showReauthSheet(
+      context,
+      core: widget.core,
+      onStateChanged: widget.onStateChanged,
+    );
+    if (!mounted || outcome == null) return;
+    switch (outcome) {
+      case ReauthOutcome.resumed:
+        await _model.refreshConnectivity();
+        _model.showToast(
+          _model.tr('chrome.sync_resumed'),
+          tone: ChipTone.success,
+          icon: 'checkmark.circle',
+        );
+      case ReauthOutcome.switchTeller:
+        await _closeShift();
+    }
   }
 
   /// Narrow layout: the cart lives in a bottom drawer.
@@ -192,95 +247,114 @@ class _OrderScreenState extends State<OrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _model,
-      builder: (context, _) {
-        final colors = context.madarColors;
-        return CallbackShortcuts(
-          bindings: {
-            const SingleActivator(LogicalKeyboardKey.enter, control: true):
-                _shortcutCheckout,
-            const SingleActivator(LogicalKeyboardKey.enter, meta: true):
-                _shortcutCheckout,
-          },
-          child: Focus(
-            autofocus: true,
-            // Scaffold: text fields, ink, and text styling need a Material
-            // ancestor — every screen owns its own Scaffold in this app.
-            child: Scaffold(
-              backgroundColor: colors.bg,
-              body: SafeArea(
-                child: Stack(
-                  children: [
-                    ResponsiveBuilder(
-                      builder: (context, info) => Column(
-                        children: [
-                          _OrderTopBar(
-                            model: _model,
-                            wide: info.isWide,
-                            onCloseShift: _model.isWaiter
-                                ? null
-                                : () => unawaited(_closeShift()),
-                          ),
-                          _ChromeBanners(
-                            model: _model,
-                            onAuthPausedTap: widget.onStateChanged,
-                          ),
-                          Expanded(
-                            child: info.isWide
-                                ? Row(
-                                    children: [
-                                      Expanded(child: _buildCatalog()),
-                                      Container(
-                                        width: 1,
-                                        color: colors.border,
-                                      ),
-                                      SizedBox(
-                                        width: kCartPanelWidth,
-                                        child: _buildCartPanel(context),
-                                      ),
-                                    ],
-                                  )
-                                : Column(
-                                    children: [
-                                      Expanded(child: _buildCatalog()),
-                                      CartBar(
-                                        model: _model,
-                                        onOpen: () =>
-                                            unawaited(_openCartSheet()),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        ],
+    final colors = context.madarColors;
+    // No screen-wide ListenableBuilder: each region (top bar + banners,
+    // catalog, cart, toast host) listens on its own, so a controller notify
+    // (heartbeat, cart mutation, toast) rebuilds only what reads it — and
+    // search keystrokes stay inside CatalogColumn entirely.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter, control: true):
+            _shortcutCheckout,
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+            _shortcutCheckout,
+      },
+      child: Focus(
+        autofocus: true,
+        // Scaffold: text fields, ink, and text styling need a Material
+        // ancestor — every screen owns its own Scaffold in this app.
+        child: Scaffold(
+          backgroundColor: colors.bg,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                ResponsiveBuilder(
+                  builder: (context, info) => Column(
+                    children: [
+                      ListenableBuilder(
+                        listenable: _model,
+                        builder: (context, _) => Column(
+                          children: [
+                            _OrderTopBar(
+                              model: _model,
+                              wide: info.isWide,
+                              onOpenSync: widget.onOpenSync,
+                              onCloseShift: _model.isWaiter
+                                  ? null
+                                  : () => unawaited(_closeShift()),
+                            ),
+                            _ChromeBanners(
+                              model: _model,
+                              onAuthPausedTap: () =>
+                                  unawaited(_handleAuthPaused()),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    // Toasts float above everything on this screen.
-                    ToastHost(
-                      _model.toast,
-                      onAction: _model.runToastAction,
-                      onDismiss: _model.dismissToast,
-                    ),
-                  ],
+                      Expanded(
+                        child: info.isWide
+                            ? Row(
+                                children: [
+                                  Expanded(child: _buildCatalog()),
+                                  Container(
+                                    width: 1,
+                                    color: colors.border,
+                                  ),
+                                  SizedBox(
+                                    width: kCartPanelWidth,
+                                    child: ListenableBuilder(
+                                      listenable: _model,
+                                      builder: (context, _) =>
+                                          _buildCartPanel(context),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                children: [
+                                  Expanded(child: _buildCatalog()),
+                                  ListenableBuilder(
+                                    listenable: _model,
+                                    builder: (context, _) => CartBar(
+                                      model: _model,
+                                      onOpen: () => unawaited(_openCartSheet()),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                // Toasts float above everything on this screen.
+                ListenableBuilder(
+                  listenable: _model,
+                  builder: (context, _) => ToastHost(
+                    _model.toast,
+                    onAction: _model.runToastAction,
+                    onDismiss: _model.dismissToast,
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
   Widget _buildCatalog() {
-    return CatalogColumn(
-      model: _model,
-      selectedCategory: _selectedCategory,
-      onSelectCategory: (id) => setState(() => _selectedCategory = id),
-      searchController: _searchField,
-      search: _search,
-      onSearch: (value) => setState(() => _search = value),
-      onItemTap: (item) => unawaited(_openItemDetail(item)),
-      onBundleTap: (bundle) => unawaited(_openBundleDetail(bundle)),
+    // The catalog listens on the model here (menu, badges, styles); its
+    // search text + selected category live INSIDE CatalogColumn so a
+    // keystroke never reaches the cart panel or top bar.
+    return ListenableBuilder(
+      listenable: _model,
+      builder: (context, _) => CatalogColumn(
+        key: _catalogKey,
+        model: _model,
+        onItemTap: (item) => unawaited(_openItemDetail(item)),
+        onBundleTap: (bundle) => unawaited(_openBundleDetail(bundle)),
+      ),
     );
   }
 }
@@ -292,6 +366,7 @@ class _OrderTopBar extends StatelessWidget {
     required this.model,
     required this.wide,
     this.onCloseShift,
+    this.onOpenSync,
   });
 
   final OrderController model;
@@ -300,6 +375,9 @@ class _OrderTopBar extends StatelessWidget {
   /// Cashier-only: opens the close-shift overlay (null hides the action —
   /// waiters don't own the drawer). The full nav chrome lands in M6.
   final VoidCallback? onCloseShift;
+
+  /// Opens the sync center from the status chip (null = chip is inert).
+  final VoidCallback? onOpenSync;
 
   @override
   Widget build(BuildContext context) {
@@ -316,16 +394,21 @@ class _OrderTopBar extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // Status — teller (wide) + sync state; the shell owns the
-                // rest of the nav chrome.
-                if (!model.isWaiter && wide && shift != null)
+                // Status — teller + live shift totals (wide) + sync state;
+                // the shell owns the rest of the nav chrome.
+                if (!model.isWaiter && wide && shift != null) ...[
                   StatusChip(
                     label: shift.tellerName,
                     tone: ChipTone.info,
                     icon: 'person.fill',
                   ),
+                  if (shift.isOpen) ...[
+                    const SizedBox(width: Space.sm),
+                    _ShiftStatsPill(model: model),
+                  ],
+                ],
                 const Spacer(),
-                _SyncChip(model: model),
+                _SyncChip(model: model, onTap: onOpenSync),
                 const SizedBox(width: Space.sm),
                 _SyncDataButton(model: model),
                 if (onCloseShift != null) ...[
@@ -355,12 +438,65 @@ class _OrderTopBar extends StatelessWidget {
   }
 }
 
-/// Sync status chip — offline / stuck / syncing; hidden when idle + fully
-/// synced.
-class _SyncChip extends StatelessWidget {
-  const _SyncChip({required this.model});
+/// Live shift totals — "EGP X · N orders" (voided excluded, summed in the
+/// core). Mirror of the natives' ShiftStatsPill.
+class _ShiftStatsPill extends StatelessWidget {
+  const _ShiftStatsPill({required this.model});
 
   final OrderController model;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Container(
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: 10,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(Radii.pill),
+        border: Border.all(color: colors.borderLight),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            Money.format(model.shiftSalesMinor, currency: model.currency),
+            textDirection: TextDirection.ltr,
+            style: MadarType.labelSm.copyWith(
+              fontWeight: FontWeight.w700,
+              color: colors.textPrimary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(width: Space.xs),
+          Text(
+            '·',
+            style: MadarType.labelSm.copyWith(color: colors.textMuted),
+          ),
+          const SizedBox(width: Space.xs),
+          Text(
+            '${model.shiftOrderCount} ${model.tr('chrome.orders')}',
+            style: MadarType.labelSm.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sync status chip — offline / stuck / syncing; hidden when idle + fully
+/// synced. Tappable into the sync center when [onTap] is wired (natives'
+/// SyncChip jumps straight to the outbox).
+class _SyncChip extends StatelessWidget {
+  const _SyncChip({required this.model, this.onTap});
+
+  final OrderController model;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -390,7 +526,16 @@ class _SyncChip extends StatelessWidget {
     };
     if (state == null) return const SizedBox.shrink();
     final (label, tone, icon) = state;
-    return StatusChip(label: label, tone: tone, icon: icon);
+    final chip = StatusChip(label: label, tone: tone, icon: icon);
+    final onTap = this.onTap;
+    if (onTap == null) return chip;
+    return TactileScale(
+      onTap: () {
+        MadarHaptics.impact();
+        onTap();
+      },
+      child: chip,
+    );
   }
 }
 
@@ -445,7 +590,8 @@ class _ChromeBanners extends StatelessWidget {
 
   final OrderController model;
 
-  /// Sync parked on a 401 → nudge the shell (it owns the re-auth surface).
+  /// Sync parked on a 401 → open the re-auth sheet (the same teller
+  /// re-enters their PIN to un-park the outbox).
   final VoidCallback onAuthPausedTap;
 
   @override

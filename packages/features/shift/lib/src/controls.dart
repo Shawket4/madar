@@ -29,7 +29,6 @@ const double _fieldGap = 10;
 
 /// Focus glow blur on text fields (natives: shadow(8.dp, accent)).
 const double _fieldGlowBlur = 8;
-const double _fieldGlowAlpha = 0.35;
 
 /// Section-header accent capsule (natives: 3×12dp).
 const Size _sectionTick = Size(3, 12);
@@ -279,7 +278,7 @@ class _ShiftTextFieldState extends State<ShiftTextField> {
         boxShadow: _focused
             ? [
                 BoxShadow(
-                  color: colors.accent.withValues(alpha: _fieldGlowAlpha),
+                  color: colors.accent.withValues(alpha: Opacities.focusGlow),
                   blurRadius: _fieldGlowBlur,
                 ),
               ]

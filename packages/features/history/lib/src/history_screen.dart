@@ -179,6 +179,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       _report = report;
       _hasShift = hasShift;
       _loading = false;
+      _recomputeDerived();
     });
   }
 
@@ -212,14 +213,41 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
     return _sortAscending ? c : -c;
   }
 
-  /// All rows passing search + both axes (AND), then sorted.
-  List<OrderSummaryView> get _filtered =>
-      _history
-          .where(
-            (o) => _matchesSearch(o) && _sync.matches(o) && _type.matches(o),
-          )
-          .toList()
-        ..sort(_compare);
+  // ── Memoized derived state ─────────────────────────────────────────────────
+  // Filtering + sorting + the 7 chip counts are recomputed in ONE pass over
+  // `_history` — and only from the setState paths that change their inputs
+  // (_search, _sync, _type, _sortCol/_sortAscending, _history) — so toasts,
+  // detail toggles and 'show more' rebuilds read cached fields for free.
+
+  /// All rows passing search + both axes (AND), then sorted (memoized).
+  List<OrderSummaryView> _filtered = const [];
+
+  /// Chip counts: type axis = search ∩ THIS chip's type rule; sync axis =
+  /// search ∩ current type ∩ THIS chip's sync rule (the natives').
+  Map<_TypeFilter, int> _typeCounts = const {};
+  Map<_SyncFilter, int> _syncCounts = const {};
+
+  /// One pass over `_history` producing the filtered list and all 7 counts.
+  void _recomputeDerived() {
+    final filtered = <OrderSummaryView>[];
+    final typeCounts = {for (final f in _TypeFilter.values) f: 0};
+    final syncCounts = {for (final f in _SyncFilter.values) f: 0};
+    for (final o in _history) {
+      if (!_matchesSearch(o)) continue;
+      for (final f in _TypeFilter.values) {
+        if (f.matches(o)) typeCounts[f] = typeCounts[f]! + 1;
+      }
+      if (!_type.matches(o)) continue;
+      for (final f in _SyncFilter.values) {
+        if (f.matches(o)) syncCounts[f] = syncCounts[f]! + 1;
+      }
+      if (_sync.matches(o)) filtered.add(o);
+    }
+    filtered.sort(_compare);
+    _filtered = filtered;
+    _typeCounts = typeCounts;
+    _syncCounts = syncCounts;
+  }
 
   void _setSort(_SortCol col) {
     setState(() {
@@ -230,6 +258,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
         _sortAscending = col.defaultAscending;
       }
       _resetPage();
+      _recomputeDerived();
     });
   }
 
@@ -341,22 +370,15 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
   // ── Filter bar (search + two filter-chip rows with counts) ────────────────
   Widget _buildFilterBar(MadarColors colors) {
-    // Type axis counts reflect search ∩ THIS chip's type rule; sync axis
-    // counts reflect search ∩ type ∩ THIS chip's sync rule (the natives').
-    int typeCount(_TypeFilter f) =>
-        _history.where((o) => _matchesSearch(o) && f.matches(o)).length;
-    int syncCount(_SyncFilter f) => _history
-        .where((o) => _matchesSearch(o) && _type.matches(o) && f.matches(o))
-        .length;
-
     Widget typeChip(_TypeFilter f, String glyph, String label) {
       return HistoryFilterChip(
         glyph: glyph,
-        label: '$label · ${typeCount(f)}',
+        label: '$label · ${_typeCounts[f] ?? 0}',
         active: _type == f,
         onTap: () => setState(() {
           _type = f;
           _resetPage();
+          _recomputeDerived();
         }),
       );
     }
@@ -364,12 +386,13 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
     Widget syncChip(_SyncFilter f, String glyph, String label, ChipTone tone) {
       return HistoryFilterChip(
         glyph: glyph,
-        label: '$label · ${syncCount(f)}',
+        label: '$label · ${_syncCounts[f] ?? 0}',
         active: _sync == f,
         tone: tone,
         onTap: () => setState(() {
           _sync = f;
           _resetPage();
+          _recomputeDerived();
         }),
       );
     }
@@ -395,6 +418,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                   onChanged: (v) => setState(() {
                     _search = v;
                     _resetPage();
+                    _recomputeDerived();
                   }),
                 ),
                 SingleChildScrollView(
@@ -483,48 +507,75 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
-            child: ListView(
-              padding: const EdgeInsetsDirectional.all(Space.lg),
-              children: [
-                _StatsHeader(
-                  history: _history,
-                  report: _report,
-                  currency: _currency,
-                  tr: _t,
-                ),
-                const SizedBox(height: Space.lg),
-                if (wide)
-                  _OrderTable(
-                    visible: visible,
-                    currency: _currency,
-                    expandedId: _expandedId,
-                    detail: _detail,
-                    sortCol: _sortCol,
-                    sortAscending: _sortAscending,
-                    bridge: _bridge,
-                    onSort: _setSort,
-                    onToggle: _toggle,
-                    onPrint: (o) => unawaited(_openReceipt(o)),
-                    onVoid: (o) => unawaited(_openVoid(o)),
-                  )
-                else
-                  for (final o in visible) ...[
-                    _OrderCard(
-                      order: o,
-                      currency: _currency,
-                      expanded: _expandedId == o.id,
-                      detail: _detail,
-                      bridge: _bridge,
-                      onToggle: () => _toggle(o),
-                      onPrint: () => unawaited(_openReceipt(o)),
-                      onVoid: () => unawaited(_openVoid(o)),
-                    ),
-                    const SizedBox(height: Space.lg),
-                  ],
-                _ShowMoreFooter(
-                  remaining: filtered.length - visible.length,
-                  label: _t('history.show_more'),
-                  onShowMore: () => setState(() => _visibleLimit += _pageSize),
+            // Slivers so only on-screen rows are built — 'show more' grows
+            // `visible` without bound, so the card path must stay lazy.
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsetsDirectional.all(Space.lg),
+                  sliver: SliverMainAxisGroup(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            bottom: Space.lg,
+                          ),
+                          child: _StatsHeader(
+                            history: _history,
+                            report: _report,
+                            currency: _currency,
+                            tr: _t,
+                          ),
+                        ),
+                      ),
+                      if (wide)
+                        SliverToBoxAdapter(
+                          child: _OrderTable(
+                            visible: visible,
+                            currency: _currency,
+                            expandedId: _expandedId,
+                            detail: _detail,
+                            sortCol: _sortCol,
+                            sortAscending: _sortAscending,
+                            bridge: _bridge,
+                            onSort: _setSort,
+                            onToggle: _toggle,
+                            onPrint: (o) => unawaited(_openReceipt(o)),
+                            onVoid: (o) => unawaited(_openVoid(o)),
+                          ),
+                        )
+                      else
+                        SliverList.builder(
+                          itemCount: visible.length,
+                          itemBuilder: (context, index) {
+                            final o = visible[index];
+                            return Padding(
+                              padding: const EdgeInsetsDirectional.only(
+                                bottom: Space.lg,
+                              ),
+                              child: _OrderCard(
+                                order: o,
+                                currency: _currency,
+                                expanded: _expandedId == o.id,
+                                detail: _detail,
+                                bridge: _bridge,
+                                onToggle: () => _toggle(o),
+                                onPrint: () => unawaited(_openReceipt(o)),
+                                onVoid: () => unawaited(_openVoid(o)),
+                              ),
+                            );
+                          },
+                        ),
+                      SliverToBoxAdapter(
+                        child: _ShowMoreFooter(
+                          remaining: filtered.length - visible.length,
+                          label: _t('history.show_more'),
+                          onShowMore: () =>
+                              setState(() => _visibleLimit += _pageSize),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -655,6 +706,7 @@ class _StatCell extends StatelessWidget {
         ),
         Text(
           value,
+          textDirection: TextDirection.ltr,
           style: MadarType.money.copyWith(fontSize: 16, color: color),
         ),
       ],

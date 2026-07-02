@@ -29,7 +29,6 @@ const double _fieldGap = 10;
 
 /// Focus glow blur on text fields (natives: shadow(8.dp, accent)).
 const double _fieldGlowBlur = 8;
-const double _fieldGlowAlpha = 0.35;
 
 /// History filter chip insets / gap (natives: 12/6/5.dp) and press scale.
 const double _chipHPad = 12;
@@ -266,7 +265,7 @@ class _HistoryTextFieldState extends State<HistoryTextField> {
         boxShadow: _focused
             ? [
                 BoxShadow(
-                  color: colors.accent.withValues(alpha: _fieldGlowAlpha),
+                  color: colors.accent.withValues(alpha: Opacities.focusGlow),
                   blurRadius: _fieldGlowBlur,
                 ),
               ]

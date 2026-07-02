@@ -7,6 +7,7 @@ import 'package:feature_incoming/feature_incoming.dart';
 import 'package:feature_order/feature_order.dart';
 import 'package:feature_settings/feature_settings.dart';
 import 'package:feature_shift/feature_shift.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:madar/app/app_state.dart';
 import 'package:madar/spike_screen.dart';
@@ -60,22 +61,13 @@ class _MadarChromeState extends State<MadarChrome> {
   /// a toast + chime for notify, chime-only for ping, haptic-only for
   /// haptic (the natives' RealtimePlayer contract).
   void _onAlert() {
-    final cmd = _state.alert.value;
+    // The notifier pairs each command with a sequence counter so identical
+    // consecutive commands still fire — only the command matters here.
+    final cmd = _state.alert.value?.$2;
     if (cmd == null || !mounted) return;
     switch (cmd) {
       case AlertCommand_Notify(:final title, :final body):
-        setState(() {
-          _toast = ToastData(
-            id: DateTime.now().millisecondsSinceEpoch,
-            text: body.isEmpty ? title : '$title — $body',
-            tone: ChipTone.accent,
-            icon: 'bell',
-          );
-        });
-        _toastTimer?.cancel();
-        _toastTimer = Timer(const Duration(milliseconds: 2600), () {
-          if (mounted) setState(() => _toast = null);
-        });
+        _showToast(body.isEmpty ? title : '$title — $body');
         _chime();
         MadarHaptics.impact();
       case AlertCommand_Ping():
@@ -83,6 +75,25 @@ class _MadarChromeState extends State<MadarChrome> {
       case AlertCommand_Haptic():
         MadarHaptics.success();
     }
+  }
+
+  void _showToast(
+    String text, {
+    ChipTone tone = ChipTone.accent,
+    String icon = 'bell',
+  }) {
+    setState(() {
+      _toast = ToastData(
+        id: DateTime.now().millisecondsSinceEpoch,
+        text: text,
+        tone: tone,
+        icon: icon,
+      );
+    });
+    _toastTimer?.cancel();
+    _toastTimer = Timer(const Duration(milliseconds: 2600), () {
+      if (mounted) setState(() => _toast = null);
+    });
   }
 
   void _chime() {
@@ -225,7 +236,10 @@ class _MadarChromeState extends State<MadarChrome> {
     ]);
   }
 
-  Future<void> _openMore() async {
+  /// The More sheet. On wide layouts it holds only the overflow rows; on
+  /// narrow ones it doubles as the natives' phone drawer, carrying every
+  /// rail section above them (the rail itself is hidden there).
+  Future<void> _openMore({bool includeSections = false}) async {
     final t = _state.tr;
     await showMadarSheet<void>(
       context,
@@ -269,51 +283,84 @@ class _MadarChromeState extends State<MadarChrome> {
           );
         }
 
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              row(
-                'fork.knife',
-                t('waiter.title'),
-                onTap: () => _push(
-                  () => OpenTicketsScreen(
-                    core: _state.core,
-                    onStateChanged: _state.refreshRoute,
+        final sectionRows = <Widget>[
+          if (includeSections)
+            for (final section in [
+              ..._sections(sheetContext),
+              _footer(sheetContext),
+            ]) ...[
+              Padding(
+                padding: const EdgeInsetsDirectional.only(
+                  start: Space.lg,
+                  top: Space.md,
+                  bottom: Space.xs,
+                ),
+                child: Text(
+                  section.title.toUpperCase(),
+                  style: MadarType.labelSm.copyWith(
+                    letterSpacing: MadarType.tracking,
+                    color: colors.textMuted,
                   ),
                 ),
               ),
-              row(
-                'biotech',
-                'Core spike (dev)',
-                onTap: () => _push(SpikeScreen.new),
-              ),
-              row(
-                'paintpalette',
-                'Design gallery (dev)',
-                onTap: () => _push(GalleryScreen.new),
-              ),
-              Divider(height: 1, color: colors.borderLight),
-              row(
-                'lock',
-                t('order.close_shift'),
-                tone: colors.danger,
-                onTap: () => _push(
-                  () => CloseShiftScreen(
-                    core: _state.core,
-                    onStateChanged: _state.refreshRoute,
-                  ),
-                ),
-              ),
-              row(
-                'rectangle.portrait.and.arrow.right',
-                t('home.sign_out'),
-                tone: colors.danger,
-                onTap: () => unawaited(_signOut()),
-              ),
-              const SizedBox(height: Space.sm),
+              for (final d in section.items)
+                if (d.label != t('chrome.more'))
+                  row(d.glyph, d.label, onTap: d.onTap),
             ],
+          if (includeSections) Divider(height: 1, color: colors.borderLight),
+        ];
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ...sectionRows,
+                row(
+                  'fork.knife',
+                  t('waiter.title'),
+                  onTap: () => _push(
+                    () => OpenTicketsScreen(
+                      core: _state.core,
+                      onStateChanged: _state.refreshRoute,
+                    ),
+                  ),
+                ),
+                // Dev harnesses — debug builds only, so the hardcoded
+                // labels never reach a teller.
+                if (kDebugMode) ...[
+                  row(
+                    'biotech',
+                    'Core spike (dev)',
+                    onTap: () => _push(SpikeScreen.new),
+                  ),
+                  row(
+                    'paintpalette',
+                    'Design gallery (dev)',
+                    onTap: () => _push(GalleryScreen.new),
+                  ),
+                ],
+                Divider(height: 1, color: colors.borderLight),
+                row(
+                  'lock',
+                  t('order.close_shift'),
+                  tone: colors.danger,
+                  onTap: () => _push(
+                    () => CloseShiftScreen(
+                      core: _state.core,
+                      onStateChanged: _state.refreshRoute,
+                    ),
+                  ),
+                ),
+                row(
+                  'rectangle.portrait.and.arrow.right',
+                  t('home.sign_out'),
+                  tone: colors.danger,
+                  onTap: () => unawaited(_signOut()),
+                ),
+                const SizedBox(height: Space.sm),
+              ],
+            ),
           ),
         );
       },
@@ -321,6 +368,22 @@ class _MadarChromeState extends State<MadarChrome> {
   }
 
   Future<void> _signOut() async {
+    // You can't sign out mid-shift — the natives guard BOTH exits
+    // (OrderScreen.kt's More drawer and SettingsScreen), mirroring the
+    // Flutter settings screen's own guard.
+    ShiftView? shift;
+    try {
+      shift = await _bridge.currentShift();
+    } on Exception catch (_) {}
+    if (!mounted) return;
+    if (shift?.isOpen ?? false) {
+      _showToast(
+        _state.tr('settings.sign_out_shift_open'),
+        tone: ChipTone.danger,
+        icon: 'lock',
+      );
+      return;
+    }
     _bridge.unsubscribeRealtime();
     try {
       await _bridge.lanStop();
@@ -359,6 +422,31 @@ class _MadarChromeState extends State<MadarChrome> {
                 Expanded(child: widget.child),
               ],
             ),
+            // Narrow layouts have no rail — the natives' phone drawer:
+            // a floating nav button opening the full grouped More sheet.
+            if (rail == null)
+              PositionedDirectional(
+                bottom: Space.lg,
+                start: Space.lg,
+                child: TactileScale(
+                  onTap: () => unawaited(_openMore(includeSections: true)),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceRaised,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: MadarIcon(
+                      'ellipsis',
+                      tint: colors.textSecondary,
+                      size: IconSize.xl,
+                    ),
+                  ),
+                ),
+              ),
             if (_toast != null)
               Align(
                 alignment: Alignment.bottomCenter,

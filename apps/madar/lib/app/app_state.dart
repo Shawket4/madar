@@ -42,9 +42,22 @@ class MadarAppState extends ChangeNotifier {
   final ticketTick = ValueNotifier<int>(0);
   final deliveryTick = ValueNotifier<int>(0);
 
+  /// The SSE connection state — drives the KDS header dot and the
+  /// 'kds.reconnecting' banner (the natives' `realtimeConnected`).
+  final realtimeConnected = ValueNotifier<bool>(true);
+
   /// The latest core-raised alert (localized text decided in Rust);
   /// the shell chrome shows it as a toast + plays the order chime.
-  final alert = ValueNotifier<AlertCommand?>(null);
+  /// Paired with a monotonically increasing sequence so two identical
+  /// consecutive commands (AlertCommand is a freezed value type — they
+  /// compare equal) still notify listeners.
+  final alert = ValueNotifier<(int, AlertCommand)?>(null);
+  int _alertSeq = 0;
+
+  /// Serializes secure-storage writes so Save/Clear land in emission
+  /// order — concurrent platform-channel applies could otherwise persist
+  /// a stale session blob after a sign-out.
+  Future<void> _vaultQueue = Future<void>.value();
 
   AppPhase phase = AppPhase.booting;
   String? bootError;
@@ -72,8 +85,14 @@ class MadarAppState extends ChangeNotifier {
         ),
       );
 
-      // Persist token custody changes the moment the core emits them.
-      _vaultSub = core.attachVault((cmd) => unawaited(vault.apply(cmd)));
+      // Persist token custody changes the moment the core emits them —
+      // chained so each write completes before the next begins.
+      _vaultSub = core.attachVault((cmd) {
+        // A failed write must not wedge the queue for later commands.
+        _vaultQueue = _vaultQueue
+            .then((_) => vault.apply(cmd))
+            .catchError((Object _) {});
+      });
 
       final blob = await vault.readBlob();
       if (blob != null) {
@@ -124,7 +143,7 @@ class MadarAppState extends ChangeNotifier {
     try {
       final rt = _realtime = await core.startRealtime();
       _eventsSub = rt.events.listen(_onRealtimeEvent);
-      _alertsSub = rt.alerts.listen((cmd) => alert.value = cmd);
+      _alertsSub = rt.alerts.listen((cmd) => alert.value = (++_alertSeq, cmd));
     } on Object {
       // Offline or already-subscribed — the connectivity heartbeat and the
       // next refreshRoute retry naturally.
@@ -141,8 +160,8 @@ class MadarAppState extends ChangeNotifier {
             eventType.startsWith('order.')) {
           deliveryTick.value++;
         }
-      case RealtimeMessage_ConnectionChanged():
-        break; // Screens read connectivity from syncStatus.
+      case RealtimeMessage_ConnectionChanged(:final connected):
+        realtimeConnected.value = connected;
     }
   }
 
@@ -172,6 +191,7 @@ class MadarAppState extends ChangeNotifier {
     kitchenTick.dispose();
     ticketTick.dispose();
     deliveryTick.dispose();
+    realtimeConnected.dispose();
     alert.dispose();
     super.dispose();
   }

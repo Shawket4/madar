@@ -157,6 +157,12 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
       oldWidget.realtimeConnected?.removeListener(_onConnection);
       widget.realtimeConnected?.addListener(_onConnection);
     }
+    // A station rebind updates this widget in place (the shell keys the
+    // subtree by route TYPE only) — refetch instead of showing the old
+    // station's tickets until the next tick/poll.
+    if (oldWidget.stationId != widget.stationId) {
+      unawaited(_load());
+    }
   }
 
   @override

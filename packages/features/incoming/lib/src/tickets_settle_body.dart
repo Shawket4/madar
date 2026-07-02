@@ -363,6 +363,7 @@ class _TicketSettleSheetState extends State<_TicketSettleSheet> {
   /// The natives' settle mapping: tendered only for a cash primary, tip
   /// only when positive (its method falling back to the primary).
   Future<void> _settle(CheckoutResult r) async {
+    _checkout.error = null;
     final ok = await widget.model.settleTicket(
       ticketId: widget.ticket.id,
       paymentMethodId: r.primaryMethodId,
@@ -374,8 +375,15 @@ class _TicketSettleSheetState extends State<_TicketSettleSheet> {
           ? (r.tipPaymentMethodId ?? r.primaryMethodId)
           : null,
     );
-    if (!mounted || !ok) return;
-    await Navigator.of(context).maybePop();
+    if (!mounted) return;
+    if (ok) {
+      await Navigator.of(context).maybePop();
+    } else {
+      // Surface the failure INSIDE the drawer (the natives' model.error) —
+      // the board's own banner sits behind the modal scrim. The model's
+      // pending notify rebuilds the ListenableBuilder above.
+      _checkout.error = widget.model.error;
+    }
   }
 
   @override

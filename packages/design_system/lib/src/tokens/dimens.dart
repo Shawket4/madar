@@ -44,6 +44,10 @@ abstract final class Opacities {
   /// Disabled controls.
   static const double disabled = 0.45;
 
+  /// Focused text-field accent glow (approximates the natives'
+  /// accent-tinted ambient+spot shadow at 8dp).
+  static const double focusGlow = 0.35;
+
   /// Sheet/modal scrim overlay.
   static const double scrim = 0.45;
 

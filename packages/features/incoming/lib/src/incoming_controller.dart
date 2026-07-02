@@ -232,7 +232,10 @@ class IncomingController extends ChangeNotifier {
     int? tipMinor,
     String? tipPaymentMethodId,
   }) async {
-    final shift = await bridge.currentShift();
+    // Quiet lookup (FloorController's pattern) — a thrown MadarError here
+    // would otherwise escape into the sheet's unawaited caller with no
+    // error set and no notify.
+    final shift = await _quiet(bridge.currentShift);
     if (shift == null) {
       error = tr('waiter.need_shift');
       _notify();
@@ -281,5 +284,16 @@ class IncomingController extends ChangeNotifier {
     if (toast?.id != id) return;
     toast = null;
     _notify();
+  }
+
+  /// Best-effort bridge read — returns null instead of throwing, so lookups
+  /// inside unawaited flows can't escape as unhandled async errors (the same
+  /// helper as FloorController._quiet).
+  Future<T?> _quiet<T>(Future<T> Function() op) async {
+    try {
+      return await op();
+    } on MadarError {
+      return null;
+    }
   }
 }

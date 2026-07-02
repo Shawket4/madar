@@ -97,13 +97,12 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
   bool _showRecipe = false;
   List<ComputedRecipeLineView> _recipeLines = const [];
 
-  /// Per-group search (only when a group has many addons) + the optional
-  /// fields' own search.
-  final Map<String, String> _addonSearch = {};
-  final _optionalSearchField = TextEditingController();
-  String _optionalSearch = '';
-
   final _notes = TextEditingController();
+
+  /// Latches the footer while the add/update commit is in flight so a
+  /// double-tap can't record the configured line twice (in edit mode the
+  /// second pass would remove-then-re-add, duplicating the line).
+  bool _committing = false;
 
   static const _baseTypes = ['milk_type', 'coffee_type', 'extra'];
 
@@ -117,7 +116,6 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
 
   @override
   void dispose() {
-    _optionalSearchField.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -373,6 +371,7 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
 
   // ── commit ───────────────────────────────────────────────────────────────
   Future<void> _commit(int extrasMinor) async {
+    if (_committing) return;
     if (widget.isConfiguring) {
       await Navigator.of(context).maybePop(
         BundleComponentDraft(
@@ -384,6 +383,7 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
       );
       return;
     }
+    setState(() => _committing = true);
     final notes = _notes.text.trim();
     await widget.model.addConfigured(
       itemId: _item.id,
@@ -531,9 +531,6 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
                       charged: _charged,
                       selectedSingle: _single[g.id],
                       selectedMulti: _multi[g.id] ?? const {},
-                      query: _addonSearch[g.id] ?? '',
-                      onQueryChange: (q) =>
-                          setState(() => _addonSearch[g.id] = q),
                       onToggleSingle: (id) => _toggleSingle(g, id),
                       onToggleMulti: (id) => _toggleMulti(g, id),
                       onInc: (id) => _incMulti(g, id),
@@ -551,7 +548,15 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
                       ),
                       onToggle: () => setState(() => _showAll = !_showAll),
                     ),
-                  ..._optionalsSection(model, currency),
+                  _OptionalsSection(
+                    model: model,
+                    currency: currency,
+                    fields: _item.optionalFields
+                        .where((f) => f.isActive)
+                        .toList(growable: false),
+                    selected: _optionals,
+                    onToggle: _toggleOptional,
+                  ),
                   if (!widget.isConfiguring) ...[
                     SectionTitle(model.tr('order.notes')),
                     const SizedBox(height: Space.sm),
@@ -572,6 +577,7 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
           totalMinor: footerPrice,
           label: footerLabel,
           canAdd: canAdd,
+          loading: _committing,
           showQty: !widget.isConfiguring,
           qty: _qty,
           onDec: () => setState(() => _qty = _qty > 1 ? _qty - 1 : 1),
@@ -581,51 +587,93 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
       ],
     );
   }
+}
 
-  List<Widget> _optionalsSection(OrderController model, String currency) {
-    final fields = _item.optionalFields
-        .where((f) => f.isActive)
-        .toList(growable: false);
-    if (fields.isEmpty) return const [];
-    final q = _optionalSearch.trim().toLowerCase();
+// ── Optional fields section ────────────────────────────────────────────────────
+
+/// The optional-fields block — owns its search field + query so a keystroke
+/// refilters only this section instead of setState-ing the whole sheet.
+class _OptionalsSection extends StatefulWidget {
+  const _OptionalsSection({
+    required this.model,
+    required this.currency,
+    required this.fields,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  final OrderController model;
+  final String currency;
+
+  /// The item's ACTIVE optional fields (pre-filtered by the sheet).
+  final List<OptionalFieldView> fields;
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+
+  @override
+  State<_OptionalsSection> createState() => _OptionalsSectionState();
+}
+
+class _OptionalsSectionState extends State<_OptionalsSection> {
+  final _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fields = widget.fields;
+    if (fields.isEmpty) return const SizedBox.shrink();
+    final model = widget.model;
+    final q = _query.trim().toLowerCase();
+    // Selected chips always stay visible so a filter never hides an active
+    // selection.
     final shown = q.isEmpty
         ? fields
         : fields
               .where(
                 (f) =>
                     f.name.toLowerCase().contains(q) ||
-                    _optionals.contains(f.id),
+                    widget.selected.contains(f.id),
               )
               .toList(growable: false);
-    return [
-      const SizedBox(height: Space.md),
-      SectionTitle(model.tr('order.optionals')),
-      const SizedBox(height: Space.sm),
-      if (fields.length > 4) ...[
-        OrderTextField(
-          controller: _optionalSearchField,
-          placeholder: model.tr('order.search_addons'),
-          icon: 'magnifyingglass',
-          onChanged: (v) => setState(() => _optionalSearch = v),
-        ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: Space.md),
+        SectionTitle(model.tr('order.optionals')),
         const SizedBox(height: Space.sm),
-      ],
-      Wrap(
-        spacing: Space.sm,
-        runSpacing: Space.sm,
-        children: [
-          for (final field in shown)
-            _OptionalChip(
-              name: field.name,
-              priceMinor: field.priceMinor,
-              on: _optionals.contains(field.id),
-              currency: currency,
-              onTap: () => _toggleOptional(field.id),
-            ),
+        if (fields.length > 4) ...[
+          OrderTextField(
+            controller: _search,
+            placeholder: model.tr('order.search_addons'),
+            icon: 'magnifyingglass',
+            onChanged: (v) => setState(() => _query = v),
+          ),
+          const SizedBox(height: Space.sm),
         ],
-      ),
-      const SizedBox(height: Space.md),
-    ];
+        Wrap(
+          spacing: Space.sm,
+          runSpacing: Space.sm,
+          children: [
+            for (final field in shown)
+              _OptionalChip(
+                name: field.name,
+                priceMinor: field.priceMinor,
+                on: widget.selected.contains(field.id),
+                currency: widget.currency,
+                onTap: () => widget.onToggle(field.id),
+              ),
+          ],
+        ),
+        const SizedBox(height: Space.md),
+      ],
+    );
   }
 }
 
@@ -770,6 +818,7 @@ class _SheetFooter extends StatelessWidget {
     required this.totalMinor,
     required this.label,
     required this.canAdd,
+    required this.loading,
     required this.showQty,
     required this.qty,
     required this.onDec,
@@ -782,6 +831,9 @@ class _SheetFooter extends StatelessWidget {
   final int totalMinor;
   final String label;
   final bool canAdd;
+
+  /// The commit is in flight — spinner on, taps blocked (double-tap guard).
+  final bool loading;
   final bool showQty;
   final int qty;
   final VoidCallback onDec;
@@ -833,6 +885,7 @@ class _SheetFooter extends StatelessWidget {
                   child: ActionButton(
                     label: label,
                     enabled: canAdd,
+                    loading: loading,
                     onTap: onCommit,
                   ),
                 ),
@@ -929,7 +982,9 @@ class _RecipeRow extends StatelessWidget {
 
 /// A bordered surface card per group: a dotted uppercase header with
 /// required / max / count chips, an optional search field (>5 options),
-/// then the option chips.
+/// then the option chips. The card owns its search query — a keystroke
+/// refilters only THIS card's chip Wrap, never the whole sheet (the sheet's
+/// ValueKey(g.id) keeps the state stable across "show all" toggles).
 class _AddonGroupCard extends StatefulWidget {
   const _AddonGroupCard({
     required this.group,
@@ -938,8 +993,6 @@ class _AddonGroupCard extends StatefulWidget {
     required this.charged,
     required this.selectedSingle,
     required this.selectedMulti,
-    required this.query,
-    required this.onQueryChange,
     required this.onToggleSingle,
     required this.onToggleMulti,
     required this.onInc,
@@ -953,8 +1006,6 @@ class _AddonGroupCard extends StatefulWidget {
   final int Function(String addonItemId) charged;
   final String? selectedSingle;
   final Map<String, int> selectedMulti;
-  final String query;
-  final ValueChanged<String> onQueryChange;
   final ValueChanged<String> onToggleSingle;
   final ValueChanged<String> onToggleMulti;
   final ValueChanged<String> onInc;
@@ -965,7 +1016,8 @@ class _AddonGroupCard extends StatefulWidget {
 }
 
 class _AddonGroupCardState extends State<_AddonGroupCard> {
-  late final _search = TextEditingController(text: widget.query);
+  final _search = TextEditingController();
+  String _query = '';
 
   @override
   void dispose() {
@@ -982,7 +1034,7 @@ class _AddonGroupCardState extends State<_AddonGroupCard> {
         : (widget.selectedSingle != null ? 1 : 0);
     // Filter by the live query; selected chips always stay visible so a
     // filter never hides an active selection.
-    final q = widget.query.trim().toLowerCase();
+    final q = _query.trim().toLowerCase();
     final shown = q.isEmpty
         ? g.addons
         : g.addons
@@ -1052,7 +1104,7 @@ class _AddonGroupCardState extends State<_AddonGroupCard> {
               controller: _search,
               placeholder: widget.model.tr('order.search_addons'),
               icon: 'magnifyingglass',
-              onChanged: widget.onQueryChange,
+              onChanged: (v) => setState(() => _query = v),
             ),
             const SizedBox(height: Space.md),
           ],

@@ -23,10 +23,6 @@ const double _fieldVPad = 16;
 /// Focus-ring glow blur (natives: 8.dp shadow elevation).
 const double _fieldGlowBlur = 8;
 
-/// Focus-ring glow strength (approximates the natives' accent-tinted
-/// ambient+spot shadow at 8dp).
-const double _fieldGlowAlpha = 0.35;
-
 /// Focused border width (natives: 2.dp; resting 1.dp).
 const double _fieldFocusBorder = 2;
 
@@ -283,7 +279,7 @@ class _MadarTextFieldState extends State<MadarTextField> {
         boxShadow: focused
             ? [
                 BoxShadow(
-                  color: colors.accent.withValues(alpha: _fieldGlowAlpha),
+                  color: colors.accent.withValues(alpha: Opacities.focusGlow),
                   blurRadius: _fieldGlowBlur,
                 ),
               ]

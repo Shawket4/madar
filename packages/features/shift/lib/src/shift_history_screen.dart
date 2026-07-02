@@ -158,7 +158,8 @@ class _ShiftHistoryScreenState extends State<ShiftHistoryScreen> {
       await showMadarSheet<void>(
         context,
         size: SheetSize.large,
-        builder: (_) => ShiftReportSheet(core: widget.core, report: report),
+        builder: (_) =>
+            ShiftReportSheet(core: widget.core, report: report, shiftId: s.id),
       );
     } on Exception catch (_) {
       if (!mounted) return;

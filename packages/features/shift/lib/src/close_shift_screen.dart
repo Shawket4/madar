@@ -685,7 +685,11 @@ class _InfoRow extends StatelessWidget {
           ),
         ),
         if (money)
-          Text(value, style: MadarType.money.copyWith(color: colors.accent))
+          Text(
+            value,
+            textDirection: TextDirection.ltr,
+            style: MadarType.money.copyWith(color: colors.accent),
+          )
         else
           Text(
             value,

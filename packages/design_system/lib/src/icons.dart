@@ -42,6 +42,7 @@ const Map<String, IconData> madarIconCatalog = <String, IconData>{
   'arrow.up.circle': LucideIcons.circleArrowUp,
   'arrow.down.circle': LucideIcons.circleArrowDown,
   'arrow.right.circle': LucideIcons.circleArrowRight,
+  'arrow.left.circle': LucideIcons.circleArrowLeft,
   // Refresh & sync.
   'arrow.triangle.2.circlepath': LucideIcons.refreshCw,
   'arrow.clockwise': LucideIcons.rotateCw,
@@ -53,6 +54,8 @@ const Map<String, IconData> madarIconCatalog = <String, IconData>{
   // Communication & messages.
   'text.bubble': LucideIcons.messageSquare,
   'envelope': LucideIcons.mail,
+  'phone.fill': LucideIcons.phone,
+  'mappin.and.ellipse': LucideIcons.mapPin,
   // Search & input.
   'magnifyingglass': LucideIcons.search,
   'qrcode': LucideIcons.qrCode,
@@ -151,6 +154,8 @@ const Map<String, String> _iconMirror = <String, String>{
   'chevron.left': 'chevron.right',
   'chevron.forward': 'chevron.backward',
   'chevron.backward': 'chevron.forward',
+  'arrow.right.circle': 'arrow.left.circle',
+  'arrow.left.circle': 'arrow.right.circle',
 };
 
 /// Every catalog name, for the design-system gallery. Unmodifiable.

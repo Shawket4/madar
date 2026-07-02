@@ -1,6 +1,7 @@
 @Tags(['qa'])
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -164,4 +165,61 @@ void main() {
     final after = await core.bridge.currentShift();
     expect(after?.isOpen ?? false, isFalse);
   });
+
+  test(
+    'session blob round-trips through the vault (restart restore)',
+    () async {
+      // Capture what the host vault would persist.
+      final saved = <VaultCommand>[];
+      final sub = core.attachVault(saved.add);
+
+      // Fresh sign-in cycle → the core must emit a save command.
+      final branches = await core.bridge.listBranches();
+      await core.bridge.logout(wipeOutbox: false);
+      await core.bridge.login(
+        req: LoginRequest(
+          mode: LoginMode.pin,
+          name: 'Sara',
+          pin: '123456',
+          branchId: branches.first.id,
+        ),
+      );
+      // The vault stream is async — give it a beat.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      final blob = saved.whereType<VaultCommand_Save>().lastOrNull?.blob;
+      expect(
+        blob,
+        isNotNull,
+        reason: 'login must emit VaultCommand.save for the host vault',
+      );
+
+      // A "restarted app": a second handle over the same store restores the
+      // session from the blob alone — the shell's exact boot path.
+      final rebooted = await MadarCore.start(
+        config: MadarConfig(
+          baseUrl: api,
+          environment: 'dev',
+          dbPath: '${tmp.path}/qa.db',
+          locale: 'en',
+        ),
+      );
+      final restored = await rebooted.bridge.restoreSession(blob: blob!);
+      expect(
+        restored,
+        isNotNull,
+        reason: 'the persisted blob must restore the teller session',
+      );
+      expect(restored!.displayName, 'Sara');
+      final route = rebooted.bridge.appRoute();
+      expect(
+        route,
+        isNot(isA<AppRoute_Login>()),
+        reason: 'a restored session must land past the login screen',
+      );
+      expect(route, isNot(isA<AppRoute_DeviceSetup>()));
+
+      // Not awaited — the vault stream never closes (see the smoke test).
+      unawaited(sub.cancel());
+    },
+  );
 }

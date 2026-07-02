@@ -10,6 +10,7 @@ environment:
 
 dependencies:
   design_system: ^0.1.0
+  feature_auth: ^0.1.0
   feature_checkout: ^0.1.0
   feature_shift: ^0.1.0
   flutter:

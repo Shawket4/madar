@@ -32,6 +32,10 @@ class _BundleDetailSheetState extends State<BundleDetailSheet> {
   /// that lists the same item twice).
   final Map<int, BundleComponentDraft> _drafts = {};
 
+  /// Latches the footer while add-to-cart is in flight so a double-tap
+  /// can't record the bundle line twice.
+  bool _adding = false;
+
   /// A component needs configuring when it has a size choice, addon slots,
   /// or active optionals.
   bool _needsConfig(MenuItemView item) =>
@@ -63,6 +67,8 @@ class _BundleDetailSheetState extends State<BundleDetailSheet> {
   }
 
   Future<void> _add() async {
+    if (_adding) return;
+    setState(() => _adding = true);
     final components = <BundleComponentSelection>[];
     for (var i = 0; i < widget.bundle.components.length; i++) {
       final comp = widget.bundle.components[i];
@@ -149,6 +155,7 @@ class _BundleDetailSheetState extends State<BundleDetailSheet> {
           liveTotalMinor: liveTotal,
           currency: model.currency,
           canAdd: canAdd,
+          loading: _adding,
           onAdd: () => unawaited(_add()),
         ),
       ],
@@ -260,6 +267,7 @@ class _BundleFooter extends StatelessWidget {
     required this.liveTotalMinor,
     required this.currency,
     required this.canAdd,
+    required this.loading,
     required this.onAdd,
   });
 
@@ -269,6 +277,9 @@ class _BundleFooter extends StatelessWidget {
   final int liveTotalMinor;
   final String currency;
   final bool canAdd;
+
+  /// Add-to-cart in flight — spinner on, taps blocked (double-tap guard).
+  final bool loading;
   final VoidCallback onAdd;
 
   @override
@@ -307,6 +318,7 @@ class _BundleFooter extends StatelessWidget {
                     canAdd ? 'order.add_to_cart' : 'order.configure',
                   ),
                   enabled: canAdd,
+                  loading: loading,
                   onTap: onAdd,
                 ),
               ],

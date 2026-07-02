@@ -48,6 +48,18 @@ const double _totalValueSize = 16;
 const double _rowSize = 13;
 const double _metaSize = 11;
 
+/// Shift-order row metrics (Kotlin ShiftOrderRow: 5.dp vertical padding,
+/// 12.sp Bold money) and the history rows' voided fade + tag pill.
+const double _orderRowVPad = 5;
+const double _orderMoneySize = 12;
+const double _voidedAlpha = 0.55;
+const double _voidTagHPad = 6;
+const double _voidTagVPad = 2;
+const double _voidTagBgAlpha = 0.08;
+
+/// Skeleton row height while the shift's orders lazy-load (≈ one order row).
+const double _orderSkeletonHeight = 26;
+
 /// ESC/POS character columns (natives: renderShiftReport(..., 32u, ...)).
 const int _printWidth = 32;
 
@@ -443,6 +455,7 @@ class _MovementRow extends StatelessWidget {
         Text(
           (out ? '−' : '+') +
               Money.format(m.amountMinor.abs(), currency: currency),
+          textDirection: TextDirection.ltr,
           style: MadarType.money.copyWith(
             fontSize: _metaSize,
             fontWeight: FontWeight.w600,
@@ -491,6 +504,7 @@ class _TotalRow extends StatelessWidget {
         ),
         Text(
           value,
+          textDirection: TextDirection.ltr,
           style: MadarType.money.copyWith(
             fontSize: emphasized ? _totalValueSize : _rowSize,
             fontWeight: emphasized ? FontWeight.w800 : FontWeight.w600,
@@ -522,7 +536,12 @@ class _Rule extends StatelessWidget {
 /// ancestor from MadarSheet; dismiss returns via `Navigator.maybePop`.
 class ShiftReportSheet extends StatefulWidget {
   /// Creates the preview; a null [report] loads the current shift's.
-  const ShiftReportSheet({required this.core, this.report, super.key});
+  const ShiftReportSheet({
+    required this.core,
+    this.report,
+    this.shiftId,
+    super.key,
+  });
 
   /// The core handle every bridge call goes through.
   final MadarCore core;
@@ -530,6 +549,11 @@ class ShiftReportSheet extends StatefulWidget {
   /// A pre-fetched report (close-shift / past shifts), or null to load the
   /// current shift's on entry.
   final ShiftReportView? report;
+
+  /// Past-shift id for the lazy-loaded Orders section — when set the orders
+  /// come via `listOrdersForShift` (the Kotlin ShiftHistoryScreen expansion's
+  /// call); when null the current shift's queue-merged `listShiftOrders`.
+  final String? shiftId;
 
   @override
   State<ShiftReportSheet> createState() => _ShiftReportSheetState();
@@ -541,20 +565,45 @@ class _ShiftReportSheetState extends State<ShiftReportSheet> {
   ShiftReportView? _report;
   _PrintState _print = _PrintState.idle;
 
+  /// The shift's orders for the lazy Orders section — null while loading
+  /// (skeleton rows); load failures degrade to the empty line.
+  List<OrderSummaryView>? _orders;
+
   String _t(String key) => _bridge.tr(key: key);
 
   @override
   void initState() {
     super.initState();
     _report = widget.report;
-    if (_report == null) unawaited(_load());
+    if (_report == null) {
+      unawaited(_load());
+    } else {
+      unawaited(_loadOrders());
+    }
   }
 
   Future<void> _load() async {
     try {
       final report = await _bridge.shiftReport();
-      if (mounted) setState(() => _report = report);
+      if (!mounted) return;
+      setState(() => _report = report);
+      unawaited(_loadOrders());
     } on Exception catch (_) {}
+  }
+
+  /// Lazy-load the shift's orders AFTER the report renders — a past shift
+  /// via `listOrdersForShift` (the Kotlin history expansion's method), the
+  /// current shift via the queue-merged `listShiftOrders`.
+  Future<void> _loadOrders() async {
+    try {
+      final id = widget.shiftId;
+      final orders = id == null
+          ? await _bridge.listShiftOrders()
+          : await _bridge.listOrdersForShift(shiftId: id);
+      if (mounted) setState(() => _orders = orders);
+    } on Exception catch (_) {
+      if (mounted) setState(() => _orders = const []);
+    }
   }
 
   /// Render the Z-report in the core and stream the bytes to the device's
@@ -655,7 +704,11 @@ class _ShiftReportSheetState extends State<ShiftReportSheet> {
                 constraints: const BoxConstraints(maxWidth: _paperMaxWidth),
                 child: report == null
                     ? const _PaperSkeleton()
-                    : _ReportPaper(report: report, bridge: _bridge),
+                    : _ReportPaper(
+                        report: report,
+                        bridge: _bridge,
+                        orders: _orders,
+                      ),
               ),
             ),
           ),
@@ -715,10 +768,17 @@ class _ShiftReportSheetState extends State<ShiftReportSheet> {
 /// stamp, then the shared breakdown in fixed ink. Theme-invariant by design
 /// (ReceiptPaper.kt) — white paper with dark ink in both themes.
 class _ReportPaper extends StatelessWidget {
-  const _ReportPaper({required this.report, required this.bridge});
+  const _ReportPaper({
+    required this.report,
+    required this.bridge,
+    required this.orders,
+  });
 
   final ShiftReportView report;
   final MadarBridge bridge;
+
+  /// The shift's orders (null while lazy-loading → skeleton rows).
+  final List<OrderSummaryView>? orders;
 
   @override
   Widget build(BuildContext context) {
@@ -770,6 +830,8 @@ class _ReportPaper extends StatelessWidget {
               tr: t,
               palette: ShiftReportPalette.paper,
             ),
+            const _Rule(color: _rule),
+            _OrdersSection(orders: orders, currency: currency, bridge: bridge),
           ],
         ),
       ),
@@ -793,6 +855,173 @@ class _ReportPaper extends StatelessWidget {
           style: MadarType.labelSm.copyWith(color: _ink),
         ),
       ],
+    );
+  }
+}
+
+/// The lazy "Orders" section under the breakdown — the Kotlin
+/// ShiftHistoryScreen expansion brought onto the report paper: uppercase
+/// section label, then one row per order (skeleton rows while the list
+/// loads, a muted line when the shift has none).
+class _OrdersSection extends StatelessWidget {
+  const _OrdersSection({
+    required this.orders,
+    required this.currency,
+    required this.bridge,
+  });
+
+  /// Null while the orders are still loading.
+  final List<OrderSummaryView>? orders;
+  final String currency;
+  final MadarBridge bridge;
+
+  @override
+  Widget build(BuildContext context) {
+    String t(String key) => bridge.tr(key: key);
+    final orders = this.orders;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.xs,
+      children: [
+        // Uppercase section label in the paper's faint ink — the same
+        // treatment as the report-title line above (the natives'
+        // SectionHeader language, theme-invariant on paper).
+        Text(
+          t('shifts.orders').toUpperCase(),
+          style: MadarType.labelSm.copyWith(
+            color: _faint,
+            letterSpacing: MadarType.tracking,
+          ),
+        ),
+        if (orders == null) ...const [
+          SkeletonBlock(height: _orderSkeletonHeight),
+          SkeletonBlock(height: _orderSkeletonHeight),
+          SkeletonBlock(height: _orderSkeletonHeight),
+        ] else if (orders.isEmpty)
+          Text(
+            t('shifts.no_orders'),
+            style: MadarType.labelSm.copyWith(
+              fontWeight: FontWeight.w400,
+              color: _faint,
+            ),
+          )
+        else
+          for (final order in orders)
+            _ShiftOrderRow(order: order, currency: currency, bridge: bridge),
+      ],
+    );
+  }
+}
+
+/// One order row — the Kotlin ShiftOrderRow's anatomy (number, time,
+/// voided tag, payment, total) in fixed paper ink, non-interactive here.
+/// Voided orders fade + strike through the total, the history rows' voided
+/// language.
+class _ShiftOrderRow extends StatelessWidget {
+  const _ShiftOrderRow({
+    required this.order,
+    required this.currency,
+    required this.bridge,
+  });
+
+  final OrderSummaryView order;
+  final String currency;
+  final MadarBridge bridge;
+
+  @override
+  Widget build(BuildContext context) {
+    final o = order;
+    final voided = o.status == 'voided';
+    String t(String key) => bridge.tr(key: key);
+    return Opacity(
+      opacity: voided ? _voidedAlpha : 1,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _inkTrack,
+          borderRadius: BorderRadius.circular(Radii.xs),
+        ),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Space.sm,
+            vertical: _orderRowVPad,
+          ),
+          child: Row(
+            spacing: Space.sm,
+            children: [
+              Text(
+                o.orderNumber != null
+                    ? '#${o.orderNumber}'
+                    : t('history.order'),
+                style: MadarType.labelSm.copyWith(color: _ink),
+              ),
+              Text(
+                bridge.formatTime(rfc3339: o.createdAt, style: TimeStyle.time),
+                style: MadarType.labelSm.copyWith(
+                  fontWeight: FontWeight.w400,
+                  color: _faint,
+                ),
+              ),
+              if (voided) _VoidedTag(label: t('history.voided')),
+              Expanded(
+                child: Text(
+                  o.paymentLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: MadarType.labelSm.copyWith(
+                    fontWeight: FontWeight.w400,
+                    color: _faint,
+                  ),
+                ),
+              ),
+              MoneyText(
+                o.totalMinor,
+                currency: currency,
+                style: MadarType.money.copyWith(
+                  fontSize: _orderMoneySize,
+                  fontWeight: FontWeight.w700,
+                  decoration: voided ? TextDecoration.lineThrough : null,
+                ),
+                color: voided ? _faint : _ink,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The natives' danger StatusChip, rendered in fixed paper ink so it reads
+/// in both themes on the white paper (tinted pill + hairline danger border).
+class _VoidedTag extends StatelessWidget {
+  const _VoidedTag({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _inkDanger.withValues(alpha: _voidTagBgAlpha),
+        borderRadius: BorderRadius.circular(Radii.pill),
+        border: Border.all(
+          color: _inkDanger.withValues(alpha: Opacities.border),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: _voidTagHPad,
+          vertical: _voidTagVPad,
+        ),
+        child: Text(
+          label,
+          style: MadarType.labelSm.copyWith(
+            fontSize: _metaSize,
+            color: _inkDanger,
+          ),
+        ),
+      ),
     );
   }
 }

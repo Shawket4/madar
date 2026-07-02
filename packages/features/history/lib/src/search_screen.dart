@@ -56,6 +56,10 @@ class _OrderSearchScreenState extends State<OrderSearchScreen> {
   bool _searching = false;
   int _page = 1;
 
+  /// Request-sequence guard: bumped per `_run`; stale completions bail so a
+  /// slow response can't clobber a newer query or double-advance `_page`.
+  int _querySeq = 0;
+
   ToastData? _toast;
   int _toastSeq = 0;
 
@@ -85,6 +89,7 @@ class _OrderSearchScreenState extends State<OrderSearchScreen> {
   /// Run / page the all-orders search. [reset] starts a fresh query at
   /// page 1; otherwise it appends the next page (load-more).
   Future<void> _run({required bool reset}) async {
+    final seq = ++_querySeq;
     setState(() {
       if (reset) {
         _page = 1;
@@ -100,7 +105,7 @@ class _OrderSearchScreenState extends State<OrderSearchScreen> {
         from: _days > 0 ? _isoDaysAgo(_days) : null,
         page: _page,
       );
-      if (!mounted) return;
+      if (seq != _querySeq || !mounted) return;
       setState(() {
         _results = reset ? pg.orders : [..._results, ...pg.orders];
         _total = pg.total;
@@ -109,7 +114,7 @@ class _OrderSearchScreenState extends State<OrderSearchScreen> {
         _searching = false;
       });
     } on MadarError catch (e) {
-      if (!mounted) return;
+      if (seq != _querySeq || !mounted) return;
       setState(() => _searching = false);
       _showToast(
         _bridge.humanMessage(e),
