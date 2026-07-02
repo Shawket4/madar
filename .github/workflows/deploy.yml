@@ -6,7 +6,6 @@ on:
       - "v*.*.*"
 
 # Secrets:
-#   MADAR_POS_TOKEN    — PAT with read access to Shawket4/madar-pos (the Rust core)
 #   KEYSTORE_BASE64    — Android release keystore, base64-encoded
 #   KEYSTORE_PASSWORD / KEY_PASSWORD / KEY_ALIAS
 #   DIAWI_TOKEN        — optional; skipped gracefully when unset
@@ -23,10 +22,10 @@ jobs:
         with:
           path: madar
 
+      # Public repo — no token needed.
       - uses: actions/checkout@v4
         with:
           repository: Shawket4/madar-pos
-          token: ${{ secrets.MADAR_POS_TOKEN }}
           path: madar-pos
 
       - name: Setup Java
@@ -72,9 +71,9 @@ jobs:
         run: dart pub get
 
       # Cargokit cross-compiles the Rust core per ABI inside this step.
-      - name: Build APK
+      - name: Build APKs (one per ABI — ~half the size each)
         working-directory: madar/apps/madar
-        run: flutter build apk --release
+        run: flutter build apk --release --split-per-abi
 
       # Diawi OTA link — a shareable install page even while the repo is
       # private. Never fails the release; skipped when DIAWI_TOKEN is unset.
@@ -86,7 +85,7 @@ jobs:
         working-directory: madar/apps/madar
         run: |
           set +e
-          APK=build/app/outputs/flutter-apk/app-release.apk
+          APK=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           if [ -z "$DIAWI_TOKEN" ]; then
             echo "DIAWI_TOKEN not set — skipping diawi upload."; exit 0
           fi
@@ -114,11 +113,11 @@ jobs:
           done
           echo "diawi timed out"; exit 1
 
-      - name: Upload APK artifact
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: madar/apps/madar/build/app/outputs/flutter-apk/app-release.apk
+          path: madar/apps/madar/build/app/outputs/flutter-apk/app-*-release.apk
 
   # ── macOS ──────────────────────────────────────────────────────────────────
   build-macos:
@@ -129,10 +128,10 @@ jobs:
         with:
           path: madar
 
+      # Public repo — no token needed.
       - uses: actions/checkout@v4
         with:
           repository: Shawket4/madar-pos
-          token: ${{ secrets.MADAR_POS_TOKEN }}
           path: madar-pos
 
       - name: Setup Rust
@@ -216,5 +215,6 @@ jobs:
           generate_release_notes: true
           body_path: notes.md
           files: |
-            artifacts/android-apk/app-release.apk
+            artifacts/android-apk/app-arm64-v8a-release.apk
+            artifacts/android-apk/app-armeabi-v7a-release.apk
             artifacts/macos-build/MadarPOS-macOS.zip

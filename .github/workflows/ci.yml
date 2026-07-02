@@ -5,10 +5,8 @@ on:
     branches: [main]
   pull_request:
 
-# The app builds against the madar-pos repo's Rust core, expected as a
-# SIBLING checkout (rust_bridge references ../madar-pos/rust-core). Private
-# repo → set the MADAR_POS_TOKEN secret (a fine-grained PAT with read access
-# to Shawket4/madar-pos).
+# The app builds against the madar-pos repo's Rust core (public), expected
+# as a SIBLING checkout — rust_bridge references ../madar-pos/rust-core.
 
 jobs:
   checks:
@@ -20,10 +18,10 @@ jobs:
         with:
           path: madar
 
+      # Public repo — no token needed.
       - uses: actions/checkout@v4
         with:
           repository: Shawket4/madar-pos
-          token: ${{ secrets.MADAR_POS_TOKEN }}
           path: madar-pos
 
       - name: Setup Rust
