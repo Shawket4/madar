@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -165,6 +166,17 @@ class _SpikeScreenState extends State<SpikeScreen> {
               ? 'Core spike — ALL ${_checks.length} PASSED'
               : 'Core spike — $failed FAILED',
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Design gallery',
+            icon: const Icon(Icons.palette_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const GalleryScreen(),
+              ),
+            ),
+          ),
+        ],
         backgroundColor: _running
             ? null
             : failed == 0
