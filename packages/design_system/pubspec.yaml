@@ -1,0 +1,17 @@
+name: design_system
+description: "Madar POS design system: ink/teal tokens, typography, MadarIcon, shared widgets, breakpoints."
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

@@ -1,0 +1,21 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    # Generated FRB bindings are vendored under lib/src/generated and excluded.
+    invalid_annotation_target: ignore
+  exclude:
+    - '**/*.g.dart'
+    - '**/*.freezed.dart'
+    - '**/src/generated/**'
+
+linter:
+  rules:
+    # POS UI iterates fast; docs are required on design_system's public API by review, not lint.
+    public_member_api_docs: false
+    # One-line flow control reads fine in tight widget code; keep the rest of VGA strict.
+    lines_longer_than_80_chars: false

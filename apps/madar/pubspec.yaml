@@ -1,0 +1,46 @@
+name: madar
+description: Madar POS — a thin, high-performance Flutter UI over the shared Rust core.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  design_system: ^0.1.0
+  feature_auth: ^0.1.0
+  feature_checkout: ^0.1.0
+  feature_floor: ^0.1.0
+  feature_history: ^0.1.0
+  feature_incoming: ^0.1.0
+  feature_kds: ^0.1.0
+  feature_order: ^0.1.0
+  feature_settings: ^0.1.0
+  feature_shift: ^0.1.0
+  flutter:
+    sdk: flutter
+  rust_bridge: ^0.1.0
+
+# Launcher icons are copied directly from the native apps' sources (pixel parity)
+# rather than generated — see android res/mipmap-* and ios AppIcon.appiconset.
+dev_dependencies:
+  flutter_native_splash: ^2.4.6
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/brand/
+
+flutter_native_splash:
+  color: "#EFF3F4"
+  color_dark: "#14181E"
+  image: assets/brand/lockup_latin.png
+  image_dark: assets/brand/lockup_latin_reversed.png
+  android_12:
+    color: "#EFF3F4"
+    color_dark: "#14181E"
+    image: assets/brand/splash_symbol_padded.png
+    image_dark: assets/brand/splash_symbol_padded_reversed.png

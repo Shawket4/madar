@@ -1,0 +1,43 @@
+name: madar_workspace
+description: Madar POS Flutter monorepo — a thin, high-performance UI over the shared Rust core.
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+workspace:
+  - apps/madar
+  - packages/design_system
+  - packages/rust_bridge
+  - packages/features/auth
+  - packages/features/checkout
+  - packages/features/floor
+  - packages/features/history
+  - packages/features/incoming
+  - packages/features/kds
+  - packages/features/order
+  - packages/features/settings
+  - packages/features/shift
+
+dev_dependencies:
+  melos: ^8.0.0
+  # 10.3.x needs Dart >=3.12; this resolves to the newest release our SDK supports.
+  very_good_analysis: ^10.0.0
+
+melos:
+  scripts:
+    analyze:
+      run: flutter analyze .
+      description: Static analysis for the whole workspace.
+    format:
+      run: dart format --set-exit-if-changed .
+      description: Verify formatting across the workspace.
+    test:
+      run: melos exec --dir-exists=test --fail-fast -- flutter test
+      description: Run every package's tests.
+    gen:
+      run: melos exec --depends-on=build_runner -- dart run build_runner build --delete-conflicting-outputs
+      description: Run build_runner codegen where configured.
+    bridge:
+      run: tool/gen-bindings.sh
+      description: Regenerate flutter_rust_bridge bindings from madar-frb (M1+).
