@@ -154,14 +154,18 @@ class _CenteredStateColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Scrollable so an oversized message (e.g. a boot-failure stack trace)
+    // never overflows — small content still centers.
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: Responsive.formMaxWidth),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.all(Space.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: children,
+      child: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: Responsive.formMaxWidth),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.all(Space.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: children,
+            ),
           ),
         ),
       ),
