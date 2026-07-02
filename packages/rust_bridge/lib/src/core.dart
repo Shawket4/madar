@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 // ExternalLibrary is only exported via the for_generated entrypoint; this
@@ -29,7 +30,14 @@ class MadarCore {
   /// before callers re-attach sinks.
   static Future<MadarCore> start({required MadarConfig config}) async {
     if (!_runtimeReady) {
-      await RustBridge.init();
+      // On Apple platforms the Cargokit podspec force_loads the Rust
+      // staticlib INTO rust_bridge.framework, so the symbols live in the
+      // process image — FRB's default macOS loader would instead look for
+      // a madar_frb.framework that doesn't exist.
+      final externalLibrary = (Platform.isMacOS || Platform.isIOS)
+          ? ExternalLibrary.process(iKnowHowToUseIt: true)
+          : null;
+      await RustBridge.init(externalLibrary: externalLibrary);
       _runtimeReady = true;
     }
     final bridge = await MadarBridge.newInstance(config: config);
