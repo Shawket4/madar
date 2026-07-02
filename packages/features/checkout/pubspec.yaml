@@ -9,8 +9,10 @@ environment:
   flutter: ">=3.41.0"
 
 dependencies:
+  design_system: ^0.1.0
   flutter:
     sdk: flutter
+  rust_bridge: ^0.1.0
 
 dev_dependencies:
   flutter_test:

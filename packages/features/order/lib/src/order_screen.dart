@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_order/src/bundle_detail_sheet.dart';
 import 'package:feature_order/src/cart_panel.dart';
 import 'package:feature_order/src/catalog_column.dart';
@@ -8,6 +9,7 @@ import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/order_controller.dart';
 import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:feature_order/src/widgets.dart';
+import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -104,10 +106,22 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 
   /// Waiter firing a NEW ticket → collect dine-in details first; adding a
-  /// round to the selected ticket fires straight away. The cashier tender
-  /// drawer is the next milestone (M5) — its button stays disabled.
+  /// round to the selected ticket fires straight away. Cashiers get the
+  /// shared tender drawer; a placed order clears the cart in the core, so
+  /// reload after the sheet closes either way.
   Future<void> _checkout() async {
-    if (!_model.isWaiter) return;
+    if (!_model.isWaiter) {
+      await showMadarSheet<ReceiptView>(
+        context,
+        size: SheetSize.large,
+        builder: (_) => TenderSheet(
+          core: widget.core,
+          onStateChanged: widget.onStateChanged,
+        ),
+      );
+      await _model.loadCart();
+      return;
+    }
     if (_model.activeTicketId == null) {
       await showMadarSheet<void>(
         context,
@@ -118,6 +132,19 @@ class _OrderScreenState extends State<OrderScreen> {
     } else {
       await _model.fireOrAddRound();
     }
+  }
+
+  /// Close shift — pushed over the order surface like the natives' overlay;
+  /// on success the shell's route machine takes over.
+  Future<void> _closeShift() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CloseShiftScreen(
+          core: widget.core,
+          onStateChanged: widget.onStateChanged,
+        ),
+      ),
+    );
   }
 
   /// Narrow layout: the cart lives in a bottom drawer.
@@ -153,10 +180,7 @@ class _OrderScreenState extends State<OrderScreen> {
       model: _model,
       checkoutLabel: checkoutLabel,
       checkoutIcon: isWaiter ? 'arrow.up.circle' : 'creditcard',
-      // The tender drawer lands in M5 — until then the cashier checkout is
-      // a disabled button with a "coming next" tooltip.
-      checkoutEnabled: isWaiter,
-      checkoutTooltip: isWaiter ? null : _model.tr('order.coming_soon'),
+      checkoutEnabled: true,
       onCheckout: () {
         onClose?.call();
         unawaited(_checkout());
@@ -191,7 +215,13 @@ class _OrderScreenState extends State<OrderScreen> {
                     ResponsiveBuilder(
                       builder: (context, info) => Column(
                         children: [
-                          _OrderTopBar(model: _model, wide: info.isWide),
+                          _OrderTopBar(
+                            model: _model,
+                            wide: info.isWide,
+                            onCloseShift: _model.isWaiter
+                                ? null
+                                : () => unawaited(_closeShift()),
+                          ),
                           _ChromeBanners(
                             model: _model,
                             onAuthPausedTap: widget.onStateChanged,
@@ -258,10 +288,18 @@ class _OrderScreenState extends State<OrderScreen> {
 // ── Top status bar ─────────────────────────────────────────────────────────────
 
 class _OrderTopBar extends StatelessWidget {
-  const _OrderTopBar({required this.model, required this.wide});
+  const _OrderTopBar({
+    required this.model,
+    required this.wide,
+    this.onCloseShift,
+  });
 
   final OrderController model;
   final bool wide;
+
+  /// Cashier-only: opens the close-shift overlay (null hides the action —
+  /// waiters don't own the drawer). The full nav chrome lands in M6.
+  final VoidCallback? onCloseShift;
 
   @override
   Widget build(BuildContext context) {
@@ -290,6 +328,23 @@ class _OrderTopBar extends StatelessWidget {
                 _SyncChip(model: model),
                 const SizedBox(width: Space.sm),
                 _SyncDataButton(model: model),
+                if (onCloseShift != null) ...[
+                  const SizedBox(width: Space.sm),
+                  TactileScale(
+                    onTap: onCloseShift,
+                    child: Tooltip(
+                      message: model.tr('order.close_shift'),
+                      child: Padding(
+                        padding: const EdgeInsets.all(Space.xs),
+                        child: MadarIcon(
+                          'lock',
+                          tint: colors.textSecondary,
+                          size: IconSize.lg,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

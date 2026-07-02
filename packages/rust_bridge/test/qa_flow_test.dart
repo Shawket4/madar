@@ -104,4 +104,64 @@ void main() {
     );
     expect(lines.single.unitPriceMinor, large.priceMinor);
   });
+
+  test('checkout produces a receipt and clears the cart (M5 gate)', () async {
+    // An open shift is required — adopt the branch's shift or open one,
+    // exactly like the open-shift screen.
+    final shift = await core.bridge.refreshShift();
+    if (!(shift?.isOpen ?? false)) {
+      await core.bridge.openShift(openingCashMinor: 50000);
+    }
+
+    await core.bridge.cartClear();
+    final items = await core.bridge.listMenuItems();
+    final espresso = items.firstWhere((i) => i.name == 'Espresso');
+    await core.bridge.cartAddConfigured(
+      itemId: espresso.id,
+      sizeLabel: 'Double',
+      addons: const [],
+      optionalFieldIds: const [],
+      qty: 2,
+    );
+    final totals = await core.bridge.cartTotals();
+    expect(totals.totalMinor, greaterThan(0));
+
+    final methods = await core.bridge.listPaymentMethods();
+    expect(methods, isNotEmpty, reason: 'seeded org must have pay methods');
+    final cash = methods.firstWhere(
+      (m) => m.isCash,
+      orElse: () => methods.first,
+    );
+
+    final receipt = await core.bridge.checkout(
+      input: CheckoutInput(
+        paymentMethodId: cash.id,
+        amountTenderedMinor: totals.totalMinor + 5000,
+        tipMinor: 0,
+        splits: const [],
+      ),
+    );
+    expect(receipt.localOrderId, isNotEmpty);
+    expect(await core.bridge.cartLines(), isEmpty);
+
+    // The receipt renderer must produce ESC/POS bytes without a printer.
+    final bytes = await core.bridge.renderReceipt(
+      receipt: receipt,
+      storeName: 'QA Cafe',
+      currency: 'EGP',
+      width: 42,
+      brand: PrinterBrand.epson,
+    );
+    expect(bytes, isNotEmpty);
+
+    // Close the shift — the close-shift screen's call — and confirm the
+    // route machine leaves the order surface.
+    final report = await core.bridge.shiftReport();
+    expect(report.isOpen, isTrue);
+    await core.bridge.closeShift(
+      closingCashMinor: report.expectedCashMinor,
+    );
+    final after = await core.bridge.currentShift();
+    expect(after?.isOpen ?? false, isFalse);
+  });
 }
