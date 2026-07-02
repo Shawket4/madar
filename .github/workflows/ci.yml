@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The app builds against the madar-pos repo's Rust core, expected as a
+# SIBLING checkout (rust_bridge references ../madar-pos/rust-core). Private
+# repo → set the MADAR_POS_TOKEN secret (a fine-grained PAT with read access
+# to Shawket4/madar-pos).
+
+jobs:
+  checks:
+    name: Analyze + host tests
+    # macOS runner: the host test suite loads the cargo-built .dylib.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: madar
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Shawket4/madar-pos
+          token: ${{ secrets.MADAR_POS_TOKEN }}
+          path: madar-pos
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: madar-pos/rust-core
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.4"
+          channel: stable
+          cache: true
+
+      - name: Build host dylib (release — matches the test suite's path)
+        working-directory: madar-pos/rust-core
+        run: cargo build -p madar_frb --release
+
+      - name: Pub get
+        working-directory: madar
+        run: dart pub get
+
+      - name: Analyze
+        working-directory: madar
+        run: flutter analyze .
+
+      - name: Format check
+        working-directory: madar
+        run: dart format --set-exit-if-changed .
+
+      # 9 bridge smoke tests against the release dylib. The QA-tagged E2E
+      # suite self-skips without MADAR_QA_API (needs a live backend).
+      - name: Host tests
+        working-directory: madar/packages/rust_bridge
+        run: flutter test

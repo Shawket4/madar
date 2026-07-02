@@ -1,0 +1,220 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# Secrets:
+#   MADAR_POS_TOKEN    — PAT with read access to Shawket4/madar-pos (the Rust core)
+#   KEYSTORE_BASE64    — Android release keystore, base64-encoded
+#   KEYSTORE_PASSWORD / KEY_PASSWORD / KEY_ALIAS
+#   DIAWI_TOKEN        — optional; skipped gracefully when unset
+
+jobs:
+  # ── Android APK ────────────────────────────────────────────────────────────
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    outputs:
+      diawi_url: ${{ steps.diawi.outputs.diawi_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: madar
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Shawket4/madar-pos
+          token: ${{ secrets.MADAR_POS_TOKEN }}
+          path: madar-pos
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Rust (Android targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: madar-pos/rust-core
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.4"
+          channel: stable
+          cache: true
+
+      - name: Decode keystore
+        working-directory: madar/apps/madar
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
+
+      - name: Create key.properties
+        working-directory: madar/apps/madar
+        run: |
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=app/release.keystore
+          EOF
+
+      - name: Pub get
+        working-directory: madar
+        run: dart pub get
+
+      # Cargokit cross-compiles the Rust core per ABI inside this step.
+      - name: Build APK
+        working-directory: madar/apps/madar
+        run: flutter build apk --release
+
+      # Diawi OTA link — a shareable install page even while the repo is
+      # private. Never fails the release; skipped when DIAWI_TOKEN is unset.
+      - name: Upload APK to diawi (OTA install link)
+        id: diawi
+        continue-on-error: true
+        env:
+          DIAWI_TOKEN: ${{ secrets.DIAWI_TOKEN }}
+        working-directory: madar/apps/madar
+        run: |
+          set +e
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          if [ -z "$DIAWI_TOKEN" ]; then
+            echo "DIAWI_TOKEN not set — skipping diawi upload."; exit 0
+          fi
+          echo "Uploading $APK ($(du -h "$APK" | cut -f1)) to diawi…"
+          http=$(curl -s -o /tmp/diawi_up.json -w '%{http_code}' https://upload.diawi.com/ \
+            -F token="$DIAWI_TOKEN" \
+            -F file=@"$APK" \
+            -F comment="Madar POS $GITHUB_REF_NAME")
+          echo "diawi upload → HTTP $http; response: $(cat /tmp/diawi_up.json)"
+          job=$(jq -r '.job // empty' /tmp/diawi_up.json 2>/dev/null)
+          if [ -z "$job" ]; then echo "diawi upload failed (no job id)"; exit 1; fi
+          for i in $(seq 1 60); do
+            sleep 5
+            resp=$(curl -s "https://upload.diawi.com/status?token=$DIAWI_TOKEN&job=$job")
+            status=$(echo "$resp" | jq -r '.status // empty')
+            case "$status" in
+              2000)
+                link="https://i.diawi.com/$(echo "$resp" | jq -r '.hash')"
+                echo "diawi_url=$link" >> "$GITHUB_OUTPUT"
+                { echo "## 📱 Android install link (diawi)"; echo ""; echo "**$link**"; } >> "$GITHUB_STEP_SUMMARY"
+                exit 0 ;;
+              2001) echo "  …processing ($i/60)" ;;
+              *)    echo "diawi error: $resp"; exit 1 ;;
+            esac
+          done
+          echo "diawi timed out"; exit 1
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: madar/apps/madar/build/app/outputs/flutter-apk/app-release.apk
+
+  # ── macOS ──────────────────────────────────────────────────────────────────
+  build-macos:
+    name: Build macOS
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: madar
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Shawket4/madar-pos
+          token: ${{ secrets.MADAR_POS_TOKEN }}
+          path: madar-pos
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: madar-pos/rust-core
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.4"
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        working-directory: madar
+        run: dart pub get
+
+      # CI has no signing certs: strip the entitlement that forces a
+      # provisioning profile and ad-hoc sign. This artifact is for direct
+      # download/dev distribution — store/notarized builds are signed
+      # locally in Xcode (team 6HNBMW6X75 is configured in the project).
+      - name: Ad-hoc signing for CI
+        working-directory: madar/apps/madar/macos
+        run: |
+          plutil -remove "keychain-access-groups" Runner/Release.entitlements || true
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/DEVELOPMENT_TEAM = 6HNBMW6X75;//g' Runner.xcodeproj/project.pbxproj
+
+      - name: Build macOS
+        working-directory: madar/apps/madar
+        run: flutter build macos --release
+
+      - name: Zip macOS build
+        working-directory: madar/apps/madar/build/macos/Build/Products/Release
+        run: zip -r "$GITHUB_WORKSPACE/MadarPOS-macOS.zip" *.app
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: MadarPOS-macOS.zip
+
+  # ── GitHub Release ─────────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [build-android, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Compose release notes
+        env:
+          DIAWI_URL: ${{ needs.build-android.outputs.diawi_url }}
+        run: |
+          {
+            if [ -n "$DIAWI_URL" ]; then
+              echo "## 📱 Android — install over the air"
+              echo ""
+              echo "**[Install on Android]($DIAWI_URL)**  (diawi OTA)"
+              echo ""
+            fi
+            echo "## 💻 macOS"
+            echo ""
+            echo "Download **MadarPOS-macOS.zip** below (ad-hoc signed — right-click → Open on first launch)."
+          } > notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Madar POS ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          body_path: notes.md
+          files: |
+            artifacts/android-apk/app-release.apk
+            artifacts/macos-build/MadarPOS-macOS.zip
