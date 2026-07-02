@@ -411,53 +411,59 @@ class _MadarChromeState extends State<MadarChrome> {
                 ),
               )
             : null;
-        return Stack(
-          children: [
-            Row(
+        return Material(
+          color: colors.bg,
+          child: SafeArea(
+            bottom: false,
+            child: Stack(
               children: [
-                if (rail != null) ...[
-                  SizedBox(width: _railWidth, child: rail),
-                  Container(width: 1, color: colors.border),
-                ],
-                Expanded(child: widget.child),
-              ],
-            ),
-            // Narrow layouts have no rail — the natives' phone drawer:
-            // a floating nav button opening the full grouped More sheet.
-            if (rail == null)
-              PositionedDirectional(
-                bottom: Space.lg,
-                start: Space.lg,
-                child: TactileScale(
-                  onTap: () => unawaited(_openMore(includeSections: true)),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: colors.surfaceRaised,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: colors.border),
-                    ),
-                    child: MadarIcon(
-                      'ellipsis',
-                      tint: colors.textSecondary,
-                      size: IconSize.xl,
+                Row(
+                  children: [
+                    if (rail != null) ...[
+                      SizedBox(width: _railWidth, child: rail),
+                      Container(width: 1, color: colors.border),
+                    ],
+                    Expanded(child: widget.child),
+                  ],
+                ),
+                // Narrow layouts have no rail — the natives' phone drawer:
+                // a floating nav button opening the full grouped More sheet.
+                if (rail == null)
+                  PositionedDirectional(
+                    bottom: Space.lg,
+                    start: Space.lg,
+                    child: TactileScale(
+                      onTap: () => unawaited(_openMore(includeSections: true)),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: colors.surfaceRaised,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: MadarIcon(
+                          'ellipsis',
+                          tint: colors.textSecondary,
+                          size: IconSize.xl,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            if (_toast != null)
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: ToastHost(
-                  _toast,
-                  onDismiss: (_) {
-                    if (mounted) setState(() => _toast = null);
-                  },
-                ),
-              ),
-          ],
+                if (_toast != null)
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: ToastHost(
+                      _toast,
+                      onDismiss: (_) {
+                        if (mounted) setState(() => _toast = null);
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
         );
       },
     );

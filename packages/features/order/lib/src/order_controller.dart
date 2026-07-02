@@ -211,16 +211,26 @@ class OrderController extends ChangeNotifier {
         icon: 'checkmark.circle',
       );
     } on MadarError catch (e) {
-      showToast(
-        bridge.humanMessage(e),
-        tone: ChipTone.danger,
-        icon: 'xmark.circle',
-      );
+      // An expired / missing bearer must open the re-auth flow, not
+      // dead-end in a toast — the teller can fix it right there.
+      if (e is MadarError_Unauthenticated) {
+        needsReauth = true;
+      } else {
+        showToast(
+          bridge.humanMessage(e),
+          tone: ChipTone.danger,
+          icon: 'xmark.circle',
+        );
+      }
     } finally {
       isSyncingData = false;
       _notify();
     }
   }
+
+  /// Latched when a bridge call 401s with a live session — the screen
+  /// presents the re-auth sheet and clears this after handling it.
+  bool needsReauth = false;
 
   CatStyleView categoryStyle(String name, {required bool dark}) =>
       bridge.categoryStyle(name: name, dark: dark);

@@ -64,6 +64,7 @@ class _OrderScreenState extends State<OrderScreen> {
       onStateChanged: widget.onStateChanged,
     );
     unawaited(_model.init());
+    _model.addListener(_maybeReauth);
     widget.ticketTick?.addListener(_onTicketTick);
     // Connectivity heartbeat — refresh online + sync chrome every 15s; a
     // waiter board also re-polls its open tickets (safety net under the
@@ -87,8 +88,23 @@ class _OrderScreenState extends State<OrderScreen> {
   void dispose() {
     widget.ticketTick?.removeListener(_onTicketTick);
     _heartbeat?.cancel();
-    _model.dispose();
+    _model
+      ..removeListener(_maybeReauth)
+      ..dispose();
     super.dispose();
+  }
+
+  /// A bridge call 401'd with a live session (expired/missing bearer) —
+  /// open the re-auth sheet once; the latch clears immediately so a second
+  /// notify can't double-present it.
+  bool _reauthShowing = false;
+  void _maybeReauth() {
+    if (!_model.needsReauth || _reauthShowing || !mounted) return;
+    _model.needsReauth = false;
+    _reauthShowing = true;
+    unawaited(
+      _handleAuthPaused().whenComplete(() => _reauthShowing = false),
+    );
   }
 
   /// A ticket moved somewhere (fired / settled / voided on another device)
