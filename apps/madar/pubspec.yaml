@@ -20,8 +20,10 @@ dependencies:
   feature_shift: ^0.1.0
   flutter:
     sdk: flutter
+  flutter_secure_storage: ^9.2.4
   path_provider: ^2.1.5
   rust_bridge: ^0.1.0
+  shared_preferences: ^2.5.3
 
 # Launcher icons are copied directly from the native apps' sources (pixel parity)
 # rather than generated — see android res/mipmap-* and ios AppIcon.appiconset.

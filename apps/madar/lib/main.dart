@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:madar/spike_screen.dart';
+import 'package:madar/app/app_state.dart';
+import 'package:madar/app/shell.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,25 +12,31 @@ void main() {
   unawaited(
     SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]),
   );
-  runApp(const MadarApp());
+  final state = MadarAppState();
+  unawaited(state.boot());
+  runApp(MadarApp(state: state));
 }
 
-/// Placeholder shell proving the scaffold builds and brands correctly.
-/// Replaced by the real app shell (routing, core wiring) in M3.
+/// Root widget: themes from the design system, shell driven by the core.
 class MadarApp extends StatelessWidget {
-  const MadarApp({super.key});
+  const MadarApp({required this.state, super.key});
+
+  final MadarAppState state;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Madar POS',
-      debugShowCheckedModeBanner: false,
-      theme: MadarTheme.light(),
-      darkTheme: MadarTheme.dark(),
-      // M1/M2: the hello-core spike is the home screen (with the design
-      // gallery behind its app-bar action); M3 replaces this with the
-      // router-driven shell.
-      home: const SpikeScreen(),
+    return ListenableBuilder(
+      listenable: state,
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'Madar POS',
+          debugShowCheckedModeBanner: false,
+          theme: MadarTheme.light(),
+          darkTheme: MadarTheme.dark(),
+          themeMode: state.themeMode,
+          home: MadarShell(state: state),
+        );
+      },
     );
   }
 }
