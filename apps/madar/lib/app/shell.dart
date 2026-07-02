@@ -1,10 +1,11 @@
 import 'package:design_system/design_system.dart';
 import 'package:feature_auth/feature_auth.dart';
+import 'package:feature_kds/feature_kds.dart';
 import 'package:feature_order/feature_order.dart';
 import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/material.dart';
 import 'package:madar/app/app_state.dart';
-import 'package:madar/spike_screen.dart';
+import 'package:madar/app/chrome.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// The route-driven shell. The core's `app_route()` is the single source of
@@ -72,13 +73,15 @@ class MadarShell extends StatelessWidget {
         core: core,
         onStateChanged: onChanged,
       ),
-      AppRoute_Order() || AppRoute_WaiterTickets() => OrderScreen(
+      AppRoute_Order() || AppRoute_WaiterTickets() => MadarChrome(
+        state: state,
+        child: OrderScreen(core: core, onStateChanged: onChanged),
+      ),
+      AppRoute_KitchenDisplay(:final stationId) => KitchenDisplayScreen(
         core: core,
         onStateChanged: onChanged,
-      ),
-      AppRoute_KitchenDisplay(:final stationId) => _Placeholder(
-        state: state,
-        name: 'KDS ($stationId) — M6',
+        stationId: stationId,
+        realtimeTick: state.kitchenTick,
       ),
     };
   }
@@ -106,66 +109,6 @@ class _Splash extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// M4 replaces these one by one; until then each names itself, proves the
-/// route machine works, and links the dev tools.
-class _Placeholder extends StatelessWidget {
-  const _Placeholder({required this.state, required this.name});
-
-  final MadarAppState state;
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('$name — M4', style: MadarType.h3),
-        actions: [
-          IconButton(
-            tooltip: 'Core spike',
-            icon: const Icon(Icons.biotech_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const SpikeScreen()),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Design gallery',
-            icon: const Icon(Icons.palette_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const GalleryScreen()),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Toggle theme',
-            icon: const Icon(Icons.brightness_6_outlined),
-            onPressed: () => state.setThemeMode(
-              state.themeMode == ThemeMode.dark
-                  ? ThemeMode.light
-                  : ThemeMode.dark,
-            ),
-          ),
-          IconButton(
-            tooltip: 'EN ⇄ AR',
-            icon: const Icon(Icons.translate_outlined),
-            onPressed: () =>
-                state.setLocale(state.locale == 'ar' ? 'en' : 'ar'),
-          ),
-        ],
-      ),
-      body: Center(
-        child: EmptyState(
-          icon: 'hammer',
-          title: name,
-          message:
-              '${state.tr('login.sign_in')} · locale=${state.locale} · '
-              'rtl=${state.rtl}',
-        ),
-      ),
-      backgroundColor: colors.bg,
     );
   }
 }

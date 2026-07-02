@@ -520,6 +520,49 @@ class OrderController extends ChangeNotifier {
     }
   }
 
+  /// SETTLE an open ticket into a paid order in the cashier's shift through
+  /// the shared checkout drawer (the natives' AppModel.settleTicket): the
+  /// shift id is resolved here (no shift → `waiter.need_shift`), the tender
+  /// fields come from the drawer's CheckoutResult, and success reloads the
+  /// open board + notifies the shell (history/shift stats move).
+  Future<bool> settleTicket(
+    String ticketId,
+    String paymentMethodId, {
+    int? amountTenderedMinor,
+    int? tipMinor,
+    String? tipPaymentMethodId,
+  }) async {
+    final shiftId = shift?.id;
+    if (shiftId == null) {
+      error = tr('waiter.need_shift');
+      _notify();
+      return false;
+    }
+    isBusy = true;
+    error = null;
+    _notify();
+    try {
+      await bridge.settleTicket(
+        ticketId: ticketId,
+        shiftId: shiftId,
+        paymentMethodId: paymentMethodId,
+        amountTenderedMinor: amountTenderedMinor,
+        tipMinor: tipMinor,
+        tipPaymentMethodId: tipPaymentMethodId,
+      );
+      await loadOpenTickets();
+      showToast(tr('waiter.settled'), tone: ChipTone.success);
+      onStateChanged();
+      return true;
+    } on MadarError catch (e) {
+      error = bridge.humanMessage(e);
+      return false;
+    } finally {
+      isBusy = false;
+      _notify();
+    }
+  }
+
   Future<void> voidTicket(String ticketId, String? reason) async {
     try {
       await bridge.voidTicket(ticketId: ticketId, reason: reason);

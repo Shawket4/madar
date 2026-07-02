@@ -34,6 +34,11 @@ const double _fieldGlowAlpha = 0.35;
 /// Section-header accent capsule (natives: 3×12dp).
 const Size _sectionTick = Size(3, 12);
 
+/// Screen-header back chevron (natives: 17.dp) and title size (natives:
+/// 17.sp Black; Cairo tops out at ExtraBold so w800 stands in).
+const double _headerIconSize = 17;
+const double _headerTitleSize = 17;
+
 bool _isDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
 
@@ -444,4 +449,117 @@ int _toMinor(String s) {
 String _minorToText(int minor) {
   if (minor % 100 == 0) return '${minor ~/ 100}';
   return (minor / 100).toStringAsFixed(2);
+}
+
+/// The natives' `ScreenHeader` on its raised `screenHeaderBar` surface —
+/// back chevron + screen title over a bottom rule (the close-shift header
+/// minus the subtitle line).
+class ShiftHeaderBar extends StatelessWidget {
+  /// Creates the raised screen-header bar.
+  const ShiftHeaderBar({required this.title, required this.onBack, super.key});
+
+  /// The screen title.
+  final String title;
+
+  /// Back affordance (the natives set the screen's `show*` flag false).
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ColoredBox(
+          color: colors.surface,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Space.lg,
+              vertical: Space.md,
+            ),
+            child: Row(
+              spacing: Space.md,
+              children: [
+                Semantics(
+                  button: true,
+                  child: TactileScale(
+                    onTap: onBack,
+                    child: MadarIcon(
+                      'chevron.backward',
+                      tint: colors.textPrimary,
+                      size: _headerIconSize,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.h3.copyWith(
+                      fontSize: _headerTitleSize,
+                      fontWeight: FontWeight.w800,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const ShiftHairline(light: false),
+      ],
+    );
+  }
+}
+
+/// A zero-inset [ShiftCard]: same surface / hairline border / soft
+/// elevation, but flush children (the natives' `MadarCard(padding = 0,
+/// spacing = 0)`) so list rows and table headers own their insets and
+/// separators.
+class ShiftFlushCard extends StatelessWidget {
+  /// Creates the flush card.
+  const ShiftFlushCard({required this.children, super.key});
+
+  /// Flush rows, top to bottom.
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(Radii.lg),
+        border: Border.all(color: colors.borderLight),
+        boxShadow: MadarElevation.card.shadows(colors, dark: _isDark(context)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(Radii.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
+      ),
+    );
+  }
+}
+
+/// 1-px hairline separator — [light] picks borderLight over border.
+class ShiftHairline extends StatelessWidget {
+  /// Creates the hairline.
+  const ShiftHairline({this.light = true, super.key});
+
+  /// Whether to use the lighter in-card rule color.
+  final bool light;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return SizedBox(
+      height: 1,
+      child: ColoredBox(color: light ? colors.borderLight : colors.border),
+    );
+  }
 }

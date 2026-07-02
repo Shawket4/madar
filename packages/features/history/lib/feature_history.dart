@@ -1,4 +1,15 @@
-/// Madar POS — order history, search, receipt reprint.
+/// Madar POS — order history, cross-shift search, receipt reprint.
 ///
-/// Screens land here per the rebuild plan (see docs/reference in the repo root).
+/// Pixel-and-behavior port of the Kotlin natives' OrderHistoryScreen.kt /
+/// OrderSearchScreen.kt (+ the order-details surface of
+/// OrderDetailsSheet.kt) over the shared Rust core: `OrderHistoryScreen`
+/// is the current shift's order list (sortable table ≥680, expandable
+/// cards below) with void + reprint (via feature_checkout's ReceiptSheet),
+/// `OrderSearchScreen` looks up orders ACROSS shifts (filters, paging,
+/// CSV export), and `OrderDetailsSheet` shows one order's full line
+/// breakdown (present via `showMadarSheet(size: SheetSize.hug)`).
 library;
+
+export 'src/history_screen.dart' show OrderHistoryScreen;
+export 'src/order_details_sheet.dart' show OrderDetailsSheet;
+export 'src/search_screen.dart' show OrderSearchScreen;

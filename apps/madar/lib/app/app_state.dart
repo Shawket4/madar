@@ -31,6 +31,20 @@ class MadarAppState extends ChangeNotifier {
   MadarCore? _core;
   HostVault? _vault;
   StreamSubscription<VaultCommand>? _vaultSub;
+  RealtimeSession? _realtime;
+  StreamSubscription<RealtimeMessage>? _eventsSub;
+  StreamSubscription<AlertCommand>? _alertsSub;
+
+  /// Bumped on every realtime event whose type matches the board — screens
+  /// (KDS / tickets / incoming) listen and reload. The natives' tick
+  /// counters, folded into one notifier per board.
+  final kitchenTick = ValueNotifier<int>(0);
+  final ticketTick = ValueNotifier<int>(0);
+  final deliveryTick = ValueNotifier<int>(0);
+
+  /// The latest core-raised alert (localized text decided in Rust);
+  /// the shell chrome shows it as a toast + plays the order chime.
+  final alert = ValueNotifier<AlertCommand?>(null);
 
   AppPhase phase = AppPhase.booting;
   String? bootError;
@@ -70,6 +84,7 @@ class MadarAppState extends ChangeNotifier {
       _syncLocale();
       route = core.bridge.appRoute();
       phase = AppPhase.ready;
+      unawaited(_ensureRealtime());
     } on Object catch (e) {
       bootError = e is MadarError && _core != null
           ? _core!.bridge.humanMessage(e)
@@ -83,14 +98,52 @@ class MadarAppState extends ChangeNotifier {
   String tr(String key) => _core?.bridge.tr(key: key) ?? key;
 
   /// Re-read the route from the core after any state-changing call and
-  /// rebuild the shell if it moved.
+  /// rebuild the shell if it moved. Also (re)arms realtime — a login is
+  /// exactly such a call, and the subscription is session-gated.
   void refreshRoute() {
     final next = core.bridge.appRoute();
     session = core.bridge.currentSession();
     if (next != route) {
       route = next;
     }
+    unawaited(_ensureRealtime());
     notifyListeners();
+  }
+
+  /// Open the device's ONE session-level realtime subscription + the LAN
+  /// relay — the natives' post-login lifecycle. Idempotent: the core no-ops
+  /// while a subscription is alive; we only re-attach after sign-out tore
+  /// ours down.
+  Future<void> _ensureRealtime() async {
+    if (session == null) {
+      _realtime = null;
+      return;
+    }
+    unawaited(core.bridge.lanStart().then((_) {}, onError: (_) {}));
+    if (_realtime != null) return;
+    try {
+      final rt = _realtime = await core.startRealtime();
+      _eventsSub = rt.events.listen(_onRealtimeEvent);
+      _alertsSub = rt.alerts.listen((cmd) => alert.value = cmd);
+    } on Object {
+      // Offline or already-subscribed — the connectivity heartbeat and the
+      // next refreshRoute retry naturally.
+      _realtime = null;
+    }
+  }
+
+  void _onRealtimeEvent(RealtimeMessage message) {
+    switch (message) {
+      case RealtimeMessage_Event(:final eventType):
+        if (eventType.startsWith('kitchen.')) kitchenTick.value++;
+        if (eventType.startsWith('ticket.')) ticketTick.value++;
+        if (eventType.startsWith('delivery.') ||
+            eventType.startsWith('order.')) {
+          deliveryTick.value++;
+        }
+      case RealtimeMessage_ConnectionChanged():
+        break; // Screens read connectivity from syncStatus.
+    }
   }
 
   void setLocale(String next) {
@@ -114,6 +167,12 @@ class MadarAppState extends ChangeNotifier {
   @override
   void dispose() {
     unawaited(_vaultSub?.cancel());
+    unawaited(_eventsSub?.cancel());
+    unawaited(_alertsSub?.cancel());
+    kitchenTick.dispose();
+    ticketTick.dispose();
+    deliveryTick.dispose();
+    alert.dispose();
     super.dispose();
   }
 }

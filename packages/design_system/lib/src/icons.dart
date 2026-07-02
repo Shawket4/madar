@@ -118,6 +118,9 @@ const Map<String, IconData> madarIconCatalog = <String, IconData>{
   'ellipsis': LucideIcons.ellipsis,
   'star': LucideIcons.star,
   'link': LucideIcons.link,
+  // Share / export (the natives' CSV-export glyph never made their catalog —
+  // fixed here; the SF name maps to Lucide's tray-with-up-arrow).
+  'square.and.arrow.up': LucideIcons.share,
   // Display & visualization.
   'circle': LucideIcons.circle,
   'largecircle.fill.circle': LucideIcons.circleDot,

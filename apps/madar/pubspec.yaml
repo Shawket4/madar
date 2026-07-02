@@ -8,6 +8,7 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
+  audioplayers: ^6.1.0
   design_system: ^0.1.0
   feature_auth: ^0.1.0
   feature_checkout: ^0.1.0
