@@ -1,0 +1,260 @@
+import 'package:design_system/design_system.dart';
+import 'package:feature_order/src/widgets.dart';
+import 'package:flutter/material.dart';
+
+/// One chip in the held-orders strip. Shared by the teller (parked drafts +
+/// the live cart) and the waiter (a "New" tab + open tickets). [sortKey] is
+/// an RFC3339 creation timestamp — the DEFAULT start→end order is
+/// oldest→newest by [sortKey] (RFC3339 sorts chronologically as a plain
+/// string). Dragging overrides that order.
+@immutable
+class HeldOrderTab {
+  const HeldOrderTab({
+    required this.key,
+    required this.sortKey,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    this.glyph,
+    this.onClose,
+  });
+
+  final String key;
+
+  /// RFC3339 creation time — the default (pre-drag) order.
+  final String sortKey;
+
+  /// Count-badge glyph override (e.g. "plus" for the waiter New tab).
+  final String? glyph;
+
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  /// Close ✕ — only when the tab is closable (parked drafts).
+  final VoidCallback? onClose;
+}
+
+/// Horizontal strip of polished order chips above the cart. The DEFAULT
+/// start→end order is creation-time (oldest→newest) by each tab's
+/// [HeldOrderTab.sortKey]; the chips are then draggable (long-press to pick
+/// up) to override that order, and the chosen order sticks. The visual
+/// key-order is reconciled with the incoming tabs on every build: NEW keys
+/// drop in at their creation-time position, vanished keys fall out.
+class HeldOrdersStrip extends StatefulWidget {
+  const HeldOrdersStrip({
+    required this.tabs,
+    required this.newLabel,
+    super.key,
+  });
+
+  final List<HeldOrderTab> tabs;
+
+  /// Localized label for the glyph tab ("New order") — resolved by the
+  /// caller so the strip stays string-free.
+  final String newLabel;
+
+  @override
+  State<HeldOrdersStrip> createState() => _HeldOrdersStripState();
+}
+
+class _HeldOrdersStripState extends State<HeldOrdersStrip> {
+  /// The visual key order — the source of truth for chip layout. Survives
+  /// rebuilds (so a drag-chosen order persists) and is reconciled with
+  /// whatever tabs are currently present.
+  final List<String> _order = [];
+
+  List<HeldOrderTab> _reconcile() {
+    final byKey = {for (final tab in widget.tabs) tab.key: tab};
+    final sorted = [...widget.tabs]
+      ..sort((a, b) => a.sortKey.compareTo(b.sortKey));
+    _order.removeWhere((key) => !byKey.containsKey(key));
+    for (var i = 0; i < sorted.length; i++) {
+      final tab = sorted[i];
+      if (_order.contains(tab.key)) continue;
+      // Land the new key just after its nearest already-placed predecessor
+      // in creation-time order (so it slots into its own time position).
+      var insertAt = 0;
+      for (var j = i - 1; j >= 0; j--) {
+        final placed = _order.indexOf(sorted[j].key);
+        if (placed >= 0) {
+          insertAt = placed + 1;
+          break;
+        }
+      }
+      _order.insert(insertAt.clamp(0, _order.length), tab.key);
+    }
+    return [for (final key in _order) byKey[key]!];
+  }
+
+  void _handleReorder(int from, int to) {
+    setState(() {
+      var target = to;
+      if (target > from) target -= 1;
+      final key = _order.removeAt(from);
+      _order.insert(target, key);
+    });
+  }
+
+  /// Lift the dragged chip: scale ~1.05 + a raised shadow above its siblings.
+  Widget _proxyDecorator(Widget child, int index, Animation<double> animation) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        final colors = context.madarColors;
+        final dark = Theme.of(context).brightness == Brightness.dark;
+        final t = Curves.easeOut.transform(animation.value);
+        return Transform.scale(
+          scale: 1 + 0.05 * t,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(Radii.md),
+              boxShadow: MadarElevation.raised.shadows(colors, dark: dark),
+            ),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final tabs = _reconcile();
+    return ColoredBox(
+      color: colors.surface,
+      child: Column(
+        children: [
+          SizedBox(
+            height: kHeldChipHeight + Space.sm * 2,
+            child: ReorderableListView(
+              scrollDirection: Axis.horizontal,
+              buildDefaultDragHandles: false,
+              onReorder: _handleReorder,
+              proxyDecorator: _proxyDecorator,
+              padding: const EdgeInsets.symmetric(
+                horizontal: Space.lg,
+                vertical: Space.sm,
+              ),
+              children: [
+                for (var i = 0; i < tabs.length; i++)
+                  ReorderableDelayedDragStartListener(
+                    key: ValueKey(tabs[i].key),
+                    index: i,
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(end: Space.sm),
+                      child: _HeldOrderChip(
+                        tab: tabs[i],
+                        newLabel: widget.newLabel,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Container(height: 1, color: colors.borderLight),
+        ],
+      ),
+    );
+  }
+}
+
+/// Count-badge circle diameter inside a chip (natives: 24.dp).
+const double _badgeSize = 24;
+
+/// Close ✕ hit circle inside a chip (natives: 18.dp).
+const double _closeSize = 18;
+
+/// One polished order chip: count badge · time · close ✕. Inactive =
+/// surface + hairline border; active = accent fill with a soft raised shadow.
+class _HeldOrderChip extends StatelessWidget {
+  const _HeldOrderChip({required this.tab, required this.newLabel});
+
+  final HeldOrderTab tab;
+  final String newLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final active = tab.selected;
+    final badgeFg = active ? colors.textOnAccent : colors.accent;
+    final onClose = tab.onClose;
+
+    return TactileScale(
+      onTap: () {
+        MadarHaptics.selection();
+        tab.onTap();
+      },
+      child: Container(
+        height: kHeldChipHeight,
+        padding: const EdgeInsetsDirectional.only(start: Space.sm, end: 6),
+        decoration: BoxDecoration(
+          color: active ? colors.accent : colors.surface,
+          borderRadius: BorderRadius.circular(Radii.md),
+          border: active ? null : Border.all(color: colors.border),
+          boxShadow: active
+              ? MadarElevation.raised.shadows(colors, dark: dark)
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Count badge — the waiter "New" tab shows a plus glyph instead.
+            Container(
+              width: _badgeSize,
+              height: _badgeSize,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: active
+                    ? colors.textOnAccent.withValues(alpha: 0.22)
+                    : colors.accentBg,
+                shape: BoxShape.circle,
+              ),
+              child: tab.glyph != null
+                  ? MadarIcon(tab.glyph, tint: badgeFg, size: IconSize.xs)
+                  : Text(
+                      '${tab.count}',
+                      maxLines: 1,
+                      style: MadarType.labelSm.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: badgeFg,
+                      ),
+                    ),
+            ),
+            const SizedBox(width: Space.sm),
+            // Time — "HH:MM" from the creation stamp; the New tab reads "new".
+            Text(
+              tab.glyph != null ? newLabel : formatHHMM(tab.sortKey),
+              maxLines: 1,
+              style: MadarType.bodySm.copyWith(
+                fontWeight: FontWeight.w600,
+                color: active ? colors.textOnAccent : colors.textPrimary,
+              ),
+            ),
+            if (onClose != null) ...[
+              const SizedBox(width: Space.xs),
+              GestureDetector(
+                onTap: onClose,
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox.square(
+                  dimension: _closeSize,
+                  child: Center(
+                    child: MadarIcon(
+                      'xmark',
+                      tint: active
+                          ? colors.textOnAccent.withValues(alpha: 0.75)
+                          : colors.textMuted,
+                      size: IconSize.xs,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -1,4 +1,9 @@
-/// Madar POS — catalog grid, cart, held-orders strip, item/bundle sheets, waiter mode.
+/// Madar POS — the flagship Order screen: branch catalog (categories, search,
+/// adaptive item grid, combos), the live cart with held-orders strip and
+/// waiter round-targets, item customization + bundle configuration sheets.
 ///
-/// Screens land here per the rebuild plan (see docs/reference in the repo root).
+/// Pixel-and-behavior port of the Kotlin natives' OrderScreen.kt /
+/// ItemDetailSheet.kt / BundleDetailSheet.kt over the shared Rust core.
 library;
+
+export 'src/order_screen.dart';

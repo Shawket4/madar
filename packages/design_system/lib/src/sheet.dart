@@ -261,41 +261,46 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
       ),
       child: ClipRRect(
         borderRadius: _cardRadius,
-        child: Column(
-          mainAxisSize: hug ? MainAxisSize.min : MainAxisSize.max,
-          children: [
-            // Grab handle — full-width drag strip.
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onVerticalDragUpdate: _handleDragUpdate,
-              onVerticalDragEnd: _handleDragEnd,
-              onVerticalDragCancel: _handleDragCancel,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                    top: Space.md,
-                    bottom: Space.sm,
-                  ),
-                  child: SizedBox(
-                    width: _handleWidth,
-                    height: _handleHeight,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: colors.border,
-                        borderRadius: const BorderRadius.all(
-                          Radius.circular(Radii.pill),
+        // Material ancestor for the sheet's content — the route lives outside
+        // any Scaffold, and sheet bodies contain TextFields/ink effects.
+        child: Material(
+          type: MaterialType.transparency,
+          child: Column(
+            mainAxisSize: hug ? MainAxisSize.min : MainAxisSize.max,
+            children: [
+              // Grab handle — full-width drag strip.
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragUpdate: _handleDragUpdate,
+                onVerticalDragEnd: _handleDragEnd,
+                onVerticalDragCancel: _handleDragCancel,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      top: Space.md,
+                      bottom: Space.sm,
+                    ),
+                    child: SizedBox(
+                      width: _handleWidth,
+                      height: _handleHeight,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colors.border,
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(Radii.pill),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-            if (hug)
-              Flexible(child: Builder(builder: widget.route.builder))
-            else
-              Expanded(child: Builder(builder: widget.route.builder)),
-          ],
+              if (hug)
+                Flexible(child: Builder(builder: widget.route.builder))
+              else
+                Expanded(child: Builder(builder: widget.route.builder)),
+            ],
+          ),
         ),
       ),
     );

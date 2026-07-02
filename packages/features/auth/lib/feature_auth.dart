@@ -1,4 +1,13 @@
-/// Madar POS — device setup, PIN login, reauth, station picker.
+/// Madar POS — device setup, PIN login, station picker.
 ///
-/// Screens land here per the rebuild plan (see docs/reference in the repo root).
+/// Pixel-and-behavior ports of the Kotlin natives' LoginScreen.kt,
+/// StationPickerScreen.kt, and BrandPanel.kt. Every screen takes
+/// `{required MadarCore core, required void Function() onStateChanged}` and
+/// calls `onStateChanged()` after any bridge call that can move
+/// `app_route()`/session.
 library;
+
+export 'src/brand_panel.dart';
+export 'src/device_setup_screen.dart';
+export 'src/login_screen.dart';
+export 'src/station_picker_screen.dart';

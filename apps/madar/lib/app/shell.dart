@@ -1,4 +1,7 @@
 import 'package:design_system/design_system.dart';
+import 'package:feature_auth/feature_auth.dart';
+import 'package:feature_order/feature_order.dart';
+import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/material.dart';
 import 'package:madar/app/app_state.dart';
 import 'package:madar/spike_screen.dart';
@@ -52,17 +55,33 @@ class MadarShell extends StatelessWidget {
     }
   }
 
-  Widget _screenFor(AppRoute route) => switch (route) {
-    AppRoute_DeviceSetup() => _Placeholder(state: state, name: 'DeviceSetup'),
-    AppRoute_Login() => _Placeholder(state: state, name: 'Login'),
-    AppRoute_OpenShift() => _Placeholder(state: state, name: 'OpenShift'),
-    AppRoute_Order() => _Placeholder(state: state, name: 'Order'),
-    AppRoute_KitchenDisplay(:final stationId) => _Placeholder(
-      state: state,
-      name: 'KDS ($stationId)',
-    ),
-    AppRoute_WaiterTickets() => _Placeholder(state: state, name: 'Waiter'),
-  };
+  Widget _screenFor(AppRoute route) {
+    final core = state.core;
+    final onChanged = state.refreshRoute;
+    return switch (route) {
+      // A signed-in kitchen device parked on DeviceSetup needs its station
+      // bound; everyone else gets the login screen, which embeds the
+      // manager device-setup form when the device is unbound (the natives'
+      // exact mapping in App.kt).
+      AppRoute_DeviceSetup() =>
+        state.session != null && state.session!.role == 'kitchen'
+            ? StationPickerScreen(core: core, onStateChanged: onChanged)
+            : LoginScreen(core: core, onStateChanged: onChanged),
+      AppRoute_Login() => LoginScreen(core: core, onStateChanged: onChanged),
+      AppRoute_OpenShift() => OpenShiftScreen(
+        core: core,
+        onStateChanged: onChanged,
+      ),
+      AppRoute_Order() || AppRoute_WaiterTickets() => OrderScreen(
+        core: core,
+        onStateChanged: onChanged,
+      ),
+      AppRoute_KitchenDisplay(:final stationId) => _Placeholder(
+        state: state,
+        name: 'KDS ($stationId) — M6',
+      ),
+    };
+  }
 }
 
 class _Splash extends StatelessWidget {
