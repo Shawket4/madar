@@ -26,6 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Shawket4/madar-pos
+          ref: ui-rework-bold-refresh
           path: madar-pos
 
       - name: Setup Java
@@ -73,7 +74,7 @@ jobs:
       # Cargokit cross-compiles the Rust core per ABI inside this step.
       - name: Build APKs (one per ABI — ~half the size each)
         working-directory: madar/apps/madar
-        run: flutter build apk --release --split-per-abi
+        run: flutter build apk --release --split-per-abi --target-platform android-arm64,android-arm
 
       # Diawi OTA link — a shareable install page even while the repo is
       # private. Never fails the release; skipped when DIAWI_TOKEN is unset.
@@ -132,6 +133,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Shawket4/madar-pos
+          ref: ui-rework-bold-refresh
           path: madar-pos
 
       - name: Setup Rust

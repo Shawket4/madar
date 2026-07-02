@@ -60,8 +60,9 @@ android {
             ndk { abiFilters += listOf("arm64-v8a") }
         }
         release {
-            // Same ABI set the native app ships (deploy dropped x86_64).
-            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+            // ABIs are controlled by the build command (CI passes
+            // --split-per-abi --target-platform android-arm64,android-arm);
+            // ndk abiFilters here would CONFLICT with the splits mechanism.
             signingConfig = if (hasReleaseKey) {
                 signingConfigs.getByName("release")
             } else {
