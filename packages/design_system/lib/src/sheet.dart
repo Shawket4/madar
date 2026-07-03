@@ -22,8 +22,7 @@ enum SheetSize {
   /// Hugs its content up to a 92% cap and scrolls only on overflow —
   /// item / bundle customize sheets that must not stretch into a tall
   /// empty void.
-  hug(0.92)
-  ;
+  hug(0.92);
 
   const SheetSize(this.heightFraction);
 

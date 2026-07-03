@@ -140,12 +140,12 @@ class HeldOrdersStrip extends ConsumerWidget {
     final colors = context.madarColors;
     final saved = ref.watch(heldStripOrderProvider);
     final display = _reconcile(saved, tabs);
+    // onReorderItem (3.44+) hands a PRE-adjusted newIndex — no manual
+    // removed-item offset like the old onReorder required.
     void handleReorder(int from, int to) {
-      var target = to;
-      if (target > from) target -= 1;
       final keys = [for (final tab in display) tab.key];
       final key = keys.removeAt(from);
-      keys.insert(target, key);
+      keys.insert(to.clamp(0, keys.length), key);
       ref.read(heldStripOrderProvider.notifier).setOrder(keys);
     }
 
@@ -158,7 +158,7 @@ class HeldOrdersStrip extends ConsumerWidget {
             child: ReorderableListView(
               scrollDirection: Axis.horizontal,
               buildDefaultDragHandles: false,
-              onReorder: handleReorder,
+              onReorderItem: handleReorder,
               proxyDecorator: _proxyDecorator,
               padding: const EdgeInsets.symmetric(
                 horizontal: Space.lg,

@@ -32,8 +32,7 @@ enum HistorySortCol {
   teller(defaultAscending: false),
 
   /// The order-total column.
-  amount(defaultAscending: false)
-  ;
+  amount(defaultAscending: false);
 
   const HistorySortCol({required this.defaultAscending});
 
@@ -53,8 +52,7 @@ enum HistorySyncFilter {
   pending,
 
   /// Voided.
-  voided
-  ;
+  voided;
 
   /// Whether [o] passes this axis value.
   bool matches(OrderSummaryView o) => switch (this) {
@@ -74,8 +72,7 @@ enum HistoryTypeFilter {
   dineIn,
 
   /// Delivery orders.
-  delivery
-  ;
+  delivery;
 
   /// Whether [o] passes this axis value.
   bool matches(OrderSummaryView o) => switch (this) {
