@@ -1,19 +1,22 @@
 /// Held orders (drafts) — parked carts the teller can restore later. A
-/// pixel-and-behavior port of the Kotlin DraftsScreen.kt: the confident
-/// board header (back chevron + teal tray tile + bold title), the
-/// parked-cart cards (teal tray tile, name + item count, bold teal money,
-/// danger discard tile), and the tray empty state. Tapping a card restores
-/// the draft into the cart (replacing the current one) and closes the
-/// screen; the trash tile discards it after a confirm. All state + rules
-/// live in the core (cart::hold/restore_draft).
+/// pixel-and-behavior port of the Kotlin DraftsScreen.kt over the shared
+/// Rust core: the shared MadarHeader, the parked-cart cards (teal tray
+/// tile, name + item count, bold teal money, danger discard tile), and the
+/// tray empty state. Tapping a card restores the draft into the cart
+/// (replacing the current one) and closes the screen; the trash tile
+/// discards it after a confirm. All state + rules live in the core
+/// (cart::hold/restore_draft); the shared [orderProvider] means a restore
+/// here mutates the SAME cart the order screen renders.
 library;
 
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_order/src/order_controller.dart';
+import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Native metrics (DraftsScreen.kt) that fall between the 4-pt Space steps —
@@ -22,17 +25,8 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// Draft card width cap (natives: widthIn(max = 560.dp)).
 const double _cardMaxWidth = 560;
 
-/// Header back chevron (natives: 17.dp) and title size (natives: 20.sp
-/// Black).
-const double _headerIconSize = 17;
-const double _headerTitleSize = 20;
-
-/// Header/card vertical insets (natives: 14.dp).
-const double _headerVPad = 14;
+/// Card vertical insets (natives: 14.dp).
 const double _cardVPad = 14;
-
-/// Header tone tile (natives: 34.dp square, Radii.sm).
-const double _headerTile = 34;
 
 /// Card leading tray tile (natives: 44.dp) and discard tile (40.dp).
 const double _trayTile = 44;
@@ -45,64 +39,30 @@ const double _countSize = 12;
 /// Money — the hero figure (natives: 18.sp Black teal tabular).
 const double _moneySize = 18;
 
-/// The held-orders manager. Takes the shared screen contract ([core] +
-/// [onStateChanged]); pass the live order screen's [model] so a restore
-/// mutates the SHARED cart state (adopting the draft's createdAt as the
-/// cart's start timestamp — the natives' single AppModel); without it a
-/// screen-local controller drives the list.
-class DraftsScreen extends StatefulWidget {
+/// The held-orders manager, pushed over the order surface. Drives the
+/// SHARED [orderProvider] so a restore mutates the same cart state the
+/// order screen renders (adopting the draft's createdAt as the cart's start
+/// timestamp — the natives' single AppModel).
+class DraftsScreen extends ConsumerStatefulWidget {
   /// Creates the held-orders screen.
-  const DraftsScreen({
-    required this.core,
-    required this.onStateChanged,
-    this.model,
-    super.key,
-  });
-
-  /// The core handle every bridge call goes through.
-  final MadarCore core;
-
-  /// Invoked after a restore/discard (the order screen's cart moved).
-  final void Function() onStateChanged;
-
-  /// The live order controller when shown over the order screen (shared
-  /// cart state); null constructs a screen-local one.
-  final OrderController? model;
+  const DraftsScreen({super.key});
 
   @override
-  State<DraftsScreen> createState() => _DraftsScreenState();
+  ConsumerState<DraftsScreen> createState() => _DraftsScreenState();
 }
 
-class _DraftsScreenState extends State<DraftsScreen> {
-  /// Screen-local controller, created (and disposed) only when the shell
-  /// didn't hand in the live order controller.
-  OrderController? _owned;
-
-  OrderController get _model =>
-      widget.model ??
-      (_owned ??= OrderController(
-        core: widget.core,
-        onStateChanged: widget.onStateChanged,
-      ));
-
+class _DraftsScreenState extends ConsumerState<DraftsScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_model.loadDrafts());
-  }
-
-  @override
-  void dispose() {
-    _owned?.dispose();
-    super.dispose();
+    unawaited(ref.read(orderProvider.notifier).loadDrafts());
   }
 
   /// Restore the draft into the cart (replacing the current one) and close
   /// the screen — the natives' whole-card tap (with its LongPress haptic).
   Future<void> _restore(DraftView draft) async {
     MadarHaptics.impact();
-    await _model.restoreDraft(draft.id);
-    widget.onStateChanged();
+    await ref.read(orderProvider.notifier).restoreDraft(draft.id);
     if (!mounted) return;
     await Navigator.of(context).maybePop(true);
   }
@@ -113,136 +73,63 @@ class _DraftsScreenState extends State<DraftsScreen> {
       context,
       size: SheetSize.hug,
       maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (_) => _DiscardDraftSheet(model: _model, draft: draft),
+      builder: (_) => _DiscardDraftSheet(draft: draft),
     );
     if (ok ?? false) {
       MadarHaptics.impact();
-      await _model.discardDraft(draft.id);
+      await ref.read(orderProvider.notifier).discardDraft(draft.id);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _model,
-      builder: (context, _) {
-        final colors = context.madarColors;
-        // Scaffold: every screen owns its own Material ancestor in this app.
-        return Scaffold(
-          backgroundColor: colors.bg,
-          body: SafeArea(
-            child: Column(
-              children: [
-                _DraftsHeader(
-                  title: _model.tr('drafts.title'),
-                  onBack: () =>
-                      unawaited(Navigator.of(context).maybePop(false)),
-                ),
-                Expanded(
-                  child: _model.drafts.isEmpty
-                      ? EmptyState(
-                          icon: 'tray',
-                          title: _model.tr('drafts.empty'),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsetsDirectional.all(Space.lg),
-                          itemCount: _model.drafts.length,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: Space.md),
-                          itemBuilder: (context, index) {
-                            final draft = _model.drafts[index];
-                            return Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: _cardMaxWidth,
-                                ),
-                                child: _DraftCard(
-                                  model: _model,
-                                  draft: draft,
-                                  onRestore: () => unawaited(_restore(draft)),
-                                  onDiscard: () => unawaited(_discard(draft)),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Confident board header — back chevron, a leading teal tone-tile behind
-/// the tray glyph, and the bold title on a surface bar with a hairline.
-class _DraftsHeader extends StatelessWidget {
-  const _DraftsHeader({required this.title, required this.onBack});
-
-  final String title;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ColoredBox(
-          color: colors.surface,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.lg,
-              vertical: _headerVPad,
-            ),
-            child: Row(
-              spacing: Space.sm,
-              children: [
-                Semantics(
-                  button: true,
-                  child: TactileScale(
-                    onTap: onBack,
-                    child: MadarIcon(
-                      'chevron.backward',
-                      tint: colors.textPrimary,
-                      size: _headerIconSize,
+    final bridge = ref.watch(bridgeProvider);
+    final drafts = ref.watch(orderProvider.select((s) => s.drafts));
+    final currency = ref.watch(orderProvider.select((s) => s.currency));
+    // Scaffold: every screen owns its own Material ancestor in this app.
+    return Scaffold(
+      backgroundColor: colors.bg,
+      body: Column(
+        children: [
+          MadarHeader(
+            title: bridge.tr(key: 'drafts.title'),
+            onBack: () => Navigator.maybePop(context, false),
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: drafts.isEmpty
+                  ? EmptyState(
+                      icon: 'tray',
+                      title: bridge.tr(key: 'drafts.empty'),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsetsDirectional.all(Space.lg),
+                      itemCount: drafts.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: Space.md),
+                      itemBuilder: (context, index) {
+                        final draft = drafts[index];
+                        return Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxWidth: _cardMaxWidth,
+                            ),
+                            child: _DraftCard(
+                              draft: draft,
+                              currency: currency,
+                              onRestore: () => unawaited(_restore(draft)),
+                              onDiscard: () => unawaited(_discard(draft)),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                ),
-                Container(
-                  width: _headerTile,
-                  height: _headerTile,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: colors.accentBg,
-                    borderRadius: BorderRadius.circular(Radii.sm),
-                  ),
-                  child: MadarIcon(
-                    'tray.full',
-                    tint: colors.accent,
-                    size: IconSize.lg,
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.h3.copyWith(
-                      fontSize: _headerTitleSize,
-                      fontWeight: FontWeight.w900,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
-        ),
-        Container(height: 1, color: colors.border),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -250,23 +137,24 @@ class _DraftsHeader extends StatelessWidget {
 /// A parked-cart card — leading teal tray tile, name + item count, bold
 /// teal money (the hero figure), and a danger discard tile. The whole card
 /// restores the draft.
-class _DraftCard extends StatelessWidget {
+class _DraftCard extends ConsumerWidget {
   const _DraftCard({
-    required this.model,
     required this.draft,
+    required this.currency,
     required this.onRestore,
     required this.onDiscard,
   });
 
-  final OrderController model;
   final DraftView draft;
+  final String currency;
   final VoidCallback onRestore;
   final VoidCallback onDiscard;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final bridge = ref.watch(bridgeProvider);
     return TactileScale(
       scale: 0.99,
       onTap: onRestore,
@@ -314,7 +202,7 @@ class _DraftCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${draft.itemCount} ${model.tr('chrome.orders')}',
+                    '${draft.itemCount} ${bridge.tr(key: 'chrome.orders')}',
                     style: MadarType.label.copyWith(
                       fontSize: _countSize,
                       fontWeight: FontWeight.w500,
@@ -327,7 +215,7 @@ class _DraftCard extends StatelessWidget {
             // Money is the hero — heavy teal, tabular figures.
             MoneyText(
               draft.totalMinor,
-              currency: model.currency,
+              currency: currency,
               style: MadarType.money.copyWith(
                 fontSize: _moneySize,
                 fontWeight: FontWeight.w900,
@@ -335,7 +223,7 @@ class _DraftCard extends StatelessWidget {
             ),
             Semantics(
               button: true,
-              label: model.tr('sync.discard'),
+              label: bridge.tr(key: 'sync.discard'),
               child: TactileScale(
                 onTap: onDiscard,
                 child: Container(
@@ -359,15 +247,15 @@ class _DraftCard extends StatelessWidget {
 
 /// Compact discard confirmation — the parked cart's name + size, then a
 /// Cancel / danger-Discard pair. Pops `true` on confirm.
-class _DiscardDraftSheet extends StatelessWidget {
-  const _DiscardDraftSheet({required this.model, required this.draft});
+class _DiscardDraftSheet extends ConsumerWidget {
+  const _DiscardDraftSheet({required this.draft});
 
-  final OrderController model;
   final DraftView draft;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
     return SingleChildScrollView(
       padding: const EdgeInsetsDirectional.all(Space.lg),
       child: Column(
@@ -378,7 +266,7 @@ class _DiscardDraftSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  model.tr('drafts.title'),
+                  bridge.tr(key: 'drafts.title'),
                   style: MadarType.h2.copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -392,7 +280,7 @@ class _DiscardDraftSheet extends StatelessWidget {
           const SizedBox(height: Space.xs),
           Text(
             '${draft.name} · ${draft.itemCount} '
-            '${model.tr('chrome.orders')}',
+            '${bridge.tr(key: 'chrome.orders')}',
             style: MadarType.bodySm.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: Space.md),
@@ -400,7 +288,7 @@ class _DiscardDraftSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: ActionButton(
-                  label: model.tr('common.cancel'),
+                  label: bridge.tr(key: 'common.cancel'),
                   variant: ActionVariant.outline,
                   onTap: () => unawaited(Navigator.of(context).maybePop()),
                 ),
@@ -408,7 +296,7 @@ class _DiscardDraftSheet extends StatelessWidget {
               const SizedBox(width: Space.sm),
               Expanded(
                 child: ActionButton(
-                  label: model.tr('sync.discard'),
+                  label: bridge.tr(key: 'sync.discard'),
                   variant: ActionVariant.danger,
                   icon: 'trash',
                   onTap: () => unawaited(Navigator.of(context).maybePop(true)),

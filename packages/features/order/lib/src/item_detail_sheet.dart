@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/cart_panel.dart';
-import 'package:feature_order/src/order_controller.dart';
+import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// A host-only draft of one configured bundle component (what the
@@ -27,8 +29,8 @@ class BundleComponentDraft {
 
 /// An addon group shown in the sheet — a slot (labelled, min/max, required)
 /// or a global `type:` bucket.
-class _Group {
-  const _Group({
+class AddonGroup {
+  const AddonGroup({
     required this.id,
     required this.title,
     required this.addons,
@@ -47,6 +49,324 @@ class _Group {
   final int minSel;
 }
 
+/// The DATA one item-customization presentation is seeded from. Identity
+/// equality on purpose: each sheet instance creates its own args once, so
+/// its [itemConfigProvider] member is private to that presentation and
+/// auto-disposes with it (no stale selection can leak into the next open).
+class ItemSheetArgs {
+  ItemSheetArgs({
+    required this.item,
+    required this.addons,
+    this.editLine,
+    this.configureSeed,
+    this.isConfiguring = false,
+  });
+
+  final MenuItemView item;
+
+  /// The item's addons with charged prices resolved by the core.
+  final List<ItemAddonView> addons;
+
+  /// Edit mode: the cart line being reconfigured (null = adding fresh).
+  final CartLineView? editLine;
+
+  /// Configure mode: the previously saved component draft to seed from.
+  final BundleComponentDraft? configureSeed;
+  final bool isConfiguring;
+}
+
+/// The live selection inside one item-customization sheet.
+@immutable
+class ItemConfigState {
+  const ItemConfigState({
+    required this.size,
+    required this.single,
+    required this.multi,
+    required this.optionals,
+    required this.qty,
+    this.showAll = false,
+    this.showRecipe = false,
+    this.recipeLines = const [],
+    this.committing = false,
+  });
+
+  final String? size;
+
+  /// groupId → addonId (single-select groups).
+  final Map<String, String> single;
+
+  /// groupId → addonId → qty (multi-select groups).
+  final Map<String, Map<String, int>> multi;
+  final Set<String> optionals;
+  final int qty;
+
+  /// Reveal the FULL org addon catalog (every type), not just the item's
+  /// assigned slots + global types.
+  final bool showAll;
+
+  /// The recipe section, revealed by the header recipe button.
+  final bool showRecipe;
+  final List<ComputedRecipeLineView> recipeLines;
+
+  /// Latches the footer while the add/update commit is in flight so a
+  /// double-tap can't record the configured line twice (in edit mode the
+  /// second pass would remove-then-re-add, duplicating the line).
+  final bool committing;
+
+  List<AddonSelection> get selectedAddons => [
+    for (final id in single.values) AddonSelection(addonItemId: id, qty: 1),
+    for (final group in multi.values)
+      for (final entry in group.entries)
+        AddonSelection(addonItemId: entry.key, qty: entry.value),
+  ];
+
+  ItemConfigState copyWith({
+    Object? size = _unset,
+    Map<String, String>? single,
+    Map<String, Map<String, int>>? multi,
+    Set<String>? optionals,
+    int? qty,
+    bool? showAll,
+    bool? showRecipe,
+    List<ComputedRecipeLineView>? recipeLines,
+    bool? committing,
+  }) => ItemConfigState(
+    size: identical(size, _unset) ? this.size : size as String?,
+    single: single ?? this.single,
+    multi: multi ?? this.multi,
+    optionals: optionals ?? this.optionals,
+    qty: qty ?? this.qty,
+    showAll: showAll ?? this.showAll,
+    showRecipe: showRecipe ?? this.showRecipe,
+    recipeLines: recipeLines ?? this.recipeLines,
+    committing: committing ?? this.committing,
+  );
+
+  static const Object _unset = Object();
+}
+
+/// Selection notifier for one sheet presentation — seeded from the args
+/// (edit line / configure seed / defaults), mutated by the chip taps.
+class ItemConfigNotifier
+    extends AutoDisposeFamilyNotifier<ItemConfigState, ItemSheetArgs> {
+  bool _disposed = false;
+
+  @override
+  ItemConfigState build(ItemSheetArgs arg) {
+    ref.onDispose(() => _disposed = true);
+    return _seed(arg);
+  }
+
+  /// Restore a saved addon (id + qty) into the right group — by its TYPE →
+  /// slot / global `type:` bucket, NOT the on-screen groups (which the
+  /// allowlist / "show all" filter may hide), so a selection never drops.
+  static void _placeAddon(
+    ItemSheetArgs args,
+    Map<String, String> single,
+    Map<String, Map<String, int>> multi,
+    String addonItemId,
+    int qty,
+  ) {
+    final type = args.addons
+        .where((a) => a.addonItemId == addonItemId)
+        .firstOrNull
+        ?.addonType;
+    if (type == null) return;
+    final slot = args.item.addonSlots
+        .where((s) => s.addonType == type)
+        .firstOrNull;
+    if (slot != null) {
+      if ((slot.maxSelections ?? 2) > 1) {
+        multi.putIfAbsent(slot.id, () => {})[addonItemId] = qty;
+      } else {
+        single[slot.id] = addonItemId;
+      }
+    } else {
+      final gid = 'type:$type';
+      if (type != 'milk_type') {
+        multi.putIfAbsent(gid, () => {})[addonItemId] = qty;
+      } else {
+        single[gid] = addonItemId;
+      }
+    }
+  }
+
+  static ItemConfigState _seed(ItemSheetArgs args) {
+    final item = args.item;
+    final single = <String, String>{};
+    final multi = <String, Map<String, int>>{};
+    var optionals = const <String>{};
+    var size = item.sizes.firstOrNull?.label;
+    var qty = 1;
+    final seed = args.configureSeed;
+    final editLine = args.editLine;
+    if (args.isConfiguring) {
+      if (seed != null) {
+        size = seed.sizeLabel ?? size;
+        for (final a in seed.addons) {
+          _placeAddon(args, single, multi, a.addonItemId, a.qty);
+        }
+        optionals = seed.optionalIds.toSet();
+      } else {
+        final milk = item.defaultMilkAddonId;
+        if (milk != null) single['type:milk_type'] = milk;
+      }
+    } else if (editLine != null) {
+      // Edit mode: reconstruct the selection from the existing line.
+      size = editLine.sizeLabel ?? size;
+      for (final a in editLine.addons) {
+        _placeAddon(args, single, multi, a.addonItemId, a.qty);
+      }
+      optionals = editLine.optionals.map((o) => o.optionalFieldId).toSet();
+      qty = editLine.qty < 1 ? 1 : editLine.qty;
+    } else {
+      final milk = item.defaultMilkAddonId;
+      if (milk != null) single['type:milk_type'] = milk;
+    }
+    return ItemConfigState(
+      size: size,
+      single: single,
+      multi: multi,
+      optionals: optionals,
+      qty: qty,
+    );
+  }
+
+  // ── mutations ────────────────────────────────────────────────────────────
+  void selectSize(String label) {
+    state = state.copyWith(size: label);
+    _maybeRefreshRecipe();
+  }
+
+  void toggleSingle(AddonGroup g, String addonId) {
+    final single = {...state.single};
+    if (single[g.id] == addonId) {
+      if (!g.isRequired) single.remove(g.id);
+    } else {
+      single[g.id] = addonId;
+    }
+    state = state.copyWith(single: single);
+    _maybeRefreshRecipe();
+  }
+
+  void toggleMulti(AddonGroup g, String addonId) {
+    final m = {...?state.multi[g.id]};
+    if (m.containsKey(addonId)) {
+      m.remove(addonId);
+    } else if (g.maxSel == null || m.length < g.maxSel!) {
+      m[addonId] = 1;
+    } else {
+      final tr = ref.read(bridgeProvider).tr;
+      ref
+          .read(orderProvider.notifier)
+          .showToast(
+            '${g.title}: ${tr(key: 'order.max_reached')} (≤${g.maxSel})',
+            tone: ChipTone.warning,
+            icon: 'hand.raised',
+          );
+      return;
+    }
+    _writeMulti(g.id, m);
+  }
+
+  void incMulti(AddonGroup g, String addonId) {
+    final m = {...?state.multi[g.id]};
+    m[addonId] = (m[addonId] ?? 1) + 1;
+    _writeMulti(g.id, m);
+  }
+
+  void decMulti(AddonGroup g, String addonId) {
+    final m = {...?state.multi[g.id]};
+    final cur = m[addonId] ?? 1;
+    if (cur <= 1) {
+      m.remove(addonId);
+    } else {
+      m[addonId] = cur - 1;
+    }
+    _writeMulti(g.id, m);
+  }
+
+  void _writeMulti(String groupId, Map<String, int> m) {
+    final multi = {...state.multi};
+    if (m.isEmpty) {
+      multi.remove(groupId);
+    } else {
+      multi[groupId] = m;
+    }
+    state = state.copyWith(multi: multi);
+    _maybeRefreshRecipe();
+  }
+
+  void toggleOptional(String fieldId) {
+    state = state.copyWith(
+      optionals: state.optionals.contains(fieldId)
+          ? (state.optionals.toSet()..remove(fieldId))
+          : {...state.optionals, fieldId},
+    );
+    _maybeRefreshRecipe();
+  }
+
+  void toggleShowAll() => state = state.copyWith(showAll: !state.showAll);
+
+  void setQty(int qty) => state = state.copyWith(qty: qty.clamp(1, 99));
+
+  void toggleRecipe() {
+    state = state.copyWith(showRecipe: !state.showRecipe);
+    if (state.showRecipe) unawaited(refreshRecipe());
+  }
+
+  // ── recipe preview ───────────────────────────────────────────────────────
+  void _maybeRefreshRecipe() {
+    if (!state.showRecipe) return;
+    unawaited(refreshRecipe());
+  }
+
+  Future<void> refreshRecipe() async {
+    final lines = await ref
+        .read(orderProvider.notifier)
+        .recipePreview(
+          itemId: arg.item.id,
+          sizeLabel: state.size,
+          addons: state.selectedAddons,
+          optionalIds: state.optionals.toList(growable: false),
+        );
+    if (_disposed) return;
+    state = state.copyWith(recipeLines: lines);
+  }
+
+  // ── commit ───────────────────────────────────────────────────────────────
+  /// Record the configured line (add, or replace in edit mode). Returns
+  /// false when a commit is already in flight (the double-tap guard) — the
+  /// sheet pops only on true.
+  Future<bool> commit({required String? notes}) async {
+    if (state.committing) return false;
+    state = state.copyWith(committing: true);
+    await ref
+        .read(orderProvider.notifier)
+        .addConfigured(
+          itemId: arg.item.id,
+          sizeLabel: state.size,
+          addons: state.selectedAddons,
+          optionalIds: state.optionals.toList(growable: false),
+          qty: state.qty,
+          notes: notes,
+          replaceLineKey: arg.editLine?.key,
+        );
+    return true;
+  }
+}
+
+/// One sheet presentation's selection state, keyed by its (identity) args.
+final AutoDisposeNotifierProviderFamily<
+  ItemConfigNotifier,
+  ItemConfigState,
+  ItemSheetArgs
+>
+itemConfigProvider = NotifierProvider.autoDispose
+    .family<ItemConfigNotifier, ItemConfigState, ItemSheetArgs>(
+      ItemConfigNotifier.new,
+    );
+
 /// Item customization — size, addons (per slot + global types), optional
 /// fields, live recipe preview, notes, qty. Prices come pre-resolved from
 /// the core; this only displays and sums.
@@ -54,9 +374,8 @@ class _Group {
 /// Bundle-component configure mode: when [isConfiguring] the footer SAVES
 /// the selection back (pops a [BundleComponentDraft], no cart write), seeded
 /// from [configureSeed], and the qty stepper is hidden.
-class ItemDetailSheet extends StatefulWidget {
+class ItemDetailSheet extends ConsumerStatefulWidget {
   const ItemDetailSheet({
-    required this.model,
     required this.item,
     required this.addons,
     this.editLine,
@@ -65,7 +384,6 @@ class ItemDetailSheet extends StatefulWidget {
     super.key,
   });
 
-  final OrderController model;
   final MenuItemView item;
 
   /// The item's addons with charged prices resolved by the core.
@@ -79,40 +397,27 @@ class ItemDetailSheet extends StatefulWidget {
   final bool isConfiguring;
 
   @override
-  State<ItemDetailSheet> createState() => _ItemDetailSheetState();
+  ConsumerState<ItemDetailSheet> createState() => _ItemDetailSheetState();
 }
 
-class _ItemDetailSheetState extends State<ItemDetailSheet> {
-  String? _size;
-  final Map<String, String> _single = {}; // groupId -> addonId
-  Map<String, Map<String, int>> _multi = {}; // groupId -> addonId -> qty
-  Set<String> _optionals = {};
-  int _qty = 1;
+class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
+  /// Created once per presentation — the identity key that gives this sheet
+  /// its own [itemConfigProvider] member.
+  late final ItemSheetArgs _args = ItemSheetArgs(
+    item: widget.item,
+    addons: widget.addons,
+    editLine: widget.editLine,
+    configureSeed: widget.configureSeed,
+    isConfiguring: widget.isConfiguring,
+  );
 
-  /// Reveal the FULL org addon catalog (every type), not just the item's
-  /// assigned slots + global types.
-  bool _showAll = false;
-
-  /// The recipe section, revealed by the header recipe button.
-  bool _showRecipe = false;
-  List<ComputedRecipeLineView> _recipeLines = const [];
-
-  final _notes = TextEditingController();
-
-  /// Latches the footer while the add/update commit is in flight so a
-  /// double-tap can't record the configured line twice (in edit mode the
-  /// second pass would remove-then-re-add, duplicating the line).
-  bool _committing = false;
+  late final TextEditingController _notes = TextEditingController(
+    text: widget.editLine?.notes ?? '',
+  );
 
   static const _baseTypes = ['milk_type', 'coffee_type', 'extra'];
 
   MenuItemView get _item => widget.item;
-
-  @override
-  void initState() {
-    super.initState();
-    _seed();
-  }
 
   @override
   void dispose() {
@@ -120,75 +425,11 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
     super.dispose();
   }
 
-  /// Restore a saved addon (id + qty) into the right group — by its TYPE →
-  /// slot / global `type:` bucket, NOT the on-screen groups (which the
-  /// allowlist / "show all" filter may hide), so a selection never drops.
-  void _placeAddon(
-    Map<String, Map<String, int>> multi,
-    String addonItemId,
-    int qty,
-  ) {
-    final type = widget.addons
-        .where((a) => a.addonItemId == addonItemId)
-        .firstOrNull
-        ?.addonType;
-    if (type == null) return;
-    final slot = _item.addonSlots.where((s) => s.addonType == type).firstOrNull;
-    if (slot != null) {
-      if ((slot.maxSelections ?? 2) > 1) {
-        multi.putIfAbsent(slot.id, () => {})[addonItemId] = qty;
-      } else {
-        _single[slot.id] = addonItemId;
-      }
-    } else {
-      final gid = 'type:$type';
-      if (type != 'milk_type') {
-        multi.putIfAbsent(gid, () => {})[addonItemId] = qty;
-      } else {
-        _single[gid] = addonItemId;
-      }
-    }
-  }
-
-  void _seed() {
-    final newMulti = <String, Map<String, int>>{};
-    final seed = widget.configureSeed;
-    final editLine = widget.editLine;
-    if (widget.isConfiguring) {
-      if (seed != null) {
-        _size = seed.sizeLabel ?? _item.sizes.firstOrNull?.label;
-        for (final a in seed.addons) {
-          _placeAddon(newMulti, a.addonItemId, a.qty);
-        }
-        _multi = newMulti;
-        _optionals = seed.optionalIds.toSet();
-      } else {
-        _size = _item.sizes.firstOrNull?.label;
-        final milk = _item.defaultMilkAddonId;
-        if (milk != null) _single['type:milk_type'] = milk;
-      }
-    } else if (editLine != null) {
-      // Edit mode: reconstruct the selection from the existing line.
-      _size = editLine.sizeLabel ?? _item.sizes.firstOrNull?.label;
-      for (final a in editLine.addons) {
-        _placeAddon(newMulti, a.addonItemId, a.qty);
-      }
-      _multi = newMulti;
-      _optionals = editLine.optionals.map((o) => o.optionalFieldId).toSet();
-      _notes.text = editLine.notes ?? '';
-      _qty = editLine.qty < 1 ? 1 : editLine.qty;
-    } else {
-      _size = _item.sizes.firstOrNull?.label;
-      final milk = _item.defaultMilkAddonId;
-      if (milk != null) _single['type:milk_type'] = milk;
-    }
-  }
-
   // ── group derivation ─────────────────────────────────────────────────────
-  String _typeLabel(String type) => switch (type) {
-    'milk_type' => widget.model.tr('order.addon_milk_type'),
-    'coffee_type' => widget.model.tr('order.addon_coffee_type'),
-    'extra' => widget.model.tr('order.addon_extra'),
+  String _typeLabel(MadarBridge bridge, String type) => switch (type) {
+    'milk_type' => bridge.tr(key: 'order.addon_milk_type'),
+    'coffee_type' => bridge.tr(key: 'order.addon_coffee_type'),
+    'extra' => bridge.tr(key: 'order.addon_extra'),
     _ =>
       type
           .split('_')
@@ -201,9 +442,10 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
   /// "show all" drops the filter entirely.
   List<ItemAddonView> _visibleAddons(
     List<ItemAddonView> all, {
+    required bool showAll,
     required bool isSlot,
   }) {
-    if (_showAll || isSlot) return all;
+    if (showAll || isSlot) return all;
     final allowed = _item.allowedAddonIds;
     if (allowed.isEmpty) return all;
     final set = allowed.toSet();
@@ -212,20 +454,25 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
         .toList(growable: false);
   }
 
-  List<_Group> _buildGroups(Map<String, List<ItemAddonView>> addonsByType) {
-    final groups = <_Group>[];
+  List<AddonGroup> _buildGroups(
+    MadarBridge bridge,
+    Map<String, List<ItemAddonView>> addonsByType, {
+    required bool showAll,
+  }) {
+    final groups = <AddonGroup>[];
     final slotTypes = _item.addonSlots.map((s) => s.addonType).toSet();
     for (final slot in _item.addonSlots) {
       final addons = _visibleAddons(
         addonsByType[slot.addonType] ?? const [],
+        showAll: showAll,
         isSlot: true,
       );
       if (addons.isEmpty) continue;
       final isMulti = (slot.maxSelections ?? 2) > 1;
       groups.add(
-        _Group(
+        AddonGroup(
           id: slot.id,
-          title: slot.label ?? _typeLabel(slot.addonType),
+          title: slot.label ?? _typeLabel(bridge, slot.addonType),
           addons: addons,
           isMulti: isMulti,
           maxSel: slot.maxSelections,
@@ -234,7 +481,7 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
         ),
       );
     }
-    final extraTypes = _showAll
+    final extraTypes = showAll
         ? [
             ..._baseTypes,
             ...addonsByType.keys.where((t) => !_baseTypes.contains(t)).toList()
@@ -245,13 +492,14 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
       if (slotTypes.contains(type)) continue;
       final addons = _visibleAddons(
         addonsByType[type] ?? const [],
+        showAll: showAll,
         isSlot: false,
       );
       if (addons.isEmpty) continue;
       groups.add(
-        _Group(
+        AddonGroup(
           id: 'type:$type',
-          title: _typeLabel(type),
+          title: _typeLabel(bridge, type),
           addons: addons,
           isMulti: type != 'milk_type',
           maxSel: null,
@@ -263,7 +511,7 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
     return groups;
   }
 
-  // ── selection + pricing ──────────────────────────────────────────────────
+  // ── pricing ──────────────────────────────────────────────────────────────
   int _charged(String addonItemId) =>
       widget.addons
           .where((a) => a.addonItemId == addonItemId)
@@ -271,143 +519,40 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
           ?.chargedPriceMinor ??
       0;
 
-  List<AddonSelection> get _selectedAddons => [
-    for (final id in _single.values) AddonSelection(addonItemId: id, qty: 1),
-    for (final group in _multi.values)
-      for (final entry in group.entries)
-        AddonSelection(addonItemId: entry.key, qty: entry.value),
-  ];
-
-  // ── mutations ────────────────────────────────────────────────────────────
-  void _toggleSingle(_Group g, String addonId) {
-    setState(() {
-      if (_single[g.id] == addonId) {
-        if (!g.isRequired) _single.remove(g.id);
-      } else {
-        _single[g.id] = addonId;
-      }
-    });
-    _maybeRefreshRecipe();
-  }
-
-  void _toggleMulti(_Group g, String addonId) {
-    final m = {...?_multi[g.id]};
-    if (m.containsKey(addonId)) {
-      m.remove(addonId);
-    } else if (g.maxSel == null || m.length < g.maxSel!) {
-      m[addonId] = 1;
-    } else {
-      widget.model.showToast(
-        '${g.title}: ${widget.model.tr('order.max_reached')} (≤${g.maxSel})',
-        tone: ChipTone.warning,
-        icon: 'hand.raised',
-      );
-      return;
-    }
-    setState(() {
-      _multi = {..._multi};
-      if (m.isEmpty) {
-        _multi.remove(g.id);
-      } else {
-        _multi[g.id] = m;
-      }
-    });
-    _maybeRefreshRecipe();
-  }
-
-  void _incMulti(_Group g, String addonId) {
-    setState(() {
-      final m = {...?_multi[g.id]};
-      m[addonId] = (m[addonId] ?? 1) + 1;
-      _multi = {..._multi, g.id: m};
-    });
-    _maybeRefreshRecipe();
-  }
-
-  void _decMulti(_Group g, String addonId) {
-    setState(() {
-      final m = {...?_multi[g.id]};
-      final cur = m[addonId] ?? 1;
-      if (cur <= 1) {
-        m.remove(addonId);
-      } else {
-        m[addonId] = cur - 1;
-      }
-      _multi = {..._multi};
-      if (m.isEmpty) {
-        _multi.remove(g.id);
-      } else {
-        _multi[g.id] = m;
-      }
-    });
-    _maybeRefreshRecipe();
-  }
-
-  void _toggleOptional(String fieldId) {
-    setState(() {
-      _optionals = _optionals.contains(fieldId)
-          ? (_optionals.toSet()..remove(fieldId))
-          : {..._optionals, fieldId};
-    });
-    _maybeRefreshRecipe();
-  }
-
-  // ── recipe preview ───────────────────────────────────────────────────────
-  void _maybeRefreshRecipe() {
-    if (!_showRecipe) return;
-    unawaited(_refreshRecipe());
-  }
-
-  Future<void> _refreshRecipe() async {
-    final lines = await widget.model.recipePreview(
-      itemId: _item.id,
-      sizeLabel: _size,
-      addons: _selectedAddons,
-      optionalIds: _optionals.toList(growable: false),
-    );
-    if (!mounted) return;
-    setState(() => _recipeLines = lines);
-  }
-
   // ── commit ───────────────────────────────────────────────────────────────
-  Future<void> _commit(int extrasMinor) async {
-    if (_committing) return;
+  Future<void> _commit(ItemConfigState config, int extrasMinor) async {
     if (widget.isConfiguring) {
+      if (config.committing) return;
       await Navigator.of(context).maybePop(
         BundleComponentDraft(
-          sizeLabel: _size,
-          addons: _selectedAddons,
-          optionalIds: _optionals.toList(growable: false),
+          sizeLabel: config.size,
+          addons: config.selectedAddons,
+          optionalIds: config.optionals.toList(growable: false),
           extrasMinor: extrasMinor,
         ),
       );
       return;
     }
-    setState(() => _committing = true);
     final notes = _notes.text.trim();
-    await widget.model.addConfigured(
-      itemId: _item.id,
-      sizeLabel: _size,
-      addons: _selectedAddons,
-      optionalIds: _optionals.toList(growable: false),
-      qty: _qty,
-      notes: notes.isEmpty ? null : notes,
-      replaceLineKey: widget.editLine?.key,
-    );
-    if (mounted) await Navigator.of(context).maybePop();
+    final committed = await ref
+        .read(itemConfigProvider(_args).notifier)
+        .commit(notes: notes.isEmpty ? null : notes);
+    if (committed && mounted) await Navigator.of(context).maybePop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final model = widget.model;
     final colors = context.madarColors;
-    final currency = model.currency;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(orderProvider.select((s) => s.currency));
+    final config = ref.watch(itemConfigProvider(_args));
+    final notifier = ref.read(itemConfigProvider(_args).notifier);
 
     final addonsByType = <String, List<ItemAddonView>>{};
     for (final addon in widget.addons) {
       addonsByType.putIfAbsent(addon.addonType, () => []).add(addon);
     }
-    final groups = _buildGroups(addonsByType);
+    final groups = _buildGroups(bridge, addonsByType, showAll: config.showAll);
     final slotTypes = _item.addonSlots.map((s) => s.addonType).toSet();
     // True when "Show all" would reveal more than the default view.
     final hasMore =
@@ -418,23 +563,27 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
 
     // Pricing (display only) — the core re-resolves on add.
     final unitPrice =
-        _item.sizes.where((s) => s.label == _size).firstOrNull?.priceMinor ??
+        _item.sizes
+            .where((s) => s.label == config.size)
+            .firstOrNull
+            ?.priceMinor ??
         _item.basePriceMinor;
-    final addonsTotal = _selectedAddons.fold(
+    final selectedAddons = config.selectedAddons;
+    final addonsTotal = selectedAddons.fold(
       0,
       (sum, sel) => sum + _charged(sel.addonItemId) * sel.qty,
     );
     final optionalsTotal = _item.optionalFields
-        .where((f) => _optionals.contains(f.id))
+        .where((f) => config.optionals.contains(f.id))
         .fold(0, (sum, f) => sum + f.priceMinor);
     final headerTotal = unitPrice + addonsTotal + optionalsTotal;
     final extrasMinor = addonsTotal + optionalsTotal;
 
-    _Group? firstUnsatisfied;
+    AddonGroup? firstUnsatisfied;
     for (final g in groups) {
       final count = g.isMulti
-          ? (_multi[g.id]?.length ?? 0)
-          : (_single[g.id] != null ? 1 : 0);
+          ? (config.multi[g.id]?.length ?? 0)
+          : (config.single[g.id] != null ? 1 : 0);
       final needed = g.minSel > 1 ? g.minSel : 1;
       if (g.isRequired && count < needed) {
         firstUnsatisfied = g;
@@ -444,28 +593,26 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
     final canAdd = firstUnsatisfied == null;
 
     final footerLabel = !canAdd
-        ? '${model.tr('order.select_prefix')} ${firstUnsatisfied.title}'
+        ? '${bridge.tr(key: 'order.select_prefix')} ${firstUnsatisfied.title}'
         : widget.isConfiguring
-        ? model.tr('order.save_component')
+        ? bridge.tr(key: 'order.save_component')
         : widget.editLine == null
-        ? model.tr('order.add_to_cart')
-        : model.tr('order.update_item');
+        ? bridge.tr(key: 'order.add_to_cart')
+        : bridge.tr(key: 'order.update_item');
     // Configure mode sums only the extras (the bundle covers the base).
-    final footerPrice = widget.isConfiguring ? extrasMinor : headerTotal * _qty;
+    final footerPrice = widget.isConfiguring
+        ? extrasMinor
+        : headerTotal * config.qty;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _SheetHeader(
-          model: model,
           item: _item,
           headerTotalMinor: headerTotal,
           currency: currency,
-          showRecipe: _showRecipe,
-          onToggleRecipe: () {
-            setState(() => _showRecipe = !_showRecipe);
-            if (_showRecipe) unawaited(_refreshRecipe());
-          },
+          showRecipe: config.showRecipe,
+          onToggleRecipe: notifier.toggleRecipe,
         ),
         // Hug content when it fits (short sheet for a sparse item); scroll
         // when the options overflow — the footer stays pinned + visible.
@@ -483,17 +630,17 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (_showRecipe && _recipeLines.isNotEmpty) ...[
-                    SectionTitle(model.tr('order.recipe')),
+                  if (config.showRecipe && config.recipeLines.isNotEmpty) ...[
+                    SectionTitle(bridge.tr(key: 'order.recipe')),
                     const SizedBox(height: Space.sm),
-                    for (final line in _recipeLines) ...[
+                    for (final line in config.recipeLines) ...[
                       _RecipeRow(line: line),
                       const SizedBox(height: Space.sm),
                     ],
                     const SizedBox(height: Space.xs),
                   ],
                   if (_item.sizes.isNotEmpty) ...[
-                    SectionTitle(model.tr('order.size')),
+                    SectionTitle(bridge.tr(key: 'order.size')),
                     const SizedBox(height: Space.sm),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -506,11 +653,8 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
                                 size.priceMinor,
                                 currency: currency,
                               ),
-                              active: _size == size.label,
-                              onTap: () {
-                                setState(() => _size = size.label);
-                                _maybeRefreshRecipe();
-                              },
+                              active: config.size == size.label,
+                              onTap: () => notifier.selectSize(size.label),
                             ),
                             const SizedBox(width: Space.sm),
                           ],
@@ -526,43 +670,41 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
                       // search-field state.
                       key: ValueKey(g.id),
                       group: g,
-                      model: model,
                       currency: currency,
                       charged: _charged,
-                      selectedSingle: _single[g.id],
-                      selectedMulti: _multi[g.id] ?? const {},
-                      onToggleSingle: (id) => _toggleSingle(g, id),
-                      onToggleMulti: (id) => _toggleMulti(g, id),
-                      onInc: (id) => _incMulti(g, id),
-                      onDec: (id) => _decMulti(g, id),
+                      selectedSingle: config.single[g.id],
+                      selectedMulti: config.multi[g.id] ?? const {},
+                      onToggleSingle: (id) => notifier.toggleSingle(g, id),
+                      onToggleMulti: (id) => notifier.toggleMulti(g, id),
+                      onInc: (id) => notifier.incMulti(g, id),
+                      onDec: (id) => notifier.decMulti(g, id),
                     ),
                     const SizedBox(height: Space.md),
                   ],
                   if (hasMore)
                     _ShowAllToggle(
-                      showAll: _showAll,
-                      label: model.tr(
-                        _showAll
+                      showAll: config.showAll,
+                      label: bridge.tr(
+                        key: config.showAll
                             ? 'order.show_assigned_addons'
                             : 'order.show_all_addons',
                       ),
-                      onToggle: () => setState(() => _showAll = !_showAll),
+                      onToggle: notifier.toggleShowAll,
                     ),
                   _OptionalsSection(
-                    model: model,
                     currency: currency,
                     fields: _item.optionalFields
                         .where((f) => f.isActive)
                         .toList(growable: false),
-                    selected: _optionals,
-                    onToggle: _toggleOptional,
+                    selected: config.optionals,
+                    onToggle: notifier.toggleOptional,
                   ),
                   if (!widget.isConfiguring) ...[
-                    SectionTitle(model.tr('order.notes')),
+                    SectionTitle(bridge.tr(key: 'order.notes')),
                     const SizedBox(height: Space.sm),
                     OrderTextField(
                       controller: _notes,
-                      placeholder: model.tr('order.notes_hint'),
+                      placeholder: bridge.tr(key: 'order.notes_hint'),
                       icon: 'text.bubble',
                     ),
                   ],
@@ -572,17 +714,16 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
           ),
         ),
         _SheetFooter(
-          model: model,
           currency: currency,
           totalMinor: footerPrice,
           label: footerLabel,
           canAdd: canAdd,
-          loading: _committing,
+          loading: config.committing,
           showQty: !widget.isConfiguring,
-          qty: _qty,
-          onDec: () => setState(() => _qty = _qty > 1 ? _qty - 1 : 1),
-          onInc: () => setState(() => _qty = _qty < 99 ? _qty + 1 : 99),
-          onCommit: () => unawaited(_commit(extrasMinor)),
+          qty: config.qty,
+          onDec: () => notifier.setQty(config.qty - 1),
+          onInc: () => notifier.setQty(config.qty + 1),
+          onCommit: () => unawaited(_commit(config, extrasMinor)),
         ),
       ],
     );
@@ -591,18 +732,17 @@ class _ItemDetailSheetState extends State<ItemDetailSheet> {
 
 // ── Optional fields section ────────────────────────────────────────────────────
 
-/// The optional-fields block — owns its search field + query so a keystroke
-/// refilters only this section instead of setState-ing the whole sheet.
-class _OptionalsSection extends StatefulWidget {
+/// The optional-fields block — owns its search field; the chip Wrap
+/// refilters through a [ValueListenableBuilder] on the controller so a
+/// keystroke never rebuilds the whole sheet.
+class _OptionalsSection extends ConsumerStatefulWidget {
   const _OptionalsSection({
-    required this.model,
     required this.currency,
     required this.fields,
     required this.selected,
     required this.onToggle,
   });
 
-  final OrderController model;
   final String currency;
 
   /// The item's ACTIVE optional fields (pre-filtered by the sheet).
@@ -611,12 +751,11 @@ class _OptionalsSection extends StatefulWidget {
   final ValueChanged<String> onToggle;
 
   @override
-  State<_OptionalsSection> createState() => _OptionalsSectionState();
+  ConsumerState<_OptionalsSection> createState() => _OptionalsSectionState();
 }
 
-class _OptionalsSectionState extends State<_OptionalsSection> {
+class _OptionalsSectionState extends ConsumerState<_OptionalsSection> {
   final _search = TextEditingController();
-  String _query = '';
 
   @override
   void dispose() {
@@ -628,48 +767,52 @@ class _OptionalsSectionState extends State<_OptionalsSection> {
   Widget build(BuildContext context) {
     final fields = widget.fields;
     if (fields.isEmpty) return const SizedBox.shrink();
-    final model = widget.model;
-    final q = _query.trim().toLowerCase();
-    // Selected chips always stay visible so a filter never hides an active
-    // selection.
-    final shown = q.isEmpty
-        ? fields
-        : fields
-              .where(
-                (f) =>
-                    f.name.toLowerCase().contains(q) ||
-                    widget.selected.contains(f.id),
-              )
-              .toList(growable: false);
+    final bridge = ref.watch(bridgeProvider);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: Space.md),
-        SectionTitle(model.tr('order.optionals')),
+        SectionTitle(bridge.tr(key: 'order.optionals')),
         const SizedBox(height: Space.sm),
         if (fields.length > 4) ...[
           OrderTextField(
             controller: _search,
-            placeholder: model.tr('order.search_addons'),
+            placeholder: bridge.tr(key: 'order.search_addons'),
             icon: 'magnifyingglass',
-            onChanged: (v) => setState(() => _query = v),
           ),
           const SizedBox(height: Space.sm),
         ],
-        Wrap(
-          spacing: Space.sm,
-          runSpacing: Space.sm,
-          children: [
-            for (final field in shown)
-              _OptionalChip(
-                name: field.name,
-                priceMinor: field.priceMinor,
-                on: widget.selected.contains(field.id),
-                currency: widget.currency,
-                onTap: () => widget.onToggle(field.id),
-              ),
-          ],
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _search,
+          builder: (context, search, _) {
+            final q = search.text.trim().toLowerCase();
+            // Selected chips always stay visible so a filter never hides an
+            // active selection.
+            final shown = q.isEmpty
+                ? fields
+                : fields
+                      .where(
+                        (f) =>
+                            f.name.toLowerCase().contains(q) ||
+                            widget.selected.contains(f.id),
+                      )
+                      .toList(growable: false);
+            return Wrap(
+              spacing: Space.sm,
+              runSpacing: Space.sm,
+              children: [
+                for (final field in shown)
+                  _OptionalChip(
+                    name: field.name,
+                    priceMinor: field.priceMinor,
+                    on: widget.selected.contains(field.id),
+                    currency: widget.currency,
+                    onTap: () => widget.onToggle(field.id),
+                  ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: Space.md),
       ],
@@ -681,7 +824,6 @@ class _OptionalsSectionState extends State<_OptionalsSection> {
 
 class _SheetHeader extends StatelessWidget {
   const _SheetHeader({
-    required this.model,
     required this.item,
     required this.headerTotalMinor,
     required this.currency,
@@ -689,7 +831,6 @@ class _SheetHeader extends StatelessWidget {
     required this.onToggleRecipe,
   });
 
-  final OrderController model;
   final MenuItemView item;
   final int headerTotalMinor;
   final String currency;
@@ -811,9 +952,8 @@ class _SheetHeader extends StatelessWidget {
 
 // ── Footer ─────────────────────────────────────────────────────────────────────
 
-class _SheetFooter extends StatelessWidget {
+class _SheetFooter extends ConsumerWidget {
   const _SheetFooter({
-    required this.model,
     required this.currency,
     required this.totalMinor,
     required this.label,
@@ -826,7 +966,6 @@ class _SheetFooter extends StatelessWidget {
     required this.onCommit,
   });
 
-  final OrderController model;
   final String currency;
   final int totalMinor;
   final String label;
@@ -841,8 +980,9 @@ class _SheetFooter extends StatelessWidget {
   final VoidCallback onCommit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
     return ColoredBox(
       color: colors.surface,
       child: Padding(
@@ -855,7 +995,7 @@ class _SheetFooter extends StatelessWidget {
             Container(height: 1, color: colors.border),
             const SizedBox(height: Space.md),
             GrandTotalBlock(
-              label: model.tr('order.total'),
+              label: bridge.tr(key: 'order.total'),
               totalMinor: totalMinor,
               currency: currency,
             ),
@@ -982,13 +1122,13 @@ class _RecipeRow extends StatelessWidget {
 
 /// A bordered surface card per group: a dotted uppercase header with
 /// required / max / count chips, an optional search field (>5 options),
-/// then the option chips. The card owns its search query — a keystroke
-/// refilters only THIS card's chip Wrap, never the whole sheet (the sheet's
-/// ValueKey(g.id) keeps the state stable across "show all" toggles).
-class _AddonGroupCard extends StatefulWidget {
+/// then the option chips. The card owns its search controller — the chip
+/// Wrap refilters through a [ValueListenableBuilder], so a keystroke never
+/// rebuilds the whole sheet (the sheet's ValueKey(g.id) keeps the state
+/// stable across "show all" toggles).
+class _AddonGroupCard extends ConsumerStatefulWidget {
   const _AddonGroupCard({
     required this.group,
-    required this.model,
     required this.currency,
     required this.charged,
     required this.selectedSingle,
@@ -1000,8 +1140,7 @@ class _AddonGroupCard extends StatefulWidget {
     super.key,
   });
 
-  final _Group group;
-  final OrderController model;
+  final AddonGroup group;
   final String currency;
   final int Function(String addonItemId) charged;
   final String? selectedSingle;
@@ -1012,12 +1151,11 @@ class _AddonGroupCard extends StatefulWidget {
   final ValueChanged<String> onDec;
 
   @override
-  State<_AddonGroupCard> createState() => _AddonGroupCardState();
+  ConsumerState<_AddonGroupCard> createState() => _AddonGroupCardState();
 }
 
-class _AddonGroupCardState extends State<_AddonGroupCard> {
+class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
   final _search = TextEditingController();
-  String _query = '';
 
   @override
   void dispose() {
@@ -1028,24 +1166,11 @@ class _AddonGroupCardState extends State<_AddonGroupCard> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
     final g = widget.group;
     final count = g.isMulti
         ? widget.selectedMulti.length
         : (widget.selectedSingle != null ? 1 : 0);
-    // Filter by the live query; selected chips always stay visible so a
-    // filter never hides an active selection.
-    final q = _query.trim().toLowerCase();
-    final shown = q.isEmpty
-        ? g.addons
-        : g.addons
-              .where(
-                (a) =>
-                    a.name.toLowerCase().contains(q) ||
-                    (g.isMulti
-                        ? widget.selectedMulti.containsKey(a.addonItemId)
-                        : widget.selectedSingle == a.addonItemId),
-              )
-              .toList(growable: false);
 
     return Container(
       padding: const EdgeInsetsDirectional.all(Space.md),
@@ -1084,7 +1209,7 @@ class _AddonGroupCardState extends State<_AddonGroupCard> {
               if (g.isRequired) ...[
                 const SizedBox(width: Space.sm),
                 StatusChip(
-                  label: widget.model.tr('order.required'),
+                  label: bridge.tr(key: 'order.required'),
                   tone: ChipTone.danger,
                 ),
               ],
@@ -1102,41 +1227,61 @@ class _AddonGroupCardState extends State<_AddonGroupCard> {
           if (g.addons.length > 5) ...[
             OrderTextField(
               controller: _search,
-              placeholder: widget.model.tr('order.search_addons'),
+              placeholder: bridge.tr(key: 'order.search_addons'),
               icon: 'magnifyingglass',
-              onChanged: (v) => setState(() => _query = v),
             ),
             const SizedBox(height: Space.md),
           ],
-          Wrap(
-            spacing: Space.sm,
-            runSpacing: Space.sm,
-            children: [
-              for (final addon in shown)
-                if (g.isMulti &&
-                    widget.selectedMulti.containsKey(addon.addonItemId))
-                  _AddonQtyChip(
-                    name: addon.name,
-                    priceMinor: widget.charged(addon.addonItemId),
-                    qty: widget.selectedMulti[addon.addonItemId] ?? 1,
-                    currency: widget.currency,
-                    onDec: () => widget.onDec(addon.addonItemId),
-                    onInc: () => widget.onInc(addon.addonItemId),
-                  )
-                else
-                  _AddonOptionChip(
-                    name: addon.name,
-                    priceMinor: widget.charged(addon.addonItemId),
-                    selected:
-                        !g.isMulti &&
-                        widget.selectedSingle == addon.addonItemId,
-                    multi: g.isMulti,
-                    currency: widget.currency,
-                    onTap: () => g.isMulti
-                        ? widget.onToggleMulti(addon.addonItemId)
-                        : widget.onToggleSingle(addon.addonItemId),
-                  ),
-            ],
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _search,
+            builder: (context, search, _) {
+              // Filter by the live query; selected chips always stay
+              // visible so a filter never hides an active selection.
+              final q = search.text.trim().toLowerCase();
+              final shown = q.isEmpty
+                  ? g.addons
+                  : g.addons
+                        .where(
+                          (a) =>
+                              a.name.toLowerCase().contains(q) ||
+                              (g.isMulti
+                                  ? widget.selectedMulti.containsKey(
+                                      a.addonItemId,
+                                    )
+                                  : widget.selectedSingle == a.addonItemId),
+                        )
+                        .toList(growable: false);
+              return Wrap(
+                spacing: Space.sm,
+                runSpacing: Space.sm,
+                children: [
+                  for (final addon in shown)
+                    if (g.isMulti &&
+                        widget.selectedMulti.containsKey(addon.addonItemId))
+                      _AddonQtyChip(
+                        name: addon.name,
+                        priceMinor: widget.charged(addon.addonItemId),
+                        qty: widget.selectedMulti[addon.addonItemId] ?? 1,
+                        currency: widget.currency,
+                        onDec: () => widget.onDec(addon.addonItemId),
+                        onInc: () => widget.onInc(addon.addonItemId),
+                      )
+                    else
+                      _AddonOptionChip(
+                        name: addon.name,
+                        priceMinor: widget.charged(addon.addonItemId),
+                        selected:
+                            !g.isMulti &&
+                            widget.selectedSingle == addon.addonItemId,
+                        multi: g.isMulti,
+                        currency: widget.currency,
+                        onTap: () => g.isMulti
+                            ? widget.onToggleMulti(addon.addonItemId)
+                            : widget.onToggleSingle(addon.addonItemId),
+                      ),
+                ],
+              );
+            },
           ),
         ],
       ),

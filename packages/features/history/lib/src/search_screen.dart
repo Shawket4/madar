@@ -2,76 +2,39 @@
 /// status + teller), paginated. Closes the "operators can't look up a
 /// past-shift order" gap. Full-screen over the order screen; teller-only.
 /// A pixel-and-behavior port of the Kotlin OrderSearchScreen.kt over the
-/// shared Rust core; a result row opens the shared [OrderDetailsSheet].
+/// shared Rust core; state lives in [searchProvider] (the teller query
+/// stays widget-local in its text field); a result row opens the shared
+/// [OrderDetailsSheet].
 library;
 
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_history/src/order_details_sheet.dart';
+import 'package:feature_history/src/search_provider.dart';
 import 'package:feature_history/src/widgets.dart';
 import 'package:flutter/material.dart'
     show CircularProgressIndicator, Scaffold, Theme;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Result-row money size (natives: Type.money(17.sp)).
 const double _rowMoneySize = 17;
 
-/// RFC3339 timestamp [days] ago (UTC) — the natives' `isoDaysAgo`.
-String _isoDaysAgo(int days) =>
-    DateTime.now().toUtc().subtract(Duration(days: days)).toIso8601String();
-
 /// Cross-shift order search (online) with filters + load-more pagination.
-class OrderSearchScreen extends StatefulWidget {
+class OrderSearchScreen extends ConsumerStatefulWidget {
   /// Creates the search screen.
-  const OrderSearchScreen({
-    required this.core,
-    required this.onStateChanged,
-    super.key,
-  });
-
-  /// The core handle every bridge call goes through.
-  final MadarCore core;
-
-  /// Screen-contract shell callback (searching moves no app state, so
-  /// this is only threaded through to the details sheet).
-  final void Function() onStateChanged;
+  const OrderSearchScreen({super.key});
 
   @override
-  State<OrderSearchScreen> createState() => _OrderSearchScreenState();
+  ConsumerState<OrderSearchScreen> createState() => _OrderSearchScreenState();
 }
 
-class _OrderSearchScreenState extends State<OrderSearchScreen> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  String? _status; // null = all
+class _OrderSearchScreenState extends ConsumerState<OrderSearchScreen> {
   final TextEditingController _teller = TextEditingController();
-  int _days = 7; // 0 = all time
-
-  List<OrderSummaryView> _results = const [];
-  int _total = 0;
-  bool _hasMore = false;
-  bool _searching = false;
-  int _page = 1;
-
-  /// Request-sequence guard: bumped per `_run`; stale completions bail so a
-  /// slow response can't clobber a newer query or double-advance `_page`.
-  int _querySeq = 0;
-
-  ToastData? _toast;
-  int _toastSeq = 0;
-
-  String _t(String key) => _bridge.tr(key: key);
-
-  String get _currency => _bridge.currentSession()?.currencyCode ?? '';
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_run(reset: true));
-  }
 
   @override
   void dispose() {
@@ -79,80 +42,31 @@ class _OrderSearchScreenState extends State<OrderSearchScreen> {
     super.dispose();
   }
 
-  void _showToast(String text, {required ChipTone tone, String? icon}) {
-    _toastSeq += 1;
-    setState(() {
-      _toast = ToastData(id: _toastSeq, text: text, tone: tone, icon: icon);
-    });
-  }
-
-  /// Run / page the all-orders search. [reset] starts a fresh query at
-  /// page 1; otherwise it appends the next page (load-more).
-  Future<void> _run({required bool reset}) async {
-    final seq = ++_querySeq;
-    setState(() {
-      if (reset) {
-        _page = 1;
-        _results = const [];
-      }
-      _searching = true;
-    });
-    try {
-      final teller = _teller.text.trim();
-      final pg = await _bridge.searchOrders(
-        status: _status,
-        tellerName: teller.isEmpty ? null : teller,
-        from: _days > 0 ? _isoDaysAgo(_days) : null,
-        page: _page,
-      );
-      if (seq != _querySeq || !mounted) return;
-      setState(() {
-        _results = reset ? pg.orders : [..._results, ...pg.orders];
-        _total = pg.total;
-        _hasMore = pg.hasMore;
-        _page += 1;
-        _searching = false;
-      });
-    } on MadarError catch (e) {
-      if (seq != _querySeq || !mounted) return;
-      setState(() => _searching = false);
-      _showToast(
-        _bridge.humanMessage(e),
-        tone: ChipTone.danger,
-        icon: 'xmark.circle',
-      );
-    }
-  }
-
   /// Copy the current result page as CSV — spreadsheet-friendly export.
   Future<void> _export() async {
+    final results = ref.read(searchProvider).results;
+    final currency = ref.read(shellProvider).session?.currencyCode ?? '';
     await Clipboard.setData(
-      ClipboardData(text: _ordersToCsv(_results, _currency)),
+      ClipboardData(text: _ordersToCsv(results, currency)),
     );
     if (!mounted) return;
-    _showToast(
-      _t('search.exported'),
-      tone: ChipTone.success,
-      icon: 'checkmark.circle.fill',
-    );
-  }
-
-  /// A result row's full line breakdown — the shared details sheet.
-  Future<void> _openDetails(OrderSummaryView o) async {
-    await showMadarSheet<void>(
-      context,
-      size: SheetSize.hug,
-      builder: (_) => OrderDetailsSheet(
-        core: widget.core,
-        onStateChanged: widget.onStateChanged,
-        order: o,
-      ),
-    );
+    ref
+        .read(searchProvider.notifier)
+        .showToast(
+          ref.read(bridgeProvider).tr(key: 'search.exported'),
+          tone: ChipTone.success,
+          icon: 'checkmark.circle.fill',
+        );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final total = ref.watch(searchProvider.select((s) => s.total));
+    final hasResults = ref.watch(
+      searchProvider.select((s) => s.results.isNotEmpty),
+    );
     return Scaffold(
       backgroundColor: colors.bg,
       body: Stack(
@@ -160,78 +74,90 @@ class _OrderSearchScreenState extends State<OrderSearchScreen> {
           Column(
             children: [
               // Header — back + title, trailing result count + CSV export.
-              HistoryHeaderBar(
-                title: _t('search.title'),
-                onBack: () => unawaited(Navigator.of(context).maybePop()),
-                trailing: [
-                  if (_total > 0)
+              MadarHeader(
+                title: bridge.tr(key: 'search.title'),
+                onBack: () => Navigator.maybePop(context),
+                actions: [
+                  if (total > 0)
                     Text(
-                      '$_total',
+                      '$total',
                       style: MadarType.title.copyWith(
                         color: colors.textSecondary,
                       ),
                     ),
-                  if (_results.isNotEmpty)
-                    Semantics(
-                      button: true,
-                      child: TactileScale(
-                        onTap: () => unawaited(_export()),
-                        child: Container(
-                          width: Metrics.closeButton,
-                          height: Metrics.closeButton,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: colors.accentBg,
-                            borderRadius: BorderRadius.circular(Radii.sm),
-                          ),
-                          child: MadarIcon(
-                            'square.and.arrow.up',
-                            tint: colors.accent,
-                            size: IconSize.lg,
-                          ),
-                        ),
-                      ),
+                  if (hasResults)
+                    MadarHeaderAction(
+                      icon: 'square.and.arrow.up',
+                      tint: colors.accent,
+                      onTap: () => unawaited(_export()),
                     ),
                 ],
               ),
-              _buildFilters(colors),
-              const Hairline(),
-              Expanded(child: _buildResults(colors)),
+              Expanded(
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      _SearchFilters(teller: _teller),
+                      const Hairline(),
+                      Expanded(child: _SearchResults(teller: _teller)),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
-          ToastHost(
-            _toast,
-            onDismiss: (id) {
-              if (_toast?.id == id) setState(() => _toast = null);
-            },
-          ),
+          const _SearchToastHost(),
         ],
       ),
     );
   }
+}
 
-  // ── Filters — date range, status, and a teller lookup ─────────────────────
-  Widget _buildFilters(MadarColors colors) {
-    Widget dateChip(String label, int days) {
+/// The screen toast, driven by [OrderSearchState.toast].
+class _SearchToastHost extends ConsumerWidget {
+  const _SearchToastHost();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final toast = ref.watch(searchProvider.select((s) => s.toast));
+    return ToastHost(
+      toast,
+      onDismiss: (id) => ref.read(searchProvider.notifier).dismissToast(id),
+    );
+  }
+}
+
+// ── Filters — date range, status, and a teller lookup ────────────────────────
+class _SearchFilters extends ConsumerWidget {
+  const _SearchFilters({required this.teller});
+
+  final TextEditingController teller;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final notifier = ref.read(searchProvider.notifier);
+    final days = ref.watch(searchProvider.select((s) => s.days));
+    final status = ref.watch(searchProvider.select((s) => s.status));
+    final searching = ref.watch(searchProvider.select((s) => s.searching));
+    String t(String key) => bridge.tr(key: key);
+
+    Widget dateChip(String label, int value) {
       return SelectChip(
         label: label,
-        selected: _days == days,
-        onTap: () {
-          setState(() => _days = days);
-          unawaited(_run(reset: true));
-        },
+        selected: days == value,
+        onTap: () => notifier.setDays(value, teller: teller.text),
       );
     }
 
-    Widget statusChip(String label, String? status, {ChipTone? tone}) {
+    Widget statusChip(String label, String? value, {ChipTone? tone}) {
       return SelectChip(
         label: label,
-        selected: _status == status,
+        selected: status == value,
         tone: tone ?? ChipTone.accent,
-        onTap: () {
-          setState(() => _status = status);
-          unawaited(_run(reset: true));
-        },
+        onTap: () => notifier.setStatus(value, teller: teller.text),
       );
     }
 
@@ -247,24 +173,24 @@ class _OrderSearchScreenState extends State<OrderSearchScreen> {
               spacing: Space.sm,
               runSpacing: Space.sm,
               children: [
-                dateChip(_t('search.date_24h'), 1),
-                dateChip(_t('search.date_7d'), 7),
-                dateChip(_t('search.date_30d'), 30),
-                dateChip(_t('order.all'), 0),
+                dateChip(t('search.date_24h'), 1),
+                dateChip(t('search.date_7d'), 7),
+                dateChip(t('search.date_30d'), 30),
+                dateChip(t('order.all'), 0),
               ],
             ),
             Wrap(
               spacing: Space.sm,
               runSpacing: Space.sm,
               children: [
-                statusChip(_t('order.all'), null),
+                statusChip(t('order.all'), null),
                 statusChip(
-                  _t('history.completed'),
+                  t('history.completed'),
                   'completed',
                   tone: ChipTone.success,
                 ),
                 statusChip(
-                  _t('history.voided'),
+                  t('history.voided'),
                   'voided',
                   tone: ChipTone.danger,
                 ),
@@ -275,17 +201,19 @@ class _OrderSearchScreenState extends State<OrderSearchScreen> {
               children: [
                 Expanded(
                   child: HistoryTextField(
-                    controller: _teller,
-                    placeholder: _t('search.teller_hint'),
+                    controller: teller,
+                    placeholder: t('search.teller_hint'),
                     icon: 'person',
                   ),
                 ),
                 HistoryButton(
-                  label: _t('search.title'),
+                  label: t('search.title'),
                   icon: 'magnifyingglass',
-                  loading: _searching,
+                  loading: searching,
                   expand: false,
-                  onTap: () => unawaited(_run(reset: true)),
+                  onTap: () => unawaited(
+                    notifier.run(reset: true, teller: teller.text),
+                  ),
                 ),
               ],
             ),
@@ -294,53 +222,81 @@ class _OrderSearchScreenState extends State<OrderSearchScreen> {
       ),
     );
   }
+}
 
-  // ── Results ────────────────────────────────────────────────────────────────
-  Widget _buildResults(MadarColors colors) {
-    if (_searching && _results.isEmpty) {
+// ── Results ──────────────────────────────────────────────────────────────────
+class _SearchResults extends ConsumerWidget {
+  const _SearchResults({required this.teller});
+
+  final TextEditingController teller;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final results = ref.watch(searchProvider.select((s) => s.results));
+    final hasMore = ref.watch(searchProvider.select((s) => s.hasMore));
+    final searching = ref.watch(searchProvider.select((s) => s.searching));
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
+    String t(String key) => bridge.tr(key: key);
+
+    /// Status → the localized history chip label (falls back to the raw
+    /// status for anything unmapped, like the natives).
+    String statusLabel(String status) => switch (status) {
+      'completed' => t('history.completed'),
+      'voided' => t('history.voided'),
+      'failed' => t('history.failed'),
+      'queued' => t('history.queued'),
+      _ => status,
+    };
+
+    if (searching && results.isEmpty) {
       return Center(child: CircularProgressIndicator(color: colors.accent));
     }
-    if (_results.isEmpty) {
-      return EmptyState(icon: 'magnifyingglass', title: _t('history.no_match'));
+    if (results.isEmpty) {
+      return EmptyState(icon: 'magnifyingglass', title: t('history.no_match'));
     }
     return ListView.separated(
       padding: const EdgeInsetsDirectional.all(Space.lg),
-      itemCount: _results.length + (_hasMore ? 1 : 0),
+      itemCount: results.length + (hasMore ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: Space.sm),
       itemBuilder: (context, index) {
-        if (index >= _results.length) {
+        if (index >= results.length) {
           return HistoryButton(
-            label: _t('search.load_more'),
+            label: t('search.load_more'),
             variant: HistoryButtonVariant.outline,
             icon: 'arrow.down.circle',
-            loading: _searching,
-            onTap: () => unawaited(_run(reset: false)),
+            loading: searching,
+            onTap: () => unawaited(
+              ref
+                  .read(searchProvider.notifier)
+                  .run(reset: false, teller: teller.text),
+            ),
           );
         }
-        final o = _results[index];
+        final o = results[index];
         return _SearchResultRow(
           order: o,
-          timestamp: _bridge.formatTime(
+          timestamp: bridge.formatTime(
             rfc3339: o.createdAt,
             style: TimeStyle.dateTime,
           ),
-          currency: _currency,
-          statusLabel: _statusLabel(o.status),
-          onTap: () => unawaited(_openDetails(o)),
+          currency: currency,
+          statusLabel: statusLabel(o.status),
+          onTap: () => unawaited(
+            // A result row's full line breakdown — the shared details sheet.
+            showMadarSheet<void>(
+              context,
+              size: SheetSize.hug,
+              builder: (_) => OrderDetailsSheet(order: o),
+            ),
+          ),
         );
       },
     );
   }
-
-  /// Status → the localized history chip label (falls back to the raw
-  /// status for anything unmapped, like the natives).
-  String _statusLabel(String status) => switch (status) {
-    'completed' => _t('history.completed'),
-    'voided' => _t('history.voided'),
-    'failed' => _t('history.failed'),
-    'queued' => _t('history.queued'),
-    _ => status,
-  };
 }
 
 /// Spreadsheet-friendly export of the current result page. RFC-4180

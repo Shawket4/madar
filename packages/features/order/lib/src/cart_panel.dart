@@ -1,89 +1,98 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/held_orders_strip.dart';
-import 'package:feature_order/src/order_controller.dart';
+import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// The cart — wide column beside the grid, or the phone drawer's content.
 /// Header (title · count · Clear · close), the held-orders strip, the line
 /// list (with the selected ticket's fired items above the editable new
 /// round in waiter mode), and the totals + hold + checkout footer.
-class CartPanel extends StatelessWidget {
+///
+/// Watches only the cart/ticket slices of [orderProvider] — sync-chip and
+/// toast churn never reaches it.
+class CartPanel extends ConsumerWidget {
   const CartPanel({
-    required this.model,
-    required this.checkoutLabel,
-    required this.checkoutIcon,
-    required this.checkoutEnabled,
     required this.onCheckout,
     required this.onEditLine,
-    this.checkoutTooltip,
     this.onClose,
     super.key,
   });
 
-  final OrderController model;
-  final String checkoutLabel;
-  final String checkoutIcon;
-  final bool checkoutEnabled;
-
-  /// Disabled-checkout hint (the M5 tender-drawer milestone note).
-  final String? checkoutTooltip;
   final VoidCallback onCheckout;
   final ValueChanged<CartLineView> onEditLine;
 
   /// Phone drawer close (null on the wide fixed column).
   final VoidCallback? onClose;
 
-  Future<void> _confirmVoid(BuildContext context, TicketView ticket) async {
+  Future<void> _confirmVoid(
+    BuildContext context,
+    WidgetRef ref,
+    TicketView ticket,
+  ) async {
     final result = await showMadarSheet<VoidTicketResult>(
       context,
       size: SheetSize.hug,
       maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (_) => WaiterVoidSheet(model: model, ticket: ticket),
+      builder: (_) => WaiterVoidSheet(ticket: ticket),
     );
     if (result == null) return;
-    await model.voidTicket(ticket.id, result.reason);
+    await ref.read(orderProvider.notifier).voidTicket(ticket.id, result.reason);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final activeTicket = model.activeTicket;
-    final hasLines = model.cartLines.isNotEmpty;
+    final bridge = ref.watch(bridgeProvider);
+    String tr(String key) => bridge.tr(key: key);
+    final isWaiter = ref.watch(orderProvider.select((s) => s.isWaiter));
+    final currency = ref.watch(orderProvider.select((s) => s.currency));
+    final cartLines = ref.watch(orderProvider.select((s) => s.cartLines));
+    final activeTicket = ref.watch(
+      orderProvider.select((s) => s.activeTicket),
+    );
+    final hasDrafts = ref.watch(
+      orderProvider.select((s) => s.drafts.isNotEmpty),
+    );
+    final hasTickets = ref.watch(
+      orderProvider.select((s) => s.openTickets.isNotEmpty),
+    );
+    final activeTicketId = ref.watch(
+      orderProvider.select((s) => s.activeTicketId),
+    );
+    final hasLines = cartLines.isNotEmpty;
 
+    final checkoutLabel = !isWaiter
+        ? tr('order.checkout')
+        : activeTicketId != null
+        ? tr('waiter.add_round')
+        : tr('waiter.fire');
     final footer = _CartFooter(
-      model: model,
       checkoutLabel: checkoutLabel,
-      checkoutIcon: checkoutIcon,
-      checkoutEnabled: checkoutEnabled,
-      checkoutTooltip: checkoutTooltip,
+      checkoutIcon: isWaiter ? 'arrow.up.circle' : 'creditcard',
       onCheckout: onCheckout,
-      onHold: () => unawaited(model.holdCart()),
+      onHold: () => unawaited(ref.read(orderProvider.notifier).holdCart()),
     );
 
     return ColoredBox(
       color: colors.bg,
       child: Column(
         children: [
-          _CartHeader(model: model, onClose: onClose),
+          _CartHeader(onClose: onClose),
           Container(height: 1, color: colors.border),
           // Held-order strip — one shared component. The teller flips between
           // parked carts (switching parks the current one first); a waiter
           // gets a "New" tab + a tab per open ticket (round targets).
-          if (model.isWaiter && model.openTickets.isNotEmpty)
-            HeldOrdersStrip(
-              tabs: _waiterTicketTabs(model),
-              newLabel: model.tr('waiter.new_order'),
-            )
-          else if (!model.isWaiter && model.drafts.isNotEmpty)
-            HeldOrdersStrip(
-              tabs: _tellerHeldTabs(model),
-              newLabel: model.tr('waiter.new_order'),
-            ),
+          if (isWaiter && hasTickets)
+            const _WaiterTicketStrip()
+          else if (!isWaiter && hasDrafts)
+            const _TellerHeldStrip(),
           if (activeTicket != null) ...[
             // A ticket is selected — its fired items (read-only) ride above
             // the editable new round; everything scrolls together.
@@ -92,23 +101,22 @@ class CartPanel extends StatelessWidget {
                 padding: const EdgeInsetsDirectional.all(Space.lg),
                 children: [
                   _TicketHeader(
-                    model: model,
                     ticket: activeTicket,
                     onVoid: () =>
-                        unawaited(_confirmVoid(context, activeTicket)),
+                        unawaited(_confirmVoid(context, ref, activeTicket)),
                   ),
                   const SizedBox(height: Space.sm),
                   OrderLinesCard(
                     lines: activeTicket.lines,
-                    currency: model.currency,
-                    itemsLabel: model.tr('order.items'),
-                    emptyLabel: model.tr('order.cart_empty'),
+                    currency: currency,
+                    itemsLabel: tr('order.items'),
+                    emptyLabel: tr('order.cart_empty'),
                   ),
                   const SizedBox(height: Space.sm),
                   Container(height: 1, color: colors.border),
                   const SizedBox(height: Space.sm),
                   Text(
-                    model.tr('waiter.new_round'),
+                    tr('waiter.new_round'),
                     style: MadarType.title.copyWith(
                       fontWeight: FontWeight.w700,
                       color: colors.textPrimary,
@@ -117,13 +125,13 @@ class CartPanel extends StatelessWidget {
                   const SizedBox(height: Space.sm),
                   if (!hasLines)
                     Text(
-                      model.tr('order.cart_empty'),
+                      tr('order.cart_empty'),
                       style: MadarType.bodySm.copyWith(
                         color: colors.textSecondary,
                       ),
                     )
                   else
-                    ..._cartLineRows(),
+                    ..._cartLineRows(cartLines),
                 ],
               ),
             ),
@@ -133,7 +141,7 @@ class CartPanel extends StatelessWidget {
             Expanded(
               child: Center(
                 child: Text(
-                  model.tr('order.cart_empty'),
+                  tr('order.cart_empty'),
                   style: MadarType.body.copyWith(color: colors.textSecondary),
                 ),
               ),
@@ -142,7 +150,7 @@ class CartPanel extends StatelessWidget {
             Expanded(
               child: ListView(
                 padding: const EdgeInsetsDirectional.all(Space.lg),
-                children: _cartLineRows(),
+                children: _cartLineRows(cartLines),
               ),
             ),
             footer,
@@ -152,13 +160,12 @@ class CartPanel extends StatelessWidget {
     );
   }
 
-  List<Widget> _cartLineRows() => [
-    for (final line in model.cartLines)
+  List<Widget> _cartLineRows(List<CartLineView> cartLines) => [
+    for (final line in cartLines)
       Padding(
         key: ValueKey('cart-${line.key}'),
         padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
         child: CartLineRow(
-          model: model,
           line: line,
           // Bundles aren't re-editable in place (reconfigure by removing +
           // re-adding); only plain lines reopen the customization sheet.
@@ -170,15 +177,21 @@ class CartPanel extends StatelessWidget {
 
 // ── Header ─────────────────────────────────────────────────────────────────────
 
-class _CartHeader extends StatelessWidget {
-  const _CartHeader({required this.model, this.onClose});
+class _CartHeader extends ConsumerWidget {
+  const _CartHeader({this.onClose});
 
-  final OrderController model;
   final VoidCallback? onClose;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final itemCount = ref.watch(
+      orderProvider.select((s) => s.cartTotals.itemCount),
+    );
+    final hasLines = ref.watch(
+      orderProvider.select((s) => s.cartLines.isNotEmpty),
+    );
     final onClose = this.onClose;
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(
@@ -188,26 +201,24 @@ class _CartHeader extends StatelessWidget {
       child: Row(
         children: [
           Text(
-            model.tr('order.cart'),
+            bridge.tr(key: 'order.cart'),
             style: MadarType.h3.copyWith(
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
             ),
           ),
-          if (model.cartTotals.itemCount > 0) ...[
+          if (itemCount > 0) ...[
             const SizedBox(width: Space.sm),
-            StatusChip(
-              label: '${model.cartTotals.itemCount}',
-              tone: ChipTone.accent,
-            ),
+            StatusChip(label: '$itemCount', tone: ChipTone.accent),
           ],
           const Spacer(),
-          if (model.cartLines.isNotEmpty)
+          if (hasLines)
             GestureDetector(
-              onTap: () => unawaited(model.clearCart()),
+              onTap: () =>
+                  unawaited(ref.read(orderProvider.notifier).clearCart()),
               behavior: HitTestBehavior.opaque,
               child: Text(
-                model.tr('order.clear'),
+                bridge.tr(key: 'order.clear'),
                 style: MadarType.bodySm.copyWith(
                   fontWeight: FontWeight.w600,
                   color: colors.danger,
@@ -231,25 +242,21 @@ class _CartHeader extends StatelessWidget {
 
 // ── Waiter: selected-ticket header (on-ticket count + void) ────────────────────
 
-class _TicketHeader extends StatelessWidget {
-  const _TicketHeader({
-    required this.model,
-    required this.ticket,
-    required this.onVoid,
-  });
+class _TicketHeader extends ConsumerWidget {
+  const _TicketHeader({required this.ticket, required this.onVoid});
 
-  final OrderController model;
   final TicketView ticket;
   final VoidCallback onVoid;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
     return Row(
       children: [
         Flexible(
           child: Text(
-            model.tr('waiter.on_ticket'),
+            bridge.tr(key: 'waiter.on_ticket'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: MadarType.title.copyWith(
@@ -281,7 +288,7 @@ class _TicketHeader extends StatelessWidget {
                 MadarIcon('trash', tint: colors.danger, size: IconSize.sm),
                 const SizedBox(width: Space.xs),
                 Text(
-                  model.tr('void.title'),
+                  bridge.tr(key: 'void.title'),
                   style: MadarType.bodySm.copyWith(
                     fontWeight: FontWeight.w600,
                     color: colors.danger,
@@ -296,76 +303,113 @@ class _TicketHeader extends StatelessWidget {
   }
 }
 
-// ── Held-order tab builders ────────────────────────────────────────────────────
+// ── Held-order strips ──────────────────────────────────────────────────────────
 
 /// Teller strip: a chip per parked draft PLUS, when the cart is non-empty,
 /// the live cart's own chip (the selected one).
-List<HeldOrderTab> _tellerHeldTabs(OrderController model) => [
-  for (final draft in model.drafts)
-    HeldOrderTab(
-      key: draft.id,
-      sortKey: draft.createdAt,
-      count: draft.itemCount,
-      selected: false,
-      onTap: () => unawaited(model.switchToHeldOrder(draft.id)),
-      onClose: () => unawaited(model.discardDraft(draft.id)),
-    ),
-  if (model.cartLines.isNotEmpty)
-    HeldOrderTab(
-      key: '__current__',
-      sortKey: model.cartStartedAtIso ?? nowIso(),
-      count: model.cartTotals.itemCount,
-      selected: true,
-      onTap: () {},
-    ),
-];
+class _TellerHeldStrip extends ConsumerWidget {
+  const _TellerHeldStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
+    final notifier = ref.read(orderProvider.notifier);
+    final drafts = ref.watch(orderProvider.select((s) => s.drafts));
+    final cartStartedAtIso = ref.watch(
+      orderProvider.select((s) => s.cartStartedAtIso),
+    );
+    final hasLines = ref.watch(
+      orderProvider.select((s) => s.cartLines.isNotEmpty),
+    );
+    final itemCount = ref.watch(
+      orderProvider.select((s) => s.cartTotals.itemCount),
+    );
+    return HeldOrdersStrip(
+      newLabel: bridge.tr(key: 'waiter.new_order'),
+      tabs: [
+        for (final draft in drafts)
+          HeldOrderTab(
+            key: draft.id,
+            sortKey: draft.createdAt,
+            count: draft.itemCount,
+            selected: false,
+            onTap: () => unawaited(notifier.switchToHeldOrder(draft.id)),
+            onClose: () => unawaited(notifier.discardDraft(draft.id)),
+          ),
+        if (hasLines)
+          HeldOrderTab(
+            key: '__current__',
+            sortKey: cartStartedAtIso ?? nowIso(),
+            count: itemCount,
+            selected: true,
+            onTap: () {},
+          ),
+      ],
+    );
+  }
+}
 
 /// Waiter strip: a chip per open ticket (creation time = openedAt) PLUS a
 /// "New" tab (sortKey = now, so it sits at the newest edge). Selecting a
 /// ticket only sets the round target; the cart stays the new round.
-List<HeldOrderTab> _waiterTicketTabs(OrderController model) => [
-  HeldOrderTab(
-    key: '__new__',
-    sortKey: nowIso(),
-    glyph: 'plus',
-    count: model.cartTotals.itemCount,
-    selected: model.activeTicketId == null,
-    onTap: () => model.selectTicket(null),
-  ),
-  for (final ticket in model.openTickets)
-    HeldOrderTab(
-      key: ticket.id,
-      sortKey: ticket.openedAt,
-      count: ticket.lines.length,
-      selected: model.activeTicketId == ticket.id,
-      onTap: () => model.selectTicket(ticket.id),
-    ),
-];
+class _WaiterTicketStrip extends ConsumerWidget {
+  const _WaiterTicketStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
+    final notifier = ref.read(orderProvider.notifier);
+    final openTickets = ref.watch(orderProvider.select((s) => s.openTickets));
+    final activeTicketId = ref.watch(
+      orderProvider.select((s) => s.activeTicketId),
+    );
+    final itemCount = ref.watch(
+      orderProvider.select((s) => s.cartTotals.itemCount),
+    );
+    return HeldOrdersStrip(
+      newLabel: bridge.tr(key: 'waiter.new_order'),
+      tabs: [
+        HeldOrderTab(
+          key: '__new__',
+          sortKey: nowIso(),
+          glyph: 'plus',
+          count: itemCount,
+          selected: activeTicketId == null,
+          onTap: () => notifier.selectTicket(null),
+        ),
+        for (final ticket in openTickets)
+          HeldOrderTab(
+            key: ticket.id,
+            sortKey: ticket.openedAt,
+            count: ticket.lines.length,
+            selected: activeTicketId == ticket.id,
+            onTap: () => notifier.selectTicket(ticket.id),
+          ),
+      ],
+    );
+  }
+}
 
 // ── Cart line row ──────────────────────────────────────────────────────────────
 
 /// One editable cart line: swipe-to-delete (with Undo), tap-to-edit (plain
 /// lines), size/addon/optional pills, notes, line total, and a qty stepper
 /// whose minus becomes the remove affordance at qty 1.
-class CartLineRow extends StatelessWidget {
-  const CartLineRow({
-    required this.model,
-    required this.line,
-    this.onEdit,
-    super.key,
-  });
+class CartLineRow extends ConsumerWidget {
+  const CartLineRow({required this.line, this.onEdit, super.key});
 
-  final OrderController model;
   final CartLineView line;
   final VoidCallback? onEdit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     return Dismissible(
       key: ValueKey('dismiss-${line.key}'),
       direction: DismissDirection.endToStart,
-      onDismissed: (_) => unawaited(model.swipeRemoveCartLine(line)),
+      onDismissed: (_) => unawaited(
+        ref.read(orderProvider.notifier).swipeRemoveCartLine(line),
+      ),
       background: Container(
         alignment: AlignmentDirectional.centerEnd,
         padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.xl),
@@ -379,22 +423,24 @@ class CartLineRow extends StatelessWidget {
           size: IconSize.lg,
         ),
       ),
-      child: _CartLineBody(model: model, line: line, onEdit: onEdit),
+      child: _CartLineBody(line: line, onEdit: onEdit),
     );
   }
 }
 
-class _CartLineBody extends StatelessWidget {
-  const _CartLineBody({required this.model, required this.line, this.onEdit});
+class _CartLineBody extends ConsumerWidget {
+  const _CartLineBody({required this.line, this.onEdit});
 
-  final OrderController model;
   final CartLineView line;
   final VoidCallback? onEdit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(orderProvider.select((s) => s.currency));
+    final notifier = ref.read(orderProvider.notifier);
     final isBundle = line.bundleId != null;
     final hasModifiers =
         line.sizeLabel != null ||
@@ -422,7 +468,7 @@ class _CartLineBody extends StatelessWidget {
             if (isBundle) ...[
               const SizedBox(width: 6),
               StatusChip(
-                label: model.tr('order.combos'),
+                label: bridge.tr(key: 'order.combos'),
                 tone: ChipTone.accent,
               ),
             ],
@@ -480,7 +526,7 @@ class _CartLineBody extends StatelessWidget {
         const SizedBox(height: Space.xs),
         MoneyText(
           line.lineTotalMinor,
-          currency: model.currency,
+          currency: currency,
           style: MadarType.money.copyWith(fontSize: 13),
           color: colors.textPrimary,
         ),
@@ -509,8 +555,8 @@ class _CartLineBody extends StatelessWidget {
           QtyStepper(
             qty: line.qty,
             // The minus button removes the line at qty 1.
-            onDec: () => unawaited(model.setCartQty(line.key, line.qty - 1)),
-            onInc: () => unawaited(model.setCartQty(line.key, line.qty + 1)),
+            onDec: () => unawaited(notifier.setCartQty(line.key, line.qty - 1)),
+            onInc: () => unawaited(notifier.setCartQty(line.key, line.qty + 1)),
           ),
         ],
       ),
@@ -697,30 +743,26 @@ class StepButton extends StatelessWidget {
 
 // ── Footer (totals + hold + checkout) ──────────────────────────────────────────
 
-class _CartFooter extends StatelessWidget {
+class _CartFooter extends ConsumerWidget {
   const _CartFooter({
-    required this.model,
     required this.checkoutLabel,
     required this.checkoutIcon,
-    required this.checkoutEnabled,
-    required this.checkoutTooltip,
     required this.onCheckout,
     required this.onHold,
   });
 
-  final OrderController model;
   final String checkoutLabel;
   final String checkoutIcon;
-  final bool checkoutEnabled;
-  final String? checkoutTooltip;
   final VoidCallback onCheckout;
   final VoidCallback onHold;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final totals = model.cartTotals;
-    final currency = model.currency;
+    final bridge = ref.watch(bridgeProvider);
+    final totals = ref.watch(orderProvider.select((s) => s.cartTotals));
+    final currency = ref.watch(orderProvider.select((s) => s.currency));
+    final isBusy = ref.watch(orderProvider.select((s) => s.isBusy));
     return ColoredBox(
       color: colors.surface,
       child: Padding(
@@ -730,13 +772,13 @@ class _CartFooter extends StatelessWidget {
             Container(height: 1, color: colors.border),
             const SizedBox(height: Space.sm),
             _TotalRow(
-              label: model.tr('order.subtotal'),
+              label: bridge.tr(key: 'order.subtotal'),
               value: Money.format(totals.subtotalMinor, currency: currency),
             ),
             if (totals.discountMinor > 0) ...[
               const SizedBox(height: Space.sm),
               _TotalRow(
-                label: model.tr('order.discount'),
+                label: bridge.tr(key: 'order.discount'),
                 value:
                     '−${Money.format(totals.discountMinor, currency: currency)}',
                 color: colors.success,
@@ -744,12 +786,12 @@ class _CartFooter extends StatelessWidget {
             ],
             const SizedBox(height: Space.sm),
             _TotalRow(
-              label: model.tr('order.tax'),
+              label: bridge.tr(key: 'order.tax'),
               value: Money.format(totals.taxMinor, currency: currency),
             ),
             const SizedBox(height: Space.sm),
             GrandTotalBlock(
-              label: model.tr('order.total'),
+              label: bridge.tr(key: 'order.total'),
               totalMinor: totals.totalMinor,
               currency: currency,
             ),
@@ -782,9 +824,7 @@ class _CartFooter extends StatelessWidget {
                   child: ActionButton(
                     label: checkoutLabel,
                     icon: checkoutIcon,
-                    enabled: checkoutEnabled,
-                    loading: model.isBusy,
-                    tooltip: checkoutTooltip,
+                    loading: isBusy,
                     onTap: onCheckout,
                   ),
                 ),
@@ -894,16 +934,17 @@ const double _cartBarHeight = 56;
 
 /// Sticky accent bar on narrow layouts — item count · "View cart" · total.
 /// Hidden while the cart is empty.
-class CartBar extends StatelessWidget {
-  const CartBar({required this.model, required this.onOpen, super.key});
+class CartBar extends ConsumerWidget {
+  const CartBar({required this.onOpen, super.key});
 
-  final OrderController model;
   final VoidCallback onOpen;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final totals = model.cartTotals;
+    final bridge = ref.watch(bridgeProvider);
+    final totals = ref.watch(orderProvider.select((s) => s.cartTotals));
+    final currency = ref.watch(orderProvider.select((s) => s.currency));
     if (totals.itemCount <= 0) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsetsDirectional.all(Space.md),
@@ -926,7 +967,7 @@ class CartBar extends StatelessWidget {
               // and total always stay on-screen.
               Expanded(
                 child: Text(
-                  '${totals.itemCount} ${model.tr('order.items')}',
+                  '${totals.itemCount} ${bridge.tr(key: 'order.items')}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: MadarType.bodySm.copyWith(
@@ -937,7 +978,7 @@ class CartBar extends StatelessWidget {
               ),
               const SizedBox(width: Space.md),
               Text(
-                model.tr('order.view_cart'),
+                bridge.tr(key: 'order.view_cart'),
                 maxLines: 1,
                 style: MadarType.body.copyWith(
                   fontWeight: FontWeight.w700,
@@ -947,7 +988,7 @@ class CartBar extends StatelessWidget {
               const SizedBox(width: Space.md),
               MoneyText(
                 totals.totalMinor,
-                currency: model.currency,
+                currency: currency,
                 style: MadarType.money.copyWith(
                   fontSize: 15,
                   fontWeight: FontWeight.w900,

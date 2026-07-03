@@ -7,11 +7,11 @@
 /// (SheetSize.hug). Read-only — Print/Void live on the history rows.
 library;
 
-import 'dart:async';
-
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart' show Theme;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Qty-badge vertical inset (natives: 3.dp).
@@ -23,72 +23,45 @@ const double _contextChipVPad = 6;
 /// Grand-total money size (natives: 20.sp Black; Cairo tops out at w800).
 const double _totalMoneySize = 20;
 
+/// Best-effort line fetch — the natives' `loadOrderDetail` swallows
+/// failures and the panel falls back to the summary totals.
+final AutoDisposeFutureProviderFamily<OrderDetailView?, String>
+_orderDetailProvider = FutureProvider.autoDispose
+    .family<OrderDetailView?, String>((ref, orderId) async {
+      final bridge = ref.watch(bridgeProvider);
+      try {
+        return await bridge.orderDetail(orderId: orderId);
+      } on MadarError {
+        return null;
+      }
+    });
+
 /// Full line breakdown of one history order. Fetches the synced order's
 /// lines via `orderDetail` (offline-durable for any order seen online);
 /// a still-queued order shows its summary totals only.
-class OrderDetailsSheet extends StatefulWidget {
+class OrderDetailsSheet extends ConsumerWidget {
   /// Creates the details sheet for [order].
-  const OrderDetailsSheet({
-    required this.core,
-    required this.onStateChanged,
-    required this.order,
-    super.key,
-  });
-
-  /// The core handle every bridge call goes through.
-  final MadarCore core;
-
-  /// Screen-contract shell callback (viewing details moves no app state,
-  /// so this is never fired here).
-  final void Function() onStateChanged;
+  const OrderDetailsSheet({required this.order, super.key});
 
   /// The history row being expanded.
   final OrderSummaryView order;
 
   @override
-  State<OrderDetailsSheet> createState() => _OrderDetailsSheetState();
-}
-
-class _OrderDetailsSheetState extends State<OrderDetailsSheet> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  OrderDetailView? _detail;
-  bool _loading = false;
-
-  String _t(String key) => _bridge.tr(key: key);
-
-  String get _currency => _bridge.currentSession()?.currencyCode ?? '';
-
-  @override
-  void initState() {
-    super.initState();
-    // Queued orders aren't on the server yet — no lines to fetch.
-    if (!widget.order.queued) unawaited(_load());
-  }
-
-  /// Best-effort line fetch — the natives' `loadOrderDetail` swallows
-  /// failures and the panel falls back to the summary totals.
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    OrderDetailView? detail;
-    try {
-      detail = await _bridge.orderDetail(orderId: widget.order.id);
-    } on MadarError {
-      detail = null;
-    }
-    if (!mounted) return;
-    setState(() {
-      _detail = detail;
-      _loading = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final o = widget.order;
-    final detail = _detail;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
+    final o = order;
+    // Queued orders aren't on the server yet — no lines to fetch.
+    final detailAsync = o.queued
+        ? const AsyncValue<OrderDetailView?>.data(null)
+        : ref.watch(_orderDetailProvider(o.id));
+    final loading = detailAsync.isLoading;
+    final detail = detailAsync.valueOrNull;
     final voided = o.status == 'voided';
+    String t(String key) => bridge.tr(key: key);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -112,7 +85,7 @@ class _OrderDetailsSheetState extends State<OrderDetailsSheet> {
                       child: Text(
                         o.orderNumber != null
                             ? '#${o.orderNumber}'
-                            : _t('history.order'),
+                            : t('history.order'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: MadarType.h2.copyWith(color: colors.textPrimary),
@@ -120,23 +93,23 @@ class _OrderDetailsSheetState extends State<OrderDetailsSheet> {
                     ),
                     if (voided)
                       StatusChip(
-                        label: _t('history.voided'),
+                        label: t('history.voided'),
                         tone: ChipTone.danger,
                       )
                     else if (o.status == 'failed')
                       StatusChip(
-                        label: _t('history.failed'),
+                        label: t('history.failed'),
                         tone: ChipTone.danger,
                       )
                     else if (o.queued)
                       StatusChip(
-                        label: _t('history.queued'),
+                        label: t('history.queued'),
                         tone: ChipTone.warning,
                         icon: 'icloud.and.arrow.up',
                       )
                     else
                       StatusChip(
-                        label: _t('history.synced'),
+                        label: t('history.synced'),
                         tone: ChipTone.success,
                         icon: 'checkmark.icloud',
                       ),
@@ -154,7 +127,7 @@ class _OrderDetailsSheetState extends State<OrderDetailsSheet> {
                       _ContextChip(icon: 'person.fill', label: customer),
                     _ContextChip(
                       icon: 'clock',
-                      label: _bridge.formatTime(
+                      label: bridge.formatTime(
                         rfc3339: o.createdAt,
                         style: TimeStyle.dateTime,
                       ),
@@ -164,31 +137,31 @@ class _OrderDetailsSheetState extends State<OrderDetailsSheet> {
                 ),
 
                 // Line items — the fetched breakdown (synced orders only).
-                if (_loading)
+                if (loading)
                   const SkeletonList(count: 3)
                 else if (detail != null)
                   _LinesCard(
                     lines: detail.lines,
-                    currency: _currency,
-                    title: _t('order.items'),
+                    currency: currency,
+                    title: t('order.items'),
                   ),
 
                 // Money breakdown — detail figures when fetched, else the
                 // summary's (queued/offline orders).
                 _TotalsBlock(
-                  totalLabel: _t('order.total'),
+                  totalLabel: t('order.total'),
                   rows: [
                     (
-                      _t('order.subtotal'),
+                      t('order.subtotal'),
                       detail?.subtotalMinor ?? o.subtotalMinor,
                       false,
                     ),
                     if ((detail?.discountMinor ?? 0) > 0)
-                      (_t('order.discount'), -detail!.discountMinor, true),
-                    (_t('order.tax'), detail?.taxMinor ?? o.taxMinor, false),
+                      (t('order.discount'), -detail!.discountMinor, true),
+                    (t('order.tax'), detail?.taxMinor ?? o.taxMinor, false),
                   ],
                   totalMinor: o.totalMinor,
-                  currency: _currency,
+                  currency: currency,
                 ),
               ],
             ),

@@ -1,17 +1,15 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_incoming/src/delivery_body.dart';
-import 'package:feature_incoming/src/incoming_controller.dart';
+import 'package:feature_incoming/src/incoming_provider.dart';
 import 'package:feature_incoming/src/tickets_settle_body.dart';
 import 'package:feature_incoming/src/widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:rust_bridge/rust_bridge.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Native metrics (IncomingScreen.kt) kept verbatim.
-
-/// Header title size (natives: 17.sp Black).
-const double _headerTitleSize = 17;
 
 /// Count-pill insets (natives: (xs+2)×1.dp).
 const EdgeInsetsDirectional _countPillPad = EdgeInsetsDirectional.symmetric(
@@ -22,195 +20,143 @@ const EdgeInsetsDirectional _countPillPad = EdgeInsetsDirectional.symmetric(
 /// Unified "Orders" surface (teller): delivery + waiter open-tickets in ONE
 /// place, two tabs, fed by the shell's session-level SSE ticks. Replaces
 /// the separate delivery and settle-tickets screens. Both tabs are live
-/// (delivery → [deliveryTick], tickets → [ticketTick]) so a waiter firing
-/// on another device reaches the teller instantly. Port of the Kotlin
-/// IncomingScreen (IncomingScreen.kt + DeliveryScreen.kt + WaiterScreen.kt
-/// TicketsSettleBody).
-class IncomingScreen extends StatefulWidget {
-  const IncomingScreen({
-    required this.core,
-    required this.onStateChanged,
-    this.initialTab = 0,
-    this.deliveryTick,
-    this.ticketTick,
-    this.onBack,
-    super.key,
-  });
-
-  final MadarCore core;
-
-  /// Fired after any bridge call that can move `app_route()` / the shift
-  /// stats (a finalized delivery / settled ticket books a real sale).
-  final void Function() onStateChanged;
+/// (delivery → [deliveryTickProvider], tickets → [ticketTickProvider]) so a
+/// waiter firing on another device reaches the teller instantly. Port of
+/// the Kotlin IncomingScreen (IncomingScreen.kt + DeliveryScreen.kt +
+/// WaiterScreen.kt TicketsSettleBody).
+class IncomingScreen extends ConsumerStatefulWidget {
+  const IncomingScreen({super.key, this.initialTab = 0});
 
   /// Which tab opens first (0 = delivery, 1 = tickets) — the natives'
   /// `incomingTab`, which realtime alerts steer to the pinged board.
   final int initialTab;
 
-  /// Bumped by the shell on `delivery.*` realtime events.
-  final Listenable? deliveryTick;
-
-  /// Bumped by the shell on `ticket.*` realtime events.
-  final Listenable? ticketTick;
-
-  /// Back affordance — defaults to popping this route (the natives set
-  /// `showIncoming = false`).
-  final VoidCallback? onBack;
-
   @override
-  State<IncomingScreen> createState() => _IncomingScreenState();
+  ConsumerState<IncomingScreen> createState() => _IncomingScreenState();
 }
 
-class _IncomingScreenState extends State<IncomingScreen> {
-  late final IncomingController _model;
-  late int _tab = widget.initialTab;
-
+class _IncomingScreenState extends ConsumerState<IncomingScreen> {
   @override
   void initState() {
     super.initState();
-    _model = IncomingController(
-      core: widget.core,
-      onStateChanged: widget.onStateChanged,
+    // Provider writes are illegal while the tree is building — seed the
+    // landing tab + kick both loads (so the tab badges populate) right
+    // after this first build.
+    unawaited(
+      Future<void>.microtask(() {
+        if (!mounted) return;
+        ref.read(incomingProvider.notifier).enter(tab: widget.initialTab);
+      }),
     );
-    // Load both lists on entry so the tab badges are populated immediately
-    // (each body also reloads itself + keys on its own live tick).
-    unawaited(_model.loadDeliveryOrders());
-    unawaited(_model.loadOpenTickets());
-  }
-
-  @override
-  void dispose() {
-    _model.dispose();
-    super.dispose();
-  }
-
-  void _back() {
-    final onBack = widget.onBack;
-    if (onBack != null) {
-      onBack();
-    } else {
-      unawaited(Navigator.of(context).maybePop());
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _model,
-      builder: (context, _) {
-        final colors = context.madarColors;
-        final deliveryCount = _model.deliveryOrders.length;
-        final ticketCount = _model.settleableTickets.length;
-        // Scaffold: every screen root owns its own Scaffold in this app.
-        return Scaffold(
-          backgroundColor: colors.bg,
-          body: SafeArea(
-            child: Stack(
-              children: [
-                Column(
+    // Live ticks — the shell bumps these on `delivery.*` / `ticket.*`
+    // realtime events. Listened HERE (not per-body) so both tab badges
+    // stay live whichever tab is showing.
+    ref
+      ..listen(deliveryTickProvider, (_, _) {
+        unawaited(ref.read(incomingProvider.notifier).loadDeliveryOrders());
+      })
+      ..listen(ticketTickProvider, (_, _) {
+        unawaited(ref.read(incomingProvider.notifier).loadOpenTickets());
+      });
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final tab =
+        ref.watch(incomingProvider.select((s) => s.tab)) ?? widget.initialTab;
+    final deliveryCount = ref.watch(
+      incomingProvider.select((s) => s.deliveryOrders.length),
+    );
+    final ticketCount = ref.watch(
+      incomingProvider.select((s) => s.settleableTickets.length),
+    );
+    final toast = ref.watch(incomingProvider.select((s) => s.toast));
+    // Scaffold: every screen root owns its own Scaffold in this app.
+    return Scaffold(
+      backgroundColor: colors.bg,
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              // THE shared header (paints under the status bar); the live
+              // segmented tab bar rides directly beneath it.
+              MadarHeader(
+                title: bridge.tr(key: 'incoming.title'),
+                onBack: () => Navigator.maybePop(context),
+              ),
+              // Segmented tab bar (teal active fill) with live per-tab
+              // count badges.
+              ColoredBox(
+                color: colors.surface,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Raised header surface: back + title, then the live
-                    // segmented tab bar.
-                    ColoredBox(
-                      color: colors.surface,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsetsDirectional.symmetric(
-                              horizontal: Space.lg,
-                              vertical: Space.md,
-                            ),
-                            child: Row(
-                              spacing: Space.md,
-                              children: [
-                                TactileScale(
-                                  onTap: _back,
-                                  child: MadarIcon(
-                                    'chevron.backward',
-                                    tint: colors.textPrimary,
-                                    size: IconSize.xl,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    _model.tr('incoming.title'),
-                                    style: MadarType.h3.copyWith(
-                                      fontSize: _headerTitleSize,
-                                      fontWeight: FontWeight.w900,
-                                      color: colors.textPrimary,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Segmented tab bar (teal active fill) with live
-                          // per-tab count badges.
-                          Padding(
-                            padding: const EdgeInsetsDirectional.only(
-                              start: Space.lg,
-                              end: Space.lg,
-                              bottom: Space.md,
-                            ),
-                            child: Container(
-                              padding: const EdgeInsetsDirectional.all(
-                                Space.xs,
-                              ),
-                              decoration: BoxDecoration(
-                                color: colors.surfaceAlt,
-                                borderRadius: BorderRadius.circular(Radii.sm),
-                              ),
-                              child: Row(
-                                spacing: Space.xs,
-                                children: [
-                                  Expanded(
-                                    child: _IncomingTab(
-                                      label: _model.tr('delivery.title'),
-                                      count: deliveryCount,
-                                      active: _tab == 0,
-                                      onTap: () => setState(() => _tab = 0),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _IncomingTab(
-                                      label: _model.tr('waiter.title'),
-                                      count: ticketCount,
-                                      active: _tab == 1,
-                                      onTap: () => setState(() => _tab = 1),
-                                    ),
-                                  ),
-                                ],
+                    Padding(
+                      padding: const EdgeInsetsDirectional.symmetric(
+                        horizontal: Space.lg,
+                        vertical: Space.md,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsetsDirectional.all(Space.xs),
+                        decoration: BoxDecoration(
+                          color: colors.surfaceAlt,
+                          borderRadius: BorderRadius.circular(Radii.sm),
+                        ),
+                        child: Row(
+                          spacing: Space.xs,
+                          children: [
+                            Expanded(
+                              child: _IncomingTab(
+                                label: bridge.tr(key: 'delivery.title'),
+                                count: deliveryCount,
+                                active: tab == 0,
+                                onTap: () => ref
+                                    .read(incomingProvider.notifier)
+                                    .setTab(0),
                               ),
                             ),
-                          ),
-                          const IncomingHairline(),
-                        ],
+                            Expanded(
+                              child: _IncomingTab(
+                                label: bridge.tr(key: 'waiter.title'),
+                                count: ticketCount,
+                                active: tab == 1,
+                                onTap: () => ref
+                                    .read(incomingProvider.notifier)
+                                    .setTab(1),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    // Body — swapping widget types remounts the tab so each
-                    // body's own init (initial load + live tick) runs on
-                    // (re)entry, like the natives' `when(tab)`.
-                    Expanded(
-                      child: _tab == 0
-                          ? DeliveryBody(
-                              model: _model,
-                              tick: widget.deliveryTick,
-                            )
-                          : TicketsSettleBody(
-                              model: _model,
-                              tick: widget.ticketTick,
-                            ),
-                    ),
+                    const IncomingHairline(),
                   ],
                 ),
-                // Toasts float above everything on this screen.
-                ToastHost(_model.toast, onDismiss: _model.dismissToast),
-              ],
+              ),
+              // Body — swapping widget types remounts the tab so each
+              // body's own init (refresh) runs on (re)entry, like the
+              // natives' `when(tab)`.
+              Expanded(
+                child: SafeArea(
+                  top: false,
+                  child: tab == 0
+                      ? const DeliveryBody()
+                      : const TicketsSettleBody(),
+                ),
+              ),
+            ],
+          ),
+          // Toasts float above everything on this screen.
+          SafeArea(
+            child: ToastHost(
+              toast,
+              onDismiss: ref.read(incomingProvider.notifier).dismissToast,
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

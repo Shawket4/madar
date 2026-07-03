@@ -206,15 +206,6 @@ class _AmountFieldState extends State<AmountField> {
   );
   final FocusNode _focus = FocusNode();
   late int _lastEmitted = widget.amountMinor;
-  bool _focused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(() {
-      if (mounted) setState(() => _focused = _focus.hasFocus);
-    });
-  }
 
   @override
   void didUpdateWidget(AmountField oldWidget) {
@@ -243,17 +234,10 @@ class _AmountFieldState extends State<AmountField> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return Container(
-      height: Metrics.amountFieldHeight,
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.lg),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(
-          color: _focused ? colors.accent : colors.border,
-          width: _focused ? 2 : 1,
-        ),
-      ),
+    // The focus ring rides a ListenableBuilder on the FocusNode (no
+    // setState) — the field itself stays mounted across focus flips.
+    return ListenableBuilder(
+      listenable: _focus,
       child: Row(
         spacing: Space.sm,
         children: [
@@ -282,6 +266,22 @@ class _AmountFieldState extends State<AmountField> {
           ),
         ],
       ),
+      builder: (context, child) {
+        final focused = _focus.hasFocus;
+        return Container(
+          height: Metrics.amountFieldHeight,
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.lg),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(Radii.md),
+            border: Border.all(
+              color: focused ? colors.accent : colors.border,
+              width: focused ? 2 : 1,
+            ),
+          ),
+          child: child,
+        );
+      },
     );
   }
 }

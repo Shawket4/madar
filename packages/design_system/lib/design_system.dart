@@ -6,6 +6,7 @@ library;
 export 'src/banners.dart';
 export 'src/brand.dart';
 export 'src/gallery.dart';
+export 'src/header.dart';
 export 'src/icons.dart';
 export 'src/money.dart';
 export 'src/responsive.dart';

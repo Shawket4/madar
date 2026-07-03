@@ -4,14 +4,18 @@
 /// close reconciliation), presented as a sheet on a white "thermal paper"
 /// card (ReceiptPaper.kt's visual language — always white paper with dark
 /// ink, in BOTH themes) with a Print footer that renders the report in the
-/// core and streams the bytes to the configured network printer.
+/// core and streams the bytes to the configured network printer. Report /
+/// orders / print state live in [shiftReportProvider].
 library;
 
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_shift/src/controls.dart';
+import 'package:feature_shift/src/shift_providers.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // ── Native metrics (ShiftReportPreview.kt / ReceiptPaper.kt) that fall
@@ -60,12 +64,6 @@ const double _voidTagBgAlpha = 0.08;
 /// Skeleton row height while the shift's orders lazy-load (≈ one order row).
 const double _orderSkeletonHeight = 26;
 
-/// ESC/POS character columns (natives: renderShiftReport(..., 32u, ...)).
-const int _printWidth = 32;
-
-/// Default JetDirect printer port (natives: parsePrinter's 9100).
-const int _printerPort = 9100;
-
 // ── Theme-invariant "thermal paper" ink (ReceiptPaper.kt): a receipt is
 // always white paper with dark ink, so these are fixed, not tokens. ─────────
 const Color _paper = Color(0xFFFFFFFF);
@@ -76,10 +74,6 @@ const Color _inkTrack = Color(0xFFEEEEEE);
 const Color _inkSuccess = Color(0xFF2E7D32);
 const Color _inkDanger = Color(0xFFB71C1C);
 const Color _inkWarning = Color(0xFFB26A00);
-
-/// The natives' `PrintState` — the terminal print feedback the teller needs
-/// (sent / no printer bound / unreachable).
-enum _PrintState { idle, printing, printed, noPrinter, failed }
 
 /// Tone set `ShiftReportBreakdown` renders with: the theme palette inside
 /// the close-shift report card (Kotlin ShiftReportBreakdown), or fixed
@@ -534,17 +528,10 @@ class _Rule extends StatelessWidget {
 /// footer carries the natives' terminal print feedback (sent / no printer /
 /// failed). Present with [showMadarSheet] — the sheet gets its Material
 /// ancestor from MadarSheet; dismiss returns via `Navigator.maybePop`.
-class ShiftReportSheet extends StatefulWidget {
+/// Pure-DATA params only; state lives in [shiftReportProvider].
+class ShiftReportSheet extends ConsumerStatefulWidget {
   /// Creates the preview; a null [report] loads the current shift's.
-  const ShiftReportSheet({
-    required this.core,
-    this.report,
-    this.shiftId,
-    super.key,
-  });
-
-  /// The core handle every bridge call goes through.
-  final MadarCore core;
+  const ShiftReportSheet({super.key, this.report, this.shiftId});
 
   /// A pre-fetched report (close-shift / past shifts), or null to load the
   /// current shift's on entry.
@@ -556,94 +543,25 @@ class ShiftReportSheet extends StatefulWidget {
   final String? shiftId;
 
   @override
-  State<ShiftReportSheet> createState() => _ShiftReportSheetState();
+  ConsumerState<ShiftReportSheet> createState() => _ShiftReportSheetState();
 }
 
-class _ShiftReportSheetState extends State<ShiftReportSheet> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  ShiftReportView? _report;
-  _PrintState _print = _PrintState.idle;
-
-  /// The shift's orders for the lazy Orders section — null while loading
-  /// (skeleton rows); load failures degrade to the empty line.
-  List<OrderSummaryView>? _orders;
-
-  String _t(String key) => _bridge.tr(key: key);
-
-  @override
-  void initState() {
-    super.initState();
-    _report = widget.report;
-    if (_report == null) {
-      unawaited(_load());
-    } else {
-      unawaited(_loadOrders());
-    }
-  }
-
-  Future<void> _load() async {
-    try {
-      final report = await _bridge.shiftReport();
-      if (!mounted) return;
-      setState(() => _report = report);
-      unawaited(_loadOrders());
-    } on Exception catch (_) {}
-  }
-
-  /// Lazy-load the shift's orders AFTER the report renders — a past shift
-  /// via `listOrdersForShift` (the Kotlin history expansion's method), the
-  /// current shift via the queue-merged `listShiftOrders`.
-  Future<void> _loadOrders() async {
-    try {
-      final id = widget.shiftId;
-      final orders = id == null
-          ? await _bridge.listShiftOrders()
-          : await _bridge.listOrdersForShift(shiftId: id);
-      if (mounted) setState(() => _orders = orders);
-    } on Exception catch (_) {
-      if (mounted) setState(() => _orders = const []);
-    }
-  }
-
-  /// Render the Z-report in the core and stream the bytes to the device's
-  /// configured network printer — the natives' printReportView: no printer
-  /// bound is a distinct state (not a failure), and the send is best-effort.
-  Future<void> _printReport() async {
-    final report = _report;
-    if (report == null || _print == _PrintState.printing) return;
-    final config = _bridge.deviceConfig();
-    final host = config.printerHost?.trim() ?? '';
-    if (host.isEmpty) {
-      setState(() => _print = _PrintState.noPrinter);
-      return;
-    }
-    setState(() => _print = _PrintState.printing);
-    try {
-      final bytes = await _bridge.renderShiftReport(
-        report: report,
-        storeName: config.branchName ?? '',
-        currency: _bridge.currentSession()?.currencyCode ?? '',
-        width: _printWidth,
-        brand: config.printerBrand == 'star'
-            ? PrinterBrand.star
-            : PrinterBrand.epson,
-      );
-      await _bridge.sendToPrinter(
-        host: host,
-        port: config.printerPort ?? _printerPort,
-        bytes: bytes,
-      );
-      if (mounted) setState(() => _print = _PrintState.printed);
-    } on Exception catch (_) {
-      if (mounted) setState(() => _print = _PrintState.failed);
-    }
-  }
+class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
+  /// The presentation's provider key, minted once so the family state is
+  /// stable across sheet rebuilds (widget-local ephemera, not rendered
+  /// state).
+  late final ShiftReportRequest _request = ShiftReportRequest(
+    report: widget.report,
+    shiftId: widget.shiftId,
+  );
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final report = _report;
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
+    final state = ref.watch(shiftReportProvider(_request));
+    final report = state.report;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -661,7 +579,7 @@ class _ShiftReportSheetState extends State<ShiftReportSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _t('shift.report_title'),
+                      t('shift.report_title'),
                       style: MadarType.h2.copyWith(
                         fontSize: _headerTitleSize,
                         fontWeight: FontWeight.w800,
@@ -681,7 +599,7 @@ class _ShiftReportSheetState extends State<ShiftReportSheet> {
               ),
               if (report != null)
                 StatusChip(
-                  label: _t(
+                  label: t(
                     report.fromServer ? 'chrome.online' : 'chrome.offline',
                   ),
                   tone: report.fromServer ? ChipTone.success : ChipTone.warning,
@@ -706,8 +624,8 @@ class _ShiftReportSheetState extends State<ShiftReportSheet> {
                     ? const _PaperSkeleton()
                     : _ReportPaper(
                         report: report,
-                        bridge: _bridge,
-                        orders: _orders,
+                        bridge: bridge,
+                        orders: state.orders,
                       ),
               ),
             ),
@@ -720,18 +638,23 @@ class _ShiftReportSheetState extends State<ShiftReportSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: Space.sm,
             children: [
-              if (_printChip case final Widget chip) Center(child: chip),
+              if (_printChip(state.print, t) case final Widget chip)
+                Center(child: chip),
               ShiftButton(
-                label: _print == _PrintState.printing
-                    ? _t('receipt.printing')
-                    : _t('shift.print_report'),
+                label: state.print == ShiftPrintState.printing
+                    ? t('receipt.printing')
+                    : t('shift.print_report'),
                 icon: 'printer',
-                loading: _print == _PrintState.printing,
+                loading: state.print == ShiftPrintState.printing,
                 enabled: report != null,
-                onTap: () => unawaited(_printReport()),
+                onTap: () => unawaited(
+                  ref
+                      .read(shiftReportProvider(_request).notifier)
+                      .printReport(),
+                ),
               ),
               ShiftButton(
-                label: _t('common.done'),
+                label: t('common.done'),
                 variant: ShiftButtonVariant.ghost,
                 onTap: () => unawaited(Navigator.of(context).maybePop()),
               ),
@@ -744,24 +667,25 @@ class _ShiftReportSheetState extends State<ShiftReportSheet> {
 
   /// Terminal print feedback — the teller must know whether the Z-report
   /// actually printed, hit no configured printer, or failed.
-  Widget? get _printChip => switch (_print) {
-    _PrintState.printed => StatusChip(
-      label: _t('receipt.printed'),
-      tone: ChipTone.success,
-      icon: 'checkmark.circle',
-    ),
-    _PrintState.noPrinter => StatusChip(
-      label: _t('receipt.no_printer'),
-      tone: ChipTone.warning,
-      icon: 'exclamationmark.triangle',
-    ),
-    _PrintState.failed => StatusChip(
-      label: _t('receipt.print_failed'),
-      tone: ChipTone.danger,
-      icon: 'exclamationmark.triangle',
-    ),
-    _PrintState.idle || _PrintState.printing => null,
-  };
+  Widget? _printChip(ShiftPrintState print, String Function(String key) t) =>
+      switch (print) {
+        ShiftPrintState.printed => StatusChip(
+          label: t('receipt.printed'),
+          tone: ChipTone.success,
+          icon: 'checkmark.circle',
+        ),
+        ShiftPrintState.noPrinter => StatusChip(
+          label: t('receipt.no_printer'),
+          tone: ChipTone.warning,
+          icon: 'exclamationmark.triangle',
+        ),
+        ShiftPrintState.failed => StatusChip(
+          label: t('receipt.print_failed'),
+          tone: ChipTone.danger,
+          icon: 'exclamationmark.triangle',
+        ),
+        ShiftPrintState.idle || ShiftPrintState.printing => null,
+      };
 }
 
 /// The report on "thermal paper": store-name masthead, the teller/opened

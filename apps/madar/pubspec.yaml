@@ -8,6 +8,7 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
+  app_core: ^0.1.0
   audioplayers: ^6.1.0
   design_system: ^0.1.0
   feature_auth: ^0.1.0
@@ -21,6 +22,7 @@ dependencies:
   feature_shift: ^0.1.0
   flutter:
     sdk: flutter
+  flutter_riverpod: ^2.6.1
   flutter_secure_storage: ^9.2.4
   path_provider: ^2.1.5
   rust_bridge: ^0.1.0

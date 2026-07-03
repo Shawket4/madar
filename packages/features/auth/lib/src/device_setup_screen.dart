@@ -1,7 +1,7 @@
 import 'package:feature_auth/src/auth_layout.dart';
 import 'package:feature_auth/src/device_setup_form.dart';
 import 'package:flutter/material.dart';
-import 'package:rust_bridge/rust_bridge.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// First-run device commissioning — the screen shown while `app_route()` is
 /// `AppRoute.deviceSetup` (till not bound to a branch, or reconfiguring): a
@@ -11,29 +11,15 @@ import 'package:rust_bridge/rust_bridge.dart';
 ///
 /// Wide layout: brand panel beside the form at the brand-panel ratio;
 /// stacked (logo above the form) on narrow.
-class DeviceSetupScreen extends StatelessWidget {
+class DeviceSetupScreen extends ConsumerWidget {
   /// Creates the device-setup screen.
-  const DeviceSetupScreen({
-    required this.core,
-    required this.onStateChanged,
-    super.key,
-  });
-
-  /// The core handle.
-  final MadarCore core;
-
-  /// Notifies the shell after any bridge call that can move the route.
-  final void Function() onStateChanged;
+  const DeviceSetupScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return AuthSplitScaffold(
-      core: core,
-      formBuilder: (context, {required showLogo}) => DeviceSetupForm(
-        core: core,
-        onStateChanged: onStateChanged,
-        showLogo: showLogo,
-      ),
+      formBuilder: (context, {required showLogo}) =>
+          DeviceSetupForm(showLogo: showLogo),
     );
   }
 }

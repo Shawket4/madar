@@ -1,27 +1,44 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_order/src/order_controller.dart';
+import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
+
+/// Covers stepper for one fire-details presentation, keyed by an identity
+/// token the sheet creates per open (so a fresh sheet always starts at 0).
+class CoversNotifier extends AutoDisposeFamilyNotifier<int, Object> {
+  @override
+  int build(Object arg) => 0;
+
+  void inc() => state = state + 1;
+
+  void dec() => state = state > 0 ? state - 1 : 0;
+}
+
+final AutoDisposeNotifierProviderFamily<CoversNotifier, int, Object>
+_coversProvider = NotifierProvider.autoDispose
+    .family<CoversNotifier, int, Object>(CoversNotifier.new);
 
 /// Dine-in capture before a waiter fires a NEW ticket: customer, table,
 /// covers, kitchen notes — all optional, all passed to the core.
-class FireDetailsSheet extends StatefulWidget {
-  const FireDetailsSheet({required this.model, super.key});
-
-  final OrderController model;
+class FireDetailsSheet extends ConsumerStatefulWidget {
+  const FireDetailsSheet({super.key});
 
   @override
-  State<FireDetailsSheet> createState() => _FireDetailsSheetState();
+  ConsumerState<FireDetailsSheet> createState() => _FireDetailsSheetState();
 }
 
-class _FireDetailsSheetState extends State<FireDetailsSheet> {
+class _FireDetailsSheetState extends ConsumerState<FireDetailsSheet> {
   final _customer = TextEditingController();
   final _table = TextEditingController();
   final _notes = TextEditingController();
-  int _covers = 0;
+
+  /// Identity key for this presentation's covers state.
+  final Object _coversKey = Object();
 
   @override
   void dispose() {
@@ -32,14 +49,16 @@ class _FireDetailsSheetState extends State<FireDetailsSheet> {
   }
 
   Future<void> _fire() async {
-    final model = widget.model;
     String? blank(String v) => v.trim().isEmpty ? null : v.trim();
-    final ok = await model.fireOrAddRound(
-      customerName: blank(_customer.text),
-      tableId: blank(_table.text),
-      notes: blank(_notes.text),
-      guestCount: _covers > 0 ? _covers : null,
-    );
+    final covers = ref.read(_coversProvider(_coversKey));
+    final ok = await ref
+        .read(orderProvider.notifier)
+        .fireOrAddRound(
+          customerName: blank(_customer.text),
+          tableId: blank(_table.text),
+          notes: blank(_notes.text),
+          guestCount: covers > 0 ? covers : null,
+        );
     if (ok && mounted) {
       await Navigator.of(context).maybePop();
     }
@@ -47,82 +66,75 @@ class _FireDetailsSheetState extends State<FireDetailsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final model = widget.model;
     final colors = context.madarColors;
-    return ListenableBuilder(
-      listenable: model,
-      builder: (context, _) => SingleChildScrollView(
-        padding: const EdgeInsetsDirectional.all(Space.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              model.tr('waiter.fire'),
-              style: MadarType.h2.copyWith(color: colors.textPrimary),
-            ),
-            const SizedBox(height: Space.md),
-            OrderTextField(
-              controller: _customer,
-              placeholder: model.tr('waiter.customer_optional'),
-              icon: 'person',
-            ),
-            const SizedBox(height: Space.md),
-            OrderTextField(
-              controller: _table,
-              placeholder: model.tr('waiter.table'),
-              icon: 'square.grid.2x2',
-            ),
-            const SizedBox(height: Space.md),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    model.tr('waiter.covers'),
-                    style: MadarType.title.copyWith(
-                      color: colors.textSecondary,
-                    ),
+    final bridge = ref.watch(bridgeProvider);
+    final covers = ref.watch(_coversProvider(_coversKey));
+    final coversNotifier = ref.read(_coversProvider(_coversKey).notifier);
+    final isBusy = ref.watch(orderProvider.select((s) => s.isBusy));
+    return SingleChildScrollView(
+      padding: const EdgeInsetsDirectional.all(Space.lg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            bridge.tr(key: 'waiter.fire'),
+            style: MadarType.h2.copyWith(color: colors.textPrimary),
+          ),
+          const SizedBox(height: Space.md),
+          OrderTextField(
+            controller: _customer,
+            placeholder: bridge.tr(key: 'waiter.customer_optional'),
+            icon: 'person',
+          ),
+          const SizedBox(height: Space.md),
+          OrderTextField(
+            controller: _table,
+            placeholder: bridge.tr(key: 'waiter.table'),
+            icon: 'square.grid.2x2',
+          ),
+          const SizedBox(height: Space.md),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  bridge.tr(key: 'waiter.covers'),
+                  style: MadarType.title.copyWith(
+                    color: colors.textSecondary,
                   ),
                 ),
-                _CoverStepBox(
-                  icon: 'minus',
-                  onTap: () =>
-                      setState(() => _covers = _covers > 0 ? _covers - 1 : 0),
+              ),
+              _CoverStepBox(icon: 'minus', onTap: coversNotifier.dec),
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minWidth: 28 + Space.md * 2,
                 ),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minWidth: 28 + Space.md * 2,
-                  ),
-                  child: Text(
-                    '$_covers',
-                    textAlign: TextAlign.center,
-                    style: MadarType.h3.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
-                    ),
+                child: Text(
+                  '$covers',
+                  textAlign: TextAlign.center,
+                  style: MadarType.h3.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
                   ),
                 ),
-                _CoverStepBox(
-                  icon: 'plus',
-                  onTap: () => setState(() => _covers += 1),
-                ),
-              ],
-            ),
-            const SizedBox(height: Space.md),
-            OrderTextField(
-              controller: _notes,
-              placeholder: model.tr('order.notes_hint'),
-              icon: 'text.bubble',
-            ),
-            const SizedBox(height: Space.md),
-            ActionButton(
-              label: model.tr('waiter.fire'),
-              icon: 'arrow.up.circle',
-              loading: model.isBusy,
-              onTap: () => unawaited(_fire()),
-            ),
-          ],
-        ),
+              ),
+              _CoverStepBox(icon: 'plus', onTap: coversNotifier.inc),
+            ],
+          ),
+          const SizedBox(height: Space.md),
+          OrderTextField(
+            controller: _notes,
+            placeholder: bridge.tr(key: 'order.notes_hint'),
+            icon: 'text.bubble',
+          ),
+          const SizedBox(height: Space.md),
+          ActionButton(
+            label: bridge.tr(key: 'waiter.fire'),
+            icon: 'arrow.up.circle',
+            loading: isBusy,
+            onTap: () => unawaited(_fire()),
+          ),
+        ],
       ),
     );
   }
@@ -167,20 +179,34 @@ class VoidTicketResult {
   final String? reason;
 }
 
+/// The picked void-reason key for one void-sheet presentation, keyed by an
+/// identity token the sheet creates per open.
+class VoidReasonNotifier extends AutoDisposeFamilyNotifier<String?, Object> {
+  @override
+  String? build(Object arg) => null;
+
+  /// Not a setter — Notifier state writes are method-guarded.
+  // ignore: use_setters_to_change_properties
+  void pick(String key) => state = key;
+}
+
+final AutoDisposeNotifierProviderFamily<VoidReasonNotifier, String?, Object>
+_voidReasonProvider = NotifierProvider.autoDispose
+    .family<VoidReasonNotifier, String?, Object>(VoidReasonNotifier.new);
+
 /// Compact confirmation for voiding an OPEN ticket from the waiter cart: a
 /// reason picker + free-text note (the shared `void.*` keys) and a
 /// Cancel / danger-Void pair. Pops a [VoidTicketResult] on confirm.
-class WaiterVoidSheet extends StatefulWidget {
-  const WaiterVoidSheet({required this.model, required this.ticket, super.key});
+class WaiterVoidSheet extends ConsumerStatefulWidget {
+  const WaiterVoidSheet({required this.ticket, super.key});
 
-  final OrderController model;
   final TicketView ticket;
 
   @override
-  State<WaiterVoidSheet> createState() => _WaiterVoidSheetState();
+  ConsumerState<WaiterVoidSheet> createState() => _WaiterVoidSheetState();
 }
 
-class _WaiterVoidSheetState extends State<WaiterVoidSheet> {
+class _WaiterVoidSheetState extends ConsumerState<WaiterVoidSheet> {
   static const _reasonKeys = [
     'void.reason_mistake',
     'void.reason_customer',
@@ -189,7 +215,9 @@ class _WaiterVoidSheetState extends State<WaiterVoidSheet> {
   ];
 
   final _note = TextEditingController();
-  String? _reasonKey;
+
+  /// Identity key for this presentation's picked-reason state.
+  final Object _reasonStateKey = Object();
 
   @override
   void dispose() {
@@ -200,7 +228,10 @@ class _WaiterVoidSheetState extends State<WaiterVoidSheet> {
   void _confirm() {
     // A single free-form reason: the picked label + the note (either may be
     // absent — voidTicket accepts a null reason).
-    final picked = _reasonKey == null ? null : widget.model.tr(_reasonKey!);
+    final reasonKey = ref.read(_voidReasonProvider(_reasonStateKey));
+    final picked = reasonKey == null
+        ? null
+        : ref.read(bridgeProvider).tr(key: reasonKey);
     final note = _note.text.trim().isEmpty ? null : _note.text.trim();
     final reason = [?picked, ?note].join(' — ');
     unawaited(
@@ -212,9 +243,13 @@ class _WaiterVoidSheetState extends State<WaiterVoidSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final model = widget.model;
     final colors = context.madarColors;
-    final ref = widget.ticket.ticketRef;
+    final bridge = ref.watch(bridgeProvider);
+    final reasonKey = ref.watch(_voidReasonProvider(_reasonStateKey));
+    final reasonNotifier = ref.read(
+      _voidReasonProvider(_reasonStateKey).notifier,
+    );
+    final ticketRef = widget.ticket.ticketRef;
     return SingleChildScrollView(
       padding: const EdgeInsetsDirectional.all(Space.lg),
       child: Column(
@@ -225,7 +260,7 @@ class _WaiterVoidSheetState extends State<WaiterVoidSheet> {
             children: [
               Expanded(
                 child: Text(
-                  model.tr('void.title'),
+                  bridge.tr(key: 'void.title'),
                   style: MadarType.h2.copyWith(color: colors.textPrimary),
                 ),
               ),
@@ -236,16 +271,16 @@ class _WaiterVoidSheetState extends State<WaiterVoidSheet> {
               ),
             ],
           ),
-          if (ref != null && ref.isNotEmpty) ...[
+          if (ticketRef != null && ticketRef.isNotEmpty) ...[
             const SizedBox(height: Space.xs),
             Text(
-              ref,
+              ticketRef,
               style: MadarType.bodySm.copyWith(color: colors.textSecondary),
             ),
           ],
           const SizedBox(height: Space.md),
           Text(
-            model.tr('void.reason'),
+            bridge.tr(key: 'void.reason'),
             style: MadarType.label.copyWith(
               fontWeight: FontWeight.w700,
               color: colors.textMuted,
@@ -254,15 +289,15 @@ class _WaiterVoidSheetState extends State<WaiterVoidSheet> {
           const SizedBox(height: Space.sm),
           for (final key in _reasonKeys) ...[
             _VoidReasonRow(
-              label: model.tr(key),
-              active: _reasonKey == key,
-              onTap: () => setState(() => _reasonKey = key),
+              label: bridge.tr(key: key),
+              active: reasonKey == key,
+              onTap: () => reasonNotifier.pick(key),
             ),
             const SizedBox(height: Space.sm),
           ],
           OrderTextField(
             controller: _note,
-            placeholder: model.tr('void.note'),
+            placeholder: bridge.tr(key: 'void.note'),
             icon: 'note.text',
           ),
           const SizedBox(height: Space.md),
@@ -270,7 +305,7 @@ class _WaiterVoidSheetState extends State<WaiterVoidSheet> {
             children: [
               Expanded(
                 child: ActionButton(
-                  label: model.tr('void.cancel'),
+                  label: bridge.tr(key: 'void.cancel'),
                   variant: ActionVariant.outline,
                   onTap: () => unawaited(Navigator.of(context).maybePop()),
                 ),
@@ -278,7 +313,7 @@ class _WaiterVoidSheetState extends State<WaiterVoidSheet> {
               const SizedBox(width: Space.sm),
               Expanded(
                 child: ActionButton(
-                  label: model.tr('void.confirm'),
+                  label: bridge.tr(key: 'void.confirm'),
                   variant: ActionVariant.danger,
                   icon: 'trash',
                   onTap: _confirm,

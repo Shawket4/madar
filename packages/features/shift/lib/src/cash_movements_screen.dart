@@ -3,16 +3,19 @@
 /// CashAndShiftsScreen.kt). Movements record a signed pay-in / pay-out
 /// against the open shift — OFFLINE-FIRST (queued through the durable
 /// outbox, idempotent on a client_ref). All data + rules live in the
-/// core; this screen collects input and renders. Full-screen over the
-/// order screen.
+/// core; state lives in [cashMovementsProvider]; this screen collects
+/// input and renders. Full-screen over the order screen.
 library;
 
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_shift/src/controls.dart';
+import 'package:feature_shift/src/shift_providers.dart';
 import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Native metrics (CashAndShiftsScreen.kt) that fall between the 4-pt Space
@@ -30,54 +33,22 @@ const double _netLabelSize = 14;
 /// Movement title/subtitle gap (natives: spacedBy(2.dp)).
 const double _movementTextGap = 2;
 
-/// The open shift's cash in/out ledger (full-screen over the order
-/// screen). Takes the shared screen contract: [core] for every bridge call
-/// and [onStateChanged] after a movement records (the drawer's expected
-/// cash moved). The header's back pops it via `Navigator.maybePop`.
-class CashMovementsScreen extends StatefulWidget {
+/// The open shift's cash in/out ledger (full-screen over the order screen).
+/// The header's back pops it via `Navigator.maybePop`; the shell hand-off
+/// after a recorded movement happens inside [CashMovementsNotifier].
+class CashMovementsScreen extends ConsumerStatefulWidget {
   /// Creates the cash in/out screen.
-  const CashMovementsScreen({
-    required this.core,
-    required this.onStateChanged,
-    this.onBack,
-    super.key,
-  });
-
-  /// The core handle every bridge call goes through.
-  final MadarCore core;
-
-  /// Fired after a successful cash movement (the shift's expected cash
-  /// moved).
-  final void Function() onStateChanged;
-
-  /// Back affordance — defaults to popping this route (the natives set
-  /// `showCashMovements` = false).
-  final VoidCallback? onBack;
+  const CashMovementsScreen({super.key});
 
   @override
-  State<CashMovementsScreen> createState() => _CashMovementsScreenState();
+  ConsumerState<CashMovementsScreen> createState() =>
+      _CashMovementsScreenState();
 }
 
-class _CashMovementsScreenState extends State<CashMovementsScreen> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  List<CashMovementView> _movements = const [];
-  bool _loading = false;
-  bool _isIn = true;
-  int _amountMinor = 0;
+class _CashMovementsScreenState extends ConsumerState<CashMovementsScreen> {
+  /// Movement-note text — widget-local ephemera; visible state flows from
+  /// [cashMovementsProvider].
   final TextEditingController _note = TextEditingController();
-  bool _busy = false;
-  String? _error;
-
-  String _t(String key) => _bridge.tr(key: key);
-
-  bool get _canRecord => _amountMinor > 0 && !_busy;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
 
   @override
   void dispose() {
@@ -85,81 +56,39 @@ class _CashMovementsScreenState extends State<CashMovementsScreen> {
     super.dispose();
   }
 
-  void _back() {
-    final onBack = widget.onBack;
-    if (onBack != null) {
-      onBack();
-    } else {
-      unawaited(Navigator.of(context).maybePop());
-    }
-  }
-
-  /// The open shift's cash movements — server rows merged with still-queued
-  /// ones in the core. Load failures degrade to an empty list (the natives'
-  /// `getOrDefault(emptyList())`).
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    List<CashMovementView> movements;
-    try {
-      movements = await _bridge.listCashMovements();
-    } on Exception catch (_) {
-      movements = const [];
-    }
-    if (!mounted) return;
-    setState(() {
-      _movements = movements;
-      _loading = false;
-    });
-  }
-
-  /// Record a pay-in (`> 0`) or pay-out (`< 0`), reload the list, and reset
-  /// the form only on success — the natives' `recordCashMovement`.
+  /// Record the movement; the form (and this note field) resets only on
+  /// success — the natives' `recordCashMovement`.
   Future<void> _record() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final signed = _isIn ? _amountMinor : -_amountMinor;
-      await _bridge.recordCashMovement(
-        amountMinor: signed,
-        note: _note.text.trim(),
-      );
-      await _load();
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _amountMinor = 0;
-        _note.clear();
-      });
-      widget.onStateChanged();
-    } on MadarError catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = _bridge.humanMessage(e);
-      });
-    } on Exception catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = _t('err.generic');
-      });
-    }
+    final ok = await ref
+        .read(cashMovementsProvider.notifier)
+        .record(note: _note.text);
+    if (ok && mounted) _note.clear();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final currency = _bridge.currentSession()?.currencyCode ?? '';
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
+    final currency = bridge.currentSession()?.currencyCode ?? '';
+    // Narrow slices — form keystrokes repaint only the record card below.
+    final movements = ref.watch(
+      cashMovementsProvider.select((s) => s.movements),
+    );
+    final loading = ref.watch(cashMovementsProvider.select((s) => s.loading));
+    final error = ref.watch(cashMovementsProvider.select((s) => s.error));
     // Scaffold: every screen root owns its own Scaffold in this app.
     return Scaffold(
       backgroundColor: colors.bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            ShiftHeaderBar(title: _t('cash.title'), onBack: _back),
-            Expanded(
+      body: Column(
+        children: [
+          MadarHeader(
+            title: t('cash.title'),
+            onBack: () => Navigator.maybePop(context),
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
               child: SingleChildScrollView(
                 padding: const EdgeInsetsDirectional.all(Space.lg),
                 child: Center(
@@ -171,34 +100,26 @@ class _CashMovementsScreenState extends State<CashMovementsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       spacing: Space.lg,
                       children: [
-                        if (_error case final error?)
+                        if (error case final error?)
                           NoticeBanner(
                             text: error,
                             tone: ChipTone.danger,
                             icon: 'exclamationmark.circle',
                           ),
-                        if (_movements.isNotEmpty)
+                        if (movements.isNotEmpty)
                           _SummaryStrip(
-                            movements: _movements,
+                            movements: movements,
                             currency: currency,
-                            tr: _t,
+                            tr: t,
                           ),
                         _RecordCard(
-                          isIn: _isIn,
-                          onDirection: (isIn) => setState(() => _isIn = isIn),
-                          amountMinor: _amountMinor,
-                          onAmountMinor: (v) => setState(
-                            () => _amountMinor = v,
-                          ),
                           note: _note,
                           currency: currency,
-                          busy: _busy,
-                          canRecord: _canRecord,
                           onRecord: () => unawaited(_record()),
-                          tr: _t,
+                          tr: t,
                         ),
-                        ShiftSectionHeader(text: _t('cash.history')),
-                        if (_loading && _movements.isEmpty)
+                        ShiftSectionHeader(text: t('cash.history')),
+                        if (loading && movements.isEmpty)
                           const SkeletonScope(
                             child: Column(
                               spacing: Space.sm,
@@ -209,14 +130,14 @@ class _CashMovementsScreenState extends State<CashMovementsScreen> {
                               ],
                             ),
                           )
-                        else if (_movements.isEmpty)
+                        else if (movements.isEmpty)
                           Padding(
                             padding: const EdgeInsetsDirectional.symmetric(
                               vertical: Space.lg,
                             ),
                             child: Center(
                               child: Text(
-                                _t('cash.empty'),
+                                t('cash.empty'),
                                 style: MadarType.bodySm.copyWith(
                                   color: colors.textMuted,
                                 ),
@@ -228,12 +149,12 @@ class _CashMovementsScreenState extends State<CashMovementsScreen> {
                           // natives' zero-inset MadarCard).
                           ShiftFlushCard(
                             children: [
-                              for (final (index, m) in _movements.indexed) ...[
+                              for (final (index, m) in movements.indexed) ...[
                                 if (index > 0) const ShiftHairline(),
                                 _MovementRow(
                                   movement: m,
                                   currency: currency,
-                                  bridge: _bridge,
+                                  bridge: bridge,
                                 ),
                               ],
                             ],
@@ -244,8 +165,8 @@ class _CashMovementsScreenState extends State<CashMovementsScreen> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -376,35 +297,32 @@ class _Stat extends StatelessWidget {
 }
 
 /// The record card: In/Out direction chips, the amount, the note, and the
-/// Record CTA.
-class _RecordCard extends StatelessWidget {
+/// Record CTA. Watches its own narrow slices so amount keystrokes repaint
+/// only this card.
+class _RecordCard extends ConsumerWidget {
   const _RecordCard({
-    required this.isIn,
-    required this.onDirection,
-    required this.amountMinor,
-    required this.onAmountMinor,
     required this.note,
     required this.currency,
-    required this.busy,
-    required this.canRecord,
     required this.onRecord,
     required this.tr,
   });
 
-  final bool isIn;
-  final ValueChanged<bool> onDirection;
-  final int amountMinor;
-  final ValueChanged<int> onAmountMinor;
   final TextEditingController note;
   final String currency;
-  final bool busy;
-  final bool canRecord;
   final VoidCallback onRecord;
   final String Function(String key) tr;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final isIn = ref.watch(cashMovementsProvider.select((s) => s.isIn));
+    final amountMinor = ref.watch(
+      cashMovementsProvider.select((s) => s.amountMinor),
+    );
+    final busy = ref.watch(cashMovementsProvider.select((s) => s.busy));
+    final canRecord = ref.watch(
+      cashMovementsProvider.select((s) => s.canRecord),
+    );
     return ShiftCard(
       children: [
         Row(
@@ -415,7 +333,9 @@ class _RecordCard extends StatelessWidget {
                 label: tr('cash.in'),
                 active: isIn,
                 tone: colors.success,
-                onTap: () => onDirection(true),
+                onTap: () => ref
+                    .read(cashMovementsProvider.notifier)
+                    .setDirection(isIn: true),
               ),
             ),
             Expanded(
@@ -423,14 +343,17 @@ class _RecordCard extends StatelessWidget {
                 label: tr('cash.out'),
                 active: !isIn,
                 tone: colors.danger,
-                onTap: () => onDirection(false),
+                onTap: () => ref
+                    .read(cashMovementsProvider.notifier)
+                    .setDirection(isIn: false),
               ),
             ),
           ],
         ),
         AmountField(
           amountMinor: amountMinor,
-          onAmountMinor: onAmountMinor,
+          onAmountMinor: (v) =>
+              ref.read(cashMovementsProvider.notifier).setAmount(v),
           currencyCode: currency,
         ),
         ShiftTextField(

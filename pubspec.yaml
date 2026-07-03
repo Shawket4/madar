@@ -7,6 +7,7 @@ environment:
 
 workspace:
   - apps/madar
+  - packages/app_core
   - packages/design_system
   - packages/rust_bridge
   - packages/features/auth

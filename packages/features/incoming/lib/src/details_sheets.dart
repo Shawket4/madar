@@ -1,6 +1,8 @@
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_incoming/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Shared "what's actually in this order" surface for the Orders channel.
@@ -28,25 +30,26 @@ const double _totalSize = 20;
 /// items (qty × name, size, modifiers, per-line price), and the total.
 /// Rendered as the body of a LARGE MadarSheet; an optional [footer] (e.g.
 /// the Settle CTA) pins under the scrolling details.
-class TicketDetailsSheet extends StatelessWidget {
+class TicketDetailsSheet extends ConsumerWidget {
   const TicketDetailsSheet({
     required this.ticket,
-    required this.currency,
-    required this.tr,
     this.footer,
     super.key,
   });
 
   final TicketView ticket;
-  final String currency;
-  final String Function(String key) tr;
 
   /// Pinned CTA under the details (stays on screen while details scroll).
   final Widget? footer;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
+    String tr(String key) => bridge.tr(key: key);
     final ctx = <(String, String)>[
       // Who took the table — the waiter who opened the ticket.
       if (ticket.waiterName case final w? when w.isNotEmpty)
@@ -114,25 +117,26 @@ class TicketDetailsSheet extends StatelessWidget {
 /// delivery instructions, the real priced lines (frozen cart snapshot,
 /// SAME card tickets use), and the full money breakdown. An optional
 /// [footer] (e.g. the Finalize CTA) pins under the scrolling details.
-class DeliveryDetailsSheet extends StatelessWidget {
+class DeliveryDetailsSheet extends ConsumerWidget {
   const DeliveryDetailsSheet({
     required this.order,
-    required this.currency,
-    required this.tr,
     this.footer,
     super.key,
   });
 
   final DeliveryOrderView order;
-  final String currency;
-  final String Function(String key) tr;
 
   /// Pinned CTA under the details (stays on screen while details scroll).
   final Widget? footer;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
+    String tr(String key) => bridge.tr(key: key);
     final o = order;
     final address = o.address;
     final paymentHint = o.paymentHint;

@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_auth/src/providers.dart';
 import 'package:feature_auth/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Setup title metrics (natives: 24.sp Black, −0.4 tracking).
@@ -18,46 +21,25 @@ const double _branchTile = 36;
 /// Manager logo size on the narrow (stacked) layout (natives: 56.dp).
 const double _logoSize = 56;
 
-/// Device-setup is two steps: a manager authenticates, then picks the branch.
-enum _SetupPhase { credentials, pickBranch }
-
 /// The manager device-setup form — CREDENTIALS (org email + password →
-/// `login`) then PICK_BRANCH (`listBranches` → `setDeviceBranch`). Mirror of
-/// the natives' `DeviceSetupForm` in LoginScreen.kt; shared by
-/// `DeviceSetupScreen` and the reconfigure path of `LoginScreen`.
-class DeviceSetupForm extends StatefulWidget {
+/// `login`) then PICK_BRANCH (`listBranches` → `setDeviceBranch`), all driven
+/// by [authProvider]. Mirror of the natives' `DeviceSetupForm` in
+/// LoginScreen.kt; shared by `DeviceSetupScreen` and the reconfigure path of
+/// `LoginScreen`.
+class DeviceSetupForm extends ConsumerStatefulWidget {
   /// Creates the setup form.
-  const DeviceSetupForm({
-    required this.core,
-    required this.onStateChanged,
-    required this.showLogo,
-    super.key,
-  });
-
-  /// The core handle.
-  final MadarCore core;
-
-  /// Notifies the shell after any bridge call that can move the route.
-  final void Function() onStateChanged;
+  const DeviceSetupForm({required this.showLogo, super.key});
 
   /// Show the brand mark above the form (narrow/stacked layout only).
   final bool showLogo;
 
   @override
-  State<DeviceSetupForm> createState() => _DeviceSetupFormState();
+  ConsumerState<DeviceSetupForm> createState() => _DeviceSetupFormState();
 }
 
-class _DeviceSetupFormState extends State<DeviceSetupForm> {
+class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
   final TextEditingController _email = TextEditingController();
   final TextEditingController _password = TextEditingController();
-  _SetupPhase _phase = _SetupPhase.credentials;
-  List<BranchView> _branches = const [];
-  bool _busy = false;
-  String? _error;
-
-  MadarBridge get _bridge => widget.core.bridge;
-
-  String _t(String key) => _bridge.tr(key: key);
 
   @override
   void dispose() {
@@ -66,100 +48,30 @@ class _DeviceSetupFormState extends State<DeviceSetupForm> {
     super.dispose();
   }
 
-  /// Best-effort logout — setup auth failures must never strand a session.
-  Future<void> _quietLogout() async {
-    try {
-      await _bridge.logout(wipeOutbox: false);
-    } on Exception catch (_) {}
-  }
-
-  /// Manager credentials → branch list (natives' `authenticateManager`).
-  Future<void> _authenticate() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    String? failure;
-    var branches = const <BranchView>[];
-    try {
-      await _bridge.login(
-        req: LoginRequest(
-          mode: LoginMode.email,
-          email: _email.text.trim(),
-          password: _password.text,
-        ),
-      );
-      branches = await _bridge.listBranches();
-    } on MadarError catch (e) {
-      failure = _bridge.humanMessage(e);
-      await _quietLogout();
-    } on Exception catch (_) {
-      failure = _t('err.generic');
-      await _quietLogout();
-    }
-    widget.onStateChanged();
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _error = failure;
-      if (failure == null) {
-        _branches = branches;
-        _phase = _SetupPhase.pickBranch;
-      }
-    });
-  }
-
-  /// Bind the till to [branch], then sign the manager out so tellers sign in
-  /// (natives' `bindBranch`).
-  Future<void> _bindBranch(BranchView branch) async {
-    try {
-      await _bridge.setDeviceBranch(
-        branchId: branch.id,
-        branchName: branch.name,
-      );
-    } on Exception catch (_) {}
-    await _quietLogout();
-    if (mounted) {
-      setState(() {
-        _phase = _SetupPhase.credentials;
-        _branches = const [];
-        _error = null;
-      });
-    }
-    widget.onStateChanged();
-  }
-
-  /// Re-confirm the existing branch to drop the reconfigure flag (natives'
-  /// `cancelReconfigure`).
-  Future<void> _cancelReconfigure() async {
-    final config = _bridge.deviceConfig();
-    final branchId = config.branchId;
-    if (branchId != null && branchId.isNotEmpty) {
-      try {
-        await _bridge.setDeviceBranch(
-          branchId: branchId,
-          branchName: config.branchName,
-        );
-      } on Exception catch (_) {}
-    }
-    await _quietLogout();
-    if (mounted) {
-      setState(() {
-        _phase = _SetupPhase.credentials;
-        _branches = const [];
-        _error = null;
-      });
-    }
-    widget.onStateChanged();
+  void _authenticate() {
+    unawaited(
+      ref
+          .read(authProvider.notifier)
+          .authenticateManager(
+            email: _email.text,
+            password: _password.text,
+          ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final picking = _phase == _SetupPhase.pickBranch;
-    final config = _bridge.deviceConfig();
-    final isBranchConfigured = (config.branchId ?? '').isNotEmpty;
-    final error = _error;
+    final phase = ref.watch(authProvider.select((s) => s.phase));
+    final busy = ref.watch(authProvider.select((s) => s.busy));
+    final error = ref.watch(authProvider.select((s) => s.error));
+    final branches = ref.watch(authProvider.select((s) => s.branches));
+
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
+    final picking = phase == SetupPhase.pickBranch;
+    final isBranchConfigured =
+        (bridge.deviceConfig().branchId ?? '').isNotEmpty;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -172,7 +84,7 @@ class _DeviceSetupFormState extends State<DeviceSetupForm> {
             spacing: Space.xs,
             children: [
               Text(
-                picking ? _t('setup.choose_branch') : _t('setup.title'),
+                picking ? t('setup.choose_branch') : t('setup.title'),
                 textAlign: TextAlign.center,
                 style: MadarType.h2.copyWith(
                   fontSize: _titleSize,
@@ -182,7 +94,7 @@ class _DeviceSetupFormState extends State<DeviceSetupForm> {
                 ),
               ),
               Text(
-                picking ? _t('setup.choose_branch_desc') : _t('setup.desc'),
+                picking ? t('setup.choose_branch_desc') : t('setup.desc'),
                 textAlign: TextAlign.center,
                 style: MadarType.bodySm.copyWith(
                   fontWeight: FontWeight.w500,
@@ -193,26 +105,28 @@ class _DeviceSetupFormState extends State<DeviceSetupForm> {
           ),
         ),
         if (picking)
-          for (final branch in _branches)
+          for (final branch in branches)
             _BranchRow(
               branch: branch,
-              onTap: () => unawaited(_bindBranch(branch)),
+              onTap: () => unawaited(
+                ref.read(authProvider.notifier).bindBranch(branch),
+              ),
             )
         else ...[
           MadarTextField(
             controller: _email,
-            placeholder: _t('setup.email'),
+            placeholder: t('setup.email'),
             icon: 'envelope',
-            enabled: !_busy,
+            enabled: !busy,
             keyboardType: TextInputType.emailAddress,
           ),
           MadarTextField(
             controller: _password,
-            placeholder: _t('setup.password'),
+            placeholder: t('setup.password'),
             icon: 'lock',
             secure: true,
-            enabled: !_busy,
-            onSubmitted: (_) => unawaited(_authenticate()),
+            enabled: !busy,
+            onSubmitted: (_) => _authenticate(),
           ),
         ],
         if (error != null)
@@ -223,15 +137,17 @@ class _DeviceSetupFormState extends State<DeviceSetupForm> {
           ),
         if (!picking)
           MadarButton(
-            label: _t('setup.continue'),
-            onPressed: () => unawaited(_authenticate()),
-            loading: _busy,
+            label: t('setup.continue'),
+            onPressed: _authenticate,
+            loading: busy,
             icon: 'arrow.right.circle',
           ),
         if (picking || isBranchConfigured)
           MadarButton(
-            label: _t('setup.cancel'),
-            onPressed: () => unawaited(_cancelReconfigure()),
+            label: t('setup.cancel'),
+            onPressed: () => unawaited(
+              ref.read(authProvider.notifier).cancelReconfigure(),
+            ),
             variant: AuthButtonVariant.ghost,
           ),
       ],

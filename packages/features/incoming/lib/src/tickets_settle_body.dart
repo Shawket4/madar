@@ -1,17 +1,19 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_incoming/src/details_sheets.dart';
-import 'package:feature_incoming/src/incoming_controller.dart';
+import 'package:feature_incoming/src/incoming_provider.dart';
 import 'package:feature_incoming/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // POS-side settle surface (cashier) — the "Open tickets" tab of the
-// unified Orders surface. Live: reloads on the shell's ticket tick so a
-// waiter's fire/round/settle/void from another device appears instantly.
-// Port of WaiterScreen.kt's TicketsSettleBody.
+// unified Orders surface. Live: the screen reloads on the shell's ticket
+// tick so a waiter's fire/round/settle/void from another device appears
+// instantly. Port of WaiterScreen.kt's TicketsSettleBody.
 
 // Native metrics (WaiterScreen.kt) kept verbatim.
 
@@ -21,52 +23,42 @@ const double _ticketRefSize = 19;
 /// Strip money hero size (natives: 16.sp Black).
 const double _stripMoneySize = 16;
 
-/// The open-tickets settle board. The unified [tick] Listenable
-/// (shell-owned SSE counter) triggers reloads.
-class TicketsSettleBody extends StatefulWidget {
-  const TicketsSettleBody({required this.model, this.tick, super.key});
-
-  final IncomingController model;
-
-  /// Bumped by the shell on `ticket.*` realtime events.
-  final Listenable? tick;
+/// The open-tickets settle board. The screen-level [ticketTickProvider]
+/// listen (shell-owned SSE counter) triggers reloads.
+class TicketsSettleBody extends ConsumerStatefulWidget {
+  const TicketsSettleBody({super.key});
 
   @override
-  State<TicketsSettleBody> createState() => _TicketsSettleBodyState();
+  ConsumerState<TicketsSettleBody> createState() => _TicketsSettleBodyState();
 }
 
-class _TicketsSettleBodyState extends State<TicketsSettleBody> {
-  IncomingController get _model => widget.model;
-
+class _TicketsSettleBodyState extends ConsumerState<TicketsSettleBody> {
   @override
   void initState() {
     super.initState();
-    unawaited(_model.loadOpenTickets());
-    widget.tick?.addListener(_reload);
+    // (Re)entering the tab refreshes the board — deferred a microtask
+    // because provider writes are illegal while the tree is building.
+    unawaited(
+      Future<void>.microtask(() {
+        if (!mounted) return;
+        unawaited(ref.read(incomingProvider.notifier).loadOpenTickets());
+      }),
+    );
   }
-
-  @override
-  void dispose() {
-    widget.tick?.removeListener(_reload);
-    super.dispose();
-  }
-
-  void _reload() => unawaited(_model.loadOpenTickets());
 
   // ── sheet launchers ────────────────────────────────────────────────────────
   /// Order-details overlay — the SHARED details layout (real line items),
   /// with the Settle CTA pinned under the details.
   Future<void> _viewTicket(TicketView ticket) async {
+    final bridge = ref.read(bridgeProvider);
     final settle = await showMadarSheet<bool>(
       context,
       size: SheetSize.large,
       maxWidth: Responsive.listMaxWidth,
       builder: (sheetContext) => TicketDetailsSheet(
         ticket: ticket,
-        currency: _model.currency,
-        tr: _model.tr,
         footer: IncomingButton(
-          label: _model.tr('waiter.settle'),
+          label: bridge.tr(key: 'waiter.settle'),
           icon: 'checkmark.circle',
           onTap: () => unawaited(Navigator.of(sheetContext).maybePop(true)),
         ),
@@ -83,63 +75,59 @@ class _TicketsSettleBodyState extends State<TicketsSettleBody> {
     await showMadarSheet<void>(
       context,
       size: SheetSize.large,
-      builder: (_) => _TicketSettleSheet(model: _model, ticket: ticket),
+      builder: (_) => _TicketSettleSheet(ticket: ticket),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _model,
-      builder: (context, _) {
-        final model = _model;
-        final settleable = model.settleableTickets;
-        final error = model.error;
-        return Column(
-          children: [
-            if (error != null)
-              Padding(
-                padding: const EdgeInsetsDirectional.symmetric(
-                  horizontal: Space.lg,
-                  vertical: Space.sm,
-                ),
-                child: NoticeBanner(
-                  text: error,
-                  icon: 'exclamationmark.circle',
-                ),
-              ),
-            Expanded(
-              child: settleable.isEmpty
-                  ? EmptyState(
-                      icon: 'tray',
-                      title: model.tr('waiter.no_tickets'),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsetsDirectional.all(Space.lg),
-                      itemCount: settleable.length,
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(height: Space.sm),
-                      itemBuilder: (context, index) {
-                        final ticket = settleable[index];
-                        return Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxWidth: kBoardCardMaxWidth,
-                            ),
-                            child: _SettleTicketCard(
-                              model: model,
-                              ticket: ticket,
-                              onView: () => unawaited(_viewTicket(ticket)),
-                              onSettle: () => unawaited(_settle(ticket)),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+    final bridge = ref.watch(bridgeProvider);
+    final settleable = ref
+        .watch(incomingProvider.select((s) => s.openTickets))
+        .where((t) => t.status == 'open' || t.status == 'ready')
+        .toList(growable: false);
+    final error = ref.watch(incomingProvider.select((s) => s.error));
+    return Column(
+      children: [
+        if (error != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Space.lg,
+              vertical: Space.sm,
             ),
-          ],
-        );
-      },
+            child: NoticeBanner(
+              text: error,
+              icon: 'exclamationmark.circle',
+            ),
+          ),
+        Expanded(
+          child: settleable.isEmpty
+              ? EmptyState(
+                  icon: 'tray',
+                  title: bridge.tr(key: 'waiter.no_tickets'),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsetsDirectional.all(Space.lg),
+                  itemCount: settleable.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: Space.sm),
+                  itemBuilder: (context, index) {
+                    final ticket = settleable[index];
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: kBoardCardMaxWidth,
+                        ),
+                        child: _SettleTicketCard(
+                          ticket: ticket,
+                          onView: () => unawaited(_viewTicket(ticket)),
+                          onSettle: () => unawaited(_settle(ticket)),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }
@@ -148,23 +136,25 @@ class _TicketsSettleBodyState extends State<TicketsSettleBody> {
 /// the delivery card (status strip + bold-teal total), then a body with the
 /// covering + a "View order" / "Settle" action pair. Tapping the card body
 /// (or View) opens the shared order-details sheet; Settle opens the shared
-/// checkout.
-class _SettleTicketCard extends StatelessWidget {
+/// checkout. Hot path: watches only the bridge handle + the currency slice.
+class _SettleTicketCard extends ConsumerWidget {
   const _SettleTicketCard({
-    required this.model,
     required this.ticket,
     required this.onView,
     required this.onSettle,
   });
 
-  final IncomingController model;
   final TicketView ticket;
   final VoidCallback onView;
   final VoidCallback onSettle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
     final (statusFg, statusBg) = _ticketStatusTint(ticket.status, colors);
     final customerName = ticket.customerName;
     final waiterName = ticket.waiterName;
@@ -195,7 +185,7 @@ class _SettleTicketCard extends StatelessWidget {
                   ),
                   Flexible(
                     child: Text(
-                      ticket.ticketRef ?? model.tr('waiter.ticket'),
+                      ticket.ticketRef ?? bridge.tr(key: 'waiter.ticket'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: MadarType.h3.copyWith(
@@ -206,12 +196,12 @@ class _SettleTicketCard extends StatelessWidget {
                     ),
                   ),
                   StatusChip(
-                    label: model.tr('ticket.status.${ticket.status}'),
+                    label: bridge.tr(key: 'ticket.status.${ticket.status}'),
                     tone: ticketStatusTone(ticket.status),
                   ),
                   if (ticket.queuedOffline)
                     StatusChip(
-                      label: model.tr('waiter.queued'),
+                      label: bridge.tr(key: 'waiter.queued'),
                       tone: ChipTone.warning,
                       icon: 'tray.and.arrow.up',
                     ),
@@ -227,7 +217,7 @@ class _SettleTicketCard extends StatelessWidget {
                     ),
                     child: MoneyText(
                       ticket.subtotalMinor,
-                      currency: model.currency,
+                      currency: currency,
                       style: MadarType.money.copyWith(
                         fontSize: _stripMoneySize,
                         fontWeight: FontWeight.w900,
@@ -276,7 +266,8 @@ class _SettleTicketCard extends StatelessWidget {
                             // teller sees who took it.
                             if (waiterName != null && waiterName.isNotEmpty)
                               Text(
-                                '${model.tr('order.waiter')}: $waiterName',
+                                '${bridge.tr(key: 'order.waiter')}: '
+                                '$waiterName',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: MadarType.labelSm.copyWith(
@@ -286,7 +277,7 @@ class _SettleTicketCard extends StatelessWidget {
                               ),
                             Text(
                               '${ticket.lines.length} '
-                              '${model.tr('waiter.items')}',
+                              '${bridge.tr(key: 'waiter.items')}',
                               style: MadarType.labelSm.copyWith(
                                 color: colors.textMuted,
                               ),
@@ -301,7 +292,7 @@ class _SettleTicketCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: IncomingButton(
-                          label: model.tr('order.view_order'),
+                          label: bridge.tr(key: 'order.view_order'),
                           icon: 'list.bullet',
                           variant: IncomingButtonVariant.outline,
                           onTap: onView,
@@ -309,7 +300,7 @@ class _SettleTicketCard extends StatelessWidget {
                       ),
                       Expanded(
                         child: IncomingButton(
-                          label: model.tr('waiter.settle'),
+                          label: bridge.tr(key: 'waiter.settle'),
                           icon: 'checkmark.circle',
                           onTap: onSettle,
                         ),
@@ -330,99 +321,99 @@ class _SettleTicketCard extends StatelessWidget {
 /// tip flow as the cashier checkout. The ticket's line-item review rides in
 /// as the drawer's header, the ticket subtotal drives the total, and the
 /// terminal action settles the ticket into a paid order via
-/// [IncomingController.settleTicket].
-class _TicketSettleSheet extends StatefulWidget {
-  const _TicketSettleSheet({required this.model, required this.ticket});
+/// [IncomingNotifier.settleTicket].
+class _TicketSettleSheet extends ConsumerStatefulWidget {
+  const _TicketSettleSheet({required this.ticket});
 
-  final IncomingController model;
   final TicketView ticket;
 
   @override
-  State<_TicketSettleSheet> createState() => _TicketSettleSheetState();
+  ConsumerState<_TicketSettleSheet> createState() => _TicketSettleSheetState();
 }
 
-class _TicketSettleSheetState extends State<_TicketSettleSheet> {
-  late final CheckoutController _checkout;
-
+class _TicketSettleSheetState extends ConsumerState<_TicketSettleSheet> {
   @override
   void initState() {
     super.initState();
-    _checkout = CheckoutController(
-      core: widget.model.core,
-      onStateChanged: widget.model.onStateChanged,
+    // Fresh settle session over the ticket's frozen subtotal (== total) —
+    // deferred a microtask because provider writes are illegal while the
+    // tree is building.
+    unawaited(
+      Future<void>.microtask(() {
+        if (!mounted) return;
+        unawaited(
+          ref
+              .read(checkoutProvider.notifier)
+              .startSettle(
+                CheckoutSummary(
+                  subtotalMinor: widget.ticket.subtotalMinor,
+                  totalMinor: widget.ticket.subtotalMinor,
+                ),
+              ),
+        );
+      }),
     );
-    unawaited(_checkout.init());
-  }
-
-  @override
-  void dispose() {
-    _checkout.dispose();
-    super.dispose();
   }
 
   /// The natives' settle mapping: tendered only for a cash primary, tip
   /// only when positive (its method falling back to the primary).
   Future<void> _settle(CheckoutResult r) async {
-    _checkout.error = null;
-    final ok = await widget.model.settleTicket(
-      ticketId: widget.ticket.id,
-      paymentMethodId: r.primaryMethodId,
-      amountTenderedMinor: r.isCash && r.tenderedMinor > 0
-          ? r.tenderedMinor
-          : null,
-      tipMinor: r.tipMinor > 0 ? r.tipMinor : null,
-      tipPaymentMethodId: r.tipMinor > 0
-          ? (r.tipPaymentMethodId ?? r.primaryMethodId)
-          : null,
-    );
+    final checkout = ref.read(checkoutProvider.notifier)..setError(null);
+    final ok = await ref
+        .read(incomingProvider.notifier)
+        .settleTicket(
+          ticketId: widget.ticket.id,
+          paymentMethodId: r.primaryMethodId,
+          amountTenderedMinor: r.isCash && r.tenderedMinor > 0
+              ? r.tenderedMinor
+              : null,
+          tipMinor: r.tipMinor > 0 ? r.tipMinor : null,
+          tipPaymentMethodId: r.tipMinor > 0
+              ? (r.tipPaymentMethodId ?? r.primaryMethodId)
+              : null,
+        );
     if (!mounted) return;
     if (ok) {
       await Navigator.of(context).maybePop();
     } else {
       // Surface the failure INSIDE the drawer (the natives' model.error) —
-      // the board's own banner sits behind the modal scrim. The model's
-      // pending notify rebuilds the ListenableBuilder above.
-      _checkout.error = widget.model.error;
+      // the board's own banner sits behind the modal scrim.
+      checkout.setError(ref.read(incomingProvider).error);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final model = widget.model;
+    final bridge = ref.watch(bridgeProvider);
+    final placing = ref.watch(incomingProvider.select((s) => s.isBusy));
     final ticket = widget.ticket;
-    final label = model.tr('waiter.settle');
-    return ListenableBuilder(
-      listenable: model,
-      builder: (context, _) => CheckoutDrawer(
-        controller: _checkout,
-        // A ticket carries a single frozen subtotal (== total).
-        summary: CheckoutSummary(
-          subtotalMinor: ticket.subtotalMinor,
-          totalMinor: ticket.subtotalMinor,
-        ),
-        title: label,
-        terminalLabel: label,
-        terminalIcon: 'checkmark.circle',
-        placing: model.isBusy,
-        onClose: () => unawaited(Navigator.of(context).maybePop()),
-        headerContent: _SettleHeader(model: model, ticket: ticket),
-        onTerminal: (result) => unawaited(_settle(result)),
-      ),
+    final label = bridge.tr(key: 'waiter.settle');
+    return CheckoutDrawer(
+      title: label,
+      terminalLabel: label,
+      terminalIcon: 'checkmark.circle',
+      placing: placing,
+      onClose: () => unawaited(Navigator.of(context).maybePop()),
+      headerContent: _SettleHeader(ticket: ticket),
+      onTerminal: (result) => unawaited(_settle(result)),
     );
   }
 }
 
 /// Compact line-item review atop the settle drawer — the cashier sees WHAT
 /// they're charging (a strike on voided lines) before tendering.
-class _SettleHeader extends StatelessWidget {
-  const _SettleHeader({required this.model, required this.ticket});
+class _SettleHeader extends ConsumerWidget {
+  const _SettleHeader({required this.ticket});
 
-  final IncomingController model;
   final TicketView ticket;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
     return IncomingCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -433,14 +424,14 @@ class _SettleHeader extends StatelessWidget {
             children: [
               Flexible(
                 child: Text(
-                  ticket.ticketRef ?? model.tr('waiter.ticket'),
+                  ticket.ticketRef ?? bridge.tr(key: 'waiter.ticket'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: MadarType.title.copyWith(color: colors.textPrimary),
                 ),
               ),
               StatusChip(
-                label: model.tr('ticket.status.${ticket.status}'),
+                label: bridge.tr(key: 'ticket.status.${ticket.status}'),
                 tone: ticketStatusTone(ticket.status),
               ),
             ],
@@ -462,7 +453,7 @@ class _SettleHeader extends StatelessWidget {
                 ),
                 MoneyText(
                   line.lineTotalMinor,
-                  currency: model.currency,
+                  currency: currency,
                   style: MadarType.money.copyWith(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,

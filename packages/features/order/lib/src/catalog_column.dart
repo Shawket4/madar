@@ -1,39 +1,57 @@
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_order/src/order_controller.dart';
+import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Synthetic category id for the Combos tab (bundles aren't a real category).
 const String kCombosCategory = '__combos__';
 
+/// The catalog's selected category tab (null = All, [kCombosCategory] =
+/// Combos). Auto-disposed so a fresh session starts back on All; the order
+/// screen's GlobalKey keeps the column (and so this provider) alive across
+/// wide↔narrow layout flips.
+class CatalogTabNotifier extends AutoDisposeNotifier<String?> {
+  @override
+  String? build() => null;
+
+  /// Not a setter — Notifier state writes are method-guarded.
+  // ignore: use_setters_to_change_properties
+  void select(String? id) => state = id;
+}
+
+/// The selected catalog category id.
+final AutoDisposeNotifierProvider<CatalogTabNotifier, String?>
+catalogTabProvider = NotifierProvider.autoDispose<CatalogTabNotifier, String?>(
+  CatalogTabNotifier.new,
+);
+
 /// Catalog column — category tab strip on top, then search + the adaptive
 /// item grid (or the combo grid when the Combos tab is active). Mirror of
 /// the natives' CatalogColumn.
 ///
-/// Owns its search + selected-category state so a keystroke or tab tap
-/// rebuilds only this region — never the cart panel or top-bar chrome. The
-/// grid re-filters through a [ValueListenableBuilder] on the search
-/// controller, keeping keystrokes scoped to the field + grid alone.
-class CatalogColumn extends StatefulWidget {
+/// The selected category lives in [catalogTabProvider]; the search text
+/// stays on a widget-local [TextEditingController], and the grid re-filters
+/// through a [ValueListenableBuilder] on it — keeping keystrokes scoped to
+/// the field + grid alone, never the cart panel or top-bar chrome.
+class CatalogColumn extends ConsumerStatefulWidget {
   const CatalogColumn({
-    required this.model,
     required this.onItemTap,
     required this.onBundleTap,
     super.key,
   });
 
-  final OrderController model;
   final ValueChanged<MenuItemView> onItemTap;
   final ValueChanged<BundleView> onBundleTap;
 
   @override
-  State<CatalogColumn> createState() => _CatalogColumnState();
+  ConsumerState<CatalogColumn> createState() => _CatalogColumnState();
 }
 
-class _CatalogColumnState extends State<CatalogColumn> {
+class _CatalogColumnState extends ConsumerState<CatalogColumn> {
   final _searchField = TextEditingController();
-  String? _selectedCategory;
 
   @override
   void dispose() {
@@ -43,21 +61,24 @@ class _CatalogColumnState extends State<CatalogColumn> {
 
   @override
   Widget build(BuildContext context) {
-    final model = widget.model;
-    final combos = _selectedCategory == kCombosCategory;
+    final bridge = ref.watch(bridgeProvider);
+    final selectedCategory = ref.watch(catalogTabProvider);
+    final isLoadingCatalog = ref.watch(
+      orderProvider.select((s) => s.isLoadingCatalog),
+    );
+    // Watched HERE (not inside the ValueListenableBuilder closure, which
+    // rebuilds outside this widget's build phase).
+    final menuItems = ref.watch(orderProvider.select((s) => s.menuItems));
+    final combos = selectedCategory == kCombosCategory;
 
     return Column(
       children: [
         _CategoryTabs(
-          model: model,
-          selected: _selectedCategory,
-          onSelect: (id) => setState(() => _selectedCategory = id),
-          showCombos: model.bundles.isNotEmpty,
+          selected: selectedCategory,
+          onSelect: (id) => ref.read(catalogTabProvider.notifier).select(id),
         ),
         if (combos)
-          Expanded(
-            child: _BundleGrid(model: model, onBundleTap: widget.onBundleTap),
-          )
+          Expanded(child: _BundleGrid(onBundleTap: widget.onBundleTap))
         else ...[
           Padding(
             padding: const EdgeInsetsDirectional.all(Space.lg),
@@ -66,13 +87,13 @@ class _CatalogColumnState extends State<CatalogColumn> {
               valueListenable: _searchField,
               builder: (context, search, _) => _SearchField(
                 controller: _searchField,
-                placeholder: model.tr('order.search'),
+                placeholder: bridge.tr(key: 'order.search'),
                 value: search.text,
               ),
             ),
           ),
           Expanded(
-            child: model.isLoadingCatalog
+            child: isLoadingCatalog
                 ? const _CatalogSkeleton()
                 : ValueListenableBuilder<TextEditingValue>(
                     valueListenable: _searchField,
@@ -80,12 +101,12 @@ class _CatalogColumnState extends State<CatalogColumn> {
                       // One pass, no intermediate lists — the natives'
                       // memoized filter.
                       final query = search.text.trim().toLowerCase();
-                      final visible = model.menuItems
+                      final visible = menuItems
                           .where(
                             (item) =>
                                 item.isActive &&
-                                (_selectedCategory == null ||
-                                    item.categoryId == _selectedCategory) &&
+                                (selectedCategory == null ||
+                                    item.categoryId == selectedCategory) &&
                                 (query.isEmpty ||
                                     item.name.toLowerCase().contains(query) ||
                                     (item.description?.toLowerCase().contains(
@@ -95,10 +116,9 @@ class _CatalogColumnState extends State<CatalogColumn> {
                           )
                           .toList(growable: false);
                       return _ItemGridOrEmpty(
-                        model: model,
                         items: visible,
                         searching: query.isNotEmpty,
-                        gridKey: _selectedCategory,
+                        gridKey: selectedCategory,
                         onItemTap: widget.onItemTap,
                       );
                     },
@@ -112,23 +132,22 @@ class _CatalogColumnState extends State<CatalogColumn> {
 
 // ── Category tab strip ─────────────────────────────────────────────────────────
 
-class _CategoryTabs extends StatelessWidget {
-  const _CategoryTabs({
-    required this.model,
-    required this.selected,
-    required this.onSelect,
-    required this.showCombos,
-  });
+class _CategoryTabs extends ConsumerWidget {
+  const _CategoryTabs({required this.selected, required this.onSelect});
 
-  final OrderController model;
   final String? selected;
   final ValueChanged<String?> onSelect;
-  final bool showCombos;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final bridge = ref.watch(bridgeProvider);
+    final notifier = ref.read(orderProvider.notifier);
+    final categories = ref.watch(orderProvider.select((s) => s.categories));
+    final showCombos = ref.watch(
+      orderProvider.select((s) => s.bundles.isNotEmpty),
+    );
     return ColoredBox(
       color: colors.surface,
       child: Column(
@@ -143,7 +162,7 @@ class _CategoryTabs extends StatelessWidget {
               child: Row(
                 children: [
                   _CategoryTab(
-                    label: model.tr('order.all'),
+                    label: bridge.tr(key: 'order.all'),
                     icon: 'square.grid.2x2.fill',
                     active: selected == null,
                     onTap: () => onSelect(null),
@@ -151,20 +170,18 @@ class _CategoryTabs extends StatelessWidget {
                   if (showCombos) ...[
                     const SizedBox(width: Space.lg),
                     _CategoryTab(
-                      label: model.tr('order.combos'),
+                      label: bridge.tr(key: 'order.combos'),
                       icon: 'square.stack.3d.up.fill',
                       active: selected == kCombosCategory,
                       onTap: () => onSelect(kCombosCategory),
                     ),
                   ],
-                  for (final cat in model.categories.where(
-                    (c) => c.isActive,
-                  )) ...[
+                  for (final cat in categories.where((c) => c.isActive)) ...[
                     const SizedBox(width: Space.lg),
                     _CategoryTab(
                       label: cat.name,
                       icon: categoryIconName(
-                        model.categoryStyle(cat.name, dark: dark).icon,
+                        notifier.categoryStyle(cat.name, dark: dark).icon,
                       ),
                       active: selected == cat.id,
                       onTap: () => onSelect(cat.id),
@@ -309,29 +326,41 @@ SliverGridDelegateWithMaxCrossAxisExtent _gridDelegate() =>
       childAspectRatio: kMenuCardAspect,
     );
 
-class _ItemGridOrEmpty extends StatelessWidget {
+class _ItemGridOrEmpty extends ConsumerWidget {
   const _ItemGridOrEmpty({
-    required this.model,
     required this.items,
     required this.searching,
     required this.gridKey,
     required this.onItemTap,
   });
 
-  final OrderController model;
   final List<MenuItemView> items;
   final bool searching;
   final String? gridKey;
   final ValueChanged<MenuItemView> onItemTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
+    final notifier = ref.read(orderProvider.notifier);
     if (items.isEmpty) {
       return EmptyState(
         icon: searching ? 'magnifyingglass' : 'tray',
-        title: model.tr(searching ? 'order.empty_search' : 'order.empty'),
+        title: bridge.tr(
+          key: searching ? 'order.empty_search' : 'order.empty',
+        ),
       );
     }
+    // The grid re-renders on catalog/cart-badge changes only — sync chrome
+    // and toast churn never reaches this hot path.
+    final currency = ref.watch(orderProvider.select((s) => s.currency));
+    final categories = ref.watch(orderProvider.select((s) => s.categories));
+    final cartLines = ref.watch(orderProvider.select((s) => s.cartLines));
+    String categoryName(String? id) =>
+        categories.where((c) => c.id == id).firstOrNull?.name ?? '';
+    int cartQtyForItem(String itemId) => cartLines
+        .where((l) => l.itemId == itemId)
+        .fold(0, (sum, l) => sum + l.qty);
     return GridView.builder(
       // One storage slot per category — switching back restores the scroll
       // position (the data never reloads; it's an in-memory filter).
@@ -341,15 +370,14 @@ class _ItemGridOrEmpty extends StatelessWidget {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
+        final name = categoryName(item.categoryId);
         return MenuItemCard(
           item: item,
-          categoryName: model.categoryName(item.categoryId),
-          currency: model.currency,
-          inCartQty: model.cartQtyForItem(item.id),
-          style: model.categoryStyle(
-            model.categoryName(item.categoryId).isEmpty
-                ? item.name
-                : model.categoryName(item.categoryId),
+          categoryName: name,
+          currency: currency,
+          inCartQty: cartQtyForItem(item.id),
+          style: notifier.categoryStyle(
+            name.isEmpty ? item.name : name,
             dark: Theme.of(context).brightness == Brightness.dark,
           ),
           onTap: () => onItemTap(item),
@@ -622,26 +650,28 @@ const double _badgeInset = 7;
 
 // ── Bundle (combo) grid + card ─────────────────────────────────────────────────
 
-class _BundleGrid extends StatelessWidget {
-  const _BundleGrid({required this.model, required this.onBundleTap});
+class _BundleGrid extends ConsumerWidget {
+  const _BundleGrid({required this.onBundleTap});
 
-  final OrderController model;
   final ValueChanged<BundleView> onBundleTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
+    final bundles = ref.watch(orderProvider.select((s) => s.bundles));
+    final currency = ref.watch(orderProvider.select((s) => s.currency));
     return GridView.builder(
       key: const PageStorageKey('catalog-combos'),
       padding: const EdgeInsetsDirectional.all(Grid.padding),
       gridDelegate: _gridDelegate(),
-      itemCount: model.bundles.length,
+      itemCount: bundles.length,
       itemBuilder: (context, index) {
-        final bundle = model.bundles[index];
+        final bundle = bundles[index];
         return BundleCard(
           bundle: bundle,
-          currency: model.currency,
-          comboLabel: model.tr('order.combos'),
-          includesLabel: model.tr('order.bundle_includes'),
+          currency: currency,
+          comboLabel: bridge.tr(key: 'order.combos'),
+          includesLabel: bridge.tr(key: 'order.bundle_includes'),
           onTap: () => onBundleTap(bundle),
         );
       },

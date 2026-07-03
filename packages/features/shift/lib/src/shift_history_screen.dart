@@ -4,18 +4,22 @@
 /// [Responsive.wideTable], per-row cards below it. The locally-open shift
 /// is pinned on top (the natives' `shiftsWithLocalOpen`); tapping a row
 /// opens the shared [ShiftReportSheet] with that shift's Z-report via
-/// `shiftReportFor`. All data + rules live in the core; this screen
-/// renders. Full-screen over the order screen.
+/// `shiftReportFor`. All data + rules live in the core; state lives in
+/// [shiftHistoryProvider]; this screen renders. Full-screen over the order
+/// screen.
 library;
 
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_shift/src/controls.dart';
+import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
 import 'package:flutter/material.dart'
     show CircularProgressIndicator, Colors, Scaffold;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Native metrics (CashAndShiftsScreen.kt) that fall between the 4-pt Space
@@ -37,185 +41,128 @@ const double _statusDotSize = 8;
 const double _rowSpinnerSize = 14;
 const double _rowSpinnerStroke = 2;
 
-/// The branch's shift history (full-screen over the order screen). Takes
-/// the shared screen contract: [core] for every bridge call and
-/// [onStateChanged] kept for the contract (history is read-only — nothing
-/// here moves shared state). The header's back pops it via
-/// `Navigator.maybePop`.
-class ShiftHistoryScreen extends StatefulWidget {
+/// The branch's shift history (full-screen over the order screen) —
+/// read-only; nothing here moves shared state. The header's back pops it
+/// via `Navigator.maybePop`.
+class ShiftHistoryScreen extends ConsumerWidget {
   /// Creates the shift-history screen.
-  const ShiftHistoryScreen({
-    required this.core,
-    required this.onStateChanged,
-    this.onBack,
-    super.key,
-  });
-
-  /// The core handle every bridge call goes through.
-  final MadarCore core;
-
-  /// Kept for the shared screen contract; shift history is read-only.
-  final void Function() onStateChanged;
-
-  /// Back affordance — defaults to popping this route (the natives set
-  /// `showShiftHistory` = false).
-  final VoidCallback? onBack;
+  const ShiftHistoryScreen({super.key});
 
   @override
-  State<ShiftHistoryScreen> createState() => _ShiftHistoryScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
+    // Narrow slice: only the toast layer repaints on toast churn.
+    final toast = ref.watch(shiftHistoryProvider.select((s) => s.toast));
+    // Scaffold: every screen root owns its own Scaffold in this app.
+    return Scaffold(
+      backgroundColor: colors.bg,
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              MadarHeader(
+                title: t('shifts.title'),
+                onBack: () => Navigator.maybePop(context),
+              ),
+              const Expanded(
+                child: SafeArea(top: false, child: _HistoryBody()),
+              ),
+            ],
+          ),
+          // Toasts float above everything on this screen.
+          SafeArea(
+            child: ToastHost(
+              toast,
+              onDismiss: (id) =>
+                  ref.read(shiftHistoryProvider.notifier).dismissToast(id),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _ShiftHistoryScreenState extends State<ShiftHistoryScreen> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  List<ShiftSummaryView> _shifts = const [];
-  ShiftView? _live;
-  bool _loading = false;
-  String? _reportLoadingId;
-  ToastData? _toast;
-  int _toastSeq = 0;
-
-  String _t(String key) => _bridge.tr(key: key);
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
+/// The natives' `shiftsWithLocalOpen`: prepend the locally-opened-but-
+/// unsynced shift to the top of the page if it isn't already present, so
+/// the live shift always shows.
+List<ShiftSummaryView> _rowsWithLocalOpen(
+  List<ShiftSummaryView> shifts,
+  ShiftView? live,
+) {
+  if (live == null || !live.isOpen || shifts.any((s) => s.id == live.id)) {
+    return shifts;
   }
+  final pinned = ShiftSummaryView(
+    id: live.id,
+    tellerName: live.tellerName,
+    openedAt: live.openedAt,
+    openingCashMinor: live.openingCashMinor,
+    status: live.status,
+    isOpen: live.isOpen,
+  );
+  return [pinned, ...shifts];
+}
 
-  void _back() {
-    final onBack = widget.onBack;
-    if (onBack != null) {
-      onBack();
-    } else {
-      unawaited(Navigator.of(context).maybePop());
-    }
-  }
-
-  /// Past shifts (newest first) + the live shift for pinning. Load failures
-  /// degrade to empty (the natives' `getOrDefault(emptyList())`).
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    List<ShiftSummaryView> shifts;
-    try {
-      shifts = await _bridge.listShifts();
-    } on Exception catch (_) {
-      shifts = const [];
-    }
-    ShiftView? live;
-    try {
-      live = await _bridge.currentShift();
-    } on Exception catch (_) {
-      live = null;
-    }
-    if (!mounted) return;
-    setState(() {
-      _shifts = shifts;
-      _live = live;
-      _loading = false;
-    });
-  }
-
-  /// The natives' `shiftsWithLocalOpen`: prepend the locally-opened-but-
-  /// unsynced shift to the top of the page if it isn't already present, so
-  /// the live shift always shows.
-  List<ShiftSummaryView> get _rows {
-    final live = _live;
-    if (live == null || !live.isOpen || _shifts.any((s) => s.id == live.id)) {
-      return _shifts;
-    }
-    final pinned = ShiftSummaryView(
-      id: live.id,
-      tellerName: live.tellerName,
-      openedAt: live.openedAt,
-      openingCashMinor: live.openingCashMinor,
-      status: live.status,
-      isOpen: live.isOpen,
-    );
-    return [pinned, ..._shifts];
-  }
+/// The page body — skeleton / empty / responsive table or cards, driven by
+/// its own narrow slices of [shiftHistoryProvider].
+class _HistoryBody extends ConsumerWidget {
+  const _HistoryBody();
 
   /// Open a shift's Z-report in the shared preview sheet — the live shift
   /// loads the current report in-sheet; a past shift is fetched via
   /// `shiftReportFor` first (spinner in the row's chevron slot, danger
   /// toast on failure — the natives' `openShiftReportPreviewFor`).
-  Future<void> _openReport(ShiftSummaryView s) async {
-    if (_reportLoadingId != null) return;
+  Future<void> _openReport(
+    BuildContext context,
+    WidgetRef ref,
+    ShiftSummaryView s,
+  ) async {
+    final state = ref.read(shiftHistoryProvider);
+    if (state.reportLoadingId != null) return;
     MadarHaptics.selection();
-    if (s.isOpen && s.id == _live?.id) {
+    if (s.isOpen && s.id == state.live?.id) {
       await showMadarSheet<void>(
         context,
         size: SheetSize.large,
-        builder: (_) => ShiftReportSheet(core: widget.core),
+        builder: (_) => const ShiftReportSheet(),
       );
       return;
     }
-    setState(() => _reportLoadingId = s.id);
-    try {
-      final report = await _bridge.shiftReportFor(shiftId: s.id);
-      if (!mounted) return;
-      setState(() => _reportLoadingId = null);
-      await showMadarSheet<void>(
-        context,
-        size: SheetSize.large,
-        builder: (_) =>
-            ShiftReportSheet(core: widget.core, report: report, shiftId: s.id),
-      );
-    } on Exception catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _reportLoadingId = null;
-        _toastSeq += 1;
-        _toast = ToastData(
-          id: _toastSeq,
-          text: _t('receipt.print_failed'),
-          tone: ChipTone.danger,
-          icon: 'xmark.circle',
-        );
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    // Scaffold: every screen root owns its own Scaffold in this app.
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                ShiftHeaderBar(title: _t('shifts.title'), onBack: _back),
-                Expanded(child: _buildBody()),
-              ],
-            ),
-            // Toasts float above everything on this screen.
-            ToastHost(
-              _toast,
-              onDismiss: (id) {
-                if (_toast?.id == id) setState(() => _toast = null);
-              },
-            ),
-          ],
-        ),
-      ),
+    final report = await ref
+        .read(shiftHistoryProvider.notifier)
+        .fetchReport(s.id);
+    if (report == null || !context.mounted) return;
+    await showMadarSheet<void>(
+      context,
+      size: SheetSize.large,
+      builder: (_) => ShiftReportSheet(report: report, shiftId: s.id),
     );
   }
 
-  Widget _buildBody() {
-    if (_loading && _shifts.isEmpty && _live == null) {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
+    final shifts = ref.watch(shiftHistoryProvider.select((s) => s.shifts));
+    final live = ref.watch(shiftHistoryProvider.select((s) => s.live));
+    final loading = ref.watch(shiftHistoryProvider.select((s) => s.loading));
+    final reportLoadingId = ref.watch(
+      shiftHistoryProvider.select((s) => s.reportLoadingId),
+    );
+    if (loading && shifts.isEmpty && live == null) {
       return const Align(alignment: Alignment.topCenter, child: SkeletonList());
     }
-    final rows = _rows;
+    final rows = _rowsWithLocalOpen(shifts, live);
     if (rows.isEmpty) {
       return EmptyState(
         icon: 'clock.arrow.circlepath',
-        title: _t('shifts.empty'),
+        title: t('shifts.empty'),
       );
     }
-    final currency = _bridge.currentSession()?.currencyCode ?? '';
+    final currency = bridge.currentSession()?.currencyCode ?? '';
     // Width-driven, matching the natives' `wide = maxWidth >= 680`.
     return ResponsiveBuilder(
       builder: (context, info) {
@@ -232,15 +179,15 @@ class _ShiftHistoryScreenState extends State<ShiftHistoryScreen> {
                 if (wide)
                   ShiftFlushCard(
                     children: [
-                      _ColumnHeader(tr: _t),
+                      _ColumnHeader(tr: t),
                       for (final (index, s) in rows.indexed) ...[
                         _WideShiftRow(
                           shift: s,
                           currency: currency,
                           odd: index.isOdd,
-                          loadingReport: _reportLoadingId == s.id,
-                          bridge: _bridge,
-                          onTap: () => unawaited(_openReport(s)),
+                          loadingReport: reportLoadingId == s.id,
+                          bridge: bridge,
+                          onTap: () => unawaited(_openReport(context, ref, s)),
                         ),
                         const ShiftHairline(),
                       ],
@@ -252,9 +199,9 @@ class _ShiftHistoryScreenState extends State<ShiftHistoryScreen> {
                     _NarrowShiftCard(
                       shift: s,
                       currency: currency,
-                      loadingReport: _reportLoadingId == s.id,
-                      bridge: _bridge,
-                      onTap: () => unawaited(_openReport(s)),
+                      loadingReport: reportLoadingId == s.id,
+                      bridge: bridge,
+                      onTap: () => unawaited(_openReport(context, ref, s)),
                     ),
                   ],
               ],

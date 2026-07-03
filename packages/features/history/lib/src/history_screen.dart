@@ -5,18 +5,21 @@
 /// (totals + Print + Void). The full shift stays in memory; only
 /// `visibleLimit` rows paint (client-side "show more"). A
 /// pixel-and-behavior port of the Kotlin OrderHistoryScreen.kt (+ its
-/// VoidOverlay) over the shared Rust core; reprints reuse
-/// feature_checkout's ReceiptSheet.
+/// VoidOverlay) over the shared Rust core; state lives in [historyProvider],
+/// reprints reuse feature_checkout's ReceiptSheet.
 library;
 
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
+import 'package:feature_history/src/history_provider.dart';
 import 'package:feature_history/src/widgets.dart';
 import 'package:flutter/material.dart'
     show CircularProgressIndicator, Scaffold, Theme;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Native metrics (OrderHistoryScreen.kt) that fall between the 4-pt Space
@@ -24,9 +27,6 @@ import 'package:rust_bridge/rust_bridge.dart';
 
 /// Content column cap (natives: widthIn(max = 960.dp)).
 const double _contentMaxWidth = 960;
-
-/// Client-side page size (natives: K_ORDER_PAGE_SIZE).
-const int _pageSize = 20;
 
 /// Table column widths (natives: 104 / 110 / 44.dp) and sort arrow (9.dp).
 const double _numberColWidth = 104;
@@ -53,235 +53,22 @@ const double _voidSheetMaxWidth = 520;
 const Size _switchTrack = Size(44, 26);
 const double _switchThumb = 20;
 
-// ── Sort model ──────────────────────────────────────────────────────────────
-// The five sortable columns. Only `#`/number ascends by default; everything
-// else descends (newest / biggest first).
-enum _SortCol {
-  number(defaultAscending: true),
-  payment(defaultAscending: false),
-  time(defaultAscending: false),
-  teller(defaultAscending: false),
-  amount(defaultAscending: false)
-  ;
-
-  const _SortCol({required this.defaultAscending});
-
-  final bool defaultAscending;
-}
-
-// One sync-status filter axis value.
-enum _SyncFilter { all, synced, pending, voided }
-
-extension on _SyncFilter {
-  bool matches(OrderSummaryView o) => switch (this) {
-    _SyncFilter.all => true,
-    _SyncFilter.synced => !o.queued && o.status != 'voided',
-    _SyncFilter.pending => o.queued,
-    _SyncFilter.voided => o.status == 'voided',
-  };
-}
-
-// One order-origin filter axis value.
-enum _TypeFilter { all, dineIn, delivery }
-
-extension on _TypeFilter {
-  bool matches(OrderSummaryView o) => switch (this) {
-    _TypeFilter.all => true,
-    _TypeFilter.dineIn => o.orderType != 'delivery',
-    _TypeFilter.delivery => o.orderType == 'delivery',
-  };
-}
-
 /// The current shift's order history (full-screen over the order screen).
-class OrderHistoryScreen extends StatefulWidget {
+class OrderHistoryScreen extends ConsumerStatefulWidget {
   /// Creates the history screen.
-  const OrderHistoryScreen({
-    required this.core,
-    required this.onStateChanged,
-    super.key,
-  });
-
-  /// The core handle every bridge call goes through.
-  final MadarCore core;
-
-  /// Fired after a void succeeds (the shift stats + history move).
-  final void Function() onStateChanged;
+  const OrderHistoryScreen({super.key});
 
   @override
-  State<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
+  ConsumerState<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
 }
 
-class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  List<OrderSummaryView> _history = const [];
-  bool _loading = false;
-  ShiftReportView? _report;
-  bool _hasShift = false;
-
-  /// The fetched lines for the expanded row (null = none/queued/loading).
-  OrderDetailView? _detail;
-  String? _expandedId;
-
+class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
   final TextEditingController _searchField = TextEditingController();
-  String _search = '';
-  _SyncFilter _sync = _SyncFilter.all;
-  _TypeFilter _type = _TypeFilter.all;
-  _SortCol _sortCol = _SortCol.number;
-  bool _sortAscending = false; // # defaults to DESC (newest first).
-  int _visibleLimit = _pageSize;
-
-  ToastData? _toast;
-  int _toastSeq = 0;
-
-  String _t(String key) => _bridge.tr(key: key);
-
-  String get _currency => _bridge.currentSession()?.currencyCode ?? '';
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
 
   @override
   void dispose() {
     _searchField.dispose();
     super.dispose();
-  }
-
-  /// Load the current shift's orders (synced + queued), the live Z-report
-  /// for the stats strip, and the shift presence for the subtitle — all
-  /// best-effort like the natives' loadHistory.
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    List<OrderSummaryView> history;
-    try {
-      history = await _bridge.listShiftOrders();
-    } on MadarError {
-      history = const [];
-    }
-    ShiftReportView? report;
-    try {
-      report = await _bridge.shiftReport();
-    } on MadarError {
-      report = null;
-    }
-    var hasShift = false;
-    try {
-      hasShift = await _bridge.currentShift() != null;
-    } on MadarError {
-      hasShift = false;
-    }
-    if (!mounted) return;
-    setState(() {
-      _history = history;
-      _report = report;
-      _hasShift = hasShift;
-      _loading = false;
-      _recomputeDerived();
-    });
-  }
-
-  void _showToast(String text, {required ChipTone tone, String? icon}) {
-    _toastSeq += 1;
-    setState(() {
-      _toast = ToastData(id: _toastSeq, text: text, tone: tone, icon: icon);
-    });
-  }
-
-  void _resetPage() => _visibleLimit = _pageSize;
-
-  bool _matchesSearch(OrderSummaryView o) {
-    if (_search.trim().isEmpty) return true;
-    final q = _search;
-    final ql = q.toLowerCase();
-    return (o.orderNumber?.toString() ?? '').contains(q) ||
-        o.paymentLabel.toLowerCase().contains(ql) ||
-        (o.tellerName?.toLowerCase().contains(ql) ?? false) ||
-        (o.customerName?.toLowerCase().contains(ql) ?? false);
-  }
-
-  int _compare(OrderSummaryView a, OrderSummaryView b) {
-    final c = switch (_sortCol) {
-      _SortCol.number => (a.orderNumber ?? -1).compareTo(b.orderNumber ?? -1),
-      _SortCol.payment => a.paymentLabel.compareTo(b.paymentLabel),
-      _SortCol.time => a.createdAt.compareTo(b.createdAt),
-      _SortCol.teller => (a.tellerName ?? '').compareTo(b.tellerName ?? ''),
-      _SortCol.amount => a.totalMinor.compareTo(b.totalMinor),
-    };
-    return _sortAscending ? c : -c;
-  }
-
-  // ── Memoized derived state ─────────────────────────────────────────────────
-  // Filtering + sorting + the 7 chip counts are recomputed in ONE pass over
-  // `_history` — and only from the setState paths that change their inputs
-  // (_search, _sync, _type, _sortCol/_sortAscending, _history) — so toasts,
-  // detail toggles and 'show more' rebuilds read cached fields for free.
-
-  /// All rows passing search + both axes (AND), then sorted (memoized).
-  List<OrderSummaryView> _filtered = const [];
-
-  /// Chip counts: type axis = search ∩ THIS chip's type rule; sync axis =
-  /// search ∩ current type ∩ THIS chip's sync rule (the natives').
-  Map<_TypeFilter, int> _typeCounts = const {};
-  Map<_SyncFilter, int> _syncCounts = const {};
-
-  /// One pass over `_history` producing the filtered list and all 7 counts.
-  void _recomputeDerived() {
-    final filtered = <OrderSummaryView>[];
-    final typeCounts = {for (final f in _TypeFilter.values) f: 0};
-    final syncCounts = {for (final f in _SyncFilter.values) f: 0};
-    for (final o in _history) {
-      if (!_matchesSearch(o)) continue;
-      for (final f in _TypeFilter.values) {
-        if (f.matches(o)) typeCounts[f] = typeCounts[f]! + 1;
-      }
-      if (!_type.matches(o)) continue;
-      for (final f in _SyncFilter.values) {
-        if (f.matches(o)) syncCounts[f] = syncCounts[f]! + 1;
-      }
-      if (_sync.matches(o)) filtered.add(o);
-    }
-    filtered.sort(_compare);
-    _filtered = filtered;
-    _typeCounts = typeCounts;
-    _syncCounts = syncCounts;
-  }
-
-  void _setSort(_SortCol col) {
-    setState(() {
-      if (_sortCol == col) {
-        _sortAscending = !_sortAscending;
-      } else {
-        _sortCol = col;
-        _sortAscending = col.defaultAscending;
-      }
-      _resetPage();
-      _recomputeDerived();
-    });
-  }
-
-  /// Toggle a row's expansion; load its lines when it just opened (queued
-  /// orders aren't on the server yet — skip, mirrors `.task(id:)`).
-  void _toggle(OrderSummaryView o) {
-    final opening = _expandedId != o.id;
-    setState(() {
-      _expandedId = opening ? o.id : null;
-      if (opening) _detail = null;
-    });
-    if (opening && !o.queued) unawaited(_loadDetail(o.id));
-  }
-
-  Future<void> _loadDetail(String id) async {
-    OrderDetailView? detail;
-    try {
-      detail = await _bridge.orderDetail(orderId: id);
-    } on MadarError {
-      detail = null;
-    }
-    if (!mounted || _expandedId != id) return;
-    setState(() => _detail = detail);
   }
 
   /// Reprint entry — project the past order to a ReceiptView (cached,
@@ -291,109 +78,150 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   Future<void> _openReceipt(OrderSummaryView o) async {
     ReceiptView receipt;
     try {
-      receipt = await _bridge.orderReceiptView(orderId: o.id);
+      receipt = await ref.read(bridgeProvider).orderReceiptView(orderId: o.id);
     } on MadarError catch (e) {
-      _showToast(
-        _bridge.humanMessage(e),
-        tone: ChipTone.danger,
-        icon: 'xmark.circle',
-      );
+      ref.read(historyProvider.notifier).surfaceError(e);
       return;
     }
     if (!mounted) return;
     await showMadarSheet<void>(
       context,
       size: SheetSize.large,
-      builder: (_) => ReceiptSheet(
-        core: widget.core,
-        onStateChanged: widget.onStateChanged,
-        receipt: receipt,
-      ),
+      builder: (_) => ReceiptSheet(receipt: receipt),
     );
   }
 
   /// Void flow — the natives' VoidOverlay as a Madar sheet. On success the
-  /// history reloads (the row flips to Voided) and the shell is notified.
+  /// history reloads (the row flips to Voided); the shell refresh happens
+  /// inside the sheet's confirm.
   Future<void> _openVoid(OrderSummaryView o) async {
     final voided = await showMadarSheet<bool>(
       context,
       size: SheetSize.hug,
       maxWidth: _voidSheetMaxWidth,
-      builder: (_) => _VoidSheet(core: widget.core, order: o),
+      builder: (_) => _VoidSheet(order: o),
     );
-    if (voided ?? false) {
-      widget.onStateChanged();
-      await _load();
-    }
+    if (voided ?? false) await ref.read(historyProvider.notifier).load();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final filtered = _filtered;
-    final visible = filtered.take(_visibleLimit).toList();
+    final bridge = ref.watch(bridgeProvider);
+    final hasShift = ref.watch(historyProvider.select((s) => s.hasShift));
+    final historyEmpty = ref.watch(
+      historyProvider.select((s) => s.history.isEmpty),
+    );
     return Scaffold(
       backgroundColor: colors.bg,
       body: Stack(
         children: [
           Column(
             children: [
-              HistoryHeaderBar(
-                title: _t('history.title'),
-                subtitle: _hasShift ? _t('history.current_shift') : null,
-                onBack: () => unawaited(Navigator.of(context).maybePop()),
-                trailing: [
-                  if (_loading && _history.isNotEmpty)
-                    SizedBox.square(
-                      dimension: _headerSpinner,
-                      child: CircularProgressIndicator(
-                        color: colors.accent,
-                        strokeWidth: 2,
-                      ),
-                    ),
-                ],
+              MadarHeader(
+                title: bridge.tr(key: 'history.title'),
+                subtitle: hasShift
+                    ? bridge.tr(key: 'history.current_shift')
+                    : null,
+                onBack: () => Navigator.maybePop(context),
+                actions: const [_HeaderSpinner()],
               ),
-              if (_history.isNotEmpty) _buildFilterBar(colors),
-              Expanded(child: _buildContent(colors, filtered, visible)),
+              Expanded(
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      if (!historyEmpty) _FilterBar(controller: _searchField),
+                      Expanded(
+                        child: _HistoryContent(
+                          onPrint: (o) => unawaited(_openReceipt(o)),
+                          onVoid: (o) => unawaited(_openVoid(o)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
-          ToastHost(
-            _toast,
-            onDismiss: (id) {
-              if (_toast?.id == id) setState(() => _toast = null);
-            },
-          ),
+          const _HistoryToastHost(),
         ],
       ),
     );
   }
+}
 
-  // ── Filter bar (search + two filter-chip rows with counts) ────────────────
-  Widget _buildFilterBar(MadarColors colors) {
-    Widget typeChip(_TypeFilter f, String glyph, String label) {
+/// The header's trailing refresh spinner — shown only while a reload runs
+/// over an already-populated list.
+class _HeaderSpinner extends ConsumerWidget {
+  const _HeaderSpinner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final show = ref.watch(
+      historyProvider.select((s) => s.loading && s.history.isNotEmpty),
+    );
+    if (!show) return const SizedBox.shrink();
+    return SizedBox.square(
+      dimension: _headerSpinner,
+      child: CircularProgressIndicator(color: colors.accent, strokeWidth: 2),
+    );
+  }
+}
+
+/// The screen toast, driven by [HistoryState.toast].
+class _HistoryToastHost extends ConsumerWidget {
+  const _HistoryToastHost();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final toast = ref.watch(historyProvider.select((s) => s.toast));
+    return ToastHost(
+      toast,
+      onDismiss: (id) => ref.read(historyProvider.notifier).dismissToast(id),
+    );
+  }
+}
+
+// ── Filter bar (search + two filter-chip rows with counts) ──────────────────
+class _FilterBar extends ConsumerWidget {
+  const _FilterBar({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final notifier = ref.read(historyProvider.notifier);
+    final type = ref.watch(historyProvider.select((s) => s.type));
+    final sync = ref.watch(historyProvider.select((s) => s.sync));
+    final typeCounts = ref.watch(historyProvider.select((s) => s.typeCounts));
+    final syncCounts = ref.watch(historyProvider.select((s) => s.syncCounts));
+    String t(String key) => bridge.tr(key: key);
+
+    Widget typeChip(HistoryTypeFilter f, String glyph, String label) {
       return HistoryFilterChip(
         glyph: glyph,
-        label: '$label · ${_typeCounts[f] ?? 0}',
-        active: _type == f,
-        onTap: () => setState(() {
-          _type = f;
-          _resetPage();
-          _recomputeDerived();
-        }),
+        label: '$label · ${typeCounts[f] ?? 0}',
+        active: type == f,
+        onTap: () => notifier.setType(f),
       );
     }
 
-    Widget syncChip(_SyncFilter f, String glyph, String label, ChipTone tone) {
+    Widget syncChip(
+      HistorySyncFilter f,
+      String glyph,
+      String label,
+      ChipTone tone,
+    ) {
       return HistoryFilterChip(
         glyph: glyph,
-        label: '$label · ${_syncCounts[f] ?? 0}',
-        active: _sync == f,
+        label: '$label · ${syncCounts[f] ?? 0}',
+        active: sync == f,
         tone: tone,
-        onTap: () => setState(() {
-          _sync = f;
-          _resetPage();
-          _recomputeDerived();
-        }),
+        onTap: () => notifier.setSync(f),
       );
     }
 
@@ -412,14 +240,10 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
               spacing: Space.sm,
               children: [
                 HistoryTextField(
-                  controller: _searchField,
-                  placeholder: _t('history.search'),
+                  controller: controller,
+                  placeholder: t('history.search'),
                   icon: 'magnifyingglass',
-                  onChanged: (v) => setState(() {
-                    _search = v;
-                    _resetPage();
-                    _recomputeDerived();
-                  }),
+                  onChanged: notifier.setSearch,
                 ),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -427,19 +251,19 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     spacing: Space.sm,
                     children: [
                       typeChip(
-                        _TypeFilter.all,
+                        HistoryTypeFilter.all,
                         'slider.horizontal.3',
-                        _t('history.type.all'),
+                        t('history.type.all'),
                       ),
                       typeChip(
-                        _TypeFilter.dineIn,
+                        HistoryTypeFilter.dineIn,
                         'fork.knife',
-                        _t('history.type.dine_in'),
+                        t('history.type.dine_in'),
                       ),
                       typeChip(
-                        _TypeFilter.delivery,
+                        HistoryTypeFilter.delivery,
                         'shippingbox',
-                        _t('history.type.delivery'),
+                        t('history.type.delivery'),
                       ),
                     ],
                   ),
@@ -450,27 +274,27 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     spacing: Space.sm,
                     children: [
                       syncChip(
-                        _SyncFilter.all,
+                        HistorySyncFilter.all,
                         'list.bullet',
-                        _t('order.all'),
+                        t('order.all'),
                         ChipTone.accent,
                       ),
                       syncChip(
-                        _SyncFilter.synced,
+                        HistorySyncFilter.synced,
                         'checkmark.icloud',
-                        _t('history.synced'),
+                        t('history.synced'),
                         ChipTone.success,
                       ),
                       syncChip(
-                        _SyncFilter.pending,
+                        HistorySyncFilter.pending,
                         'icloud.and.arrow.up',
-                        _t('history.queued'),
+                        t('history.queued'),
                         ChipTone.warning,
                       ),
                       syncChip(
-                        _SyncFilter.voided,
+                        HistorySyncFilter.voided,
                         'xmark.circle',
-                        _t('history.voided'),
+                        t('history.voided'),
                         ChipTone.danger,
                       ),
                     ],
@@ -484,22 +308,47 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       ],
     );
   }
+}
 
-  // ── Content ────────────────────────────────────────────────────────────────
-  Widget _buildContent(
-    MadarColors colors,
-    List<OrderSummaryView> filtered,
-    List<OrderSummaryView> visible,
-  ) {
-    if (_loading && _history.isEmpty) {
+// ── Content ──────────────────────────────────────────────────────────────────
+class _HistoryContent extends ConsumerWidget {
+  const _HistoryContent({required this.onPrint, required this.onVoid});
+
+  final void Function(OrderSummaryView) onPrint;
+  final void Function(OrderSummaryView) onVoid;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
+    final notifier = ref.read(historyProvider.notifier);
+    final loading = ref.watch(historyProvider.select((s) => s.loading));
+    final history = ref.watch(historyProvider.select((s) => s.history));
+    final filtered = ref.watch(historyProvider.select((s) => s.filtered));
+    final visibleLimit = ref.watch(
+      historyProvider.select((s) => s.visibleLimit),
+    );
+    final report = ref.watch(historyProvider.select((s) => s.report));
+    final expandedId = ref.watch(historyProvider.select((s) => s.expandedId));
+    final detail = ref.watch(historyProvider.select((s) => s.detail));
+    final sortCol = ref.watch(historyProvider.select((s) => s.sortCol));
+    final sortAscending = ref.watch(
+      historyProvider.select((s) => s.sortAscending),
+    );
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
+    String t(String key) => bridge.tr(key: key);
+
+    if (loading && history.isEmpty) {
       return const Align(alignment: Alignment.topCenter, child: SkeletonList());
     }
     if (filtered.isEmpty) {
       return EmptyState(
-        icon: _history.isEmpty ? 'tray' : 'line.3.horizontal.decrease.circle',
-        title: _history.isEmpty ? _t('history.empty') : _t('history.no_match'),
+        icon: history.isEmpty ? 'tray' : 'line.3.horizontal.decrease.circle',
+        title: history.isEmpty ? t('history.empty') : t('history.no_match'),
       );
     }
+    final visible = filtered.take(visibleLimit).toList();
     return ResponsiveBuilder(
       builder: (context, info) {
         final wide = info.isWideTable;
@@ -521,10 +370,10 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                             bottom: Space.lg,
                           ),
                           child: _StatsHeader(
-                            history: _history,
-                            report: _report,
-                            currency: _currency,
-                            tr: _t,
+                            history: history,
+                            report: report,
+                            currency: currency,
+                            tr: t,
                           ),
                         ),
                       ),
@@ -532,16 +381,16 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                         SliverToBoxAdapter(
                           child: _OrderTable(
                             visible: visible,
-                            currency: _currency,
-                            expandedId: _expandedId,
-                            detail: _detail,
-                            sortCol: _sortCol,
-                            sortAscending: _sortAscending,
-                            bridge: _bridge,
-                            onSort: _setSort,
-                            onToggle: _toggle,
-                            onPrint: (o) => unawaited(_openReceipt(o)),
-                            onVoid: (o) => unawaited(_openVoid(o)),
+                            currency: currency,
+                            expandedId: expandedId,
+                            detail: detail,
+                            sortCol: sortCol,
+                            sortAscending: sortAscending,
+                            bridge: bridge,
+                            onSort: notifier.setSort,
+                            onToggle: notifier.toggle,
+                            onPrint: onPrint,
+                            onVoid: onVoid,
                           ),
                         )
                       else
@@ -555,13 +404,13 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                               ),
                               child: _OrderCard(
                                 order: o,
-                                currency: _currency,
-                                expanded: _expandedId == o.id,
-                                detail: _detail,
-                                bridge: _bridge,
-                                onToggle: () => _toggle(o),
-                                onPrint: () => unawaited(_openReceipt(o)),
-                                onVoid: () => unawaited(_openVoid(o)),
+                                currency: currency,
+                                expanded: expandedId == o.id,
+                                detail: detail,
+                                bridge: bridge,
+                                onToggle: () => notifier.toggle(o),
+                                onPrint: () => onPrint(o),
+                                onVoid: () => onVoid(o),
                               ),
                             );
                           },
@@ -569,9 +418,8 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                       SliverToBoxAdapter(
                         child: _ShowMoreFooter(
                           remaining: filtered.length - visible.length,
-                          label: _t('history.show_more'),
-                          onShowMore: () =>
-                              setState(() => _visibleLimit += _pageSize),
+                          label: t('history.show_more'),
+                          onShowMore: notifier.showMore,
                         ),
                       ),
                     ],
@@ -734,10 +582,10 @@ class _OrderTable extends StatelessWidget {
   final String currency;
   final String? expandedId;
   final OrderDetailView? detail;
-  final _SortCol sortCol;
+  final HistorySortCol sortCol;
   final bool sortAscending;
   final MadarBridge bridge;
-  final void Function(_SortCol) onSort;
+  final void Function(HistorySortCol) onSort;
   final void Function(OrderSummaryView) onToggle;
   final void Function(OrderSummaryView) onPrint;
   final void Function(OrderSummaryView) onVoid;
@@ -748,7 +596,7 @@ class _OrderTable extends StatelessWidget {
     String t(String key) => bridge.tr(key: key);
     Widget headerCell(
       String label,
-      _SortCol col, {
+      HistorySortCol col, {
       double? width,
       bool trailing = false,
     }) {
@@ -784,13 +632,17 @@ class _OrderTable extends StatelessWidget {
                 child: Row(
                   spacing: Space.md,
                   children: [
-                    headerCell('#', _SortCol.number, width: _numberColWidth),
-                    headerCell(t('order.payment'), _SortCol.payment),
-                    headerCell(t('history.col.time'), _SortCol.time),
-                    headerCell(t('history.col.teller'), _SortCol.teller),
+                    headerCell(
+                      '#',
+                      HistorySortCol.number,
+                      width: _numberColWidth,
+                    ),
+                    headerCell(t('order.payment'), HistorySortCol.payment),
+                    headerCell(t('history.col.time'), HistorySortCol.time),
+                    headerCell(t('history.col.teller'), HistorySortCol.teller),
                     headerCell(
                       t('history.col.amount'),
-                      _SortCol.amount,
+                      HistorySortCol.amount,
                       width: _amountColWidth,
                       trailing: true,
                     ),
@@ -1582,7 +1434,7 @@ class _ShowMoreFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     if (remaining <= 0) return const SizedBox.shrink();
-    final count = remaining < _pageSize ? remaining : _pageSize;
+    final count = remaining < kHistoryPageSize ? remaining : kHistoryPageSize;
     return Padding(
       padding: const EdgeInsetsDirectional.only(top: Space.lg),
       child: Semantics(
@@ -1625,30 +1477,99 @@ class _ShowMoreFooter extends StatelessWidget {
 }
 
 // ── Void sheet ───────────────────────────────────────────────────────────────
+
+/// The void form's state (reason radios / restock toggle / busy / error).
+class _VoidFormState {
+  const _VoidFormState({
+    this.reason = 'mistake',
+    this.restock = true,
+    this.busy = false,
+    this.error,
+  });
+
+  final String reason;
+  final bool restock;
+  final bool busy;
+  final String? error;
+
+  static const Object _unset = Object();
+
+  _VoidFormState copyWith({
+    String? reason,
+    bool? restock,
+    bool? busy,
+    Object? error = _unset,
+  }) {
+    return _VoidFormState(
+      reason: reason ?? this.reason,
+      restock: restock ?? this.restock,
+      busy: busy ?? this.busy,
+      error: error == _unset ? this.error : error as String?,
+    );
+  }
+}
+
+class _VoidFormNotifier extends AutoDisposeNotifier<_VoidFormState> {
+  bool _alive = true;
+
+  @override
+  _VoidFormState build() {
+    _alive = true;
+    ref.onDispose(() => _alive = false);
+    return const _VoidFormState();
+  }
+
+  void selectReason(String reason) => state = state.copyWith(reason: reason);
+
+  void toggleRestock({required bool on}) => state = state.copyWith(restock: on);
+
+  /// Void the order — true on success (the sheet pops). A void moves the
+  /// shift stats, so the shell refreshes here; failures land in
+  /// [_VoidFormState.error].
+  Future<bool> confirm({required String orderId, required String note}) async {
+    final bridge = ref.read(bridgeProvider);
+    state = state.copyWith(busy: true, error: null);
+    try {
+      await bridge.voidOrder(
+        orderId: orderId,
+        reason: state.reason,
+        note: note.isEmpty ? null : note,
+        restoreInventory: state.restock,
+      );
+      ref.read(shellProvider.notifier).refresh();
+      return true;
+    } on MadarError catch (e) {
+      if (e is MadarError_Unauthenticated &&
+          ref.read(shellProvider).session != null) {
+        ref.read(reauthRequestProvider.notifier).request();
+      }
+      if (_alive) {
+        state = state.copyWith(busy: false, error: bridge.humanMessage(e));
+      }
+      return false;
+    }
+  }
+}
+
+final AutoDisposeNotifierProvider<_VoidFormNotifier, _VoidFormState>
+_voidFormProvider =
+    NotifierProvider.autoDispose<_VoidFormNotifier, _VoidFormState>(
+      _VoidFormNotifier.new,
+    );
+
 /// The natives' VoidOverlay: reason radios, an optional note, the restock
 /// toggle, and one danger CTA. Pops `true` after a successful void.
-class _VoidSheet extends StatefulWidget {
-  const _VoidSheet({required this.core, required this.order});
+class _VoidSheet extends ConsumerStatefulWidget {
+  const _VoidSheet({required this.order});
 
-  final MadarCore core;
   final OrderSummaryView order;
 
   @override
-  State<_VoidSheet> createState() => _VoidSheetState();
+  ConsumerState<_VoidSheet> createState() => _VoidSheetState();
 }
 
-class _VoidSheetState extends State<_VoidSheet> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  String _reason = 'mistake';
+class _VoidSheetState extends ConsumerState<_VoidSheet> {
   final TextEditingController _note = TextEditingController();
-  bool _restock = true;
-  bool _busy = false;
-  String? _error;
-
-  String _t(String key) => _bridge.tr(key: key);
-
-  String get _currency => _bridge.currentSession()?.currencyCode ?? '';
 
   static const List<(String, String)> _reasons = [
     ('mistake', 'void.reason_mistake'),
@@ -1664,33 +1585,22 @@ class _VoidSheetState extends State<_VoidSheet> {
   }
 
   Future<void> _confirm() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final note = _note.text.trim();
-      await _bridge.voidOrder(
-        orderId: widget.order.id,
-        reason: _reason,
-        note: note.isEmpty ? null : note,
-        restoreInventory: _restock,
-      );
-      if (!mounted) return;
-      await Navigator.of(context).maybePop(true);
-    } on MadarError catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = _bridge.humanMessage(e);
-      });
-    }
+    final ok = await ref
+        .read(_voidFormProvider.notifier)
+        .confirm(orderId: widget.order.id, note: _note.text.trim());
+    if (ok && mounted) await Navigator.of(context).maybePop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final form = ref.watch(_voidFormProvider);
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
     final o = widget.order;
+    String t(String key) => bridge.tr(key: key);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1705,7 +1615,7 @@ class _VoidSheetState extends State<_VoidSheet> {
                   children: [
                     Expanded(
                       child: Text(
-                        _t('void.title'),
+                        t('void.title'),
                         style: MadarType.h2.copyWith(
                           fontWeight: FontWeight.w800,
                           color: colors.textPrimary,
@@ -1737,7 +1647,7 @@ class _VoidSheetState extends State<_VoidSheet> {
                         child: Text(
                           o.orderNumber != null
                               ? '#${o.orderNumber}'
-                              : _t('history.order'),
+                              : t('history.order'),
                           style: MadarType.body.copyWith(
                             fontWeight: FontWeight.w600,
                             color: colors.textPrimary,
@@ -1746,7 +1656,7 @@ class _VoidSheetState extends State<_VoidSheet> {
                       ),
                       MoneyText(
                         o.totalMinor,
-                        currency: _currency,
+                        currency: currency,
                         style: MadarType.money.copyWith(fontSize: 15),
                         color: colors.textPrimary,
                       ),
@@ -1754,7 +1664,7 @@ class _VoidSheetState extends State<_VoidSheet> {
                   ),
                 ),
                 Text(
-                  _t('void.reason'),
+                  t('void.reason'),
                   style: MadarType.label.copyWith(
                     fontWeight: FontWeight.w700,
                     letterSpacing: MadarType.tracking,
@@ -1763,15 +1673,16 @@ class _VoidSheetState extends State<_VoidSheet> {
                 ),
                 for (final (key, label) in _reasons)
                   _ReasonRow(
-                    label: _t(label),
-                    active: _reason == key,
-                    onTap: () => setState(() => _reason = key),
+                    label: t(label),
+                    active: form.reason == key,
+                    onTap: () =>
+                        ref.read(_voidFormProvider.notifier).selectReason(key),
                   ),
                 HistoryTextField(
                   controller: _note,
-                  placeholder: _t('void.note'),
+                  placeholder: t('void.note'),
                   icon: 'note.text',
-                  enabled: !_busy,
+                  enabled: !form.busy,
                 ),
                 const Hairline(),
                 Row(
@@ -1779,7 +1690,7 @@ class _VoidSheetState extends State<_VoidSheet> {
                   children: [
                     Expanded(
                       child: Text(
-                        _t('void.restock'),
+                        t('void.restock'),
                         style: MadarType.body.copyWith(
                           fontWeight: FontWeight.w700,
                           color: colors.textPrimary,
@@ -1787,19 +1698,21 @@ class _VoidSheetState extends State<_VoidSheet> {
                       ),
                     ),
                     _RestockSwitch(
-                      value: _restock,
-                      onChanged: (v) => setState(() => _restock = v),
+                      value: form.restock,
+                      onChanged: (v) => ref
+                          .read(_voidFormProvider.notifier)
+                          .toggleRestock(on: v),
                     ),
                   ],
                 ),
-                if (_error case final error?)
+                if (form.error case final error?)
                   NoticeBanner(text: error, tone: ChipTone.danger),
                 Row(
                   spacing: Space.md,
                   children: [
                     Expanded(
                       child: HistoryButton(
-                        label: _t('void.cancel'),
+                        label: t('void.cancel'),
                         variant: HistoryButtonVariant.outline,
                         onTap: () =>
                             unawaited(Navigator.of(context).maybePop(false)),
@@ -1807,10 +1720,10 @@ class _VoidSheetState extends State<_VoidSheet> {
                     ),
                     Expanded(
                       child: HistoryButton(
-                        label: _t('void.confirm'),
+                        label: t('void.confirm'),
                         variant: HistoryButtonVariant.danger,
                         icon: 'trash',
-                        loading: _busy,
+                        loading: form.busy,
                         onTap: () => unawaited(_confirm()),
                       ),
                     ),

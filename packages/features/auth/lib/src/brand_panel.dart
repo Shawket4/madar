@@ -1,6 +1,7 @@
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
-import 'package:rust_bridge/rust_bridge.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Panel inner padding (natives: 48.dp).
 const double _panelPad = 48;
@@ -27,17 +28,15 @@ const double _footerDot = 6;
 /// The brand half of the wide (tablet / desktop) split — shared by the auth
 /// screens so setup, login, and station commissioning read as one continuous
 /// onboarding act. Mirror of the natives' `BrandPanel`.
-class BrandPanel extends StatelessWidget {
+class BrandPanel extends ConsumerWidget {
   /// Creates the brand panel.
-  const BrandPanel({required this.core, super.key});
-
-  /// The core handle — used only for localized brand copy.
-  final MadarCore core;
+  const BrandPanel({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    String t(String key) => core.bridge.tr(key: key);
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
 
     return ColoredBox(
       color: colors.surfaceAlt,

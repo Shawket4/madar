@@ -1,6 +1,7 @@
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// One chip in the held-orders strip. Shared by the teller (parked drafts +
 /// the live cart) and the waiter (a "New" tab + open tickets). [sortKey] is
@@ -35,13 +36,57 @@ class HeldOrderTab {
   final VoidCallback? onClose;
 }
 
+/// The drag-chosen chip order (a list of tab keys). Kept in a provider so a
+/// teller's arrangement survives layout flips and strip remounts; keys that
+/// vanish are filtered out per build, new keys slot in at their
+/// creation-time position.
+class HeldStripOrderNotifier extends Notifier<List<String>> {
+  @override
+  List<String> build() => const [];
+
+  /// Persist the full display order after a drag.
+  void setOrder(List<String> keys) => state = List.unmodifiable(keys);
+}
+
+/// The held-orders strip's persisted drag order.
+final heldStripOrderProvider =
+    NotifierProvider<HeldStripOrderNotifier, List<String>>(
+      HeldStripOrderNotifier.new,
+    );
+
+/// Reconcile the persisted key order with the tabs currently present: the
+/// DEFAULT order is creation-time (oldest→newest) by [HeldOrderTab.sortKey];
+/// vanished keys fall out, NEW keys drop in just after their nearest
+/// already-placed predecessor in creation-time order. Pure — never mutates
+/// the provider during build.
+List<HeldOrderTab> _reconcile(List<String> saved, List<HeldOrderTab> tabs) {
+  final byKey = {for (final tab in tabs) tab.key: tab};
+  final sorted = [...tabs]..sort((a, b) => a.sortKey.compareTo(b.sortKey));
+  final order = [...saved]..removeWhere((key) => !byKey.containsKey(key));
+  for (var i = 0; i < sorted.length; i++) {
+    final tab = sorted[i];
+    if (order.contains(tab.key)) continue;
+    // Land the new key just after its nearest already-placed predecessor
+    // in creation-time order (so it slots into its own time position).
+    var insertAt = 0;
+    for (var j = i - 1; j >= 0; j--) {
+      final placed = order.indexOf(sorted[j].key);
+      if (placed >= 0) {
+        insertAt = placed + 1;
+        break;
+      }
+    }
+    order.insert(insertAt.clamp(0, order.length), tab.key);
+  }
+  return [for (final key in order) byKey[key]!];
+}
+
 /// Horizontal strip of polished order chips above the cart. The DEFAULT
 /// start→end order is creation-time (oldest→newest) by each tab's
 /// [HeldOrderTab.sortKey]; the chips are then draggable (long-press to pick
-/// up) to override that order, and the chosen order sticks. The visual
-/// key-order is reconciled with the incoming tabs on every build: NEW keys
-/// drop in at their creation-time position, vanished keys fall out.
-class HeldOrdersStrip extends StatefulWidget {
+/// up) to override that order, and the chosen order sticks (via
+/// [heldStripOrderProvider]).
+class HeldOrdersStrip extends ConsumerWidget {
   const HeldOrdersStrip({
     required this.tabs,
     required this.newLabel,
@@ -54,50 +99,12 @@ class HeldOrdersStrip extends StatefulWidget {
   /// caller so the strip stays string-free.
   final String newLabel;
 
-  @override
-  State<HeldOrdersStrip> createState() => _HeldOrdersStripState();
-}
-
-class _HeldOrdersStripState extends State<HeldOrdersStrip> {
-  /// The visual key order — the source of truth for chip layout. Survives
-  /// rebuilds (so a drag-chosen order persists) and is reconciled with
-  /// whatever tabs are currently present.
-  final List<String> _order = [];
-
-  List<HeldOrderTab> _reconcile() {
-    final byKey = {for (final tab in widget.tabs) tab.key: tab};
-    final sorted = [...widget.tabs]
-      ..sort((a, b) => a.sortKey.compareTo(b.sortKey));
-    _order.removeWhere((key) => !byKey.containsKey(key));
-    for (var i = 0; i < sorted.length; i++) {
-      final tab = sorted[i];
-      if (_order.contains(tab.key)) continue;
-      // Land the new key just after its nearest already-placed predecessor
-      // in creation-time order (so it slots into its own time position).
-      var insertAt = 0;
-      for (var j = i - 1; j >= 0; j--) {
-        final placed = _order.indexOf(sorted[j].key);
-        if (placed >= 0) {
-          insertAt = placed + 1;
-          break;
-        }
-      }
-      _order.insert(insertAt.clamp(0, _order.length), tab.key);
-    }
-    return [for (final key in _order) byKey[key]!];
-  }
-
-  void _handleReorder(int from, int to) {
-    setState(() {
-      var target = to;
-      if (target > from) target -= 1;
-      final key = _order.removeAt(from);
-      _order.insert(target, key);
-    });
-  }
-
   /// Lift the dragged chip: scale ~1.05 + a raised shadow above its siblings.
-  Widget _proxyDecorator(Widget child, int index, Animation<double> animation) {
+  Widget _proxyDecorator(
+    Widget child,
+    int index,
+    Animation<double> animation,
+  ) {
     return AnimatedBuilder(
       animation: animation,
       builder: (context, _) {
@@ -119,9 +126,19 @@ class _HeldOrdersStripState extends State<HeldOrdersStrip> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final tabs = _reconcile();
+    final saved = ref.watch(heldStripOrderProvider);
+    final display = _reconcile(saved, tabs);
+    void handleReorder(int from, int to) {
+      var target = to;
+      if (target > from) target -= 1;
+      final keys = [for (final tab in display) tab.key];
+      final key = keys.removeAt(from);
+      keys.insert(target, key);
+      ref.read(heldStripOrderProvider.notifier).setOrder(keys);
+    }
+
     return ColoredBox(
       color: colors.surface,
       child: Column(
@@ -131,22 +148,22 @@ class _HeldOrdersStripState extends State<HeldOrdersStrip> {
             child: ReorderableListView(
               scrollDirection: Axis.horizontal,
               buildDefaultDragHandles: false,
-              onReorder: _handleReorder,
+              onReorder: handleReorder,
               proxyDecorator: _proxyDecorator,
               padding: const EdgeInsets.symmetric(
                 horizontal: Space.lg,
                 vertical: Space.sm,
               ),
               children: [
-                for (var i = 0; i < tabs.length; i++)
+                for (var i = 0; i < display.length; i++)
                   ReorderableDelayedDragStartListener(
-                    key: ValueKey(tabs[i].key),
+                    key: ValueKey(display[i].key),
                     index: i,
                     child: Padding(
                       padding: const EdgeInsetsDirectional.only(end: Space.sm),
                       child: _HeldOrderChip(
-                        tab: tabs[i],
-                        newLabel: widget.newLabel,
+                        tab: display[i],
+                        newLabel: newLabel,
                       ),
                     ),
                   ),

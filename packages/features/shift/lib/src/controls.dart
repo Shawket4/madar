@@ -33,11 +33,6 @@ const double _fieldGlowBlur = 8;
 /// Section-header accent capsule (natives: 3×12dp).
 const Size _sectionTick = Size(3, 12);
 
-/// Screen-header back chevron (natives: 17.dp) and title size (natives:
-/// 17.sp Black; Cairo tops out at ExtraBold so w800 stands in).
-const double _headerIconSize = 17;
-const double _headerTitleSize = 17;
-
 bool _isDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
 
@@ -241,16 +236,9 @@ class ShiftTextField extends StatefulWidget {
 }
 
 class _ShiftTextFieldState extends State<ShiftTextField> {
+  /// Widget-local ephemera — the focus ring repaints through a
+  /// [ListenableBuilder] on the node, never setState.
   final FocusNode _focus = FocusNode();
-  bool _focused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(() {
-      if (mounted) setState(() => _focused = _focus.hasFocus);
-    });
-  }
 
   @override
   void dispose() {
@@ -261,61 +249,69 @@ class _ShiftTextFieldState extends State<ShiftTextField> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return AnimatedContainer(
-      duration: MotionSpec.standardDuration,
-      curve: MotionSpec.standardCurve,
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Space.lg,
-        vertical: _fieldVPad,
-      ),
-      decoration: BoxDecoration(
-        color: _focused ? colors.surface : colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(
-          color: _focused ? colors.accent : colors.border,
-          width: _focused ? 2 : 1,
-        ),
-        boxShadow: _focused
-            ? [
-                BoxShadow(
-                  color: colors.accent.withValues(alpha: Opacities.focusGlow),
-                  blurRadius: _fieldGlowBlur,
-                ),
-              ]
-            : null,
-      ),
-      child: Row(
-        spacing: _fieldGap,
-        children: [
-          if (widget.icon != null)
-            MadarIcon(
-              widget.icon,
-              tint: _focused ? colors.accent : colors.textMuted,
-              size: IconSize.lg,
+    return ListenableBuilder(
+      listenable: _focus,
+      builder: (context, _) {
+        final focused = _focus.hasFocus;
+        return AnimatedContainer(
+          duration: MotionSpec.standardDuration,
+          curve: MotionSpec.standardCurve,
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Space.lg,
+            vertical: _fieldVPad,
+          ),
+          decoration: BoxDecoration(
+            color: focused ? colors.surface : colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(Radii.md),
+            border: Border.all(
+              color: focused ? colors.accent : colors.border,
+              width: focused ? 2 : 1,
             ),
-          Expanded(
-            child: Material(
-              type: MaterialType.transparency,
-              child: TextField(
-                controller: widget.controller,
-                focusNode: _focus,
-                cursorColor: colors.accent,
-                style: MadarType.title.copyWith(
-                  fontWeight: FontWeight.w400,
-                  color: colors.textPrimary,
+            boxShadow: focused
+                ? [
+                    BoxShadow(
+                      color: colors.accent.withValues(
+                        alpha: Opacities.focusGlow,
+                      ),
+                      blurRadius: _fieldGlowBlur,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            spacing: _fieldGap,
+            children: [
+              if (widget.icon != null)
+                MadarIcon(
+                  widget.icon,
+                  tint: focused ? colors.accent : colors.textMuted,
+                  size: IconSize.lg,
                 ),
-                decoration: InputDecoration.collapsed(
-                  hintText: widget.placeholder,
-                  hintStyle: MadarType.title.copyWith(
-                    fontWeight: FontWeight.w400,
-                    color: colors.textMuted,
+              Expanded(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: TextField(
+                    controller: widget.controller,
+                    focusNode: _focus,
+                    cursorColor: colors.accent,
+                    style: MadarType.title.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: colors.textPrimary,
+                    ),
+                    decoration: InputDecoration.collapsed(
+                      hintText: widget.placeholder,
+                      hintStyle: MadarType.title.copyWith(
+                        fontWeight: FontWeight.w400,
+                        color: colors.textMuted,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -344,20 +340,13 @@ class AmountField extends StatefulWidget {
 }
 
 class _AmountFieldState extends State<AmountField> {
+  /// Widget-local ephemera — the focus border repaints through a
+  /// [ListenableBuilder] on the node, never setState.
   late final TextEditingController _controller = TextEditingController(
     text: widget.amountMinor == 0 ? '' : _minorToText(widget.amountMinor),
   );
   final FocusNode _focus = FocusNode();
   late int _lastEmitted = widget.amountMinor;
-  bool _focused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(() {
-      if (mounted) setState(() => _focused = _focus.hasFocus);
-    });
-  }
 
   @override
   void didUpdateWidget(AmountField oldWidget) {
@@ -386,51 +375,59 @@ class _AmountFieldState extends State<AmountField> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return Container(
-      height: Metrics.amountFieldHeight,
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.lg),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(
-          color: _focused ? colors.accent : colors.border,
-          width: _focused ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        spacing: Space.sm,
-        children: [
-          Text(
-            widget.currencyCode.toUpperCase(),
-            style: MadarType.title.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colors.textMuted,
+    return ListenableBuilder(
+      listenable: _focus,
+      builder: (context, _) {
+        final focused = _focus.hasFocus;
+        return Container(
+          height: Metrics.amountFieldHeight,
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.lg),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(Radii.md),
+            border: Border.all(
+              color: focused ? colors.accent : colors.border,
+              width: focused ? 2 : 1,
             ),
           ),
-          Expanded(
-            child: Material(
-              type: MaterialType.transparency,
-              child: TextField(
-                controller: _controller,
-                focusNode: _focus,
-                autofocus: widget.autofocus,
-                onChanged: _changed,
-                cursorColor: colors.accent,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+          child: Row(
+            spacing: Space.sm,
+            children: [
+              Text(
+                widget.currencyCode.toUpperCase(),
+                style: MadarType.title.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colors.textMuted,
                 ),
-                style: MadarType.moneyLg.copyWith(color: colors.textPrimary),
-                decoration: InputDecoration.collapsed(
-                  hintText: '0.00',
-                  hintStyle: MadarType.moneyLg.copyWith(
-                    color: colors.textMuted,
+              ),
+              Expanded(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focus,
+                    autofocus: widget.autofocus,
+                    onChanged: _changed,
+                    cursorColor: colors.accent,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: MadarType.moneyLg.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                    decoration: InputDecoration.collapsed(
+                      hintText: '0.00',
+                      hintStyle: MadarType.moneyLg.copyWith(
+                        color: colors.textMuted,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -448,68 +445,6 @@ int _toMinor(String s) {
 String _minorToText(int minor) {
   if (minor % 100 == 0) return '${minor ~/ 100}';
   return (minor / 100).toStringAsFixed(2);
-}
-
-/// The natives' `ScreenHeader` on its raised `screenHeaderBar` surface —
-/// back chevron + screen title over a bottom rule (the close-shift header
-/// minus the subtitle line).
-class ShiftHeaderBar extends StatelessWidget {
-  /// Creates the raised screen-header bar.
-  const ShiftHeaderBar({required this.title, required this.onBack, super.key});
-
-  /// The screen title.
-  final String title;
-
-  /// Back affordance (the natives set the screen's `show*` flag false).
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ColoredBox(
-          color: colors.surface,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.lg,
-              vertical: Space.md,
-            ),
-            child: Row(
-              spacing: Space.md,
-              children: [
-                Semantics(
-                  button: true,
-                  child: TactileScale(
-                    onTap: onBack,
-                    child: MadarIcon(
-                      'chevron.backward',
-                      tint: colors.textPrimary,
-                      size: _headerIconSize,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.h3.copyWith(
-                      fontSize: _headerTitleSize,
-                      fontWeight: FontWeight.w800,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const ShiftHairline(light: false),
-      ],
-    );
-  }
 }
 
 /// A zero-inset [ShiftCard]: same surface / hairline border / soft

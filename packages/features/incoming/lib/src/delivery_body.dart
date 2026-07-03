@@ -1,19 +1,21 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_incoming/src/details_sheets.dart';
-import 'package:feature_incoming/src/incoming_controller.dart';
+import 'package:feature_incoming/src/incoming_provider.dart';
 import 'package:feature_incoming/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Delivery queue — the "Delivery" tab of the unified Orders surface. The
 // teller works the branch's live delivery orders: advance the lifecycle,
 // bump prep time, cancel (with restock), and finalize into a real sale on
 // the open shift. All logic in the core; this only renders + collects.
-// SSE is primary (the shell bumps [DeliveryBody.tick] on delivery events);
-// a slow 60s poll is just a safety net. Port of DeliveryScreen.kt.
+// SSE is primary (the screen reloads on [deliveryTickProvider]); a slow
+// 60s poll is just a safety net. Port of DeliveryScreen.kt.
 
 // Native metrics (DeliveryScreen.kt) kept verbatim.
 
@@ -44,62 +46,56 @@ const double _emptyIcon = 40;
 /// Dashboard-disabled accepting chip alpha (natives: 0.5f).
 const double _disabledChipAlpha = 0.5;
 
-/// The delivery board body. The unified [tick] Listenable (shell-owned SSE
-/// counter) triggers reloads; a 60s poll backstops it.
-class DeliveryBody extends StatefulWidget {
-  const DeliveryBody({required this.model, this.tick, super.key});
-
-  final IncomingController model;
-
-  /// Bumped by the shell on `delivery.*` realtime events.
-  final Listenable? tick;
+/// The delivery board body. The screen-level [deliveryTickProvider] listen
+/// (shell-owned SSE counter) triggers reloads; a 60s poll backstops it.
+class DeliveryBody extends ConsumerStatefulWidget {
+  const DeliveryBody({super.key});
 
   @override
-  State<DeliveryBody> createState() => _DeliveryBodyState();
+  ConsumerState<DeliveryBody> createState() => _DeliveryBodyState();
 }
 
-class _DeliveryBodyState extends State<DeliveryBody> {
+class _DeliveryBodyState extends ConsumerState<DeliveryBody> {
   Timer? _poll;
-
-  IncomingController get _model => widget.model;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_model.loadDeliveryOrders());
-    widget.tick?.addListener(_reload);
-    _poll = Timer.periodic(
-      _pollPeriod,
-      (_) => unawaited(_model.loadDeliveryOrders()),
+    // (Re)entering the tab refreshes the queue — deferred a microtask
+    // because provider writes are illegal while the tree is building.
+    unawaited(
+      Future<void>.microtask(() {
+        if (mounted) _reload();
+      }),
     );
+    _poll = Timer.periodic(_pollPeriod, (_) => _reload());
   }
 
   @override
   void dispose() {
     _poll?.cancel();
-    widget.tick?.removeListener(_reload);
     super.dispose();
   }
 
-  void _reload() => unawaited(_model.loadDeliveryOrders());
+  void _reload() =>
+      unawaited(ref.read(incomingProvider.notifier).loadDeliveryOrders());
 
   // ── sheet launchers ────────────────────────────────────────────────────────
   /// Order-details overlay — the SHARED details layout (customer/address/
   /// channel + lines + money breakdown), the same surface the Open-tickets
   /// tab routes through. Finalize CTA pinned when the order is live.
   Future<void> _viewOrder(DeliveryOrderView o) async {
+    final bridge = ref.read(bridgeProvider);
     final finalize = await showMadarSheet<bool>(
       context,
       size: SheetSize.large,
       maxWidth: Responsive.listMaxWidth,
       builder: (sheetContext) => DeliveryDetailsSheet(
         order: o,
-        currency: _model.currency,
-        tr: _model.tr,
         footer: o.isTerminal
             ? null
             : IncomingButton(
-                label: _model.tr('delivery.finalize'),
+                label: bridge.tr(key: 'delivery.finalize'),
                 icon: 'checkmark.seal',
                 onTap: () =>
                     unawaited(Navigator.of(sheetContext).maybePop(true)),
@@ -116,7 +112,7 @@ class _DeliveryBodyState extends State<DeliveryBody> {
     await showMadarSheet<void>(
       context,
       size: SheetSize.large,
-      builder: (_) => _DeliveryFinalizeSheet(model: _model, order: o),
+      builder: (_) => _DeliveryFinalizeSheet(order: o),
     );
   }
 
@@ -126,114 +122,119 @@ class _DeliveryBodyState extends State<DeliveryBody> {
       context,
       size: SheetSize.hug,
       maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (_) => _CancelSheet(model: _model, order: o),
+      builder: (_) => _CancelSheet(order: o),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return ListenableBuilder(
-      listenable: _model,
-      builder: (context, _) {
-        final model = _model;
-        final settings = model.deliverySettings;
-        final error = model.error;
-        return Column(
-          children: [
-            // Active/All filter toolbar (the unified header owns back+title).
-            ColoredBox(
-              color: colors.surface,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: Space.lg,
-                      vertical: Space.sm,
-                    ),
-                    child: Row(
-                      children: [
-                        const Spacer(),
-                        _SegToggle(
-                          activeOnly: model.deliveryActiveOnly,
-                          activeLabel: model.tr('delivery.active'),
-                          allLabel: model.tr('delivery.all'),
-                          onChange: (active) {
-                            model.deliveryActiveOnly = active;
-                            unawaited(model.loadDeliveryOrders());
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const IncomingHairline(),
-                ],
-              ),
-            ),
-            // Accepting chips (in-mall / outside: auto → open → closed).
-            if (settings != null)
-              ColoredBox(
-                color: colors.surface,
-                child: Column(
+    final bridge = ref.watch(bridgeProvider);
+    final notifier = ref.read(incomingProvider.notifier);
+    final activeOnly = ref.watch(
+      incomingProvider.select((s) => s.deliveryActiveOnly),
+    );
+    final settings = ref.watch(
+      incomingProvider.select((s) => s.deliverySettings),
+    );
+    final error = ref.watch(incomingProvider.select((s) => s.error));
+    return Column(
+      children: [
+        // Active/All filter toolbar (the unified header owns back+title).
+        ColoredBox(
+          color: colors.surface,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsetsDirectional.symmetric(
+                  horizontal: Space.lg,
+                  vertical: Space.sm,
+                ),
+                child: Row(
                   children: [
-                    Padding(
-                      padding: const EdgeInsetsDirectional.symmetric(
-                        horizontal: Space.lg,
-                        vertical: Space.sm,
-                      ),
-                      child: Row(
-                        spacing: Space.sm,
-                        children: [
-                          Text(
-                            model.tr('delivery.accepting'),
-                            style: MadarType.labelSm.copyWith(
-                              color: colors.textMuted,
-                            ),
-                          ),
-                          _AcceptingChip(
-                            model: model,
-                            label: model.tr('delivery.in_mall'),
-                            channel: 'in_mall',
-                            mode: settings.inMallOverride,
-                            enabled: settings.inMallEnabled,
-                          ),
-                          _AcceptingChip(
-                            model: model,
-                            label: model.tr('delivery.outside'),
-                            channel: 'outside',
-                            mode: settings.outsideOverride,
-                            enabled: settings.outsideEnabled,
-                          ),
-                        ],
-                      ),
+                    const Spacer(),
+                    _SegToggle(
+                      activeOnly: activeOnly,
+                      activeLabel: bridge.tr(key: 'delivery.active'),
+                      allLabel: bridge.tr(key: 'delivery.all'),
+                      onChange: (active) =>
+                          notifier.setDeliveryActiveOnly(activeOnly: active),
                     ),
-                    const IncomingHairline(),
                   ],
                 ),
               ),
-            if (error != null)
-              Padding(
-                padding: const EdgeInsetsDirectional.all(Space.lg),
-                child: NoticeBanner(
-                  text: error,
-                  icon: 'exclamationmark.circle',
+              const IncomingHairline(),
+            ],
+          ),
+        ),
+        // Accepting chips (in-mall / outside: auto → open → closed).
+        if (settings != null)
+          ColoredBox(
+            color: colors.surface,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsetsDirectional.symmetric(
+                    horizontal: Space.lg,
+                    vertical: Space.sm,
+                  ),
+                  child: Row(
+                    spacing: Space.sm,
+                    children: [
+                      Text(
+                        bridge.tr(key: 'delivery.accepting'),
+                        style: MadarType.labelSm.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                      _AcceptingChip(
+                        label: bridge.tr(key: 'delivery.in_mall'),
+                        channel: 'in_mall',
+                        mode: settings.inMallOverride,
+                        enabled: settings.inMallEnabled,
+                      ),
+                      _AcceptingChip(
+                        label: bridge.tr(key: 'delivery.outside'),
+                        channel: 'outside',
+                        mode: settings.outsideOverride,
+                        enabled: settings.outsideEnabled,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            Expanded(child: _buildList(model, colors)),
-          ],
-        );
-      },
+                const IncomingHairline(),
+              ],
+            ),
+          ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsetsDirectional.all(Space.lg),
+            child: NoticeBanner(
+              text: error,
+              icon: 'exclamationmark.circle',
+            ),
+          ),
+        Expanded(child: _buildList(colors)),
+      ],
     );
   }
 
-  Widget _buildList(IncomingController model, MadarColors colors) {
-    if (model.isLoadingDelivery && model.deliveryOrders.isEmpty) {
+  Widget _buildList(MadarColors colors) {
+    final bridge = ref.watch(bridgeProvider);
+    final notifier = ref.read(incomingProvider.notifier);
+    final orders = ref.watch(
+      incomingProvider.select((s) => s.deliveryOrders),
+    );
+    final loading = ref.watch(
+      incomingProvider.select((s) => s.isLoadingDelivery),
+    );
+    if (loading && orders.isEmpty) {
       return const Align(
         alignment: Alignment.topCenter,
         child: SkeletonList(),
       );
     }
-    if (model.deliveryOrders.isEmpty) {
+    if (orders.isEmpty) {
       // The natives' bespoke empty column (bicycle glyph + quiet line).
       return Center(
         child: Column(
@@ -242,7 +243,7 @@ class _DeliveryBodyState extends State<DeliveryBody> {
           children: [
             MadarIcon('bicycle', tint: colors.textMuted, size: _emptyIcon),
             Text(
-              model.tr('delivery.empty'),
+              bridge.tr(key: 'delivery.empty'),
               style: MadarType.body.copyWith(
                 fontWeight: FontWeight.w400,
                 color: colors.textSecondary,
@@ -254,22 +255,21 @@ class _DeliveryBodyState extends State<DeliveryBody> {
     }
     return ListView.separated(
       padding: const EdgeInsetsDirectional.all(Space.lg),
-      itemCount: model.deliveryOrders.length,
+      itemCount: orders.length,
       separatorBuilder: (_, _) => const SizedBox(height: Space.sm),
       itemBuilder: (context, index) {
-        final o = model.deliveryOrders[index];
+        final o = orders[index];
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: kBoardCardMaxWidth),
             child: _DeliveryOrderCard(
-              model: model,
               order: o,
               onView: () => unawaited(_viewOrder(o)),
-              onAdvance: () => unawaited(model.advanceDelivery(o)),
-              onPrep: () => unawaited(model.addDeliveryPrep(o)),
+              onAdvance: () => unawaited(notifier.advanceDelivery(o)),
+              onPrep: () => unawaited(notifier.addDeliveryPrep(o)),
               onFinalize: () => unawaited(_finalize(o)),
               onCancel: () => unawaited(_cancel(o)),
-              onReject: () => unawaited(model.rejectDelivery(o)),
+              onReject: () => unawaited(notifier.rejectDelivery(o)),
             ),
           ),
         );
@@ -280,23 +280,22 @@ class _DeliveryBodyState extends State<DeliveryBody> {
 
 /// Per-channel accepting override chip — dashboard-disabled channels can't
 /// be opened, shown muted. Tap cycles auto → open → closed.
-class _AcceptingChip extends StatelessWidget {
+class _AcceptingChip extends ConsumerWidget {
   const _AcceptingChip({
-    required this.model,
     required this.label,
     required this.channel,
     required this.mode,
     required this.enabled,
   });
 
-  final IncomingController model;
   final String label;
   final String channel;
   final String mode;
   final bool enabled;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
     final tone = !enabled
         ? ChipTone.neutral
         : switch (mode) {
@@ -305,7 +304,7 @@ class _AcceptingChip extends StatelessWidget {
             _ => ChipTone.accent,
           };
     final chip = StatusChip(
-      label: '$label: ${model.tr('delivery.mode_$mode')}',
+      label: '$label: ${bridge.tr(key: 'delivery.mode_$mode')}',
       tone: tone,
     );
     if (!enabled) {
@@ -313,9 +312,11 @@ class _AcceptingChip extends StatelessWidget {
     }
     return TactileScale(
       onTap: () {
-        if (model.isBusy) return;
+        if (ref.read(incomingProvider).isBusy) return;
         MadarHaptics.selection();
-        unawaited(model.cycleAccepting(channel, mode));
+        unawaited(
+          ref.read(incomingProvider.notifier).cycleAccepting(channel, mode),
+        );
       },
       child: chip,
     );
@@ -385,9 +386,9 @@ class _SegToggle extends StatelessWidget {
 /// One delivery order card — a status-tinted header strip (the lifecycle
 /// reads from across the room), the customer + money hero, address/notes,
 /// then the action row (View / advance / ⋯ menu) while the order is live.
-class _DeliveryOrderCard extends StatelessWidget {
+/// Hot path: watches only the bridge handle + the currency slice.
+class _DeliveryOrderCard extends ConsumerWidget {
   const _DeliveryOrderCard({
-    required this.model,
     required this.order,
     required this.onView,
     required this.onAdvance,
@@ -397,7 +398,6 @@ class _DeliveryOrderCard extends StatelessWidget {
     required this.onReject,
   });
 
-  final IncomingController model;
   final DeliveryOrderView order;
   final VoidCallback onView;
   final VoidCallback onAdvance;
@@ -407,8 +407,12 @@ class _DeliveryOrderCard extends StatelessWidget {
   final VoidCallback onReject;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
     final o = order;
     final (statusFg, statusBg) = _statusTint(o.status, colors);
     final next = _nextStatus(o.status);
@@ -445,7 +449,7 @@ class _DeliveryOrderCard extends StatelessWidget {
                   ),
                   Flexible(
                     child: Text(
-                      model.tr('delivery.status.${o.status}'),
+                      bridge.tr(key: 'delivery.status.${o.status}'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: MadarType.body.copyWith(
@@ -455,7 +459,7 @@ class _DeliveryOrderCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  StatusChip(label: model.tr('delivery.${o.channel}')),
+                  StatusChip(label: bridge.tr(key: 'delivery.${o.channel}')),
                   const Spacer(),
                   if (o.orderRef case final ref?)
                     Text(
@@ -530,7 +534,7 @@ class _DeliveryOrderCard extends StatelessWidget {
                         ),
                         child: MoneyText(
                           o.totalMinor,
-                          currency: model.currency,
+                          currency: currency,
                           style: MadarType.money.copyWith(
                             fontSize: _cardMoneySize,
                             fontWeight: FontWeight.w900,
@@ -557,7 +561,7 @@ class _DeliveryOrderCard extends StatelessWidget {
                     spacing: Space.sm,
                     children: [
                       Text(
-                        '${o.itemCount} ${model.tr('delivery.items')}',
+                        '${o.itemCount} ${bridge.tr(key: 'delivery.items')}',
                         style: MadarType.labelSm.copyWith(
                           color: colors.textMuted,
                         ),
@@ -565,8 +569,8 @@ class _DeliveryOrderCard extends StatelessWidget {
                       if (o.deliveryFeeMinor > 0)
                         Flexible(
                           child: Text(
-                            '· ${model.tr('receipt.delivery_fee')} '
-                            '${Money.format(o.deliveryFeeMinor, currency: model.currency)}',
+                            '· ${bridge.tr(key: 'receipt.delivery_fee')} '
+                            '${Money.format(o.deliveryFeeMinor, currency: currency)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: MadarType.labelSm.copyWith(
@@ -587,7 +591,7 @@ class _DeliveryOrderCard extends StatelessWidget {
                         // Visible "View order" — the same OUTLINE affordance
                         // the open-tickets card exposes.
                         IncomingButton(
-                          label: model.tr('order.view_order'),
+                          label: bridge.tr(key: 'order.view_order'),
                           icon: 'list.bullet',
                           variant: IncomingButtonVariant.outline,
                           expand: false,
@@ -596,7 +600,7 @@ class _DeliveryOrderCard extends StatelessWidget {
                         if (next != null)
                           Flexible(
                             child: IncomingButton(
-                              label: model.tr('delivery.action.$next'),
+                              label: bridge.tr(key: 'delivery.action.$next'),
                               icon: 'arrow.right.circle',
                               expand: false,
                               onTap: onAdvance,
@@ -604,7 +608,6 @@ class _DeliveryOrderCard extends StatelessWidget {
                           ),
                         const Spacer(),
                         _OverflowMenu(
-                          model: model,
                           order: o,
                           onView: onView,
                           onPrep: onPrep,
@@ -626,9 +629,8 @@ class _DeliveryOrderCard extends StatelessWidget {
 
 /// The ⋯ menu — view / +5 min prep / finalize / reject (received only) /
 /// cancel. Mirrors the natives' DropdownMenu on the 34-dp ellipsis box.
-class _OverflowMenu extends StatelessWidget {
+class _OverflowMenu extends ConsumerWidget {
   const _OverflowMenu({
-    required this.model,
     required this.order,
     required this.onView,
     required this.onPrep,
@@ -637,7 +639,6 @@ class _OverflowMenu extends StatelessWidget {
     required this.onReject,
   });
 
-  final IncomingController model;
   final DeliveryOrderView order;
   final VoidCallback onView;
   final VoidCallback onPrep;
@@ -646,8 +647,9 @@ class _OverflowMenu extends StatelessWidget {
   final VoidCallback onReject;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
     MenuItemButton item(
       String icon,
       String label,
@@ -680,21 +682,25 @@ class _OverflowMenu extends StatelessWidget {
         ),
       ),
       menuChildren: [
-        item('list.bullet', model.tr('order.view_order'), onView),
-        item('clock', model.tr('delivery.add_prep'), onPrep),
-        item('checkmark.seal', model.tr('delivery.finalize'), onFinalize),
+        item('list.bullet', bridge.tr(key: 'order.view_order'), onView),
+        item('clock', bridge.tr(key: 'delivery.add_prep'), onPrep),
+        item(
+          'checkmark.seal',
+          bridge.tr(key: 'delivery.finalize'),
+          onFinalize,
+        ),
         // Reject is the terminal "refuse incoming work" action — only a
         // just-received order can be rejected (before any prep).
         if (order.status == 'received')
           item(
             'hand.raised',
-            model.tr('delivery.reject'),
+            bridge.tr(key: 'delivery.reject'),
             onReject,
             danger: true,
           ),
         item(
           'xmark.circle',
-          model.tr('delivery.cancel'),
+          bridge.tr(key: 'delivery.cancel'),
           onCancel,
           danger: true,
         ),
@@ -726,81 +732,78 @@ class _OverflowMenu extends StatelessWidget {
 /// order's review rides in as the drawer's header, the delivery total drives
 /// the summary (so cash/change math includes the delivery fee), and the
 /// terminal action finalizes into a real sale via
-/// [IncomingController.finalizeDelivery].
+/// [IncomingNotifier.finalizeDelivery].
 ///
 /// The backend finalize only needs the chosen payment method, so the
 /// drawer's tip/split/cash-tendered extras are a cashier aid only and are
 /// intentionally ignored here. Discount + customer capture are hidden (a
 /// delivery order carries its own), matching settle.
-class _DeliveryFinalizeSheet extends StatefulWidget {
-  const _DeliveryFinalizeSheet({required this.model, required this.order});
+class _DeliveryFinalizeSheet extends ConsumerStatefulWidget {
+  const _DeliveryFinalizeSheet({required this.order});
 
-  final IncomingController model;
   final DeliveryOrderView order;
 
   @override
-  State<_DeliveryFinalizeSheet> createState() => _DeliveryFinalizeSheetState();
+  ConsumerState<_DeliveryFinalizeSheet> createState() =>
+      _DeliveryFinalizeSheetState();
 }
 
-class _DeliveryFinalizeSheetState extends State<_DeliveryFinalizeSheet> {
-  late final CheckoutController _checkout;
-
+class _DeliveryFinalizeSheetState
+    extends ConsumerState<_DeliveryFinalizeSheet> {
   @override
   void initState() {
     super.initState();
-    _checkout = CheckoutController(
-      core: widget.model.core,
-      onStateChanged: widget.model.onStateChanged,
+    // Fresh settle session over the delivery money — deferred a microtask
+    // because provider writes are illegal while the tree is building.
+    // totalMinor includes the delivery fee → cash/change math correct.
+    unawaited(
+      Future<void>.microtask(() {
+        if (!mounted) return;
+        final o = widget.order;
+        unawaited(
+          ref
+              .read(checkoutProvider.notifier)
+              .startSettle(
+                CheckoutSummary(
+                  subtotalMinor: o.subtotalMinor,
+                  discountMinor: o.discountMinor,
+                  totalMinor: o.totalMinor,
+                ),
+              ),
+        );
+      }),
     );
-    unawaited(_checkout.init());
-  }
-
-  @override
-  void dispose() {
-    _checkout.dispose();
-    super.dispose();
   }
 
   Future<void> _finalize(CheckoutResult result) async {
-    _checkout.error = null;
-    final ok = await widget.model.finalizeDelivery(
-      widget.order,
-      result.primaryMethodId,
-    );
+    final checkout = ref.read(checkoutProvider.notifier)..setError(null);
+    final ok = await ref
+        .read(incomingProvider.notifier)
+        .finalizeDelivery(widget.order, result.primaryMethodId);
     if (!mounted) return;
     if (ok) {
       await Navigator.of(context).maybePop();
     } else {
       // Surface the failure INSIDE the drawer (the natives' model.error) —
-      // the board's own banner sits behind the modal scrim. The model's
-      // pending notify rebuilds the ListenableBuilder above.
-      _checkout.error = widget.model.error;
+      // the board's own banner sits behind the modal scrim.
+      checkout.setError(ref.read(incomingProvider).error);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final model = widget.model;
+    final bridge = ref.watch(bridgeProvider);
+    final placing = ref.watch(incomingProvider.select((s) => s.isBusy));
     final o = widget.order;
-    final label = model.tr('delivery.finalize');
-    return ListenableBuilder(
-      listenable: model,
-      builder: (context, _) => CheckoutDrawer(
-        controller: _checkout,
-        // totalMinor includes the delivery fee → cash/change math correct.
-        summary: CheckoutSummary(
-          subtotalMinor: o.subtotalMinor,
-          discountMinor: o.discountMinor,
-          totalMinor: o.totalMinor,
-        ),
-        title: label,
-        terminalLabel: label,
-        terminalIcon: 'checkmark.seal',
-        placing: model.isBusy,
-        onClose: () => unawaited(Navigator.of(context).maybePop()),
-        headerContent: _FinalizeHeader(model: model, order: o),
-        onTerminal: (result) => unawaited(_finalize(result)),
-      ),
+    final label = bridge.tr(key: 'delivery.finalize');
+    return CheckoutDrawer(
+      title: label,
+      terminalLabel: label,
+      terminalIcon: 'checkmark.seal',
+      placing: placing,
+      onClose: () => unawaited(Navigator.of(context).maybePop()),
+      headerContent: _FinalizeHeader(order: o),
+      onTerminal: (result) => unawaited(_finalize(result)),
     );
   }
 }
@@ -808,15 +811,18 @@ class _DeliveryFinalizeSheetState extends State<_DeliveryFinalizeSheet> {
 /// Compact order review atop the finalize drawer — the teller sees WHO +
 /// WHAT they're charging (customer, address, priced lines) before
 /// tendering. The drawer's own summary card renders the money breakdown.
-class _FinalizeHeader extends StatelessWidget {
-  const _FinalizeHeader({required this.model, required this.order});
+class _FinalizeHeader extends ConsumerWidget {
+  const _FinalizeHeader({required this.order});
 
-  final IncomingController model;
   final DeliveryOrderView order;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
     final o = order;
     final address = o.address;
     return IncomingCard(
@@ -830,13 +836,13 @@ class _FinalizeHeader extends StatelessWidget {
               MadarIcon('bicycle', tint: colors.accent, size: IconSize.lg),
               Flexible(
                 child: Text(
-                  o.orderRef ?? model.tr('delivery.title'),
+                  o.orderRef ?? bridge.tr(key: 'delivery.title'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: MadarType.title.copyWith(color: colors.textPrimary),
                 ),
               ),
-              StatusChip(label: model.tr('delivery.${o.channel}')),
+              StatusChip(label: bridge.tr(key: 'delivery.${o.channel}')),
             ],
           ),
           Text(
@@ -870,7 +876,7 @@ class _FinalizeHeader extends StatelessWidget {
                 ),
                 MoneyText(
                   line.lineTotalMinor,
-                  currency: model.currency,
+                  currency: currency,
                   style: MadarType.money.copyWith(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -888,33 +894,38 @@ class _FinalizeHeader extends StatelessWidget {
 /// Cancel sheet — optional reason, the restock switch, and a danger
 /// confirm. `restore_inventory = false` means the food was made and is
 /// wasted (the frozen plan is deducted + logged as waste in the core).
-class _CancelSheet extends StatefulWidget {
-  const _CancelSheet({required this.model, required this.order});
+class _CancelSheet extends ConsumerStatefulWidget {
+  const _CancelSheet({required this.order});
 
-  final IncomingController model;
   final DeliveryOrderView order;
 
   @override
-  State<_CancelSheet> createState() => _CancelSheetState();
+  ConsumerState<_CancelSheet> createState() => _CancelSheetState();
 }
 
-class _CancelSheetState extends State<_CancelSheet> {
+class _CancelSheetState extends ConsumerState<_CancelSheet> {
   final _reason = TextEditingController();
-  bool _restock = true;
+
+  /// Restock toggle — widget-local ephemera driven through a
+  /// [ValueListenableBuilder] (no setState).
+  final _restock = ValueNotifier<bool>(true);
 
   @override
   void dispose() {
     _reason.dispose();
+    _restock.dispose();
     super.dispose();
   }
 
   Future<void> _confirm() async {
     final reason = _reason.text.trim();
-    final ok = await widget.model.cancelDelivery(
-      widget.order,
-      reason: reason.isEmpty ? null : reason,
-      restoreInventory: _restock,
-    );
+    final ok = await ref
+        .read(incomingProvider.notifier)
+        .cancelDelivery(
+          widget.order,
+          reason: reason.isEmpty ? null : reason,
+          restoreInventory: _restock.value,
+        );
     if (!mounted || !ok) return;
     await Navigator.of(context).maybePop();
   }
@@ -922,62 +933,64 @@ class _CancelSheetState extends State<_CancelSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final model = widget.model;
-    return ListenableBuilder(
-      listenable: model,
-      builder: (context, _) => Padding(
-        padding: const EdgeInsetsDirectional.all(Space.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: [
-            Text(
-              model.tr('delivery.cancel'),
-              style: MadarType.h2.copyWith(color: colors.textPrimary),
+    final bridge = ref.watch(bridgeProvider);
+    final error = ref.watch(incomingProvider.select((s) => s.error));
+    final busy = ref.watch(incomingProvider.select((s) => s.isBusy));
+    return Padding(
+      padding: const EdgeInsetsDirectional.all(Space.lg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.md,
+        children: [
+          Text(
+            bridge.tr(key: 'delivery.cancel'),
+            style: MadarType.h2.copyWith(color: colors.textPrimary),
+          ),
+          Text(
+            widget.order.customerName,
+            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+          ),
+          // A failed cancel surfaces INSIDE the sheet — the board's own
+          // banner sits behind the modal scrim (the natives' model.error).
+          if (error case final error?)
+            NoticeBanner(
+              text: error,
+              tone: ChipTone.danger,
+              icon: 'exclamationmark.circle',
             ),
-            Text(
-              widget.order.customerName,
-              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-            ),
-            // A failed cancel surfaces INSIDE the sheet — the board's own
-            // banner sits behind the modal scrim (the natives' model.error).
-            if (model.error case final error?)
-              NoticeBanner(
-                text: error,
-                tone: ChipTone.danger,
-                icon: 'exclamationmark.circle',
+          IncomingTextField(
+            controller: _reason,
+            placeholder: bridge.tr(key: 'delivery.cancel_reason'),
+            icon: 'text.bubble',
+          ),
+          Row(
+            spacing: Space.sm,
+            children: [
+              Expanded(
+                child: Text(
+                  bridge.tr(key: 'delivery.restore_inventory'),
+                  style: MadarType.body.copyWith(color: colors.textPrimary),
+                ),
               ),
-            IncomingTextField(
-              controller: _reason,
-              placeholder: model.tr('delivery.cancel_reason'),
-              icon: 'text.bubble',
-            ),
-            Row(
-              spacing: Space.sm,
-              children: [
-                Expanded(
-                  child: Text(
-                    model.tr('delivery.restore_inventory'),
-                    style: MadarType.body.copyWith(color: colors.textPrimary),
-                  ),
-                ),
-                Switch(
-                  value: _restock,
+              ValueListenableBuilder<bool>(
+                valueListenable: _restock,
+                builder: (_, restock, _) => Switch(
+                  value: restock,
                   activeTrackColor: colors.accent,
-                  onChanged: (value) => setState(() => _restock = value),
+                  onChanged: (value) => _restock.value = value,
                 ),
-              ],
-            ),
-            IncomingButton(
-              label: model.tr('delivery.cancel'),
-              icon: 'xmark.circle',
-              variant: IncomingButtonVariant.danger,
-              loading: model.isBusy,
-              onTap: () => unawaited(_confirm()),
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          IncomingButton(
+            label: bridge.tr(key: 'delivery.cancel'),
+            icon: 'xmark.circle',
+            variant: IncomingButtonVariant.danger,
+            loading: busy,
+            onTap: () => unawaited(_confirm()),
+          ),
+        ],
       ),
     );
   }

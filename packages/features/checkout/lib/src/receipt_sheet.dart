@@ -1,130 +1,163 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_checkout/src/checkout_controller.dart';
+import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/receipt_paper.dart';
 import 'package:feature_checkout/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// Preview of any order's receipt with Print + Done actions — the sheet form
-/// of the natives' ReceiptPreviewScreen (past-order reprint, "view receipt"
-/// entry points). Present via `showMadarSheet`; Done / the close affordance
-/// pop the sheet.
-///
-/// Print guards on the device's printer config: with no printer bound it
-/// raises a warning toast instead of attempting the send (the natives'
-/// printReceiptView), and reports success/failure the same way.
-class ReceiptSheet extends StatefulWidget {
-  const ReceiptSheet({
-    required this.core,
-    required this.onStateChanged,
-    required this.receipt,
-    super.key,
+/// State of the receipt preview sheet — the print-in-flight flag, the
+/// best-effort org logo, and the local toast feedback.
+@immutable
+class ReceiptPreviewState {
+  const ReceiptPreviewState({
+    this.printing = false,
+    this.orgLogoUrl,
+    this.toast,
   });
 
-  final MadarCore core;
+  final bool printing;
+  final String? orgLogoUrl;
+  final ToastData? toast;
 
-  /// Screen-contract shell callback (printing moves no app state, so this
-  /// is never fired here).
-  final void Function() onStateChanged;
-
-  /// The receipt to preview — a fresh checkout's result or a re-rendered
-  /// past order (`bridge.orderReceiptView`).
-  final ReceiptView receipt;
-
-  @override
-  State<ReceiptSheet> createState() => _ReceiptSheetState();
+  ReceiptPreviewState copyWith({
+    bool? printing,
+    String? orgLogoUrl,
+    ToastData? toast,
+    bool clearToast = false,
+  }) {
+    return ReceiptPreviewState(
+      printing: printing ?? this.printing,
+      orgLogoUrl: orgLogoUrl ?? this.orgLogoUrl,
+      toast: clearToast ? null : (toast ?? this.toast),
+    );
+  }
 }
 
-class _ReceiptSheetState extends State<ReceiptSheet> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  bool _printing = false;
-  String? _orgLogoUrl;
-  ToastData? _toast;
+/// The receipt preview's state holder — autoDispose so every presented
+/// preview starts fresh. Loads the org logo on build; [print] streams the
+/// receipt to the configured printer with toast feedback (no drawer kick —
+/// this is a preview / reprint surface, the natives' printReceiptView).
+class ReceiptPreviewNotifier extends AutoDisposeNotifier<ReceiptPreviewState> {
+  bool _live = false;
   int _toastSeq = 0;
 
-  String _tr(String key) => _bridge.tr(key: key);
-
-  String get _branchName => _bridge.deviceConfig().branchName ?? '';
-
-  String get _currency => _bridge.currentSession()?.currencyCode ?? '';
-
   @override
-  void initState() {
-    super.initState();
+  ReceiptPreviewState build() {
+    _live = true;
+    ref.onDispose(() => _live = false);
     unawaited(_loadLogo());
+    return const ReceiptPreviewState();
+  }
+
+  MadarBridge get _bridge => ref.read(bridgeProvider);
+
+  void _update(ReceiptPreviewState Function(ReceiptPreviewState s) transform) {
+    if (_live) state = transform(state);
   }
 
   Future<void> _loadLogo() async {
+    final bridge = _bridge;
     try {
-      final url = await _bridge.orgLogoUrl();
-      if (mounted) setState(() => _orgLogoUrl = url);
+      final url = await bridge.orgLogoUrl();
+      _update((s) => s.copyWith(orgLogoUrl: url));
     } on MadarError {
       // Best-effort — the paper renders without a brand mark.
     }
   }
 
-  void _showToast(String text, {required ChipTone tone, String? icon}) {
+  void _toast(String text, {required ChipTone tone, String? icon}) {
     _toastSeq += 1;
-    setState(() {
-      _toast = ToastData(id: _toastSeq, text: text, tone: tone, icon: icon);
-    });
+    _update(
+      (s) => s.copyWith(
+        toast: ToastData(id: _toastSeq, text: text, tone: tone, icon: icon),
+      ),
+    );
   }
 
-  /// Render the receipt in the core and stream it to the configured network
-  /// printer — toast-driven feedback, no drawer kick (this is a preview /
-  /// reprint surface).
-  Future<void> _print() async {
-    if (_printing) return;
-    final config = _bridge.deviceConfig();
+  /// Auto-dismiss callback for `ToastHost`.
+  void dismissToast(int id) {
+    if (state.toast?.id != id) return;
+    _update((s) => s.copyWith(clearToast: true));
+  }
+
+  /// Render [receipt] in the core and stream it to the configured network
+  /// printer. Guards on the device's printer config: with no printer bound
+  /// it raises a warning toast instead of attempting the send.
+  Future<void> print(ReceiptView receipt) async {
+    if (state.printing) return;
+    final bridge = _bridge;
+    String tr(String key) => bridge.tr(key: key);
+    final config = bridge.deviceConfig();
     final host = config.printerHost?.trim() ?? '';
     if (host.isEmpty) {
-      _showToast(
-        _tr('receipt.no_printer'),
+      _toast(
+        tr('receipt.no_printer'),
         tone: ChipTone.warning,
         icon: 'exclamationmark.triangle',
       );
       return;
     }
-    setState(() => _printing = true);
+    _update((s) => s.copyWith(printing: true));
     try {
-      final bytes = await _bridge.renderReceipt(
-        receipt: widget.receipt,
-        storeName: _branchName,
-        currency: _currency,
+      final bytes = await bridge.renderReceipt(
+        receipt: receipt,
+        storeName: bridge.deviceConfig().branchName ?? '',
+        currency: bridge.currentSession()?.currencyCode ?? '',
         width: kReceiptChars,
         brand: printerBrandOf(config.printerBrand),
       );
-      await _bridge.sendToPrinter(
+      await bridge.sendToPrinter(
         host: host,
         port: config.printerPort ?? kJetDirectPort,
         bytes: bytes,
       );
-      if (mounted) {
-        _showToast(
-          _tr('receipt.printed'),
-          tone: ChipTone.success,
-          icon: 'checkmark.circle',
-        );
-      }
+      _toast(
+        tr('receipt.printed'),
+        tone: ChipTone.success,
+        icon: 'checkmark.circle',
+      );
     } on Exception {
-      if (mounted) {
-        _showToast(
-          _tr('receipt.print_failed'),
-          tone: ChipTone.danger,
-          icon: 'xmark.circle',
-        );
-      }
+      _toast(
+        tr('receipt.print_failed'),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
     } finally {
-      if (mounted) setState(() => _printing = false);
+      _update((s) => s.copyWith(printing: false));
     }
   }
+}
+
+/// One preview session per presented sheet.
+final AutoDisposeNotifierProvider<ReceiptPreviewNotifier, ReceiptPreviewState>
+receiptPreviewProvider = NotifierProvider.autoDispose(
+  ReceiptPreviewNotifier.new,
+);
+
+/// Preview of any order's receipt with Print + Done actions — the sheet form
+/// of the natives' ReceiptPreviewScreen (past-order reprint, "view receipt"
+/// entry points). Present via `showMadarSheet`; Done / the close affordance
+/// pop the sheet. Pure-DATA param: the [receipt] to preview — a fresh
+/// checkout's result or a re-rendered past order
+/// (`bridge.orderReceiptView`).
+class ReceiptSheet extends ConsumerWidget {
+  const ReceiptSheet({required this.receipt, super.key});
+
+  /// The receipt to preview.
+  final ReceiptView receipt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    String tr(String key) => bridge.tr(key: key);
+    final preview = ref.watch(receiptPreviewProvider);
+    final branchName = bridge.deviceConfig().branchName ?? '';
+    final currency = bridge.currentSession()?.currencyCode ?? '';
     return Stack(
       children: [
         Column(
@@ -139,7 +172,7 @@ class _ReceiptSheetState extends State<ReceiptSheet> {
                 children: [
                   Expanded(
                     child: Text(
-                      _tr('receipt.title'),
+                      tr('receipt.title'),
                       style: MadarType.h3.copyWith(
                         fontWeight: FontWeight.w900,
                         color: colors.textPrimary,
@@ -173,11 +206,10 @@ class _ReceiptSheetState extends State<ReceiptSheet> {
                 padding: const EdgeInsetsDirectional.all(Space.lg),
                 child: Center(
                   child: ReceiptPaper(
-                    core: widget.core,
-                    receipt: widget.receipt,
-                    storeName: _branchName,
-                    currency: _currency,
-                    orgLogoUrl: _orgLogoUrl,
+                    receipt: receipt,
+                    storeName: branchName,
+                    currency: currency,
+                    orgLogoUrl: preview.orgLogoUrl,
                   ),
                 ),
               ),
@@ -195,16 +227,20 @@ class _ReceiptSheetState extends State<ReceiptSheet> {
                       children: [
                         Expanded(
                           child: ActionButton(
-                            label: _tr('receipt.print'),
+                            label: tr('receipt.print'),
                             icon: 'printer',
                             variant: ActionVariant.outline,
-                            loading: _printing,
-                            onTap: () => unawaited(_print()),
+                            loading: preview.printing,
+                            onTap: () => unawaited(
+                              ref
+                                  .read(receiptPreviewProvider.notifier)
+                                  .print(receipt),
+                            ),
                           ),
                         ),
                         Expanded(
                           child: ActionButton(
-                            label: _tr('order.done'),
+                            label: tr('order.done'),
                             icon: 'checkmark',
                             onTap: () =>
                                 unawaited(Navigator.of(context).maybePop()),
@@ -221,10 +257,8 @@ class _ReceiptSheetState extends State<ReceiptSheet> {
         // Local toast layer — the sheet floats above the screen's host, so
         // print feedback presents inside the sheet itself.
         ToastHost(
-          _toast,
-          onDismiss: (id) {
-            if (_toast?.id == id) setState(() => _toast = null);
-          },
+          preview.toast,
+          onDismiss: ref.read(receiptPreviewProvider.notifier).dismissToast,
         ),
       ],
     );

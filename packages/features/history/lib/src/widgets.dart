@@ -1,17 +1,15 @@
 /// History-feature widget kit — the Flutter mirror of the natives' shared
 /// pieces the history screens use (Components.kt / SharedComponents.kt:
-/// MadarButton, MadarTextField, SelectableChip, ScreenHeader, the history
-/// filter chip and payment badge). Tokens-only, plus a few native component
-/// metrics that fall between the 4-pt Space steps, kept verbatim (the
-/// design system's banners.dart pattern) so the Flutter chrome measures
-/// identically to the Kotlin/Swift natives.
+/// MadarButton, MadarTextField, SelectableChip, the history filter chip
+/// and payment badge; screen headers are the design system's MadarHeader).
+/// Tokens-only, plus a few native component metrics that fall between the
+/// 4-pt Space steps, kept verbatim (the design system's banners.dart
+/// pattern) so the Flutter chrome measures identically to the Kotlin/Swift
+/// natives.
 library;
 
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
-
-/// Header back chevron / title size (natives: 17.dp / 17.sp).
-const double kHeaderIconSize = 17;
 
 /// Button loading spinner diameter / stroke (natives: 20.dp / 2.5.dp).
 const double _spinnerSize = 20;
@@ -229,15 +227,6 @@ class HistoryTextField extends StatefulWidget {
 
 class _HistoryTextFieldState extends State<HistoryTextField> {
   final FocusNode _focus = FocusNode();
-  bool _focused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(() {
-      if (mounted) setState(() => _focused = _focus.hasFocus);
-    });
-  }
 
   @override
   void dispose() {
@@ -248,63 +237,73 @@ class _HistoryTextFieldState extends State<HistoryTextField> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return AnimatedContainer(
-      duration: MotionSpec.standardDuration,
-      curve: MotionSpec.standardCurve,
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Space.lg,
-        vertical: _fieldVPad,
-      ),
-      decoration: BoxDecoration(
-        color: _focused ? colors.surface : colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(
-          color: _focused ? colors.accent : colors.border,
-          width: _focused ? 2 : 1,
-        ),
-        boxShadow: _focused
-            ? [
-                BoxShadow(
-                  color: colors.accent.withValues(alpha: Opacities.focusGlow),
-                  blurRadius: _fieldGlowBlur,
-                ),
-              ]
-            : null,
-      ),
-      child: Row(
-        spacing: _fieldGap,
-        children: [
-          if (widget.icon != null)
-            MadarIcon(
-              widget.icon,
-              tint: _focused ? colors.accent : colors.textMuted,
-              size: IconSize.lg,
+    // The focus ring re-renders off the FocusNode itself (a Listenable) —
+    // no setState; the field body below rebuilds with it (cheap leaf).
+    return ListenableBuilder(
+      listenable: _focus,
+      builder: (context, _) {
+        final focused = _focus.hasFocus;
+        return AnimatedContainer(
+          duration: MotionSpec.standardDuration,
+          curve: MotionSpec.standardCurve,
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Space.lg,
+            vertical: _fieldVPad,
+          ),
+          decoration: BoxDecoration(
+            color: focused ? colors.surface : colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(Radii.md),
+            border: Border.all(
+              color: focused ? colors.accent : colors.border,
+              width: focused ? 2 : 1,
             ),
-          Expanded(
-            child: Material(
-              type: MaterialType.transparency,
-              child: TextField(
-                controller: widget.controller,
-                focusNode: _focus,
-                enabled: widget.enabled,
-                onChanged: widget.onChanged,
-                cursorColor: colors.accent,
-                style: MadarType.title.copyWith(
-                  fontWeight: FontWeight.w400,
-                  color: colors.textPrimary,
+            boxShadow: focused
+                ? [
+                    BoxShadow(
+                      color: colors.accent.withValues(
+                        alpha: Opacities.focusGlow,
+                      ),
+                      blurRadius: _fieldGlowBlur,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            spacing: _fieldGap,
+            children: [
+              if (widget.icon != null)
+                MadarIcon(
+                  widget.icon,
+                  tint: focused ? colors.accent : colors.textMuted,
+                  size: IconSize.lg,
                 ),
-                decoration: InputDecoration.collapsed(
-                  hintText: widget.placeholder,
-                  hintStyle: MadarType.title.copyWith(
-                    fontWeight: FontWeight.w400,
-                    color: colors.textMuted,
+              Expanded(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: TextField(
+                    controller: widget.controller,
+                    focusNode: _focus,
+                    enabled: widget.enabled,
+                    onChanged: widget.onChanged,
+                    cursorColor: colors.accent,
+                    style: MadarType.title.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: colors.textPrimary,
+                    ),
+                    decoration: InputDecoration.collapsed(
+                      hintText: widget.placeholder,
+                      hintStyle: MadarType.title.copyWith(
+                        fontWeight: FontWeight.w400,
+                        color: colors.textMuted,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -451,88 +450,6 @@ class PaymentBadge extends StatelessWidget {
           style: MadarType.labelSm.copyWith(color: fg),
         ),
       ),
-    );
-  }
-}
-
-/// Surface top bar for the history screens: back chevron + title
-/// (+subtitle) + trailing slot, over a hairline (the natives'
-/// `screenHeaderBar` + `ScreenHeader`).
-class HistoryHeaderBar extends StatelessWidget {
-  const HistoryHeaderBar({
-    required this.title,
-    required this.onBack,
-    this.subtitle,
-    this.trailing = const <Widget>[],
-    super.key,
-  });
-
-  final String title;
-  final VoidCallback onBack;
-  final String? subtitle;
-
-  /// End-aligned widgets (loading spinner, counts, actions).
-  final List<Widget> trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final subtitle = this.subtitle;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ColoredBox(
-          color: colors.surface,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.lg,
-              vertical: Space.md,
-            ),
-            child: Row(
-              spacing: Space.md,
-              children: [
-                Semantics(
-                  button: true,
-                  child: TactileScale(
-                    onTap: onBack,
-                    child: MadarIcon(
-                      'chevron.backward',
-                      tint: colors.textPrimary,
-                      size: kHeaderIconSize,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 1,
-                    children: [
-                      Text(
-                        title,
-                        style: MadarType.h3.copyWith(
-                          fontSize: kHeaderIconSize,
-                          fontWeight: FontWeight.w800,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      if (subtitle != null)
-                        Text(
-                          subtitle,
-                          style: MadarType.labelSm.copyWith(
-                            fontWeight: FontWeight.w400,
-                            color: colors.textMuted,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                ...trailing,
-              ],
-            ),
-          ),
-        ),
-        const Hairline(),
-      ],
     );
   }
 }

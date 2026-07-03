@@ -1,17 +1,19 @@
 /// Kitchen Display — the full-screen board a `kitchen`-role device shows.
 /// Live kitchen events arrive on the ONE session-level realtime subscription
 /// the shell owns (the core picks the kitchen topic for a KDS device); the
-/// shell surfaces them as [KitchenDisplayScreen.realtimeTick] bumps and this
-/// screen reloads. Sound is the shell's job too (AlertCommand.ping) — the
-/// board only draws. A pixel-and-behavior port of the Kotlin
-/// KitchenDisplayScreen.kt.
+/// shell bumps [kitchenTickProvider] and this screen reloads. Sound is the
+/// shell's job too (AlertCommand.ping) — the board only draws. A
+/// pixel-and-behavior port of the Kotlin KitchenDisplayScreen.kt.
 library;
 
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:flutter/foundation.dart';
+import 'package:feature_kds/src/kds_provider.dart';
+import 'package:feature_settings/feature_settings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Native board metrics (KitchenDisplayScreen.kt) that fall between the 4-pt
@@ -81,189 +83,127 @@ int _minutesSince(String rfc) {
   return minutes < 0 ? 0 : minutes;
 }
 
-/// The kitchen board. Takes the shared screen contract ([core] +
-/// [onStateChanged]) plus the board's route payload: the device's bound
-/// [stationId] (null = the all-station expo board) and the shell-owned
-/// [realtimeTick] that bumps on every `kitchen.*` realtime event.
-class KitchenDisplayScreen extends StatefulWidget {
-  const KitchenDisplayScreen({
-    required this.core,
-    required this.onStateChanged,
-    this.stationId,
-    this.realtimeTick,
-    this.realtimeConnected,
-    this.onOpenSettings,
-    super.key,
-  });
-
-  final MadarCore core;
-
-  /// Fired after any bridge call that can move `app_route()` / the session.
-  /// The board's own calls (bump/recall) never do — kept for the shared
-  /// screen contract and future settings-driven route moves.
-  final void Function() onStateChanged;
+/// The kitchen board. Takes only the board's route payload: the device's
+/// bound [stationId] (null = the all-station expo board). Realtime reloads
+/// ride [kitchenTickProvider]; the header dot + reconnecting banner ride
+/// [realtimeConnectedProvider]; the header gear pushes [SettingsScreen].
+class KitchenDisplayScreen extends ConsumerStatefulWidget {
+  const KitchenDisplayScreen({super.key, this.stationId});
 
   /// The device's bound kitchen station (route payload). Null shows every
   /// station's lines — the expo board.
   final String? stationId;
 
-  /// Bumped by the shell on each `kitchen.*` realtime event → reload.
-  final Listenable? realtimeTick;
-
-  /// The shell's SSE connection state — drives the header dot and the
-  /// reconnecting banner (the natives' `realtimeConnected`). Null reads as
-  /// connected until the shell wires it.
-  final ValueListenable<bool>? realtimeConnected;
-
-  /// Opens the settings overlay (shell-owned). The header gear only renders
-  /// when provided.
-  final VoidCallback? onOpenSettings;
-
   @override
-  State<KitchenDisplayScreen> createState() => _KitchenDisplayScreenState();
+  ConsumerState<KitchenDisplayScreen> createState() =>
+      _KitchenDisplayScreenState();
 }
 
-class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  List<KdsTicketView> _tickets = const [];
-  List<KdsStationView> _stations = const [];
+class _KitchenDisplayScreenState extends ConsumerState<KitchenDisplayScreen> {
   Timer? _safetyPoll;
 
-  String _t(String key) => _bridge.tr(key: key);
-
-  bool get _connected => widget.realtimeConnected?.value ?? true;
+  KdsNotifier get _board => ref.read(kdsProvider(widget.stationId).notifier);
 
   @override
   void initState() {
     super.initState();
-    unawaited(_loadStations());
-    unawaited(_load());
-    widget.realtimeTick?.addListener(_onTick);
-    widget.realtimeConnected?.addListener(_onConnection);
+    unawaited(_board.loadStations());
+    unawaited(_board.load());
     // Slow safety-net poll under the realtime tick — also re-renders the
     // age escalation at least once a minute (the natives' 60s loop).
-    _safetyPoll = Timer.periodic(_safetyPollPeriod, (_) => unawaited(_load()));
+    _safetyPoll = Timer.periodic(
+      _safetyPollPeriod,
+      (_) => unawaited(_board.load()),
+    );
   }
 
   @override
   void didUpdateWidget(KitchenDisplayScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.realtimeTick != widget.realtimeTick) {
-      oldWidget.realtimeTick?.removeListener(_onTick);
-      widget.realtimeTick?.addListener(_onTick);
-    }
-    if (oldWidget.realtimeConnected != widget.realtimeConnected) {
-      oldWidget.realtimeConnected?.removeListener(_onConnection);
-      widget.realtimeConnected?.addListener(_onConnection);
-    }
     // A station rebind updates this widget in place (the shell keys the
-    // subtree by route TYPE only) — refetch instead of showing the old
-    // station's tickets until the next tick/poll.
+    // subtree by route TYPE only) — prime the new station's family notifier
+    // instead of showing an empty board until the next tick/poll.
     if (oldWidget.stationId != widget.stationId) {
-      unawaited(_load());
+      unawaited(_board.loadStations());
+      unawaited(_board.load());
     }
   }
 
   @override
   void dispose() {
-    widget.realtimeTick?.removeListener(_onTick);
-    widget.realtimeConnected?.removeListener(_onConnection);
     _safetyPoll?.cancel();
     super.dispose();
   }
 
-  void _onTick() => unawaited(_load());
-
-  void _onConnection() {
-    if (mounted) setState(() {});
-  }
-
-  /// Fetch the board. A failed fetch keeps the last good board on screen
-  /// (the natives' runCatching — a blip never blanks a busy kitchen).
-  Future<void> _load() async {
-    try {
-      final tickets = await _bridge.kdsList(stationId: widget.stationId);
-      if (!mounted) return;
-      setState(() => _tickets = tickets);
-    } on Object {
-      // Keep the previous tickets.
-    }
-  }
-
-  Future<void> _loadStations() async {
-    List<KdsStationView> stations;
-    try {
-      stations = await _bridge.kdsListStations();
-    } on Object {
-      stations = const [];
-    }
-    if (!mounted) return;
-    setState(() => _stations = stations);
-  }
-
-  /// Toggle one line's done marker: bump ⇄ recall (kdsBump / kdsUnbump),
-  /// then reload. Failures are silent — the next tick reconciles.
-  Future<void> _toggleLine(KdsLineView line) async {
-    try {
-      if (line.bumped) {
-        await _bridge.kdsUnbump(itemId: line.id);
-      } else {
-        await _bridge.kdsBump(itemId: line.id);
-      }
-      await _load();
-    } on Object {
-      // The board reloads on the next tick / poll.
-    }
-  }
-
-  String get _stationName {
-    final id = widget.stationId;
-    if (id != null) {
-      for (final station in _stations) {
-        if (station.id == id) return station.name;
-      }
-    }
-    return _t('kds.title');
+  void _openSettings() {
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    // Reload on every `kitchen.*` realtime event the shell surfaces.
+    ref.listen(kitchenTickProvider, (_, _) => unawaited(_board.load()));
+    final tickets = ref.watch(
+      kdsProvider(widget.stationId).select((s) => s.tickets),
+    );
+    final stationName =
+        ref.watch(
+          kdsProvider(
+            widget.stationId,
+          ).select((s) => s.stationName(widget.stationId)),
+        ) ??
+        bridge.tr(key: 'kds.title');
+    final connected = ref.watch(realtimeConnectedProvider);
     // Scaffold (not a bare ColoredBox): text styling needs a Material
-    // ancestor — every screen owns its own Scaffold in this app.
+    // ancestor — every screen owns its own Scaffold in this app. The
+    // station header owns the top inset (edge-to-edge); the board below
+    // keeps the side insets.
     return Scaffold(
       backgroundColor: colors.bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _KitchenHeader(
-              stationName: _stationName,
-              ticketCount: _tickets.length,
-              connected: _connected,
-              onOpenSettings: widget.onOpenSettings,
-            ),
-            if (!_connected)
-              Padding(
-                padding: const EdgeInsetsDirectional.symmetric(
-                  horizontal: Space.lg,
-                  vertical: Space.sm,
-                ),
-                child: NoticeBanner(
-                  text: _t('kds.reconnecting'),
-                  icon: 'wifi.slash',
-                ),
-              ),
-            Expanded(
-              child: _tickets.isEmpty
-                  ? _KdsEmptyState(title: _t('kds.all_clear'))
-                  : _TicketGrid(
-                      tickets: _tickets,
-                      onToggleLine: (line) => unawaited(_toggleLine(line)),
+      body: Column(
+        children: [
+          _KitchenHeader(
+            stationName: stationName,
+            ticketCount: tickets.length,
+            connected: connected,
+            onOpenSettings: _openSettings,
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  if (!connected)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.symmetric(
+                        horizontal: Space.lg,
+                        vertical: Space.sm,
+                      ),
+                      child: NoticeBanner(
+                        text: bridge.tr(key: 'kds.reconnecting'),
+                        icon: 'wifi.slash',
+                      ),
                     ),
+                  Expanded(
+                    child: tickets.isEmpty
+                        ? _KdsEmptyState(title: bridge.tr(key: 'kds.all_clear'))
+                        : _TicketGrid(
+                            tickets: tickets,
+                            onToggleLine: (line) =>
+                                unawaited(_board.toggleLine(line)),
+                          ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -271,8 +211,10 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
 
 // ── Header ──────────────────────────────────────────────────────────────────
 /// Clean, confident board header: a leading teal tone-tile behind the station
-/// glyph, the bold station name, a live-connection dot, and the outstanding-
-/// ticket count. Mirrors the natives' `KitchenHeader`.
+/// glyph, the bold station name, a live-connection dot, the outstanding-
+/// ticket count, and the settings gear. Mirrors the natives' `KitchenHeader`,
+/// painted edge-to-edge — the surface runs to y=0 and the row sits below the
+/// status-bar inset.
 class _KitchenHeader extends StatelessWidget {
   const _KitchenHeader({
     required this.stationName,
@@ -284,19 +226,22 @@ class _KitchenHeader extends StatelessWidget {
   final String stationName;
   final int ticketCount;
   final bool connected;
-  final VoidCallback? onOpenSettings;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    final topInset = MediaQuery.viewPaddingOf(context).top;
     return ColoredBox(
       color: colors.surface,
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.lg,
-              vertical: _headerVPad,
+            padding: EdgeInsetsDirectional.only(
+              top: topInset + _headerVPad,
+              bottom: _headerVPad,
+              start: Space.lg,
+              end: Space.lg,
             ),
             child: Row(
               children: [
@@ -343,18 +288,17 @@ class _KitchenHeader extends StatelessWidget {
                   const SizedBox(width: Space.sm),
                   StatusChip(label: '$ticketCount', tone: ChipTone.accent),
                 ],
-                if (onOpenSettings case final openSettings?)
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(start: Space.xs),
-                    child: TactileScale(
-                      onTap: openSettings,
-                      child: MadarIcon(
-                        'gearshape',
-                        tint: colors.textSecondary,
-                        size: IconSize.lg,
-                      ),
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: Space.xs),
+                  child: TactileScale(
+                    onTap: onOpenSettings,
+                    child: MadarIcon(
+                      'gearshape',
+                      tint: colors.textSecondary,
+                      size: IconSize.lg,
                     ),
                   ),
+                ),
               ],
             ),
           ),

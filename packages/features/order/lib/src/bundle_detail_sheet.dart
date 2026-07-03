@@ -1,79 +1,73 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/cart_panel.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
-import 'package:feature_order/src/order_controller.dart';
+import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// Bundle (combo) configuration sheet. A bundle is a fixed price covering a
-/// set of component items; each configurable component opens the SAME
-/// item-customization sheet in configure mode, which pops the selection
-/// instead of writing to the cart. "Add to cart" records one bundle line
-/// via the core (cart_add_bundle), where component up-charges are resolved.
-class BundleDetailSheet extends StatefulWidget {
-  const BundleDetailSheet({
-    required this.model,
-    required this.bundle,
-    super.key,
-  });
+/// The DATA one bundle-configuration presentation is seeded from. Identity
+/// equality on purpose — each sheet instance creates its own args once, so
+/// its [bundleConfigProvider] member auto-disposes with it.
+class BundleSheetArgs {
+  BundleSheetArgs({required this.bundle});
 
-  final OrderController model;
   final BundleView bundle;
-
-  @override
-  State<BundleDetailSheet> createState() => _BundleDetailSheetState();
 }
 
-class _BundleDetailSheetState extends State<BundleDetailSheet> {
-  /// Per-component config, keyed by the component's index (handles a bundle
-  /// that lists the same item twice).
-  final Map<int, BundleComponentDraft> _drafts = {};
+/// Per-component config, keyed by the component's index (handles a bundle
+/// that lists the same item twice), plus the add-to-cart in-flight latch.
+@immutable
+class BundleConfigState {
+  const BundleConfigState({
+    this.drafts = const {},
+    this.adding = false,
+  });
+
+  final Map<int, BundleComponentDraft> drafts;
 
   /// Latches the footer while add-to-cart is in flight so a double-tap
   /// can't record the bundle line twice.
-  bool _adding = false;
+  final bool adding;
 
-  /// A component needs configuring when it has a size choice, addon slots,
-  /// or active optionals.
-  bool _needsConfig(MenuItemView item) =>
-      item.sizes.length > 1 ||
-      item.addonSlots.isNotEmpty ||
-      item.optionalFields.any((f) => f.isActive);
+  BundleConfigState copyWith({
+    Map<int, BundleComponentDraft>? drafts,
+    bool? adding,
+  }) => BundleConfigState(
+    drafts: drafts ?? this.drafts,
+    adding: adding ?? this.adding,
+  );
+}
 
-  MenuItemView? _itemFor(BundleComponentView comp) =>
-      widget.model.menuItemById(comp.itemId);
+/// Selection notifier for one bundle sheet presentation.
+class BundleConfigNotifier
+    extends AutoDisposeFamilyNotifier<BundleConfigState, BundleSheetArgs> {
+  @override
+  BundleConfigState build(BundleSheetArgs arg) => const BundleConfigState();
 
-  Future<void> _configure(int index, MenuItemView item) async {
-    // Load the component's addons, then open the per-component customization
-    // sheet on top of this one; the draft pops back.
-    final addons = await widget.model.loadItemAddons(item.id);
-    if (!mounted) return;
-    final draft = await showMadarSheet<BundleComponentDraft>(
-      context,
-      size: SheetSize.hug,
-      builder: (_) => ItemDetailSheet(
-        model: widget.model,
-        item: item,
-        addons: addons,
-        configureSeed: _drafts[index],
-        isConfiguring: true,
-      ),
-    );
-    if (draft == null || !mounted) return;
-    setState(() => _drafts[index] = draft);
-  }
+  void setDraft(int index, BundleComponentDraft draft) =>
+      state = state.copyWith(drafts: {...state.drafts, index: draft});
 
-  Future<void> _add() async {
-    if (_adding) return;
-    setState(() => _adding = true);
+  /// Record the configured bundle. Returns false when an add is already in
+  /// flight (the double-tap guard) — the sheet pops only on true.
+  Future<bool> addToCart() async {
+    if (state.adding) return false;
+    state = state.copyWith(adding: true);
+    final bundle = arg.bundle;
+    final order = ref.read(orderProvider);
     final components = <BundleComponentSelection>[];
-    for (var i = 0; i < widget.bundle.components.length; i++) {
-      final comp = widget.bundle.components[i];
-      final draft = _drafts[i];
-      final defaultSize = _itemFor(comp)?.sizes.firstOrNull?.label;
+    for (var i = 0; i < bundle.components.length; i++) {
+      final comp = bundle.components[i];
+      final draft = state.drafts[i];
+      final defaultSize = order
+          .menuItemById(comp.itemId)
+          ?.sizes
+          .firstOrNull
+          ?.label;
       components.add(
         BundleComponentSelection(
           itemId: comp.itemId,
@@ -84,32 +78,107 @@ class _BundleDetailSheetState extends State<BundleDetailSheet> {
         ),
       );
     }
-    await widget.model.addBundle(widget.bundle.id, components);
-    if (mounted) await Navigator.of(context).maybePop();
+    await ref.read(orderProvider.notifier).addBundle(bundle.id, components);
+    return true;
+  }
+}
+
+/// One bundle sheet presentation's state, keyed by its (identity) args.
+final AutoDisposeNotifierProviderFamily<
+  BundleConfigNotifier,
+  BundleConfigState,
+  BundleSheetArgs
+>
+bundleConfigProvider = NotifierProvider.autoDispose
+    .family<BundleConfigNotifier, BundleConfigState, BundleSheetArgs>(
+      BundleConfigNotifier.new,
+    );
+
+/// Bundle (combo) configuration sheet. A bundle is a fixed price covering a
+/// set of component items; each configurable component opens the SAME
+/// item-customization sheet in configure mode, which pops the selection
+/// instead of writing to the cart. "Add to cart" records one bundle line
+/// via the core (cart_add_bundle), where component up-charges are resolved.
+class BundleDetailSheet extends ConsumerStatefulWidget {
+  const BundleDetailSheet({required this.bundle, super.key});
+
+  final BundleView bundle;
+
+  @override
+  ConsumerState<BundleDetailSheet> createState() => _BundleDetailSheetState();
+}
+
+class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
+  /// Created once per presentation — the identity key that gives this sheet
+  /// its own [bundleConfigProvider] member.
+  late final BundleSheetArgs _args = BundleSheetArgs(bundle: widget.bundle);
+
+  /// A component needs configuring when it has a size choice, addon slots,
+  /// or active optionals.
+  bool _needsConfig(MenuItemView item) =>
+      item.sizes.length > 1 ||
+      item.addonSlots.isNotEmpty ||
+      item.optionalFields.any((f) => f.isActive);
+
+  MenuItemView? _itemFor(BundleComponentView comp) =>
+      ref.read(orderProvider).menuItemById(comp.itemId);
+
+  Future<void> _configure(int index, MenuItemView item) async {
+    // Load the component's addons, then open the per-component customization
+    // sheet on top of this one; the draft pops back.
+    final addons = await ref
+        .read(orderProvider.notifier)
+        .loadItemAddons(item.id);
+    if (!mounted) return;
+    final seed = ref.read(bundleConfigProvider(_args)).drafts[index];
+    final draft = await showMadarSheet<BundleComponentDraft>(
+      context,
+      size: SheetSize.hug,
+      builder: (_) => ItemDetailSheet(
+        item: item,
+        addons: addons,
+        configureSeed: seed,
+        isConfiguring: true,
+      ),
+    );
+    if (draft == null || !mounted) return;
+    ref.read(bundleConfigProvider(_args).notifier).setDraft(index, draft);
+  }
+
+  Future<void> _add() async {
+    final added = await ref
+        .read(bundleConfigProvider(_args).notifier)
+        .addToCart();
+    if (added && mounted) await Navigator.of(context).maybePop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final model = widget.model;
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(orderProvider.select((s) => s.currency));
+    final config = ref.watch(bundleConfigProvider(_args));
     final bundle = widget.bundle;
 
     // All configurable components must be configured before adding.
     var canAdd = true;
     for (var i = 0; i < bundle.components.length; i++) {
       final item = _itemFor(bundle.components[i]);
-      if (item != null && _needsConfig(item) && _drafts[i] == null) {
+      if (item != null && _needsConfig(item) && config.drafts[i] == null) {
         canAdd = false;
         break;
       }
     }
-    final extrasTotal = _drafts.values.fold(0, (sum, d) => sum + d.extrasMinor);
+    final extrasTotal = config.drafts.values.fold(
+      0,
+      (sum, d) => sum + d.extrasMinor,
+    );
     final liveTotal = bundle.priceMinor + extrasTotal;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _BundleHeader(bundle: bundle, currency: model.currency),
+        _BundleHeader(bundle: bundle, currency: currency),
         Flexible(
           child: ColoredBox(
             color: colors.surfaceAlt,
@@ -119,7 +188,7 @@ class _BundleDetailSheetState extends State<BundleDetailSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SectionTitle(model.tr('order.bundle_includes')),
+                  SectionTitle(bridge.tr(key: 'order.bundle_includes')),
                   const SizedBox(height: Space.md),
                   for (var i = 0; i < bundle.components.length; i++) ...[
                     Builder(
@@ -128,11 +197,10 @@ class _BundleDetailSheetState extends State<BundleDetailSheet> {
                         final item = _itemFor(comp);
                         final configurable = item != null && _needsConfig(item);
                         return _ComponentTile(
-                          model: model,
                           comp: comp,
-                          currency: model.currency,
+                          currency: currency,
                           configurable: configurable,
-                          draft: _drafts[i],
+                          draft: config.drafts[i],
                           onTap: () {
                             if (item != null && configurable) {
                               unawaited(_configure(i, item));
@@ -149,13 +217,12 @@ class _BundleDetailSheetState extends State<BundleDetailSheet> {
           ),
         ),
         _BundleFooter(
-          model: model,
           bundlePriceMinor: bundle.priceMinor,
           extrasMinor: extrasTotal,
           liveTotalMinor: liveTotal,
-          currency: model.currency,
+          currency: currency,
           canAdd: canAdd,
-          loading: _adding,
+          loading: config.adding,
           onAdd: () => unawaited(_add()),
         ),
       ],
@@ -259,9 +326,8 @@ class _BundleHeader extends StatelessWidget {
 
 // ── Footer (base + extras · tinted teal total · Add to cart) ───────────────────
 
-class _BundleFooter extends StatelessWidget {
+class _BundleFooter extends ConsumerWidget {
   const _BundleFooter({
-    required this.model,
     required this.bundlePriceMinor,
     required this.extrasMinor,
     required this.liveTotalMinor,
@@ -271,7 +337,6 @@ class _BundleFooter extends StatelessWidget {
     required this.onAdd,
   });
 
-  final OrderController model;
   final int bundlePriceMinor;
   final int extrasMinor;
   final int liveTotalMinor;
@@ -283,8 +348,9 @@ class _BundleFooter extends StatelessWidget {
   final VoidCallback onAdd;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
     return ColoredBox(
       color: colors.surface,
       child: Column(
@@ -296,26 +362,26 @@ class _BundleFooter extends StatelessWidget {
               children: [
                 // Base + extras — light sub-rows so the total carries weight.
                 _FooterRow(
-                  label: model.tr('order.subtotal'),
+                  label: bridge.tr(key: 'order.subtotal'),
                   value: Money.format(bundlePriceMinor, currency: currency),
                 ),
                 if (extrasMinor > 0) ...[
                   const SizedBox(height: Space.sm),
                   _FooterRow(
-                    label: model.tr('order.addon_extra'),
+                    label: bridge.tr(key: 'order.addon_extra'),
                     value: '+${Money.format(extrasMinor, currency: currency)}',
                   ),
                 ],
                 const SizedBox(height: Space.sm),
                 GrandTotalBlock(
-                  label: model.tr('order.total'),
+                  label: bridge.tr(key: 'order.total'),
                   totalMinor: liveTotalMinor,
                   currency: currency,
                 ),
                 const SizedBox(height: Space.md),
                 ActionButton(
-                  label: model.tr(
-                    canAdd ? 'order.add_to_cart' : 'order.configure',
+                  label: bridge.tr(
+                    key: canAdd ? 'order.add_to_cart' : 'order.configure',
                   ),
                   enabled: canAdd,
                   loading: loading,
@@ -367,9 +433,8 @@ class _FooterRow extends StatelessWidget {
 
 /// A bundle component row — status tile, qty× name + a config summary, the
 /// chosen extras up-charge, and a chevron when configurable.
-class _ComponentTile extends StatelessWidget {
+class _ComponentTile extends ConsumerWidget {
   const _ComponentTile({
-    required this.model,
     required this.comp,
     required this.currency,
     required this.configurable,
@@ -377,7 +442,6 @@ class _ComponentTile extends StatelessWidget {
     required this.onTap,
   });
 
-  final OrderController model;
   final BundleComponentView comp;
   final String currency;
   final bool configurable;
@@ -385,9 +449,10 @@ class _ComponentTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final bridge = ref.watch(bridgeProvider);
     final draft = this.draft;
     final configured = draft != null;
 
@@ -415,7 +480,7 @@ class _ComponentTile extends StatelessWidget {
     String? subtitle;
     if (configurable) {
       if (!configured) {
-        subtitle = model.tr('order.configure');
+        subtitle = bridge.tr(key: 'order.configure');
       } else {
         final extras = draft.addons.length + draft.optionalIds.length;
         final parts = <String>[
@@ -423,7 +488,7 @@ class _ComponentTile extends StatelessWidget {
           if (extras > 0) '+$extras',
         ];
         subtitle = parts.isEmpty
-            ? model.tr('order.configure')
+            ? bridge.tr(key: 'order.configure')
             : parts.join(' · ');
       }
     }

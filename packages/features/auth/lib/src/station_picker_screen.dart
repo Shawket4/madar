@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_auth/src/auth_layout.dart';
+import 'package:feature_auth/src/providers.dart';
 import 'package:feature_auth/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Station column width cap (natives: `widthIn(max = 480.dp)`).
@@ -32,82 +35,28 @@ const double _defaultBorderAlpha = 0.55;
 /// (`setDeviceStation`) → the route recomputes to the kitchen display.
 /// Mirrors the login brand-panel split (even 50/50 on wide). Mirror of the
 /// natives' StationPickerScreen.kt.
-class StationPickerScreen extends StatefulWidget {
+class StationPickerScreen extends ConsumerStatefulWidget {
   /// Creates the station picker.
-  const StationPickerScreen({
-    required this.core,
-    required this.onStateChanged,
-    super.key,
-  });
-
-  /// The core handle.
-  final MadarCore core;
-
-  /// Notifies the shell after any bridge call that can move the route.
-  final void Function() onStateChanged;
+  const StationPickerScreen({super.key});
 
   @override
-  State<StationPickerScreen> createState() => _StationPickerScreenState();
+  ConsumerState<StationPickerScreen> createState() =>
+      _StationPickerScreenState();
 }
 
-class _StationPickerScreenState extends State<StationPickerScreen> {
-  List<KdsStationView> _stations = const [];
-  bool _loading = true;
-  String? _error;
-
-  MadarBridge get _bridge => widget.core.bridge;
-
-  String _t(String key) => _bridge.tr(key: key);
-
+class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
-  }
-
-  /// Load the branch's stations (natives' `loadKdsStations` — failures fall
-  /// back to an empty list, surfacing the "no stations" copy).
-  Future<void> _load() async {
-    var stations = const <KdsStationView>[];
-    try {
-      stations = await _bridge.kdsListStations();
-    } on Exception catch (_) {}
-    if (!mounted) return;
-    setState(() {
-      _stations = stations;
-      _loading = false;
-    });
-  }
-
-  /// Pin this device to [station] — the route recomputes to the KDS.
-  Future<void> _pick(KdsStationView station) async {
-    try {
-      await _bridge.setDeviceStation(stationId: station.id);
-    } on MadarError catch (e) {
-      if (mounted) setState(() => _error = _bridge.humanMessage(e));
-    } on Exception catch (_) {
-      if (mounted) setState(() => _error = _t('err.generic'));
-    }
-    widget.onStateChanged();
-  }
-
-  /// Tear down the session (natives' `signOut`) — routing falls back to
-  /// login. The shell owns the realtime/LAN lifecycles and reacts to the
-  /// route change.
-  Future<void> _signOut() async {
-    try {
-      _bridge.unsubscribeRealtime();
-    } on Exception catch (_) {}
-    try {
-      await _bridge.logout(wipeOutbox: false);
-    } on Exception catch (_) {}
-    widget.onStateChanged();
+    // Post-frame: provider writes are illegal while the tree is building.
+    unawaited(
+      Future.microtask(() => ref.read(authProvider.notifier).loadStations()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return AuthSplitScaffold(
-      core: widget.core,
       brandRatio: evenBrandRatio,
       formMaxWidth: _columnMaxWidth,
       formBuilder: _column,
@@ -116,7 +65,11 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
 
   Widget _column(BuildContext context, {required bool showLogo}) {
     final colors = context.madarColors;
-    final error = _error;
+    final loading = ref.watch(authProvider.select((s) => s.stationsLoading));
+    final stations = ref.watch(authProvider.select((s) => s.stations));
+    final error = ref.watch(authProvider.select((s) => s.error));
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -124,7 +77,7 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
       children: [
         if (showLogo) const MadarSymbol(size: _heroTile),
         // ── Hero greeting (the commissioning prompt IS the hero) ──────────
-        _greeting(context),
+        _greeting(context, t),
         if (error != null)
           NoticeBanner(
             text: error,
@@ -135,23 +88,23 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
         SurfaceCard(
           children: [
             SectionHeader(
-              text: _t('setup.title'),
+              text: t('setup.title'),
               icon: 'square.stack.3d.up.fill',
             ),
-            if (_loading)
+            if (loading)
               Padding(
                 padding: const EdgeInsets.all(Space.xl),
                 child: Center(
                   child: CircularProgressIndicator(color: colors.accent),
                 ),
               )
-            else if (_stations.isEmpty)
+            else if (stations.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: Space.md),
                 child: SizedBox(
                   width: double.infinity,
                   child: Text(
-                    _t('setup.no_stations'),
+                    t('setup.no_stations'),
                     textAlign: TextAlign.center,
                     style: MadarType.bodySm.copyWith(
                       fontWeight: FontWeight.w500,
@@ -161,18 +114,20 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
                 ),
               )
             else
-              for (final station in _stations)
+              for (final station in stations)
                 _StationCard(
                   station: station,
-                  defaultLabel: _t('setup.station_default'),
-                  onTap: () => unawaited(_pick(station)),
+                  defaultLabel: t('setup.station_default'),
+                  onTap: () => unawaited(
+                    ref.read(authProvider.notifier).pickStation(station),
+                  ),
                 ),
           ],
         ),
         // ── Recessive exit ─────────────────────────────────────────────────
         MadarButton(
-          label: _t('home.sign_out'),
-          onPressed: () => unawaited(_signOut()),
+          label: t('home.sign_out'),
+          onPressed: () => unawaited(ref.read(authProvider.notifier).signOut()),
           variant: AuthButtonVariant.ghost,
           icon: 'rectangle.portrait.and.arrow.right',
         ),
@@ -182,9 +137,9 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
 
   /// The commissioning hero — accent-tinted station tile, bold title,
   /// supporting line, and the bound branch as an info chip.
-  Widget _greeting(BuildContext context) {
+  Widget _greeting(BuildContext context, String Function(String) t) {
     final colors = context.madarColors;
-    final branchName = _bridge.deviceConfig().branchName ?? '';
+    final branchName = ref.read(bridgeProvider).deviceConfig().branchName ?? '';
 
     return Column(
       spacing: Space.sm,
@@ -204,7 +159,7 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
           ),
         ),
         Text(
-          _t('setup.choose_station'),
+          t('setup.choose_station'),
           textAlign: TextAlign.center,
           style: MadarType.h1.copyWith(
             fontSize: _heroTitleSize,
@@ -213,7 +168,7 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
           ),
         ),
         Text(
-          _t('setup.choose_station_desc'),
+          t('setup.choose_station_desc'),
           textAlign: TextAlign.center,
           style: MadarType.bodySm.copyWith(
             fontWeight: FontWeight.w500,

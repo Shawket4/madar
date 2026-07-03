@@ -14,6 +14,7 @@ library;
 
 export 'src/delivery_body.dart' show DeliveryBody;
 export 'src/details_sheets.dart' show DeliveryDetailsSheet, TicketDetailsSheet;
-export 'src/incoming_controller.dart' show IncomingController;
+export 'src/incoming_provider.dart'
+    show IncomingNotifier, IncomingState, incomingProvider;
 export 'src/incoming_screen.dart' show IncomingScreen;
 export 'src/tickets_settle_body.dart' show TicketsSettleBody;

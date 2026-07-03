@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_checkout/src/checkout_controller.dart';
 import 'package:feature_checkout/src/checkout_drawer.dart';
+import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/receipt_paper.dart';
 import 'package:feature_checkout/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Native metrics (TenderScreen.kt ReceiptConfirmation) kept verbatim.
@@ -23,81 +25,53 @@ const double _placedTitleSize = 22;
 /// confirmation; dismissing the confirmation returns the [ReceiptView] as
 /// the sheet result. Port of the natives' TenderOverlay / TenderForm.
 ///
+/// Owns its [checkoutProvider] session (autoDispose — starts the cart
+/// session on mount, resets on dismiss):
+///
 /// ```dart
 /// final receipt = await showMadarSheet<ReceiptView>(
 ///   context,
 ///   size: SheetSize.large,
-///   builder: (_) => TenderSheet(core: core, onStateChanged: onStateChanged),
+///   builder: (_) => const TenderSheet(),
 /// );
 /// ```
-class TenderSheet extends StatefulWidget {
-  const TenderSheet({
-    required this.core,
-    required this.onStateChanged,
-    super.key,
-  });
-
-  final MadarCore core;
-
-  /// Fired after a successful checkout (the cart empties and the shift
-  /// stats/history move).
-  final void Function() onStateChanged;
+class TenderSheet extends ConsumerStatefulWidget {
+  const TenderSheet({super.key});
 
   @override
-  State<TenderSheet> createState() => _TenderSheetState();
+  ConsumerState<TenderSheet> createState() => _TenderSheetState();
 }
 
-class _TenderSheetState extends State<TenderSheet> {
-  late final CheckoutController _model;
-
+class _TenderSheetState extends ConsumerState<TenderSheet> {
   @override
   void initState() {
     super.initState();
-    _model = CheckoutController(
-      core: widget.core,
-      onStateChanged: widget.onStateChanged,
-    );
-    unawaited(_model.init());
-  }
-
-  @override
-  void dispose() {
-    _model.dispose();
-    super.dispose();
+    // Kicks the fresh autoDispose session; the first state write lands
+    // after the loads (post-frame), so this is build-safe.
+    unawaited(ref.read(checkoutProvider.notifier).startCart());
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _model,
-      builder: (context, _) {
-        final receipt = _model.receipt;
-        if (receipt != null) {
-          return _ReceiptConfirmation(
-            model: _model,
-            receipt: receipt,
-            onDone: () => unawaited(Navigator.of(context).maybePop(receipt)),
-          );
-        }
-        final totals = _model.cartTotals;
-        return CheckoutDrawer(
-          controller: _model,
-          summary: CheckoutSummary(
-            subtotalMinor: totals.subtotalMinor,
-            discountMinor: totals.discountMinor,
-            taxMinor: totals.taxMinor,
-            totalMinor: totals.totalMinor,
-          ),
-          title: _model.tr('order.tender'),
-          terminalLabel: _model.tr('order.place_order'),
-          terminalIcon: 'checkmark',
-          placing: _model.isPlacingOrder,
-          showDiscountPicker: true,
-          showCustomerFields: true,
-          onClose: () => unawaited(Navigator.of(context).maybePop()),
-          onTerminal: (result) => unawaited(_model.placeOrder(result)),
-        );
-      },
+    final bridge = ref.watch(bridgeProvider);
+    final receipt = ref.watch(checkoutProvider.select((s) => s.receipt));
+    if (receipt != null) {
+      return _ReceiptConfirmation(
+        receipt: receipt,
+        onDone: () => unawaited(Navigator.of(context).maybePop(receipt)),
+      );
+    }
+    // No `placing` override — the drawer watches the session's own
+    // isPlacingOrder.
+    return CheckoutDrawer(
+      title: bridge.tr(key: 'order.tender'),
+      terminalLabel: bridge.tr(key: 'order.place_order'),
+      terminalIcon: 'checkmark',
+      showDiscountPicker: true,
+      showCustomerFields: true,
+      onClose: () => unawaited(Navigator.of(context).maybePop()),
+      onTerminal: (result) =>
+          unawaited(ref.read(checkoutProvider.notifier).placeOrder(result)),
     );
   }
 }
@@ -105,20 +79,30 @@ class _TenderSheetState extends State<TenderSheet> {
 /// The post-checkout confirmation: fixed status header · scrolling receipt ·
 /// pinned footer — so the print controls + New Order stay reachable however
 /// long the receipt is. Mirrors the natives' ReceiptConfirmation.
-class _ReceiptConfirmation extends StatelessWidget {
+class _ReceiptConfirmation extends ConsumerWidget {
   const _ReceiptConfirmation({
-    required this.model,
     required this.receipt,
     required this.onDone,
   });
 
-  final CheckoutController model;
   final ReceiptView receipt;
   final VoidCallback onDone;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    String tr(String key) => bridge.tr(key: key);
+    final printState = ref.watch(
+      checkoutProvider.select((s) => s.printState),
+    );
+    final branchName = ref.watch(
+      checkoutProvider.select((s) => s.branchName),
+    );
+    final currency = ref.watch(checkoutProvider.select((s) => s.currency));
+    final orgLogoUrl = ref.watch(
+      checkoutProvider.select((s) => s.orgLogoUrl),
+    );
     final queued = receipt.queuedOffline;
     return Column(
       children: [
@@ -137,7 +121,7 @@ class _ReceiptConfirmation extends StatelessWidget {
                 size: _statusIconSize,
               ),
               Text(
-                model.tr('order.order_placed'),
+                tr('order.order_placed'),
                 style: MadarType.h2.copyWith(
                   fontSize: _placedTitleSize,
                   fontWeight: FontWeight.w900,
@@ -145,9 +129,7 @@ class _ReceiptConfirmation extends StatelessWidget {
                 ),
               ),
               StatusChip(
-                label: model.tr(
-                  queued ? 'order.queued_hint' : 'order.sent_hint',
-                ),
+                label: tr(queued ? 'order.queued_hint' : 'order.sent_hint'),
                 tone: queued ? ChipTone.warning : ChipTone.success,
                 icon: queued ? 'clock' : 'checkmark.circle',
               ),
@@ -162,11 +144,10 @@ class _ReceiptConfirmation extends StatelessWidget {
             ),
             child: Center(
               child: ReceiptPaper(
-                core: model.core,
                 receipt: receipt,
-                storeName: model.branchName,
-                currency: model.currency,
-                orgLogoUrl: model.orgLogoUrl,
+                storeName: branchName,
+                currency: currency,
+                orgLogoUrl: orgLogoUrl,
               ),
             ),
           ),
@@ -183,11 +164,11 @@ class _ReceiptConfirmation extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   spacing: Space.sm,
                   children: [
-                    switch (model.printState) {
+                    switch (printState) {
                       PrintState.printed => Align(
                         alignment: AlignmentDirectional.centerStart,
                         child: StatusChip(
-                          label: model.tr('receipt.printed'),
+                          label: tr('receipt.printed'),
                           tone: ChipTone.success,
                           icon: 'checkmark.circle',
                         ),
@@ -195,7 +176,7 @@ class _ReceiptConfirmation extends StatelessWidget {
                       PrintState.noPrinter => Align(
                         alignment: AlignmentDirectional.centerStart,
                         child: StatusChip(
-                          label: model.tr('receipt.no_printer'),
+                          label: tr('receipt.no_printer'),
                           tone: ChipTone.warning,
                           icon: 'exclamationmark.triangle',
                         ),
@@ -203,7 +184,7 @@ class _ReceiptConfirmation extends StatelessWidget {
                       PrintState.failed => Align(
                         alignment: AlignmentDirectional.centerStart,
                         child: StatusChip(
-                          label: model.tr('receipt.print_failed'),
+                          label: tr('receipt.print_failed'),
                           tone: ChipTone.danger,
                           icon: 'exclamationmark.triangle',
                         ),
@@ -216,18 +197,20 @@ class _ReceiptConfirmation extends StatelessWidget {
                       children: [
                         Expanded(
                           child: ActionButton(
-                            label: model.tr('receipt.reprint'),
+                            label: tr('receipt.reprint'),
                             icon: 'printer',
                             variant: ActionVariant.outline,
-                            loading: model.printState == PrintState.printing,
+                            loading: printState == PrintState.printing,
                             onTap: () => unawaited(
-                              model.printReceipt(kickDrawer: false),
+                              ref
+                                  .read(checkoutProvider.notifier)
+                                  .printReceipt(kickDrawer: false),
                             ),
                           ),
                         ),
                         Expanded(
                           child: ActionButton(
-                            label: model.tr('order.new_order'),
+                            label: tr('order.new_order'),
                             icon: 'plus',
                             onTap: onDone,
                           ),

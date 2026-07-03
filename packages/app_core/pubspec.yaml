@@ -1,0 +1,19 @@
+name: app_core
+description: "Shared Riverpod providers: the core handle, session/route state, realtime ticks — the DI spine every feature watches."
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  rust_bridge: ^0.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

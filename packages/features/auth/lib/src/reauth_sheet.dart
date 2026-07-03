@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_auth/src/providers.dart';
 import 'package:feature_auth/src/widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:rust_bridge/rust_bridge.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Native metrics (ReauthScreen.kt literals) kept verbatim.
 
@@ -29,11 +31,6 @@ const double _ctaHeight = 52;
 /// Switch-teller link size (natives: 13.sp SemiBold).
 const double _switchLinkSize = 13;
 
-/// PIN length window: auto-submit at 6, reject below 4 (natives' maxPin /
-/// submit guard).
-const int _maxPin = 6;
-const int _minPin = 4;
-
 /// How the re-auth sheet was resolved.
 enum ReauthOutcome {
   /// The same teller re-entered a valid PIN — the outbox is un-parked and the
@@ -49,20 +46,22 @@ enum ReauthOutcome {
 }
 
 /// Presents [ReauthSheet] in the shared Madar sheet (natives:
-/// `MadarSheet(size = HUG, maxWidth = 440.dp)`).
+/// `MadarSheet(size = HUG, maxWidth = 440.dp)`). Reads its providers
+/// internally — resets the PIN buffer before presenting so the sheet never
+/// inherits a previous entry.
 ///
 /// Resolves to a [ReauthOutcome], or null when dismissed via scrim / drag /
 /// back (natives: `showReauth = false`, sync stays paused).
-Future<ReauthOutcome?> showReauthSheet(
-  BuildContext context, {
-  required MadarCore core,
-  required void Function() onStateChanged,
-}) {
+Future<ReauthOutcome?> showReauthSheet(BuildContext context) {
+  ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).read(authProvider.notifier).resetEntry();
   return showMadarSheet<ReauthOutcome>(
     context,
     size: SheetSize.hug,
     maxWidth: _sheetMaxWidth,
-    builder: (_) => ReauthSheet(core: core, onStateChanged: onStateChanged),
+    builder: (_) => const ReauthSheet(),
   );
 }
 
@@ -74,101 +73,45 @@ Future<ReauthOutcome?> showReauthSheet(
 /// [ReauthOutcome.switchTeller] so the presenter can close the shift and
 /// route to login for a new teller. Port of the natives' ReauthScreen.kt /
 /// ReauthView.swift, presented via [showReauthSheet].
-class ReauthSheet extends StatefulWidget {
+class ReauthSheet extends ConsumerWidget {
   /// Creates the re-auth sheet.
-  const ReauthSheet({
-    required this.core,
-    required this.onStateChanged,
-    super.key,
-  });
+  const ReauthSheet({super.key});
 
-  /// The core handle.
-  final MadarCore core;
-
-  /// Notifies the shell after the bridge sign-in (session/sync state moved).
-  final void Function() onStateChanged;
-
-  @override
-  State<ReauthSheet> createState() => _ReauthSheetState();
-}
-
-class _ReauthSheetState extends State<ReauthSheet> {
-  String _pin = '';
-  bool _busy = false;
-  String? _error;
-
-  MadarBridge get _bridge => widget.core.bridge;
-
-  String _t(String key) => _bridge.tr(key: key);
-
-  /// Re-authenticate the SAME teller who owns the open shift (no handover) —
-  /// mirrors the natives' `reauth(pin)`: `signInTeller(session.displayName,
-  /// pin)`, clear the PIN + warning haptic on failure, pop on success.
-  Future<void> _submit() async {
-    if (_pin.length < _minPin) {
-      MadarHaptics.warning();
-      return;
-    }
-    final name = _bridge.currentSession()?.displayName ?? '';
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    String? failure;
-    try {
-      await _bridge.signIn(
-        req: LoginRequest(
-          mode: LoginMode.pin,
-          name: name,
-          pin: _pin,
-          branchId: _bridge.deviceConfig().branchId,
-        ),
-      );
-    } on MadarError catch (e) {
-      failure = _bridge.humanMessage(e);
-    } on Exception catch (_) {
-      failure = _t('err.generic');
-    }
-    widget.onStateChanged();
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _error = failure;
-      if (failure != null) _pin = '';
-    });
-    if (failure != null) {
-      MadarHaptics.warning();
-      return;
-    }
+  Future<void> _submit(BuildContext context, WidgetRef ref) async {
+    final resumed = await ref.read(authProvider.notifier).reauthenticate();
+    if (!resumed || !context.mounted) return;
     await Navigator.of(context).maybePop(ReauthOutcome.resumed);
   }
 
-  void _digit(String digit) {
-    if (_busy || _pin.length >= _maxPin) return;
-    setState(() {
-      _error = null;
-      _pin += digit;
-    });
-    if (_pin.length == _maxPin) unawaited(_submit());
-  }
-
-  void _backspace() {
-    if (_pin.isEmpty) return;
-    setState(() => _pin = _pin.substring(0, _pin.length - 1));
+  void _digit(BuildContext context, WidgetRef ref, String digit) {
+    if (ref.read(authProvider.notifier).pushDigit(digit)) {
+      unawaited(_submit(context, ref));
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Every rejected submit (short PIN, bridge failure) bumps the fail
+    // counter — warning haptic once per failure (natives' `reauth(pin)`).
+    ref.listen(authProvider.select((s) => s.failCount), (previous, next) {
+      if (previous != null && next > previous) MadarHaptics.warning();
+    });
+    final pin = ref.watch(authProvider.select((s) => s.pin));
+    final busy = ref.watch(authProvider.select((s) => s.busy));
+    final error = ref.watch(authProvider.select((s) => s.error));
+
     final colors = context.madarColors;
-    final tellerName = _bridge.currentSession()?.displayName ?? '';
-    final error = _error;
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
+    final tellerName = bridge.currentSession()?.displayName ?? '';
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ReauthHeader(
-          title: _t('chrome.reauth_title'),
-          body: _t('chrome.reauth_body'),
+          title: t('chrome.reauth_title'),
+          body: t('chrome.reauth_body'),
           onClose: () => unawaited(Navigator.of(context).maybePop()),
         ),
         // Deliberate rhythm mirrors the Login PIN pad (not a flat stack):
@@ -189,15 +132,15 @@ class _ReauthSheetState extends State<ReauthSheet> {
                 // shared tinted-teal identity pill (same StatusChip the
                 // Login branch pill uses).
                 StatusChip(
-                  label: '${_t('chrome.reauth_as')} $tellerName',
+                  label: '${t('chrome.reauth_as')} $tellerName',
                   tone: ChipTone.accent,
                   icon: 'person.crop.circle.badge.clock',
                 ),
                 const SizedBox(height: Space.xxl),
                 PinPad(
-                  pin: _pin,
-                  onDigit: _digit,
-                  onBackspace: _backspace,
+                  pin: pin,
+                  onDigit: (digit) => _digit(context, ref, digit),
+                  onBackspace: ref.read(authProvider.notifier).popDigit,
                 ),
                 if (error != null) ...[
                   const SizedBox(height: Space.sm),
@@ -211,9 +154,9 @@ class _ReauthSheetState extends State<ReauthSheet> {
                 // The sign-in CTA carries the weight — bold teal fill, the
                 // brightest thing on the sheet (mirrors the Login pad).
                 MadarButton(
-                  label: _t('login.sign_in'),
-                  onPressed: () => unawaited(_submit()),
-                  loading: _busy,
+                  label: t('login.sign_in'),
+                  onPressed: () => unawaited(_submit(context, ref)),
+                  loading: busy,
                   height: _ctaHeight,
                   icon: 'arrow.right.circle',
                 ),
@@ -221,7 +164,7 @@ class _ReauthSheetState extends State<ReauthSheet> {
                 // Escape hatch — close the shift and route a different
                 // teller to login.
                 _SwitchTellerLink(
-                  label: _t('chrome.reauth_switch'),
+                  label: t('chrome.reauth_switch'),
                   onTap: () => unawaited(
                     Navigator.of(
                       context,

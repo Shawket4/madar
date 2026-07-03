@@ -9,9 +9,12 @@ environment:
   flutter: ">=3.41.0"
 
 dependencies:
+  app_core: ^0.1.0
   design_system: ^0.1.0
+  feature_settings: ^0.1.0
   flutter:
     sdk: flutter
+  flutter_riverpod: ^2.6.1
   rust_bridge: ^0.1.0
 
 dev_dependencies:

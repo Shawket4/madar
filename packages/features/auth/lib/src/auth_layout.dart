@@ -1,7 +1,6 @@
 import 'package:design_system/design_system.dart';
 import 'package:feature_auth/src/brand_panel.dart';
 import 'package:flutter/material.dart';
-import 'package:rust_bridge/rust_bridge.dart';
 
 /// Form column width cap (natives: `widthIn(max = 400.dp)`).
 const double _formMaxWidth = 400;
@@ -19,15 +18,11 @@ const double evenBrandRatio = 0.5;
 class AuthSplitScaffold extends StatelessWidget {
   /// Creates the split scaffold.
   const AuthSplitScaffold({
-    required this.core,
     required this.formBuilder,
     this.brandRatio = Responsive.brandPanelRatio,
     this.formMaxWidth = _formMaxWidth,
     super.key,
   });
-
-  /// The core handle (brand copy on the wide panel).
-  final MadarCore core;
 
   /// Builds the form column; `showLogo` is true on the stacked layout, where
   /// the brand panel (and its lockup) is hidden.
@@ -73,7 +68,7 @@ class AuthSplitScaffold extends StatelessWidget {
             children: [
               Expanded(
                 flex: brandFlex,
-                child: BrandPanel(core: core),
+                child: const BrandPanel(),
               ),
               Expanded(
                 flex: 100 - brandFlex,

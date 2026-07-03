@@ -7,23 +7,17 @@ library;
 
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_settings/src/sync_provider.dart';
 import 'package:flutter/material.dart'
     show CircularProgressIndicator, Scaffold, Theme;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Native metrics (SyncScreen.kt) that fall between the 4-pt Space steps —
 // kept verbatim so the Flutter chrome measures identically.
-
-/// Header back chevron (natives: 17.dp), vertical inset (14.dp), title
-/// size (20.sp Black; Cairo tops out at ExtraBold so w800 stands in).
-const double _headerIconSize = 17;
-const double _headerVPad = 14;
-const double _headerTitleSize = 20;
-
-/// Header tone tile behind the sync glyph (natives: 34.dp, Radii.sm).
-const double _headerTileSize = 34;
 
 /// Sync-now pill vertical inset (natives: 7.dp), spinner (14.dp / 2.dp),
 /// icon↔label gap (6.dp), action label size (13.sp).
@@ -44,194 +38,77 @@ const double _rowTextGap = 3;
 const double _emptyTileSize = 72;
 const double _emptyIconSize = 36;
 
-/// The outbox inspector. Takes the shared screen contract: [core] for
-/// every bridge call and [onStateChanged] after a manual drain (the sync
-/// chip counts on the order chrome move). The header's back pops it via
-/// `Navigator.maybePop`.
-class SyncScreen extends StatefulWidget {
+/// The outbox inspector. All state flows from [syncProvider]; the header's
+/// back pops it via `Navigator.maybePop`.
+class SyncScreen extends ConsumerStatefulWidget {
   /// Creates the sync center screen.
-  const SyncScreen({
-    required this.core,
-    required this.onStateChanged,
-    super.key,
-  });
-
-  /// The core handle every bridge call goes through.
-  final MadarCore core;
-
-  /// Invoked after a drain/retry/discard so the shell's sync chrome
-  /// (chip counts) re-reads.
-  final void Function() onStateChanged;
+  const SyncScreen({super.key});
 
   @override
-  State<SyncScreen> createState() => _SyncScreenState();
+  ConsumerState<SyncScreen> createState() => _SyncScreenState();
 }
 
-class _SyncScreenState extends State<SyncScreen> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  List<OutboxItemView> _outbox = const [];
-  bool _pushing = false;
-
-  String _t(String key) => _bridge.tr(key: key);
-
-  bool get _hasFailed => _outbox.any((item) => item.status == 'dead');
-
+class _SyncScreenState extends ConsumerState<SyncScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
-  }
-
-  /// Swallow bridge failures on best-effort calls (the natives'
-  /// `runCatching`) — the inspector must render offline.
-  Future<T?> _quiet<T>(Future<T> Function() body) async {
-    try {
-      return await body();
-    } on Exception {
-      return null;
-    }
-  }
-
-  Future<void> _load() async {
-    final outbox = await _quiet(_bridge.listOutbox) ?? const <OutboxItemView>[];
-    if (mounted) setState(() => _outbox = outbox);
-  }
-
-  /// Requeue every FAILED (dead) command and try to send now.
-  Future<void> _retry() async {
-    await _quiet(_bridge.retryOutbox);
-    await _load();
-    widget.onStateChanged();
-  }
-
-  /// Manual PUSH of the durable outbox — force-drains every QUEUED (not
-  /// just failed) command. Pings first so a queue parked offline re-probes
-  /// connectivity + the auth-park, then drains (the natives' `syncNow`).
-  /// Concurrent taps ignored.
-  Future<void> _syncNow() async {
-    if (_pushing) return;
-    setState(() => _pushing = true);
-    try {
-      await _quiet(_bridge.refreshConnectivity);
-      await _quiet(_bridge.syncNow);
-    } finally {
-      if (mounted) setState(() => _pushing = false);
-    }
-    await _load();
-    widget.onStateChanged();
-  }
-
-  /// Discard a single DEAD command (the teller gives up on it).
-  Future<void> _discard(String id) async {
-    await _quiet(() => _bridge.discardOutboxItem(id: id));
-    await _load();
-    widget.onStateChanged();
+    unawaited(ref.read(syncProvider.notifier).load());
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    // Pushed as its own route — re-derive direction from the core so the
-    // screen is RTL-correct wherever it's presented.
+    final bridge = ref.watch(bridgeProvider);
+    // Pushed as its own route — re-derive direction from the locale
+    // provider so the screen is RTL-correct wherever it's presented.
+    final rtl = ref.watch(localeProvider.select((s) => s.rtl));
+    final outbox = ref.watch(syncProvider.select((s) => s.outbox));
+    final hasFailed = ref.watch(syncProvider.select((s) => s.hasFailed));
     return Directionality(
-      textDirection: _bridge.isRtl() ? TextDirection.rtl : TextDirection.ltr,
+      textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
         backgroundColor: colors.bg,
         body: Column(
           children: [
-            _header(context),
+            MadarHeader(
+              title: bridge.tr(key: 'sync.title'),
+              onBack: () => unawaited(Navigator.of(context).maybePop()),
+              actions: [
+                // Retry requeues only the FAILED (dead) rows, so it only
+                // appears when there's something dead to resurrect.
+                if (hasFailed) const _RetryAction(),
+                // "Sync now" force-pushes every QUEUED command — the manual
+                // escape hatch when the queue isn't draining on its own.
+                if (outbox.isNotEmpty) const _SyncNowAction(),
+              ],
+            ),
             Expanded(
-              child: _outbox.isEmpty ? _emptyState(context) : _list(context),
+              child: SafeArea(
+                top: false,
+                child: outbox.isEmpty
+                    ? const _EmptyState()
+                    : _OutboxList(outbox: outbox),
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  // ── header ─────────────────────────────────────────────────────────────────
-  // Clean bold title with the back affordance, plus the two queue actions
-  // (Retry the failed rows, force-push everything queued).
-  Widget _header(BuildContext context) {
-    final colors = context.madarColors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ColoredBox(
-          color: colors.surface,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.lg,
-              vertical: _headerVPad,
-            ),
-            child: Row(
-              spacing: Space.sm,
-              children: [
-                Semantics(
-                  button: true,
-                  child: TactileScale(
-                    onTap: () => unawaited(Navigator.of(context).maybePop()),
-                    child: MadarIcon(
-                      'chevron.backward',
-                      tint: colors.textPrimary,
-                      size: _headerIconSize,
-                    ),
-                  ),
-                ),
-                // Leading teal tone-tile behind the sync glyph — matches
-                // the confident Kitchen/Order header.
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.accentBg,
-                    borderRadius: BorderRadius.circular(Radii.sm),
-                  ),
-                  child: SizedBox.square(
-                    dimension: _headerTileSize,
-                    child: Center(
-                      child: MadarIcon(
-                        'arrow.triangle.2.circlepath',
-                        tint: colors.accent,
-                        size: IconSize.lg,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    _t('sync.title'),
-                    style: MadarType.h2.copyWith(
-                      fontSize: _headerTitleSize,
-                      fontWeight: FontWeight.w800,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-                // Retry requeues only the FAILED (dead) rows, so it only
-                // appears when there's something dead to resurrect.
-                if (_hasFailed) _retryButton(context),
-                // "Sync now" force-pushes every QUEUED command — the manual
-                // escape hatch when the queue isn't draining on its own.
-                if (_outbox.isNotEmpty) ...[
-                  const SizedBox(width: Space.sm),
-                  _syncNowButton(context),
-                ],
-              ],
-            ),
-          ),
-        ),
-        SizedBox(height: 1, child: ColoredBox(color: colors.border)),
-      ],
-    );
-  }
+/// Requeue-the-failed action — a quiet accent text button.
+class _RetryAction extends ConsumerWidget {
+  const _RetryAction();
 
-  /// Requeue-the-failed action — a quiet accent text button.
-  Widget _retryButton(BuildContext context) {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
     return Semantics(
       button: true,
       child: TactileScale(
-        onTap: () => unawaited(_retry()),
+        onTap: () => unawaited(ref.read(syncProvider.notifier).retry()),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           spacing: _actionGap,
@@ -242,7 +119,7 @@ class _SyncScreenState extends State<SyncScreen> {
               size: IconSize.sm,
             ),
             Text(
-              _t('sync.retry'),
+              bridge.tr(key: 'sync.retry'),
               style: MadarType.bodySm.copyWith(
                 fontSize: _actionLabelSize,
                 fontWeight: FontWeight.w600,
@@ -254,11 +131,18 @@ class _SyncScreenState extends State<SyncScreen> {
       ),
     );
   }
+}
 
-  /// Force-push-the-queue action — the teal pill CTA; spins + disables
-  /// while pushing.
-  Widget _syncNowButton(BuildContext context) {
+/// Force-push-the-queue action — the teal pill CTA; spins + disables
+/// while pushing.
+class _SyncNowAction extends ConsumerWidget {
+  const _SyncNowAction();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final pushing = ref.watch(syncProvider.select((s) => s.pushing));
     final pill = Container(
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Space.md,
@@ -272,7 +156,7 @@ class _SyncScreenState extends State<SyncScreen> {
         mainAxisSize: MainAxisSize.min,
         spacing: _actionGap,
         children: [
-          if (_pushing)
+          if (pushing)
             SizedBox.square(
               dimension: _pillSpinnerSize,
               child: CircularProgressIndicator(
@@ -287,7 +171,9 @@ class _SyncScreenState extends State<SyncScreen> {
               size: IconSize.sm,
             ),
           Text(
-            _pushing ? _t('sync.pushing') : _t('sync.push'),
+            pushing
+                ? bridge.tr(key: 'sync.pushing')
+                : bridge.tr(key: 'sync.push'),
             style: MadarType.bodySm.copyWith(
               fontSize: _actionLabelSize,
               fontWeight: FontWeight.w800,
@@ -297,17 +183,26 @@ class _SyncScreenState extends State<SyncScreen> {
         ],
       ),
     );
-    if (_pushing) return pill;
+    if (pushing) return pill;
     return Semantics(
       button: true,
-      child: TactileScale(onTap: () => unawaited(_syncNow()), child: pill),
+      child: TactileScale(
+        onTap: () => unawaited(ref.read(syncProvider.notifier).syncNow()),
+        child: pill,
+      ),
     );
   }
+}
 
-  // ── empty state ────────────────────────────────────────────────────────────
-  // Nothing waiting to sync — a reassuring success mark.
-  Widget _emptyState(BuildContext context) {
+// ── empty state ──────────────────────────────────────────────────────────────
+/// Nothing waiting to sync — a reassuring success mark.
+class _EmptyState extends ConsumerWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -330,18 +225,25 @@ class _SyncScreenState extends State<SyncScreen> {
             ),
           ),
           Text(
-            _t('sync.empty'),
+            bridge.tr(key: 'sync.empty'),
             style: MadarType.h3.copyWith(color: colors.textSecondary),
           ),
         ],
       ),
     );
   }
+}
 
-  // ── outbox list ────────────────────────────────────────────────────────────
-  // One surface card; rows separated by hairlines (matches the natives'
-  // grouped card — not per-row cards) — capped + centered on tablet.
-  Widget _list(BuildContext context) {
+// ── outbox list ──────────────────────────────────────────────────────────────
+/// One surface card; rows separated by hairlines (matches the natives'
+/// grouped card — not per-row cards) — capped + centered on tablet.
+class _OutboxList extends StatelessWidget {
+  const _OutboxList({required this.outbox});
+
+  final List<OutboxItemView> outbox;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
     return SingleChildScrollView(
@@ -359,13 +261,13 @@ class _SyncScreenState extends State<SyncScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final (index, item) in _outbox.indexed) ...[
+                for (final (index, item) in outbox.indexed) ...[
                   if (index > 0)
                     SizedBox(
                       height: 1,
                       child: ColoredBox(color: colors.borderLight),
                     ),
-                  _row(context, item),
+                  _OutboxRow(item: item),
                 ],
               ],
             ),
@@ -374,11 +276,20 @@ class _SyncScreenState extends State<SyncScreen> {
       ),
     );
   }
+}
 
-  /// One outbox row: leading tone-tinted op tile, op label + error (or
-  /// attempt count), status chip, and a discard for dead commands.
-  Widget _row(BuildContext context, OutboxItemView item) {
+/// One outbox row: leading tone-tinted op tile, op label + error (or
+/// attempt count), status chip, and a discard for dead commands. Takes the
+/// row's pure data; actions go through the notifier.
+class _OutboxRow extends ConsumerWidget {
+  const _OutboxRow({required this.item});
+
+  final OutboxItemView item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
     final dead = item.status == 'dead';
     // Outbox tones map to the shared ChipTone scale: failed → danger,
     // everything else (queued / in-flight) → info. The tile tint reuses the
@@ -422,7 +333,7 @@ class _SyncScreenState extends State<SyncScreen> {
                 spacing: _rowTextGap,
                 children: [
                   Text(
-                    _opLabel(item.opType),
+                    _opLabel(bridge, item.opType),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: MadarType.title.copyWith(
@@ -441,7 +352,7 @@ class _SyncScreenState extends State<SyncScreen> {
                     )
                   else if (item.attempts > 0)
                     Text(
-                      '${item.attempts} ${_t('sync.attempts')}',
+                      '${item.attempts} ${bridge.tr(key: 'sync.attempts')}',
                       style: MadarType.label.copyWith(
                         fontWeight: FontWeight.w400,
                         color: colors.textMuted,
@@ -450,12 +361,14 @@ class _SyncScreenState extends State<SyncScreen> {
                 ],
               ),
             ),
-            StatusChip(label: _statusLabel(item.status), tone: tone),
+            StatusChip(label: _statusLabel(bridge, item.status), tone: tone),
             if (dead)
               Semantics(
                 button: true,
                 child: TactileScale(
-                  onTap: () => unawaited(_discard(item.id)),
+                  onTap: () => unawaited(
+                    ref.read(syncProvider.notifier).discard(item.id),
+                  ),
                   child: Padding(
                     padding: const EdgeInsetsDirectional.all(Space.xs),
                     child: MadarIcon('trash', tint: colors.danger),
@@ -470,10 +383,10 @@ class _SyncScreenState extends State<SyncScreen> {
 
   /// Localized op-type label (`open_shift` / `close_shift` /
   /// `create_order`); unknown ops show their raw wire name.
-  String _opLabel(String op) => switch (op) {
-    'open_shift' => _t('sync.op_open_shift'),
-    'close_shift' => _t('sync.op_close_shift'),
-    'create_order' => _t('sync.op_create_order'),
+  String _opLabel(MadarBridge bridge, String op) => switch (op) {
+    'open_shift' => bridge.tr(key: 'sync.op_open_shift'),
+    'close_shift' => bridge.tr(key: 'sync.op_close_shift'),
+    'create_order' => bridge.tr(key: 'sync.op_create_order'),
     _ => op,
   };
 
@@ -489,9 +402,9 @@ class _SyncScreenState extends State<SyncScreen> {
     };
   }
 
-  String _statusLabel(String status) => switch (status) {
-    'dead' => _t('sync.failed'),
-    'inflight' => _t('sync.sending'),
-    _ => _t('sync.queued'),
+  String _statusLabel(MadarBridge bridge, String status) => switch (status) {
+    'dead' => bridge.tr(key: 'sync.failed'),
+    'inflight' => bridge.tr(key: 'sync.sending'),
+    _ => bridge.tr(key: 'sync.queued'),
   };
 }

@@ -2,17 +2,19 @@
 /// port of the Kotlin FloorPlanScreen.kt over the shared Rust core.
 /// Geometry is authored in the dashboard; this renders the branch floor to
 /// scale, shows live status, and drives host ops (seat / notify / set
-/// status), plus the POS jumps: tap a free table to start a ticket on it,
-/// tap an occupied one to review + settle its open ticket.
+/// status), plus the settle jump: tap a table occupied by an open ticket to
+/// review + settle it.
 library;
 
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_floor/src/floor_controller.dart';
+import 'package:feature_floor/src/floor_provider.dart';
 import 'package:feature_floor/src/floor_sheets.dart';
 import 'package:feature_floor/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Native metrics (FloorPlanScreen.kt) that fall between the 4-pt Space
@@ -48,88 +50,42 @@ const double _bellGap = 6;
 const Duration _refreshPeriod = Duration(seconds: 15);
 
 /// Dine-in table map: floor sections, a to-scale canvas with color-coded
-/// live table states, and the reservations board (seat / notify). Takes
-/// the shared screen contract; [onTableChosen] is the POS hook — when set,
-/// tapping a FREE table hands `(tableId, label)` back to the caller (to
-/// start a dine-in ticket) instead of opening the status picker.
-class FloorPlanScreen extends StatefulWidget {
-  /// Creates the floor plan over [core].
-  const FloorPlanScreen({
-    required this.core,
-    required this.onStateChanged,
-    this.onTableChosen,
-    super.key,
-  });
-
-  /// The shared Rust core.
-  final MadarCore core;
-
-  /// Fired after any bridge call that can move `app_route()` / the shift
-  /// stats (settling a ticket).
-  final void Function() onStateChanged;
-
-  /// POS jump — a free table was picked to start a ticket on. Null keeps
-  /// the natives' pure host-board behavior (every tap = status picker).
-  final void Function(String tableId, String label)? onTableChosen;
+/// live table states, and the reservations board (seat / notify). All
+/// rendered state flows from [floorProvider]; tapping a table occupied by
+/// an open ticket jumps to its review + settle, any other tap (and every
+/// long-press) opens the status picker.
+class FloorPlanScreen extends ConsumerStatefulWidget {
+  const FloorPlanScreen({super.key});
 
   @override
-  State<FloorPlanScreen> createState() => _FloorPlanScreenState();
+  ConsumerState<FloorPlanScreen> createState() => _FloorPlanScreenState();
 }
 
-class _FloorPlanScreenState extends State<FloorPlanScreen> {
-  late final FloorController _model;
+class _FloorPlanScreenState extends ConsumerState<FloorPlanScreen> {
   Timer? _refresh;
-
-  /// The picked section id (null = first section, the natives' default).
-  String? _activeSection;
 
   @override
   void initState() {
     super.initState();
-    _model = FloorController(
-      core: widget.core,
-      onStateChanged: widget.onStateChanged,
-    );
-    unawaited(_model.loadFloor());
+    // First state write lands after the loads (post-frame) — build-safe.
+    unawaited(ref.read(floorProvider.notifier).loadFloor());
     _refresh = Timer.periodic(
       _refreshPeriod,
-      (_) => unawaited(_model.loadFloor()),
+      (_) => unawaited(ref.read(floorProvider.notifier).loadFloor()),
     );
   }
 
   @override
   void dispose() {
     _refresh?.cancel();
-    _model.dispose();
     super.dispose();
   }
 
-  // ── section resolution ──────────────────────────────────────────────────────
-  FloorSectionView? get _section {
-    final sections = _model.sections;
-    for (final section in sections) {
-      if (section.id == _activeSection) return section;
-    }
-    return sections.firstOrNull;
-  }
-
-  List<FloorTableView> _sectionTables(String? sectionId) => [
-    for (final table in _model.tables)
-      if (table.sectionId == sectionId) table,
-  ];
-
   // ── taps ────────────────────────────────────────────────────────────────────
-  /// Tap routing: free + [FloorPlanScreen.onTableChosen] → start a ticket;
-  /// occupied by an open ticket → summary + settle; otherwise the natives'
-  /// status picker. Long-press always opens the status picker.
+  /// Tap routing: occupied by an open ticket → summary + settle; otherwise
+  /// the natives' status picker. Long-press always opens the status picker.
   Future<void> _onTapTable(FloorTableView table) async {
-    final onChosen = widget.onTableChosen;
-    if (table.status == 'free' && onChosen != null) {
-      MadarHaptics.selection();
-      onChosen(table.id, table.label);
-      return;
-    }
-    final ticket = _model.ticketForTable(table.id);
+    final ticket = ref.read(floorProvider).ticketForTable(table.id);
     if (ticket != null) {
       await _openTicket(table, ticket);
       return;
@@ -142,124 +98,138 @@ class _FloorPlanScreenState extends State<FloorPlanScreen> {
       context,
       size: SheetSize.hug,
       maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (_) => TableStatusSheet(model: _model, table: table),
+      builder: (_) => TableStatusSheet(table: table),
     );
-    if (status != null) await _model.setTableStatus(table.id, status);
+    if (status != null) {
+      await ref.read(floorProvider.notifier).setTableStatus(table.id, status);
+    }
   }
 
   Future<void> _openTicket(FloorTableView table, TicketView ticket) async {
     final settle = await showMadarSheet<bool>(
       context,
       size: SheetSize.hug,
-      builder: (_) => TableTicketSheet(
-        model: _model,
-        ticket: ticket,
-        tableLabel: table.label,
-      ),
+      builder: (_) => TableTicketSheet(ticket: ticket, tableLabel: table.label),
     );
     if (settle != true || !mounted) return;
     await showMadarSheet<bool>(
       context,
       size: SheetSize.large,
-      builder: (_) => TableSettleSheet(model: _model, ticket: ticket),
+      builder: (_) => TableSettleSheet(ticket: ticket),
     );
   }
 
   Future<void> _openSeat(ReservationView booking) async {
+    // Every seat session starts with a clean pick set — set up BEFORE the
+    // sheet presents (floorProvider is kept alive, so this is safe).
+    ref.read(floorProvider.notifier).clearSeatPicks();
+    final floor = ref.read(floorProvider);
+    final tables = floor.tablesIn(floor.activeSection?.id);
     await showMadarSheet<bool>(
       context,
       size: SheetSize.hug,
       maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (_) => SeatReservationSheet(
-        model: _model,
-        booking: booking,
-        tables: _sectionTables(_section?.id),
-      ),
+      builder: (_) => SeatReservationSheet(booking: booking, tables: tables),
     );
   }
 
   // ── build ───────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _model,
-      builder: (context, _) {
-        final colors = context.madarColors;
-        final section = _section;
-        final tables = _sectionTables(section?.id);
-        return Scaffold(
-          backgroundColor: colors.bg,
-          body: SafeArea(
-            child: Stack(
-              children: [
-                ListView(
-                  padding: const EdgeInsetsDirectional.all(Space.lg),
-                  children: [
-                    if (_model.error case final error?) ...[
-                      NoticeBanner(
-                        text: error,
-                        tone: ChipTone.danger,
-                        icon: 'exclamationmark.circle',
-                        onTap: _model.clearError,
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    String tr(String key) => bridge.tr(key: key);
+    // The board renders every slice (sections, tables, bookings, error,
+    // toast) — the one legitimate whole-state watch on this screen.
+    final floor = ref.watch(floorProvider);
+    final notifier = ref.read(floorProvider.notifier);
+    final section = floor.activeSection;
+    final tables = floor.tablesIn(section?.id);
+    final branchName = bridge.deviceConfig().branchName ?? '';
+    return Scaffold(
+      backgroundColor: colors.bg,
+      body: Column(
+        children: [
+          MadarHeader(
+            title: tr('reservations.title'),
+            subtitle: branchName.isEmpty ? null : branchName,
+            onBack: () => Navigator.maybePop(context),
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: Stack(
+                children: [
+                  ListView(
+                    padding: const EdgeInsetsDirectional.all(Space.lg),
+                    children: [
+                      if (floor.error case final error?) ...[
+                        NoticeBanner(
+                          text: error,
+                          tone: ChipTone.danger,
+                          icon: 'exclamationmark.circle',
+                          onTap: notifier.clearError,
+                        ),
+                        const SizedBox(height: Space.md),
+                      ],
+                      if (floor.sections.length > 1) ...[
+                        _SectionPicker(
+                          sections: floor.sections,
+                          activeId: section?.id,
+                          onPick: notifier.pickSection,
+                        ),
+                        const SizedBox(height: Space.md),
+                      ],
+                      _FloorCanvas(
+                        canvasW: (section?.canvasW ?? 0) > 0
+                            ? section!.canvasW.toDouble()
+                            : _fallbackCanvasW,
+                        canvasH: (section?.canvasH ?? 0) > 0
+                            ? section!.canvasH.toDouble()
+                            : _fallbackCanvasH,
+                        tables: tables,
+                        onTap: (table) => unawaited(_onTapTable(table)),
+                        onLongPress: (table) =>
+                            unawaited(_openStatusPicker(table)),
                       ),
                       const SizedBox(height: Space.md),
-                    ],
-                    if (_model.sections.length > 1) ...[
-                      _SectionPicker(
-                        sections: _model.sections,
-                        activeId: section?.id,
-                        onPick: (id) => setState(() => _activeSection = id),
-                      ),
-                      const SizedBox(height: Space.md),
-                    ],
-                    _FloorCanvas(
-                      canvasW: (section?.canvasW ?? 0) > 0
-                          ? section!.canvasW.toDouble()
-                          : _fallbackCanvasW,
-                      canvasH: (section?.canvasH ?? 0) > 0
-                          ? section!.canvasH.toDouble()
-                          : _fallbackCanvasH,
-                      tables: tables,
-                      onTap: (table) => unawaited(_onTapTable(table)),
-                      onLongPress: (table) =>
-                          unawaited(_openStatusPicker(table)),
-                    ),
-                    const SizedBox(height: Space.md),
-                    Text(
-                      _model.tr('reservations.title'),
-                      style: MadarType.h3.copyWith(
-                        fontSize: _resTitleSize,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: Space.md),
-                    if (_model.reservations.isEmpty)
                       Text(
-                        _model.tr('reservations.noBookings'),
-                        style: MadarType.bodySm.copyWith(
-                          color: colors.textMuted,
+                        tr('reservations.title'),
+                        style: MadarType.h3.copyWith(
+                          fontSize: _resTitleSize,
+                          fontWeight: FontWeight.w700,
+                          color: colors.textPrimary,
                         ),
                       ),
-                    for (final booking in _model.reservations) ...[
-                      _ReservationRow(
-                        model: _model,
-                        booking: booking,
-                        onSeat: () => unawaited(_openSeat(booking)),
-                        onNotify: () =>
-                            unawaited(_model.notifyReservation(booking.id)),
-                      ),
                       const SizedBox(height: Space.md),
+                      if (floor.reservations.isEmpty)
+                        Text(
+                          tr('reservations.noBookings'),
+                          style: MadarType.bodySm.copyWith(
+                            color: colors.textMuted,
+                          ),
+                        ),
+                      for (final booking in floor.reservations) ...[
+                        _ReservationRow(
+                          booking: booking,
+                          seatLabel: tr('reservations.seat'),
+                          onSeat: () => unawaited(_openSeat(booking)),
+                          onNotify: () => unawaited(
+                            notifier.notifyReservation(booking.id),
+                          ),
+                        ),
+                        const SizedBox(height: Space.md),
+                      ],
                     ],
-                  ],
-                ),
-                // Toasts float above everything on this screen.
-                ToastHost(_model.toast, onDismiss: _model.dismissToast),
-              ],
+                  ),
+                  // Toasts float above everything on this screen.
+                  ToastHost(floor.toast, onDismiss: notifier.dismissToast),
+                ],
+              ),
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
@@ -427,14 +397,14 @@ class _TableCell extends StatelessWidget {
 /// bell (natives: an OutlinedButton + a 🔔 TextButton).
 class _ReservationRow extends StatelessWidget {
   const _ReservationRow({
-    required this.model,
     required this.booking,
+    required this.seatLabel,
     required this.onSeat,
     required this.onNotify,
   });
 
-  final FloorController model;
   final ReservationView booking;
+  final String seatLabel;
   final VoidCallback onSeat;
   final VoidCallback onNotify;
 
@@ -473,7 +443,7 @@ class _ReservationRow extends StatelessWidget {
           ),
           const SizedBox(width: Space.sm),
           FloorButton(
-            label: model.tr('reservations.seat'),
+            label: seatLabel,
             variant: FloorButtonVariant.outline,
             onTap: onSeat,
           ),

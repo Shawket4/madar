@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_checkout/src/checkout_controller.dart';
+import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Native metrics (TenderScreen.kt) that fall between the 4-pt Space steps —
@@ -79,85 +81,40 @@ const List<int> _cashPresets = [5000, 10000, 20000, 50000];
 /// How many presets show at or above the amount due (natives: take(3)).
 const int _cashPresetCount = 3;
 
-/// The money breakdown [CheckoutDrawer] renders in its summary card + hero
-/// total. The main checkout feeds it from the live cart totals; a future
-/// ticket settle feeds it from the ticket's subtotal.
-@immutable
-class CheckoutSummary {
-  const CheckoutSummary({
-    required this.subtotalMinor,
-    required this.totalMinor,
-    this.discountMinor = 0,
-    this.taxMinor = 0,
-  });
-
-  final int subtotalMinor;
-  final int discountMinor;
-  final int taxMinor;
-  final int totalMinor;
-}
-
-/// The tender the teller collected, handed to [CheckoutDrawer]'s terminal
-/// action. For a normal (non-split) charge [splits] is empty and
-/// [primaryMethodId] is the chosen method; for a split, [splits] carries the
-/// legs and [primaryMethodId] is the largest leg (the method the checkout
-/// books against).
-@immutable
-class CheckoutResult {
-  const CheckoutResult({
-    required this.primaryMethodId,
-    required this.tenderedMinor,
-    required this.tipMinor,
-    required this.splits,
-    required this.isCash,
-    this.tipPaymentMethodId,
-    this.customerName,
-    this.notes,
-  });
-
-  final String primaryMethodId;
-  final int tenderedMinor;
-  final int tipMinor;
-  final String? tipPaymentMethodId;
-  final String? customerName;
-  final String? notes;
-  final List<CheckoutSplit> splits;
-  final bool isCash;
-}
-
 /// The ONE real checkout drawer — payment method (or split allocator), cash
 /// with live change, tip, optional discount + customer fields, then a
 /// terminal button. Both the main cashier checkout (via TenderSheet) and the
-/// future ticket-settle / delivery-finalize flows drive THIS component; they
-/// differ only in the [summary]/[title]/[terminalLabel] they feed and the
-/// [onTerminal] they run — no mirrored settle UI. Money + order assembly
-/// stay in the core / callback; this view only collects the tender and
-/// reports it back via [CheckoutResult]. Port of TenderScreen.kt's
+/// ticket-settle / delivery-finalize flows drive THIS component. All shared
+/// state (summary, methods, tender picks, errors) lives in [checkoutProvider];
+/// the presenting sheet starts the session first (`startCart()` /
+/// `startSettle(summary)` in its `initState`). Constructor params are pure
+/// CONFIG: chrome strings, feature flags, the terminal callback. Money +
+/// order assembly stay in the core / callback; this view only collects the
+/// tender and reports it back via [CheckoutResult]. Port of TenderScreen.kt's
 /// CheckoutDrawer.
-class CheckoutDrawer extends StatefulWidget {
+class CheckoutDrawer extends ConsumerStatefulWidget {
   const CheckoutDrawer({
-    required this.controller,
-    required this.summary,
     required this.title,
     required this.terminalLabel,
     required this.terminalIcon,
-    required this.placing,
     required this.onClose,
     required this.onTerminal,
+    this.placing = false,
     this.showDiscountPicker = false,
     this.showCustomerFields = false,
     this.headerContent,
     super.key,
   });
 
-  final CheckoutController controller;
-  final CheckoutSummary summary;
   final String title;
   final String terminalLabel;
   final String terminalIcon;
-  final bool placing;
   final VoidCallback onClose;
   final ValueChanged<CheckoutResult> onTerminal;
+
+  /// Extra in-flight flag from the CALLER's op (e.g. a settle running on the
+  /// floor/shift provider) — OR'd with the session's own `isPlacingOrder`.
+  final bool placing;
 
   /// Cart-only discount chips (a ticket's discount is frozen at fire time).
   final bool showDiscountPicker;
@@ -170,17 +127,12 @@ class CheckoutDrawer extends StatefulWidget {
   final Widget? headerContent;
 
   @override
-  State<CheckoutDrawer> createState() => _CheckoutDrawerState();
+  ConsumerState<CheckoutDrawer> createState() => _CheckoutDrawerState();
 }
 
-class _CheckoutDrawerState extends State<CheckoutDrawer> {
-  /// The teller's explicit method pick; null falls back to cash-first.
-  String? _selected;
-  int _tendered = 0;
-  int _tip = 0;
-  String? _tipMethod;
-  bool _splitMode = false;
-  final Map<String, int> _splitAmounts = {};
+class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
+  // Widget-local ephemera only — every rendered value flows from
+  // [checkoutProvider].
   final _customer = TextEditingController();
   final _notes = TextEditingController();
 
@@ -193,31 +145,34 @@ class _CheckoutDrawerState extends State<CheckoutDrawer> {
 
   /// Cash-first default (the natives' LaunchedEffect pick), resolved lazily
   /// so the async method load never races the first frame.
-  String? _effectiveSelected(List<PaymentMethodView> methods) {
-    final picked = _selected;
-    if (picked != null && methods.any((m) => m.id == picked)) return picked;
-    final cash = methods.where((m) => m.isCash).firstOrNull;
-    return (cash ?? methods.firstOrNull)?.id;
+  String? _effectiveSelected(CheckoutState s) {
+    final picked = s.selectedMethodId;
+    if (picked != null && s.paymentMethods.any((m) => m.id == picked)) {
+      return picked;
+    }
+    final cash = s.paymentMethods.where((m) => m.isCash).firstOrNull;
+    return (cash ?? s.paymentMethods.firstOrNull)?.id;
   }
 
-  void _fireTerminal({
+  void _fireTerminal(
+    CheckoutState s, {
     required String? selected,
     required bool isCash,
     required List<CheckoutSplit> splitLegs,
     required String? splitPrimary,
   }) {
-    final primary = _splitMode ? splitPrimary : selected;
+    final primary = s.splitMode ? splitPrimary : selected;
     if (primary == null) return;
     String? blank(String v) => v.trim().isEmpty ? null : v.trim();
     widget.onTerminal(
       CheckoutResult(
         primaryMethodId: primary,
-        tenderedMinor: _tendered,
-        tipMinor: _tip,
-        tipPaymentMethodId: _tipMethod,
+        tenderedMinor: s.tenderedMinor,
+        tipMinor: s.tipMinor,
+        tipPaymentMethodId: s.tipMethodId,
         customerName: blank(_customer.text),
         notes: blank(_notes.text),
-        splits: _splitMode ? splitLegs : const [],
+        splits: s.splitMode ? splitLegs : const [],
         isCash: isCash,
       ),
     );
@@ -225,186 +180,201 @@ class _CheckoutDrawerState extends State<CheckoutDrawer> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = widget.controller;
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
-        final colors = context.madarColors;
-        final methods = controller.paymentMethods;
-        final selected = _effectiveSelected(methods);
-        final method = methods.where((m) => m.id == selected).firstOrNull;
-        final isCash = method?.isCash ?? false;
-        final total = widget.summary.totalMinor;
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    // The drawer renders nearly every session field — the one legitimate
+    // whole-state watch; the leaf chips receive plain data below.
+    final s = ref.watch(checkoutProvider);
+    final notifier = ref.read(checkoutProvider.notifier);
+    String tr(String key) => bridge.tr(key: key);
 
-        // A tip paid by cash comes out of the same drawer → due with the
-        // bill. The tip can ride a DIFFERENT method than the order (e.g.
-        // card order + cash tip), so gate on the TIP method's isCash
-        // (tipMethod ?? selected), not the order's.
-        final tipMethodView = methods
-            .where((m) => m.id == (_tipMethod ?? selected))
-            .firstOrNull;
-        final tipMethodIsCash = _tip > 0 && (tipMethodView?.isCash ?? isCash);
-        final tipCash = tipMethodIsCash ? _tip : 0;
-        final dueCash = total + tipCash;
-        final change = math.max(_tendered - dueCash, 0);
-        final short = math.max(dueCash - _tendered, 0);
+    final methods = s.paymentMethods;
+    final selected = _effectiveSelected(s);
+    final method = methods.where((m) => m.id == selected).firstOrNull;
+    final isCash = method?.isCash ?? false;
+    final total = s.summary.totalMinor;
 
-        final splitAllocated = _splitAmounts.values.fold(0, (a, b) => a + b);
-        final splitRemaining = total - splitAllocated;
-        final positiveLegs = _splitAmounts.entries
-            .where((e) => e.value > 0)
-            .toList(growable: false);
-        final splitLegs = positiveLegs
-            .map(
-              (e) =>
-                  CheckoutSplit(paymentMethodId: e.key, amountMinor: e.value),
-            )
-            .toList(growable: false);
-        String? splitPrimary;
-        var largest = 0;
-        for (final e in positiveLegs) {
-          if (e.value > largest) {
-            largest = e.value;
-            splitPrimary = e.key;
-          }
-        }
-        final canPlace = switch (widget.placing) {
-          true => false,
-          false when _splitMode =>
-            splitAllocated == total && splitLegs.isNotEmpty,
-          false => selected != null && (!isCash || _tendered >= dueCash),
-        };
+    // A tip paid by cash comes out of the same drawer → due with the
+    // bill. The tip can ride a DIFFERENT method than the order (e.g.
+    // card order + cash tip), so gate on the TIP method's isCash
+    // (tipMethod ?? selected), not the order's.
+    final tipMethodView = methods
+        .where((m) => m.id == (s.tipMethodId ?? selected))
+        .firstOrNull;
+    final tipMethodIsCash = s.tipMinor > 0 && (tipMethodView?.isCash ?? isCash);
+    final tipCash = tipMethodIsCash ? s.tipMinor : 0;
+    final dueCash = total + tipCash;
+    final change = math.max(s.tenderedMinor - dueCash, 0);
+    final short = math.max(dueCash - s.tenderedMinor, 0);
 
-        final error = controller.error;
-        return Column(
-          children: [
-            // Sticky header — title + live order total + close. Lives
-            // outside the scroll so it pins like the natives' sheet header.
-            _TenderHeader(
-              title: widget.title,
-              totalMinor: total,
-              currency: controller.currency,
-              onClose: widget.onClose,
+    final splitAllocated = s.splitAmounts.values.fold(0, (a, b) => a + b);
+    final splitRemaining = total - splitAllocated;
+    final positiveLegs = s.splitAmounts.entries
+        .where((e) => e.value > 0)
+        .toList(growable: false);
+    final splitLegs = positiveLegs
+        .map(
+          (e) => CheckoutSplit(paymentMethodId: e.key, amountMinor: e.value),
+        )
+        .toList(growable: false);
+    String? splitPrimary;
+    var largest = 0;
+    for (final e in positiveLegs) {
+      if (e.value > largest) {
+        largest = e.value;
+        splitPrimary = e.key;
+      }
+    }
+    final placing = widget.placing || s.isPlacingOrder;
+    final canPlace = switch (placing) {
+      true => false,
+      false when s.splitMode => splitAllocated == total && splitLegs.isNotEmpty,
+      false => selected != null && (!isCash || s.tenderedMinor >= dueCash),
+    };
+
+    final error = s.error;
+    return Column(
+      children: [
+        // Sticky header — title + live order total + close. Lives
+        // outside the scroll so it pins like the natives' sheet header.
+        _TenderHeader(
+          title: widget.title,
+          totalMinor: total,
+          currency: s.currency,
+          onClose: widget.onClose,
+        ),
+        const Hairline(),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Space.xl,
+              vertical: Space.lg,
             ),
-            const Hairline(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsetsDirectional.symmetric(
-                  horizontal: Space.xl,
-                  vertical: Space.lg,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: Space.lg,
+              children: [
+                // Caller-supplied header block (e.g. the settle
+                // line-item review) — sits above the summary so the
+                // teller sees WHAT they're charging first.
+                ?widget.headerContent,
+                // Order summary card — subtotal/discount/tax light
+                // above, the grand total in a tinted teal block.
+                _SummaryCard(
+                  summary: s.summary,
+                  currency: s.currency,
+                  totalLabel: tr('order.total'),
+                  subtotalLabel: tr('order.subtotal'),
+                  discountLabel: tr('order.discount'),
+                  taxLabel: tr('order.tax'),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: Space.lg,
-                  children: [
-                    // Caller-supplied header block (e.g. the settle
-                    // line-item review) — sits above the summary so the
-                    // teller sees WHAT they're charging first.
-                    ?widget.headerContent,
-                    // Order summary card — subtotal/discount/tax light
-                    // above, the grand total in a tinted teal block.
-                    _SummaryCard(
-                      summary: widget.summary,
-                      currency: controller.currency,
-                      totalLabel: controller.tr('order.total'),
-                      subtotalLabel: controller.tr('order.subtotal'),
-                      discountLabel: controller.tr('order.discount'),
-                      taxLabel: controller.tr('order.tax'),
-                    ),
-                    // Payment — brand-colored method chips, or a split
-                    // allocator.
-                    _PaymentSection(
-                      controller: controller,
-                      splitMode: _splitMode,
-                      onToggleSplit: () =>
-                          setState(() => _splitMode = !_splitMode),
-                      selected: selected,
-                      onSelect: (id) => setState(() => _selected = id),
-                      splitAmounts: _splitAmounts,
-                      splitRemaining: splitRemaining,
-                      onSplitAmount: (id, minor) =>
-                          setState(() => _splitAmounts[id] = minor),
-                    ),
-                    // Cash tendered (cash, non-split) — hero amount-due
-                    // block, quick chips, and a live change banner.
-                    if (isCash && !_splitMode)
-                      _CashSection(
-                        controller: controller,
-                        dueCash: dueCash,
-                        tendered: _tendered,
-                        change: change,
-                        short: short,
-                        onTendered: (minor) =>
-                            setState(() => _tendered = minor),
-                      ),
-                    // Tip card — optional, with which method pays the tip.
-                    _TipCard(
-                      controller: controller,
-                      tip: _tip,
-                      selected: selected,
-                      tipMethod: _tipMethod,
-                      onTip: (minor) => setState(() => _tip = minor),
-                      onTipMethod: (id) => setState(() => _tipMethod = id),
-                    ),
-                    // Discount (cart only — a ticket's is frozen at fire).
-                    if (widget.showDiscountPicker)
-                      _DiscountSection(controller: controller),
-                    // Customer + notes (cart only).
-                    if (widget.showCustomerFields)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: Space.sm,
-                        children: [
-                          SectionLabel(controller.tr('order.customer')),
-                          CheckoutTextField(
-                            controller: _customer,
-                            placeholder: controller.tr('order.customer_hint'),
-                            icon: 'person',
-                          ),
-                          CheckoutTextField(
-                            controller: _notes,
-                            placeholder: controller.tr('order.notes_hint'),
-                            icon: 'text.bubble',
-                          ),
-                        ],
-                      ),
-                    if (error != null)
-                      NoticeBanner(
-                        text: error,
-                        tone: ChipTone.danger,
-                        icon: 'exclamationmark.circle',
-                      ),
-                  ],
+                // Payment — brand-colored method chips, or a split
+                // allocator.
+                _PaymentSection(
+                  methods: methods,
+                  currency: s.currency,
+                  sectionLabel: tr('order.payment_method'),
+                  splitToggleLabel: tr('order.split_payment'),
+                  splitRemainingLabel: tr('order.split_remaining'),
+                  splitMode: s.splitMode,
+                  onToggleSplit: notifier.toggleSplit,
+                  selected: selected,
+                  onSelect: notifier.selectMethod,
+                  splitAmounts: s.splitAmounts,
+                  splitRemaining: splitRemaining,
+                  onSplitAmount: notifier.setSplitAmount,
                 ),
-              ),
-            ),
-            // Sticky footer — the terminal action (Place Order / Settle).
-            ColoredBox(
-              color: colors.surface,
-              child: Column(
-                children: [
-                  const Hairline(),
-                  Padding(
-                    padding: const EdgeInsetsDirectional.all(Space.lg),
-                    child: ActionButton(
-                      label: widget.terminalLabel,
-                      icon: widget.terminalIcon,
-                      loading: widget.placing,
-                      enabled: canPlace,
-                      onTap: () => _fireTerminal(
-                        selected: selected,
-                        isCash: isCash,
-                        splitLegs: splitLegs,
-                        splitPrimary: splitPrimary,
-                      ),
-                    ),
+                // Cash tendered (cash, non-split) — hero amount-due
+                // block, quick chips, and a live change banner.
+                if (isCash && !s.splitMode)
+                  _CashSection(
+                    currency: s.currency,
+                    sectionLabel: tr('order.cash_received'),
+                    totalLabel: tr('order.total'),
+                    exactLabel: tr('order.exact'),
+                    changeDueLabel: tr('order.change_due'),
+                    shortByLabel: tr('order.short_by'),
+                    dueCash: dueCash,
+                    tendered: s.tenderedMinor,
+                    change: change,
+                    short: short,
+                    onTendered: notifier.setTendered,
                   ),
-                ],
-              ),
+                // Tip card — optional, with which method pays the tip.
+                _TipCard(
+                  methods: methods,
+                  currency: s.currency,
+                  tipLabel: tr('order.tip'),
+                  tip: s.tipMinor,
+                  selected: selected,
+                  tipMethod: s.tipMethodId,
+                  onTip: notifier.setTip,
+                  onTipMethod: notifier.setTipMethod,
+                ),
+                // Discount (cart only — a ticket's is frozen at fire).
+                if (widget.showDiscountPicker)
+                  _DiscountSection(
+                    discounts: s.discounts,
+                    cartDiscountId: s.cartDiscountId,
+                    sectionLabel: tr('order.discount'),
+                    noDiscountLabel: tr('order.no_discount'),
+                    onPick: (id) => unawaited(notifier.setDiscount(id)),
+                  ),
+                // Customer + notes (cart only).
+                if (widget.showCustomerFields)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: Space.sm,
+                    children: [
+                      SectionLabel(tr('order.customer')),
+                      CheckoutTextField(
+                        controller: _customer,
+                        placeholder: tr('order.customer_hint'),
+                        icon: 'person',
+                      ),
+                      CheckoutTextField(
+                        controller: _notes,
+                        placeholder: tr('order.notes_hint'),
+                        icon: 'text.bubble',
+                      ),
+                    ],
+                  ),
+                if (error != null)
+                  NoticeBanner(
+                    text: error,
+                    tone: ChipTone.danger,
+                    icon: 'exclamationmark.circle',
+                  ),
+              ],
             ),
-          ],
-        );
-      },
+          ),
+        ),
+        // Sticky footer — the terminal action (Place Order / Settle).
+        ColoredBox(
+          color: colors.surface,
+          child: Column(
+            children: [
+              const Hairline(),
+              Padding(
+                padding: const EdgeInsetsDirectional.all(Space.lg),
+                child: ActionButton(
+                  label: widget.terminalLabel,
+                  icon: widget.terminalIcon,
+                  loading: placing,
+                  enabled: canPlace,
+                  onTap: () => _fireTerminal(
+                    s,
+                    selected: selected,
+                    isCash: isCash,
+                    splitLegs: splitLegs,
+                    splitPrimary: splitPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -614,7 +584,11 @@ class _SummaryRow extends StatelessWidget {
 /// method grid or the split allocator.
 class _PaymentSection extends StatelessWidget {
   const _PaymentSection({
-    required this.controller,
+    required this.methods,
+    required this.currency,
+    required this.sectionLabel,
+    required this.splitToggleLabel,
+    required this.splitRemainingLabel,
     required this.splitMode,
     required this.onToggleSplit,
     required this.selected,
@@ -624,7 +598,11 @@ class _PaymentSection extends StatelessWidget {
     required this.onSplitAmount,
   });
 
-  final CheckoutController controller;
+  final List<PaymentMethodView> methods;
+  final String currency;
+  final String sectionLabel;
+  final String splitToggleLabel;
+  final String splitRemainingLabel;
   final bool splitMode;
   final VoidCallback onToggleSplit;
   final String? selected;
@@ -636,7 +614,6 @@ class _PaymentSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final methods = controller.paymentMethods;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.sm,
@@ -644,7 +621,7 @@ class _PaymentSection extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: SectionLabel(controller.tr('order.payment_method')),
+              child: SectionLabel(sectionLabel),
             ),
             if (methods.length > 1)
               TactileScale(
@@ -669,7 +646,7 @@ class _PaymentSection extends StatelessWidget {
                         tint: splitMode ? colors.accent : colors.textMuted,
                       ),
                       Text(
-                        controller.tr('order.split_payment'),
+                        splitToggleLabel,
                         style: MadarType.labelSm.copyWith(
                           fontSize: _pillLabelSize,
                           color: splitMode ? colors.accent : colors.textMuted,
@@ -683,7 +660,9 @@ class _PaymentSection extends StatelessWidget {
         ),
         if (splitMode)
           _SplitAllocator(
-            controller: controller,
+            methods: methods,
+            currency: currency,
+            remainingLabel: splitRemainingLabel,
             splitAmounts: splitAmounts,
             splitRemaining: splitRemaining,
             onSplitAmount: onSplitAmount,
@@ -696,7 +675,7 @@ class _PaymentSection extends StatelessWidget {
 }
 
 /// Two-column grid of payment-method chips — the SHARED method selector used
-/// by both the checkout and the future settle sheet.
+/// by both the checkout and the settle sheet.
 class _MethodGrid extends StatelessWidget {
   const _MethodGrid({
     required this.methods,
@@ -801,13 +780,17 @@ class _PayChip extends StatelessWidget {
 /// Per-method amount entry + a live remaining indicator (must reach 0).
 class _SplitAllocator extends StatelessWidget {
   const _SplitAllocator({
-    required this.controller,
+    required this.methods,
+    required this.currency,
+    required this.remainingLabel,
     required this.splitAmounts,
     required this.splitRemaining,
     required this.onSplitAmount,
   });
 
-  final CheckoutController controller;
+  final List<PaymentMethodView> methods;
+  final String currency;
+  final String remainingLabel;
   final Map<String, int> splitAmounts;
   final int splitRemaining;
   final void Function(String id, int minor) onSplitAmount;
@@ -820,7 +803,7 @@ class _SplitAllocator extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.sm,
       children: [
-        for (final m in controller.paymentMethods)
+        for (final m in methods)
           Row(
             spacing: Space.sm,
             children: [
@@ -847,7 +830,7 @@ class _SplitAllocator extends StatelessWidget {
                 child: AmountField(
                   amountMinor: splitAmounts[m.id] ?? 0,
                   onAmountMinor: (minor) => onSplitAmount(m.id, minor),
-                  currencyCode: controller.currency,
+                  currencyCode: currency,
                 ),
               ),
             ],
@@ -865,7 +848,7 @@ class _SplitAllocator extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  controller.tr('order.split_remaining'),
+                  remainingLabel,
                   style: MadarType.label.copyWith(
                     fontWeight: FontWeight.w500,
                     color: colors.textSecondary,
@@ -874,7 +857,7 @@ class _SplitAllocator extends StatelessWidget {
               ),
               MoneyText(
                 splitRemaining,
-                currency: controller.currency,
+                currency: currency,
                 style: MadarType.money.copyWith(fontSize: _rowSize),
                 color: settled ? colors.success : colors.danger,
               ),
@@ -890,7 +873,12 @@ class _SplitAllocator extends StatelessWidget {
 /// round presets, and a live change banner.
 class _CashSection extends StatelessWidget {
   const _CashSection({
-    required this.controller,
+    required this.currency,
+    required this.sectionLabel,
+    required this.totalLabel,
+    required this.exactLabel,
+    required this.changeDueLabel,
+    required this.shortByLabel,
     required this.dueCash,
     required this.tendered,
     required this.change,
@@ -898,7 +886,12 @@ class _CashSection extends StatelessWidget {
     required this.onTendered,
   });
 
-  final CheckoutController controller;
+  final String currency;
+  final String sectionLabel;
+  final String totalLabel;
+  final String exactLabel;
+  final String changeDueLabel;
+  final String shortByLabel;
   final int dueCash;
   final int tendered;
   final int change;
@@ -908,12 +901,11 @@ class _CashSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final currency = controller.currency;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.sm,
       children: [
-        SectionLabel(controller.tr('order.cash_received')),
+        SectionLabel(sectionLabel),
         // Amount-due hero block — tinted teal, the figure the cash tendered
         // must reach (mirrors the grand-total block in weight + treatment).
         Container(
@@ -926,7 +918,7 @@ class _CashSection extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  controller.tr('order.total'),
+                  totalLabel,
                   style: MadarType.bodySm.copyWith(
                     fontWeight: FontWeight.w700,
                     color: colors.accent,
@@ -955,7 +947,7 @@ class _CashSection extends StatelessWidget {
           runSpacing: Space.sm,
           children: [
             _QuickCash(
-              label: controller.tr('order.exact'),
+              label: exactLabel,
               active: tendered == dueCash,
               onTap: () => onTendered(dueCash),
             ),
@@ -972,7 +964,9 @@ class _CashSection extends StatelessWidget {
         ),
         if (tendered > 0)
           _ChangeBanner(
-            controller: controller,
+            currency: currency,
+            changeDueLabel: changeDueLabel,
+            shortByLabel: shortByLabel,
             change: change,
             short: short,
           ),
@@ -1026,12 +1020,16 @@ class _QuickCash extends StatelessWidget {
 /// leading tone icon + the hero change figure.
 class _ChangeBanner extends StatelessWidget {
   const _ChangeBanner({
-    required this.controller,
+    required this.currency,
+    required this.changeDueLabel,
+    required this.shortByLabel,
     required this.change,
     required this.short,
   });
 
-  final CheckoutController controller;
+  final String currency;
+  final String changeDueLabel;
+  final String shortByLabel;
   final int change;
   final int short;
 
@@ -1059,7 +1057,7 @@ class _ChangeBanner extends StatelessWidget {
           ),
           Expanded(
             child: Text(
-              controller.tr(ok ? 'order.change_due' : 'order.short_by'),
+              ok ? changeDueLabel : shortByLabel,
               style: MadarType.bodySm.copyWith(
                 fontWeight: FontWeight.w600,
                 color: fg,
@@ -1068,7 +1066,7 @@ class _ChangeBanner extends StatelessWidget {
           ),
           MoneyText(
             ok ? change : short,
-            currency: controller.currency,
+            currency: currency,
             style: MadarType.money.copyWith(
               fontSize: _changeAmountSize,
               fontWeight: FontWeight.w900,
@@ -1084,7 +1082,9 @@ class _ChangeBanner extends StatelessWidget {
 /// Tip card — optional, with which method pays the tip.
 class _TipCard extends StatelessWidget {
   const _TipCard({
-    required this.controller,
+    required this.methods,
+    required this.currency,
+    required this.tipLabel,
     required this.tip,
     required this.selected,
     required this.tipMethod,
@@ -1092,7 +1092,9 @@ class _TipCard extends StatelessWidget {
     required this.onTipMethod,
   });
 
-  final CheckoutController controller;
+  final List<PaymentMethodView> methods;
+  final String currency;
+  final String tipLabel;
   final int tip;
   final String? selected;
   final String? tipMethod;
@@ -1103,7 +1105,6 @@ class _TipCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final methods = controller.paymentMethods;
     return Container(
       padding: const EdgeInsetsDirectional.all(Space.lg),
       decoration: BoxDecoration(
@@ -1124,10 +1125,10 @@ class _TipCard extends StatelessWidget {
                 tint: colors.textMuted,
                 size: _tipHeart,
               ),
-              Expanded(child: SectionLabel(controller.tr('order.tip'))),
+              Expanded(child: SectionLabel(tipLabel)),
               if (tip > 0)
                 StatusChip(
-                  label: Money.format(tip, currency: controller.currency),
+                  label: Money.format(tip, currency: currency),
                   tone: ChipTone.success,
                   icon: 'plus',
                 ),
@@ -1149,7 +1150,7 @@ class _TipCard extends StatelessWidget {
           AmountField(
             amountMinor: tip,
             onAmountMinor: onTip,
-            currencyCode: controller.currency,
+            currencyCode: currency,
           ),
         ],
       ),
@@ -1210,35 +1211,43 @@ class _TipMethodPill extends StatelessWidget {
 
 /// Discount — wrapping pill chips (No discount + each active discount).
 class _DiscountSection extends StatelessWidget {
-  const _DiscountSection({required this.controller});
+  const _DiscountSection({
+    required this.discounts,
+    required this.cartDiscountId,
+    required this.sectionLabel,
+    required this.noDiscountLabel,
+    required this.onPick,
+  });
 
-  final CheckoutController controller;
+  final List<DiscountView> discounts;
+  final String? cartDiscountId;
+  final String sectionLabel;
+  final String noDiscountLabel;
+  final ValueChanged<String?> onPick;
 
   @override
   Widget build(BuildContext context) {
-    final active = controller.discounts
-        .where((d) => d.isActive)
-        .toList(growable: false);
+    final active = discounts.where((d) => d.isActive).toList(growable: false);
     if (active.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.sm,
       children: [
-        SectionLabel(controller.tr('order.discount')),
+        SectionLabel(sectionLabel),
         Wrap(
           spacing: Space.sm,
           runSpacing: Space.sm,
           children: [
             _DiscountChip(
-              label: controller.tr('order.no_discount'),
-              active: controller.cartDiscountId == null,
-              onTap: () => unawaited(controller.setDiscount(null)),
+              label: noDiscountLabel,
+              active: cartDiscountId == null,
+              onTap: () => onPick(null),
             ),
             for (final d in active)
               _DiscountChip(
                 label: _discountLabel(d),
-                active: controller.cartDiscountId == d.id,
-                onTap: () => unawaited(controller.setDiscount(d.id)),
+                active: cartDiscountId == d.id,
+                onTap: () => onPick(d.id),
               ),
           ],
         ),

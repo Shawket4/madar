@@ -1,5 +1,7 @@
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // On-screen receipt preview — a white "thermal paper" card rendered from the
@@ -37,9 +39,10 @@ const double _metaSize = 11;
 /// The on-screen receipt paper — renders a [ReceiptView] as the printed
 /// layout: org logo/name header, order + delivery meta, line items with
 /// `qty× name … amount` columns, the totals block, and the payment footer.
-class ReceiptPaper extends StatelessWidget {
+/// Pure-DATA params; the bridge (strings + time formatting) comes from
+/// the provider spine.
+class ReceiptPaper extends ConsumerWidget {
   const ReceiptPaper({
-    required this.core,
     required this.receipt,
     required this.storeName,
     required this.currency,
@@ -47,29 +50,25 @@ class ReceiptPaper extends StatelessWidget {
     super.key,
   });
 
-  final MadarCore core;
   final ReceiptView receipt;
   final String storeName;
   final String currency;
   final String? orgLogoUrl;
 
-  MadarBridge get _bridge => core.bridge;
-
-  String _tr(String key) => _bridge.tr(key: key);
-
   String _money(int minor) => Money.format(minor, currency: currency);
 
   /// "Order #12" when the server assigned a number, else the local order
   /// id's first uuid segment (the natives' orderTitle).
-  String _orderTitle() {
+  String _orderTitle(String label) {
     final number = receipt.orderNumber;
-    final label = _tr('receipt.order');
     if (number != null) return '$label #$number';
     return '$label ${receipt.localOrderId.split('-').first.toUpperCase()}';
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
+    String tr(String key) => bridge.tr(key: key);
     final r = receipt;
     final logo = orgLogoUrl;
     final deliveryNotes = r.deliveryNotes;
@@ -111,7 +110,7 @@ class ReceiptPaper extends StatelessWidget {
                 ),
               if (r.isVoided)
                 _Mono(
-                  '*** ${_tr('receipt.voided')} ***',
+                  '*** ${tr('receipt.voided')} ***',
                   size: _boldRowSize,
                   weight: FontWeight.w700,
                   color: _voidRed,
@@ -123,7 +122,7 @@ class ReceiptPaper extends StatelessWidget {
               ),
               if (r.isDelivery && r.deliveryChannel != null)
                 _Mono(
-                  '— ${(r.deliveryChannel == 'in_mall' ? _tr('delivery.in_mall') : _tr('receipt.delivery')).toUpperCase()} —',
+                  '— ${(r.deliveryChannel == 'in_mall' ? tr('delivery.in_mall') : tr('receipt.delivery')).toUpperCase()} —',
                   size: _metaSize,
                   color: _faint,
                 ),
@@ -131,41 +130,41 @@ class ReceiptPaper extends StatelessWidget {
           ),
           const _Rule(),
           _MoneyRow(
-            left: _orderTitle(),
-            right: _bridge.formatTime(
+            left: _orderTitle(tr('receipt.order')),
+            right: bridge.formatTime(
               rfc3339: r.createdAt,
               style: TimeStyle.receipt,
             ),
           ),
           if (r.orderRef != null)
-            _MoneyRow(left: '${_tr('receipt.ref')}: ${r.orderRef}', right: ''),
+            _MoneyRow(left: '${tr('receipt.ref')}: ${r.orderRef}', right: ''),
           const _Rule(),
           if (r.isDelivery) ...[
             if (r.customerName != null)
-              _MoneyRow(left: _tr('receipt.customer'), right: r.customerName!),
+              _MoneyRow(left: tr('receipt.customer'), right: r.customerName!),
             if (r.customerPhone != null)
-              _MoneyRow(left: _tr('receipt.phone'), right: r.customerPhone!),
+              _MoneyRow(left: tr('receipt.phone'), right: r.customerPhone!),
             if (r.deliveryAddress != null)
               _Mono(
-                '${_tr('receipt.address')} ${r.deliveryAddress}',
+                '${tr('receipt.address')} ${r.deliveryAddress}',
                 size: _rowSize,
                 align: TextAlign.start,
               ),
             if (r.deliveryZone != null)
-              _MoneyRow(left: _tr('receipt.zone'), right: r.deliveryZone!),
+              _MoneyRow(left: tr('receipt.zone'), right: r.deliveryZone!),
             if (r.deliveryRef != null)
               _MoneyRow(
-                left: _tr('receipt.delivery_ref'),
+                left: tr('receipt.delivery_ref'),
                 right: r.deliveryRef!,
               ),
             if (r.paymentHint != null)
               _MoneyRow(
-                left: _tr('receipt.payment_hint'),
+                left: tr('receipt.payment_hint'),
                 right: r.paymentHint!,
               ),
             if (deliveryNotes != null && deliveryNotes.trim().isNotEmpty)
               _Mono(
-                '${_tr('receipt.notes')} $deliveryNotes',
+                '${tr('receipt.notes')} $deliveryNotes',
                 size: _rowSize,
                 align: TextAlign.start,
               ),
@@ -174,34 +173,34 @@ class ReceiptPaper extends StatelessWidget {
           for (final line in r.lines) _LineBlock(line: line, money: _money),
           const _Rule(),
           _MoneyRow(
-            left: _tr('order.subtotal'),
+            left: tr('order.subtotal'),
             right: _money(r.subtotalMinor),
           ),
           if (r.discountMinor > 0)
             _MoneyRow(
-              left: _tr('order.discount'),
+              left: tr('order.discount'),
               right: '−${_money(r.discountMinor)}',
             ),
           if (r.taxMinor > 0)
-            _MoneyRow(left: _tr('order.tax'), right: _money(r.taxMinor)),
+            _MoneyRow(left: tr('order.tax'), right: _money(r.taxMinor)),
           if (r.deliveryFeeMinor > 0)
             _MoneyRow(
-              left: _tr('receipt.delivery_fee'),
+              left: tr('receipt.delivery_fee'),
               right: _money(r.deliveryFeeMinor),
             ),
           _MoneyRow(
-            left: _tr('order.total').toUpperCase(),
+            left: tr('order.total').toUpperCase(),
             right: _money(r.totalMinor),
             bold: true,
           ),
           if (r.tipMinor > 0)
-            _MoneyRow(left: _tr('order.tip'), right: _money(r.tipMinor)),
+            _MoneyRow(left: tr('order.tip'), right: _money(r.tipMinor)),
           if (r.isCash) ...[
             _MoneyRow(
-              left: _tr('receipt.cash'),
+              left: tr('receipt.cash'),
               right: _money(r.amountTenderedMinor),
             ),
-            _MoneyRow(left: _tr('order.change'), right: _money(r.changeMinor)),
+            _MoneyRow(left: tr('order.change'), right: _money(r.changeMinor)),
           ],
           const _Rule(),
           Column(
@@ -214,11 +213,11 @@ class ReceiptPaper extends StatelessWidget {
               ),
               if (r.tellerName != null)
                 _Mono(
-                  '${_tr('receipt.served_by')} ${r.tellerName}',
+                  '${tr('receipt.served_by')} ${r.tellerName}',
                   size: _metaSize,
                   color: _faint,
                 ),
-              _Mono(_tr('receipt.thank_you'), size: _rowSize),
+              _Mono(tr('receipt.thank_you'), size: _rowSize),
             ],
           ),
         ],

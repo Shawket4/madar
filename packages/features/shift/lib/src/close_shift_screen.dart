@@ -4,17 +4,21 @@
 /// the counted-cash card (expected drawer in a tinted teal hero block, the
 /// autofocused count, a live over/short banner, and the discrepancy
 /// reason), the full Z-report breakdown, the report preview entry, and one
-/// loud danger CTA. On a successful close the core marks the shift closed
-/// and the shell's route flips back to open-shift via `onStateChanged`.
+/// loud danger CTA. On a successful close the core marks the shift closed;
+/// the screen pops the overlay first, then hands off to the shell (route
+/// flips back to open-shift). State lives in [closeShiftProvider].
 library;
 
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_shift/src/controls.dart';
+import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
 import 'package:flutter/material.dart' show Scaffold, Theme;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 // Native metrics (CloseShiftScreen.kt) that fall between the 4-pt Space
@@ -22,11 +26,6 @@ import 'package:rust_bridge/rust_bridge.dart';
 
 /// Content column cap (natives: widthIn(max = 640.dp)).
 const double _contentMaxWidth = 640;
-
-/// Header back chevron (natives: 17.dp) and title size (natives: 17.sp
-/// Black; Cairo tops out at ExtraBold so w800 stands in).
-const double _headerIconSize = 17;
-const double _headerTitleSize = 17;
 
 /// Card-header tone tile (natives: 34.dp square, Radii.sm).
 const double _headerTileSize = 34;
@@ -41,50 +40,20 @@ const double _bannerHPad = 14;
 const double _bannerVPad = 12;
 const double _bannerGap = 10;
 
-/// The end-of-day drawer count. Takes the shared screen contract: [core]
-/// for every bridge call and [onStateChanged] after the close succeeds
-/// (the core's `app_route()` flips back to open-shift). Shown over the
-/// order screen; the header's back pops it via `Navigator.maybePop`.
-class CloseShiftScreen extends StatefulWidget {
+/// The end-of-day drawer count, shown over the order screen; the header's
+/// back pops it via `Navigator.maybePop`.
+class CloseShiftScreen extends ConsumerStatefulWidget {
   /// Creates the close-shift screen.
-  const CloseShiftScreen({
-    required this.core,
-    required this.onStateChanged,
-    super.key,
-  });
-
-  /// The core handle every bridge call goes through.
-  final MadarCore core;
-
-  /// Invoked after any call that can move `app_route()` (the close).
-  final void Function() onStateChanged;
+  const CloseShiftScreen({super.key});
 
   @override
-  State<CloseShiftScreen> createState() => _CloseShiftScreenState();
+  ConsumerState<CloseShiftScreen> createState() => _CloseShiftScreenState();
 }
 
-class _CloseShiftScreenState extends State<CloseShiftScreen> {
-  MadarBridge get _bridge => widget.core.bridge;
-
-  int _countedMinor = 0;
+class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
+  /// Closing note / discrepancy-reason text — widget-local ephemera; visible
+  /// state flows from [closeShiftProvider].
   final TextEditingController _note = TextEditingController();
-  bool _busy = false;
-  String? _error;
-  ShiftView? _shift;
-  ShiftReportView? _report;
-
-  String _t(String key) => _bridge.tr(key: key);
-
-  /// The count deviates from the system's expected drawer → a closing
-  /// reason is required (the open screen's discrepancy pattern).
-  bool get _needsReason =>
-      _report != null && _countedMinor != _report!.expectedCashMinor;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
 
   @override
   void dispose() {
@@ -92,162 +61,109 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
     super.dispose();
   }
 
-  /// Prime the screen: the open shift for the summary card (server-fresh
-  /// when online, cache otherwise — never let a transient refresh nuke a
-  /// good local shift), then the Z-report for the expected drawer figures.
-  Future<void> _load() async {
-    ShiftView? shift;
-    if (_bridge.currentSession()?.online ?? false) {
-      try {
-        shift = await _bridge.refreshShift();
-      } on Exception catch (_) {
-        shift = await _currentShiftOrNull();
-      }
-    } else {
-      shift = await _currentShiftOrNull();
-    }
-    if (!mounted) return;
-    setState(() => _shift = shift);
-    try {
-      final report = await _bridge.shiftReport();
-      if (mounted) setState(() => _report = report);
-    } on Exception catch (_) {}
-  }
-
-  Future<ShiftView?> _currentShiftOrNull() async {
-    try {
-      return await _bridge.currentShift();
-    } on Exception catch (_) {
-      return null;
-    }
-  }
-
   Future<void> _close() async {
-    if (_needsReason && _note.text.trim().isEmpty) {
-      // Guidance next to the action that triggers it — the natives'
-      // flagError, mirroring the open screen's required reason.
-      setState(() => _error = _t('shift.opening_reason_required'));
-      return;
-    }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final note = _note.text.trim();
-      await _bridge.closeShift(
-        closingCashMinor: _countedMinor,
-        cashNote: note.isEmpty ? null : note,
-      );
-      if (!mounted) return;
-      setState(() => _busy = false);
-      // Dismiss the overlay first, then let the shell re-read `app_route()`
-      // (shift closed → open-shift).
-      await Navigator.of(context).maybePop();
-      widget.onStateChanged();
-    } on MadarError catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = _bridge.humanMessage(e);
-      });
-    } on Exception catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = _t('err.generic');
-      });
-    }
+    // Capture the shell hand-off up front: a successful close pops this
+    // route, which disposes this widget's ref.
+    final shell = ref.read(shellProvider.notifier);
+    final ok = await ref
+        .read(closeShiftProvider.notifier)
+        .close(note: _note.text);
+    if (!ok || !mounted) return;
+    // Dismiss the overlay first, then let the shell re-read `app_route()`
+    // (shift closed → open-shift).
+    await Navigator.of(context).maybePop();
+    shell.refresh();
   }
 
   /// Preview the Z-report (paper layout) before printing — works with no
   /// printer, and the Print lives inside the preview.
-  Future<void> _openReportPreview() async {
+  Future<void> _openReportPreview(ShiftReportView report) async {
     await showMadarSheet<void>(
       context,
       size: SheetSize.large,
-      builder: (_) => ShiftReportSheet(core: widget.core, report: _report),
+      builder: (_) => ShiftReportSheet(report: report),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final currency = _bridge.currentSession()?.currencyCode ?? '';
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
+    final currency = bridge.currentSession()?.currencyCode ?? '';
+    // Narrow slices — the count keystrokes repaint only the cash card below.
+    final shift = ref.watch(closeShiftProvider.select((s) => s.shift));
+    final report = ref.watch(closeShiftProvider.select((s) => s.report));
+    final busy = ref.watch(closeShiftProvider.select((s) => s.busy));
+    final error = ref.watch(closeShiftProvider.select((s) => s.error));
     // Scaffold: screens own their own Material ancestor in this app.
     return Scaffold(
       backgroundColor: colors.bg,
       body: Column(
         children: [
-          _Header(
-            title: _t('shift.close_title'),
-            subtitle: _t('shift.closing_desc'),
-            onBack: () => unawaited(Navigator.of(context).maybePop()),
+          MadarHeader(
+            title: t('shift.close_title'),
+            subtitle: t('shift.closing_desc'),
+            onBack: () => Navigator.maybePop(context),
           ),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsetsDirectional.all(Space.xl),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _contentMaxWidth,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: Space.lg,
-                    children: [
-                      if (_shift != null)
-                        _SummaryCard(
-                          shift: _shift!,
-                          report: _report,
-                          currency: currency,
-                          bridge: _bridge,
-                        ),
-                      _CashCard(
-                        countedMinor: _countedMinor,
-                        onCountedMinor: (v) =>
-                            setState(() => _countedMinor = v),
-                        note: _note,
-                        needsReason: _needsReason,
-                        currency: currency,
-                        report: _report,
-                        tr: _t,
-                      ),
-                      if (_report != null)
-                        _Card(
-                          children: [
-                            _CardHeader(
-                              icon: 'list.bullet.rectangle',
-                              title: _t('shift.report_title'),
-                            ),
-                            ShiftReportBreakdown(
-                              report: _report!,
-                              currency: currency,
-                              tr: _t,
-                            ),
-                          ],
-                        ),
-                      if (_report != null)
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsetsDirectional.all(Space.xl),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: _contentMaxWidth,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      spacing: Space.lg,
+                      children: [
+                        if (shift != null)
+                          _SummaryCard(
+                            shift: shift,
+                            report: report,
+                            currency: currency,
+                            bridge: bridge,
+                          ),
+                        _CashCard(note: _note, currency: currency, tr: t),
+                        if (report != null)
+                          _Card(
+                            children: [
+                              _CardHeader(
+                                icon: 'list.bullet.rectangle',
+                                title: t('shift.report_title'),
+                              ),
+                              ShiftReportBreakdown(
+                                report: report,
+                                currency: currency,
+                                tr: t,
+                              ),
+                            ],
+                          ),
+                        if (report != null)
+                          ShiftButton(
+                            label: t('shift.print_report'),
+                            icon: 'printer',
+                            variant: ShiftButtonVariant.outline,
+                            onTap: () => unawaited(_openReportPreview(report)),
+                          ),
+                        if (error != null)
+                          NoticeBanner(
+                            text: error,
+                            tone: ChipTone.danger,
+                            icon: 'exclamationmark.circle',
+                          ),
                         ShiftButton(
-                          label: _t('shift.print_report'),
-                          icon: 'printer',
-                          variant: ShiftButtonVariant.outline,
-                          onTap: () => unawaited(_openReportPreview()),
+                          label: t('order.close_shift'),
+                          icon: 'lock',
+                          variant: ShiftButtonVariant.danger,
+                          loading: busy,
+                          onTap: () => unawaited(_close()),
                         ),
-                      if (_error != null)
-                        NoticeBanner(
-                          text: _error!,
-                          tone: ChipTone.danger,
-                          icon: 'exclamationmark.circle',
-                        ),
-                      ShiftButton(
-                        label: _t('order.close_shift'),
-                        icon: 'lock',
-                        variant: ShiftButtonVariant.danger,
-                        loading: _busy,
-                        onTap: () => unawaited(_close()),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -255,78 +171,6 @@ class _CloseShiftScreenState extends State<CloseShiftScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Surface top bar: back chevron + title/description, over a hairline.
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.title,
-    required this.subtitle,
-    required this.onBack,
-  });
-
-  final String title;
-  final String subtitle;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ColoredBox(
-          color: colors.surface,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.lg,
-              vertical: Space.md,
-            ),
-            child: Row(
-              spacing: Space.md,
-              children: [
-                Semantics(
-                  button: true,
-                  child: TactileScale(
-                    onTap: onBack,
-                    child: MadarIcon(
-                      'chevron.backward',
-                      tint: colors.textPrimary,
-                      size: _headerIconSize,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 1,
-                    children: [
-                      Text(
-                        title,
-                        style: MadarType.h3.copyWith(
-                          fontSize: _headerTitleSize,
-                          fontWeight: FontWeight.w800,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        subtitle,
-                        style: MadarType.label.copyWith(
-                          fontWeight: FontWeight.w400,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        SizedBox(height: 1, child: ColoredBox(color: colors.border)),
-      ],
     );
   }
 }
@@ -392,29 +236,28 @@ class _SummaryCard extends StatelessWidget {
 /// The counted-cash card: expected drawer (hero teal block), the count
 /// itself, the live over/short banner, and the note — which becomes the
 /// REQUIRED discrepancy reason when the count deviates (the open screen's
-/// pattern).
-class _CashCard extends StatelessWidget {
+/// pattern). Watches its own narrow slices so count keystrokes repaint only
+/// this card.
+class _CashCard extends ConsumerWidget {
   const _CashCard({
-    required this.countedMinor,
-    required this.onCountedMinor,
     required this.note,
-    required this.needsReason,
     required this.currency,
-    required this.report,
     required this.tr,
   });
 
-  final int countedMinor;
-  final ValueChanged<int> onCountedMinor;
   final TextEditingController note;
-  final bool needsReason;
   final String currency;
-  final ShiftReportView? report;
   final String Function(String key) tr;
 
   @override
-  Widget build(BuildContext context) {
-    final report = this.report;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final countedMinor = ref.watch(
+      closeShiftProvider.select((s) => s.countedMinor),
+    );
+    final needsReason = ref.watch(
+      closeShiftProvider.select((s) => s.needsReason),
+    );
+    final report = ref.watch(closeShiftProvider.select((s) => s.report));
     return _Card(
       children: [
         _CardHeader(icon: 'banknote', title: tr('shift.counted_cash')),
@@ -429,7 +272,8 @@ class _CashCard extends StatelessWidget {
           ),
         AmountField(
           amountMinor: countedMinor,
-          onAmountMinor: onCountedMinor,
+          onAmountMinor: (v) =>
+              ref.read(closeShiftProvider.notifier).setCounted(v),
           currencyCode: currency,
           autofocus: true,
         ),

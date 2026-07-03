@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_history/feature_history.dart';
@@ -9,65 +10,122 @@ import 'package:feature_settings/feature_settings.dart';
 import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:madar/app/app_state.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:madar/spike_screen.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Rail width — the natives' NavRailWidth (80dp).
 const double _railWidth = 80;
 
+/// Chrome-owned rendered state: the transient toast and the tick values
+/// already acknowledged by the teller (the rail badge pulses only for
+/// unseen incoming activity).
+class ChromeState {
+  const ChromeState({this.toast, this.seenDelivery = 0, this.seenTicket = 0});
+
+  final ToastData? toast;
+  final int seenDelivery;
+  final int seenTicket;
+
+  static const Object _keep = Object();
+
+  ChromeState copyWith({
+    Object? toast = _keep,
+    int? seenDelivery,
+    int? seenTicket,
+  }) {
+    return ChromeState(
+      toast: identical(toast, _keep) ? this.toast : toast as ToastData?,
+      seenDelivery: seenDelivery ?? this.seenDelivery,
+      seenTicket: seenTicket ?? this.seenTicket,
+    );
+  }
+}
+
+class ChromeNotifier extends Notifier<ChromeState> {
+  Timer? _toastTimer;
+
+  @override
+  ChromeState build() {
+    ref.onDispose(() => _toastTimer?.cancel());
+    return const ChromeState();
+  }
+
+  /// Show a transient toast — auto-dismisses after 2.6s (the natives'
+  /// toast lifetime).
+  void showToast(
+    String text, {
+    ChipTone tone = ChipTone.accent,
+    String icon = 'bell',
+  }) {
+    state = state.copyWith(
+      toast: ToastData(
+        id: DateTime.now().millisecondsSinceEpoch,
+        text: text,
+        tone: tone,
+        icon: icon,
+      ),
+    );
+    _toastTimer?.cancel();
+    _toastTimer = Timer(const Duration(milliseconds: 2600), dismissToast);
+  }
+
+  void dismissToast() {
+    _toastTimer?.cancel();
+    if (state.toast != null) state = state.copyWith(toast: null);
+  }
+
+  /// Stamp the current tick values as seen — clears the rail badge.
+  void markIncomingSeen() {
+    state = state.copyWith(
+      seenDelivery: ref.read(deliveryTickProvider),
+      seenTicket: ref.read(ticketTickProvider),
+    );
+  }
+}
+
+final chromeProvider = NotifierProvider<ChromeNotifier, ChromeState>(
+  ChromeNotifier.new,
+);
+
 /// The persistent chrome around the ORDER surface: the natives' leading
 /// side rail (sections of icon+label tiles, system footer, More sheet),
 /// plus the app-level alert toast + chime driven by the realtime stream.
 /// Wide layouts only — narrow keeps the bare surface (the natives' phone
 /// drawer is an M7 polish item; this POS ships landscape-first).
-class MadarChrome extends StatefulWidget {
-  const MadarChrome({required this.state, required this.child, super.key});
+///
+/// No blanket SafeArea here: the rail pads itself with the status-bar
+/// inset (its surface paints to y=0) and the order surface owns its own
+/// top inset.
+class MadarChrome extends ConsumerStatefulWidget {
+  const MadarChrome({required this.child, super.key});
 
-  final MadarAppState state;
   final Widget child;
 
   @override
-  State<MadarChrome> createState() => _MadarChromeState();
+  ConsumerState<MadarChrome> createState() => _MadarChromeState();
 }
 
-class _MadarChromeState extends State<MadarChrome> {
+class _MadarChromeState extends ConsumerState<MadarChrome> {
   final _player = AudioPlayer();
-  ToastData? _toast;
-  Timer? _toastTimer;
-
-  // Ticks already seen — the rail badge pulses only for unseen activity.
-  int _seenDelivery = 0;
-  int _seenTicket = 0;
-
-  MadarAppState get _state => widget.state;
-  MadarBridge get _bridge => _state.core.bridge;
-
-  @override
-  void initState() {
-    super.initState();
-    _state.alert.addListener(_onAlert);
-  }
 
   @override
   void dispose() {
-    _state.alert.removeListener(_onAlert);
-    _toastTimer?.cancel();
     unawaited(_player.dispose());
     super.dispose();
   }
 
+  String _t(String key) => ref.read(bridgeProvider).tr(key: key);
+
   /// Core-raised alert: localized text decided in Rust; the shell renders
   /// a toast + chime for notify, chime-only for ping, haptic-only for
   /// haptic (the natives' RealtimePlayer contract).
-  void _onAlert() {
-    // The notifier pairs each command with a sequence counter so identical
-    // consecutive commands still fire — only the command matters here.
-    final cmd = _state.alert.value?.$2;
-    if (cmd == null || !mounted) return;
+  void _onAlert(AlertCommand cmd) {
     switch (cmd) {
       case AlertCommand_Notify(:final title, :final body):
-        _showToast(body.isEmpty ? title : '$title — $body');
+        ref
+            .read(chromeProvider.notifier)
+            .showToast(body.isEmpty ? title : '$title — $body');
         _chime();
         MadarHaptics.impact();
       case AlertCommand_Ping():
@@ -75,25 +133,6 @@ class _MadarChromeState extends State<MadarChrome> {
       case AlertCommand_Haptic():
         MadarHaptics.success();
     }
-  }
-
-  void _showToast(
-    String text, {
-    ChipTone tone = ChipTone.accent,
-    String icon = 'bell',
-  }) {
-    setState(() {
-      _toast = ToastData(
-        id: DateTime.now().millisecondsSinceEpoch,
-        text: text,
-        tone: tone,
-        icon: icon,
-      );
-    });
-    _toastTimer?.cancel();
-    _toastTimer = Timer(const Duration(milliseconds: 2600), () {
-      if (mounted) setState(() => _toast = null);
-    });
   }
 
   void _chime() {
@@ -112,92 +151,58 @@ class _MadarChromeState extends State<MadarChrome> {
     );
   }
 
-  List<_RailSection> _sections(BuildContext context) {
-    final t = _state.tr;
+  List<_RailSection> _sections({
+    required String? role,
+    required bool incomingHasNew,
+  }) {
     // A waiter's tickets live in the cart strip — the rail keeps only the
     // system footer for them, exactly like the natives.
-    if (_state.session?.role == 'waiter') return const [];
+    if (role == 'waiter') return const [];
     return [
-      _RailSection(t('nav.section.orders'), [
+      _RailSection(_t('nav.section.orders'), [
         _RailDest(
           'bicycle',
-          t('nav.incoming'),
-          hasNew:
-              _state.deliveryTick.value > _seenDelivery ||
-              _state.ticketTick.value > _seenTicket,
+          _t('nav.incoming'),
+          hasNew: incomingHasNew,
           onTap: () {
-            _seenDelivery = _state.deliveryTick.value;
-            _seenTicket = _state.ticketTick.value;
-            setState(() {});
-            _push(
-              () => IncomingScreen(
-                core: _state.core,
-                onStateChanged: _state.refreshRoute,
-                deliveryTick: _state.deliveryTick,
-                ticketTick: _state.ticketTick,
-              ),
-            );
+            ref.read(chromeProvider.notifier).markIncomingSeen();
+            _push(() => const IncomingScreen());
           },
         ),
         _RailDest(
           'tray.full',
-          t('drafts.title'),
-          onTap: () => _push(
-            () => DraftsScreen(
-              core: _state.core,
-              onStateChanged: _state.refreshRoute,
-            ),
-          ),
+          _t('drafts.title'),
+          onTap: () => _push(() => const DraftsScreen()),
         ),
         _RailDest(
           'list.bullet.rectangle',
-          t('nav.history'),
-          onTap: () => _push(
-            () => OrderHistoryScreen(
-              core: _state.core,
-              onStateChanged: _state.refreshRoute,
-            ),
-          ),
+          _t('nav.history'),
+          onTap: () => _push(() => const OrderHistoryScreen()),
         ),
         _RailDest(
           'magnifyingglass',
-          t('search.title'),
-          onTap: () => _push(
-            () => OrderSearchScreen(
-              core: _state.core,
-              onStateChanged: _state.refreshRoute,
-            ),
-          ),
+          _t('search.title'),
+          onTap: () => _push(() => const OrderSearchScreen()),
         ),
       ]),
-      _RailSection(t('nav.section.money'), [
+      _RailSection(_t('nav.section.money'), [
         _RailDest(
           'banknote',
-          t('cash.title'),
-          onTap: () => _push(
-            () => CashMovementsScreen(
-              core: _state.core,
-              onStateChanged: _state.refreshRoute,
-            ),
-          ),
+          _t('cash.title'),
+          onTap: () => _push(() => const CashMovementsScreen()),
         ),
         _RailDest(
           'clock.arrow.circlepath',
-          t('shifts.title'),
-          onTap: () => _push(
-            () => ShiftHistoryScreen(
-              core: _state.core,
-              onStateChanged: _state.refreshRoute,
-            ),
-          ),
+          _t('shifts.title'),
+          onTap: () => _push(() => const ShiftHistoryScreen()),
         ),
         _RailDest(
           'printer',
-          t('shift.print_report'),
+          _t('shift.print_report'),
           onTap: () => unawaited(
             showMadarSheet<void>(
               context,
-              builder: (_) => ShiftReportSheet(core: _state.core),
+              builder: (_) => const ShiftReportSheet(),
             ),
           ),
         ),
@@ -205,34 +210,19 @@ class _MadarChromeState extends State<MadarChrome> {
     ];
   }
 
-  _RailSection _footer(BuildContext context) {
-    final t = _state.tr;
-    return _RailSection(t('nav.section.system'), [
+  _RailSection _footer() {
+    return _RailSection(_t('nav.section.system'), [
       _RailDest(
         'arrow.triangle.2.circlepath',
-        t('sync.title'),
-        onTap: () => _push(
-          () => SyncScreen(
-            core: _state.core,
-            onStateChanged: _state.refreshRoute,
-          ),
-        ),
+        _t('sync.title'),
+        onTap: () => _push(() => const SyncScreen()),
       ),
       _RailDest(
         'gearshape',
-        t('settings.title'),
-        onTap: () => _push(
-          () => SettingsScreen(
-            core: _state.core,
-            onStateChanged: _state.refreshRoute,
-            onLocaleChanged: _state.setLocale,
-            onThemeChanged: (dark) => _state.setThemeMode(
-              dark ? ThemeMode.dark : ThemeMode.light,
-            ),
-          ),
-        ),
+        _t('settings.title'),
+        onTap: () => _push(() => const SettingsScreen()),
       ),
-      _RailDest('ellipsis', t('chrome.more'), onTap: _openMore),
+      _RailDest('ellipsis', _t('chrome.more'), onTap: _openMore),
     ]);
   }
 
@@ -240,7 +230,18 @@ class _MadarChromeState extends State<MadarChrome> {
   /// narrow ones it doubles as the natives' phone drawer, carrying every
   /// rail section above them (the rail itself is hidden there).
   Future<void> _openMore({bool includeSections = false}) async {
-    final t = _state.tr;
+    // A snapshot for the sheet's lifetime — the rows only carry
+    // glyph/label/onTap, so badge state is irrelevant here.
+    final sections = includeSections
+        ? [
+            ..._sections(
+              role: ref.read(shellProvider).session?.role,
+              incomingHasNew: false,
+            ),
+            _footer(),
+          ]
+        : const <_RailSection>[];
+    final moreLabel = _t('chrome.more');
     await showMadarSheet<void>(
       context,
       size: SheetSize.hug,
@@ -285,10 +286,7 @@ class _MadarChromeState extends State<MadarChrome> {
 
         final sectionRows = <Widget>[
           if (includeSections)
-            for (final section in [
-              ..._sections(sheetContext),
-              _footer(sheetContext),
-            ]) ...[
+            for (final section in sections) ...[
               Padding(
                 padding: const EdgeInsetsDirectional.only(
                   start: Space.lg,
@@ -304,8 +302,7 @@ class _MadarChromeState extends State<MadarChrome> {
                 ),
               ),
               for (final d in section.items)
-                if (d.label != t('chrome.more'))
-                  row(d.glyph, d.label, onTap: d.onTap),
+                if (d.label != moreLabel) row(d.glyph, d.label, onTap: d.onTap),
             ],
           if (includeSections) Divider(height: 1, color: colors.borderLight),
         ];
@@ -318,13 +315,8 @@ class _MadarChromeState extends State<MadarChrome> {
                 ...sectionRows,
                 row(
                   'fork.knife',
-                  t('waiter.title'),
-                  onTap: () => _push(
-                    () => OpenTicketsScreen(
-                      core: _state.core,
-                      onStateChanged: _state.refreshRoute,
-                    ),
-                  ),
+                  _t('waiter.title'),
+                  onTap: () => _push(() => const OpenTicketsScreen()),
                 ),
                 // Dev harnesses — debug builds only, so the hardcoded
                 // labels never reach a teller.
@@ -343,18 +335,13 @@ class _MadarChromeState extends State<MadarChrome> {
                 Divider(height: 1, color: colors.borderLight),
                 row(
                   'lock',
-                  t('order.close_shift'),
+                  _t('order.close_shift'),
                   tone: colors.danger,
-                  onTap: () => _push(
-                    () => CloseShiftScreen(
-                      core: _state.core,
-                      onStateChanged: _state.refreshRoute,
-                    ),
-                  ),
+                  onTap: () => _push(() => const CloseShiftScreen()),
                 ),
                 row(
                   'rectangle.portrait.and.arrow.right',
-                  t('home.sign_out'),
+                  _t('home.sign_out'),
                   tone: colors.danger,
                   onTap: () => unawaited(_signOut()),
                 ),
@@ -371,98 +358,114 @@ class _MadarChromeState extends State<MadarChrome> {
     // You can't sign out mid-shift — the natives guard BOTH exits
     // (OrderScreen.kt's More drawer and SettingsScreen), mirroring the
     // Flutter settings screen's own guard.
+    final bridge = ref.read(bridgeProvider);
     ShiftView? shift;
     try {
-      shift = await _bridge.currentShift();
+      shift = await bridge.currentShift();
     } on Exception catch (_) {}
     if (!mounted) return;
     if (shift?.isOpen ?? false) {
-      _showToast(
-        _state.tr('settings.sign_out_shift_open'),
-        tone: ChipTone.danger,
-        icon: 'lock',
-      );
+      ref
+          .read(chromeProvider.notifier)
+          .showToast(
+            _t('settings.sign_out_shift_open'),
+            tone: ChipTone.danger,
+            icon: 'lock',
+          );
       return;
     }
-    _bridge.unsubscribeRealtime();
+    bridge.unsubscribeRealtime();
     try {
-      await _bridge.lanStop();
+      await bridge.lanStop();
     } on Exception catch (_) {}
     try {
-      await _bridge.logout(wipeOutbox: false);
+      await bridge.logout(wipeOutbox: false);
     } on Exception catch (_) {}
-    _state.refreshRoute();
+    ref.read(shellProvider.notifier).refresh();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(alertProvider, (_, next) {
+      // The notifier pairs each command with a sequence counter so
+      // identical consecutive commands still fire — only the command
+      // matters here.
+      final cmd = next?.$2;
+      if (cmd != null) _onAlert(cmd);
+    });
+    final role = ref.watch(shellProvider.select((s) => s.session?.role));
+    final deliveryTick = ref.watch(deliveryTickProvider);
+    final ticketTick = ref.watch(ticketTickProvider);
+    final seenDelivery = ref.watch(
+      chromeProvider.select((s) => s.seenDelivery),
+    );
+    final seenTicket = ref.watch(chromeProvider.select((s) => s.seenTicket));
+    final toast = ref.watch(chromeProvider.select((s) => s.toast));
+    // Locale switches must re-resolve every rail string.
+    ref.watch(localeProvider);
+    final incomingHasNew =
+        deliveryTick > seenDelivery || ticketTick > seenTicket;
+
     return ResponsiveBuilder(
       builder: (context, info) {
         final colors = context.madarColors;
         final rail = info.isWide
-            ? ListenableBuilder(
-                listenable: Listenable.merge([
-                  _state.deliveryTick,
-                  _state.ticketTick,
-                ]),
-                builder: (context, _) => _NavRail(
-                  sections: _sections(context),
-                  footer: _footer(context),
+            ? _NavRail(
+                sections: _sections(
+                  role: role,
+                  incomingHasNew: incomingHasNew,
                 ),
+                footer: _footer(),
               )
             : null;
         return Material(
           color: colors.bg,
-          child: SafeArea(
-            bottom: false,
-            child: Stack(
-              children: [
-                Row(
-                  children: [
-                    if (rail != null) ...[
-                      SizedBox(width: _railWidth, child: rail),
-                      Container(width: 1, color: colors.border),
-                    ],
-                    Expanded(child: widget.child),
+          child: Stack(
+            children: [
+              Row(
+                children: [
+                  if (rail != null) ...[
+                    SizedBox(width: _railWidth, child: rail),
+                    Container(width: 1, color: colors.border),
                   ],
-                ),
-                // Narrow layouts have no rail — the natives' phone drawer:
-                // a floating nav button opening the full grouped More sheet.
-                if (rail == null)
-                  PositionedDirectional(
-                    bottom: Space.lg,
-                    start: Space.lg,
-                    child: TactileScale(
-                      onTap: () => unawaited(_openMore(includeSections: true)),
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: colors.surfaceRaised,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: colors.border),
-                        ),
-                        child: MadarIcon(
-                          'ellipsis',
-                          tint: colors.textSecondary,
-                          size: IconSize.xl,
-                        ),
+                  Expanded(child: widget.child),
+                ],
+              ),
+              // Narrow layouts have no rail — the natives' phone drawer:
+              // a floating nav button opening the full grouped More sheet.
+              if (rail == null)
+                PositionedDirectional(
+                  bottom: Space.lg,
+                  start: Space.lg,
+                  child: TactileScale(
+                    onTap: () => unawaited(_openMore(includeSections: true)),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: colors.surfaceRaised,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: MadarIcon(
+                        'ellipsis',
+                        tint: colors.textSecondary,
+                        size: IconSize.xl,
                       ),
                     ),
                   ),
-                if (_toast != null)
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: ToastHost(
-                      _toast,
-                      onDismiss: (_) {
-                        if (mounted) setState(() => _toast = null);
-                      },
-                    ),
+                ),
+              if (toast != null)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: ToastHost(
+                    toast,
+                    onDismiss: (_) =>
+                        ref.read(chromeProvider.notifier).dismissToast(),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         );
       },
@@ -493,7 +496,8 @@ class _RailSection {
 
 /// The rail surface — lockup mark, scrolling task sections, pinned system
 /// footer. Anatomy from the natives' NavRail (80dp, 36dp tiles, 8sp
-/// captions, pulsing accent badge).
+/// captions, pulsing accent badge). The chrome has no blanket SafeArea —
+/// the rail owns its own top inset so its surface paints to y=0.
 class _NavRail extends StatelessWidget {
   const _NavRail({required this.sections, required this.footer});
 
@@ -503,10 +507,11 @@ class _NavRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    final topInset = MediaQuery.viewPaddingOf(context).top;
     return ColoredBox(
       color: colors.surface,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: Space.sm),
+        padding: EdgeInsets.only(top: topInset + Space.sm, bottom: Space.sm),
         child: Column(
           children: [
             const MadarSymbol(size: 40),

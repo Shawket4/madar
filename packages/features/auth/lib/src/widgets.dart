@@ -241,12 +241,6 @@ class _MadarTextFieldState extends State<MadarTextField> {
   final FocusNode _focus = FocusNode();
 
   @override
-  void initState() {
-    super.initState();
-    _focus.addListener(() => setState(() {}));
-  }
-
-  @override
   void dispose() {
     _focus.dispose();
     super.dispose();
@@ -254,6 +248,16 @@ class _MadarTextFieldState extends State<MadarTextField> {
 
   @override
   Widget build(BuildContext context) {
+    // The focus ring re-renders via ListenableBuilder on the FocusNode —
+    // no setState (contract: zero setState; controller-driven bits rebuild
+    // through listenable builders).
+    return ListenableBuilder(
+      listenable: _focus,
+      builder: (context, _) => _buildField(context),
+    );
+  }
+
+  Widget _buildField(BuildContext context) {
     final colors = context.madarColors;
     final focused = _focus.hasFocus;
     final textStyle = MadarType.body.copyWith(
