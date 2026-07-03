@@ -52,7 +52,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(ref.read(syncProvider.notifier).load());
+    // Post-frame: notifier writes during initState land mid-build (crash).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(syncProvider.notifier).load());
+    });
   }
 
   @override

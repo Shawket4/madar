@@ -95,9 +95,13 @@ class _OpenTicketsScreenState extends ConsumerState<OpenTicketsScreen> {
   void initState() {
     super.initState();
     // On-appear: the shift (a settle needs its id) and the open board; the
-    // shared checkout drawer loads its own payment methods.
-    unawaited(_notifier.reconcileShift());
-    unawaited(_notifier.loadOpenTickets());
+    // shared checkout drawer loads its own payment methods. Post-frame:
+    // notifier writes during initState land mid-build (crash).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_notifier.reconcileShift());
+      unawaited(_notifier.loadOpenTickets());
+    });
   }
 
   // ── overlays ───────────────────────────────────────────────────────────────
@@ -289,16 +293,20 @@ class _SettleDrawerState extends ConsumerState<_SettleDrawer> {
   @override
   void initState() {
     super.initState();
-    unawaited(
-      ref
-          .read(checkoutProvider.notifier)
-          .startSettle(
-            CheckoutSummary(
-              subtotalMinor: widget.ticket.subtotalMinor,
-              totalMinor: widget.ticket.subtotalMinor,
+    // Post-frame: notifier writes during initState land mid-build (crash).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        ref
+            .read(checkoutProvider.notifier)
+            .startSettle(
+              CheckoutSummary(
+                subtotalMinor: widget.ticket.subtotalMinor,
+                totalMinor: widget.ticket.subtotalMinor,
+              ),
             ),
-          ),
-    );
+      );
+    });
   }
 
   @override

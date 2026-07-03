@@ -55,7 +55,11 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(ref.read(orderProvider.notifier).loadDrafts());
+    // Post-frame: notifier writes during initState land mid-build (crash).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(orderProvider.notifier).loadDrafts());
+    });
   }
 
   /// Restore the draft into the cart (replacing the current one) and close

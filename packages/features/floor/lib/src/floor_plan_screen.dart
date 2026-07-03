@@ -67,8 +67,11 @@ class _FloorPlanScreenState extends ConsumerState<FloorPlanScreen> {
   @override
   void initState() {
     super.initState();
-    // First state write lands after the loads (post-frame) — build-safe.
-    unawaited(ref.read(floorProvider.notifier).loadFloor());
+    // Post-frame: notifier writes during initState land mid-build (crash).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(floorProvider.notifier).loadFloor());
+    });
     _refresh = Timer.periodic(
       _refreshPeriod,
       (_) => unawaited(ref.read(floorProvider.notifier).loadFloor()),

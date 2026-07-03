@@ -47,7 +47,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_notifier.init());
+    // Post-frame: notifier writes during initState land mid-build (crash).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_notifier.init());
+    });
     // Connectivity heartbeat — refresh online + sync chrome every 15s; a
     // waiter board also re-polls its open tickets (safety net under the
     // shell-owned realtime session).

@@ -365,18 +365,21 @@ class _TableSettleSheetState extends ConsumerState<TableSettleSheet> {
   void initState() {
     super.initState();
     // Fresh autoDispose checkout session over the ticket's FIXED subtotal
-    // (its discount froze at fire time). First state write lands after the
-    // loads (post-frame) — build-safe.
-    unawaited(
-      ref
-          .read(checkoutProvider.notifier)
-          .startSettle(
-            CheckoutSummary(
-              subtotalMinor: widget.ticket.subtotalMinor,
-              totalMinor: widget.ticket.subtotalMinor,
+    // (its discount froze at fire time). Post-frame: notifier writes
+    // during initState land mid-build (crash).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        ref
+            .read(checkoutProvider.notifier)
+            .startSettle(
+              CheckoutSummary(
+                subtotalMinor: widget.ticket.subtotalMinor,
+                totalMinor: widget.ticket.subtotalMinor,
+              ),
             ),
-          ),
-    );
+      );
+    });
   }
 
   /// The natives' onTerminal: cash tender + tip only when present, the tip

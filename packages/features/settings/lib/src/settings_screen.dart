@@ -72,7 +72,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _deviceCode = TextEditingController(text: bridge.deviceCode());
     _printerHost = TextEditingController(text: printerAddressOf(config));
     _lanHub = TextEditingController(text: config.lanHub ?? '');
-    unawaited(ref.read(settingsProvider.notifier).load());
+    // Post-frame: notifier writes during initState land mid-build (crash).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(settingsProvider.notifier).load());
+    });
   }
 
   @override

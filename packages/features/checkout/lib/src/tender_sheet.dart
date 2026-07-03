@@ -46,9 +46,13 @@ class _TenderSheetState extends ConsumerState<TenderSheet> {
   @override
   void initState() {
     super.initState();
-    // Kicks the fresh autoDispose session; the first state write lands
-    // after the loads (post-frame), so this is build-safe.
-    unawaited(ref.read(checkoutProvider.notifier).startCart());
+    // Kicks the fresh autoDispose session — post-frame: notifier writes
+    // during initState land mid-build (crash), regardless of the method's
+    // internal await placement.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(checkoutProvider.notifier).startCart());
+    });
   }
 
   @override

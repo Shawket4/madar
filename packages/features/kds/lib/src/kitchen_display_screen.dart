@@ -107,8 +107,12 @@ class _KitchenDisplayScreenState extends ConsumerState<KitchenDisplayScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_board.loadStations());
-    unawaited(_board.load());
+    // Post-frame: notifier writes during initState land mid-build (crash).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_board.loadStations());
+      unawaited(_board.load());
+    });
     // Slow safety-net poll under the realtime tick — also re-renders the
     // age escalation at least once a minute (the natives' 60s loop).
     _safetyPoll = Timer.periodic(
