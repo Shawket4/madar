@@ -1,4 +1,5 @@
 import 'package:app_core/app_core.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
@@ -556,18 +557,22 @@ class MenuItemCard extends StatelessWidget {
                     ),
                     // Real photo (when present) covers the gradient once
                     // loaded; while loading / on failure nothing draws, so
-                    // the gradient + monogram show through. Decode is
-                    // bounded to the displayed cell size (a full-res menu
-                    // photo would otherwise jank the first paint and bloat
-                    // the image cache).
+                    // the gradient + monogram show through. Backed by the
+                    // persistent disk cache (CachedNetworkImageProvider), so a
+                    // photo seen once survives app restart / shift close and
+                    // renders offline. `maxWidth` bounds the fetched+decoded
+                    // size to the displayed cell (a full-res menu photo would
+                    // otherwise jank the first paint and bloat both caches).
                     if (url != null && url.isNotEmpty)
-                      Image.network(
-                        url,
+                      Image(
+                        image: CachedNetworkImageProvider(
+                          url,
+                          maxWidth:
+                              (Grid.cellMax *
+                                      MediaQuery.devicePixelRatioOf(context))
+                                  .round(),
+                        ),
                         fit: BoxFit.cover,
-                        cacheWidth:
-                            (Grid.cellMax *
-                                    MediaQuery.devicePixelRatioOf(context))
-                                .round(),
                         errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
                     if (inCartQty > 0)
@@ -738,16 +743,20 @@ class BundleCard extends StatelessWidget {
                     ),
                     // Image's own opacity param modulates alpha during
                     // rasterization — an Opacity widget would force a
-                    // saveLayer on every paint of the card.
+                    // saveLayer on every paint of the card. Backed by the
+                    // persistent disk cache so it renders offline / after
+                    // restart; `maxWidth` bounds the fetched+decoded size.
                     if (url != null && url.isNotEmpty)
-                      Image.network(
-                        url,
+                      Image(
+                        image: CachedNetworkImageProvider(
+                          url,
+                          maxWidth:
+                              (Grid.cellMax *
+                                      MediaQuery.devicePixelRatioOf(context))
+                                  .round(),
+                        ),
                         fit: BoxFit.cover,
                         opacity: const AlwaysStoppedAnimation(0.55),
-                        cacheWidth:
-                            (Grid.cellMax *
-                                    MediaQuery.devicePixelRatioOf(context))
-                                .round(),
                         errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       ),
                     PositionedDirectional(

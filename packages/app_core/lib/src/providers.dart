@@ -175,3 +175,20 @@ class ReauthNotifier extends Notifier<int> {
 final reauthRequestProvider = NotifierProvider<ReauthNotifier, int>(
   ReauthNotifier.new,
 );
+
+/// Bumped each time the app-level connectivity service refreshes the core's
+/// online state (OS network change / app resume / periodic health probe).
+/// Screens that show connectivity (the sync chip, the offline banner) watch
+/// this and re-read `syncStatus()` — so offline/online reflects the DEVICE's
+/// actual reachability app-wide, not just after a request times out.
+class ConnectivityPulseNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void pulse() => state++;
+}
+
+final connectivityPulseProvider =
+    NotifierProvider<ConnectivityPulseNotifier, int>(
+      ConnectivityPulseNotifier.new,
+    );

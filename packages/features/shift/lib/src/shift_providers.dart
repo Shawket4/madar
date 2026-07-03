@@ -96,19 +96,29 @@ class OpenShiftNotifier extends AutoDisposeNotifier<OpenShiftState> {
   @override
   OpenShiftState build() {
     _bridge = ref.read(bridgeProvider);
-    ref.onDispose(() {
-      _disposed = true;
-      _heartbeat?.cancel();
-    });
-    // Prime the prefill on entry (reconcile FIRST — it adopts an already-open
-    // shift so a teller who lands here never opens a SECOND shift on top of a
-    // live one), and start the connectivity heartbeat: a teller who landed
-    // here offline re-adopts their active shift the moment the network
-    // returns. Kicked off a microtask late so build() finishes first.
+    ref
+      ..onDispose(() {
+        _disposed = true;
+        _heartbeat?.cancel();
+      })
+      // A teller who landed here offline re-adopts their active shift the
+      // moment the network returns. That "moment" is now driven app-wide by
+      // the ConnectivityService (OS network state + resume + adaptive probe),
+      // which pulses `connectivityPulseProvider` — reflect its result into the
+      // chrome without re-pinging. A brisk self-poll also stays: this is the
+      // screen a teller stares at waiting to come back online, so a 15s
+      // reconcile here is a deliberately-tighter net than the app-wide probe
+      // (and a backstop if the pulse source is ever absent).
+      ..listen(connectivityPulseProvider, (_, _) {
+        unawaited(_reflectStatus());
+      });
     _heartbeat = Timer.periodic(
       _heartbeatPeriod,
       (_) => unawaited(refreshConnectivity()),
     );
+    // Prime the prefill on entry (reconcile FIRST — it adopts an already-open
+    // shift so a teller who lands here never opens a SECOND shift on top of a
+    // live one). Kicked off a microtask late so build() finishes first.
     unawaited(
       Future<void>.microtask(() {
         unawaited(_prime());
@@ -116,6 +126,24 @@ class OpenShiftNotifier extends AutoDisposeNotifier<OpenShiftState> {
       }),
     );
     return const OpenShiftState();
+  }
+
+  /// Reflect the core's CURRENT online/sync state into the chrome WITHOUT
+  /// pinging — the app-level ConnectivityService already refreshed the core
+  /// and pulsed us. Reconciles the shift on an offline→online edge.
+  Future<void> _reflectStatus() async {
+    if (_bridge.currentSession() == null) return;
+    final wasOnline = state.online;
+    SyncStatusView? status;
+    try {
+      status = await _bridge.syncStatus();
+    } on Exception catch (_) {}
+    if (_disposed || status == null) return;
+    state = state.copyWith(
+      online: status.online,
+      authPaused: status.authPaused,
+    );
+    if (!wasOnline && status.online) await _reconcileShift();
   }
 
   /// The teller edited the count.

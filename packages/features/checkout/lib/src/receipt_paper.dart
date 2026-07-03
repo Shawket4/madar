@@ -1,4 +1,5 @@
 import 'package:app_core/app_core.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,7 +91,8 @@ class ReceiptPaper extends ConsumerWidget {
             children: [
               // Org brand mark at the top of the paper. Blank/unreachable →
               // just the store name; nothing draws while loading or on
-              // failure (the natives' Coil behavior).
+              // failure (the natives' Coil behavior). Persistently disk-cached
+              // so it still renders on an offline reprint / after restart.
               if (logo != null && logo.isNotEmpty)
                 Padding(
                   padding: const EdgeInsetsDirectional.only(
@@ -101,8 +103,8 @@ class ReceiptPaper extends ConsumerWidget {
                       maxHeight: _logoMaxHeight,
                       maxWidth: _logoMaxWidth,
                     ),
-                    child: Image.network(
-                      logo,
+                    child: Image(
+                      image: CachedNetworkImageProvider(logo),
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     ),

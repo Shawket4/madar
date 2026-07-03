@@ -731,6 +731,28 @@ class OrderNotifier extends Notifier<OrderState> {
     }
   }
 
+  /// Reflect the core's CURRENT sync/online state into the chrome WITHOUT
+  /// pinging — the app-level connectivity service already refreshed the
+  /// core (OS network change / resume / periodic probe) and pulsed us. We
+  /// only re-read the cheap in-memory status and reconcile the shift on an
+  /// offline→online edge. Cheaper and more responsive than a screen-local
+  /// heartbeat, and it stays live even off the order screen.
+  Future<void> syncFromStatus() async {
+    final status = await _quiet(_bridge.syncStatus);
+    if (status == null) return;
+    final wasOnline = state.isOnline;
+    state = state.copyWith(
+      isOnline: status.online,
+      pendingCount: status.pending,
+      syncFailed: status.failed,
+      syncAuthPaused: status.authPaused,
+      clockSkewMinutes: _bridge.clockSkewMinutes(),
+    );
+    if (!wasOnline && status.online && !state.isWaiter) {
+      await reconcileShift();
+    }
+  }
+
   /// Run a bridge call whose failure the natives swallow (cache reads,
   /// best-effort refreshes) — returns null instead of surfacing the error.
   Future<T?> _quiet<T>(Future<T> Function() op) async {

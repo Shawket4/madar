@@ -3,6 +3,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:madar/app/boot.dart';
+import 'package:madar/app/connectivity.dart';
 import 'package:madar/app/shell.dart';
 
 void main() {
@@ -93,6 +94,7 @@ class _ReadyScope extends StatefulWidget {
 
 class _ReadyScopeState extends State<_ReadyScope> {
   late ProviderContainer _container;
+  ConnectivityService? _connectivity;
 
   @override
   void initState() {
@@ -106,6 +108,7 @@ class _ReadyScopeState extends State<_ReadyScope> {
     // A re-boot (retry after a transient failure) yields a new core — the
     // old container's state is all derived from the dead handle.
     if (!identical(oldWidget.boot, widget.boot)) {
+      _connectivity?.dispose();
       _container.dispose();
       _container = _createContainer();
     }
@@ -122,6 +125,14 @@ class _ReadyScopeState extends State<_ReadyScope> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && identical(_container, container)) {
         container.read(realtimeArmerProvider)();
+        // App-wide connectivity awareness — OS network state + app resume +
+        // an adaptive periodic probe drive the core's online decision.
+        _connectivity?.dispose();
+        _connectivity = ConnectivityService(
+          core: widget.boot.core,
+          onPulse: () =>
+              container.read(connectivityPulseProvider.notifier).pulse(),
+        )..start();
       }
     });
     return container;
@@ -129,6 +140,7 @@ class _ReadyScopeState extends State<_ReadyScope> {
 
   @override
   void dispose() {
+    _connectivity?.dispose();
     _container.dispose();
     super.dispose();
   }

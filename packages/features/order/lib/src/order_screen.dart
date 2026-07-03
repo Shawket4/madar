@@ -52,11 +52,13 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       if (!mounted) return;
       unawaited(_notifier.init());
     });
-    // Connectivity heartbeat — refresh online + sync chrome every 15s; a
-    // waiter board also re-polls its open tickets (safety net under the
-    // shell-owned realtime session).
+    // Waiter-ticket safety poll — a net under the shell-owned realtime
+    // session (SSE ticketTick already drives immediate reloads). Connectivity
+    // is no longer polled here: the app-level ConnectivityService drives the
+    // core's online decision from OS network state + resume + an adaptive
+    // probe, and pulses `connectivityPulseProvider` (listened above) so the
+    // chrome refreshes app-wide, not just while this screen is mounted.
     _heartbeat = Timer.periodic(const Duration(seconds: 15), (_) {
-      unawaited(_notifier.refreshConnectivity());
       if (ref.read(orderProvider).isWaiter) {
         unawaited(_notifier.loadOpenTickets());
       }
@@ -214,6 +216,14 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         if (ref.read(orderProvider).isWaiter) {
           unawaited(_notifier.loadOpenTickets());
         }
+      })
+      // The app-level connectivity service refreshed the core's online state
+      // (OS network change / app resume / periodic health probe) — reflect it
+      // into the sync chrome and reconcile on an offline→online edge, without
+      // re-pinging (the service already did). Replaces the old 15s screen-local
+      // heartbeat, so connectivity stays live even off this screen.
+      ..listen(connectivityPulseProvider, (_, _) {
+        unawaited(_notifier.syncFromStatus());
       })
       // A layer caught a 401 with a live session — present the re-auth
       // sheet once per bump.
