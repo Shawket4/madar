@@ -4,4 +4,5 @@
 /// package — and the app overrides `coreProvider` once boot completes.
 library;
 
+export 'src/orientation.dart';
 export 'src/providers.dart';

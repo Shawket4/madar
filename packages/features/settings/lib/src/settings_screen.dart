@@ -297,7 +297,44 @@ class _AppearanceCard extends ConsumerWidget {
             ),
           ],
         ),
+        // Tablets lock to ONE landscape (no auto-rotate); this flips between
+        // the two. Phones are portrait-locked, so the control is hidden.
+        if (OrientationController.instance.canFlip) const _OrientationFlipRow(),
       ],
+    );
+  }
+}
+
+/// A row that flips the locked landscape orientation on tablets (the two
+/// landscape locks; never auto-rotating).
+class _OrientationFlipRow extends ConsumerWidget {
+  const _OrientationFlipRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    return ListenableBuilder(
+      listenable: OrientationController.instance,
+      builder: (context, _) {
+        final controller = OrientationController.instance;
+        return Row(
+          children: [
+            Expanded(
+              child: Text(
+                bridge.tr(key: 'settings.orientation'),
+                style: MadarType.body.copyWith(color: colors.textSecondary),
+              ),
+            ),
+            _Chip(
+              label: bridge.tr(key: 'settings.flip_screen'),
+              active: false,
+              icon: controller.landscapeRight ? 'rotate.left' : 'rotate.right',
+              onTap: controller.flip,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -743,35 +780,54 @@ class _SettingsCard extends StatelessWidget {
 /// Segmented choice chip: accent-filled when active, quiet bordered
 /// surface otherwise (the natives' `Chip`).
 class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.active, required this.onTap});
+  const _Chip({
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.icon,
+  });
 
   final String label;
   final bool active;
   final VoidCallback onTap;
 
+  /// Optional leading glyph (e.g. the rotate icon on the orientation flip).
+  final String? icon;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    final fg = active ? colors.textOnAccent : colors.textPrimary;
     return Semantics(
       button: true,
       selected: active,
       child: TactileScale(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsetsDirectional.symmetric(vertical: Space.md),
+          padding: const EdgeInsetsDirectional.symmetric(
+            vertical: Space.md,
+            horizontal: Space.md,
+          ),
           decoration: BoxDecoration(
             color: active ? colors.accent : colors.surfaceAlt,
             borderRadius: BorderRadius.circular(Radii.sm),
             border: active ? null : Border.all(color: colors.border),
           ),
           alignment: Alignment.center,
-          child: Text(
-            label,
-            style: MadarType.bodySm.copyWith(
-              fontSize: _chipLabelSize,
-              fontWeight: FontWeight.w600,
-              color: active ? colors.textOnAccent : colors.textPrimary,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: Space.xs,
+            children: [
+              if (icon case final icon?) MadarIcon(icon, tint: fg),
+              Text(
+                label,
+                style: MadarType.bodySm.copyWith(
+                  fontSize: _chipLabelSize,
+                  fontWeight: FontWeight.w600,
+                  color: fg,
+                ),
+              ),
+            ],
           ),
         ),
       ),

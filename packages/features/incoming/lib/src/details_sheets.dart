@@ -44,7 +44,6 @@ class TicketDetailsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
@@ -64,19 +63,11 @@ class TicketDetailsSheet extends ConsumerWidget {
     return _SheetScaffold(
       footer: footer,
       children: [
-        // Title row — ticket ref + live status chip.
-        Row(
-          spacing: Space.sm,
-          children: [
-            MadarIcon('doc.text', tint: colors.accent, size: IconSize.lg),
-            Flexible(
-              child: Text(
-                ticket.ticketRef ?? tr('waiter.ticket'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.h2.copyWith(color: colors.textPrimary),
-              ),
-            ),
+        // Stacked header — ticket ref title + status/queued chips below.
+        _SheetHeader(
+          icon: 'doc.text',
+          title: ticket.ticketRef ?? tr('waiter.ticket'),
+          chips: [
             StatusChip(
               label: tr('ticket.status.${ticket.status}'),
               tone: ticketStatusTone(ticket.status),
@@ -131,7 +122,6 @@ class DeliveryDetailsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
@@ -143,58 +133,54 @@ class DeliveryDetailsSheet extends ConsumerWidget {
     return _SheetScaffold(
       footer: footer,
       children: [
-        // Title row — order ref + status + channel.
-        Row(
-          spacing: Space.sm,
-          children: [
-            MadarIcon('bicycle', tint: colors.accent, size: IconSize.lg),
-            Flexible(
-              child: Text(
-                o.orderRef ?? tr('delivery.title'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.h2.copyWith(color: colors.textPrimary),
-              ),
-            ),
+        // Stacked header — icon tile + ref title on one row, the status +
+        // channel chips on their own row below, so nothing squishes on a
+        // narrow sheet.
+        _SheetHeader(
+          icon: 'bicycle',
+          title: o.orderRef ?? tr('delivery.title'),
+          chips: [
             StatusChip(
               label: tr('delivery.status.${o.status}'),
               tone: deliveryStatusTone(o.status),
             ),
-            StatusChip(label: tr('delivery.${o.channel}')),
+            StatusChip(
+              label: tr('delivery.${o.channel}'),
+              icon: 'bag.fill',
+            ),
           ],
         ),
-        // Context — customer name/phone, address, payment hint.
-        IncomingCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: Space.sm,
-            children: [
-              _DetailRow(
-                icon: 'person.fill',
-                label: tr('receipt.customer'),
-                value: o.customerName,
-              ),
-              if (o.customerPhone.isNotEmpty)
-                _DetailRow(
-                  icon: 'phone.fill',
-                  label: tr('receipt.phone'),
-                  value: o.customerPhone,
-                ),
-              if (address != null && address.isNotEmpty)
-                _DetailRow(
-                  icon: 'mappin.and.ellipse',
-                  label: _stripColon(tr('receipt.address')),
-                  value: address,
-                ),
-              if (paymentHint != null && paymentHint.isNotEmpty)
-                _DetailRow(
-                  icon: 'creditcard',
-                  label: tr('order.payment_method'),
-                  value: paymentHint,
-                ),
-            ],
-          ),
+        // Customer hero — leading tile + name/phone, the total as the hero
+        // in a tinted teal block on the trailing edge (matches the card).
+        _CustomerHero(
+          name: o.customerName,
+          phone: o.customerPhone,
+          totalMinor: o.totalMinor,
+          currency: currency,
         ),
+        // Address + payment context (only the rows that carry data).
+        if ((address != null && address.isNotEmpty) ||
+            (paymentHint != null && paymentHint.isNotEmpty))
+          IncomingCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: Space.sm,
+              children: [
+                if (address != null && address.isNotEmpty)
+                  _DetailRow(
+                    icon: 'mappin.and.ellipse',
+                    label: _stripColon(tr('receipt.address')),
+                    value: address,
+                  ),
+                if (paymentHint != null && paymentHint.isNotEmpty)
+                  _DetailRow(
+                    icon: 'creditcard',
+                    label: tr('order.payment_method'),
+                    value: paymentHint,
+                  ),
+              ],
+            ),
+          ),
         // Customer delivery instructions — warning-tinted, can't be missed.
         if (o.deliveryNotes case final note? when note.isNotEmpty)
           DeliveryNoteInset(note: note),
@@ -223,6 +209,142 @@ class DeliveryDetailsSheet extends ConsumerWidget {
           totalLabel: tr('order.total'),
         ),
       ],
+    );
+  }
+}
+
+/// A clean stacked sheet header: an accent icon tile + a bold title on the
+/// top row, then the status/channel chips wrapped on their own row — so a
+/// long ref and several chips never squish together on a narrow sheet.
+class _SheetHeader extends StatelessWidget {
+  const _SheetHeader({
+    required this.icon,
+    required this.title,
+    required this.chips,
+  });
+
+  final String icon;
+  final String title;
+  final List<Widget> chips;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          spacing: Space.sm,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colors.accentBg,
+                borderRadius: BorderRadius.circular(Radii.sm),
+              ),
+              child: MadarIcon(icon, tint: colors.accent, size: IconSize.xl),
+            ),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MadarType.h2.copyWith(color: colors.textPrimary),
+              ),
+            ),
+          ],
+        ),
+        if (chips.isNotEmpty) ...[
+          const SizedBox(height: Space.md),
+          Wrap(spacing: Space.sm, runSpacing: Space.sm, children: chips),
+        ],
+      ],
+    );
+  }
+}
+
+/// The delivery customer hero — leading person tile, name + phone, and the
+/// order total as the hero figure in a tinted teal block on the trailing
+/// edge. Mirrors the delivery card so the sheet feels like its expansion.
+class _CustomerHero extends StatelessWidget {
+  const _CustomerHero({
+    required this.name,
+    required this.phone,
+    required this.totalMinor,
+    required this.currency,
+  });
+
+  final String name;
+  final String phone;
+  final int totalMinor;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return IncomingCard(
+      child: Row(
+        spacing: Space.sm,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(Radii.sm),
+            ),
+            child: MadarIcon(
+              'person.fill',
+              tint: colors.textSecondary,
+              size: IconSize.lg,
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: Space.xs / 2,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MadarType.title.copyWith(color: colors.textPrimary),
+                ),
+                if (phone.isNotEmpty)
+                  Text(
+                    phone,
+                    textDirection: TextDirection.ltr,
+                    style: MadarType.label.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Space.md,
+              vertical: Space.sm,
+            ),
+            decoration: BoxDecoration(
+              color: colors.accentBg,
+              borderRadius: BorderRadius.circular(Radii.sm),
+            ),
+            child: MoneyText(
+              totalMinor,
+              currency: currency,
+              style: MadarType.money.copyWith(
+                fontSize: _totalSize,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

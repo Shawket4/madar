@@ -20,11 +20,12 @@ class MadarShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final dark = ref.watch(darkModeProvider);
     return MaterialApp(
-      title: 'Madar POS',
+      title: 'Madar Cashier',
       debugShowCheckedModeBanner: false,
       theme: MadarTheme.light(),
       darkTheme: MadarTheme.dark(),
       themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+      builder: orientationProbe,
       home: const _RouteHost(),
     );
   }

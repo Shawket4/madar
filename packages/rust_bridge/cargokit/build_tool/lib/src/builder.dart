@@ -22,11 +22,18 @@ enum BuildConfiguration {
 }
 
 extension on BuildConfiguration {
-  bool get isDebug => this == BuildConfiguration.debug;
+  // PATCHED (madar): the Rust core is always built OPTIMIZED. A debug build of
+  // the workspace costs ~8 GB of target dir per platform and the Flutter debug
+  // loop doesn't need a debug-built core, so `debug` maps to the `release`
+  // cargo profile. Flutter *profile* maps to a custom `profiling` cargo profile
+  // (release-optimized but with symbols retained — see rust-core/Cargo.toml) so
+  // Xcode Instruments / DevTools can attribute native time to real core
+  // functions. This name is used BOTH as `cargo --profile <name>` and as the
+  // `target/<triple>/<name>/` output dir, so the two stay in lockstep.
   String get rustName => switch (this) {
-        BuildConfiguration.debug => 'debug',
+        BuildConfiguration.debug => 'release',
         BuildConfiguration.release => 'release',
-        BuildConfiguration.profile => 'release',
+        BuildConfiguration.profile => 'profiling',
       };
 }
 
@@ -159,10 +166,11 @@ class RustBuilder {
         manifestPath,
         '-p',
         environment.crateInfo.packageName,
-        // PATCHED (madar): ALWAYS build Rust in release. A debug build of the
-        // workspace costs ~8 GB of target dir PER PLATFORM on this machine,
-        // and the Flutter debug loop doesn't need a debug-built core.
-        '--release',
+        // PATCHED (madar): pick the cargo profile from the Flutter build mode —
+        // release/debug → `release` (optimized, stripped), profile →
+        // `profiling` (optimized, symbols kept). See the rustName extension.
+        '--profile',
+        environment.configuration.rustName,
         '--target',
         target.rust +
             ((target.android == null && environment.glibcVersion != null)
@@ -176,8 +184,8 @@ class RustBuilder {
     return path.join(
       environment.targetTempDir,
       target.rust,
-      // PATCHED (madar): matches the forced --release above.
-      'release',
+      // PATCHED (madar): matches the --profile chosen above.
+      environment.configuration.rustName,
     );
   }
 

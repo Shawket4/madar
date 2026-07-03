@@ -11,6 +11,7 @@ import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:madar/app/notifications.dart';
 import 'package:madar/spike_screen.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
@@ -108,6 +109,20 @@ class MadarChrome extends ConsumerStatefulWidget {
 
 class _MadarChromeState extends ConsumerState<MadarChrome> {
   final _player = AudioPlayer();
+  NotificationService? _notifications;
+
+  @override
+  void initState() {
+    super.initState();
+    // OS notifications for the realtime channel (the natives' RealtimePlayer
+    // OS-notification tier). Async init — the in-app toast + chime work
+    // immediately; a notification that arrives before init just skips.
+    unawaited(
+      NotificationService.initialize().then((s) {
+        if (mounted) _notifications = s;
+      }),
+    );
+  }
 
   @override
   void dispose() {
@@ -118,16 +133,18 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
   String _t(String key) => ref.read(bridgeProvider).tr(key: key);
 
   /// Core-raised alert: localized text decided in Rust; the shell renders
-  /// a toast + chime for notify, chime-only for ping, haptic-only for
-  /// haptic (the natives' RealtimePlayer contract).
+  /// an in-app toast + chime + haptic AND posts an OS notification for
+  /// notify (so it surfaces when the app is backgrounded, like the natives'
+  /// RealtimePlayer); chime-only for ping, haptic-only for haptic.
   void _onAlert(AlertCommand cmd) {
     switch (cmd) {
-      case AlertCommand_Notify(:final title, :final body):
+      case AlertCommand_Notify(:final title, :final body, :final tag):
         ref
             .read(chromeProvider.notifier)
             .showToast(body.isEmpty ? title : '$title — $body');
         _chime();
         MadarHaptics.impact();
+        unawaited(_notifications?.post(title: title, body: body, tag: tag));
       case AlertCommand_Ping():
         _chime();
       case AlertCommand_Haptic():

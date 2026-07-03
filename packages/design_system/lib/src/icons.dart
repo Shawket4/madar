@@ -124,6 +124,9 @@ const Map<String, IconData> madarIconCatalog = <String, IconData>{
   // Share / export (the natives' CSV-export glyph never made their catalog —
   // fixed here; the SF name maps to Lucide's tray-with-up-arrow).
   'square.and.arrow.up': LucideIcons.share,
+  // Screen-orientation flip control (settings).
+  'rotate.left': LucideIcons.rotateCcw,
+  'rotate.right': LucideIcons.rotateCw,
   // Display & visualization.
   'circle': LucideIcons.circle,
   'largecircle.fill.circle': LucideIcons.circleDot,

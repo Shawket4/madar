@@ -232,7 +232,7 @@ class IncomingNotifier extends Notifier<IncomingState> {
   /// method. Surfaces oversold warnings instead of dropping them — replaying
   /// the frozen delivery snapshot into a real sale can oversell stock, and
   /// the teller must SEE that (the natives' finalizeDelivery).
-  Future<bool> finalizeDelivery(
+  Future<DeliveryFinalizeView?> finalizeDelivery(
     DeliveryOrderView o,
     String paymentMethodId,
   ) async {
@@ -260,10 +260,11 @@ class IncomingNotifier extends Notifier<IncomingState> {
       state = state.copyWith(isBusy: false);
       // A finalized delivery books a real sale on the open shift.
       ref.read(shellProvider.notifier).refresh();
-      return true;
+      // The created order id lets the caller show its receipt.
+      return res;
     } on MadarError catch (e) {
       state = state.copyWith(error: _fail(e), isBusy: false);
-      return false;
+      return null;
     }
   }
 

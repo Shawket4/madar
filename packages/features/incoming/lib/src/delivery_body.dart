@@ -605,6 +605,18 @@ class _DeliveryOrderCard extends ConsumerWidget {
                               expand: false,
                               onTap: onAdvance,
                             ),
+                          )
+                        else
+                          // Out for delivery is the last advance step — the
+                          // primary action becomes Settle (finalize into a
+                          // real sale, then show the receipt).
+                          Flexible(
+                            child: IncomingButton(
+                              label: bridge.tr(key: 'delivery.finalize'),
+                              icon: 'checkmark.seal',
+                              expand: false,
+                              onTap: onFinalize,
+                            ),
                           ),
                         const Spacer(),
                         _OverflowMenu(
@@ -777,16 +789,37 @@ class _DeliveryFinalizeSheetState
 
   Future<void> _finalize(CheckoutResult result) async {
     final checkout = ref.read(checkoutProvider.notifier)..setError(null);
-    final ok = await ref
+    final bridge = ref.read(bridgeProvider);
+    // Captured before any await — this sheet unmounts when the drawer pops,
+    // so the receipt is presented on the PARENT navigator, not our context.
+    final navigator = Navigator.of(context);
+    final res = await ref
         .read(incomingProvider.notifier)
         .finalizeDelivery(widget.order, result.primaryMethodId);
     if (!mounted) return;
-    if (ok) {
-      await Navigator.of(context).maybePop();
-    } else {
+    if (res == null) {
       // Surface the failure INSIDE the drawer (the natives' model.error) —
       // the board's own banner sits behind the modal scrim.
       checkout.setError(ref.read(incomingProvider).error);
+      return;
+    }
+    // The sale is booked — swap the drawer for the receipt of the real
+    // order the finalize created (best-effort: fetch the receipt view;
+    // if it's not resolvable, the success toast already fired).
+    ReceiptView? receipt;
+    try {
+      receipt = await bridge.orderReceiptView(orderId: res.orderId);
+    } on Object {
+      receipt = null;
+    }
+    await navigator.maybePop();
+    if (receipt != null) {
+      await navigator.push(
+        MadarSheetRoute<void>(
+          builder: (_) => ReceiptSheet(receipt: receipt!),
+          size: SheetSize.large,
+        ),
+      );
     }
   }
 
@@ -996,14 +1029,16 @@ class _CancelSheetState extends ConsumerState<_CancelSheet> {
   }
 }
 
-/// One forward lifecycle step from a wire status (received → confirmed →
-/// preparing → ready → out_for_delivery → delivered); null when terminal.
+/// One forward lifecycle step the STATUS endpoint accepts (received →
+/// confirmed → preparing → ready → out_for_delivery). `delivered` is NOT a
+/// settable advance target on the backend — it's reached only by finalizing
+/// (settling) the order into a real sale — so `out_for_delivery` returns
+/// null here and the card offers Settle instead of another advance.
 String? _nextStatus(String status) => switch (status) {
   'received' => 'confirmed',
   'confirmed' => 'preparing',
   'preparing' => 'ready',
   'ready' => 'out_for_delivery',
-  'out_for_delivery' => 'delivered',
   _ => null,
 };
 

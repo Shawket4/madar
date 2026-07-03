@@ -1,5 +1,5 @@
 name: madar
-description: Madar POS — a thin, high-performance Flutter UI over the shared Rust core.
+description: Madar Cashier — a thin, high-performance Flutter UI over the shared Rust core.
 version: 0.1.0
 publish_to: none
 resolution: workspace
@@ -22,6 +22,7 @@ dependencies:
   feature_shift: ^0.1.0
   flutter:
     sdk: flutter
+  flutter_local_notifications: ^17.2.4
   flutter_riverpod: ^2.6.1
   flutter_secure_storage: ^9.2.4
   path_provider: ^2.1.5

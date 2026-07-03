@@ -1,18 +1,24 @@
-import 'dart:async';
-
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:madar/app/boot.dart';
 import 'package:madar/app/shell.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // The POS runs in a single landscape orientation, matching the native apps.
-  unawaited(
-    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]),
+  // Lock orientation by device class: tablets/desktop → one landscape (with
+  // a user flip, no auto-rotate), phones → portrait. Seed from the platform
+  // view now; the MaterialApp builder confirms it from MediaQuery on the
+  // first frame (physicalSize can be 0 pre-frame → default to tablet).
+  final view = WidgetsBinding.instance.platformDispatcher.views.firstOrNull;
+  final size = view == null
+      ? Size.zero
+      : view.physicalSize / view.devicePixelRatio;
+  OrientationController.instance.setDeviceClass(
+    isTablet:
+        size.shortestSide == 0 ||
+        size.shortestSide >= OrientationController.tabletShortestSide,
   );
   runApp(const ProviderScope(child: MadarApp()));
 }
@@ -60,11 +66,12 @@ class _BootApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Madar POS',
+      title: 'Madar Cashier',
       debugShowCheckedModeBanner: false,
       theme: MadarTheme.light(),
       darkTheme: MadarTheme.dark(),
       themeMode: ThemeMode.light,
+      builder: orientationProbe,
       home: home,
     );
   }
