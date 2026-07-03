@@ -90,16 +90,18 @@ final themePersisterProvider = Provider<ThemePersister>(
 );
 final realtimeArmerProvider = Provider<void Function()>((_) => () {});
 
-/// Dark-mode preference (light default, matching the natives). Persisted
-/// through the host hook; the app seeds the initial value at boot.
+/// Dark-mode preference (light default, matching the natives). The app
+/// seeds the boot value via `darkModeProvider.overrideWith(() =>
+/// DarkModeNotifier(initialDark: ...))` — an override, never a build-time
+/// mutation (mutating providers during widget builds is forbidden).
 class DarkModeNotifier extends Notifier<bool> {
-  @override
-  bool build() => false;
+  DarkModeNotifier({this.initialDark = false});
 
-  /// Boot-time value from the host vault (no persist round-trip; not a
-  /// setter — Notifier state writes are method-guarded).
-  // ignore: use_setters_to_change_properties
-  void seed({required bool dark}) => state = dark;
+  /// The vault-persisted value the ready scope boots with.
+  final bool initialDark;
+
+  @override
+  bool build() => initialDark;
 
   /// User toggle — updates + persists through the host hook.
   void setDark({required bool dark}) {

@@ -99,6 +99,10 @@ final bootProvider = AsyncNotifierProvider<BootNotifier, BootData>(
 List<Override> readyScopeOverrides(BootData boot) {
   return [
     coreProvider.overrideWithValue(boot.core),
+    // Boot-time theme seed as an OVERRIDE — never a mutation during build.
+    darkModeProvider.overrideWith(
+      () => DarkModeNotifier(initialDark: boot.vault.themeMode == 'dark'),
+    ),
     localePersisterProvider.overrideWithValue((locale) {
       boot.vault.locale = locale;
     }),

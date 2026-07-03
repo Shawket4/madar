@@ -108,13 +108,15 @@ class _ReadyScopeState extends State<_ReadyScope> {
     final container = ProviderContainer(
       overrides: readyScopeOverrides(widget.boot),
     );
-    // Seed the persisted theme before first build (no persist round-trip).
-    container
-        .read(darkModeProvider.notifier)
-        .seed(dark: widget.boot.vault.themeMode == 'dark');
     // Arm the session-gated realtime subscription for a restored session —
     // the natives' post-boot lifecycle; `refresh()` re-arms after login.
-    container.read(realtimeArmerProvider)();
+    // Deferred past the frame: this state mounts DURING a build, where
+    // provider mutations (tick bumps, connection flips) are forbidden.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && identical(_container, container)) {
+        container.read(realtimeArmerProvider)();
+      }
+    });
     return container;
   }
 
