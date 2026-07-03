@@ -6,3 +6,4 @@ library;
 
 export 'src/orientation.dart';
 export 'src/providers.dart';
+export 'src/realtime_poll.dart';

@@ -5,6 +5,7 @@ import 'package:design_system/src/tokens/dimens.dart';
 import 'package:design_system/src/tokens/typography.dart';
 import 'package:design_system/src/touch.dart';
 import 'package:flutter/widgets.dart';
+import 'package:lottie/lottie.dart';
 
 /// Icon side length inside the state badge circle.
 const double _stateIconSize = 44;
@@ -25,10 +26,13 @@ class EmptyState extends StatelessWidget {
     required this.icon,
     required this.title,
     this.message,
+    this.lottieAsset,
+    this.lottieSize = 140,
     super.key,
   });
 
-  /// [MadarIcon] catalog name (e.g. `'tray'`, `'doc.text'`).
+  /// [MadarIcon] catalog name (e.g. `'tray'`, `'doc.text'`) — the fallback
+  /// visual when [lottieAsset] is null.
   final String icon;
 
   /// Short localized headline (e.g. "No drafts yet").
@@ -37,16 +41,36 @@ class EmptyState extends StatelessWidget {
   /// Optional supporting line under the title.
   final String? message;
 
+  /// Optional Lottie asset name under `design_system`'s `assets/lottie/`
+  /// (e.g. `'no_results'`, `'empty_cart'`). When set it loops in place of the
+  /// icon badge — the cart + search use this, everywhere else the [icon].
+  final String? lottieAsset;
+
+  /// Rendered side length of the Lottie animation.
+  final double lottieSize;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     return _CenteredStateColumn(
       children: [
-        _StateBadge(
-          icon: icon,
-          iconTint: colors.textMuted,
-          background: colors.surfaceAlt,
-        ),
+        if (lottieAsset case final asset?)
+          SizedBox(
+            width: lottieSize,
+            height: lottieSize,
+            child: Lottie.asset(
+              'assets/lottie/$asset.json',
+              package: 'design_system',
+              fit: BoxFit.contain,
+              repeat: true,
+            ),
+          )
+        else
+          _StateBadge(
+            icon: icon,
+            iconTint: colors.textMuted,
+            background: colors.surfaceAlt,
+          ),
         const SizedBox(height: Space.md),
         Text(
           title,

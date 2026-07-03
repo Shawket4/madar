@@ -139,11 +139,11 @@ class CartPanel extends ConsumerWidget {
             if (hasLines) footer,
           ] else if (!hasLines)
             Expanded(
-              child: Center(
-                child: Text(
-                  tr('order.cart_empty'),
-                  style: MadarType.body.copyWith(color: colors.textSecondary),
-                ),
+              child: EmptyState(
+                icon: 'cart',
+                lottieAsset: 'empty_cart',
+                lottieSize: 130,
+                title: tr('order.cart_empty'),
               ),
             )
           else ...[

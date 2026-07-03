@@ -126,13 +126,20 @@ class _ReadyScopeState extends State<_ReadyScope> {
       if (mounted && identical(_container, container)) {
         container.read(realtimeArmerProvider)();
         // App-wide connectivity awareness — OS network state + app resume +
-        // an adaptive periodic probe drive the core's online decision.
+        // failed-request triggers drive the core's online decision. No polling:
+        // idle devices make zero connectivity traffic.
         _connectivity?.dispose();
-        _connectivity = ConnectivityService(
+        final connectivity = _connectivity = ConnectivityService(
           core: widget.boot.core,
           onPulse: () =>
               container.read(connectivityPulseProvider.notifier).pulse(),
+          onReconnect: () => container.read(realtimeArmerProvider)(),
         )..start();
+        // Providers deep in the feature packages fire this on a transport-class
+        // failure; the service does one debounced /health confirm + pulse.
+        container
+            .read(connectivityRefreshProvider.notifier)
+            .register(connectivity.refresh);
       }
     });
     return container;

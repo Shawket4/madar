@@ -347,6 +347,10 @@ class _ItemGridOrEmpty extends ConsumerWidget {
     if (items.isEmpty) {
       return EmptyState(
         icon: searching ? 'magnifyingglass' : 'tray',
+        // A no-match search animates (the natives' Lottie); a genuinely empty
+        // catalog keeps the calm static tray.
+        lottieAsset: searching ? 'no_results' : null,
+        lottieSize: 160,
         title: bridge.tr(
           key: searching ? 'order.empty_search' : 'order.empty',
         ),

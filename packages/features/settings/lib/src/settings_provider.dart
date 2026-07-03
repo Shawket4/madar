@@ -128,11 +128,14 @@ class SettingsNotifier extends Notifier<SettingsState> {
   }
 
   /// Swallow bridge failures on best-effort reads/writes (the natives'
-  /// `runCatching`) — settings must render offline with whatever's cached.
+  /// `runCatching`) — settings must render offline with whatever's cached. A
+  /// transport-class failure nudges the connectivity service (one debounced
+  /// probe).
   Future<T?> _quiet<T>(Future<T> Function() body) async {
     try {
       return await body();
-    } on Exception {
+    } on Exception catch (e) {
+      ref.read(connectivityRefreshProvider.notifier).reportError(e);
       return null;
     }
   }

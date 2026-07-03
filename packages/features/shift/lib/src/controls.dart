@@ -339,7 +339,8 @@ class AmountField extends StatefulWidget {
   State<AmountField> createState() => _AmountFieldState();
 }
 
-class _AmountFieldState extends State<AmountField> {
+class _AmountFieldState extends State<AmountField>
+    with EntranceFocus<AmountField> {
   /// Widget-local ephemera — the focus border repaints through a
   /// [ListenableBuilder] on the node, never setState.
   late final TextEditingController _controller = TextEditingController(
@@ -347,6 +348,14 @@ class _AmountFieldState extends State<AmountField> {
   );
   final FocusNode _focus = FocusNode();
   late int _lastEmitted = widget.amountMinor;
+
+  @override
+  void initState() {
+    super.initState();
+    // Never raw `autofocus: true` — on iPad it races the route transition and
+    // wedges the text-input connection. Focus once the entrance settles.
+    if (widget.autofocus) focusAfterEntrance(_focus);
+  }
 
   @override
   void didUpdateWidget(AmountField oldWidget) {
@@ -406,7 +415,7 @@ class _AmountFieldState extends State<AmountField> {
                   child: TextField(
                     controller: _controller,
                     focusNode: _focus,
-                    autofocus: widget.autofocus,
+                    // Focus is driven by focusAfterEntrance, never autofocus.
                     onChanged: _changed,
                     cursorColor: colors.accent,
                     keyboardType: const TextInputType.numberWithOptions(

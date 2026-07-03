@@ -4,35 +4,51 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// App-wide connectivity awareness — the missing "actual device state" layer.
+/// App-wide connectivity awareness — the "actual device state" layer, with NO
+/// blanket polling.
 ///
-/// The core owns the online/offline decision (a confirmed `/health` probe or
-/// a real outbox ack), but it only re-evaluates when the HOST asks. Before,
-/// the only trigger was a 15s timer on the Order screen — so off that screen
-/// connectivity went stale, and a dropped Wi-Fi was noticed only when the
-/// next request timed out. This service drives `refreshConnectivity()` from
-/// THREE signals, app-wide:
+/// The core owns the online/offline decision (a confirmed `/health` probe or a
+/// real outbox ack) and self-marks offline the instant an outbox send fails.
+/// This service asks the core to re-evaluate only on genuine signals — never on
+/// a fixed timer that would hammer the server across a large fleet:
 ///   1. the OS network state changing (connectivity_plus) — instant,
 ///   2. the app resuming to the foreground,
-///   3. an adaptive periodic probe — fast (30s) while offline or with a
-///      pending outbox (recover / drain promptly), slow (5 min) when idle
-///      and online (a battery-friendly safety net; the OS + resume signals
-///      catch real transitions).
-/// Each refresh bumps [onPulse] so connectivity-showing screens re-read.
+///   3. a FAILED transport request (a provider caught `Offline`/`Transient`
+///      and called [refresh]) — debounced so a burst becomes one probe.
+///
+/// The ONLY timer is a drain probe that runs *solely while the outbox has
+/// queued/failed work* — it catches a SILENT recovery (the server returns with
+/// the link never dropping, so no OS event fires) and drains. An idle fleet
+/// makes zero polling traffic.
+///
+/// Each refresh bumps [onPulse] so connectivity-showing screens re-read; an
+/// offline→online transition calls [onReconnect] so the app re-arms realtime +
+/// LAN (a subscription that failed to start while offline retries there — the
+/// job the removed 15s heartbeat used to do).
 class ConnectivityService with WidgetsBindingObserver {
-  ConnectivityService({required this.core, required this.onPulse});
+  ConnectivityService({
+    required this.core,
+    required this.onPulse,
+    required this.onReconnect,
+  });
 
   final MadarCore core;
   final VoidCallback onPulse;
+  final VoidCallback onReconnect;
 
-  static const _fastPeriod = Duration(seconds: 30);
-  static const _idlePeriod = Duration(minutes: 5);
+  /// Drain-probe cadence — active ONLY while the outbox has pending/failed
+  /// rows; cancelled the moment it drains.
+  static const _drainPeriod = Duration(seconds: 60);
+
+  /// Coalesce a burst of failed requests into a single `/health` probe.
+  static const _debounce = Duration(seconds: 3);
 
   final _connectivity = Connectivity();
   StreamSubscription<List<ConnectivityResult>>? _sub;
-  Timer? _timer;
+  Timer? _drainTimer;
   bool _online = true;
   bool _stopped = false;
+  DateTime? _lastProbe;
 
   /// Begin observing. Fires an immediate probe so the state is fresh at boot.
   void start() {
@@ -40,42 +56,58 @@ class ConnectivityService with WidgetsBindingObserver {
     _sub = _connectivity.onConnectivityChanged.listen((_) {
       // Whether the OS reports a network or none, confirm with a real probe —
       // "connected" can still be a captive portal or an unreachable server.
-      unawaited(_refresh());
+      unawaited(_probe(force: true));
     });
-    unawaited(_refresh());
+    unawaited(_probe(force: true));
   }
 
   void dispose() {
     _stopped = true;
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_sub?.cancel());
-    _timer?.cancel();
+    _drainTimer?.cancel();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_refresh());
+    if (state == AppLifecycleState.resumed) unawaited(_probe(force: true));
   }
 
-  Future<void> _refresh() async {
+  /// Re-check connectivity after a failed transport request. Registered on
+  /// `connectivityRefreshProvider` at boot; debounced (see [_debounce]).
+  void refresh() => unawaited(_probe(force: false));
+
+  Future<void> _probe({required bool force}) async {
     if (_stopped) return;
+    // Debounce failed-request probes so a storm of failures = one /health.
+    final now = DateTime.now();
+    if (!force &&
+        _lastProbe != null &&
+        now.difference(_lastProbe!) < _debounce) {
+      return;
+    }
+    _lastProbe = now;
+
+    final wasOnline = _online;
     var pending = 0;
+    var failed = 0;
     try {
       _online = await core.bridge.refreshConnectivity();
-      pending = (await core.bridge.syncStatus()).pending;
+      final status = await core.bridge.syncStatus();
+      pending = status.pending;
+      failed = status.failed;
     } on Object {
       _online = false;
     }
     if (_stopped) return;
     onPulse();
-    _schedule(fast: !_online || pending > 0);
-  }
-
-  void _schedule({required bool fast}) {
-    _timer?.cancel();
-    _timer = Timer(
-      fast ? _fastPeriod : _idlePeriod,
-      () => unawaited(_refresh()),
-    );
+    // Offline→online: re-arm realtime/LAN (the removed heartbeat's other job).
+    if (!wasOnline && _online) onReconnect();
+    // Keep a timer alive ONLY while there's queued work to drain; each probe
+    // reschedules the next until the outbox empties, then stops entirely.
+    _drainTimer?.cancel();
+    if (pending > 0 || failed > 0) {
+      _drainTimer = Timer(_drainPeriod, () => unawaited(_probe(force: true)));
+    }
   }
 }

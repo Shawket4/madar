@@ -55,9 +55,8 @@ class DeliveryBody extends ConsumerStatefulWidget {
   ConsumerState<DeliveryBody> createState() => _DeliveryBodyState();
 }
 
-class _DeliveryBodyState extends ConsumerState<DeliveryBody> {
-  Timer? _poll;
-
+class _DeliveryBodyState extends ConsumerState<DeliveryBody>
+    with RealtimeGatedPoll<DeliveryBody> {
   @override
   void initState() {
     super.initState();
@@ -68,13 +67,9 @@ class _DeliveryBodyState extends ConsumerState<DeliveryBody> {
         if (mounted) _reload();
       }),
     );
-    _poll = Timer.periodic(_pollPeriod, (_) => _reload());
-  }
-
-  @override
-  void dispose() {
-    _poll?.cancel();
-    super.dispose();
+    // The 60s backstop now runs ONLY while realtime is disconnected (wired in
+    // build via RealtimeGatedPoll) — a connected board relies on the
+    // `delivery.*`/`order.*` ticks.
   }
 
   void _reload() =>
@@ -131,6 +126,8 @@ class _DeliveryBodyState extends ConsumerState<DeliveryBody> {
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final notifier = ref.read(incomingProvider.notifier);
+    // Backstop poll ONLY while realtime is down; connected relies on ticks.
+    realtimeGatedPoll(interval: _pollPeriod, onPoll: _reload);
     final activeOnly = ref.watch(
       incomingProvider.select((s) => s.deliveryActiveOnly),
     );

@@ -277,10 +277,13 @@ class FloorNotifier extends Notifier<FloorState> {
     }
   }
 
+  /// A transport-class failure nudges the connectivity service (one debounced
+  /// probe), so offline is noticed on a real failed request, not a timer.
   Future<T?> _quiet<T>(Future<T> Function() op) async {
     try {
       return await op();
-    } on MadarError {
+    } on MadarError catch (e) {
+      ref.read(connectivityRefreshProvider.notifier).reportError(e);
       return null;
     }
   }

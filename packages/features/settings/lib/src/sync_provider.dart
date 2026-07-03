@@ -37,11 +37,13 @@ class SyncNotifier extends Notifier<SyncState> {
   SyncState build() => const SyncState();
 
   /// Swallow bridge failures on best-effort calls (the natives'
-  /// `runCatching`) — the inspector must render offline.
+  /// `runCatching`) — the inspector must render offline. A transport-class
+  /// failure nudges the connectivity service (one debounced probe).
   Future<T?> _quiet<T>(Future<T> Function() body) async {
     try {
       return await body();
-    } on Exception {
+    } on Exception catch (e) {
+      ref.read(connectivityRefreshProvider.notifier).reportError(e);
       return null;
     }
   }

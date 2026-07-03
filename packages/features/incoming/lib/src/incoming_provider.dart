@@ -348,11 +348,13 @@ class IncomingNotifier extends Notifier<IncomingState> {
 
   /// Best-effort bridge read — returns null instead of throwing, so lookups
   /// inside unawaited flows can't escape as unhandled async errors (the same
-  /// helper as the floor feature's `_quiet`).
+  /// helper as the floor feature's `_quiet`). A transport-class failure nudges
+  /// the connectivity service (one debounced probe).
   Future<T?> _quiet<T>(Future<T> Function() op) async {
     try {
       return await op();
-    } on MadarError {
+    } on MadarError catch (e) {
+      ref.read(connectivityRefreshProvider.notifier).reportError(e);
       return null;
     }
   }

@@ -99,9 +99,8 @@ class KitchenDisplayScreen extends ConsumerStatefulWidget {
       _KitchenDisplayScreenState();
 }
 
-class _KitchenDisplayScreenState extends ConsumerState<KitchenDisplayScreen> {
-  Timer? _safetyPoll;
-
+class _KitchenDisplayScreenState extends ConsumerState<KitchenDisplayScreen>
+    with RealtimeGatedPoll<KitchenDisplayScreen> {
   KdsNotifier get _board => ref.read(kdsProvider(widget.stationId).notifier);
 
   @override
@@ -113,12 +112,9 @@ class _KitchenDisplayScreenState extends ConsumerState<KitchenDisplayScreen> {
       unawaited(_board.loadStations());
       unawaited(_board.load());
     });
-    // Slow safety-net poll under the realtime tick — also re-renders the
-    // age escalation at least once a minute (the natives' 60s loop).
-    _safetyPoll = Timer.periodic(
-      _safetyPollPeriod,
-      (_) => unawaited(_board.load()),
-    );
+    // The safety-net poll now runs ONLY while realtime is disconnected (wired
+    // in build via RealtimeGatedPoll) — a connected board relies on the
+    // `kitchen.*` ticks. Age escalation still refreshes on each tick/reload.
   }
 
   @override
@@ -131,12 +127,6 @@ class _KitchenDisplayScreenState extends ConsumerState<KitchenDisplayScreen> {
       unawaited(_board.loadStations());
       unawaited(_board.load());
     }
-  }
-
-  @override
-  void dispose() {
-    _safetyPoll?.cancel();
-    super.dispose();
   }
 
   void _openSettings() {
@@ -153,6 +143,11 @@ class _KitchenDisplayScreenState extends ConsumerState<KitchenDisplayScreen> {
     final bridge = ref.watch(bridgeProvider);
     // Reload on every `kitchen.*` realtime event the shell surfaces.
     ref.listen(kitchenTickProvider, (_, _) => unawaited(_board.load()));
+    // Fallback poll ONLY while realtime is down (connected → ticks cover it).
+    realtimeGatedPoll(
+      interval: _safetyPollPeriod,
+      onPoll: () => unawaited(_board.load()),
+    );
     final tickets = ref.watch(
       kdsProvider(widget.stationId).select((s) => s.tickets),
     );

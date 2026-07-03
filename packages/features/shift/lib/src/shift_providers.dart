@@ -15,9 +15,6 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// Connectivity heartbeat period on the open-shift screen (natives: 15s).
-const Duration _heartbeatPeriod = Duration(seconds: 15);
-
 /// ESC/POS character columns (natives: renderShiftReport(..., 32u, ...)).
 const int _printWidth = 32;
 
@@ -85,11 +82,10 @@ class OpenShiftState {
 }
 
 /// The open-shift surface controller. On entry it reconciles the device's
-/// shift (adopting an already-open one — hand-off to the shell), primes the
-/// carried-over prefill, and runs the 15s connectivity heartbeat (canceled
-/// on dispose, i.e. when the screen leaves).
+/// shift (adopting an already-open one — hand-off to the shell) and primes the
+/// carried-over prefill. Connectivity is reflected app-wide via the
+/// ConnectivityService pulse — no screen-local polling.
 class OpenShiftNotifier extends AutoDisposeNotifier<OpenShiftState> {
-  Timer? _heartbeat;
   bool _disposed = false;
   late MadarBridge _bridge;
 
@@ -97,28 +93,18 @@ class OpenShiftNotifier extends AutoDisposeNotifier<OpenShiftState> {
   OpenShiftState build() {
     _bridge = ref.read(bridgeProvider);
     ref
-      ..onDispose(() {
-        _disposed = true;
-        _heartbeat?.cancel();
-      })
-      // A teller who landed here offline re-adopts their active shift the
-      // moment the network returns. That "moment" is now driven app-wide by
-      // the ConnectivityService (OS network state + resume + adaptive probe),
-      // which pulses `connectivityPulseProvider` — reflect its result into the
-      // chrome without re-pinging. A brisk self-poll also stays: this is the
-      // screen a teller stares at waiting to come back online, so a 15s
-      // reconcile here is a deliberately-tighter net than the app-wide probe
-      // (and a backstop if the pulse source is ever absent).
+      ..onDispose(() => _disposed = true)
+      // Reflect the core's online/sync state whenever the app-wide
+      // ConnectivityService re-checks (OS network change / resume / a failed
+      // request) and pulses — without a screen-local poll. A teller who landed
+      // here offline re-adopts their active shift on the offline→online edge.
       ..listen(connectivityPulseProvider, (_, _) {
         unawaited(_reflectStatus());
       });
-    _heartbeat = Timer.periodic(
-      _heartbeatPeriod,
-      (_) => unawaited(refreshConnectivity()),
-    );
     // Prime the prefill on entry (reconcile FIRST — it adopts an already-open
     // shift so a teller who lands here never opens a SECOND shift on top of a
-    // live one). Kicked off a microtask late so build() finishes first.
+    // live one), plus a one-time connectivity refresh so freshly-entered state
+    // is accurate. Kicked off a microtask late so build() finishes first.
     unawaited(
       Future<void>.microtask(() {
         unawaited(_prime());

@@ -31,9 +31,8 @@ class OrderScreen extends ConsumerStatefulWidget {
   ConsumerState<OrderScreen> createState() => _OrderScreenState();
 }
 
-class _OrderScreenState extends ConsumerState<OrderScreen> {
-  Timer? _heartbeat;
-
+class _OrderScreenState extends ConsumerState<OrderScreen>
+    with RealtimeGatedPoll<OrderScreen> {
   /// Keeps the catalog's search/category state alive when the responsive
   /// layout flips the column between the wide Row and the narrow Column.
   final GlobalKey _catalogKey = GlobalKey();
@@ -52,23 +51,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       if (!mounted) return;
       unawaited(_notifier.init());
     });
-    // Waiter-ticket safety poll — a net under the shell-owned realtime
-    // session (SSE ticketTick already drives immediate reloads). Connectivity
-    // is no longer polled here: the app-level ConnectivityService drives the
-    // core's online decision from OS network state + resume + an adaptive
-    // probe, and pulses `connectivityPulseProvider` (listened above) so the
-    // chrome refreshes app-wide, not just while this screen is mounted.
-    _heartbeat = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (ref.read(orderProvider).isWaiter) {
-        unawaited(_notifier.loadOpenTickets());
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _heartbeat?.cancel();
-    super.dispose();
+    // The waiter-ticket safety poll now runs ONLY while realtime is
+    // disconnected (wired in build via RealtimeGatedPoll) — connected, the
+    // `ticket.*` ticks drive immediate reloads. Connectivity is not polled
+    // here at all: the app-level ConnectivityService owns that.
   }
 
   /// A bridge call 401'd with a live session (expired/missing bearer) —
@@ -235,6 +221,16 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       ..listen(localeProvider.select((s) => s.locale), (_, _) {
         unawaited(_notifier.loadCatalog());
       });
+    // Waiter-ticket safety poll ONLY while realtime is down; a connected
+    // board relies on the `ticket.*` ticks above.
+    realtimeGatedPoll(
+      interval: const Duration(seconds: 15),
+      onPoll: () {
+        if (ref.read(orderProvider).isWaiter) {
+          unawaited(_notifier.loadOpenTickets());
+        }
+      },
+    );
 
     final isWaiter = ref.watch(orderProvider.select((s) => s.isWaiter));
     // Each region below watches its own narrow slice, so a notify

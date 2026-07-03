@@ -61,8 +61,9 @@ class FloorPlanScreen extends ConsumerStatefulWidget {
   ConsumerState<FloorPlanScreen> createState() => _FloorPlanScreenState();
 }
 
-class _FloorPlanScreenState extends ConsumerState<FloorPlanScreen> {
-  Timer? _refresh;
+class _FloorPlanScreenState extends ConsumerState<FloorPlanScreen>
+    with RealtimeGatedPoll<FloorPlanScreen> {
+  void _reload() => unawaited(ref.read(floorProvider.notifier).loadFloor());
 
   @override
   void initState() {
@@ -70,18 +71,11 @@ class _FloorPlanScreenState extends ConsumerState<FloorPlanScreen> {
     // Post-frame: notifier writes during initState land mid-build (crash).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(ref.read(floorProvider.notifier).loadFloor());
+      _reload();
     });
-    _refresh = Timer.periodic(
-      _refreshPeriod,
-      (_) => unawaited(ref.read(floorProvider.notifier).loadFloor()),
-    );
-  }
-
-  @override
-  void dispose() {
-    _refresh?.cancel();
-    super.dispose();
+    // The 15s refresh now runs ONLY while realtime is disconnected (wired in
+    // build via RealtimeGatedPoll); connected, the floor refreshes on the
+    // ticket/order ticks that actually move table occupancy.
   }
 
   // ── taps ────────────────────────────────────────────────────────────────────
@@ -142,6 +136,12 @@ class _FloorPlanScreenState extends ConsumerState<FloorPlanScreen> {
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     String tr(String key) => bridge.tr(key: key);
+    // Table occupancy tracks ticket/order movement — refresh on those ticks
+    // when connected, and poll ONLY while realtime is down.
+    ref
+      ..listen(ticketTickProvider, (_, _) => _reload())
+      ..listen(deliveryTickProvider, (_, _) => _reload());
+    realtimeGatedPoll(interval: _refreshPeriod, onPoll: _reload);
     // The board renders every slice (sections, tables, bookings, error,
     // toast) — the one legitimate whole-state watch on this screen.
     final floor = ref.watch(floorProvider);

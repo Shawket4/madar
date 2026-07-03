@@ -76,5 +76,12 @@ Widget orientationProbe(BuildContext context, Widget? child) {
         MediaQuery.sizeOf(context).shortestSide >=
         OrientationController.tabletShortestSide,
   );
-  return child ?? const SizedBox.shrink();
+  // App-wide tap-to-dismiss: a tap that lands outside any field drops focus
+  // (and hides the keyboard). Paired with EntranceFocus (never raw autofocus),
+  // this keeps the iPad text-input connection from wedging on route changes.
+  return GestureDetector(
+    behavior: HitTestBehavior.translucent,
+    onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+    child: child ?? const SizedBox.shrink(),
+  );
 }

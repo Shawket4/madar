@@ -754,11 +754,14 @@ class OrderNotifier extends Notifier<OrderState> {
   }
 
   /// Run a bridge call whose failure the natives swallow (cache reads,
-  /// best-effort refreshes) — returns null instead of surfacing the error.
+  /// best-effort refreshes) — returns null instead of surfacing the error. A
+  /// transport-class failure nudges the connectivity service (one debounced
+  /// probe), so offline is noticed here instead of on a blanket timer.
   Future<T?> _quiet<T>(Future<T> Function() op) async {
     try {
       return await op();
-    } on MadarError {
+    } on MadarError catch (e) {
+      ref.read(connectivityRefreshProvider.notifier).reportError(e);
       return null;
     }
   }

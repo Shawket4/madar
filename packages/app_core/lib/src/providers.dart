@@ -177,10 +177,10 @@ final reauthRequestProvider = NotifierProvider<ReauthNotifier, int>(
 );
 
 /// Bumped each time the app-level connectivity service refreshes the core's
-/// online state (OS network change / app resume / periodic health probe).
-/// Screens that show connectivity (the sync chip, the offline banner) watch
-/// this and re-read `syncStatus()` — so offline/online reflects the DEVICE's
-/// actual reachability app-wide, not just after a request times out.
+/// online state (OS network change / app resume / a failed request). Screens
+/// that show connectivity (the sync chip, the offline banner) watch this and
+/// re-read `syncStatus()` — so offline/online reflects the DEVICE's actual
+/// reachability app-wide, not just after a request times out.
 class ConnectivityPulseNotifier extends Notifier<int> {
   @override
   int build() => 0;
@@ -191,4 +191,41 @@ class ConnectivityPulseNotifier extends Notifier<int> {
 final connectivityPulseProvider =
     NotifierProvider<ConnectivityPulseNotifier, int>(
       ConnectivityPulseNotifier.new,
+    );
+
+/// True only for TRANSPORT-class failures (the device/link is down, or the
+/// server is unreachable) — the errors that should trigger a connectivity
+/// re-check. Business errors (`Unauthenticated`/`Forbidden`/`Validation`/
+/// `Server` 5xx/`Internal`) say nothing about reachability, so they must NOT.
+bool isTransportError(MadarError error) =>
+    error is MadarError_Offline || error is MadarError_Transient;
+
+/// The app-wide "re-check connectivity NOW" hook. The app registers the
+/// connectivity service's debounced `refresh` here at boot; any provider that
+/// catches a transport-class failure calls [reportError] (or [request]) and
+/// the service does ONE `/health` confirm + pulse. This is what replaces the
+/// old periodic polling: connectivity is re-evaluated on OS network events,
+/// app resume, and *actual failed requests* — never on a blanket timer.
+class ConnectivityRefreshNotifier extends Notifier<void Function()?> {
+  @override
+  void Function()? build() => null;
+
+  /// The app installs the service's `refresh` closure here at boot.
+  // ignore: use_setters_to_change_properties
+  void register(void Function() refresh) => state = refresh;
+
+  /// Unconditionally ask the service to re-check (OS/resume paths).
+  void request() => state?.call();
+
+  /// Ask the service to re-check ONLY when [error] is transport-class — the
+  /// single call every provider's `catch` uses, so the transport test lives
+  /// in one place.
+  void reportError(Object error) {
+    if (error is MadarError && isTransportError(error)) state?.call();
+  }
+}
+
+final connectivityRefreshProvider =
+    NotifierProvider<ConnectivityRefreshNotifier, void Function()?>(
+      ConnectivityRefreshNotifier.new,
     );
