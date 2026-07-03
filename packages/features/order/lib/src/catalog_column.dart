@@ -1,5 +1,6 @@
+import 'dart:io';
+
 import 'package:app_core/app_core.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
@@ -496,7 +497,7 @@ class MenuItemCard extends StatelessWidget {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final accent = hexColor(style.accent);
-    final url = item.imageUrl;
+    final imagePath = item.localImagePath;
 
     return TactileScale(
       scale: 0.98,
@@ -560,18 +561,19 @@ class MenuItemCard extends StatelessWidget {
                       ),
                     ),
                     // Real photo (when present) covers the gradient once
-                    // loaded; while loading / on failure nothing draws, so
-                    // the gradient + monogram show through. Backed by the
-                    // persistent disk cache (CachedNetworkImageProvider), so a
-                    // photo seen once survives app restart / shift close and
-                    // renders offline. `maxWidth` bounds the fetched+decoded
-                    // size to the displayed cell (a full-res menu photo would
-                    // otherwise jank the first paint and bloat both caches).
-                    if (url != null && url.isNotEmpty)
+                    // decoded; on failure nothing draws, so the gradient +
+                    // monogram show through. The CORE downloads every catalog
+                    // image during refresh_catalog and hands us a LOCAL path —
+                    // no network here, fully offline from the first sync.
+                    // `ResizeImage` bounds the decode to the displayed cell (a
+                    // full-res photo would jank the first paint and bloat the
+                    // image cache). Null path = not synced yet; the gradient
+                    // stands in until the next refresh fills it.
+                    if (imagePath != null)
                       Image(
-                        image: CachedNetworkImageProvider(
-                          url,
-                          maxWidth:
+                        image: ResizeImage(
+                          FileImage(File(imagePath)),
+                          width:
                               (Grid.cellMax *
                                       MediaQuery.devicePixelRatioOf(context))
                                   .round(),
@@ -710,7 +712,7 @@ class BundleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final url = bundle.imageUrl;
+    final imagePath = bundle.localImagePath;
     return TactileScale(
       scale: 0.98,
       onTap: () {
@@ -747,14 +749,13 @@ class BundleCard extends StatelessWidget {
                     ),
                     // Image's own opacity param modulates alpha during
                     // rasterization — an Opacity widget would force a
-                    // saveLayer on every paint of the card. Backed by the
-                    // persistent disk cache so it renders offline / after
-                    // restart; `maxWidth` bounds the fetched+decoded size.
-                    if (url != null && url.isNotEmpty)
+                    // saveLayer on every paint of the card. Core-cached local
+                    // file (see MenuItemCard); decode bounded to the cell.
+                    if (imagePath != null)
                       Image(
-                        image: CachedNetworkImageProvider(
-                          url,
-                          maxWidth:
+                        image: ResizeImage(
+                          FileImage(File(imagePath)),
+                          width:
                               (Grid.cellMax *
                                       MediaQuery.devicePixelRatioOf(context))
                                   .round(),

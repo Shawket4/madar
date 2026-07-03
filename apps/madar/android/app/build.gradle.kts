@@ -24,6 +24,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications ships java.time usage — its AAR
+        // metadata requires core-library desugaring on the consuming app.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -57,7 +60,11 @@ android {
             // One ABI in debug: every ABI costs a full Rust-workspace
             // cross-compile via Cargokit (~2 GB each) and this machine runs
             // disk-tight. Emulator (Apple Silicon) + modern devices are arm64.
-            ndk { abiFilters += listOf("arm64-v8a") }
+            // SKIPPED under --split-per-abi: AGP refuses ndk.abiFilters on ANY
+            // variant once splits are enabled, even for a release-only build.
+            if (!project.hasProperty("split-per-abi")) {
+                ndk { abiFilters += listOf("arm64-v8a") }
+            }
         }
         release {
             // ABIs are controlled by the build command (CI passes
@@ -74,4 +81,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

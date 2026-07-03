@@ -73,7 +73,7 @@ class CheckoutState {
     this.paymentMethods = const [],
     this.discounts = const [],
     this.cartDiscountId,
-    this.orgLogoUrl,
+    this.orgLogoPath,
     this.currency = '',
     this.branchName = '',
     this.summary = const CheckoutSummary(subtotalMinor: 0, totalMinor: 0),
@@ -93,7 +93,9 @@ class CheckoutState {
   final List<PaymentMethodView> paymentMethods;
   final List<DiscountView> discounts;
   final String? cartDiscountId;
-  final String? orgLogoUrl;
+
+  /// Local file path of the core-cached org logo (offline-safe).
+  final String? orgLogoPath;
   final String currency;
   final String branchName;
 
@@ -120,7 +122,7 @@ class CheckoutState {
     List<PaymentMethodView>? paymentMethods,
     List<DiscountView>? discounts,
     Object? cartDiscountId = _unset,
-    Object? orgLogoUrl = _unset,
+    Object? orgLogoPath = _unset,
     String? currency,
     String? branchName,
     CheckoutSummary? summary,
@@ -141,9 +143,9 @@ class CheckoutState {
       cartDiscountId: cartDiscountId == _unset
           ? this.cartDiscountId
           : cartDiscountId as String?,
-      orgLogoUrl: orgLogoUrl == _unset
-          ? this.orgLogoUrl
-          : orgLogoUrl as String?,
+      orgLogoPath: orgLogoPath == _unset
+          ? this.orgLogoPath
+          : orgLogoPath as String?,
       currency: currency ?? this.currency,
       branchName: branchName ?? this.branchName,
       summary: summary ?? this.summary,
@@ -215,14 +217,14 @@ class CheckoutNotifier extends AutoDisposeNotifier<CheckoutState> {
     final discounts =
         await _quiet(bridge.listDiscounts) ?? const <DiscountView>[];
     final discountId = await _quiet<String?>(bridge.cartDiscountId);
-    final logo = await _quiet<String?>(bridge.orgLogoUrl);
+    final logo = bridge.orgLogoLocalPath();
     final totals = await _quiet(bridge.cartTotals);
     _update(
       (s) => _withSession(s, bridge).copyWith(
         paymentMethods: methods,
         discounts: discounts,
         cartDiscountId: discountId,
-        orgLogoUrl: logo,
+        orgLogoPath: logo,
         summary: totals == null ? null : _summaryOf(totals),
       ),
     );

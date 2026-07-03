@@ -749,6 +749,11 @@ class OrderNotifier extends Notifier<OrderState> {
       syncAuthPaused: status?.authPaused ?? state.syncAuthPaused,
       clockSkewMinutes: _bridge.clockSkewMinutes(),
     );
+    // Restore edge with a parked outbox → raise the re-auth prompt (see
+    // syncFromStatus — the core suppresses authPaused while offline).
+    if (!wasOnline && online && (status?.authPaused ?? false)) {
+      ref.read(reauthRequestProvider.notifier).request();
+    }
     if (!wasOnline && online && !state.isWaiter) {
       await reconcileShift();
     }
@@ -771,6 +776,12 @@ class OrderNotifier extends Notifier<OrderState> {
       syncAuthPaused: status.authPaused,
       clockSkewMinutes: _bridge.clockSkewMinutes(),
     );
+    // Connectivity just came back with the outbox parked on an expired
+    // bearer — NOW a re-login can actually mint a JWT, so raise the re-auth
+    // prompt (the core suppresses `authPaused` while offline by design).
+    if (!wasOnline && status.online && status.authPaused) {
+      ref.read(reauthRequestProvider.notifier).request();
+    }
     if (!wasOnline && status.online && !state.isWaiter) {
       await reconcileShift();
     }

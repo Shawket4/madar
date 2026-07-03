@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:design_system/src/icons.dart';
+import 'package:design_system/src/playful.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/dimens.dart';
 import 'package:design_system/src/tokens/elevation.dart';
@@ -55,6 +56,7 @@ class ToastData {
     this.actionLabel,
     this.seconds = 2.6,
     this.icon,
+    this.sticky = false,
   });
 
   /// Unique identifier — a new id restarts the auto-dismiss timer.
@@ -69,11 +71,15 @@ class ToastData {
   /// Optional action label rendered after the message.
   final String? actionLabel;
 
-  /// Auto-dismiss delay in seconds.
+  /// Auto-dismiss delay in seconds. Ignored when [sticky].
   final double seconds;
 
   /// Optional `MadarIcon` name rendered before the message.
   final String? icon;
+
+  /// Sticky toasts never auto-dismiss — they stay until the host clears
+  /// them (e.g. the new-order alert persists until Incoming is viewed).
+  final bool sticky;
 }
 
 /// Bottom offset of the pill from the host's bottom edge (natives: 40.dp).
@@ -154,6 +160,7 @@ class _ToastHostState extends State<ToastHost>
     _shown = toast;
     unawaited(_controller.forward());
     _timer?.cancel();
+    if (toast.sticky) return;
     _timer = Timer(
       Duration(milliseconds: (toast.seconds * 1000).round()),
       () => widget.onDismiss?.call(toast.id),
@@ -214,7 +221,15 @@ class _ToastHostState extends State<ToastHost>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (data.icon != null) ...[
-                          MadarIcon(data.icon, tint: tone),
+                          // The chosen new-order animation: a bell icon rings
+                          // (decaying swing + halo) as its toast presents.
+                          if (data.icon == 'bell')
+                            BellShake(
+                              trigger: data.id,
+                              child: MadarIcon(data.icon, tint: tone),
+                            )
+                          else
+                            MadarIcon(data.icon, tint: tone),
                           const SizedBox(width: Space.sm),
                         ],
                         Flexible(

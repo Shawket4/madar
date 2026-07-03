@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:design_system/src/brand.dart';
 import 'package:design_system/src/icons.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/motion.dart';
@@ -626,6 +627,14 @@ class _BellShakeState extends State<BellShake>
   );
 
   @override
+  void initState() {
+    super.initState();
+    // A non-zero trigger at mount means this instance was BORN of an alert
+    // (a fresh toast) — ring immediately; didUpdateWidget never fires here.
+    if (widget.trigger > 0) unawaited(_ring.forward(from: 0));
+  }
+
+  @override
   void didUpdateWidget(BellShake oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.trigger > oldWidget.trigger) unawaited(_ring.forward(from: 0));
@@ -817,4 +826,259 @@ void playCartFlight(
       onArrive?.call();
     }),
   );
+}
+
+/// The queued-offline confirmation mark: the amber clock, alive. An amber
+/// disc springs in once, then the clock LOOPS — the minute hand sweeps, the
+/// hour hand creeps, and a soft halo breathes — "your order is placed and
+/// waiting to sync". The looping counterpart of the one-shot [SettleMark].
+class QueuedMark extends StatefulWidget {
+  /// Creates the mark; proportions scale from [size].
+  const QueuedMark({this.size = 88, super.key});
+
+  /// Mark side length.
+  final double size;
+
+  @override
+  State<QueuedMark> createState() => _QueuedMarkState();
+}
+
+class _QueuedMarkState extends State<QueuedMark> with TickerProviderStateMixin {
+  late final AnimationController _enter = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 550),
+  )..forward();
+  late final AnimationController _loop = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 4),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _enter.dispose();
+    _loop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_enter, _loop]),
+        builder: (context, _) => CustomPaint(
+          size: Size.square(widget.size),
+          painter: _QueuedMarkPainter(
+            enter: MotionSpec.springOut.transform(_enter.value),
+            loop: _loop.value,
+            warning: colors.warning,
+            warningBg: colors.warningBg,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QueuedMarkPainter extends CustomPainter {
+  const _QueuedMarkPainter({
+    required this.enter,
+    required this.loop,
+    required this.warning,
+    required this.warningBg,
+  });
+
+  final double enter;
+  final double loop;
+  final Color warning;
+  final Color warningBg;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final u = size.width / 120;
+    final c = Offset(size.width / 2, size.height / 2);
+    final wave = 0.5 + 0.5 * math.sin(loop * 2 * math.pi);
+
+    // Breathing halo (the "waiting" pulse), then the amber disc springing in
+    // once with the face ring riding its edge.
+    canvas
+      ..drawCircle(
+        c,
+        (52 + 4 * wave) * u * enter.clamp(0, 1),
+        Paint()..color = warning.withValues(alpha: 0.10 + 0.05 * wave),
+      )
+      ..drawCircle(c, 46 * u * enter, Paint()..color = warningBg)
+      ..drawCircle(
+        c,
+        46 * u * enter,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4 * u
+          ..color = warning,
+      );
+    if (enter < 0.6) return;
+
+    // Clock hands — minute sweeps a revolution per loop, hour creeps.
+    final handPaint = Paint()
+      ..strokeWidth = 5 * u
+      ..strokeCap = StrokeCap.round
+      ..color = warning;
+    final minuteAngle = loop * 2 * math.pi - math.pi / 2;
+    final hourAngle = (loop / 12 + 0.72) * 2 * math.pi - math.pi / 2;
+    canvas
+      ..drawLine(
+        c,
+        c + Offset(math.cos(minuteAngle), math.sin(minuteAngle)) * 30 * u,
+        handPaint,
+      )
+      ..drawLine(
+        c,
+        c + Offset(math.cos(hourAngle), math.sin(hourAngle)) * 19 * u,
+        handPaint..strokeWidth = 6 * u,
+      )
+      ..drawCircle(c, 4.5 * u, Paint()..color = warning);
+  }
+
+  @override
+  bool shouldRepaint(_QueuedMarkPainter old) =>
+      old.enter != enter || old.loop != loop;
+}
+
+/// The animated brand lockup — the Madar symbol RECREATED in vector (ink
+/// orbit ring, fused satellite, teal planet) so the mark itself is alive:
+/// the satellite rides the ring on a slow revolution while the planet
+/// breathes and exhales a faint teal ring and the satellite twinkles (the
+/// picked "quiet pulse × living orbit" mix). The typed wordmark sits
+/// beneath. Theme-aware like the PNG marks (ink ↔ paper).
+class AnimatedBrandMark extends StatefulWidget {
+  /// Creates the mark.
+  const AnimatedBrandMark({
+    this.symbolSize = 36,
+    this.wordmarkWidth = 56,
+    super.key,
+  });
+
+  /// Side length of the recreated Madar symbol.
+  final double symbolSize;
+
+  /// Width of the typed wordmark under it.
+  final double wordmarkWidth;
+
+  @override
+  State<AnimatedBrandMark> createState() => _AnimatedBrandMarkState();
+}
+
+class _AnimatedBrandMarkState extends State<AnimatedBrandMark>
+    with TickerProviderStateMixin {
+  late final AnimationController _orbit = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 8),
+  )..repeat();
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3500),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _orbit.dispose();
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return RepaintBoundary(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedBuilder(
+            animation: Listenable.merge([_orbit, _pulse]),
+            builder: (context, _) => CustomPaint(
+              size: Size.square(widget.symbolSize),
+              painter: _BrandMarkPainter(
+                orbit: _orbit.value,
+                pulse: _pulse.value,
+                // textPrimary mirrors the PNG marks: ink on paper, paper
+                // on ink — the reversed variant for free.
+                ink: colors.textPrimary,
+                accent: colors.accent,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          MadarWordmark(width: widget.wordmarkWidth),
+        ],
+      ),
+    );
+  }
+}
+
+class _BrandMarkPainter extends CustomPainter {
+  const _BrandMarkPainter({
+    required this.orbit,
+    required this.pulse,
+    required this.ink,
+    required this.accent,
+  });
+
+  final double orbit;
+  final double pulse;
+  final Color ink;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // The PNG symbol's proportions on a 120-unit viewBox.
+    final u = size.width / 120;
+    final c = Offset(size.width / 2, size.height / 2);
+    final wave = 0.5 - 0.5 * math.cos(pulse * 2 * math.pi);
+
+    // Orbit ring.
+    canvas.drawCircle(
+      c,
+      44 * u,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 10 * u
+        ..color = ink,
+    );
+
+    // The fused satellite rides the ring (starts at the mark's 1-o'clock)
+    // and twinkles gently as it goes.
+    final angle = -math.pi / 4 + orbit * 2 * math.pi;
+    canvas.drawCircle(
+      c + Offset(math.cos(angle), math.sin(angle)) * 44 * u,
+      13 * u,
+      Paint()..color = ink.withValues(alpha: 1 - 0.45 * wave),
+    );
+
+    // The planet exhales a faint teal ring (stays inside the orbit)…
+    final emitT = Curves.easeOut.transform((pulse / 0.7).clamp(0, 1));
+    if (emitT < 1) {
+      canvas.drawCircle(
+        c,
+        (16 + 18 * emitT) * u,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2 * u
+          ..color = accent.withValues(alpha: 0.5 * (1 - emitT)),
+      );
+    }
+
+    // …and breathes.
+    canvas.drawCircle(
+      c,
+      16 * u * (1 + 0.1 * wave),
+      Paint()..color = accent,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BrandMarkPainter old) =>
+      old.orbit != orbit ||
+      old.pulse != pulse ||
+      old.ink != ink ||
+      old.accent != accent;
 }

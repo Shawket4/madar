@@ -649,6 +649,16 @@ pub(crate) fn item_modifier_groups(
     }
 
     // The item's priced optionals — one multi-select Optional-kind group.
+    if let Some(og) = optionals_group(item) {
+        groups.push(og);
+    }
+    groups
+}
+
+/// The per-item priced-optionals group (shared by the legacy and unified
+/// projections — optionals ride their own wire either way, keyed by the same
+/// stable `optional_field_id`s the order payload submits).
+fn optionals_group(item: &menu::MenuItemView) -> Option<ModifierGroupView> {
     let opts: Vec<ModifierOptionView> = item
         .optional_fields
         .iter()
@@ -659,17 +669,85 @@ pub(crate) fn item_modifier_groups(
             charged_price_minor: f.price_minor,
         })
         .collect();
-    if !opts.is_empty() {
-        groups.push(ModifierGroupView {
-            group_id: "options".into(),
-            name: "options".into(),
-            kind: ModifierGroupKind::Optional,
-            addon_type: None,
-            is_required: false,
-            min_selections: 0,
-            max_selections: None,
-            options: opts,
-        });
+    if opts.is_empty() {
+        return None;
+    }
+    Some(ModifierGroupView {
+        group_id: "options".into(),
+        name: "options".into(),
+        kind: ModifierGroupKind::Optional,
+        addon_type: None,
+        is_required: false,
+        min_selections: 0,
+        max_selections: None,
+        options: opts,
+    })
+}
+
+/// Grouped modifiers from the UNIFIED catalog mirror (`GET /catalog/sync`) —
+/// the new-model wire is authoritative for grouping, naming and constraints.
+/// Charged prices still go through the flat sheet's swap-delta rules where the
+/// option exists in the addon catalog (options ARE addons by stable id); an
+/// option the legacy catalog doesn't know falls back to its unified effective
+/// price. Effectively-unavailable options are dropped; emptied groups too. The
+/// item's priced optionals are appended exactly as in the legacy projection.
+pub(crate) fn item_modifier_groups_unified(
+    item: &menu::MenuItemView,
+    addon_catalog: &[menu::AddonItemView],
+    unified: Vec<menu::UnifiedGroup>,
+    locale: &str,
+) -> Vec<ModifierGroupView> {
+    let flat = item_addons(item, addon_catalog);
+    let charged = |id: &str, fallback: i64| {
+        flat.iter()
+            .find(|a| a.addon_item_id == id)
+            .map(|a| a.charged_price_minor)
+            .unwrap_or(fallback)
+    };
+    let mut groups: Vec<ModifierGroupView> = unified
+        .into_iter()
+        .filter_map(|g| {
+            let options: Vec<ModifierOptionView> = g
+                .options
+                .iter()
+                .filter(|o| o.is_available)
+                .map(|o| ModifierOptionView {
+                    id: o.id.clone(),
+                    name: menu::resolve(&o.name_translations, &o.name, locale),
+                    charged_price_minor: charged(&o.id, o.price),
+                })
+                .collect();
+            if options.is_empty() {
+                return None;
+            }
+            let single = g.selection_type == "single" || g.max == Some(1);
+            Some(ModifierGroupView {
+                group_id: g.group_id.clone(),
+                // Custom groups carry an authored name; legacy-typed groups fall
+                // back to the type string, which the host localizes (same rule
+                // as the legacy projection).
+                name: if g.name.is_empty() {
+                    g.legacy_addon_type
+                        .clone()
+                        .unwrap_or_else(|| "extra".into())
+                } else {
+                    menu::resolve(&g.name_translations, &g.name, locale)
+                },
+                kind: ModifierGroupKind::Addon,
+                addon_type: g.legacy_addon_type.clone(),
+                is_required: g.is_required,
+                min_selections: g.min.max(0),
+                max_selections: if single && g.max.is_none() {
+                    Some(1)
+                } else {
+                    g.max
+                },
+                options,
+            })
+        })
+        .collect();
+    if let Some(og) = optionals_group(item) {
+        groups.push(og);
     }
     groups
 }
@@ -1035,6 +1113,7 @@ mod tests {
             category_id: None,
             base_price_minor: 5000,
             image_url: None,
+            local_image_path: None,
             is_active: true,
             default_milk_addon_id: Some("oat".into()), // base milk = oat @1500
             allowed_addon_ids: vec![],
@@ -1456,6 +1535,128 @@ mod tests {
     }
 
     #[test]
+    fn unified_modifier_groups_map_wire_constraints_and_swap_prices() {
+        // The unified wire is authoritative for grouping/naming/constraints;
+        // charged prices still ride the flat sheet's swap rules by stable id.
+        let unified = vec![
+            menu::UnifiedGroup {
+                group_id: "g-milk".into(),
+                name: "milk_type".into(), // type-y name → host localizes
+                name_translations: serde_json::json!({}),
+                selection_type: "single".into(),
+                min: 1,
+                max: None,
+                is_required: true,
+                legacy_addon_type: Some("milk_type".into()),
+                options: vec![
+                    menu::UnifiedOption {
+                        id: "oat".into(),
+                        name: "Oat".into(),
+                        name_translations: serde_json::json!({}),
+                        price: 1500,
+                        is_available: true,
+                    },
+                    menu::UnifiedOption {
+                        id: "almond".into(),
+                        name: "Almond".into(),
+                        name_translations: serde_json::json!({}),
+                        price: 2000,
+                        is_available: true,
+                    },
+                    menu::UnifiedOption {
+                        id: "soy".into(),
+                        name: "Soy".into(),
+                        name_translations: serde_json::json!({}),
+                        price: 1800,
+                        is_available: false,
+                    },
+                ],
+            },
+            menu::UnifiedGroup {
+                group_id: "g-custom".into(),
+                name: "Spice level".into(),
+                name_translations: serde_json::json!({"ar": "الحرارة"}),
+                selection_type: "multi".into(),
+                min: 0,
+                max: Some(2),
+                is_required: false,
+                legacy_addon_type: None,
+                options: vec![menu::UnifiedOption {
+                    id: "hot".into(),
+                    name: "Hot".into(),
+                    name_translations: serde_json::json!({}),
+                    price: 250,
+                    is_available: true,
+                }],
+            },
+        ];
+        let groups = item_modifier_groups_unified(&item(), &catalog(), unified, "en");
+
+        let p = |g: &ModifierGroupView, id: &str| {
+            g.options
+                .iter()
+                .find(|o| o.id == id)
+                .unwrap()
+                .charged_price_minor
+        };
+        // Milk: single → max 1; swap deltas from the flat catalog by stable id.
+        let milk = &groups[0];
+        assert_eq!(milk.group_id, "g-milk");
+        assert_eq!(
+            (milk.is_required, milk.min_selections, milk.max_selections),
+            (true, 1, Some(1))
+        );
+        assert_eq!(p(milk, "oat"), 0, "re-selecting the default milk is free");
+        assert_eq!(p(milk, "almond"), 500, "swap delta over the 1500 oat base");
+        assert!(
+            milk.options.iter().all(|o| o.id != "soy"),
+            "effectively-unavailable options are dropped"
+        );
+        // Custom group: authored name; option unknown to the flat catalog keeps
+        // its unified effective price.
+        let custom = &groups[1];
+        assert_eq!(custom.name, "Spice level");
+        assert_eq!(custom.max_selections, Some(2));
+        assert_eq!(p(custom, "hot"), 250);
+        // Priced optionals still appended, same as the legacy projection.
+        assert_eq!(groups.last().unwrap().kind, ModifierGroupKind::Optional);
+        assert_eq!(groups.last().unwrap().options[0].id, "van");
+    }
+
+    #[test]
+    fn unified_mirror_helpers_parse_and_gate() {
+        let s = store();
+        assert_eq!(menu::unified_revision(&s), None, "no mirror yet");
+        assert!(
+            !menu::unified_unchanged(r#"{"catalog_revision":7,"changed":true}"#),
+            "changed:true carries a payload"
+        );
+        assert!(
+            menu::unified_unchanged(r#"{"catalog_revision":7,"changed":false}"#),
+            "changed:false = keep the current mirror"
+        );
+        s.kv_put(
+            menu::K_UNIFIED,
+            r#"{"catalog_revision":42,"changed":true,"items":[{"id":"latte","modifier_groups":[{"group_id":"g1","name":"Milk","selection_type":"single","min":0,"max":1,"is_required":false,"legacy_addon_type":"milk_type","options":[{"id":"oat","name":"Oat","price":1500,"is_available":true}]}]},{"id":"water","modifier_groups":[]}]}"#,
+        )
+        .unwrap();
+        assert_eq!(menu::unified_revision(&s), Some(42));
+        let g = menu::unified_groups_for(&s, "latte").unwrap();
+        assert_eq!(g.len(), 1);
+        assert_eq!(g[0].group_id, "g1");
+        assert_eq!(g[0].options[0].id, "oat");
+        assert!(
+            menu::unified_groups_for(&s, "ghost").is_none(),
+            "unknown item ⇒ fall back to the legacy projection"
+        );
+        assert!(
+            menu::unified_groups_for(&s, "water").is_none(),
+            "item with NO attached groups (implicit-all-addons default, not yet \
+             authored) ⇒ fall back too — the flat catalog keeps the full offer"
+        );
+    }
+
+    #[test]
     fn item_addons_resolve_charged_prices_for_display() {
         let v = item_addons(&item(), &catalog());
         let p = |id: &str| {
@@ -1603,6 +1804,7 @@ mod tests {
             description: None,
             price_minor: 10000,
             image_url: None,
+            local_image_path: None,
             is_available: true,
             available_from_date: None,
             available_until_date: None,

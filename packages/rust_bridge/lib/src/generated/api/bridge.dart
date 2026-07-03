@@ -405,6 +405,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// receipt preview before reprinting. Offline-durable for any order seen online.
   Future<ReceiptView> orderReceiptView({required String orderId});
 
+  /// Local file path of the core-cached org logo — `None` until the first
+  /// successful catalog image sync. Render the receipt-preview logo from
+  /// this (fully offline).
+  String? orgLogoLocalPath();
+
   /// The org's logo URL for the current branch, from the durable kv mirror
   /// (`cache_numbering_context`/`refresh_catalog` persist it from `get_branch`).
   /// `None` until the first online branch fetch. The host reads this as the

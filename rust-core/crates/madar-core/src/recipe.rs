@@ -229,6 +229,7 @@ mod tests {
             category_id: None,
             base_price_minor: 5000,
             image_url: None,
+            local_image_path: None,
             is_active: true,
             default_milk_addon_id: Some("milk_default".into()),
             allowed_addon_ids: vec![],

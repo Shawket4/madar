@@ -157,6 +157,9 @@ class BundleView {
   final PlatformInt64 priceMinor;
   final String? imageUrl;
 
+  /// On-disk path of the CACHED image — see `_MenuItemView`.
+  final String? localImagePath;
+
   /// `status == active`. The date/time availability window (below) is gated in
   /// the branch timezone by the cart/order context, not in this static read.
   final bool isAvailable;
@@ -175,6 +178,7 @@ class BundleView {
     this.description,
     required this.priceMinor,
     this.imageUrl,
+    this.localImagePath,
     required this.isAvailable,
     this.availableFromDate,
     this.availableUntilDate,
@@ -190,6 +194,7 @@ class BundleView {
       description.hashCode ^
       priceMinor.hashCode ^
       imageUrl.hashCode ^
+      localImagePath.hashCode ^
       isAvailable.hashCode ^
       availableFromDate.hashCode ^
       availableUntilDate.hashCode ^
@@ -207,6 +212,7 @@ class BundleView {
           description == other.description &&
           priceMinor == other.priceMinor &&
           imageUrl == other.imageUrl &&
+          localImagePath == other.localImagePath &&
           isAvailable == other.isAvailable &&
           availableFromDate == other.availableFromDate &&
           availableUntilDate == other.availableUntilDate &&
@@ -357,6 +363,10 @@ class MenuItemView {
   final String? categoryId;
   final PlatformInt64 basePriceMinor;
   final String? imageUrl;
+
+  /// On-disk path of the CACHED image (core-downloaded during catalog
+  /// refresh) — render this, fully offline. `None` until it lands.
+  final String? localImagePath;
   final bool isActive;
 
   /// The item's default-milk addon (swap families charge only the delta over it).
@@ -380,6 +390,7 @@ class MenuItemView {
     this.categoryId,
     required this.basePriceMinor,
     this.imageUrl,
+    this.localImagePath,
     required this.isActive,
     this.defaultMilkAddonId,
     required this.allowedAddonIds,
@@ -397,6 +408,7 @@ class MenuItemView {
       categoryId.hashCode ^
       basePriceMinor.hashCode ^
       imageUrl.hashCode ^
+      localImagePath.hashCode ^
       isActive.hashCode ^
       defaultMilkAddonId.hashCode ^
       allowedAddonIds.hashCode ^
@@ -416,6 +428,7 @@ class MenuItemView {
           categoryId == other.categoryId &&
           basePriceMinor == other.basePriceMinor &&
           imageUrl == other.imageUrl &&
+          localImagePath == other.localImagePath &&
           isActive == other.isActive &&
           defaultMilkAddonId == other.defaultMilkAddonId &&
           allowedAddonIds == other.allowedAddonIds &&

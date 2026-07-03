@@ -57,4 +57,10 @@ class HostVault {
   set locale(String value) {
     unawaited(_prefs.setString('madar.locale', value));
   }
+
+  /// Tablet landscape-flip choice (true = landscapeRight, the default).
+  bool get landscapeRight => _prefs.getBool('madar.landscape_right') ?? true;
+  set landscapeRight(bool value) {
+    unawaited(_prefs.setBool('madar.landscape_right', value));
+  }
 }

@@ -20,7 +20,7 @@ class OrientationController extends ChangeNotifier {
   static const double tabletShortestSide = 600;
 
   bool _isTablet = true;
-  bool _landscapeRight = false;
+  bool _landscapeRight = true;
   bool _applied = false;
 
   /// Tablet/desktop → landscape with a flip; phone → portrait, no flip.
@@ -31,6 +31,11 @@ class OrientationController extends ChangeNotifier {
 
   /// The flip is only meaningful on a tablet (phones are portrait-locked).
   bool get canFlip => _isTablet;
+
+  /// Host hook that persists the flip choice — the app wires this to its
+  /// vault at boot (this package is storage-agnostic). Called after each
+  /// user [flip]; never on [restoreFlip] (no persist echo).
+  void Function({required bool landscapeRight})? persister;
 
   /// Set the device class (from the platform view at launch, then confirmed
   /// from MediaQuery on the first frame) and apply the lock. Applies once
@@ -44,11 +49,23 @@ class OrientationController extends ChangeNotifier {
     scheduleMicrotask(notifyListeners);
   }
 
+  /// Seed the persisted flip at boot (the vault loads async, so this lands
+  /// once boot completes — the splash is orientation-neutral). Applies only
+  /// when it changes the current lock; notify deferred like
+  /// [setDeviceClass] (boot completion can land mid-build).
+  void restoreFlip({required bool landscapeRight}) {
+    if (_landscapeRight == landscapeRight) return;
+    _landscapeRight = landscapeRight;
+    if (_isTablet) _apply();
+    scheduleMicrotask(notifyListeners);
+  }
+
   /// Toggle between the two landscape locks (tablet only). No-op on phones.
   void flip() {
     if (!_isTablet) return;
     _landscapeRight = !_landscapeRight;
     _apply();
+    persister?.call(landscapeRight: _landscapeRight);
     notifyListeners();
   }
 

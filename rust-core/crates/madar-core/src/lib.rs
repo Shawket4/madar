@@ -36,6 +36,7 @@ pub mod device;
 pub mod error;
 /// Static UI-string localization — one source of truth for both hosts.
 pub mod i18n;
+mod images;
 /// Kitchen Display System — station feed + per-line bump (kitchen topic consumer).
 pub mod kds;
 /// LAN offline relay (Phase E) — signed message envelope, per-branch HMAC, peer
@@ -183,6 +184,8 @@ pub struct MadarCore {
     /// DNS-TLS not-ready right after a resume or rotation) must not flap it. Reset
     /// to 0 by any confirmed connectivity (a ping OK or an outbox ack).
     offline_probe_fails: std::sync::atomic::AtomicU32,
+    /// Core-owned catalog image cache (menu/bundle photos + org logo).
+    images: images::ImageStore,
     /// `true` after a drain hit a 401: the outbox is parked (no retry budget
     /// burned, no heartbeat hammering) until the next successful login clears it.
     auth_paused: std::sync::atomic::AtomicBool,
@@ -252,6 +255,7 @@ impl MadarCore {
             .unwrap_or(0);
         let clock_skew_secs = Arc::new(std::sync::atomic::AtomicI64::new(skew));
         let api = net::ApiClient::new(config.base_url.clone(), clock_skew_secs.clone())?;
+        let images = images::ImageStore::new(&config.db_path);
         let locale = Arc::new(RwLock::new(config.locale.clone()));
         Ok(Arc::new(Self {
             config,
@@ -261,6 +265,7 @@ impl MadarCore {
             session: RwLock::new(None),
             token_store: Mutex::new(None),
             clock_skew_secs,
+            images,
             offline_probe_fails: std::sync::atomic::AtomicU32::new(0),
             auth_paused: std::sync::atomic::AtomicBool::new(false),
             borrowed_token: std::sync::atomic::AtomicBool::new(false),
@@ -661,6 +666,54 @@ impl MadarCore {
             self.offline_probe_fails
                 .store(0, std::sync::atomic::Ordering::Relaxed);
         }
+    }
+
+    /// Every image URL the fresh catalog references (menu items + bundles +
+    /// the org logo) — the keep-set for eviction and the download work-list.
+    fn catalog_image_urls(&self) -> std::collections::HashSet<String> {
+        let mut urls = std::collections::HashSet::new();
+        let locale = self.current_locale();
+        if let Ok(items) = menu::menu_items(&self.store, &locale) {
+            urls.extend(items.into_iter().filter_map(|i| i.image_url));
+        }
+        if let Ok(bundles) = menu::bundles(&self.store, &locale) {
+            urls.extend(bundles.into_iter().filter_map(|b| b.image_url));
+        }
+        urls.extend(self.org_logo_url());
+        urls.retain(|u| !u.is_empty());
+        urls
+    }
+
+    /// The image phase of `refresh_catalog`: evict orphans of the fresh
+    /// catalog, then download whatever it references that isn't on disk yet —
+    /// bounded concurrency (5), absolute-URL fetches (no bearer/base-url), a
+    /// hard time budget so a slow CDN can't stall the refresh (stragglers
+    /// complete on the NEXT refresh), and per-image failures swallowed:
+    /// this can never fail the catalog.
+    async fn sync_catalog_images(&self) {
+        let urls = self.catalog_image_urls();
+        self.images.evict_except(&urls);
+        let missing: Vec<String> = urls
+            .into_iter()
+            .filter(|u| !self.images.is_cached(u))
+            .collect();
+        if missing.is_empty() {
+            return;
+        }
+        let budget = std::time::Duration::from_secs(15);
+        let _ = tokio::time::timeout(budget, async {
+            for chunk in missing.chunks(5) {
+                let downloads = chunk.iter().map(|url| async move {
+                    if let Ok(bytes) = self.api.get_url_bytes(url).await {
+                        if !bytes.is_empty() {
+                            let _ = self.images.store(url, &bytes);
+                        }
+                    }
+                });
+                futures_util::future::join_all(downloads).await;
+            }
+        })
+        .await;
     }
 
     async fn drain_outbox(&self) -> Result<(), CoreError> {
@@ -2246,7 +2299,16 @@ impl MadarCore {
     }
 
     pub fn list_menu_items(&self) -> Result<Vec<menu::MenuItemView>, CoreError> {
-        menu::menu_items(&self.store, &self.current_locale())
+        let mut items = menu::menu_items(&self.store, &self.current_locale())?;
+        // Resolve cached image paths HERE (one pass per projection) so the
+        // host never does per-cell FFI on the catalog grid.
+        for item in &mut items {
+            item.local_image_path = item
+                .image_url
+                .as_deref()
+                .and_then(|u| self.images.path_if_cached(u));
+        }
+        Ok(items)
     }
     pub fn list_categories(&self) -> Result<Vec<menu::CategoryView>, CoreError> {
         menu::categories(&self.store, &self.current_locale())
@@ -2267,10 +2329,18 @@ impl MadarCore {
                 detail: "bad timestamp".into(),
             }
         })?;
-        Ok(menu::bundles(&self.store, &self.current_locale())?
-            .into_iter()
-            .filter(|b| menu::bundle_available(b, now))
-            .collect())
+        let mut bundles: Vec<menu::BundleView> =
+            menu::bundles(&self.store, &self.current_locale())?
+                .into_iter()
+                .filter(|b| menu::bundle_available(b, now))
+                .collect();
+        for bundle in &mut bundles {
+            bundle.local_image_path = bundle
+                .image_url
+                .as_deref()
+                .and_then(|u| self.images.path_if_cached(u));
+        }
+        Ok(bundles)
     }
     pub fn list_payment_methods(&self) -> Result<Vec<menu::PaymentMethodView>, CoreError> {
         menu::payment_methods(&self.store, &self.current_locale())
@@ -2381,7 +2451,8 @@ impl MadarCore {
         &self,
         item_id: String,
     ) -> Result<Vec<cart::ModifierGroupView>, CoreError> {
-        let items = menu::menu_items(&self.store, &self.current_locale())?;
+        let locale = self.current_locale();
+        let items = menu::menu_items(&self.store, &locale)?;
         let item = items
             .iter()
             .find(|i| i.id == item_id)
@@ -2389,7 +2460,19 @@ impl MadarCore {
                 field: "item".into(),
                 detail: "unknown item".into(),
             })?;
-        let addon_catalog = menu::addons(&self.store, &self.current_locale())?;
+        let addon_catalog = menu::addons(&self.store, &locale)?;
+        // Prefer the UNIFIED mirror (`/catalog/sync`, the new modifier model) —
+        // authoritative grouping/naming/constraints from the backend. Absent
+        // (old backend / pre-backfill org / item not present) ⇒ the legacy
+        // projection over the mirrored flat streams, same view shape.
+        if let Some(unified) = menu::unified_groups_for(&self.store, &item_id) {
+            return Ok(cart::item_modifier_groups_unified(
+                item,
+                &addon_catalog,
+                unified,
+                &locale,
+            ));
+        }
         Ok(cart::item_modifier_groups(item, &addon_catalog))
     }
     /// Check a selection against the item's group constraints (min/max/required).
@@ -2562,16 +2645,20 @@ impl MadarCore {
         // cached JWT actually being EXPIRED so a spurious 401 (captive portal /
         // transient server hiccup) with a still-valid token never forces a needless
         // re-sign-in — the teller only re-authenticates once the token has genuinely
-        // lapsed. The internal sticky flag still pauses the drain meanwhile; the
-        // heartbeat / "Sync now" un-park it the moment connectivity is confirmed
-        // with a valid token (see `refresh_connectivity` / `sync_now`).
+        // lapsed. ALSO gate it on being ONLINE: re-auth exists to mint a fresh JWT
+        // from the server, so prompting while unreachable is a dead end (the
+        // offline banner tells that story instead). The internal sticky flag keeps
+        // the drain parked meanwhile and the prompt resurfaces the moment
+        // connectivity is confirmed (the host watches the offline→online edge).
+        let online = self.current_session().map(|s| s.online).unwrap_or(false);
         let auth_paused = self.auth_paused.load(std::sync::atomic::Ordering::Relaxed)
-            && self.session_token_expired();
+            && self.session_token_expired()
+            && online;
         Ok(SyncStatusView {
             pending: self.store.pending_count()?,
             failed: self.store.dead_count()?,
             blocked: self.store.count_orders_blocked_by_dead_dep()?,
-            online: self.current_session().map(|s| s.online).unwrap_or(false),
+            online,
             auth_paused,
         })
     }
@@ -2975,11 +3062,35 @@ impl MadarCore {
         .await
         .unwrap_or_default();
 
+        // Unified catalog (menu unification, `GET /catalog/sync`): the new
+        // modifier model with branch-effective prices, revision-gated via
+        // `since`. BEST-EFFORT by design — an old backend (404), a
+        // not-yet-backfilled org, or a branchless session just leaves the key
+        // untouched and every reader falls back to the legacy projection.
+        let unified_json: Option<String> = match &branch_id {
+            Some(b) => {
+                let mut uq: Vec<(&str, String)> = vec![("branch_id", b.clone())];
+                if let Some(rev) = menu::unified_revision(&self.store) {
+                    uq.push(("since", rev.to_string()));
+                }
+                match self.api.get_text("/catalog/sync", &uq).await {
+                    // changed:false ⇒ device is current; KEEP the existing mirror.
+                    Ok(body) if menu::unified_unchanged(&body) => None,
+                    Ok(body) => Some(body),
+                    Err(_) => None,
+                }
+            }
+            None => None,
+        };
+
         // All streams fetched OK → commit the mirror.
         self.store.kv_put(menu::K_MENU_ITEMS, &menu_items_json)?;
         self.store
             .kv_put(menu::K_CATEGORIES, &serde_json::to_string(&categories)?)?;
         self.store.kv_put(menu::K_ADDONS, &addons_json)?;
+        if let Some(unified) = unified_json {
+            self.store.kv_put(menu::K_UNIFIED, &unified)?;
+        }
         self.store
             .kv_put(menu::K_BUNDLES, &serde_json::to_string(&bundles.data)?)?;
         self.store.kv_put(
@@ -2995,6 +3106,11 @@ impl MadarCore {
         // logo/branch too, not just the menu. Best-effort: a branch-fetch hiccup
         // never fails the catalog commit above.
         let _ = self.cache_numbering_context().await;
+
+        // Image phase — AFTER the data commit, best-effort, time-budgeted.
+        // Downloads whatever the fresh catalog references that isn't on disk
+        // yet and evicts orphans; a flaky CDN can never fail the catalog.
+        self.sync_catalog_images().await;
         Ok(())
     }
 
@@ -3009,6 +3125,14 @@ impl MadarCore {
             .ok()
             .flatten()
             .filter(|s| !s.is_empty())
+    }
+
+    /// Local file path of the cached org logo (downloaded by the image phase
+    /// of `refresh_catalog`) — `None` until the first successful sync. The
+    /// host renders the receipt-preview logo from this, fully offline.
+    pub fn org_logo_local_path(&self) -> Option<String> {
+        self.org_logo_url()
+            .and_then(|u| self.images.path_if_cached(&u))
     }
 
     /// Open a shift. Writes an optimistic local shift + queues an idempotent
@@ -5315,6 +5439,27 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn image_sync_survives_an_unreachable_host() {
+        let dir = std::env::temp_dir().join(format!("madar-img-sync-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let core = MadarCore::new(MadarConfig {
+            base_url: "http://127.0.0.1:1".into(), // nothing listening
+            environment: "dev".into(),
+            db_path: dir.join("madar.db").to_string_lossy().into_owned(),
+            locale: "en".into(),
+        })
+        .unwrap();
+        core.store
+            .kv_put(checkout::KEY_ORG_LOGO_URL, "http://127.0.0.1:1/logo.png")
+            .unwrap();
+        // Every download fails (connect refused) — the image phase must still
+        // return cleanly (it can never fail the catalog) with nothing cached.
+        core.sync_catalog_images().await;
+        assert_eq!(core.org_logo_local_path(), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     #[test]
     fn set_locale_changes_strings_and_rtl_at_runtime() {
         let core = MadarCore::from_env().unwrap();
@@ -6229,18 +6374,28 @@ mod lifecycle_tests {
 
         // A still-VALID cached token + a parked queue (spurious 401) → banner hidden.
         signed_in_with_token(&core, now + 3600);
+        core.set_online(true);
         core.auth_paused.store(true, Relaxed);
         assert!(
             !core.sync_status().unwrap().auth_paused,
             "a still-valid JWT must NOT surface the re-login banner on a spurious 401"
         );
 
-        // An EXPIRED cached token + a parked queue → banner shows (real re-auth).
+        // An EXPIRED cached token + a parked queue → banner shows (real re-auth),
+        // but ONLY while online: re-auth mints a JWT from the server, so while
+        // unreachable the prompt is a dead end and stays suppressed until the
+        // restore edge resurfaces it.
         signed_in_with_token(&core, now - 3600);
         core.auth_paused.store(true, Relaxed);
+        core.set_online(false);
+        assert!(
+            !core.sync_status().unwrap().auth_paused,
+            "an expired JWT must stay quiet while OFFLINE (no server to re-auth against)"
+        );
+        core.set_online(true);
         assert!(
             core.sync_status().unwrap().auth_paused,
-            "an expired JWT must surface the re-login banner"
+            "an expired JWT must surface the re-login banner once online"
         );
     }
 
@@ -6412,8 +6567,14 @@ mod lifecycle_tests {
         );
         assert!(!core.borrowed_token.load(Relaxed));
         assert!(
+            core.auth_paused.load(Relaxed),
+            "re-login park latched after a borrowed flush"
+        );
+        // Surfaced only once online (re-auth needs the server to mint a JWT).
+        core.set_online(true);
+        assert!(
             core.sync_status().unwrap().auth_paused,
-            "re-login required after a borrowed flush"
+            "re-login required after a borrowed flush, prompted once online"
         );
     }
 
@@ -6427,8 +6588,19 @@ mod lifecycle_tests {
             .unwrap();
         assert!(!core.api.has_bearer(), "an expired token is dropped");
         assert!(
+            core.auth_paused.load(std::sync::atomic::Ordering::Relaxed),
+            "an expired cached JWT parks the queue internally"
+        );
+        // The prompt stays suppressed while offline (an offline unlock IS
+        // offline) — re-auth needs the server; the restore edge resurfaces it.
+        assert!(
+            !core.sync_status().unwrap().auth_paused,
+            "no re-login banner while unreachable"
+        );
+        core.set_online(true);
+        assert!(
             core.sync_status().unwrap().auth_paused,
-            "an expired cached JWT surfaces the re-login banner"
+            "the re-login banner surfaces once connectivity is confirmed"
         );
     }
 

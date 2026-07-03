@@ -60,8 +60,12 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
   /// A bridge call 401'd with a live session (expired/missing bearer) —
   /// open the re-auth sheet once per [reauthRequestProvider] bump; the
   /// guard clears when the flow completes so a later bump re-presents.
+  /// ONLINE-ONLY: re-auth mints a JWT from the server, so while offline the
+  /// prompt is a dead end — the offline banner tells that story and the
+  /// restore edge re-raises the request (syncFromStatus).
   void _onReauthRequest() {
     if (_reauthShowing || !mounted) return;
+    if (!ref.read(orderProvider).isOnline) return;
     _reauthShowing = true;
     unawaited(
       _handleAuthPaused().whenComplete(() => _reauthShowing = false),
@@ -115,10 +119,17 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
       await showMadarSheet<ReceiptView>(
         context,
         size: SheetSize.large,
-        builder: (_) => const TenderSheet(),
+        // The cart clears the MOMENT the order settles (online or queued
+        // offline) — visible behind the confirmation, not after dismissal.
+        builder: (_) => TenderSheet(
+          onSettled: () {
+            unawaited(_notifier.loadCart());
+            unawaited(_notifier.loadShiftStats());
+          },
+        ),
       );
+      // Post-close safety reload (idempotent) — covers an abandoned sheet.
       await _notifier.loadCart();
-      // A placed order moves the shift totals — refresh the top-bar pill.
       await _notifier.loadShiftStats();
       return;
     }

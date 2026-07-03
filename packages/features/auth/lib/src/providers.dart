@@ -168,14 +168,42 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   /// Re-authenticate the SAME teller who owns the open shift (no handover) —
-  /// the natives' `reauth(pin)`. Returns true when sync resumed.
+  /// the natives' `reauth(pin)`. ONLINE-ONLY by design: this sheet exists to
+  /// mint a fresh JWT from the server (an expired bearer parked the outbox),
+  /// so the combined sign-in's offline PIN fallback would "succeed" locally
+  /// without un-parking anything. A transport failure surfaces as the
+  /// localized offline error and the sheet stays up. Returns true when sync
+  /// actually resumed.
   Future<bool> reauthenticate() async {
     if (state.pin.length < _minPin) {
       _bumpFail();
       return false;
     }
     final name = _bridge.currentSession()?.displayName ?? '';
-    return _signInPin(name);
+    state = state.copyWith(busy: true, error: null);
+    String? failure;
+    try {
+      await _bridge.login(
+        req: LoginRequest(
+          mode: LoginMode.pin,
+          name: name,
+          pin: state.pin,
+          branchId: _bridge.deviceConfig().branchId,
+        ),
+      );
+    } on MadarError catch (e) {
+      failure = _bridge.humanMessage(e);
+    } on Exception catch (_) {
+      failure = _t('err.generic');
+    }
+    _refreshShell();
+    state = state.copyWith(
+      busy: false,
+      error: failure,
+      pin: failure != null ? '' : state.pin,
+      failCount: failure != null ? state.failCount + 1 : state.failCount,
+    );
+    return failure == null;
   }
 
   /// Re-enter device setup (natives' `beginReconfigure`) — the route/form

@@ -76,6 +76,15 @@ class BootNotifier extends AsyncNotifier<BootData> {
       if (blob != null) {
         await core.bridge.restoreSession(blob: blob);
       }
+      // Persisted landscape flip — seed + wire the persister. The controller
+      // is an app-global singleton (it spans both provider containers), so
+      // it's wired directly rather than through an override.
+      OrientationController.instance.persister = ({required landscapeRight}) {
+        vault.landscapeRight = landscapeRight;
+      };
+      OrientationController.instance.restoreFlip(
+        landscapeRight: vault.landscapeRight,
+      );
       return BootData(core: core, vault: vault);
     } on Object catch (e) {
       final bridge = core?.bridge;

@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Debug/profile inherit INTERNET from their variant manifests; RELEASE
+         does not — without this, a release APK ships with no network access
+         and every request reads as "offline". -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Madar Cashier"

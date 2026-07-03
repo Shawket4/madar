@@ -36,6 +36,10 @@ pub struct MenuItemView {
     pub category_id: Option<String>,
     pub base_price_minor: i64,
     pub image_url: Option<String>,
+    /// On-disk path of the CACHED image (downloaded by `refresh_catalog`'s
+    /// image phase) — the host renders this, fully offline. `None` until the
+    /// image lands; resolved at projection time in lib.rs, never per-cell.
+    pub local_image_path: Option<String>,
     pub is_active: bool,
     /// The item's default-milk addon (swap families charge only the delta over it).
     pub default_milk_addon_id: Option<String>,
@@ -139,6 +143,8 @@ pub struct BundleView {
     pub description: Option<String>,
     pub price_minor: i64,
     pub image_url: Option<String>,
+    /// On-disk path of the CACHED image — see `MenuItemView::local_image_path`.
+    pub local_image_path: Option<String>,
     /// `status == active`. The date/time availability window (below) is gated in
     /// the branch timezone by the cart/order context, not in this static read.
     pub is_available: bool,
@@ -329,6 +335,7 @@ pub(crate) fn menu_items(store: &Store, locale: &str) -> CoreResult<Vec<MenuItem
             category_id: i.category_id.map(|c| c.to_string()),
             base_price_minor: i.base_price as i64,
             image_url: i.image_url.clone(),
+            local_image_path: None,
             is_active: i.is_active,
             default_milk_addon_id: i.default_milk_addon_id.clone(),
             allowed_addon_ids: i.allowed_addon_ids.clone(),
@@ -480,6 +487,7 @@ pub(crate) fn bundles(store: &Store, locale: &str) -> CoreResult<Vec<BundleView>
                 .map(|d| resolve(&b.description_translations, &d, locale)),
             price_minor: b.price as i64,
             image_url: b.image_url.clone(),
+            local_image_path: None,
             is_available: b.status == "active",
             available_from_date: b.available_from_date.clone().filter(|s| !s.is_empty()),
             available_until_date: b.available_until_date.clone().filter(|s| !s.is_empty()),
@@ -575,6 +583,109 @@ pub(crate) fn discounts(store: &Store, locale: &str) -> CoreResult<Vec<DiscountV
             is_active: d.is_active,
         })
         .collect())
+}
+
+// ── unified catalog mirror (menu unification: `GET /catalog/sync`) ──────────
+//
+// The NEW backend serves the unified modifier model (groups + options with
+// branch-effective prices) revision-gated at `/catalog/sync`. The raw response
+// JSON is mirrored under `K_UNIFIED` by `refresh_catalog`; these tolerant
+// shapes read back only what the POS consumes. An OLD backend (404) or a
+// not-yet-backfilled org simply never writes the key, and every reader falls
+// back to the legacy projection — no version coupling in either direction.
+
+pub(crate) const K_UNIFIED: &str = "catalog:unified"; // raw CatalogSyncResponse JSON
+
+#[derive(Deserialize)]
+pub(crate) struct UnifiedOption {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub name_translations: Value,
+    #[serde(default)]
+    pub price: i64,
+    #[serde(default = "unified_true")]
+    pub is_available: bool,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct UnifiedGroup {
+    pub group_id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub name_translations: Value,
+    #[serde(default)]
+    pub selection_type: String,
+    #[serde(default)]
+    pub min: i32,
+    #[serde(default)]
+    pub max: Option<i32>,
+    #[serde(default)]
+    pub is_required: bool,
+    #[serde(default)]
+    pub legacy_addon_type: Option<String>,
+    #[serde(default)]
+    pub options: Vec<UnifiedOption>,
+}
+
+#[derive(Deserialize)]
+struct UnifiedItem {
+    id: String,
+    #[serde(default)]
+    modifier_groups: Vec<UnifiedGroup>,
+}
+
+#[derive(Deserialize)]
+struct UnifiedDoc {
+    #[serde(default)]
+    catalog_revision: i64,
+    #[serde(default)]
+    items: Vec<UnifiedItem>,
+}
+
+fn unified_true() -> bool {
+    true
+}
+
+/// The mirrored unified catalog's revision. `None` = never synced (old backend
+/// or pre-backfill org) — callers pass no `since` and fall back on reads.
+pub(crate) fn unified_revision(store: &Store) -> Option<i64> {
+    let raw = store.kv_get(K_UNIFIED).ok()??;
+    serde_json::from_str::<UnifiedDoc>(&raw)
+        .ok()
+        .map(|d| d.catalog_revision)
+}
+
+/// True when `body` is a `changed:false` poll response — the device is current
+/// and the existing mirror must be KEPT (the body carries no payload).
+pub(crate) fn unified_unchanged(body: &str) -> bool {
+    #[derive(Deserialize)]
+    struct Changed {
+        #[serde(default = "unified_true")]
+        changed: bool,
+    }
+    serde_json::from_str::<Changed>(body)
+        .map(|c| !c.changed)
+        .unwrap_or(false)
+}
+
+/// The unified modifier groups for one item. `None` ⇒ no unified mirror, the
+/// item isn't in it, or the item has NO attached groups ⇒ the caller uses the
+/// legacy projection. The empty case matters during the migration: items that
+/// relied on the legacy implicit "offer all org addons" default have no
+/// attachments yet (the backfill's `info.implicit_all_addons` note), and the
+/// flat-catalog fallback keeps showing them the full offer — same per-item
+/// fallback rule as the storefront customizer. Once a group IS attached, the
+/// unified wire becomes authoritative for that item.
+pub(crate) fn unified_groups_for(store: &Store, item_id: &str) -> Option<Vec<UnifiedGroup>> {
+    let raw = store.kv_get(K_UNIFIED).ok()??;
+    let doc: UnifiedDoc = serde_json::from_str(&raw).ok()?;
+    doc.items
+        .into_iter()
+        .find(|i| i.id == item_id)
+        .map(|i| i.modifier_groups)
+        .filter(|groups| !groups.is_empty())
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -851,6 +962,7 @@ mod tests {
                 description: None,
                 price_minor: 1000,
                 image_url: None,
+                local_image_path: None,
                 is_available: active,
                 available_from_date: None,
                 available_until_date: None,
@@ -891,6 +1003,7 @@ mod tests {
             description: None,
             price_minor: 1000,
             image_url: None,
+            local_image_path: None,
             is_available: active,
             available_from_date: from_d.map(String::from),
             available_until_date: until_d.map(String::from),

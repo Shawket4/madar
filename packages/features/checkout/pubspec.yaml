@@ -10,7 +10,6 @@ environment:
 
 dependencies:
   app_core: ^0.1.0
-  cached_network_image: ^3.4.1
   design_system: ^0.1.0
   flutter:
     sdk: flutter

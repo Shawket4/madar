@@ -12,9 +12,6 @@ import 'package:rust_bridge/rust_bridge.dart';
 
 // Native metrics (TenderScreen.kt ReceiptConfirmation) kept verbatim.
 
-/// Status glyph atop the confirmation (natives: 44.dp).
-const double _statusIconSize = 44;
-
 /// "Order placed" headline size (natives: 22.sp Black).
 const double _placedTitleSize = 22;
 
@@ -36,7 +33,12 @@ const double _placedTitleSize = 22;
 /// );
 /// ```
 class TenderSheet extends ConsumerStatefulWidget {
-  const TenderSheet({super.key});
+  const TenderSheet({this.onSettled, super.key});
+
+  /// Fires the MOMENT the order settles (the receipt confirmation flips in,
+  /// online or queued-offline) — before the sheet closes. The order surface
+  /// uses it to clear its cart immediately rather than on dialog dismissal.
+  final VoidCallback? onSettled;
 
   @override
   ConsumerState<TenderSheet> createState() => _TenderSheetState();
@@ -58,6 +60,15 @@ class _TenderSheetState extends ConsumerState<TenderSheet> {
   @override
   Widget build(BuildContext context) {
     final bridge = ref.watch(bridgeProvider);
+    // The settle edge: the receipt appearing IS the order landing in the
+    // core (cart already cleared there) — notify the host now, not when the
+    // teller eventually dismisses the confirmation.
+    ref.listen(checkoutProvider.select((s) => s.receipt != null), (
+      prev,
+      settled,
+    ) {
+      if (settled && !(prev ?? false)) widget.onSettled?.call();
+    });
     final receipt = ref.watch(checkoutProvider.select((s) => s.receipt));
     if (receipt != null) {
       return _ReceiptConfirmation(
@@ -104,8 +115,8 @@ class _ReceiptConfirmation extends ConsumerWidget {
       checkoutProvider.select((s) => s.branchName),
     );
     final currency = ref.watch(checkoutProvider.select((s) => s.currency));
-    final orgLogoUrl = ref.watch(
-      checkoutProvider.select((s) => s.orgLogoUrl),
+    final orgLogoPath = ref.watch(
+      checkoutProvider.select((s) => s.orgLogoPath),
     );
     final queued = receipt.queuedOffline;
     return Column(
@@ -121,17 +132,11 @@ class _ReceiptConfirmation extends ConsumerWidget {
             children: [
               // The settle celebration (the approved prototype): ring draws,
               // disc floods, check strikes, sparks. Plays once as the
-              // confirmation flips in. A queued-offline sale keeps the calm
-              // clock instead — the sale is done, but the amber "will sync"
-              // chrome stays honest about the server state.
-              if (queued)
-                MadarIcon(
-                  'clock',
-                  tint: colors.warning,
-                  size: _statusIconSize,
-                )
-              else
-                const SettleMark(size: 88),
+              // confirmation flips in. A queued-offline sale gets the LOOPING
+              // amber clock instead — the sale is done, and the sweeping
+              // hands say "waiting to sync" while staying honest about the
+              // server state.
+              if (queued) const QueuedMark() else const SettleMark(size: 88),
               Text(
                 tr('order.order_placed'),
                 style: MadarType.h2.copyWith(
@@ -159,7 +164,7 @@ class _ReceiptConfirmation extends ConsumerWidget {
                 receipt: receipt,
                 storeName: branchName,
                 currency: currency,
-                orgLogoUrl: orgLogoUrl,
+                orgLogoPath: orgLogoPath,
               ),
             ),
           ),

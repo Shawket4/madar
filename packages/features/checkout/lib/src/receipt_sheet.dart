@@ -10,28 +10,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// State of the receipt preview sheet — the print-in-flight flag, the
-/// best-effort org logo, and the local toast feedback.
+/// core-cached org logo path, and the local toast feedback.
 @immutable
 class ReceiptPreviewState {
   const ReceiptPreviewState({
     this.printing = false,
-    this.orgLogoUrl,
+    this.orgLogoPath,
     this.toast,
   });
 
   final bool printing;
-  final String? orgLogoUrl;
+  final String? orgLogoPath;
   final ToastData? toast;
 
   ReceiptPreviewState copyWith({
     bool? printing,
-    String? orgLogoUrl,
+    String? orgLogoPath,
     ToastData? toast,
     bool clearToast = false,
   }) {
     return ReceiptPreviewState(
       printing: printing ?? this.printing,
-      orgLogoUrl: orgLogoUrl ?? this.orgLogoUrl,
+      orgLogoPath: orgLogoPath ?? this.orgLogoPath,
       toast: clearToast ? null : (toast ?? this.toast),
     );
   }
@@ -49,7 +49,7 @@ class ReceiptPreviewNotifier extends AutoDisposeNotifier<ReceiptPreviewState> {
   ReceiptPreviewState build() {
     _live = true;
     ref.onDispose(() => _live = false);
-    unawaited(_loadLogo());
+    _loadLogo();
     return const ReceiptPreviewState();
   }
 
@@ -59,14 +59,11 @@ class ReceiptPreviewNotifier extends AutoDisposeNotifier<ReceiptPreviewState> {
     if (_live) state = transform(state);
   }
 
-  Future<void> _loadLogo() async {
-    final bridge = _bridge;
-    try {
-      final url = await bridge.orgLogoUrl();
-      _update((s) => s.copyWith(orgLogoUrl: url));
-    } on MadarError {
-      // Best-effort — the paper renders without a brand mark.
-    }
+  void _loadLogo() {
+    // Core-cached local file (downloaded during refresh_catalog's image
+    // phase) — a cheap sync read; the paper renders without a brand mark
+    // until the first successful sync.
+    _update((s) => s.copyWith(orgLogoPath: _bridge.orgLogoLocalPath()));
   }
 
   void _toast(String text, {required ChipTone tone, String? icon}) {
@@ -231,7 +228,7 @@ class ReceiptSheet extends ConsumerWidget {
                         receipt: receipt,
                         storeName: branchName,
                         currency: currency,
-                        orgLogoUrl: preview.orgLogoUrl,
+                        orgLogoPath: preview.orgLogoPath,
                       ),
                     ),
                   ],

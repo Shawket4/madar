@@ -35,6 +35,9 @@ pub struct _MenuItemView {
     pub category_id: Option<String>,
     pub base_price_minor: i64,
     pub image_url: Option<String>,
+    /// On-disk path of the CACHED image (core-downloaded during catalog
+    /// refresh) — render this, fully offline. `None` until it lands.
+    pub local_image_path: Option<String>,
     pub is_active: bool,
     /// The item's default-milk addon (swap families charge only the delta over it).
     pub default_milk_addon_id: Option<String>,
@@ -138,6 +141,8 @@ pub struct _BundleView {
     pub description: Option<String>,
     pub price_minor: i64,
     pub image_url: Option<String>,
+    /// On-disk path of the CACHED image — see `_MenuItemView`.
+    pub local_image_path: Option<String>,
     /// `status == active`. The date/time availability window (below) is gated in
     /// the branch timezone by the cart/order context, not in this static read.
     pub is_available: bool,
@@ -236,5 +241,13 @@ impl MadarBridge {
     /// refreshes on a manual data sync.
     pub fn org_logo_url(&self) -> Option<String> {
         self.inner.org_logo_url()
+    }
+
+    /// Local file path of the core-cached org logo — `None` until the first
+    /// successful catalog image sync. Render the receipt-preview logo from
+    /// this (fully offline).
+    #[frb(sync)]
+    pub fn org_logo_local_path(&self) -> Option<String> {
+        self.inner.org_logo_local_path()
     }
 }

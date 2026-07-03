@@ -36,7 +36,7 @@ class NotificationService {
         const AndroidNotificationChannel(
           _channelId,
           _channelName,
-          importance: Importance.high,
+          importance: Importance.max,
         ),
       );
       await android?.requestNotificationsPermission();
@@ -76,11 +76,19 @@ class NotificationService {
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
-            importance: Importance.high,
-            priority: Priority.high,
+            importance: Importance.max,
+            priority: Priority.max,
           ),
-          iOS: DarwinNotificationDetails(),
-          macOS: DarwinNotificationDetails(),
+          // Foreground presentation too — a POS is usually foreground when
+          // the order lands; the banner + sound must still fire.
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentSound: true,
+          ),
+          macOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentSound: true,
+          ),
         ),
       );
     } on Object {

@@ -207,30 +207,38 @@ class _CartHeader extends ConsumerWidget {
             valueListenable: cartCatchTick,
             builder: (context, tick, child) =>
                 Nudge(trigger: tick, kind: NudgeKind.dip, child: child!),
-            child: KeyedSubtree(
-              key: cartPanelAnchor,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    bridge.tr(key: 'order.cart'),
-                    style: MadarType.h3.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // The glyph the flight lands on — the anchor wraps ONLY the
+                // icon so the dot lands in the cart, not the group's center.
+                KeyedSubtree(
+                  key: cartPanelAnchor,
+                  child: MadarIcon(
+                    'cart',
+                    tint: colors.accent,
+                    size: IconSize.lg,
+                  ),
+                ),
+                const SizedBox(width: Space.sm),
+                Text(
+                  bridge.tr(key: 'order.cart'),
+                  style: MadarType.h3.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                if (itemCount > 0) ...[
+                  const SizedBox(width: Space.sm),
+                  Nudge(
+                    trigger: itemCount,
+                    child: StatusChip(
+                      label: '$itemCount',
+                      tone: ChipTone.accent,
                     ),
                   ),
-                  if (itemCount > 0) ...[
-                    const SizedBox(width: Space.sm),
-                    Nudge(
-                      trigger: itemCount,
-                      child: StatusChip(
-                        label: '$itemCount',
-                        tone: ChipTone.accent,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
           ),
           const Spacer(),
@@ -999,19 +1007,36 @@ class CartBar extends ConsumerWidget {
                       kind: NudgeKind.dip,
                       child: child!,
                     ),
-                    child: KeyedSubtree(
-                      key: cartBarAnchor,
-                      child: Nudge(
-                        trigger: totals.itemCount,
-                        child: Text(
-                          '${totals.itemCount} ${bridge.tr(key: 'order.items')}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: MadarType.bodySm.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: colors.textOnAccent.withValues(alpha: 0.9),
+                    child: Nudge(
+                      trigger: totals.itemCount,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // The glyph the flight lands on — anchor on the
+                          // icon ONLY, so the dot lands in the cart.
+                          KeyedSubtree(
+                            key: cartBarAnchor,
+                            child: MadarIcon(
+                              'cart',
+                              tint: colors.textOnAccent,
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: Space.xs),
+                          Flexible(
+                            child: Text(
+                              '${totals.itemCount} '
+                              '${bridge.tr(key: 'order.items')}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: MadarType.bodySm.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: colors.textOnAccent.withValues(
+                                  alpha: 0.9,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

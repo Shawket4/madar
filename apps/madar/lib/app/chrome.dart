@@ -58,6 +58,8 @@ class ChromeNotifier extends Notifier<ChromeState> {
     String text, {
     ChipTone tone = ChipTone.accent,
     String icon = 'bell',
+    String? actionLabel,
+    bool sticky = false,
   }) {
     state = state.copyWith(
       toast: ToastData(
@@ -65,9 +67,12 @@ class ChromeNotifier extends Notifier<ChromeState> {
         text: text,
         tone: tone,
         icon: icon,
+        actionLabel: actionLabel,
+        sticky: sticky,
       ),
     );
     _toastTimer?.cancel();
+    if (sticky) return;
     _toastTimer = Timer(const Duration(milliseconds: 2600), dismissToast);
   }
 
@@ -82,6 +87,8 @@ class ChromeNotifier extends Notifier<ChromeState> {
       seenDelivery: ref.read(deliveryTickProvider),
       seenTicket: ref.read(ticketTickProvider),
     );
+    // Viewing Incoming acknowledges the alert — the sticky toast goes too.
+    dismissToast();
   }
 }
 
@@ -108,7 +115,10 @@ class MadarChrome extends ConsumerStatefulWidget {
 }
 
 class _MadarChromeState extends ConsumerState<MadarChrome> {
-  final _player = AudioPlayer();
+  // Prefix cleared: AssetSource prepends 'assets/' by default, which broke
+  // the design_system package path (silent chime). The bundled key is
+  // 'packages/design_system/assets/sounds/new_order.wav' verbatim.
+  final _player = AudioPlayer()..audioCache = AudioCache(prefix: '');
   NotificationService? _notifications;
 
   @override
@@ -139,9 +149,16 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
   void _onAlert(AlertCommand cmd) {
     switch (cmd) {
       case AlertCommand_Notify(:final title, :final body, :final tag):
+        // Sticky: a new order deserves attention until the teller actually
+        // looks — it clears on markIncomingSeen (Incoming opened), not on a
+        // timer. The View action jumps straight there.
         ref
             .read(chromeProvider.notifier)
-            .showToast(body.isEmpty ? title : '$title — $body');
+            .showToast(
+              body.isEmpty ? title : '$title — $body',
+              actionLabel: ref.read(bridgeProvider).tr(key: 'chrome.view'),
+              sticky: true,
+            );
         _chime();
         MadarHaptics.impact();
         unawaited(_notifications?.post(title: title, body: body, tag: tag));
@@ -485,6 +502,12 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
                     toast,
                     onDismiss: (_) =>
                         ref.read(chromeProvider.notifier).dismissToast(),
+                    // Only the sticky new-order alert carries an action —
+                    // it jumps to Incoming (marking seen clears the toast).
+                    onAction: () {
+                      ref.read(chromeProvider.notifier).markIncomingSeen();
+                      _push(() => const IncomingScreen());
+                    },
                   ),
                 ),
             ],
@@ -541,7 +564,9 @@ class _NavRail extends StatelessWidget {
         padding: EdgeInsets.only(top: topInset + Space.sm, bottom: Space.sm),
         child: Column(
           children: [
-            const MadarSymbol(size: 40),
+            // The full brand lockup, alive: the recreated symbol (satellite
+            // riding the ring, planet breathing) above the typed wordmark.
+            const AnimatedBrandMark(symbolSize: 44, wordmarkWidth: 52),
             const SizedBox(height: Space.sm),
             _divider(colors),
             Expanded(

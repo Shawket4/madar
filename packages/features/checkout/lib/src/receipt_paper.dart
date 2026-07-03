@@ -1,5 +1,6 @@
+import 'dart:io';
+
 import 'package:app_core/app_core.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,14 +48,17 @@ class ReceiptPaper extends ConsumerWidget {
     required this.receipt,
     required this.storeName,
     required this.currency,
-    this.orgLogoUrl,
+    this.orgLogoPath,
     super.key,
   });
 
   final ReceiptView receipt;
   final String storeName;
   final String currency;
-  final String? orgLogoUrl;
+
+  /// Local file path of the core-cached org logo (offline-safe); null
+  /// renders just the store name.
+  final String? orgLogoPath;
 
   String _money(int minor) => Money.format(minor, currency: currency);
 
@@ -71,7 +75,7 @@ class ReceiptPaper extends ConsumerWidget {
     final bridge = ref.watch(bridgeProvider);
     String tr(String key) => bridge.tr(key: key);
     final r = receipt;
-    final logo = orgLogoUrl;
+    final logo = orgLogoPath;
     final deliveryNotes = r.deliveryNotes;
     return Container(
       constraints: const BoxConstraints(maxWidth: _paperMaxWidth),
@@ -89,10 +93,9 @@ class ReceiptPaper extends ConsumerWidget {
           Column(
             spacing: _paperGap,
             children: [
-              // Org brand mark at the top of the paper. Blank/unreachable →
-              // just the store name; nothing draws while loading or on
-              // failure (the natives' Coil behavior). Persistently disk-cached
-              // so it still renders on an offline reprint / after restart.
+              // Org brand mark at the top of the paper — the CORE-cached
+              // local file (downloaded during refresh_catalog); nothing draws
+              // on failure, so an offline reprint just shows the store name.
               if (logo != null && logo.isNotEmpty)
                 Padding(
                   padding: const EdgeInsetsDirectional.only(
@@ -104,7 +107,7 @@ class ReceiptPaper extends ConsumerWidget {
                       maxWidth: _logoMaxWidth,
                     ),
                     child: Image(
-                      image: CachedNetworkImageProvider(logo),
+                      image: FileImage(File(logo)),
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     ),
