@@ -721,15 +721,21 @@ class ShiftReportSheetState {
   const ShiftReportSheetState({
     this.report,
     this.orders,
+    this.expanded = false,
     this.print = ShiftPrintState.idle,
   });
 
   /// The rendered report (null while the current shift's loads → skeleton).
   final ShiftReportView? report;
 
-  /// The shift's orders for the lazy Orders section — null while loading
-  /// (skeleton rows); load failures degrade to the empty line.
+  /// The shift's orders for the Orders section — null until first expanded
+  /// (then null again = loading → skeleton rows); load failures degrade to
+  /// the empty line.
   final List<OrderSummaryView>? orders;
+
+  /// Whether the orders breakdown is expanded — OFF by default. Drives BOTH
+  /// the on-screen preview and whether print includes the per-order section.
+  final bool expanded;
 
   /// Print feedback.
   final ShiftPrintState print;
@@ -738,6 +744,7 @@ class ShiftReportSheetState {
   ShiftReportSheetState copyWith({
     Object? report = _unset,
     Object? orders = _unset,
+    bool? expanded,
     ShiftPrintState? print,
   }) {
     return ShiftReportSheetState(
@@ -745,6 +752,7 @@ class ShiftReportSheetState {
       orders: orders == _unset
           ? this.orders
           : orders as List<OrderSummaryView>?,
+      expanded: expanded ?? this.expanded,
       print: print ?? this.print,
     );
   }
@@ -763,9 +771,9 @@ class ShiftReportNotifier
   ShiftReportSheetState build(ShiftReportRequest arg) {
     _bridge = ref.read(bridgeProvider);
     ref.onDispose(() => _disposed = true);
-    unawaited(
-      Future<void>.microtask(arg.report == null ? _load : _loadOrders),
-    );
+    // Orders are NOT loaded until the teller expands the section (they add a
+    // round trip + a lot of rows). Only the summary loads eagerly.
+    if (arg.report == null) unawaited(Future<void>.microtask(_load));
     return ShiftReportSheetState(report: arg.report);
   }
 
@@ -774,13 +782,18 @@ class ShiftReportNotifier
       final report = await _bridge.shiftReport();
       if (_disposed) return;
       state = state.copyWith(report: report);
-      unawaited(_loadOrders());
     } on Exception catch (_) {}
   }
 
-  /// Lazy-load the shift's orders AFTER the report renders — a past shift
-  /// via `listOrdersForShift` (the Kotlin history expansion's method), the
-  /// current shift via the queue-merged `listShiftOrders`.
+  /// Expand/collapse the orders breakdown. On first expand, lazy-load the
+  /// shift's orders — a past shift via `listOrdersForShift`, the current
+  /// shift via the queue-merged `listShiftOrders`.
+  void toggleExpanded() {
+    final next = !state.expanded;
+    state = state.copyWith(expanded: next);
+    if (next && state.orders == null) unawaited(_loadOrders());
+  }
+
   Future<void> _loadOrders() async {
     try {
       final id = arg.shiftId;
@@ -811,6 +824,44 @@ class ShiftReportNotifier
     try {
       final bytes = await _bridge.renderShiftReport(
         report: report,
+        storeName: config.branchName ?? '',
+        currency: _bridge.currentSession()?.currencyCode ?? '',
+        width: _printWidth,
+        brand: config.printerBrand == 'star'
+            ? PrinterBrand.star
+            : PrinterBrand.epson,
+        // Expanded → append the per-order breakdown to the printed report,
+        // matching the on-screen preview. Collapsed → summary only.
+        orders: state.expanded
+            ? (state.orders ?? const <OrderSummaryView>[])
+            : const <OrderSummaryView>[],
+      );
+      await _bridge.sendToPrinter(
+        host: host,
+        port: config.printerPort ?? _printerPort,
+        bytes: bytes,
+      );
+      if (!_disposed) state = state.copyWith(print: ShiftPrintState.printed);
+    } on Exception catch (_) {
+      if (!_disposed) state = state.copyWith(print: ShiftPrintState.failed);
+    }
+  }
+
+  /// Print a SINGLE order's receipt from the shift's orders list (per-order
+  /// print in past shifts). Reuses the footer print-feedback state so the
+  /// teller sees sent / no-printer / failed just like the report print.
+  Future<void> printOrder(OrderSummaryView order) async {
+    if (state.print == ShiftPrintState.printing) return;
+    final config = _bridge.deviceConfig();
+    final host = config.printerHost?.trim() ?? '';
+    if (host.isEmpty) {
+      state = state.copyWith(print: ShiftPrintState.noPrinter);
+      return;
+    }
+    state = state.copyWith(print: ShiftPrintState.printing);
+    try {
+      final bytes = await _bridge.renderOrderReceipt(
+        orderId: order.id,
         storeName: config.branchName ?? '',
         currency: _bridge.currentSession()?.currencyCode ?? '',
         width: _printWidth,

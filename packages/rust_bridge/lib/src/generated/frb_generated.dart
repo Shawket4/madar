@@ -543,6 +543,7 @@ abstract class RustBridgeApi extends BaseApi {
     required String currency,
     required int width,
     required PrinterBrand brand,
+    required List<OrderSummaryView> orders,
   });
 
   Future<List<CartLineView>> crateApiBridgeMadarBridgeRestoreDraft({
@@ -4303,6 +4304,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     required String currency,
     required int width,
     required PrinterBrand brand,
+    required List<OrderSummaryView> orders,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -4317,6 +4319,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           sse_encode_String(currency, serializer);
           sse_encode_u_32(width, serializer);
           sse_encode_printer_brand(brand, serializer);
+          sse_encode_list_order_summary_view(orders, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -4329,7 +4332,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           decodeErrorData: null,
         ),
         constMeta: kCrateApiBridgeMadarBridgeRenderShiftReportConstMeta,
-        argValues: [that, report, storeName, currency, width, brand],
+        argValues: [that, report, storeName, currency, width, brand, orders],
         apiImpl: this,
       ),
     );
@@ -4338,7 +4341,15 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   TaskConstMeta get kCrateApiBridgeMadarBridgeRenderShiftReportConstMeta =>
       const TaskConstMeta(
         debugName: "MadarBridge_render_shift_report",
-        argNames: ["that", "report", "storeName", "currency", "width", "brand"],
+        argNames: [
+          "that",
+          "report",
+          "storeName",
+          "currency",
+          "width",
+          "brand",
+          "orders",
+        ],
       );
 
   @override
@@ -12364,13 +12375,16 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   );
 
   /// Render the shift report (Z-report) to printer bytes — rasterized like
-  /// `render_receipt`. Pair with `send_to_printer`.
+  /// `render_receipt`. Pass the shift's `orders` to append the per-order
+  /// breakdown (the expanded print); an empty list prints the summary only.
+  /// Pair with `send_to_printer`.
   Future<Uint8List> renderShiftReport({
     required ShiftReportView report,
     required String storeName,
     required String currency,
     required int width,
     required PrinterBrand brand,
+    required List<OrderSummaryView> orders,
   }) => RustBridge.instance.api.crateApiBridgeMadarBridgeRenderShiftReport(
     that: this,
     report: report,
@@ -12378,6 +12392,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     currency: currency,
     width: width,
     brand: brand,
+    orders: orders,
   );
 
   /// Restore a draft into the cart (replaces current lines) and drop it.

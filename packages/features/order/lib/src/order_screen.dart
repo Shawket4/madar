@@ -217,7 +217,14 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       })
       // A layer caught a 401 with a live session — present the re-auth
       // sheet once per bump.
-      ..listen(reauthRequestProvider, (_, _) => _onReauthRequest());
+      ..listen(reauthRequestProvider, (_, _) => _onReauthRequest())
+      // Locale switched (Settings) — re-resolve the catalog so item / addon
+      // names flip to the new language's translations. The core resolves
+      // from the `*_translations` jsonb at read time, so a fresh
+      // loadCatalog() is all it takes.
+      ..listen(localeProvider.select((s) => s.locale), (_, _) {
+        unawaited(_notifier.loadCatalog());
+      });
 
     final isWaiter = ref.watch(orderProvider.select((s) => s.isWaiter));
     // Each region below watches its own narrow slice, so a notify

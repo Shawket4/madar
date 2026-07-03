@@ -465,13 +465,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
   });
 
   /// Render the shift report (Z-report) to printer bytes — rasterized like
-  /// `render_receipt`. Pair with `send_to_printer`.
+  /// `render_receipt`. Pass the shift's `orders` to append the per-order
+  /// breakdown (the expanded print); an empty list prints the summary only.
+  /// Pair with `send_to_printer`.
   Future<Uint8List> renderShiftReport({
     required ShiftReportView report,
     required String storeName,
     required String currency,
     required int width,
     required PrinterBrand brand,
+    required List<OrderSummaryView> orders,
   });
 
   /// Restore a draft into the cart (replaces current lines) and drop it.

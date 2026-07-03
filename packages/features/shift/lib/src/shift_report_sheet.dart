@@ -626,6 +626,15 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
                         report: report,
                         bridge: bridge,
                         orders: state.orders,
+                        expanded: state.expanded,
+                        onToggle: () => ref
+                            .read(shiftReportProvider(_request).notifier)
+                            .toggleExpanded(),
+                        onPrintOrder: (o) => unawaited(
+                          ref
+                              .read(shiftReportProvider(_request).notifier)
+                              .printOrder(o),
+                        ),
                       ),
               ),
             ),
@@ -696,13 +705,25 @@ class _ReportPaper extends StatelessWidget {
     required this.report,
     required this.bridge,
     required this.orders,
+    required this.expanded,
+    required this.onToggle,
+    required this.onPrintOrder,
   });
 
   final ShiftReportView report;
   final MadarBridge bridge;
 
-  /// The shift's orders (null while lazy-loading → skeleton rows).
+  /// The shift's orders (null before first expand / while loading → skeleton).
   final List<OrderSummaryView>? orders;
+
+  /// Whether the orders breakdown is expanded (OFF by default).
+  final bool expanded;
+
+  /// Toggles the orders breakdown.
+  final VoidCallback onToggle;
+
+  /// Prints a single order's receipt (per-order print).
+  final void Function(OrderSummaryView) onPrintOrder;
 
   @override
   Widget build(BuildContext context) {
@@ -755,7 +776,14 @@ class _ReportPaper extends StatelessWidget {
               palette: ShiftReportPalette.paper,
             ),
             const _Rule(color: _rule),
-            _OrdersSection(orders: orders, currency: currency, bridge: bridge),
+            _OrdersSection(
+              orders: orders,
+              currency: currency,
+              bridge: bridge,
+              expanded: expanded,
+              onToggle: onToggle,
+              onPrintOrder: onPrintOrder,
+            ),
           ],
         ),
       ),
@@ -792,12 +820,18 @@ class _OrdersSection extends StatelessWidget {
     required this.orders,
     required this.currency,
     required this.bridge,
+    required this.expanded,
+    required this.onToggle,
+    required this.onPrintOrder,
   });
 
-  /// Null while the orders are still loading.
+  /// Null before first expand / while loading.
   final List<OrderSummaryView>? orders;
   final String currency;
   final MadarBridge bridge;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final void Function(OrderSummaryView) onPrintOrder;
 
   @override
   Widget build(BuildContext context) {
@@ -807,31 +841,53 @@ class _OrdersSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.xs,
       children: [
-        // Uppercase section label in the paper's faint ink — the same
-        // treatment as the report-title line above (the natives'
-        // SectionHeader language, theme-invariant on paper).
-        Text(
-          t('shifts.orders').toUpperCase(),
-          style: MadarType.labelSm.copyWith(
-            color: _faint,
-            letterSpacing: MadarType.tracking,
+        // Tappable section header — the orders breakdown is COLLAPSED by
+        // default (both here and in the print); this expands it. Uppercase
+        // faint-ink label + a chevron, in the paper's SectionHeader language.
+        TactileScale(
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.symmetric(vertical: Space.xs),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t('shifts.orders').toUpperCase(),
+                    style: MadarType.labelSm.copyWith(
+                      color: _faint,
+                      letterSpacing: MadarType.tracking,
+                    ),
+                  ),
+                ),
+                MadarIcon(
+                  expanded ? 'chevron.up' : 'chevron.down',
+                  tint: _faint,
+                ),
+              ],
+            ),
           ),
         ),
-        if (orders == null) ...const [
-          SkeletonBlock(height: _orderSkeletonHeight),
-          SkeletonBlock(height: _orderSkeletonHeight),
-          SkeletonBlock(height: _orderSkeletonHeight),
-        ] else if (orders.isEmpty)
-          Text(
-            t('shifts.no_orders'),
-            style: MadarType.labelSm.copyWith(
-              fontWeight: FontWeight.w400,
-              color: _faint,
-            ),
-          )
-        else
-          for (final order in orders)
-            _ShiftOrderRow(order: order, currency: currency, bridge: bridge),
+        if (expanded)
+          if (orders == null) ...const [
+            SkeletonBlock(height: _orderSkeletonHeight),
+            SkeletonBlock(height: _orderSkeletonHeight),
+            SkeletonBlock(height: _orderSkeletonHeight),
+          ] else if (orders.isEmpty)
+            Text(
+              t('shifts.no_orders'),
+              style: MadarType.labelSm.copyWith(
+                fontWeight: FontWeight.w400,
+                color: _faint,
+              ),
+            )
+          else
+            for (final order in orders)
+              _ShiftOrderRow(
+                order: order,
+                currency: currency,
+                bridge: bridge,
+                onPrint: () => onPrintOrder(order),
+              ),
       ],
     );
   }
@@ -846,11 +902,15 @@ class _ShiftOrderRow extends StatelessWidget {
     required this.order,
     required this.currency,
     required this.bridge,
+    required this.onPrint,
   });
 
   final OrderSummaryView order;
   final String currency;
   final MadarBridge bridge;
+
+  /// Print this single order's receipt (per-order print in past shifts).
+  final VoidCallback onPrint;
 
   @override
   Widget build(BuildContext context) {
@@ -907,6 +967,14 @@ class _ShiftOrderRow extends StatelessWidget {
                   decoration: voided ? TextDecoration.lineThrough : null,
                 ),
                 color: voided ? _faint : _ink,
+              ),
+              // Per-order print — reprint this one order's receipt.
+              TactileScale(
+                onTap: onPrint,
+                child: const Padding(
+                  padding: EdgeInsetsDirectional.only(start: Space.xs),
+                  child: MadarIcon('printer', tint: _faint),
+                ),
               ),
             ],
           ),
