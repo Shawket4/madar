@@ -41,7 +41,7 @@ class ReceiptPreviewState {
 /// preview starts fresh. Loads the org logo on build; [print] streams the
 /// receipt to the configured printer with toast feedback (no drawer kick —
 /// this is a preview / reprint surface, the natives' printReceiptView).
-class ReceiptPreviewNotifier extends AutoDisposeNotifier<ReceiptPreviewState> {
+class ReceiptPreviewNotifier extends Notifier<ReceiptPreviewState> {
   bool _live = false;
   int _toastSeq = 0;
 
@@ -130,7 +130,7 @@ class ReceiptPreviewNotifier extends AutoDisposeNotifier<ReceiptPreviewState> {
 }
 
 /// One preview session per presented sheet.
-final AutoDisposeNotifierProvider<ReceiptPreviewNotifier, ReceiptPreviewState>
+final NotifierProvider<ReceiptPreviewNotifier, ReceiptPreviewState>
 receiptPreviewProvider = NotifierProvider.autoDispose(
   ReceiptPreviewNotifier.new,
 );

@@ -9,6 +9,8 @@ import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Family TYPE annotations moved to the misc library in Riverpod 3.
+import 'package:flutter_riverpod/misc.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// The DATA one bundle-configuration presentation is seeded from. Identity
@@ -45,10 +47,15 @@ class BundleConfigState {
 }
 
 /// Selection notifier for one bundle sheet presentation.
-class BundleConfigNotifier
-    extends AutoDisposeFamilyNotifier<BundleConfigState, BundleSheetArgs> {
+class BundleConfigNotifier extends Notifier<BundleConfigState> {
+  /// Creates the notifier for one family [arg].
+  BundleConfigNotifier(this.arg);
+
+  /// The sheet arguments (the bundle under configuration).
+  final BundleSheetArgs arg;
+
   @override
-  BundleConfigState build(BundleSheetArgs arg) => const BundleConfigState();
+  BundleConfigState build() => const BundleConfigState();
 
   void setDraft(int index, BundleComponentDraft draft) =>
       state = state.copyWith(drafts: {...state.drafts, index: draft});
@@ -85,7 +92,7 @@ class BundleConfigNotifier
 }
 
 /// One bundle sheet presentation's state, keyed by its (identity) args.
-final AutoDisposeNotifierProviderFamily<
+final NotifierProviderFamily<
   BundleConfigNotifier,
   BundleConfigState,
   BundleSheetArgs

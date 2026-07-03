@@ -16,7 +16,7 @@ const String kCombosCategory = '__combos__';
 /// Combos). Auto-disposed so a fresh session starts back on All; the order
 /// screen's GlobalKey keeps the column (and so this provider) alive across
 /// wide↔narrow layout flips.
-class CatalogTabNotifier extends AutoDisposeNotifier<String?> {
+class CatalogTabNotifier extends Notifier<String?> {
   @override
   String? build() => null;
 
@@ -26,10 +26,10 @@ class CatalogTabNotifier extends AutoDisposeNotifier<String?> {
 }
 
 /// The selected catalog category id.
-final AutoDisposeNotifierProvider<CatalogTabNotifier, String?>
-catalogTabProvider = NotifierProvider.autoDispose<CatalogTabNotifier, String?>(
-  CatalogTabNotifier.new,
-);
+final NotifierProvider<CatalogTabNotifier, String?> catalogTabProvider =
+    NotifierProvider.autoDispose<CatalogTabNotifier, String?>(
+      CatalogTabNotifier.new,
+    );
 
 /// Catalog column — category tab strip on top, then search + the adaptive
 /// item grid (or the combo grid when the Combos tab is active). Mirror of

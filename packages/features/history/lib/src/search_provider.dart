@@ -76,7 +76,7 @@ class OrderSearchState {
 
 /// Owns [OrderSearchState]; runs the initial (last-7-days) query on first
 /// watch.
-class OrderSearchNotifier extends AutoDisposeNotifier<OrderSearchState> {
+class OrderSearchNotifier extends Notifier<OrderSearchState> {
   bool _alive = true;
 
   /// Request-sequence guard: bumped per [run]; stale completions bail so a
@@ -171,8 +171,7 @@ class OrderSearchNotifier extends AutoDisposeNotifier<OrderSearchState> {
 }
 
 /// The all-orders search screen's state — fresh per visit (auto-dispose).
-final AutoDisposeNotifierProvider<OrderSearchNotifier, OrderSearchState>
-searchProvider =
+final NotifierProvider<OrderSearchNotifier, OrderSearchState> searchProvider =
     NotifierProvider.autoDispose<OrderSearchNotifier, OrderSearchState>(
       OrderSearchNotifier.new,
     );

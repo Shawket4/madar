@@ -171,9 +171,11 @@ impl Renderer {
     /// at `max_w` dots.
     fn shape(&mut self, text: &str, size: f32, weight: Weight, max_w: i32) -> Buffer {
         let mut buf = Buffer::new(&mut self.fonts, Metrics::new(size, size * LINE));
-        buf.set_size(&mut self.fonts, Some(max_w as f32), None);
+        // cosmic-text 0.19: set_size/set_text no longer take the FontSystem
+        // (shaping is deferred to shape_until_scroll); attrs pass by ref.
+        buf.set_size(Some(max_w as f32), None);
         let attrs = Attrs::new().family(Family::Name("Cairo")).weight(weight);
-        buf.set_text(&mut self.fonts, text, attrs, Shaping::Advanced);
+        buf.set_text(text, &attrs, Shaping::Advanced, None);
         buf.shape_until_scroll(&mut self.fonts, false);
         buf
     }

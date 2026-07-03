@@ -13,6 +13,8 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart' show ChipTone, ToastData;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Family TYPE annotations moved to the misc library in Riverpod 3.
+import 'package:flutter_riverpod/misc.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// ESC/POS character columns (natives: renderShiftReport(..., 32u, ...)).
@@ -85,7 +87,7 @@ class OpenShiftState {
 /// shift (adopting an already-open one — hand-off to the shell) and primes the
 /// carried-over prefill. Connectivity is reflected app-wide via the
 /// ConnectivityService pulse — no screen-local polling.
-class OpenShiftNotifier extends AutoDisposeNotifier<OpenShiftState> {
+class OpenShiftNotifier extends Notifier<OpenShiftState> {
   bool _disposed = false;
   late MadarBridge _bridge;
 
@@ -276,8 +278,7 @@ class OpenShiftNotifier extends AutoDisposeNotifier<OpenShiftState> {
 
 /// Open-shift surface state (auto-disposed with the screen so the heartbeat
 /// stops and the form resets between visits).
-final AutoDisposeNotifierProvider<OpenShiftNotifier, OpenShiftState>
-openShiftProvider =
+final NotifierProvider<OpenShiftNotifier, OpenShiftState> openShiftProvider =
     NotifierProvider.autoDispose<OpenShiftNotifier, OpenShiftState>(
       OpenShiftNotifier.new,
     );
@@ -337,7 +338,7 @@ class CloseShiftState {
 
 /// The close-shift surface controller — primes the shift + Z-report on entry
 /// and performs the close.
-class CloseShiftNotifier extends AutoDisposeNotifier<CloseShiftState> {
+class CloseShiftNotifier extends Notifier<CloseShiftState> {
   bool _disposed = false;
   late MadarBridge _bridge;
 
@@ -419,8 +420,7 @@ class CloseShiftNotifier extends AutoDisposeNotifier<CloseShiftState> {
 }
 
 /// Close-shift surface state (auto-disposed with the screen).
-final AutoDisposeNotifierProvider<CloseShiftNotifier, CloseShiftState>
-closeShiftProvider =
+final NotifierProvider<CloseShiftNotifier, CloseShiftState> closeShiftProvider =
     NotifierProvider.autoDispose<CloseShiftNotifier, CloseShiftState>(
       CloseShiftNotifier.new,
     );
@@ -485,7 +485,7 @@ class CashMovementsState {
 /// The cash in/out surface controller — loads the ledger on entry and
 /// records signed movements against the open shift (OFFLINE-FIRST, queued
 /// through the durable outbox).
-class CashMovementsNotifier extends AutoDisposeNotifier<CashMovementsState> {
+class CashMovementsNotifier extends Notifier<CashMovementsState> {
   bool _disposed = false;
   late MadarBridge _bridge;
 
@@ -549,7 +549,7 @@ class CashMovementsNotifier extends AutoDisposeNotifier<CashMovementsState> {
 }
 
 /// Cash in/out surface state (auto-disposed with the screen).
-final AutoDisposeNotifierProvider<CashMovementsNotifier, CashMovementsState>
+final NotifierProvider<CashMovementsNotifier, CashMovementsState>
 cashMovementsProvider =
     NotifierProvider.autoDispose<CashMovementsNotifier, CashMovementsState>(
       CashMovementsNotifier.new,
@@ -607,7 +607,7 @@ class ShiftHistoryState {
 
 /// The shift-history surface controller — loads the page on entry and
 /// prefetches a tapped row's Z-report for the shared preview sheet.
-class ShiftHistoryNotifier extends AutoDisposeNotifier<ShiftHistoryState> {
+class ShiftHistoryNotifier extends Notifier<ShiftHistoryState> {
   bool _disposed = false;
   int _toastSeq = 0;
   late MadarBridge _bridge;
@@ -674,7 +674,7 @@ class ShiftHistoryNotifier extends AutoDisposeNotifier<ShiftHistoryState> {
 }
 
 /// Shift-history surface state (auto-disposed with the screen).
-final AutoDisposeNotifierProvider<ShiftHistoryNotifier, ShiftHistoryState>
+final NotifierProvider<ShiftHistoryNotifier, ShiftHistoryState>
 shiftHistoryProvider =
     NotifierProvider.autoDispose<ShiftHistoryNotifier, ShiftHistoryState>(
       ShiftHistoryNotifier.new,
@@ -775,14 +775,18 @@ class ShiftReportSheetState {
 /// The preview sheet's controller — seeds the pre-fetched report (or loads
 /// the current shift's), lazy-loads the shift's orders, and streams the
 /// rendered Z-report to the configured network printer.
-class ShiftReportNotifier
-    extends
-        AutoDisposeFamilyNotifier<ShiftReportSheetState, ShiftReportRequest> {
+class ShiftReportNotifier extends Notifier<ShiftReportSheetState> {
+  /// Creates the notifier for one family [arg].
+  ShiftReportNotifier(this.arg);
+
+  /// The presented request (a pre-fetched report, or the shift to load).
+  final ShiftReportRequest arg;
+
   bool _disposed = false;
   late MadarBridge _bridge;
 
   @override
-  ShiftReportSheetState build(ShiftReportRequest arg) {
+  ShiftReportSheetState build() {
     _bridge = ref.read(bridgeProvider);
     ref.onDispose(() => _disposed = true);
     // Orders are NOT loaded until the teller expands the section (they add a
@@ -897,7 +901,7 @@ class ShiftReportNotifier
 
 /// Z-report preview state, keyed per presentation (auto-disposed with the
 /// sheet so print feedback resets between opens).
-final AutoDisposeNotifierProviderFamily<
+final NotifierProviderFamily<
   ShiftReportNotifier,
   ShiftReportSheetState,
   ShiftReportRequest

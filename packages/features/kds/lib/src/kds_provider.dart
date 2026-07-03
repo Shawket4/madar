@@ -7,6 +7,8 @@ library;
 
 import 'package:app_core/app_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Family TYPE annotations moved to the misc library in Riverpod 3.
+import 'package:flutter_riverpod/misc.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Immutable board state: outstanding tickets + the station directory.
@@ -42,11 +44,17 @@ class KdsState {
 }
 
 /// The board controller, one per station id (the family arg).
-class KdsNotifier extends FamilyNotifier<KdsState, String?> {
+class KdsNotifier extends Notifier<KdsState> {
+  /// Creates the notifier for one family [arg].
+  KdsNotifier(this.arg);
+
+  /// The bound station id (null = the all-station expo board).
+  final String? arg;
+
   MadarBridge get _bridge => ref.read(bridgeProvider);
 
   @override
-  KdsState build(String? arg) => const KdsState();
+  KdsState build() => const KdsState();
 
   /// Fetch the board. A failed fetch keeps the last good board on screen
   /// (the natives' runCatching — a blip never blanks a busy kitchen).

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:app_core/app_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// `Override` moved to the misc library in Riverpod 3.
+import 'package:flutter_riverpod/misc.dart';
 import 'package:madar/app/host_vault.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -134,12 +136,12 @@ List<Override> readyScopeOverrides(BootData boot) {
 /// [realtimeConnectedProvider], and core-raised alerts land in
 /// [alertProvider] for the chrome's toast + chime.
 class RealtimeArmer {
-  RealtimeArmer({required MadarCore core, required Ref<Object?> ref})
+  RealtimeArmer({required MadarCore core, required Ref ref})
     : _core = core,
       _ref = ref;
 
   final MadarCore _core;
-  final Ref<Object?> _ref;
+  final Ref _ref;
 
   RealtimeSession? _realtime;
   StreamSubscription<RealtimeMessage>? _events;

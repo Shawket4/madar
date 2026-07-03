@@ -12,9 +12,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 class HostVault {
   HostVault._(this._prefs);
 
-  static const _secure = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  // v10 migrated Android to its own ciphers (Jetpack Security is
+  // deprecated); existing EncryptedSharedPreferences data migrates
+  // automatically on first access.
+  static const _secure = FlutterSecureStorage();
   static const _blobKey = 'madar.session.blob';
 
   final SharedPreferences _prefs;

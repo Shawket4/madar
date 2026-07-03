@@ -6,22 +6,31 @@ import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Family TYPE annotations moved to the misc library in Riverpod 3.
+import 'package:flutter_riverpod/misc.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Covers stepper for one fire-details presentation, keyed by an identity
 /// token the sheet creates per open (so a fresh sheet always starts at 0).
-class CoversNotifier extends AutoDisposeFamilyNotifier<int, Object> {
+class CoversNotifier extends Notifier<int> {
+  /// Creates the notifier for one family [arg].
+  CoversNotifier(this.arg);
+
+  /// Family key (one counter per presented sheet).
+  final Object arg;
+
   @override
-  int build(Object arg) => 0;
+  int build() => 0;
 
   void inc() => state = state + 1;
 
   void dec() => state = state > 0 ? state - 1 : 0;
 }
 
-final AutoDisposeNotifierProviderFamily<CoversNotifier, int, Object>
-_coversProvider = NotifierProvider.autoDispose
-    .family<CoversNotifier, int, Object>(CoversNotifier.new);
+final NotifierProviderFamily<CoversNotifier, int, Object> _coversProvider =
+    NotifierProvider.autoDispose.family<CoversNotifier, int, Object>(
+      CoversNotifier.new,
+    );
 
 /// Dine-in capture before a waiter fires a NEW ticket: customer, table,
 /// covers, kitchen notes — all optional, all passed to the core.
@@ -181,16 +190,22 @@ class VoidTicketResult {
 
 /// The picked void-reason key for one void-sheet presentation, keyed by an
 /// identity token the sheet creates per open.
-class VoidReasonNotifier extends AutoDisposeFamilyNotifier<String?, Object> {
+class VoidReasonNotifier extends Notifier<String?> {
+  /// Creates the notifier for one family [arg].
+  VoidReasonNotifier(this.arg);
+
+  /// Family key (one selection per presented sheet).
+  final Object arg;
+
   @override
-  String? build(Object arg) => null;
+  String? build() => null;
 
   /// Not a setter — Notifier state writes are method-guarded.
   // ignore: use_setters_to_change_properties
   void pick(String key) => state = key;
 }
 
-final AutoDisposeNotifierProviderFamily<VoidReasonNotifier, String?, Object>
+final NotifierProviderFamily<VoidReasonNotifier, String?, Object>
 _voidReasonProvider = NotifierProvider.autoDispose
     .family<VoidReasonNotifier, String?, Object>(VoidReasonNotifier.new);
 

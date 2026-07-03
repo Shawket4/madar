@@ -1509,7 +1509,7 @@ class _VoidFormState {
   }
 }
 
-class _VoidFormNotifier extends AutoDisposeNotifier<_VoidFormState> {
+class _VoidFormNotifier extends Notifier<_VoidFormState> {
   bool _alive = true;
 
   @override
@@ -1551,8 +1551,7 @@ class _VoidFormNotifier extends AutoDisposeNotifier<_VoidFormState> {
   }
 }
 
-final AutoDisposeNotifierProvider<_VoidFormNotifier, _VoidFormState>
-_voidFormProvider =
+final NotifierProvider<_VoidFormNotifier, _VoidFormState> _voidFormProvider =
     NotifierProvider.autoDispose<_VoidFormNotifier, _VoidFormState>(
       _VoidFormNotifier.new,
     );

@@ -202,7 +202,7 @@ class HistoryState {
 }
 
 /// Owns [HistoryState]; kicks off the initial load on first watch.
-class HistoryNotifier extends AutoDisposeNotifier<HistoryState> {
+class HistoryNotifier extends Notifier<HistoryState> {
   bool _alive = true;
   int _toastSeq = 0;
 
@@ -398,7 +398,7 @@ class HistoryNotifier extends AutoDisposeNotifier<HistoryState> {
 }
 
 /// The order-history screen's state — fresh per visit (auto-dispose).
-final AutoDisposeNotifierProvider<HistoryNotifier, HistoryState>
-historyProvider = NotifierProvider.autoDispose<HistoryNotifier, HistoryState>(
-  HistoryNotifier.new,
-);
+final NotifierProvider<HistoryNotifier, HistoryState> historyProvider =
+    NotifierProvider.autoDispose<HistoryNotifier, HistoryState>(
+      HistoryNotifier.new,
+    );

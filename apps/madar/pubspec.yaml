@@ -10,7 +10,7 @@ environment:
 dependencies:
   app_core: ^0.1.0
   audioplayers: ^6.1.0
-  connectivity_plus: ^6.1.0
+  connectivity_plus: ^7.2.0
   design_system: ^0.1.0
   feature_auth: ^0.1.0
   feature_checkout: ^0.1.0
@@ -23,9 +23,9 @@ dependencies:
   feature_shift: ^0.1.0
   flutter:
     sdk: flutter
-  flutter_local_notifications: ^17.2.4
-  flutter_riverpod: ^2.6.1
-  flutter_secure_storage: ^9.2.4
+  flutter_local_notifications: ^22.0.1
+  flutter_riverpod: ^3.3.2
+  flutter_secure_storage: ^10.3.1
   path_provider: ^2.1.5
   rust_bridge: ^0.1.0
   shared_preferences: ^2.5.3

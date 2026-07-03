@@ -12,6 +12,8 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart' show Theme;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Family TYPE annotations moved to the misc library in Riverpod 3.
+import 'package:flutter_riverpod/misc.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// Qty-badge vertical inset (natives: 3.dp).
@@ -25,9 +27,11 @@ const double _totalMoneySize = 20;
 
 /// Best-effort line fetch — the natives' `loadOrderDetail` swallows
 /// failures and the panel falls back to the summary totals.
-final AutoDisposeFutureProviderFamily<OrderDetailView?, String>
-_orderDetailProvider = FutureProvider.autoDispose
-    .family<OrderDetailView?, String>((ref, orderId) async {
+final FutureProviderFamily<OrderDetailView?, String> _orderDetailProvider =
+    FutureProvider.autoDispose.family<OrderDetailView?, String>((
+      ref,
+      orderId,
+    ) async {
       final bridge = ref.watch(bridgeProvider);
       try {
         return await bridge.orderDetail(orderId: orderId);
@@ -59,7 +63,7 @@ class OrderDetailsSheet extends ConsumerWidget {
         ? const AsyncValue<OrderDetailView?>.data(null)
         : ref.watch(_orderDetailProvider(o.id));
     final loading = detailAsync.isLoading;
-    final detail = detailAsync.valueOrNull;
+    final detail = detailAsync.value;
     final voided = o.status == 'voided';
     String t(String key) => bridge.tr(key: key);
     return Column(

@@ -24,7 +24,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -751,7 +751,7 @@ async fn beacon_recv_loop(shared: Arc<RelayShared>, sock: Arc<UdpSocket>) {
 
 /// Fold an mDNS-resolved service into the registry (discovery only — no shift advert;
 /// only the signed beacon sets `open_shift_id`).
-fn ingest_mdns(shared: &Arc<RelayShared>, info: &mdns_sd::ServiceInfo) {
+fn ingest_mdns(shared: &Arc<RelayShared>, info: &mdns_sd::ResolvedService) {
     let prop = |k: &str| info.get_property_val_str(k).map(|s| s.to_string());
     let branch_id = prop("branch_id").unwrap_or_default();
     let device_id = prop("device_id").unwrap_or_default();

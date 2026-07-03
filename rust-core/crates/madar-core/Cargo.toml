@@ -22,7 +22,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
 [dependencies]
 # Proc-macro UniFFI (no .udl). "cli" gates uniffi_bindgen_main for the bin below;
 # "tokio" lets us export `async fn`s with `async_runtime = "tokio"`.
-uniffi = { version = "0.28", features = ["cli", "tokio"] }
+uniffi = { version = "0.32", features = ["cli", "tokio"] }
 
 # The typed reqwest API client generated from the backend OpenAPI spec
 # (tool/generate_api.sh). The `net/` layer drives it; nothing here hand-rolls wire.
@@ -61,17 +61,17 @@ argon2 = "0.5"
 # still compiles on iOS, it's just not the iOS discovery path.) The embedded relay
 # SERVER + UDP beacon ride the tokio `net` feature already enabled above — no
 # blocking-thread HTTP dep; SSE is hand-rolled like the cloud bus (realtime.rs).
-mdns-sd = "0.11"
+mdns-sd = "0.20"
 # Per-branch HMAC-SHA256 signing of every LAN message (RustCrypto, same family as
 # argon2 above; pure Rust, cross-compiles clean). The key is derived from the
 # offline-auth bundle the device already holds — only branch-provisioned devices
 # are trusted, so the relay can't be an injection vector.
-hmac = "0.12"
-sha2 = "0.10"
+hmac = "0.13"
+sha2 = "0.11"
 
 # Local store — embedded SQLite, the source of truth the UI reads from, online
 # or offline. `bundled` vendors SQLite so there's no system dependency.
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 # DTO/payload (de)serialization + ids + timestamps + the FFI error model.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -80,8 +80,8 @@ chrono = { version = "0.4", features = ["serde"] }
 # IANA timezone math so the client derives an order's BUSINESS DATE in the branch
 # zone exactly as Postgres `AT TIME ZONE` does — the order_ref must be byte-identical
 # whether minted on the server or predicted offline on the device.
-chrono-tz = "0.9"
-thiserror = "1"
+chrono-tz = "0.10"
+thiserror = "2"
 
 # Receipt rasterizer. The TSP143III is raster-only and receipts carry a logo +
 # Arabic, so the core renders the whole receipt to a 1-bit bitmap (see render.rs)
@@ -90,7 +90,7 @@ thiserror = "1"
 # `fontconfig` feature (a system lib that won't cross-compile); we ship our own
 # embedded Cairo fonts, so `std` + `swash` (rasterizer) is all we need. `image`
 # is trimmed to png/jpeg (the org-logo formats) to avoid pulling every codec.
-cosmic-text = { version = "0.12", default-features = false, features = ["std", "swash"] }
+cosmic-text = { version = "0.19", default-features = false, features = ["std", "swash"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 
 # The standalone uniffi-bindgen used to emit Swift/Kotlin bindings in library

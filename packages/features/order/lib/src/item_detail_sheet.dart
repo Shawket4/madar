@@ -8,6 +8,8 @@ import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Family TYPE annotations moved to the misc library in Riverpod 3.
+import 'package:flutter_riverpod/misc.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// A host-only draft of one configured bundle component (what the
@@ -148,12 +150,17 @@ class ItemConfigState {
 
 /// Selection notifier for one sheet presentation — seeded from the args
 /// (edit line / configure seed / defaults), mutated by the chip taps.
-class ItemConfigNotifier
-    extends AutoDisposeFamilyNotifier<ItemConfigState, ItemSheetArgs> {
+class ItemConfigNotifier extends Notifier<ItemConfigState> {
+  /// Creates the notifier for one family [arg].
+  ItemConfigNotifier(this.arg);
+
+  /// The sheet arguments (item + optional edit line).
+  final ItemSheetArgs arg;
+
   bool _disposed = false;
 
   @override
-  ItemConfigState build(ItemSheetArgs arg) {
+  ItemConfigState build() {
     ref.onDispose(() => _disposed = true);
     return _seed(arg);
   }
@@ -358,11 +365,7 @@ class ItemConfigNotifier
 }
 
 /// One sheet presentation's selection state, keyed by its (identity) args.
-final AutoDisposeNotifierProviderFamily<
-  ItemConfigNotifier,
-  ItemConfigState,
-  ItemSheetArgs
->
+final NotifierProviderFamily<ItemConfigNotifier, ItemConfigState, ItemSheetArgs>
 itemConfigProvider = NotifierProvider.autoDispose
     .family<ItemConfigNotifier, ItemConfigState, ItemSheetArgs>(
       ItemConfigNotifier.new,

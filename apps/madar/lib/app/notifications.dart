@@ -21,7 +21,7 @@ class NotificationService {
     final plugin = FlutterLocalNotificationsPlugin();
     try {
       await plugin.initialize(
-        const InitializationSettings(
+        settings: const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
           iOS: DarwinInitializationSettings(),
           macOS: DarwinInitializationSettings(),
@@ -69,10 +69,10 @@ class NotificationService {
       await _plugin.show(
         // Same tag → same id → the OS replaces the prior notification
         // (the natives' `tag.hashCode` dedup).
-        tag.hashCode & 0x7fffffff,
-        title,
-        body.isEmpty ? null : body,
-        const NotificationDetails(
+        id: tag.hashCode & 0x7fffffff,
+        title: title,
+        body: body.isEmpty ? null : body,
+        notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,

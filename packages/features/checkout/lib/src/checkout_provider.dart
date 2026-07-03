@@ -177,7 +177,7 @@ class CheckoutState {
 ///
 /// Mirrors the natives' AppModel checkout slice: all money math and order
 /// assembly live in the core; this only sequences bridge calls.
-class CheckoutNotifier extends AutoDisposeNotifier<CheckoutState> {
+class CheckoutNotifier extends Notifier<CheckoutState> {
   /// Flips false on dispose — async continuations must not touch [state]
   /// (or [ref]) after the sheet closed.
   bool _live = false;
@@ -407,8 +407,8 @@ class CheckoutNotifier extends AutoDisposeNotifier<CheckoutState> {
 
 /// THE checkout session — autoDispose so every presented tender/settle
 /// drawer starts fresh.
-final AutoDisposeNotifierProvider<CheckoutNotifier, CheckoutState>
-checkoutProvider = NotifierProvider.autoDispose(CheckoutNotifier.new);
+final NotifierProvider<CheckoutNotifier, CheckoutState> checkoutProvider =
+    NotifierProvider.autoDispose(CheckoutNotifier.new);
 
 /// Device-config brand string (`epson`/`star`) → [PrinterBrand]; anything
 /// else falls back to Epson (the natives' default dialect).
