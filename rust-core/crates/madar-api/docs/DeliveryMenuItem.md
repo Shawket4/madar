@@ -10,6 +10,7 @@ Name | Type | Description | Notes
 **description** | Option<**String**> |  | [optional]
 **id** | **uuid::Uuid** |  | 
 **image_url** | Option<**String**> |  | [optional]
+**modifier_groups** | [**Vec<models::DeliveryModifierGroup>**](DeliveryModifierGroup.md) | The item's modifier groups (unified model), channel-effective. Empty ⇒ the customizer falls back to `addons` + `allowed_addon_ids`. | 
 **name** | **String** |  | 
 **name_translations** | **serde_json::Value** |  | 
 **optionals** | [**Vec<models::DeliveryOptionalField>**](DeliveryOptionalField.md) |  | 

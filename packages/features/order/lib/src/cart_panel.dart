@@ -348,12 +348,18 @@ class _TellerHeldStrip extends ConsumerWidget {
     final cartStartedAtIso = ref.watch(
       orderProvider.select((s) => s.cartStartedAtIso),
     );
+    final cartName = ref.watch(orderProvider.select((s) => s.cartName));
+    final cartDraftId = ref.watch(orderProvider.select((s) => s.cartDraftId));
     final hasLines = ref.watch(
       orderProvider.select((s) => s.cartLines.isNotEmpty),
     );
     final itemCount = ref.watch(
       orderProvider.select((s) => s.cartTotals.itemCount),
     );
+    // A live cart restored FROM a draft keeps that draft's strip key, so the
+    // chip is the SAME chip across hold/restore cycles — its drag position
+    // and time label never jump.
+    final liveKey = cartDraftId ?? '__current__';
     return HeldOrdersStrip(
       newLabel: bridge.tr(key: 'waiter.new_order'),
       tabs: [
@@ -361,6 +367,7 @@ class _TellerHeldStrip extends ConsumerWidget {
           HeldOrderTab(
             key: draft.id,
             sortKey: draft.createdAt,
+            title: _customName(draft.name),
             count: draft.itemCount,
             selected: false,
             onTap: () => unawaited(notifier.switchToHeldOrder(draft.id)),
@@ -368,14 +375,69 @@ class _TellerHeldStrip extends ConsumerWidget {
           ),
         if (hasLines)
           HeldOrderTab(
-            key: '__current__',
+            key: liveKey,
             sortKey: cartStartedAtIso ?? nowIso(),
+            title: cartName,
             count: itemCount,
             selected: true,
             onTap: () {},
+            onRename: () => unawaited(_renameLiveOrder(context, ref)),
           ),
       ],
     );
+  }
+
+  /// Legacy drafts carried an "HH:MM" auto-label as their name — show those
+  /// as time (via sortKey), not as a custom title.
+  static String? _customName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return null;
+    if (RegExp(r'^\d{1,2}:\d{2}\$').hasMatch(trimmed)) return null;
+    return trimmed;
+  }
+
+  /// Free-text rename for the live order — persists across holds via the
+  /// draft's name; empty clears back to the time label.
+  Future<void> _renameLiveOrder(BuildContext context, WidgetRef ref) async {
+    final bridge = ref.read(bridgeProvider);
+    final controller = TextEditingController(
+      text: ref.read(orderProvider).cartName ?? '',
+    );
+    final saved = await showMadarSheet<String>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsetsDirectional.all(Space.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              bridge.tr(key: 'order.rename_title'),
+              style: MadarType.h3.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: Space.lg),
+            OrderTextField(
+              controller: controller,
+              placeholder: bridge.tr(key: 'order.rename_hint'),
+              icon: 'pencil',
+            ),
+            const SizedBox(height: Space.xl),
+            ActionButton(
+              label: bridge.tr(key: 'common.done'),
+              onTap: () => unawaited(
+                Navigator.of(sheetContext).maybePop(controller.text),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (saved != null) {
+      ref.read(orderProvider.notifier).setCartName(saved);
+    }
+    controller.dispose();
   }
 }
 

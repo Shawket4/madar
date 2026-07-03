@@ -16,14 +16,24 @@ class HeldOrderTab {
     required this.count,
     required this.selected,
     required this.onTap,
+    this.title,
     this.glyph,
     this.onClose,
+    this.onRename,
   });
 
   final String key;
 
   /// RFC3339 creation time — the default (pre-drag) order.
   final String sortKey;
+
+  /// Free-text order name; null/empty falls back to the "HH:MM" time label
+  /// derived from [sortKey].
+  final String? title;
+
+  /// Opens the rename affordance — rendered as a pencil on the SELECTED
+  /// chip only (the live order), so the strip stays uncluttered.
+  final VoidCallback? onRename;
 
   /// Count-badge glyph override (e.g. "plus" for the waiter New tab).
   final String? glyph;
@@ -241,15 +251,41 @@ class _HeldOrderChip extends StatelessWidget {
                     ),
             ),
             const SizedBox(width: Space.sm),
-            // Time — "HH:MM" from the creation stamp; the New tab reads "new".
-            Text(
-              tab.glyph != null ? newLabel : formatHHMM(tab.sortKey),
-              maxLines: 1,
-              style: MadarType.bodySm.copyWith(
-                fontWeight: FontWeight.w600,
-                color: active ? colors.textOnAccent : colors.textPrimary,
+            // The order's NAME when the teller set one, else "HH:MM" from
+            // the (immutable) creation stamp; the New tab reads "new".
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 140),
+              child: Text(
+                tab.glyph != null
+                    ? newLabel
+                    : (tab.title?.trim().isNotEmpty ?? false)
+                    ? tab.title!.trim()
+                    : formatHHMM(tab.sortKey),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MadarType.bodySm.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: active ? colors.textOnAccent : colors.textPrimary,
+                ),
               ),
             ),
+            if (active && tab.onRename != null) ...[
+              const SizedBox(width: Space.xs),
+              GestureDetector(
+                onTap: tab.onRename,
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox.square(
+                  dimension: _closeSize,
+                  child: Center(
+                    child: MadarIcon(
+                      'pencil',
+                      tint: colors.textOnAccent.withValues(alpha: 0.85),
+                      size: IconSize.xs,
+                    ),
+                  ),
+                ),
+              ),
+            ],
             if (onClose != null) ...[
               const SizedBox(width: Space.xs),
               GestureDetector(

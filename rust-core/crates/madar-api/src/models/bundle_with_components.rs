@@ -49,15 +49,16 @@ pub struct BundleWithComponents {
     pub branch_ids: Vec<uuid::Uuid>,
     #[serde(rename = "components")]
     pub components: Vec<models::BundleComponentHydrated>,
-    /// Sum of component costs × quantity, in piastres. `null` when any component cost is unknown (`cost_missing = true`) — an unknown cost is never 0.
-    #[serde(rename = "computed_cost", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub computed_cost: Option<Option<i64>>,
-    #[serde(rename = "cost_missing")]
-    pub cost_missing: bool,
+    /// Sum of the KNOWN component costs × quantity, in piastres. When `cost_missing` is true this is a partial rollup (old-wire semantics) — render it as unknown, never as 0.
+    #[serde(rename = "computed_cost")]
+    pub computed_cost: i64,
+    /// True when at least one component's cost is unknown.
+    #[serde(rename = "cost_missing", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub cost_missing: Option<Option<bool>>,
 }
 
 impl BundleWithComponents {
-    pub fn new(created_at: chrono::DateTime<chrono::FixedOffset>, description_translations: Option<serde_json::Value>, id: uuid::Uuid, name: String, name_translations: Option<serde_json::Value>, org_id: uuid::Uuid, price: i32, status: models::BundleStatus, updated_at: chrono::DateTime<chrono::FixedOffset>, branch_ids: Vec<uuid::Uuid>, components: Vec<models::BundleComponentHydrated>, cost_missing: bool) -> BundleWithComponents {
+    pub fn new(created_at: chrono::DateTime<chrono::FixedOffset>, description_translations: Option<serde_json::Value>, id: uuid::Uuid, name: String, name_translations: Option<serde_json::Value>, org_id: uuid::Uuid, price: i32, status: models::BundleStatus, updated_at: chrono::DateTime<chrono::FixedOffset>, branch_ids: Vec<uuid::Uuid>, components: Vec<models::BundleComponentHydrated>, computed_cost: i64) -> BundleWithComponents {
         BundleWithComponents {
             available_from_date: None,
             available_from_time: None,
@@ -77,8 +78,8 @@ impl BundleWithComponents {
             updated_at,
             branch_ids,
             components,
-            computed_cost: None,
-            cost_missing,
+            computed_cost,
+            cost_missing: None,
         }
     }
 }

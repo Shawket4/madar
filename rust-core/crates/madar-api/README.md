@@ -445,6 +445,8 @@ Class | Method | HTTP request | Description
  - [DeliveryMenuDiscount](docs/DeliveryMenuDiscount.md)
  - [DeliveryMenuItem](docs/DeliveryMenuItem.md)
  - [DeliveryMenuSize](docs/DeliveryMenuSize.md)
+ - [DeliveryModifierGroup](docs/DeliveryModifierGroup.md)
+ - [DeliveryModifierOption](docs/DeliveryModifierOption.md)
  - [DeliveryOptionalField](docs/DeliveryOptionalField.md)
  - [DeliveryOrder](docs/DeliveryOrder.md)
  - [DeliveryOrderInput](docs/DeliveryOrderInput.md)

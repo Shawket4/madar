@@ -17,9 +17,12 @@ pub struct BundleComponentHydrated {
     pub bundle_id: uuid::Uuid,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
-    /// Cost of the component (at its base size) in piastres. `null` = UNKNOWN (no priced recipe, or an incomplete rollup) — never shown as 0.
-    #[serde(rename = "item_cost", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub item_cost: Option<Option<i64>>,
+    /// Cost of the component (at its base size) in piastres. When `item_cost_missing` is true this is a PARTIAL figure (unknown = 0 on the wire for old-client compat) — display it as unknown, not as money.
+    #[serde(rename = "item_cost")]
+    pub item_cost: i64,
+    /// True when the component's cost could not be fully resolved.
+    #[serde(rename = "item_cost_missing", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub item_cost_missing: Option<Option<bool>>,
     #[serde(rename = "item_id")]
     pub item_id: uuid::Uuid,
     #[serde(rename = "item_name")]
@@ -33,11 +36,12 @@ pub struct BundleComponentHydrated {
 }
 
 impl BundleComponentHydrated {
-    pub fn new(bundle_id: uuid::Uuid, id: uuid::Uuid, item_id: uuid::Uuid, item_name: String, item_price: i32, position: i32, quantity: i32) -> BundleComponentHydrated {
+    pub fn new(bundle_id: uuid::Uuid, id: uuid::Uuid, item_cost: i64, item_id: uuid::Uuid, item_name: String, item_price: i32, position: i32, quantity: i32) -> BundleComponentHydrated {
         BundleComponentHydrated {
             bundle_id,
             id,
-            item_cost: None,
+            item_cost,
+            item_cost_missing: None,
             item_id,
             item_name,
             item_price,

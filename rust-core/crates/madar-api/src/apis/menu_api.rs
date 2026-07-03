@@ -19,8 +19,8 @@ use super::{Error, configuration, ContentType};
 pub struct CatalogSyncParams {
     /// Branch whose resolved prices/availability to return
     pub branch_id: String,
-    /// delivery_channel: in_mall | outside | umbrella | pickup
-    pub channel: String,
+    /// delivery_channel: in_mall | outside | umbrella | pickup — omit for branch-only resolution (in-store POS)
+    pub channel: Option<String>,
     /// Device's cached catalog_revision; == current ⇒ changed:false, no payload
     pub since: Option<i64>
 }
@@ -1133,7 +1133,9 @@ pub async fn catalog_sync(configuration: &configuration::Configuration, params: 
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     req_builder = req_builder.query(&[("branch_id", &params.branch_id.to_string())]);
-    req_builder = req_builder.query(&[("channel", &params.channel.to_string())]);
+    if let Some(ref param_value) = params.channel {
+        req_builder = req_builder.query(&[("channel", &param_value.to_string())]);
+    }
     if let Some(ref param_value) = params.since {
         req_builder = req_builder.query(&[("since", &param_value.to_string())]);
     }

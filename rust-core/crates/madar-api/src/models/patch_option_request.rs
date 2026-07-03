@@ -19,6 +19,8 @@ pub struct PatchOptionRequest {
     pub is_default: Option<Option<bool>>,
     #[serde(rename = "name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub name: Option<Option<String>>,
+    #[serde(rename = "name_translations", skip_serializing_if = "Option::is_none")]
+    pub name_translations: Option<serde_json::Value>,
     #[serde(rename = "price", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub price: Option<Option<i32>>,
     #[serde(rename = "replaces_ingredient_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -31,6 +33,7 @@ impl PatchOptionRequest {
             is_active: None,
             is_default: None,
             name: None,
+            name_translations: None,
             price: None,
             replaces_ingredient_id: None,
         }

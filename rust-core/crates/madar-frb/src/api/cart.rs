@@ -288,9 +288,19 @@ impl MadarBridge {
         self.inner.cart_clear().map_err(MadarError::from)
     }
 
-    /// Park the current cart as a named draft (held order) and empty the cart.
-    pub fn hold_cart(&self, name: String) -> Result<(), MadarError> {
-        self.inner.hold_cart(name).map_err(MadarError::from)
+    /// Park the current cart as a named draft (held order) and empty the
+    /// cart. Pass the ORIGINAL `draft_id`/`started_at` when re-parking a
+    /// restored draft so it keeps its identity, name slot, and its
+    /// oldest→newest strip position across switch cycles.
+    pub fn hold_cart(
+        &self,
+        name: String,
+        draft_id: Option<String>,
+        started_at: Option<String>,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .hold_cart(name, draft_id, started_at)
+            .map_err(MadarError::from)
     }
 
     /// The parked drafts (held orders), newest first.

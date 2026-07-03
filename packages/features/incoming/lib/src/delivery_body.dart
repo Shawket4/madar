@@ -266,7 +266,6 @@ class _DeliveryBodyState extends ConsumerState<DeliveryBody>
               onPrep: () => unawaited(notifier.addDeliveryPrep(o)),
               onFinalize: () => unawaited(_finalize(o)),
               onCancel: () => unawaited(_cancel(o)),
-              onReject: () => unawaited(notifier.rejectDelivery(o)),
             ),
           ),
         );
@@ -392,7 +391,6 @@ class _DeliveryOrderCard extends ConsumerWidget {
     required this.onPrep,
     required this.onFinalize,
     required this.onCancel,
-    required this.onReject,
   });
 
   final DeliveryOrderView order;
@@ -401,7 +399,6 @@ class _DeliveryOrderCard extends ConsumerWidget {
   final VoidCallback onPrep;
   final VoidCallback onFinalize;
   final VoidCallback onCancel;
-  final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -622,7 +619,6 @@ class _DeliveryOrderCard extends ConsumerWidget {
                           onPrep: onPrep,
                           onFinalize: onFinalize,
                           onCancel: onCancel,
-                          onReject: onReject,
                         ),
                       ],
                     ),
@@ -645,7 +641,6 @@ class _OverflowMenu extends ConsumerWidget {
     required this.onPrep,
     required this.onFinalize,
     required this.onCancel,
-    required this.onReject,
   });
 
   final DeliveryOrderView order;
@@ -653,7 +648,6 @@ class _OverflowMenu extends ConsumerWidget {
   final VoidCallback onPrep;
   final VoidCallback onFinalize;
   final VoidCallback onCancel;
-  final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -698,15 +692,8 @@ class _OverflowMenu extends ConsumerWidget {
           bridge.tr(key: 'delivery.finalize'),
           onFinalize,
         ),
-        // Reject is the terminal "refuse incoming work" action — only a
-        // just-received order can be rejected (before any prep).
-        if (order.status == 'received')
-          item(
-            'hand.raised',
-            bridge.tr(key: 'delivery.reject'),
-            onReject,
-            danger: true,
-          ),
+        // ONE terminal action: Cancel — the sheet carries the restock
+        // toggle (restock = the old "reject", waste = food already made).
         item(
           'xmark.circle',
           bridge.tr(key: 'delivery.cancel'),

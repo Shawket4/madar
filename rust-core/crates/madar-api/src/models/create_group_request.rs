@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 pub struct CreateGroupRequest {
     #[serde(rename = "is_required", skip_serializing_if = "Option::is_none")]
     pub is_required: Option<bool>,
+    /// The legacy addon type this group is presented as to OLD clients through the compat shim (the managed addon-type dropdown, e.g. `milk_type` / `coffee_type` / `extra`). Swap-family behavior keys on it. `null` = a custom group with no legacy lineage — INVISIBLE to old clients (the shim projects `type` from this value, and the old wire requires it), so set it whenever the pre-teardown fleet must see the group's options.
+    #[serde(rename = "legacy_addon_type", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub legacy_addon_type: Option<Option<String>>,
     #[serde(rename = "max_selections", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub max_selections: Option<Option<i32>>,
     #[serde(rename = "min_selections", skip_serializing_if = "Option::is_none")]
@@ -34,6 +37,7 @@ impl CreateGroupRequest {
     pub fn new(name: String, selection_type: String) -> CreateGroupRequest {
         CreateGroupRequest {
             is_required: None,
+            legacy_addon_type: None,
             max_selections: None,
             min_selections: None,
             name,

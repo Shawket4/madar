@@ -256,8 +256,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Cached ACL check (optimistic while offline).
   bool hasPermission({required String resource, required String action});
 
-  /// Park the current cart as a named draft (held order) and empty the cart.
-  Future<void> holdCart({required String name});
+  /// Park the current cart as a named draft (held order) and empty the
+  /// cart. Pass the ORIGINAL `draft_id`/`started_at` when re-parking a
+  /// restored draft so it keeps its identity, name slot, and its
+  /// oldest→newest strip position across switch cycles.
+  Future<void> holdCart({
+    required String name,
+    String? draftId,
+    String? startedAt,
+  });
 
   bool isAuthenticated();
 

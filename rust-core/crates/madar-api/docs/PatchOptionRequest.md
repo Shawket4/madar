@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **is_active** | Option<**bool**> |  | [optional]
 **is_default** | Option<**bool**> |  | [optional]
 **name** | Option<**String**> |  | [optional]
+**name_translations** | Option<**serde_json::Value**> |  | [optional]
 **price** | Option<**i32**> |  | [optional]
 **replaces_ingredient_id** | Option<**uuid::Uuid**> |  | [optional]
 

@@ -37,6 +37,8 @@ class OrderState {
     this.cartLines = const [],
     this.cartTotals = _emptyTotals,
     this.cartStartedAtIso,
+    this.cartName,
+    this.cartDraftId,
     this.drafts = const [],
     this.openTickets = const [],
     this.activeTicketId,
@@ -70,10 +72,22 @@ class OrderState {
   final List<CartLineView> cartLines;
   final CartTotals cartTotals;
 
-  /// RFC3339 stamp of the cart's empty→non-empty transition — the live-cart
-  /// chip's sort key + "HH:MM" label in the held-orders strip. A restored
-  /// draft adopts its own createdAt instead.
+  /// RFC3339 stamp of the cart's FIRST item (the empty→non-empty
+  /// transition) — the live-cart chip's sort key + "HH:MM" label in the
+  /// held-orders strip. It NEVER updates while the order lives: a restored
+  /// draft adopts its own createdAt, and re-parking passes it back, so a
+  /// held order keeps its oldest→newest position across switch cycles.
   final String? cartStartedAtIso;
+
+  /// Free-text name of the live order (the strip's rename affordance) —
+  /// null/empty renders the "HH:MM" time label instead. Survives hold →
+  /// restore cycles via the draft's name.
+  final String? cartName;
+
+  /// The draft id this cart was restored FROM (null = a brand-new order).
+  /// Passed back on hold so the draft keeps its identity (and the strip's
+  /// manual drag order, keyed by id, holds).
+  final String? cartDraftId;
 
   // ── drafts + waiter tickets ──────────────────────────────────────────────
   final List<DraftView> drafts;
@@ -129,6 +143,8 @@ class OrderState {
     List<CartLineView>? cartLines,
     CartTotals? cartTotals,
     Object? cartStartedAtIso = _unset,
+    Object? cartName = _unset,
+    Object? cartDraftId = _unset,
     List<DraftView>? drafts,
     List<TicketView>? openTickets,
     Object? activeTicketId = _unset,
@@ -156,6 +172,10 @@ class OrderState {
     cartStartedAtIso: identical(cartStartedAtIso, _unset)
         ? this.cartStartedAtIso
         : cartStartedAtIso as String?,
+    cartName: identical(cartName, _unset) ? this.cartName : cartName as String?,
+    cartDraftId: identical(cartDraftId, _unset)
+        ? this.cartDraftId
+        : cartDraftId as String?,
     drafts: drafts ?? this.drafts,
     openTickets: openTickets ?? this.openTickets,
     activeTicketId: identical(activeTicketId, _unset)
@@ -259,9 +279,25 @@ class OrderNotifier extends Notifier<OrderState> {
       await loadCatalog();
       await loadShiftStats();
     }
+    await _fetchCatalogIfEmpty();
     await loadCart();
     await loadDrafts();
     await refreshConnectivity();
+  }
+
+  /// Fresh device: the local mirror is EMPTY until the first server pull —
+  /// don't sit on a blank menu waiting for the manual "sync data" button.
+  /// Keeps the skeleton up while the pull runs; best-effort, so an OFFLINE
+  /// first boot just lands on the empty state (which offers a sync action).
+  Future<void> _fetchCatalogIfEmpty() async {
+    if (state.menuItems.isNotEmpty || state.categories.isNotEmpty) return;
+    if (_bridge.currentSession() == null) return;
+    state = state.copyWith(isLoadingCatalog: true);
+    await _quiet(() async {
+      await _bridge.refreshCatalog();
+      return true;
+    });
+    await loadCatalog();
   }
 
   // ── shift ──────────────────────────────────────────────────────────────────
@@ -366,6 +402,10 @@ class OrderNotifier extends Notifier<OrderState> {
       state = state.copyWith(
         cartLines: lines,
         cartStartedAtIso: startedAt,
+        // The order is gone once the cart empties (placed/cleared) — its
+        // name and draft identity go with it.
+        cartName: lines.isEmpty ? null : state.cartName,
+        cartDraftId: lines.isEmpty ? null : state.cartDraftId,
         cartTotals: totals,
       );
     } on MadarError catch (e) {
@@ -423,6 +463,8 @@ class OrderNotifier extends Notifier<OrderState> {
     state = state.copyWith(
       cartLines: const [],
       cartStartedAtIso: null,
+      cartName: null,
+      cartDraftId: null,
       cartTotals: totals,
     );
   }
@@ -531,21 +573,32 @@ class OrderNotifier extends Notifier<OrderState> {
   /// it's parked at. The core stamps createdAt (the strip's sort key).
   Future<void> holdCart() async {
     await _quiet(() async {
-      await _bridge.holdCart(name: nowHHMM());
+      // The draft keeps the ORDER's identity: its free-text name (may be
+      // empty → the chip shows the time), the id it was restored from (a
+      // re-park is the SAME draft), and its first-item timestamp — so chips
+      // never reshuffle or re-stamp across hold/restore cycles.
+      await _bridge.holdCart(
+        name: state.cartName ?? '',
+        draftId: state.cartDraftId,
+        startedAt: state.cartStartedAtIso,
+      );
       return true;
     });
-    state = state.copyWith(cartStartedAtIso: null);
+    state = state.copyWith(
+      cartStartedAtIso: null,
+      cartName: null,
+      cartDraftId: null,
+    );
     await loadCart();
     await loadDrafts();
   }
 
-  /// Restore a held order into the cart (replacing the current one), adopting
-  /// the draft's own createdAt as the cart's start timestamp.
+  /// Restore a held order into the cart (replacing the current one),
+  /// adopting the draft's FULL identity: its createdAt as the immutable
+  /// start timestamp, its free-text name, and its id (passed back on the
+  /// next hold so the draft never changes identity).
   Future<void> restoreDraft(String id) async {
-    final createdAt = state.drafts
-        .where((d) => d.id == id)
-        .firstOrNull
-        ?.createdAt;
+    final draft = state.drafts.where((d) => d.id == id).firstOrNull;
     try {
       final lines = await _bridge.restoreDraft(id: id);
       state = state.copyWith(cartLines: lines);
@@ -553,12 +606,28 @@ class OrderNotifier extends Notifier<OrderState> {
       state = state.copyWith(error: _bridge.humanMessage(e));
     }
     final totals = await _fetchTotals();
+    final name = draft?.name.trim() ?? '';
     state = state.copyWith(
-      cartStartedAtIso: createdAt ?? state.cartStartedAtIso,
+      cartStartedAtIso: draft?.createdAt ?? state.cartStartedAtIso,
+      // Drafts parked before names existed carry an "HH:MM" auto-label —
+      // treat those as unnamed so the chip falls back to the live time.
+      cartName: name.isEmpty || _looksLikeTimeLabel(name) ? null : name,
+      cartDraftId: draft?.id,
       cartTotals: totals,
     );
     await loadDrafts();
     _refreshShell();
+  }
+
+  /// Legacy auto-labels ("14:05") from before free-text names — not names.
+  static bool _looksLikeTimeLabel(String s) =>
+      RegExp(r'^\d{1,2}:\d{2}$').hasMatch(s);
+
+  /// Rename the LIVE order (free text; empty clears back to the time
+  /// label). Persists on the next hold via the draft's name.
+  void setCartName(String? name) {
+    final trimmed = name?.trim() ?? '';
+    state = state.copyWith(cartName: trimmed.isEmpty ? null : trimmed);
   }
 
   Future<void> discardDraft(String id) async {
@@ -572,21 +641,23 @@ class OrderNotifier extends Notifier<OrderState> {
   /// Tab-style switch to a held order: park the current cart first (if any)
   /// so nothing is lost, then load the target under its own createdAt.
   Future<void> switchToHeldOrder(String id) async {
-    final createdAt = state.drafts
-        .where((d) => d.id == id)
-        .firstOrNull
-        ?.createdAt;
     if (state.cartLines.isNotEmpty) {
       await _quiet(() async {
-        await _bridge.holdCart(name: nowHHMM());
+        // Park the CURRENT order under its own identity (see holdCart).
+        await _bridge.holdCart(
+          name: state.cartName ?? '',
+          draftId: state.cartDraftId,
+          startedAt: state.cartStartedAtIso,
+        );
         return true;
       });
     }
-    state = state.copyWith(cartStartedAtIso: null);
-    await restoreDraft(id);
     state = state.copyWith(
-      cartStartedAtIso: createdAt ?? state.cartStartedAtIso,
+      cartStartedAtIso: null,
+      cartName: null,
+      cartDraftId: null,
     );
+    await restoreDraft(id);
   }
 
   // ── waiter (dine-in tickets) ───────────────────────────────────────────────

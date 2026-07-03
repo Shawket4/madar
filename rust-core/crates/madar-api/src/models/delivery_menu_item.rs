@@ -27,6 +27,9 @@ pub struct DeliveryMenuItem {
     pub id: uuid::Uuid,
     #[serde(rename = "image_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub image_url: Option<Option<String>>,
+    /// The item's modifier groups (unified model), channel-effective. Empty ⇒ the customizer falls back to `addons` + `allowed_addon_ids`.
+    #[serde(rename = "modifier_groups")]
+    pub modifier_groups: Vec<models::DeliveryModifierGroup>,
     #[serde(rename = "name")]
     pub name: String,
     #[serde(rename = "name_translations")]
@@ -40,7 +43,7 @@ pub struct DeliveryMenuItem {
 }
 
 impl DeliveryMenuItem {
-    pub fn new(allowed_addon_ids: Vec<uuid::Uuid>, id: uuid::Uuid, name: String, name_translations: serde_json::Value, optionals: Vec<models::DeliveryOptionalField>, price: i32, sizes: Vec<models::DeliveryMenuSize>) -> DeliveryMenuItem {
+    pub fn new(allowed_addon_ids: Vec<uuid::Uuid>, id: uuid::Uuid, modifier_groups: Vec<models::DeliveryModifierGroup>, name: String, name_translations: serde_json::Value, optionals: Vec<models::DeliveryOptionalField>, price: i32, sizes: Vec<models::DeliveryMenuSize>) -> DeliveryMenuItem {
         DeliveryMenuItem {
             allowed_addon_ids,
             category_id: None,
@@ -48,6 +51,7 @@ impl DeliveryMenuItem {
             description: None,
             id,
             image_url: None,
+            modifier_groups,
             name,
             name_translations,
             optionals,

@@ -16,6 +16,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 const Map<String, IconData> madarIconCatalog = <String, IconData>{
   // Status & feedback.
   'bell': LucideIcons.bell,
+  'pencil': LucideIcons.pencil,
   'bell.fill': LucideIcons.bellRing,
   'exclamationmark.circle': LucideIcons.circleAlert,
   'exclamationmark.triangle': LucideIcons.triangleAlert,

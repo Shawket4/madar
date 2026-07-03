@@ -225,9 +225,6 @@ class IncomingNotifier extends Notifier<IncomingState> {
   /// prep). Reject = cancel a not-yet-accepted (received) order: the
   /// backend's cancel endpoint flips received→rejected (later states→
   /// cancelled). The food isn't made yet, so restore inventory.
-  Future<bool> rejectDelivery(DeliveryOrderView o) =>
-      cancelDelivery(o, restoreInventory: true);
-
   /// Finalize into a real sale on the open shift, charged to a payment
   /// method. Surfaces oversold warnings instead of dropping them — replaying
   /// the frozen delivery snapshot into a real sale can oversell stock, and

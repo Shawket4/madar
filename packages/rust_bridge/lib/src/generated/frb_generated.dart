@@ -315,6 +315,8 @@ abstract class RustBridgeApi extends BaseApi {
   Future<void> crateApiBridgeMadarBridgeHoldCart({
     required MadarBridge that,
     required String name,
+    String? draftId,
+    String? startedAt,
   });
 
   bool crateApiBridgeMadarBridgeIsAuthenticated({required MadarBridge that});
@@ -2424,6 +2426,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   Future<void> crateApiBridgeMadarBridgeHoldCart({
     required MadarBridge that,
     required String name,
+    String? draftId,
+    String? startedAt,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -2434,6 +2438,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(name, serializer);
+          sse_encode_opt_String(draftId, serializer);
+          sse_encode_opt_String(startedAt, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2446,7 +2452,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           decodeErrorData: sse_decode_madar_error,
         ),
         constMeta: kCrateApiBridgeMadarBridgeHoldCartConstMeta,
-        argValues: [that, name],
+        argValues: [that, name, draftId, startedAt],
         apiImpl: this,
       ),
     );
@@ -2455,7 +2461,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   TaskConstMeta get kCrateApiBridgeMadarBridgeHoldCartConstMeta =>
       const TaskConstMeta(
         debugName: "MadarBridge_hold_cart",
-        argNames: ["that", "name"],
+        argNames: ["that", "name", "draftId", "startedAt"],
       );
 
   @override
@@ -12416,9 +12422,20 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         action: action,
       );
 
-  /// Park the current cart as a named draft (held order) and empty the cart.
-  Future<void> holdCart({required String name}) => RustBridge.instance.api
-      .crateApiBridgeMadarBridgeHoldCart(that: this, name: name);
+  /// Park the current cart as a named draft (held order) and empty the
+  /// cart. Pass the ORIGINAL `draft_id`/`started_at` when re-parking a
+  /// restored draft so it keeps its identity, name slot, and its
+  /// oldest→newest strip position across switch cycles.
+  Future<void> holdCart({
+    required String name,
+    String? draftId,
+    String? startedAt,
+  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeHoldCart(
+    that: this,
+    name: name,
+    draftId: draftId,
+    startedAt: startedAt,
+  );
 
   bool isAuthenticated() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeIsAuthenticated(

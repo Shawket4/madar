@@ -127,6 +127,8 @@ docs/DeliveryMenuCategory.md
 docs/DeliveryMenuDiscount.md
 docs/DeliveryMenuItem.md
 docs/DeliveryMenuSize.md
+docs/DeliveryModifierGroup.md
+docs/DeliveryModifierOption.md
 docs/DeliveryOptionalField.md
 docs/DeliveryOrder.md
 docs/DeliveryOrderInput.md
@@ -524,6 +526,8 @@ src/models/delivery_menu_category.rs
 src/models/delivery_menu_discount.rs
 src/models/delivery_menu_item.rs
 src/models/delivery_menu_size.rs
+src/models/delivery_modifier_group.rs
+src/models/delivery_modifier_option.rs
 src/models/delivery_optional_field.rs
 src/models/delivery_order.rs
 src/models/delivery_order_input.rs

@@ -2517,6 +2517,8 @@ fn wire__crate__api__bridge__MadarBridge_hold_cart_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
             >>::sse_decode(&mut deserializer);
             let api_name = <String>::sse_decode(&mut deserializer);
+            let api_draft_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_started_at = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, crate::api::error::MadarError>((move || {
@@ -2534,8 +2536,12 @@ fn wire__crate__api__bridge__MadarBridge_hold_cart_impl(
                         }
                     }
                     let api_that_guard = api_that_guard.unwrap();
-                    let output_ok =
-                        crate::api::bridge::MadarBridge::hold_cart(&*api_that_guard, api_name)?;
+                    let output_ok = crate::api::bridge::MadarBridge::hold_cart(
+                        &*api_that_guard,
+                        api_name,
+                        api_draft_id,
+                        api_started_at,
+                    )?;
                     Ok(output_ok)
                 })())
             }

@@ -2543,9 +2543,22 @@ impl MadarCore {
         cart::clear(&self.store)
     }
     /// Park the current cart as a named draft (held order) and empty the cart.
-    pub fn hold_cart(&self, name: String) -> Result<(), CoreError> {
-        let id = uuid::Uuid::new_v4().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
+    /// Park the current cart as a draft. `draft_id`/`started_at` let the
+    /// host RE-park a previously restored draft under its ORIGINAL identity
+    /// and creation stamp — so a held order keeps its place (oldest→newest)
+    /// and its name across switch cycles instead of minting a new one.
+    pub fn hold_cart(
+        &self,
+        name: String,
+        draft_id: Option<String>,
+        started_at: Option<String>,
+    ) -> Result<(), CoreError> {
+        let id = draft_id
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let now = started_at
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
         cart::hold(&self.store, id, name, now)
     }
     /// The parked drafts (held orders), newest first.

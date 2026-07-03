@@ -28,6 +28,8 @@ class EmptyState extends StatelessWidget {
     this.message,
     this.lottieAsset,
     this.lottieSize = 140,
+    this.actionLabel,
+    this.onAction,
     super.key,
   });
 
@@ -48,6 +50,13 @@ class EmptyState extends StatelessWidget {
 
   /// Rendered side length of the Lottie animation.
   final double lottieSize;
+
+  /// Optional call-to-action under the text (e.g. "Sync menu") — an empty
+  /// state that can FIX itself should say how.
+  final String? actionLabel;
+
+  /// Invoked when [actionLabel] is tapped.
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +92,27 @@ class EmptyState extends StatelessWidget {
             message,
             style: MadarType.bodySm.copyWith(color: colors.textMuted),
             textAlign: TextAlign.center,
+          ),
+        ],
+        if (actionLabel case final label?) ...[
+          const SizedBox(height: Space.xl),
+          TactileScale(
+            onTap: () => onAction?.call(),
+            child: Container(
+              height: Metrics.buttonHeight,
+              padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: Space.xxl,
+              ),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colors.accent,
+                borderRadius: BorderRadius.circular(Radii.md),
+              ),
+              child: Text(
+                label,
+                style: MadarType.title.copyWith(color: colors.textOnAccent),
+              ),
+            ),
           ),
         ],
       ],

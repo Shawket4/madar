@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:app_core/app_core.dart';
@@ -346,15 +347,23 @@ class _ItemGridOrEmpty extends ConsumerWidget {
     final bridge = ref.watch(bridgeProvider);
     final notifier = ref.read(orderProvider.notifier);
     if (items.isEmpty) {
+      // A no-match search animates (the natives' Lottie). A genuinely empty
+      // catalog (fresh device / never synced) EXPLAINS itself and offers the
+      // fix right there — a sync action — instead of a bare icon.
+      if (searching) {
+        return EmptyState(
+          icon: 'magnifyingglass',
+          lottieAsset: 'no_results',
+          lottieSize: 160,
+          title: bridge.tr(key: 'order.empty_search'),
+        );
+      }
       return EmptyState(
-        icon: searching ? 'magnifyingglass' : 'tray',
-        // A no-match search animates (the natives' Lottie); a genuinely empty
-        // catalog keeps the calm static tray.
-        lottieAsset: searching ? 'no_results' : null,
-        lottieSize: 160,
-        title: bridge.tr(
-          key: searching ? 'order.empty_search' : 'order.empty',
-        ),
+        icon: 'tray',
+        title: bridge.tr(key: 'order.empty'),
+        message: bridge.tr(key: 'order.empty_desc'),
+        actionLabel: bridge.tr(key: 'order.sync_menu'),
+        onAction: () => unawaited(notifier.refreshServerData()),
       );
     }
     // The grid re-renders on catalog/cart-badge changes only — sync chrome

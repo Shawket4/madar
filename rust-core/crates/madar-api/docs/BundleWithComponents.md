@@ -22,8 +22,8 @@ Name | Type | Description | Notes
 **updated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **branch_ids** | **Vec<uuid::Uuid>** |  | 
 **components** | [**Vec<models::BundleComponentHydrated>**](BundleComponentHydrated.md) |  | 
-**computed_cost** | Option<**i64**> | Sum of component costs × quantity, in piastres. `null` when any component cost is unknown (`cost_missing = true`) — an unknown cost is never 0. | [optional]
-**cost_missing** | **bool** |  | 
+**computed_cost** | **i64** | Sum of the KNOWN component costs × quantity, in piastres. When `cost_missing` is true this is a partial rollup (old-wire semantics) — render it as unknown, never as 0. | 
+**cost_missing** | Option<**bool**> | True when at least one component's cost is unknown. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

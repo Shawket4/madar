@@ -71,7 +71,7 @@ Method | HTTP request | Description
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **branch_id** | **uuid::Uuid** | Branch whose resolved prices/availability to return | [required] |
-**channel** | **String** | delivery_channel: in_mall | outside | umbrella | pickup | [required] |
+**channel** | Option<**String**> | delivery_channel: in_mall | outside | umbrella | pickup — omit for branch-only resolution (in-store POS) |  |
 **since** | Option<**i64**> | Device's cached catalog_revision; == current ⇒ changed:false, no payload |  |
 
 ### Return type

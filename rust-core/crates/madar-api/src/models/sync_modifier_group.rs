@@ -24,6 +24,11 @@ pub struct SyncModifierGroup {
     pub max: Option<Option<i32>>,
     #[serde(rename = "min")]
     pub min: i32,
+    /// The group's authored display name (custom groups have no legacy type — this is what the POS renders as the section title).
+    #[serde(rename = "name")]
+    pub name: String,
+    #[serde(rename = "name_translations")]
+    pub name_translations: serde_json::Value,
     #[serde(rename = "options")]
     pub options: Vec<models::SyncOption>,
     #[serde(rename = "selection_type")]
@@ -32,13 +37,15 @@ pub struct SyncModifierGroup {
 
 impl SyncModifierGroup {
     /// A modifier group attached to an item, with min/max/required resolved from the attachment overrides (falling back to the group defaults).
-    pub fn new(group_id: uuid::Uuid, is_required: bool, min: i32, options: Vec<models::SyncOption>, selection_type: String) -> SyncModifierGroup {
+    pub fn new(group_id: uuid::Uuid, is_required: bool, min: i32, name: String, name_translations: serde_json::Value, options: Vec<models::SyncOption>, selection_type: String) -> SyncModifierGroup {
         SyncModifierGroup {
             group_id,
             is_required,
             legacy_addon_type: None,
             max: None,
             min,
+            name,
+            name_translations,
             options,
             selection_type,
         }

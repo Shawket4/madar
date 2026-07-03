@@ -9,6 +9,8 @@ Name | Type | Description | Notes
 **legacy_addon_type** | Option<**String**> |  | [optional]
 **max** | Option<**i32**> |  | [optional]
 **min** | **i32** |  | 
+**name** | **String** | The group's authored display name (custom groups have no legacy type — this is what the POS renders as the section title). | 
+**name_translations** | **serde_json::Value** |  | 
 **options** | [**Vec<models::SyncOption>**](SyncOption.md) |  | 
 **selection_type** | **String** |  | 
 

@@ -724,15 +724,28 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (config.showRecipe && config.recipeLines.isNotEmpty) ...[
-                    SectionTitle(bridge.tr(key: 'order.recipe')),
-                    const SizedBox(height: Space.sm),
-                    for (final line in config.recipeLines) ...[
-                      _RecipeRow(line: line),
-                      const SizedBox(height: Space.sm),
-                    ],
-                    const SizedBox(height: Space.xs),
-                  ],
+                  // The header recipe button reveals this with a gentle
+                  // expand/collapse (AnimatedSize) instead of an instant pop.
+                  AnimatedSize(
+                    duration: MotionSpec.gentleDuration,
+                    curve: MotionSpec.gentleCurve,
+                    alignment: AlignmentDirectional.topStart,
+                    child: config.showRecipe && config.recipeLines.isNotEmpty
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SectionTitle(bridge.tr(key: 'order.recipe')),
+                              const SizedBox(height: Space.sm),
+                              for (final line in config.recipeLines) ...[
+                                _RecipeRow(line: line),
+                                const SizedBox(height: Space.sm),
+                              ],
+                              const SizedBox(height: Space.xs),
+                            ],
+                          )
+                        : const SizedBox(width: double.infinity),
+                  ),
                   if (_item.sizes.isNotEmpty) ...[
                     SectionTitle(bridge.tr(key: 'order.size')),
                     const SizedBox(height: Space.sm),
