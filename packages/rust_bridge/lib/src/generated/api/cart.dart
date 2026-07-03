@@ -343,6 +343,42 @@ class DraftView {
           createdAt == other.createdAt;
 }
 
+/// A group whose constraints the current selection breaks (too few / too many).
+class GroupViolationView {
+  final String groupId;
+  final String groupName;
+  final int minRequired;
+  final int? maxAllowed;
+  final PlatformInt64 selected;
+
+  const GroupViolationView({
+    required this.groupId,
+    required this.groupName,
+    required this.minRequired,
+    this.maxAllowed,
+    required this.selected,
+  });
+
+  @override
+  int get hashCode =>
+      groupId.hashCode ^
+      groupName.hashCode ^
+      minRequired.hashCode ^
+      maxAllowed.hashCode ^
+      selected.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GroupViolationView &&
+          runtimeType == other.runtimeType &&
+          groupId == other.groupId &&
+          groupName == other.groupName &&
+          minRequired == other.minRequired &&
+          maxAllowed == other.maxAllowed &&
+          selected == other.selected;
+}
+
 /// An addon offered for an item, with its CHARGED price already resolved (swap
 /// delta / full) — so the customization sheet just displays it, no pricing rules
 /// in the UI. Grouped by `addon_type` by the host (per slot / global card).
@@ -374,5 +410,89 @@ class ItemAddonView {
           addonItemId == other.addonItemId &&
           name == other.name &&
           addonType == other.addonType &&
+          chargedPriceMinor == other.chargedPriceMinor;
+}
+
+/// How a modifier group's selections are submitted at add-to-cart time.
+enum ModifierGroupKind {
+  /// Options are addon items — submit as `AddonSelection { addon_item_id: option.id }`.
+  addon,
+
+  /// Options are the item's priced optionals — submit their ids in `optional_field_ids`.
+  optional,
+}
+
+/// A modifier group offered on an item (unified-model projection): slot groups
+/// keep min/max/required; unslotted types get defaults; optionals are one
+/// `Optional`-kind group.
+class ModifierGroupView {
+  final String groupId;
+  final String name;
+  final ModifierGroupKind kind;
+  final String? addonType;
+  final bool isRequired;
+  final int minSelections;
+  final int? maxSelections;
+  final List<ModifierOptionView> options;
+
+  const ModifierGroupView({
+    required this.groupId,
+    required this.name,
+    required this.kind,
+    this.addonType,
+    required this.isRequired,
+    required this.minSelections,
+    this.maxSelections,
+    required this.options,
+  });
+
+  @override
+  int get hashCode =>
+      groupId.hashCode ^
+      name.hashCode ^
+      kind.hashCode ^
+      addonType.hashCode ^
+      isRequired.hashCode ^
+      minSelections.hashCode ^
+      maxSelections.hashCode ^
+      options.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ModifierGroupView &&
+          runtimeType == other.runtimeType &&
+          groupId == other.groupId &&
+          name == other.name &&
+          kind == other.kind &&
+          addonType == other.addonType &&
+          isRequired == other.isRequired &&
+          minSelections == other.minSelections &&
+          maxSelections == other.maxSelections &&
+          options == other.options;
+}
+
+/// One option inside a modifier group, with its CHARGED price already resolved.
+class ModifierOptionView {
+  final String id;
+  final String name;
+  final PlatformInt64 chargedPriceMinor;
+
+  const ModifierOptionView({
+    required this.id,
+    required this.name,
+    required this.chargedPriceMinor,
+  });
+
+  @override
+  int get hashCode => id.hashCode ^ name.hashCode ^ chargedPriceMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ModifierOptionView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
           chargedPriceMinor == other.chargedPriceMinor;
 }

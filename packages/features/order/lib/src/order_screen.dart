@@ -75,6 +75,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
     CartLineView? editLine,
   }) async {
     final addons = await _notifier.loadItemAddons(item.id);
+    final groups = await _notifier.loadItemModifierGroups(item.id);
     if (!mounted) return;
     await showMadarSheet<void>(
       context,
@@ -82,6 +83,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
       builder: (_) => ItemDetailSheet(
         item: item,
         addons: addons,
+        groups: groups,
         editLine: editLine,
       ),
     );
@@ -502,6 +504,8 @@ class _SyncChip extends ConsumerWidget {
     final (isOnline, syncFailed, pendingCount) = ref.watch(
       orderProvider.select((s) => (s.isOnline, s.syncFailed, s.pendingCount)),
     );
+    // Offline/syncing lead with the live connectivity glyph; failed keeps
+    // the warning triangle (attention, not connectivity).
     final state = switch ((isOnline, syncFailed, pendingCount)) {
       (false, _, final pending) => (
         pending > 0
@@ -509,28 +513,36 @@ class _SyncChip extends ConsumerWidget {
                   '${bridge.tr(key: 'chrome.queued')}'
             : bridge.tr(key: 'chrome.offline'),
         ChipTone.warning,
-        'exclamationmark.triangle',
+        null,
+        SyncGlyphState.offline,
       ),
       (true, final failed, _) when failed > 0 => (
         '${bridge.tr(key: 'chrome.needs_attention')} ($failed)',
         ChipTone.danger,
         'exclamationmark.triangle',
+        null,
       ),
       (true, _, final pending) when pending > 0 => (
         '${bridge.tr(key: 'chrome.syncing')} ($pending)',
         ChipTone.warning,
-        'arrow.triangle.2.circlepath',
+        null,
+        SyncGlyphState.syncing,
       ),
       _ => null,
     };
     if (state == null) return const SizedBox.shrink();
-    final (label, tone, icon) = state;
+    final (label, tone, icon, glyph) = state;
     return TactileScale(
       onTap: () {
         MadarHaptics.impact();
         onTap();
       },
-      child: StatusChip(label: label, tone: tone, icon: icon),
+      child: StatusChip(
+        label: label,
+        tone: tone,
+        icon: icon,
+        leading: glyph == null ? null : SyncGlyph(state: glyph, size: 16),
+      ),
     );
   }
 }

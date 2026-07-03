@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/cart_panel.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/order_providers.dart';
@@ -113,6 +114,9 @@ class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
   /// its own [bundleConfigProvider] member.
   late final BundleSheetArgs _args = BundleSheetArgs(bundle: widget.bundle);
 
+  /// Anchors the footer CTA — the add-to-cart flight launches from here.
+  final GlobalKey _footerKey = GlobalKey();
+
   /// A component needs configuring when it has a size choice, addon slots,
   /// or active optionals.
   bool _needsConfig(MenuItemView item) =>
@@ -129,6 +133,9 @@ class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
     final addons = await ref
         .read(orderProvider.notifier)
         .loadItemAddons(item.id);
+    final groups = await ref
+        .read(orderProvider.notifier)
+        .loadItemModifierGroups(item.id);
     if (!mounted) return;
     final seed = ref.read(bundleConfigProvider(_args)).drafts[index];
     final draft = await showMadarSheet<BundleComponentDraft>(
@@ -137,6 +144,7 @@ class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
       builder: (_) => ItemDetailSheet(
         item: item,
         addons: addons,
+        groups: groups,
         configureSeed: seed,
         isConfiguring: true,
       ),
@@ -149,7 +157,25 @@ class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
     final added = await ref
         .read(bundleConfigProvider(_args).notifier)
         .addToCart();
-    if (added && mounted) await Navigator.of(context).maybePop();
+    if (added && mounted) {
+      _flyToCart();
+      await Navigator.of(context).maybePop();
+    }
+  }
+
+  /// Fly the add-to-cart dot from the footer CTA to the mounted cart anchor
+  /// — pure chrome on top of the already-committed add; skipped when either
+  /// end is missing.
+  void _flyToCart() {
+    final render = _footerKey.currentContext?.findRenderObject();
+    final to = cartAnchorCenter();
+    if (render is! RenderBox || !render.hasSize || to == null) return;
+    playCartFlight(
+      context,
+      from: render.localToGlobal(render.size.center(Offset.zero)),
+      to: to,
+      onArrive: () => cartCatchTick.value++,
+    );
   }
 
   @override
@@ -216,14 +242,17 @@ class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
             ),
           ),
         ),
-        _BundleFooter(
-          bundlePriceMinor: bundle.priceMinor,
-          extrasMinor: extrasTotal,
-          liveTotalMinor: liveTotal,
-          currency: currency,
-          canAdd: canAdd,
-          loading: config.adding,
-          onAdd: () => unawaited(_add()),
+        KeyedSubtree(
+          key: _footerKey,
+          child: _BundleFooter(
+            bundlePriceMinor: bundle.priceMinor,
+            extrasMinor: extrasTotal,
+            liveTotalMinor: liveTotal,
+            currency: currency,
+            canAdd: canAdd,
+            loading: config.adding,
+            onAdd: () => unawaited(_add()),
+          ),
         ),
       ],
     );

@@ -329,6 +329,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// delta / full) — the customization sheet groups these by `addon_type`.
   Future<List<ItemAddonView>> listItemAddons({required String itemId});
 
+  /// The item's MODIFIER GROUPS (unified-model projection of `list_item_addons`
+  /// + priced optionals) — display-ready, constraints included, prices resolved
+  /// by the same swap rules as the flat sheet. Works offline.
+  Future<List<ModifierGroupView>> listItemModifierGroups({
+    required String itemId,
+  });
+
   Future<List<MenuItemView>> listMenuItems();
 
   /// The branch's OPEN/READY open tickets (newest first). Server list (write-through
@@ -617,6 +624,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Tear down the subscription (idempotent). Call before re-attaching
   /// sinks — including on Flutter hot restart.
   void unsubscribeRealtime();
+
+  /// Check a selection against the item's group constraints (min/max/required).
+  /// Empty result = valid; each entry is one violated group for inline display.
+  /// Call before `cart_add_configured`.
+  Future<List<GroupViolationView>> validateItemSelections({
+    required String itemId,
+    required List<AddonSelection> addons,
+    required List<String> optionalFieldIds,
+  });
 
   /// Core crate version.
   String version();

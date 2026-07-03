@@ -432,6 +432,29 @@ class OrderNotifier extends Notifier<OrderState> {
   Future<List<ItemAddonView>> loadItemAddons(String itemId) async =>
       await _quiet(() => _bridge.listItemAddons(itemId: itemId)) ?? const [];
 
+  /// The item's MODIFIER GROUPS (unified-model projection) — display-ready
+  /// groups with constraints + charged prices resolved by the core.
+  Future<List<ModifierGroupView>> loadItemModifierGroups(String itemId) async =>
+      await _quiet(() => _bridge.listItemModifierGroups(itemId: itemId)) ??
+      const [];
+
+  /// Check a selection against the item's group constraints (min/max/required).
+  /// Empty = valid. Errors degrade to "valid" (`_quiet`) — enforcement is a UX
+  /// nicety; the core's resolver stays defensive either way.
+  Future<List<GroupViolationView>> validateItemSelections({
+    required String itemId,
+    required List<AddonSelection> addons,
+    required List<String> optionalIds,
+  }) async =>
+      await _quiet(
+        () => _bridge.validateItemSelections(
+          itemId: itemId,
+          addons: addons,
+          optionalFieldIds: optionalIds,
+        ),
+      ) ??
+      const [];
+
   /// Live recipe preview for the current selection — pure + cheap, so the
   /// sheet recomputes per toggle (online or offline).
   Future<List<ComputedRecipeLineView>> recipePreview({

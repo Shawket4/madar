@@ -10,6 +10,7 @@ export 'src/gallery.dart';
 export 'src/header.dart';
 export 'src/icons.dart';
 export 'src/money.dart';
+export 'src/playful.dart';
 export 'src/responsive.dart';
 export 'src/sheet.dart';
 export 'src/skeleton.dart';

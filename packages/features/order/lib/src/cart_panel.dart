@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/held_orders_strip.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/waiter_sheets.dart';
@@ -200,17 +201,38 @@ class _CartHeader extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Text(
-            bridge.tr(key: 'order.cart'),
-            style: MadarType.h3.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
+          // The wide layout's flight landing pad — the title + count group
+          // dips when a flown dot arrives; the count pops as it rises.
+          ValueListenableBuilder<int>(
+            valueListenable: cartCatchTick,
+            builder: (context, tick, child) =>
+                Nudge(trigger: tick, kind: NudgeKind.dip, child: child!),
+            child: KeyedSubtree(
+              key: cartPanelAnchor,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    bridge.tr(key: 'order.cart'),
+                    style: MadarType.h3.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  if (itemCount > 0) ...[
+                    const SizedBox(width: Space.sm),
+                    Nudge(
+                      trigger: itemCount,
+                      child: StatusChip(
+                        label: '$itemCount',
+                        tone: ChipTone.accent,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-          if (itemCount > 0) ...[
-            const SizedBox(width: Space.sm),
-            StatusChip(label: '$itemCount', tone: ChipTone.accent),
-          ],
           const Spacer(),
           if (hasLines)
             GestureDetector(
@@ -964,15 +986,34 @@ class CartBar extends ConsumerWidget {
           child: Row(
             children: [
               // Item count is secondary: it flexes + ellipsizes so the CTA
-              // and total always stay on-screen.
+              // and total always stay on-screen. It doubles as the narrow
+              // layout's flight landing pad — pops as the count rises, dips
+              // when a flown dot arrives.
               Expanded(
-                child: Text(
-                  '${totals.itemCount} ${bridge.tr(key: 'order.items')}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.bodySm.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: colors.textOnAccent.withValues(alpha: 0.9),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: cartCatchTick,
+                    builder: (context, tick, child) => Nudge(
+                      trigger: tick,
+                      kind: NudgeKind.dip,
+                      child: child!,
+                    ),
+                    child: KeyedSubtree(
+                      key: cartBarAnchor,
+                      child: Nudge(
+                        trigger: totals.itemCount,
+                        child: Text(
+                          '${totals.itemCount} ${bridge.tr(key: 'order.items')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: MadarType.bodySm.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colors.textOnAccent.withValues(alpha: 0.9),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),

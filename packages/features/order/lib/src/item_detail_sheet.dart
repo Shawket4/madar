@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/cart_panel.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/widgets.dart';
@@ -378,6 +379,7 @@ class ItemDetailSheet extends ConsumerStatefulWidget {
   const ItemDetailSheet({
     required this.item,
     required this.addons,
+    this.groups = const [],
     this.editLine,
     this.configureSeed,
     this.isConfiguring = false,
@@ -388,6 +390,12 @@ class ItemDetailSheet extends ConsumerStatefulWidget {
 
   /// The item's addons with charged prices resolved by the core.
   final List<ItemAddonView> addons;
+
+  /// The item's modifier groups from the core (unified model) — the DEFAULT
+  /// view renders these verbatim (constraints included). Empty = fall back to
+  /// the local slot/type derivation; "show all" always uses the local
+  /// full-catalog derivation (a UI affordance the core doesn't model).
+  final List<ModifierGroupView> groups;
 
   /// Edit mode: the cart line being reconfigured (null = adding fresh).
   final CartLineView? editLine;
@@ -414,6 +422,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
   late final TextEditingController _notes = TextEditingController(
     text: widget.editLine?.notes ?? '',
   );
+
+  /// Anchors the footer CTA — the add-to-cart flight launches from here.
+  final GlobalKey _footerKey = GlobalKey();
 
   static const _baseTypes = ['milk_type', 'coffee_type', 'extra'];
 
@@ -454,11 +465,46 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
         .toList(growable: false);
   }
 
+  /// Map the core's unified-model groups into the sheet's display shape. Only
+  /// Addon-kind groups render here — the item's priced optionals keep their own
+  /// dedicated section below (driven by `item.optionalFields`, same ids).
+  List<AddonGroup> _fromCoreGroups(MadarBridge bridge) => [
+    for (final g in widget.groups)
+      if (g.kind == ModifierGroupKind.addon && g.options.isNotEmpty)
+        AddonGroup(
+          id: g.groupId,
+          // The core hands raw type names for unlabelled/type-derived groups —
+          // localize those; keep authored slot labels verbatim.
+          title:
+              (g.addonType != null &&
+                  (g.groupId.startsWith('type:') || g.name == g.addonType))
+              ? _typeLabel(bridge, g.addonType!)
+              : g.name,
+          addons: [
+            for (final o in g.options)
+              ItemAddonView(
+                addonItemId: o.id,
+                name: o.name,
+                addonType: g.addonType ?? '',
+                chargedPriceMinor: o.chargedPriceMinor,
+              ),
+          ],
+          isMulti: (g.maxSelections ?? 2) > 1,
+          maxSel: g.maxSelections,
+          isRequired: g.isRequired,
+          minSel: g.minSelections,
+        ),
+  ];
+
   List<AddonGroup> _buildGroups(
     MadarBridge bridge,
     Map<String, List<ItemAddonView>> addonsByType, {
     required bool showAll,
   }) {
+    // Default view: the core's groups verbatim (single source of truth for
+    // allowlist, constraints and swap pricing). "Show all" falls through to
+    // the local full-catalog derivation below.
+    if (!showAll && widget.groups.isNotEmpty) return _fromCoreGroups(bridge);
     final groups = <AddonGroup>[];
     final slotTypes = _item.addonSlots.map((s) => s.addonType).toSet();
     for (final slot in _item.addonSlots) {
@@ -520,7 +566,36 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
       0;
 
   // ── commit ───────────────────────────────────────────────────────────────
+  /// Enforce the item's group constraints (min/required — max is blocked at
+  /// tap time) via the core. Returns true when the selection is valid; else
+  /// toasts the first violated group and blocks the commit.
+  Future<bool> _selectionValid(ItemConfigState config) async {
+    final violations = await ref
+        .read(orderProvider.notifier)
+        .validateItemSelections(
+          itemId: _item.id,
+          addons: config.selectedAddons,
+          optionalIds: config.optionals.toList(growable: false),
+        );
+    if (violations.isEmpty) return true;
+    final v = violations.first;
+    final tr = ref.read(bridgeProvider).tr;
+    final detail = v.selected < v.minRequired
+        ? '${tr(key: 'order.required')} (≥${v.minRequired})'
+        : '${tr(key: 'order.max_reached')} (≤${v.maxAllowed})';
+    ref
+        .read(orderProvider.notifier)
+        .showToast(
+          '${v.groupName}: $detail',
+          tone: ChipTone.warning,
+          icon: 'hand.raised',
+        );
+    return false;
+  }
+
   Future<void> _commit(ItemConfigState config, int extrasMinor) async {
+    if (!await _selectionValid(config)) return;
+    if (!mounted) return;
     if (widget.isConfiguring) {
       if (config.committing) return;
       await Navigator.of(context).maybePop(
@@ -537,7 +612,26 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     final committed = await ref
         .read(itemConfigProvider(_args).notifier)
         .commit(notes: notes.isEmpty ? null : notes);
-    if (committed && mounted) await Navigator.of(context).maybePop();
+    if (committed && mounted) {
+      // Fresh adds fly a dot to the cart; updates aren't an "add" moment.
+      if (widget.editLine == null) _flyToCart();
+      await Navigator.of(context).maybePop();
+    }
+  }
+
+  /// Fly the add-to-cart dot from the footer CTA to the mounted cart anchor
+  /// — pure chrome on top of the already-committed add; skipped when either
+  /// end is missing.
+  void _flyToCart() {
+    final render = _footerKey.currentContext?.findRenderObject();
+    final to = cartAnchorCenter();
+    if (render is! RenderBox || !render.hasSize || to == null) return;
+    playCartFlight(
+      context,
+      from: render.localToGlobal(render.size.center(Offset.zero)),
+      to: to,
+      onArrive: () => cartCatchTick.value++,
+    );
   }
 
   @override
@@ -713,17 +807,20 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
             ),
           ),
         ),
-        _SheetFooter(
-          currency: currency,
-          totalMinor: footerPrice,
-          label: footerLabel,
-          canAdd: canAdd,
-          loading: config.committing,
-          showQty: !widget.isConfiguring,
-          qty: config.qty,
-          onDec: () => notifier.setQty(config.qty - 1),
-          onInc: () => notifier.setQty(config.qty + 1),
-          onCommit: () => unawaited(_commit(config, extrasMinor)),
+        KeyedSubtree(
+          key: _footerKey,
+          child: _SheetFooter(
+            currency: currency,
+            totalMinor: footerPrice,
+            label: footerLabel,
+            canAdd: canAdd,
+            loading: config.committing,
+            showQty: !widget.isConfiguring,
+            qty: config.qty,
+            onDec: () => notifier.setQty(config.qty - 1),
+            onInc: () => notifier.setQty(config.qty + 1),
+            onCommit: () => unawaited(_commit(config, extrasMinor)),
+          ),
         ),
       ],
     );

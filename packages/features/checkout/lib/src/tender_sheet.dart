@@ -119,11 +119,19 @@ class _ReceiptConfirmation extends ConsumerWidget {
           child: Column(
             spacing: Space.sm,
             children: [
-              MadarIcon(
-                queued ? 'clock' : 'checkmark.circle',
-                tint: queued ? colors.warning : colors.success,
-                size: _statusIconSize,
-              ),
+              // The settle celebration (the approved prototype): ring draws,
+              // disc floods, check strikes, sparks. Plays once as the
+              // confirmation flips in. A queued-offline sale keeps the calm
+              // clock instead — the sale is done, but the amber "will sync"
+              // chrome stays honest about the server state.
+              if (queued)
+                MadarIcon(
+                  'clock',
+                  tint: colors.warning,
+                  size: _statusIconSize,
+                )
+              else
+                const SettleMark(size: 88),
               Text(
                 tr('order.order_placed'),
                 style: MadarType.h2.copyWith(

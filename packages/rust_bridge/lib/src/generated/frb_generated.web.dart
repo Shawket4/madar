@@ -209,6 +209,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   FloorTableView dco_decode_floor_table_view(dynamic raw);
 
   @protected
+  GroupViolationView dco_decode_group_violation_view(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
@@ -305,6 +308,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<FloorTableView> dco_decode_list_floor_table_view(dynamic raw);
 
   @protected
+  List<GroupViolationView> dco_decode_list_group_violation_view(dynamic raw);
+
+  @protected
   List<ItemAddonView> dco_decode_list_item_addon_view(dynamic raw);
 
   @protected
@@ -321,6 +327,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<MenuItemView> dco_decode_list_menu_item_view(dynamic raw);
+
+  @protected
+  List<ModifierGroupView> dco_decode_list_modifier_group_view(dynamic raw);
+
+  @protected
+  List<ModifierOptionView> dco_decode_list_modifier_option_view(dynamic raw);
 
   @protected
   List<OptionalFieldView> dco_decode_list_optional_field_view(dynamic raw);
@@ -394,6 +406,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   MenuItemView dco_decode_menu_item_view(dynamic raw);
+
+  @protected
+  ModifierGroupKind dco_decode_modifier_group_kind(dynamic raw);
+
+  @protected
+  ModifierGroupView dco_decode_modifier_group_view(dynamic raw);
+
+  @protected
+  ModifierOptionView dco_decode_modifier_option_view(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -711,6 +732,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   FloorTableView sse_decode_floor_table_view(SseDeserializer deserializer);
 
   @protected
+  GroupViolationView sse_decode_group_violation_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
@@ -837,6 +863,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<GroupViolationView> sse_decode_list_group_violation_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ItemAddonView> sse_decode_list_item_addon_view(
     SseDeserializer deserializer,
   );
@@ -861,6 +892,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<MenuItemView> sse_decode_list_menu_item_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ModifierGroupView> sse_decode_list_modifier_group_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ModifierOptionView> sse_decode_list_modifier_option_view(
     SseDeserializer deserializer,
   );
 
@@ -960,6 +1001,21 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   MenuItemView sse_decode_menu_item_view(SseDeserializer deserializer);
+
+  @protected
+  ModifierGroupKind sse_decode_modifier_group_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ModifierGroupView sse_decode_modifier_group_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ModifierOptionView sse_decode_modifier_option_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -1346,6 +1402,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_group_violation_view(
+    GroupViolationView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
@@ -1505,6 +1567,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_group_violation_view(
+    List<GroupViolationView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_item_addon_view(
     List<ItemAddonView> self,
     SseSerializer serializer,
@@ -1537,6 +1605,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_menu_item_view(
     List<MenuItemView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_modifier_group_view(
+    List<ModifierGroupView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_modifier_option_view(
+    List<ModifierOptionView> self,
     SseSerializer serializer,
   );
 
@@ -1656,6 +1736,24 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_menu_item_view(MenuItemView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_modifier_group_kind(
+    ModifierGroupKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_modifier_group_view(
+    ModifierGroupView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_modifier_option_view(
+    ModifierOptionView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);

@@ -518,81 +518,100 @@ class _KdsTicketCard extends StatelessWidget {
 /// One tappable line: a check toggle, the qty × name (+ size), modifiers, and
 /// an optional kitchen note (warning-tinted). Bumped lines mute + strike
 /// through. The per-line station label (expo board) pins to the trailing edge.
-class _KdsLineRow extends StatelessWidget {
+class _KdsLineRow extends StatefulWidget {
   const _KdsLineRow({required this.line, required this.onToggle, super.key});
 
   final KdsLineView line;
   final VoidCallback onToggle;
 
   @override
+  State<_KdsLineRow> createState() => _KdsLineRowState();
+}
+
+class _KdsLineRowState extends State<_KdsLineRow> {
+  // Bump each time the teller bumps the line (unbump plays nothing); SweepCheck
+  // runs one ~700ms sweep per increment and is the bare row while idle.
+  int _play = 0;
+
+  void _handleTap() {
+    if (!widget.line.bumped) setState(() => _play++);
+    widget.onToggle();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final line = widget.line;
     final colors = context.madarColors;
     final size = line.sizeLabel;
     final title = '${line.qty}× ${line.name}${size != null ? ' · $size' : ''}';
     final notes = line.notes;
     final stationName = line.stationName;
     return TactileScale(
-      onTap: onToggle,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(vertical: _lineVPad),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            MadarIcon(
-              line.bumped ? 'checkmark.circle.fill' : 'circle',
-              tint: line.bumped ? colors.success : colors.textMuted,
-              size: _lineCheck,
-            ),
-            const SizedBox(width: Space.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: _lineGap,
-                children: [
-                  Text(
-                    title,
-                    style: _cairo(_lineSize, FontWeight.w600).copyWith(
-                      color: line.bumped
-                          ? colors.textMuted
-                          : colors.textPrimary,
-                      decoration: line.bumped
-                          ? TextDecoration.lineThrough
-                          : TextDecoration.none,
-                      decorationColor: colors.textMuted,
-                    ),
-                  ),
-                  if (line.modifiers.isNotEmpty)
-                    Text(
-                      line.modifiers.join(', '),
-                      style: _cairo(
-                        _lineMetaSize,
-                        FontWeight.w500,
-                      ).copyWith(color: colors.textSecondary),
-                    ),
-                  if (notes != null && notes.trim().isNotEmpty)
-                    Text(
-                      notes,
-                      style: _cairo(
-                        _lineMetaSize,
-                        FontWeight.w600,
-                      ).copyWith(color: colors.warning),
-                    ),
-                ],
+      onTap: _handleTap,
+      child: SweepCheck(
+        play: _play,
+        borderRadius: BorderRadius.zero,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.symmetric(vertical: _lineVPad),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              MadarIcon(
+                line.bumped ? 'checkmark.circle.fill' : 'circle',
+                tint: line.bumped ? colors.success : colors.textMuted,
+                size: _lineCheck,
               ),
-            ),
-            // Per-line station label — the expo / all-station board's routing
-            // hint (the natives render it on both hosts).
-            if (stationName != null && stationName.trim().isNotEmpty) ...[
               const SizedBox(width: Space.sm),
-              Text(
-                stationName.toUpperCase(),
-                style: _cairo(
-                  _lineStationSize,
-                  FontWeight.w700,
-                ).copyWith(color: colors.textMuted),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: _lineGap,
+                  children: [
+                    Text(
+                      title,
+                      style: _cairo(_lineSize, FontWeight.w600).copyWith(
+                        color: line.bumped
+                            ? colors.textMuted
+                            : colors.textPrimary,
+                        decoration: line.bumped
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                        decorationColor: colors.textMuted,
+                      ),
+                    ),
+                    if (line.modifiers.isNotEmpty)
+                      Text(
+                        line.modifiers.join(', '),
+                        style: _cairo(
+                          _lineMetaSize,
+                          FontWeight.w500,
+                        ).copyWith(color: colors.textSecondary),
+                      ),
+                    if (notes != null && notes.trim().isNotEmpty)
+                      Text(
+                        notes,
+                        style: _cairo(
+                          _lineMetaSize,
+                          FontWeight.w600,
+                        ).copyWith(color: colors.warning),
+                      ),
+                  ],
+                ),
               ),
+              // Per-line station label — the expo / all-station board's routing
+              // hint (the natives render it on both hosts).
+              if (stationName != null && stationName.trim().isNotEmpty) ...[
+                const SizedBox(width: Space.sm),
+                Text(
+                  stationName.toUpperCase(),
+                  style: _cairo(
+                    _lineStationSize,
+                    FontWeight.w700,
+                  ).copyWith(color: colors.textMuted),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

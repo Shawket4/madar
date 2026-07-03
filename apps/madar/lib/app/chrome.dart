@@ -171,6 +171,7 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
   List<_RailSection> _sections({
     required String? role,
     required bool incomingHasNew,
+    int incomingRing = 0,
   }) {
     // A waiter's tickets live in the cart strip — the rail keeps only the
     // system footer for them, exactly like the natives.
@@ -181,6 +182,7 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
           'bicycle',
           _t('nav.incoming'),
           hasNew: incomingHasNew,
+          ring: incomingRing,
           onTap: () {
             ref.read(chromeProvider.notifier).markIncomingSeen();
             _push(() => const IncomingScreen());
@@ -431,6 +433,9 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
                 sections: _sections(
                   role: role,
                   incomingHasNew: incomingHasNew,
+                  // Every realtime order/ticket event bumps the sum, ringing
+                  // the Incoming tile even while its badge is already lit.
+                  incomingRing: deliveryTick + ticketTick,
                 ),
                 footer: _footer(),
               )
@@ -496,11 +501,16 @@ class _RailDest {
     this.label, {
     required this.onTap,
     this.hasNew = false,
+    this.ring = 0,
   });
 
   final String glyph;
   final String label;
   final bool hasNew;
+
+  /// Monotonic counter; each increase rings the tile's glyph via [BellShake].
+  final int ring;
+
   final VoidCallback onTap;
 }
 
@@ -612,10 +622,15 @@ class _RailTile extends StatelessWidget {
                       color: dest.hasNew ? colors.accentBg : colors.surfaceAlt,
                       borderRadius: BorderRadius.circular(Radii.sm),
                     ),
-                    child: MadarIcon(
-                      dest.glyph,
-                      tint: dest.hasNew ? colors.accent : colors.textSecondary,
-                      size: IconSize.lg,
+                    child: BellShake(
+                      trigger: dest.ring,
+                      child: MadarIcon(
+                        dest.glyph,
+                        tint: dest.hasNew
+                            ? colors.accent
+                            : colors.textSecondary,
+                        size: IconSize.lg,
+                      ),
                     ),
                   ),
                   if (dest.hasNew)

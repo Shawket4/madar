@@ -42,4 +42,8 @@ abstract final class MotionSpec {
 
   /// Sheet slide-out duration before onDismiss fires.
   static const Duration sheetDismissDelay = Duration(milliseconds: 280);
+
+  /// Overshooting spring-out for celebratory pops (the playful kit: badge
+  /// pops, the settle-mark disc, the bump check). Overshoots ~6% then lands.
+  static const Curve springOut = Cubic(0.34, 1.56, 0.64, 1);
 }

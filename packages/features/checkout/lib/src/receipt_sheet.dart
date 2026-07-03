@@ -145,10 +145,19 @@ receiptPreviewProvider = NotifierProvider.autoDispose(
 /// checkout's result or a re-rendered past order
 /// (`bridge.orderReceiptView`).
 class ReceiptSheet extends ConsumerWidget {
-  const ReceiptSheet({required this.receipt, super.key});
+  const ReceiptSheet({
+    required this.receipt,
+    this.celebrate = false,
+    super.key,
+  });
 
   /// The receipt to preview.
   final ReceiptView receipt;
+
+  /// True when the sheet presents a JUST-completed payment (e.g. a delivery
+  /// finalize) — plays the one-shot [SettleMark] celebration above the paper
+  /// on mount. Leave false for reprints / history previews.
+  final bool celebrate;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -204,13 +213,28 @@ class ReceiptSheet extends ConsumerWidget {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsetsDirectional.all(Space.lg),
-                child: Center(
-                  child: ReceiptPaper(
-                    receipt: receipt,
-                    storeName: branchName,
-                    currency: currency,
-                    orgLogoUrl: preview.orgLogoUrl,
-                  ),
+                child: Column(
+                  children: [
+                    // One-shot settle celebration — just-paid presentations
+                    // only, never reprints (plays once on mount).
+                    if (celebrate)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(
+                          bottom: Space.lg,
+                        ),
+                        child: SettleMark(
+                          label: tr('receipt.settled'),
+                        ),
+                      ),
+                    Center(
+                      child: ReceiptPaper(
+                        receipt: receipt,
+                        storeName: branchName,
+                        currency: currency,
+                        orgLogoUrl: preview.orgLogoUrl,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

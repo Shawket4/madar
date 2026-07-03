@@ -201,6 +201,7 @@ class StatusChip extends StatelessWidget {
     required this.label,
     this.tone = ChipTone.neutral,
     this.icon,
+    this.leading,
     this.badgeCount,
     super.key,
   });
@@ -213,6 +214,10 @@ class StatusChip extends StatelessWidget {
 
   /// Optional leading [MadarIcon] name; when null a tone dot is shown.
   final String? icon;
+
+  /// Optional custom leading widget (e.g. an animated glyph) — wins over
+  /// [icon] and the tone dot when given.
+  final Widget? leading;
 
   /// Optional trailing count rendered as a solid tone badge (e.g. pending
   /// sync items). Hidden when null.
@@ -240,7 +245,9 @@ class StatusChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null)
+            if (leading case final leading?)
+              leading
+            else if (icon != null)
               MadarIcon(icon, tint: fg, size: IconSize.xs)
             else
               DecoratedBox(

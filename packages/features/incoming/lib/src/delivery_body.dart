@@ -813,7 +813,7 @@ class _DeliveryFinalizeSheetState
     if (receipt != null) {
       await navigator.push(
         MadarSheetRoute<void>(
-          builder: (_) => ReceiptSheet(receipt: receipt!),
+          builder: (_) => ReceiptSheet(receipt: receipt!, celebrate: true),
           size: SheetSize.large,
         ),
       );
