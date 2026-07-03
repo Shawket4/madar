@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-RUST_CORE="$ROOT/../madar-pos/rust-core"
+RUST_CORE="$ROOT/rust-core"
 
 if [ ! -f "$RUST_CORE/crates/madar-api/Cargo.toml" ]; then
   echo "madar-api missing — generating from the backend OpenAPI spec…"

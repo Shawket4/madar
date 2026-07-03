@@ -36,7 +36,7 @@ void main() {
   }
 
   final dylib = File(
-    '${Directory.current.path}/../../../madar-pos/rust-core/target/release/libmadar_frb.dylib',
+    '${Directory.current.path}/../../rust-core/target/release/libmadar_frb.dylib',
   );
 
   late MadarCore core;

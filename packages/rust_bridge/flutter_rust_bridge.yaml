@@ -2,7 +2,7 @@
 # `dart run melos run bridge`). Keep the codegen CLI, the Dart package, and the
 # madar-frb cargo dep on the SAME version (currently 2.12.0).
 rust_input: crate::api
-rust_root: ../../../madar-pos/rust-core/crates/madar-frb
+rust_root: ../../rust-core/crates/madar-frb
 dart_output: lib/src/generated
 dart_entrypoint_class_name: RustBridge
 enable_lifetime: false

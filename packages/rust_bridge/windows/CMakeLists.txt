@@ -7,7 +7,7 @@ set(PROJECT_NAME "rust_bridge")
 project(${PROJECT_NAME} LANGUAGES CXX)
 
 include("../cargokit/cmake/cargokit.cmake")
-apply_cargokit(${PROJECT_NAME} ../../../../../../../../madar-pos/rust-core/crates/madar-frb madar_frb "")
+apply_cargokit(${PROJECT_NAME} ../../../../../../../../madar/rust-core/crates/madar-frb madar_frb "")
 
 set(rust_bridge_bundled_libraries
   "${${PROJECT_NAME}_cargokit_lib}"

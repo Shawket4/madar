@@ -1,0 +1,3 @@
+# Re-written by tool/generate_api.sh
+.travis.yml
+git_push.sh

@@ -44,8 +44,8 @@ android {
 
 apply from: "../cargokit/gradle/plugin.gradle"
 cargokit {
-    // madar-frb lives in the madar-pos repo's cargo workspace (a sibling of
+    // madar-frb lives in this repo's cargo workspace (rust-core/, a sibling of
     // this repo on disk) — binding wrapper over madar-core.
-    manifestDir = "../../../../madar-pos/rust-core/crates/madar-frb"
+    manifestDir = "../../../rust-core/crates/madar-frb"
     libname = "madar_frb"
 }

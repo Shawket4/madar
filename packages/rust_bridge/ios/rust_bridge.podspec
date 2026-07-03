@@ -19,7 +19,7 @@ and links it into the app. No Objective-C/Swift sources beyond a forwarder.
   s.script_phase = {
     :name => 'Build Rust library',
     # args: relative path to the crate dir, rust library name
-    :script => 'sh "$PODS_TARGET_SRCROOT/../cargokit/build_pod.sh" ../../../../madar-pos/rust-core/crates/madar-frb madar_frb',
+    :script => 'sh "$PODS_TARGET_SRCROOT/../cargokit/build_pod.sh" ../../../rust-core/crates/madar-frb madar_frb',
     :execution_position => :before_compile,
     :input_files => ['${BUILT_PRODUCTS_DIR}/cargokit_phony'],
     :output_files => ["${BUILT_PRODUCTS_DIR}/libmadar_frb.a"],

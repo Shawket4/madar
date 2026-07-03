@@ -91,7 +91,7 @@ class RustBridge
       ExternalLibraryLoaderConfig(
         stem: 'madar_frb',
         ioDirectory:
-            '../../../madar-pos/rust-core/crates/madar-frb/target/release/',
+            '../../rust-core/crates/madar-frb/target/release/',
         webPrefix: 'pkg/',
         wasmBindgenName: 'wasm_bindgen',
       );
