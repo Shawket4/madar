@@ -85,10 +85,14 @@ class _SpikeScreenState extends State<SpikeScreen> {
       core.bridge.setLocale(locale: 'en');
       _add('locale/RTL', 'ar → rtl=$rtl, "$signInAr"', ok: rtl);
 
-      // 3. Vault stream attaches (emits only after a login).
-      final vaultEvents = <VaultCommand>[];
-      final vaultSub = core.attachVault(vaultEvents.add);
-      _add('vault stream', 'attached (commands arrive on login)', ok: true);
+      // 3. Core-owned session persistence — signed out here, so the
+      // cached restore must report no session.
+      final cached = core.bridge.restoreSessionCached();
+      _add(
+        'session store',
+        'cached restore → ${cached == null ? "none" : "session"}',
+        ok: cached == null,
+      );
 
       // 4. Async on the worker pool + tokio.
       final pending = await core.bridge.pendingOutboxCount();
@@ -146,7 +150,6 @@ class _SpikeScreenState extends State<SpikeScreen> {
       // Not awaited: the core holds the TokenStore forever, so the vault
       // stream never closes — awaiting cancel() would hang (see the smoke
       // test's vault case).
-      unawaited(vaultSub.cancel());
     } on Object catch (e, st) {
       _add('CRASH', '$e\n$st', ok: false);
     } finally {

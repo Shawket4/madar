@@ -20,7 +20,6 @@ import 'shift.dart';
 import 'sync.dart';
 import 'tickets.dart';
 import 'types.dart';
-import 'vault.dart';
 
 /// FFI contract version this wrapper was written against (madar-core's
 /// `ffi_surface_version`). Dart asserts equality at startup.
@@ -499,8 +498,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Restore a draft into the cart (replaces current lines) and drop it.
   Future<List<CartLineView>> restoreDraft({required String id});
 
-  /// Restore the persisted session blob from the host vault (cold boot).
+  /// Restore a HOST-supplied session blob (the one-time legacy keychain
+  /// migration path). Writes through to the core's own store.
   Future<SessionSnapshot?> restoreSession({required List<int> blob});
+
+  /// Re-hydrate the persisted session from the core's OWN store — the
+  /// normal cold boot. `None` = signed out / fresh install.
+  SessionSnapshot? restoreSessionCached();
 
   /// Requeue every dead command (clearing its error) and try to send now.
   /// Best-effort — offline just leaves them pending again.
@@ -618,10 +622,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Sync health for the action-bar chip + offline banner (counts + online),
   /// in one cheap local read. Always succeeds offline.
   Future<SyncStatusView> syncStatus();
-
-  /// Wire the host vault: the returned stream carries `Save`/`Clear`
-  /// commands; Dart persists to secure storage immediately on each.
-  Stream<VaultCommand> tokenVaultStream();
 
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).
   String tr({required String key});

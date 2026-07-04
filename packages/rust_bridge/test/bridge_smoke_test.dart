@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -94,12 +93,10 @@ void main() {
     );
   });
 
-  test('vault stream attaches without error', () async {
-    // The core holds the Rust-side TokenStore for the process lifetime, so
-    // the stream never closes — cancel() must NOT be awaited (it would wait
-    // for a close that never comes). Attach-once is the real app semantics.
-    final sub = core.attachVault((_) {});
-    unawaited(sub.cancel());
+  test('cached session restore is empty on a fresh store', () {
+    // Session durability is core-owned (session:blob in its SQLite) — a
+    // fresh store must restore to signed-out, not error.
+    expect(core.bridge.restoreSessionCached(), isNull);
   });
 
   test('concurrent calls on the opaque handle do not deadlock', () async {

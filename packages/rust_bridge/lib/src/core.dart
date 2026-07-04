@@ -9,7 +9,6 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
 import 'package:rust_bridge/src/generated/api/bridge.dart';
 import 'package:rust_bridge/src/generated/api/realtime.dart';
 import 'package:rust_bridge/src/generated/api/types.dart';
-import 'package:rust_bridge/src/generated/api/vault.dart';
 import 'package:rust_bridge/src/generated/frb_generated.dart';
 
 /// Owns the FRB runtime, the single [MadarBridge] handle, and the host-side
@@ -53,15 +52,6 @@ class MadarCore {
       externalLibrary: ExternalLibrary.open(dylibPath),
     );
     _runtimeReady = true;
-  }
-
-  /// Attach the host vault. The core emits a command whenever the opaque
-  /// session blob must be persisted or wiped; persist IMMEDIATELY (no
-  /// debounce) — durability of offline sign-in depends on it.
-  StreamSubscription<VaultCommand> attachVault(
-    void Function(VaultCommand command) onCommand,
-  ) {
-    return bridge.tokenVaultStream().listen(onCommand);
   }
 
   /// Open the device's ONE session-level realtime subscription (post-login).

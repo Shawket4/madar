@@ -19,7 +19,6 @@ import 'api/shift.dart';
 import 'api/sync.dart';
 import 'api/tickets.dart';
 import 'api/types.dart';
-import 'api/vault.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -85,7 +84,7 @@ class RustBridge
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 497172838;
+  int get rustContentHash => 2064878342;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -567,6 +566,10 @@ abstract class RustBridgeApi extends BaseApi {
     required List<int> blob,
   });
 
+  SessionSnapshot? crateApiBridgeMadarBridgeRestoreSessionCached({
+    required MadarBridge that,
+  });
+
   Future<void> crateApiBridgeMadarBridgeRetryOutbox({
     required MadarBridge that,
   });
@@ -687,10 +690,6 @@ abstract class RustBridgeApi extends BaseApi {
   Future<void> crateApiBridgeMadarBridgeSyncNow({required MadarBridge that});
 
   Future<SyncStatusView> crateApiBridgeMadarBridgeSyncStatus({
-    required MadarBridge that,
-  });
-
-  Stream<VaultCommand> crateApiBridgeMadarBridgeTokenVaultStream({
     required MadarBridge that,
   });
 
@@ -4522,6 +4521,41 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  SessionSnapshot? crateApiBridgeMadarBridgeRestoreSessionCached({
+    required MadarBridge that,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 103,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_session_snapshot,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeRestoreSessionCachedConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeRestoreSessionCachedConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_restore_session_cached",
+        argNames: ["that"],
+      );
+
+  @override
   Future<void> crateApiBridgeMadarBridgeRetryOutbox({
     required MadarBridge that,
   }) {
@@ -4536,7 +4570,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 103,
+            funcId: 104,
             port: port_,
           );
         },
@@ -4584,7 +4618,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 104,
+            funcId: 105,
             port: port_,
           );
         },
@@ -4632,7 +4666,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 105,
+            funcId: 106,
             port: port_,
           );
         },
@@ -4674,7 +4708,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 106,
+            funcId: 107,
             port: port_,
           );
         },
@@ -4714,7 +4748,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 107,
+            funcId: 108,
             port: port_,
           );
         },
@@ -4752,7 +4786,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 108,
+            funcId: 109,
           )!;
         },
         codec: SseCodec(
@@ -4789,7 +4823,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 109,
+            funcId: 110,
             port: port_,
           );
         },
@@ -4831,7 +4865,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 110,
+            funcId: 111,
             port: port_,
           );
         },
@@ -4869,7 +4903,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 111,
+            funcId: 112,
             port: port_,
           );
         },
@@ -4907,7 +4941,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 112,
+            funcId: 113,
             port: port_,
           );
         },
@@ -4947,7 +4981,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 113,
+            funcId: 114,
             port: port_,
           );
         },
@@ -4985,7 +5019,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 114,
+            funcId: 115,
           )!;
         },
         codec: SseCodec(
@@ -5038,7 +5072,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 115,
+            funcId: 116,
             port: port_,
           );
         },
@@ -5096,7 +5130,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 116,
+            funcId: 117,
             port: port_,
           );
         },
@@ -5134,7 +5168,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 117,
+            funcId: 118,
             port: port_,
           );
         },
@@ -5172,7 +5206,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 118,
+            funcId: 119,
             port: port_,
           );
         },
@@ -5210,7 +5244,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 119,
+            funcId: 120,
             port: port_,
           );
         },
@@ -5250,7 +5284,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 120,
+            funcId: 121,
             port: port_,
           );
         },
@@ -5286,7 +5320,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 121,
+            funcId: 122,
             port: port_,
           );
         },
@@ -5322,7 +5356,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 122,
+            funcId: 123,
             port: port_,
           );
         },
@@ -5357,7 +5391,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 123,
+            funcId: 124,
             port: port_,
           );
         },
@@ -5393,7 +5427,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 124,
+            funcId: 125,
             port: port_,
           );
         },
@@ -5412,47 +5446,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       const TaskConstMeta(
         debugName: "MadarBridge_sync_status",
         argNames: ["that"],
-      );
-
-  @override
-  Stream<VaultCommand> crateApiBridgeMadarBridgeTokenVaultStream({
-    required MadarBridge that,
-  }) {
-    final sink = RustStreamSink<VaultCommand>();
-    unawaited(
-      handler.executeNormal(
-        NormalTask(
-          callFfi: (port_) {
-            final serializer = SseSerializer(generalizedFrbRustBinding);
-            sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
-              that,
-              serializer,
-            );
-            sse_encode_StreamSink_vault_command_Sse(sink, serializer);
-            pdeCallFfi(
-              generalizedFrbRustBinding,
-              serializer,
-              funcId: 125,
-              port: port_,
-            );
-          },
-          codec: SseCodec(
-            decodeSuccessData: sse_decode_unit,
-            decodeErrorData: null,
-          ),
-          constMeta: kCrateApiBridgeMadarBridgeTokenVaultStreamConstMeta,
-          argValues: [that, sink],
-          apiImpl: this,
-        ),
-      ),
-    );
-    return sink.stream;
-  }
-
-  TaskConstMeta get kCrateApiBridgeMadarBridgeTokenVaultStreamConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_token_vault_stream",
-        argNames: ["that", "sink"],
       );
 
   @override
@@ -5866,14 +5859,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
 
   @protected
   RustStreamSink<RealtimeMessage> dco_decode_StreamSink_realtime_message_Sse(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    throw UnimplementedError();
-  }
-
-  @protected
-  RustStreamSink<VaultCommand> dco_decode_StreamSink_vault_command_Sse(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -7585,21 +7570,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  VaultCommand dco_decode_vault_command(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    switch (raw[0]) {
-      case 0:
-        return VaultCommand_Save(
-          blob: dco_decode_list_prim_u_8_strict(raw[1]),
-        );
-      case 1:
-        return VaultCommand_Clear();
-      default:
-        throw Exception("unreachable");
-    }
-  }
-
-  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_String(deserializer);
@@ -7652,14 +7622,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
 
   @protected
   RustStreamSink<RealtimeMessage> sse_decode_StreamSink_realtime_message_Sse(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    throw UnimplementedError('Unreachable ()');
-  }
-
-  @protected
-  RustStreamSink<VaultCommand> sse_decode_StreamSink_vault_command_Sse(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -10056,22 +10018,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
-  VaultCommand sse_decode_vault_command(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var tag_ = sse_decode_i_32(deserializer);
-    switch (tag_) {
-      case 0:
-        var var_blob = sse_decode_list_prim_u_8_strict(deserializer);
-        return VaultCommand_Save(blob: var_blob);
-      case 1:
-        return VaultCommand_Clear();
-      default:
-        throw UnimplementedError('');
-    }
-  }
-
-  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -10146,23 +10092,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       self.setupAndSerialize(
         codec: SseCodec(
           decodeSuccessData: sse_decode_realtime_message,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-      ),
-      serializer,
-    );
-  }
-
-  @protected
-  void sse_encode_StreamSink_vault_command_Sse(
-    RustStreamSink<VaultCommand> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(
-      self.setupAndSerialize(
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_vault_command,
           decodeErrorData: sse_decode_AnyhowException,
         ),
       ),
@@ -12004,18 +11933,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
   }
-
-  @protected
-  void sse_encode_vault_command(VaultCommand self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    switch (self) {
-      case VaultCommand_Save(blob: final blob):
-        sse_encode_i_32(0, serializer);
-        sse_encode_list_prim_u_8_strict(blob, serializer);
-      case VaultCommand_Clear():
-        sse_encode_i_32(1, serializer);
-    }
-  }
 }
 
 @sealed
@@ -12839,11 +12756,19 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       .api
       .crateApiBridgeMadarBridgeRestoreDraft(that: this, id: id);
 
-  /// Restore the persisted session blob from the host vault (cold boot).
+  /// Restore a HOST-supplied session blob (the one-time legacy keychain
+  /// migration path). Writes through to the core's own store.
   Future<SessionSnapshot?> restoreSession({required List<int> blob}) =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeRestoreSession(
         that: this,
         blob: blob,
+      );
+
+  /// Re-hydrate the persisted session from the core's OWN store — the
+  /// normal cold boot. `None` = signed out / fresh install.
+  SessionSnapshot? restoreSessionCached() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeRestoreSessionCached(
+        that: this,
       );
 
   /// Requeue every dead command (clearing its error) and try to send now.
@@ -13046,13 +12971,6 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// in one cheap local read. Always succeeds offline.
   Future<SyncStatusView> syncStatus() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeSyncStatus(
-        that: this,
-      );
-
-  /// Wire the host vault: the returned stream carries `Save`/`Clear`
-  /// commands; Dart persists to secure storage immediately on each.
-  Stream<VaultCommand> tokenVaultStream() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeTokenVaultStream(
         that: this,
       );
 

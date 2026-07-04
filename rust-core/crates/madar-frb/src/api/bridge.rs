@@ -17,7 +17,6 @@ use crate::api::error::MadarError;
 use crate::api::realtime::{AlertCommand, RealtimeMessage, SinkListener, SinkPlayer};
 use crate::api::routes::AppRoute;
 use crate::api::types::{LoginRequest, MadarConfig, SessionSnapshot, ShiftView};
-use crate::api::vault::{SinkTokenStore, VaultCommand};
 use crate::frb_generated::StreamSink;
 
 /// FFI contract version this wrapper was written against (madar-core's
@@ -57,17 +56,21 @@ impl MadarBridge {
 
     // ── host callbacks (attach BEFORE restore_session / login) ────────────
 
-    /// Wire the host vault: the returned stream carries `Save`/`Clear`
-    /// commands; Dart persists to secure storage immediately on each.
-    pub fn token_vault_stream(&self, sink: StreamSink<VaultCommand>) {
-        self.inner.set_token_store(Box::new(SinkTokenStore(sink)));
-    }
+
 
     // ── session ───────────────────────────────────────────────────────────
 
-    /// Restore the persisted session blob from the host vault (cold boot).
+    /// Restore a HOST-supplied session blob (the one-time legacy keychain
+    /// migration path). Writes through to the core's own store.
     pub fn restore_session(&self, blob: Vec<u8>) -> Option<SessionSnapshot> {
         self.inner.restore_session(blob)
+    }
+
+    /// Re-hydrate the persisted session from the core's OWN store — the
+    /// normal cold boot. `None` = signed out / fresh install.
+    #[frb(sync)]
+    pub fn restore_session_cached(&self) -> Option<SessionSnapshot> {
+        self.inner.restore_session_cached()
     }
 
     #[frb(sync)]

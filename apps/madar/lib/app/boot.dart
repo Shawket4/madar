@@ -44,11 +44,6 @@ class BootFailure implements Exception {
 /// restore the persisted session. NO business logic lives here — the core
 /// decides online/offline, token custody, validation, and the route.
 class BootNotifier extends AsyncNotifier<BootData> {
-  /// Serializes secure-storage writes so Save/Clear land in emission
-  /// order — concurrent platform-channel applies could otherwise persist
-  /// a stale session blob after a sign-out.
-  Future<void> _vaultQueue = Future<void>.value();
-
   @override
   Future<BootData> build() async {
     MadarCore? core;
@@ -64,20 +59,10 @@ class BootNotifier extends AsyncNotifier<BootData> {
         ),
       );
 
-      // Persist token custody changes the moment the core emits them —
-      // chained so each write completes before the next begins. A failed
-      // write must not wedge the queue for later commands.
-      final vaultSub = core.attachVault((cmd) {
-        _vaultQueue = _vaultQueue
-            .then((_) => vault.apply(cmd))
-            .catchError((Object _) {});
-      });
-      ref.onDispose(() => unawaited(vaultSub.cancel()));
-
-      final blob = await vault.readBlob();
-      if (blob != null) {
-        await core.bridge.restoreSession(blob: blob);
-      }
+      // Session durability is core-owned now: one sync local read re-hydrates
+      // the persisted session from the core's own store. No host vault, no
+      // write-ordering queue — that whole class of race is gone.
+      core.bridge.restoreSessionCached();
       // Persisted landscape flip — seed + wire the persister. The controller
       // is an app-global singleton (it spans both provider containers), so
       // it's wired directly rather than through an override.

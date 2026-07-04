@@ -1,7 +1,6 @@
 @Tags(['qa'])
 library;
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -167,13 +166,9 @@ void main() {
   });
 
   test(
-    'session blob round-trips through the vault (restart restore)',
+    'session persists in the core store (restart restore)',
     () async {
-      // Capture what the host vault would persist.
-      final saved = <VaultCommand>[];
-      final sub = core.attachVault(saved.add);
-
-      // Fresh sign-in cycle → the core must emit a save command.
+      // Fresh sign-in cycle → the core persists session:blob in ITS store.
       final branches = await core.bridge.listBranches();
       await core.bridge.logout(wipeOutbox: false);
       await core.bridge.login(
@@ -184,17 +179,9 @@ void main() {
           branchId: branches.first.id,
         ),
       );
-      // The vault stream is async — give it a beat.
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      final blob = saved.whereType<VaultCommand_Save>().lastOrNull?.blob;
-      expect(
-        blob,
-        isNotNull,
-        reason: 'login must emit VaultCommand.save for the host vault',
-      );
 
-      // A "restarted app": a second handle over the same store restores the
-      // session from the blob alone — the shell's exact boot path.
+      // A "restarted app": a second handle over the SAME sqlite restores the
+      // session from the core's own store — the shell's exact boot path.
       final rebooted = await MadarCore.start(
         config: MadarConfig(
           baseUrl: api,
@@ -203,11 +190,11 @@ void main() {
           locale: 'en',
         ),
       );
-      final restored = await rebooted.bridge.restoreSession(blob: blob!);
+      final restored = rebooted.bridge.restoreSessionCached();
       expect(
         restored,
         isNotNull,
-        reason: 'the persisted blob must restore the teller session',
+        reason: 'login must persist the session into the core store',
       );
       expect(restored!.displayName, 'Sara');
       final route = rebooted.bridge.appRoute();
@@ -217,9 +204,6 @@ void main() {
         reason: 'a restored session must land past the login screen',
       );
       expect(route, isNot(isA<AppRoute_DeviceSetup>()));
-
-      // Not awaited — the vault stream never closes (see the smoke test).
-      unawaited(sub.cancel());
     },
   );
 }

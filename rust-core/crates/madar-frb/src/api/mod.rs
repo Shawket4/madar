@@ -14,4 +14,3 @@ pub mod shift;
 pub mod sync;
 pub mod tickets;
 pub mod types;
-pub mod vault;

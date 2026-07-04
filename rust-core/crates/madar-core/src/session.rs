@@ -27,13 +27,14 @@ pub(crate) const ORG_CONFIG_KEY: &str = "org_config";
 
 // ── FFI surface ─────────────────────────────────────────────────────────────
 
-/// The host's secure-bytes vault. The core hands it one opaque blob to persist;
-/// token custody (expiry/refresh/rotation) stays in Rust.
-#[uniffi::export(callback_interface)]
-pub trait TokenStore: Send + Sync {
-    fn save_blob(&self, blob: Vec<u8>);
-    fn clear_blob(&self);
-}
+/// Store key for the persisted session blob. The core owns session
+/// durability end-to-end now: the blob lives PLAINLY in the core's SQLite,
+/// protected by the OS's file-based encryption + token expiry + server-side
+/// revocation (the deliberate threat-model call: an attacker who can read
+/// app-private storage can also read process memory, and the logged-in UI
+/// on a countertop POS is the bigger surface anyway — see the vault ADR in
+/// the commit that removed flutter_secure_storage).
+pub(crate) const K_SESSION_BLOB: &str = "session:blob";
 
 /// PIN (tellers) xor email+password (managers/admins). Enforced in Rust, not the
 /// all-`Option` wire.

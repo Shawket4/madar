@@ -22,7 +22,6 @@ import 'api/shift.dart';
 import 'api/sync.dart';
 import 'api/tickets.dart';
 import 'api/types.dart';
-import 'api/vault.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -68,11 +67,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RustStreamSink<RealtimeMessage> dco_decode_StreamSink_realtime_message_Sse(
-    dynamic raw,
-  );
-
-  @protected
-  RustStreamSink<VaultCommand> dco_decode_StreamSink_vault_command_Sse(
     dynamic raw,
   );
 
@@ -537,9 +531,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
-  VaultCommand dco_decode_vault_command(dynamic raw);
-
-  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
@@ -567,11 +558,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RustStreamSink<RealtimeMessage> sse_decode_StreamSink_realtime_message_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<VaultCommand> sse_decode_StreamSink_vault_command_Sse(
     SseDeserializer deserializer,
   );
 
@@ -1156,9 +1142,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
-  VaultCommand sse_decode_vault_command(SseDeserializer deserializer);
-
-  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -1194,12 +1177,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_StreamSink_realtime_message_Sse(
     RustStreamSink<RealtimeMessage> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_vault_command_Sse(
-    RustStreamSink<VaultCommand> self,
     SseSerializer serializer,
   );
 
@@ -1949,9 +1926,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_vault_command(VaultCommand self, SseSerializer serializer);
 }
 
 // Section: wire_class

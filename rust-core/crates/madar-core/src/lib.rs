@@ -172,7 +172,6 @@ pub struct MadarCore {
     /// cold-start restore; cleared on logout.
     session: RwLock<Option<session::SessionState>>,
     /// The host's secure-bytes vault for the session blob (Keychain/Keystore).
-    token_store: Mutex<Option<Box<dyn session::TokenStore>>>,
     /// Server-vs-device clock skew in SECONDS — SHARED with the `ApiClient`, which
     /// refreshes it from the `Date` header of EVERY response (not just the ping), so
     /// `corrected_now` stays server-aligned between heartbeats. Persisted to kv on
@@ -263,7 +262,6 @@ impl MadarCore {
             locale,
             api,
             session: RwLock::new(None),
-            token_store: Mutex::new(None),
             clock_skew_secs,
             images,
             offline_probe_fails: std::sync::atomic::AtomicU32::new(0),
@@ -312,15 +310,12 @@ impl MadarCore {
 
     // ── session (sync) ──────────────────────────────────────────────────────
 
-    /// Install the host's secure-bytes vault. Call once, right after `new`,
-    /// before `restore_session`.
-    pub fn set_token_store(&self, store: Box<dyn session::TokenStore>) {
-        *self.token_store.lock().unwrap_or_else(|e| e.into_inner()) = Some(store);
-    }
-
     /// Re-hydrate a session from the host's persisted blob at cold start. Returns
     /// the snapshot if the blob is valid, else `None` (fresh install / corrupt).
     pub fn restore_session(&self, blob: Vec<u8>) -> Option<session::SessionSnapshot> {
+        // Write-through: a host-supplied blob (legacy keychain migration)
+        // lands in the core's own store so the next boot restores locally.
+        let _ = self.store.blob_put(session::K_SESSION_BLOB, &blob);
         let mut state = session::SessionState::from_blob(&blob)?;
         // A cold-restored session has NOT pinged yet — connectivity is only ever
         // truthful after a live heartbeat. Start offline-until-proven-online so we
@@ -331,6 +326,17 @@ impl MadarCore {
         let snapshot = state.snapshot.clone();
         *self.session.write().unwrap_or_else(|e| e.into_inner()) = Some(state);
         Some(snapshot)
+    }
+
+    /// Re-hydrate the session from the CORE's own store (the normal cold
+    /// boot) — no host vault round-trip. `None` = signed out / fresh store.
+    pub fn restore_session_cached(&self) -> Option<session::SessionSnapshot> {
+        let blob = self
+            .store
+            .blob_get(session::K_SESSION_BLOB)
+            .ok()
+            .flatten()?;
+        self.restore_session(blob)
     }
 
     pub fn is_authenticated(&self) -> bool {
@@ -429,14 +435,7 @@ impl MadarCore {
         self.borrowed_token
             .store(false, std::sync::atomic::Ordering::Relaxed);
         *self.session.write().unwrap_or_else(|e| e.into_inner()) = None;
-        if let Some(ts) = self
-            .token_store
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .as_ref()
-        {
-            ts.clear_blob();
-        }
+        let _ = self.store.blob_delete(session::K_SESSION_BLOB);
         // Tear down any live realtime stream + listener so the next sign-in starts
         // clean. start_realtime's "already subscribed" guard would otherwise see the
         // stale handle and no-op, leaving the NEXT user with no events. Host signOut
@@ -492,16 +491,13 @@ impl MadarCore {
             })
     }
 
-    /// Persist a session to the host vault and install it as the live session.
+    /// Persist a session into the core's own store and install it as the
+    /// live session. Durability is a local SQLite write now — no host vault,
+    /// no cross-store ordering to get wrong.
     fn persist_and_set(&self, state: session::SessionState) {
-        if let Some(ts) = self
-            .token_store
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .as_ref()
-        {
-            ts.save_blob(state.to_blob());
-        }
+        let _ = self
+            .store
+            .blob_put(session::K_SESSION_BLOB, &state.to_blob());
         *self.session.write().unwrap_or_else(|e| e.into_inner()) = Some(state);
     }
 
@@ -1330,14 +1326,7 @@ impl MadarCore {
             g.clone()
         };
         if let Some(s) = updated {
-            if let Some(ts) = self
-                .token_store
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .as_ref()
-            {
-                ts.save_blob(s.to_blob());
-            }
+            let _ = self.store.blob_put(session::K_SESSION_BLOB, &s.to_blob());
         }
     }
 }
@@ -3726,9 +3715,8 @@ impl MadarCore {
             return;
         };
         let perms = session::permissions_from(&p);
-        // Update under the write lock, capture the blob, then RELEASE before touching
-        // the token store (persist_and_set locks them token-store-then-session, so we
-        // must not hold session while locking the token store — avoid a lock cycle).
+        // Update under the write lock, capture the blob, then RELEASE before
+        // the store write (keep lock scopes minimal; the store has its own).
         let blob = {
             let mut g = self.session.write().unwrap_or_else(|e| e.into_inner());
             match g.as_mut() {
@@ -3741,14 +3729,7 @@ impl MadarCore {
             }
         };
         if let Some(blob) = blob {
-            if let Some(ts) = self
-                .token_store
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .as_ref()
-            {
-                ts.save_blob(blob);
-            }
+            let _ = self.store.blob_put(session::K_SESSION_BLOB, &blob);
         }
     }
 
@@ -6377,6 +6358,43 @@ mod lifecycle_tests {
         assert!(token_is_expired(&fake_jwt(1_000), 2_000));
         assert!(!token_is_expired(&fake_jwt(9_000), 2_000));
         assert!(token_is_expired("garbage", 2_000));
+    }
+
+    #[test]
+    fn session_persists_in_the_core_store_across_restart() {
+        let dir = std::env::temp_dir().join(format!("madar-vault-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("madar.db").to_string_lossy().into_owned();
+        let cfg = || MadarConfig {
+            base_url: "http://127.0.0.1:1".into(),
+            environment: "dev".into(),
+            db_path: db.clone(),
+            locale: "en".into(),
+        };
+        let now = chrono::Utc::now().timestamp();
+
+        // "First run": install a live session — persist_and_set writes
+        // session:blob into the core's OWN store, no host vault involved.
+        let core = MadarCore::new(cfg()).unwrap();
+        signed_in_with_token(&core, now + 3600);
+        drop(core);
+
+        // "Restart": a fresh handle over the same sqlite restores locally,
+        // offline-until-proven-online.
+        let core = MadarCore::new(cfg()).unwrap();
+        let restored = core.restore_session_cached().expect("session restored");
+        assert!(!restored.online, "cold restore must start offline");
+        assert!(core.is_authenticated());
+
+        // Logout wipes the persisted blob — the next restart is signed out.
+        core.logout(false).unwrap();
+        drop(core);
+        let core = MadarCore::new(cfg()).unwrap();
+        assert!(
+            core.restore_session_cached().is_none(),
+            "logout must clear the persisted session"
+        );
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

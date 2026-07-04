@@ -183,6 +183,13 @@ impl Store {
         )?;
         Ok(())
     }
+    /// Delete a blob row (no-op when absent).
+    pub fn blob_delete(&self, key: &str) -> CoreResult<()> {
+        self.lock()
+            .execute("DELETE FROM blob WHERE k = ?1", [key])?;
+        Ok(())
+    }
+
     pub fn blob_get(&self, key: &str) -> CoreResult<Option<Vec<u8>>> {
         Ok(self
             .lock()
