@@ -272,16 +272,17 @@ class OrderNotifier extends Notifier<OrderState> {
       error: null,
       clockSkewMinutes: _bridge.clockSkewMinutes(),
     );
+    // Independent bridge reads run CONCURRENTLY (FRB executes them on the
+    // Rust pool) — cold-open latency is the slowest call, not the sum. If
+    // reconcile discovers a force-closed shift the route moves anyway, and
+    // stats re-refresh after every tender, so the overlap is benign.
     if (state.isWaiter) {
       await Future.wait([loadCatalog(), loadOpenTickets()]);
     } else {
-      await reconcileShift();
-      await loadCatalog();
-      await loadShiftStats();
+      await Future.wait([reconcileShift(), loadCatalog(), loadShiftStats()]);
     }
     await _fetchCatalogIfEmpty();
-    await loadCart();
-    await loadDrafts();
+    await Future.wait([loadCart(), loadDrafts()]);
     await refreshConnectivity();
   }
 
@@ -381,8 +382,16 @@ class OrderNotifier extends Notifier<OrderState> {
     }
   }
 
+  /// Deterministic in the core (pure function of name + dark), but reached
+  /// over FFI — memoized here so grid/tab builds don't cross the bridge on
+  /// every frame.
+  final _styleCache = <(String, bool), CatStyleView>{};
+
   CatStyleView categoryStyle(String name, {required bool dark}) =>
-      _bridge.categoryStyle(name: name, dark: dark);
+      _styleCache[(name, dark)] ??= _bridge.categoryStyle(
+        name: name,
+        dark: dark,
+      );
 
   // ── cart ───────────────────────────────────────────────────────────────────
   /// Stamp the start timestamp on the empty→non-empty transition, drop it

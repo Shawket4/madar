@@ -608,7 +608,7 @@ pub(crate) fn discounts(store: &Store, locale: &str) -> CoreResult<Vec<DiscountV
 
 pub(crate) const K_UNIFIED: &str = "catalog:unified"; // raw CatalogSyncResponse JSON
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub(crate) struct UnifiedOption {
     pub id: String,
     pub name: String,
@@ -620,7 +620,7 @@ pub(crate) struct UnifiedOption {
     pub is_available: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub(crate) struct UnifiedGroup {
     pub group_id: String,
     #[serde(default)]
@@ -649,11 +649,31 @@ struct UnifiedItem {
 }
 
 #[derive(Deserialize)]
-struct UnifiedDoc {
+pub(crate) struct UnifiedDoc {
     #[serde(default)]
     catalog_revision: i64,
     #[serde(default)]
     items: Vec<UnifiedItem>,
+}
+
+impl UnifiedDoc {
+    /// The unified groups for one item, from an ALREADY-PARSED doc — same
+    /// `None`/empty fallback semantics as [`unified_groups_for`]. The core's
+    /// catalog snapshot holds the parsed doc so the customization sheet's
+    /// per-toggle reads stop re-parsing the whole mirror.
+    pub(crate) fn groups_for(&self, item_id: &str) -> Option<Vec<UnifiedGroup>> {
+        self.items
+            .iter()
+            .find(|i| i.id == item_id)
+            .map(|i| i.modifier_groups.clone())
+            .filter(|groups| !groups.is_empty())
+    }
+}
+
+/// Parse the mirrored unified catalog once (`None` = never synced / unreadable).
+pub(crate) fn unified_doc(store: &Store) -> Option<UnifiedDoc> {
+    let raw = store.kv_get(K_UNIFIED).ok()??;
+    serde_json::from_str(&raw).ok()
 }
 
 fn unified_true() -> bool {
@@ -690,14 +710,9 @@ pub(crate) fn unified_unchanged(body: &str) -> bool {
 /// flat-catalog fallback keeps showing them the full offer — same per-item
 /// fallback rule as the storefront customizer. Once a group IS attached, the
 /// unified wire becomes authoritative for that item.
+#[cfg(test)] // production reads go through the core's parsed CatalogSnapshot
 pub(crate) fn unified_groups_for(store: &Store, item_id: &str) -> Option<Vec<UnifiedGroup>> {
-    let raw = store.kv_get(K_UNIFIED).ok()??;
-    let doc: UnifiedDoc = serde_json::from_str(&raw).ok()?;
-    doc.items
-        .into_iter()
-        .find(|i| i.id == item_id)
-        .map(|i| i.modifier_groups)
-        .filter(|groups| !groups.is_empty())
+    unified_doc(store).and_then(|doc| doc.groups_for(item_id))
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────

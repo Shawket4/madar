@@ -14,20 +14,21 @@
 //! tests (override via env). The teller PIN is `1234`.
 
 use madar_core::checkout::{CheckoutInput, ReceiptView};
-use madar_core::session::{LoginMode, LoginRequest, TokenStore};
+use madar_core::session::{LoginMode, LoginRequest};
 use madar_core::{MadarConfig, MadarCore};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-/// Captures the session blob the core hands its vault at login, so a second core
-/// can restore the SAME authenticated session (incl. the bearer token).
-struct CaptureStore(Arc<Mutex<Option<Vec<u8>>>>);
-impl TokenStore for CaptureStore {
-    fn save_blob(&self, blob: Vec<u8>) {
-        *self.0.lock().unwrap_or_else(|e| e.into_inner()) = Some(blob);
-    }
-    fn clear_blob(&self) {
-        *self.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
-    }
+/// The session blob the core persisted into ITS OWN store at login (the
+/// option-C durability model: plain in the core's SQLite, no host vault).
+/// Read straight from the db file so a second core can restore the SAME
+/// authenticated session (incl. the bearer token) — what the deleted
+/// TokenStore capture used to hand over.
+fn session_blob(db_path: &str) -> Vec<u8> {
+    let conn = rusqlite::Connection::open(db_path).expect("open core db");
+    conn.query_row("SELECT v FROM blob WHERE k = 'session:blob'", [], |r| {
+        r.get(0)
+    })
+    .expect("session blob persisted at login")
 }
 
 fn core_at(base: String, db_path: String) -> Arc<MadarCore> {
@@ -485,9 +486,7 @@ async fn offline_backlog_replays_exactly_once_across_a_reconnect() {
 
     // 1) ONLINE on a PERSISTENT store: login (the vault captures the session blob),
     //    pull the catalog, ensure a shift is open. All written to the shared file.
-    let captured = Arc::new(Mutex::new(None));
     let live = core_at(base.clone(), db_path.clone());
-    live.set_token_store(Box::new(CaptureStore(captured.clone())));
     live.login(LoginRequest {
         mode: LoginMode::Pin,
         name: Some(teller),
@@ -503,11 +502,7 @@ async fn offline_backlog_replays_exactly_once_across_a_reconnect() {
     live.refresh_catalog().await.expect("catalog");
     ensure_open_shift(&live).await;
     live.sync_now().await.ok();
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("session blob captured at login");
+    let blob = session_blob(&db_path);
 
     // 2) OFFLINE: a core at a dead port, sharing the SAME store, with the online
     //    session restored (so it carries the bearer). Its inline drains all fail,
@@ -585,9 +580,7 @@ async fn full_offline_day_open_sell_close_replays_in_dependency_order() {
 
     // 1) ONLINE: login + catalog, and make sure the branch has NO open shift (so we
     //    can open one OFFLINE). Capture the session blob.
-    let captured = Arc::new(Mutex::new(None));
     let live = core_at(base.clone(), db_path.clone());
-    live.set_token_store(Box::new(CaptureStore(captured.clone())));
     live.login(LoginRequest {
         mode: LoginMode::Pin,
         name: Some(teller),
@@ -607,11 +600,7 @@ async fn full_offline_day_open_sell_close_replays_in_dependency_order() {
             live.sync_now().await.ok();
         }
     }
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("session blob");
+    let blob = session_blob(&db_path);
 
     // 2) OFFLINE day on the dead-url core sharing the store: open → sell → close.
     let offline = core_at("http://127.0.0.1:1".into(), db_path.clone());
@@ -706,9 +695,7 @@ async fn another_teller_flushes_the_backlog_attributed_to_the_original() {
     // 1) Teller A signs in ONLINE on a persistent store, catalog loaded. Start
     //    from a clean slate (close any leftover open shift), then open S1 ONLINE
     //    so the SERVER genuinely shows A's shift open at the branch.
-    let captured = Arc::new(Mutex::new(None));
     let a = core_at(base.clone(), db_path.clone());
-    a.set_token_store(Box::new(CaptureStore(captured.clone())));
     a.login(login(&teller_a)).await.expect("A login");
     a.refresh_connectivity().await;
     a.refresh_catalog().await.expect("catalog");
@@ -727,11 +714,7 @@ async fn another_teller_flushes_the_backlog_attributed_to_the_original() {
         s1.is_open && s1.teller_id == teller_a_id,
         "S1 is open and owned by A server-side"
     );
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("A session blob");
+    let blob = session_blob(&db_path);
 
     // S1 was opened ONLINE (server-stamped opened_at); the offline close below is
     // device-stamped. On a brand-new fixture both land in the same wall-clock second,
@@ -871,9 +854,7 @@ async fn offline_teller_switch_close_open_syncs_on_reconnect() {
     // Start from a CLEAN branch (close any leftover open shift — it's t1's own, so t1
     // may log in and close it; the new ownership guard would otherwise reject a
     // different teller).
-    let captured = Arc::new(Mutex::new(None));
     let live = core_at(base.clone(), db_path.clone());
-    live.set_token_store(Box::new(CaptureStore(captured.clone())));
     live.login(login_req(&t1)).await.expect("t1 login");
     live.refresh_connectivity().await;
     live.refresh_catalog().await.expect("catalog");
@@ -890,11 +871,7 @@ async fn offline_teller_switch_close_open_syncs_on_reconnect() {
     live.sync_now().await.expect("S1 syncs");
     let s1 = live.refresh_shift().await.expect("refresh").expect("S1");
     assert!(s1.is_open && s1.teller_id == t1_id, "S1 open by t1");
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("blob");
+    let blob = session_blob(&db_path);
 
     // S1 was opened ONLINE (server-stamped opened_at); the offline close below is
     // device-stamped. On a brand-new fixture both land in the same wall-clock second,
@@ -974,9 +951,7 @@ async fn offline_orphaned_orders_recover_onto_the_real_shift() {
         std::process::id()
     ));
     let _ = std::fs::remove_file(&otherdb);
-    let captured = Arc::new(Mutex::new(None));
     let other = core_at(base.clone(), otherdb.to_string_lossy().into());
-    other.set_token_store(Box::new(CaptureStore(captured.clone())));
     other.login(login_req.clone()).await.expect("other login");
     other.refresh_connectivity().await;
     other.refresh_catalog().await.expect("catalog");
@@ -993,11 +968,7 @@ async fn offline_orphaned_orders_recover_onto_the_real_shift() {
     other.sync_now().await.expect("A syncs");
     let a = other.refresh_shift().await.expect("refresh").expect("A");
     assert!(a.is_open, "A open server-side");
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("blob");
+    let blob = session_blob(&otherdb.to_string_lossy());
 
     // Device MAIN gets the catalog via restore_session WITHOUT reconciling the
     // shift, so it never learns about A — mimicking a fresh device / cache loss.
@@ -1098,9 +1069,7 @@ async fn offline_receipt_number_and_ref_match_the_server() {
     let _ = std::fs::remove_file(&db);
 
     // Online: open a shift + ring one order so branch_code / timezone / base cache.
-    let captured = Arc::new(Mutex::new(None));
     let live = core_at(base.clone(), db_path.clone());
-    live.set_token_store(Box::new(CaptureStore(captured.clone())));
     live.login(login_req.clone()).await.expect("login");
     live.refresh_connectivity().await;
     live.refresh_catalog().await.expect("catalog");
@@ -1117,11 +1086,7 @@ async fn offline_receipt_number_and_ref_match_the_server() {
         .expect("open shift");
     live.sync_now().await.expect("shift syncs");
     let shift_id = live.refresh_shift().await.ok().flatten().expect("shift").id;
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("blob");
+    let blob = session_blob(&db_path);
 
     // Offline: ring the next order → capture the PREDICTED number/ref + the order id.
     let off = core_at("http://127.0.0.1:1".into(), db_path.clone());
@@ -1316,9 +1281,7 @@ async fn offline_lists_show_last_synced_server_rows() {
     let _ = std::fs::remove_file(&db);
 
     // ONLINE: fresh shift, ring an order + record a cash movement (both sync).
-    let captured = Arc::new(Mutex::new(None));
     let live = core_at(base.clone(), db_path.clone());
-    live.set_token_store(Box::new(CaptureStore(captured.clone())));
     live.login(login_req.clone()).await.expect("login");
     live.refresh_connectivity().await;
     live.refresh_catalog().await.expect("catalog");
@@ -1352,11 +1315,7 @@ async fn offline_lists_show_last_synced_server_rows() {
         "synced cash present online"
     );
     assert!(!on_shifts.is_empty(), "past shifts present online");
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("blob");
+    let blob = session_blob(&db_path);
 
     // OFFLINE (dead url, same store): the lists must STILL show the synced rows
     // (from the write-through cache), not collapse to an empty/queued-only view.
@@ -1416,9 +1375,7 @@ async fn offline_closed_shift_shows_closed_not_active_in_past_shifts() {
 
     // ONLINE: open a fresh shift, then view past shifts (caches the list with this
     // shift OPEN).
-    let captured = Arc::new(Mutex::new(None));
     let live = core_at(base.clone(), db_path.clone());
-    live.set_token_store(Box::new(CaptureStore(captured.clone())));
     live.login(login_req.clone()).await.expect("login");
     live.refresh_connectivity().await;
     live.refresh_catalog().await.expect("catalog");
@@ -1428,11 +1385,7 @@ async fn offline_closed_shift_shows_closed_not_active_in_past_shifts() {
         online.iter().any(|s| s.id == shift_id && s.is_open),
         "the fresh shift is open + in the cached list",
     );
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("blob");
+    let blob = session_blob(&db_path);
 
     // OFFLINE: close the shift (queues the close), then view past shifts. The row
     // must read CLOSED — overlaid from the queued close — not still-active.
@@ -1490,9 +1443,7 @@ async fn offline_opened_and_closed_shift_is_complete_in_history() {
 
     // ONLINE: log in (caches the bundle + branch), leave the branch with NO open
     // shift, and prime the past-shifts cache (this shift won't be in it).
-    let captured = Arc::new(Mutex::new(None));
     let live = core_at(base.clone(), db_path.clone());
-    live.set_token_store(Box::new(CaptureStore(captured.clone())));
     live.login(login_req.clone()).await.expect("login");
     live.refresh_connectivity().await;
     live.refresh_catalog().await.expect("catalog");
@@ -1503,11 +1454,7 @@ async fn offline_opened_and_closed_shift_is_complete_in_history() {
         }
     }
     live.list_shifts().await.ok(); // prime cache:shifts (without our shift)
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("blob");
+    let blob = session_blob(&db_path);
 
     // OFFLINE: open shift B, ring an order, close B — all with no connection.
     let off = core_at("http://127.0.0.1:1".into(), db_path.clone());
@@ -1809,18 +1756,12 @@ async fn online_then_offline_order_numbers_stay_contiguous() {
     let db_path = db.to_string_lossy().to_string();
     let _ = std::fs::remove_file(&db);
 
-    let captured = Arc::new(Mutex::new(None));
     let live = core_at(base.clone(), db_path.clone());
-    live.set_token_store(Box::new(CaptureStore(captured.clone())));
     live.login(login_req.clone()).await.expect("login");
     live.refresh_connectivity().await;
     live.refresh_catalog().await.expect("catalog");
     let shift_id = fresh_shift(&live, "mixed-number fixture").await;
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("blob");
+    let blob = session_blob(&db_path);
 
     // Two ONLINE (#1, #2).
     let o1 = place_order_online(&live).await;
@@ -1908,18 +1849,12 @@ async fn offline_close_a_then_open_b_with_orders_all_sync() {
     let _ = std::fs::remove_file(&db);
 
     // Online: open shift A on a clean branch. Capture the session + A's id.
-    let captured = Arc::new(Mutex::new(None));
     let live = core_at(base.clone(), db_path.clone());
-    live.set_token_store(Box::new(CaptureStore(captured.clone())));
     live.login(login_req.clone()).await.expect("login");
     live.refresh_connectivity().await;
     live.refresh_catalog().await.expect("catalog");
     let a_id = fresh_shift(&live, "handover A").await;
-    let blob = captured
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .expect("blob");
+    let blob = session_blob(&db_path);
 
     // A was opened ONLINE (server-stamped opened_at); the close below is OFFLINE
     // (device-stamped closed_at). On a brand-new fixture both happen in the same

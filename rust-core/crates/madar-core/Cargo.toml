@@ -118,3 +118,6 @@ tokio-postgres = { version = "0.7", features = ["with-uuid-1"] }
 # Property-based testing of the pure money/order engines (mirrors the backend's
 # proptest/fuzz harness). Pure Rust, cross-compiles clean.
 proptest = "1"
+# offline_replay reads the persisted session blob straight from the core's db
+# file (the option-C durability model) to hand a session to a second core.
+rusqlite = { version = "0.40", features = ["bundled"] }

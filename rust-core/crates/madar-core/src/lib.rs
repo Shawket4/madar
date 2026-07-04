@@ -157,6 +157,20 @@ pub struct TillView {
 /// Phase 1 exposes config + version only. Later phases hang the API client,
 /// local store, sync engine and printer off this object — the host keeps
 /// holding the same handle.
+/// One fully-projected catalog for a locale — the kv JSON mirrors parsed and
+/// localized ONCE, items/bundles carrying their resolved `local_image_path`,
+/// plus the parsed unified-modifier doc. Shared via `Arc` so every read path
+/// (grid load, customization sheet, per-toggle recipe preview) borrows the
+/// same snapshot instead of re-parsing multi-hundred-KB JSON per call.
+struct CatalogSnapshot {
+    locale: String,
+    items: Vec<menu::MenuItemView>,
+    bundles: Vec<menu::BundleView>,
+    categories: Vec<menu::CategoryView>,
+    addons: Vec<menu::AddonItemView>,
+    unified: Option<menu::UnifiedDoc>,
+}
+
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Object))]
 pub struct MadarCore {
     config: MadarConfig,
@@ -188,6 +202,11 @@ pub struct MadarCore {
     offline_probe_fails: std::sync::atomic::AtomicU32,
     /// Core-owned catalog image cache (menu/bundle photos + org logo).
     images: images::ImageStore,
+    /// Parsed-catalog cache (see [`CatalogSnapshot`]). Rebuilt lazily on read;
+    /// keyed by locale (a switch re-projects on the next read) and dropped by
+    /// `refresh_catalog` after the kv commit + image phase — the only
+    /// production writer of the catalog mirrors.
+    catalog_cache: Mutex<Option<Arc<CatalogSnapshot>>>,
     /// `true` after a drain hit a 401: the outbox is parked (no retry budget
     /// burned, no heartbeat hammering) until the next successful login clears it.
     auth_paused: std::sync::atomic::AtomicBool,
@@ -268,6 +287,7 @@ impl MadarCore {
             session: RwLock::new(None),
             clock_skew_secs,
             images,
+            catalog_cache: Mutex::new(None),
             offline_probe_fails: std::sync::atomic::AtomicU32::new(0),
             auth_paused: std::sync::atomic::AtomicBool::new(false),
             borrowed_token: std::sync::atomic::AtomicBool::new(false),
@@ -2291,23 +2311,73 @@ impl MadarCore {
         catstyle::category_style(&name, dark)
     }
 
-    pub fn list_menu_items(&self) -> Result<Vec<menu::MenuItemView>, CoreError> {
-        let mut items = menu::menu_items(&self.store, &self.current_locale())?;
-        // Resolve cached image paths HERE (one pass per projection) so the
-        // host never does per-cell FFI on the catalog grid.
+    /// The parsed + projected catalog for the CURRENT locale — built once,
+    /// then served from the cache until `refresh_catalog` invalidates it (or
+    /// the locale changes). Every read path shares this snapshot, so a toggle
+    /// in the customization sheet or a grid reload no longer re-parses the kv
+    /// JSON mirrors.
+    fn catalog(&self) -> Result<Arc<CatalogSnapshot>, CoreError> {
+        let locale = self.current_locale();
+        if let Some(cached) = self
+            .catalog_cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .filter(|c| c.locale == locale)
+        {
+            return Ok(cached.clone());
+        }
+        // Build OUTSIDE the lock — parsing a large menu takes milliseconds and
+        // must not block concurrent cached readers. A racing rebuild is benign
+        // (same inputs; last write wins).
+        // Resolve cached image paths HERE (one pass per snapshot) so the host
+        // never does per-cell FFI on the catalog grid.
+        let mut items = menu::menu_items(&self.store, &locale)?;
         for item in &mut items {
             item.local_image_path = item
                 .image_url
                 .as_deref()
                 .and_then(|u| self.images.path_if_cached(u));
         }
-        Ok(items)
+        let mut bundles = menu::bundles(&self.store, &locale)?;
+        for bundle in &mut bundles {
+            bundle.local_image_path = bundle
+                .image_url
+                .as_deref()
+                .and_then(|u| self.images.path_if_cached(u));
+        }
+        let snapshot = Arc::new(CatalogSnapshot {
+            categories: menu::categories(&self.store, &locale)?,
+            addons: menu::addons(&self.store, &locale)?,
+            unified: menu::unified_doc(&self.store),
+            locale,
+            items,
+            bundles,
+        });
+        *self
+            .catalog_cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(snapshot.clone());
+        Ok(snapshot)
+    }
+
+    /// Drop the parsed snapshot — called after anything that rewrites the kv
+    /// catalog mirrors or the on-disk image cache. The next read re-projects.
+    fn invalidate_catalog_cache(&self) {
+        *self
+            .catalog_cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
+    pub fn list_menu_items(&self) -> Result<Vec<menu::MenuItemView>, CoreError> {
+        Ok(self.catalog()?.items.clone())
     }
     pub fn list_categories(&self) -> Result<Vec<menu::CategoryView>, CoreError> {
-        menu::categories(&self.store, &self.current_locale())
+        Ok(self.catalog()?.categories.clone())
     }
     pub fn list_addon_catalog(&self) -> Result<Vec<menu::AddonItemView>, CoreError> {
-        menu::addons(&self.store, &self.current_locale())
+        Ok(self.catalog()?.addons.clone())
     }
     /// Bundles orderable right now — status active and within their date/time
     /// window at `now` (branch-local). The host passes its local time so the
@@ -2322,18 +2392,14 @@ impl MadarCore {
                 detail: "bad timestamp".into(),
             }
         })?;
-        let mut bundles: Vec<menu::BundleView> =
-            menu::bundles(&self.store, &self.current_locale())?
-                .into_iter()
-                .filter(|b| menu::bundle_available(b, now))
-                .collect();
-        for bundle in &mut bundles {
-            bundle.local_image_path = bundle
-                .image_url
-                .as_deref()
-                .and_then(|u| self.images.path_if_cached(u));
-        }
-        Ok(bundles)
+        // local_image_path is already resolved on the snapshot.
+        Ok(self
+            .catalog()?
+            .bundles
+            .iter()
+            .filter(|b| menu::bundle_available(b, now))
+            .cloned()
+            .collect())
     }
     pub fn list_payment_methods(&self) -> Result<Vec<menu::PaymentMethodView>, CoreError> {
         menu::payment_methods(&self.store, &self.current_locale())
@@ -2374,18 +2440,18 @@ impl MadarCore {
         qty: i64,
         notes: Option<String>,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        let items = menu::menu_items(&self.store, &self.current_locale())?;
-        let item = items
+        let catalog = self.catalog()?;
+        let item = catalog
+            .items
             .iter()
             .find(|i| i.id == item_id)
             .ok_or_else(|| CoreError::Validation {
                 field: "item".into(),
                 detail: "unknown item".into(),
             })?;
-        let addon_catalog = menu::addons(&self.store, &self.current_locale())?;
         let line = cart::resolve_line(
             item,
-            &addon_catalog,
+            &catalog.addons,
             size_label,
             &addons,
             &optional_field_ids,
@@ -2404,34 +2470,32 @@ impl MadarCore {
         components: Vec<cart::BundleComponentSelection>,
         qty: i64,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        let locale = self.current_locale();
-        let bundles = menu::bundles(&self.store, &locale)?;
-        let bundle =
-            bundles
-                .iter()
-                .find(|b| b.id == bundle_id)
-                .ok_or_else(|| CoreError::Validation {
-                    field: "bundle".into(),
-                    detail: "unknown bundle".into(),
-                })?;
-        let items = menu::menu_items(&self.store, &locale)?;
-        let addon_catalog = menu::addons(&self.store, &locale)?;
-        let line = cart::resolve_bundle_line(bundle, &items, &addon_catalog, &components, qty);
+        let catalog = self.catalog()?;
+        let bundle = catalog
+            .bundles
+            .iter()
+            .find(|b| b.id == bundle_id)
+            .ok_or_else(|| CoreError::Validation {
+                field: "bundle".into(),
+                detail: "unknown bundle".into(),
+            })?;
+        let line =
+            cart::resolve_bundle_line(bundle, &catalog.items, &catalog.addons, &components, qty);
         cart::add_resolved(&self.store, line)
     }
     /// Active addons offered for an item, with their CHARGED price resolved (swap
     /// delta / full) — the customization sheet groups these by `addon_type`.
     pub fn list_item_addons(&self, item_id: String) -> Result<Vec<cart::ItemAddonView>, CoreError> {
-        let items = menu::menu_items(&self.store, &self.current_locale())?;
-        let item = items
+        let catalog = self.catalog()?;
+        let item = catalog
+            .items
             .iter()
             .find(|i| i.id == item_id)
             .ok_or_else(|| CoreError::Validation {
                 field: "item".into(),
                 detail: "unknown item".into(),
             })?;
-        let addon_catalog = menu::addons(&self.store, &self.current_locale())?;
-        Ok(cart::item_addons(item, &addon_catalog))
+        Ok(cart::item_addons(item, &catalog.addons))
     }
     /// The item's MODIFIER GROUPS — the grouped (unified-model) projection of
     /// `list_item_addons` + the item's priced optionals: slot-configured groups
@@ -2444,29 +2508,32 @@ impl MadarCore {
         &self,
         item_id: String,
     ) -> Result<Vec<cart::ModifierGroupView>, CoreError> {
-        let locale = self.current_locale();
-        let items = menu::menu_items(&self.store, &locale)?;
-        let item = items
+        let catalog = self.catalog()?;
+        let item = catalog
+            .items
             .iter()
             .find(|i| i.id == item_id)
             .ok_or_else(|| CoreError::Validation {
                 field: "item".into(),
                 detail: "unknown item".into(),
             })?;
-        let addon_catalog = menu::addons(&self.store, &locale)?;
         // Prefer the UNIFIED mirror (`/catalog/sync`, the new modifier model) —
         // authoritative grouping/naming/constraints from the backend. Absent
         // (old backend / pre-backfill org / item not present) ⇒ the legacy
         // projection over the mirrored flat streams, same view shape.
-        if let Some(unified) = menu::unified_groups_for(&self.store, &item_id) {
+        if let Some(unified) = catalog
+            .unified
+            .as_ref()
+            .and_then(|doc| doc.groups_for(&item_id))
+        {
             return Ok(cart::item_modifier_groups_unified(
                 item,
-                &addon_catalog,
+                &catalog.addons,
                 unified,
-                &locale,
+                &catalog.locale,
             ));
         }
-        Ok(cart::item_modifier_groups(item, &addon_catalog))
+        Ok(cart::item_modifier_groups(item, &catalog.addons))
     }
     /// Check a selection against the item's group constraints (min/max/required).
     /// Empty result = valid; each entry is one violated group for inline display.
@@ -2497,18 +2564,18 @@ impl MadarCore {
         addons: Vec<cart::AddonSelection>,
         optional_field_ids: Vec<String>,
     ) -> Result<Vec<recipe::ComputedRecipeLineView>, CoreError> {
-        let items = menu::menu_items(&self.store, &self.current_locale())?;
-        let item = items
+        let catalog = self.catalog()?;
+        let item = catalog
+            .items
             .iter()
             .find(|i| i.id == item_id)
             .ok_or_else(|| CoreError::Validation {
                 field: "item".into(),
                 detail: "unknown item".into(),
             })?;
-        let addon_catalog = menu::addons(&self.store, &self.current_locale())?;
         Ok(recipe::compute_recipe(
             item,
-            &addon_catalog,
+            &catalog.addons,
             size_label.as_deref(),
             &addons,
             &optional_field_ids,
@@ -3119,6 +3186,9 @@ impl MadarCore {
         // Downloads whatever the fresh catalog references that isn't on disk
         // yet and evicts orphans; a flaky CDN can never fail the catalog.
         self.sync_catalog_images().await;
+        // The kv mirrors (and possibly the on-disk images) just changed —
+        // drop the parsed snapshot so the next read re-projects.
+        self.invalidate_catalog_cache();
         Ok(())
     }
 
@@ -5352,6 +5422,36 @@ mod tests {
         assert_eq!(logs[0].level, "warn");
         core.clear_logs();
         assert!(core.recent_logs().is_empty());
+    }
+
+    #[test]
+    fn catalog_snapshot_caches_until_invalidated_and_rekeys_on_locale() {
+        let item_json = |name: &str, name_ar: &str| {
+            format!(
+                r#"[{{"base_price":4200,"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z",
+                 "id":"00000000-0000-0000-0000-0000000000a2","org_id":"00000000-0000-0000-0000-0000000000ff",
+                 "is_active":true,"name":"{name}","name_translations":{{"en":"{name}","ar":"{name_ar}"}},
+                 "description_translations":{{}},"addon_slots":[],"allowed_addon_ids":[],
+                 "optional_fields":[],"recipes":[],"sizes":[]}}]"#
+            )
+        };
+        let core = MadarCore::from_env().unwrap();
+        core.store
+            .kv_put(menu::K_MENU_ITEMS, &item_json("Espresso", "اسبريسو"))
+            .unwrap();
+        assert_eq!(core.list_menu_items().unwrap()[0].name, "Espresso");
+        // A raw kv rewrite WITHOUT invalidation keeps serving the snapshot —
+        // that's the cache working (only `refresh_catalog` writes these keys
+        // in production, and it invalidates right after).
+        core.store
+            .kv_put(menu::K_MENU_ITEMS, &item_json("Latte", "لاتيه"))
+            .unwrap();
+        assert_eq!(core.list_menu_items().unwrap()[0].name, "Espresso");
+        core.invalidate_catalog_cache();
+        assert_eq!(core.list_menu_items().unwrap()[0].name, "Latte");
+        // A locale switch re-projects lazily — no explicit invalidation needed.
+        core.set_locale("ar".into());
+        assert_eq!(core.list_menu_items().unwrap()[0].name, "لاتيه");
     }
 
     #[test]
