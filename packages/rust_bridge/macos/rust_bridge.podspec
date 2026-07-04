@@ -27,5 +27,11 @@ and links it into the app. No Objective-C/Swift sources beyond a forwarder.
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libmadar_frb.a',
+    # force_load pins EVERY object from the staticlib and a dylib exports all
+    # public symbols by default — so nothing is dead-strippable. Exporting
+    # ONLY the flutter_rust_bridge surface turns the rest into dead-strip
+    # fodder (matches the Android cdylib link, several MB smaller).
+    'EXPORTED_SYMBOLS_FILE' => '${PODS_TARGET_SRCROOT}/exports_apple.txt',
+    'DEAD_CODE_STRIPPING' => 'YES',
   }
 end
