@@ -567,6 +567,9 @@ class ShiftHistoryState {
     this.live,
     this.loading = false,
     this.reportLoadingId,
+    this.expanded = const {},
+    this.ordersByShift = const {},
+    this.ordersLoadingId,
     this.toast,
   });
 
@@ -582,6 +585,16 @@ class ShiftHistoryState {
   /// The shift id whose Z-report is being prefetched (row spinner), or null.
   final String? reportLoadingId;
 
+  /// Shift ids whose inline orders panel is expanded.
+  final Set<String> expanded;
+
+  /// Lazily loaded per-shift orders (keyed by shift id); a present-but-empty
+  /// list means "loaded, none".
+  final Map<String, List<OrderSummaryView>> ordersByShift;
+
+  /// The shift id whose orders are being fetched (panel spinner), or null.
+  final String? ordersLoadingId;
+
   /// The latest failure toast, or null.
   final ToastData? toast;
 
@@ -591,6 +604,9 @@ class ShiftHistoryState {
     Object? live = _unset,
     bool? loading,
     Object? reportLoadingId = _unset,
+    Set<String>? expanded,
+    Map<String, List<OrderSummaryView>>? ordersByShift,
+    Object? ordersLoadingId = _unset,
     Object? toast = _unset,
   }) {
     return ShiftHistoryState(
@@ -600,6 +616,11 @@ class ShiftHistoryState {
       reportLoadingId: reportLoadingId == _unset
           ? this.reportLoadingId
           : reportLoadingId as String?,
+      expanded: expanded ?? this.expanded,
+      ordersByShift: ordersByShift ?? this.ordersByShift,
+      ordersLoadingId: ordersLoadingId == _unset
+          ? this.ordersLoadingId
+          : ordersLoadingId as String?,
       toast: toast == _unset ? this.toast : toast as ToastData?,
     );
   }
@@ -664,6 +685,84 @@ class ShiftHistoryNotifier extends Notifier<ShiftHistoryState> {
         ),
       );
       return null;
+    }
+  }
+
+  void _showToast(String key, {required ChipTone tone, required String icon}) {
+    _toastSeq += 1;
+    state = state.copyWith(
+      toast: ToastData(
+        id: _toastSeq,
+        text: _bridge.tr(key: key),
+        tone: tone,
+        icon: icon,
+      ),
+    );
+  }
+
+  /// Expand/collapse a past shift's inline orders panel; the first expand
+  /// lazy-loads that shift's orders (row by row, printable).
+  Future<void> toggleShiftOrders(String shiftId) async {
+    final expanded = {...state.expanded};
+    if (!expanded.add(shiftId)) expanded.remove(shiftId);
+    state = state.copyWith(expanded: expanded);
+    if (!expanded.contains(shiftId) ||
+        state.ordersByShift.containsKey(shiftId)) {
+      return;
+    }
+    state = state.copyWith(ordersLoadingId: shiftId);
+    List<OrderSummaryView> orders;
+    try {
+      orders = await _bridge.listOrdersForShift(shiftId: shiftId);
+    } on Exception catch (_) {
+      orders = const [];
+    }
+    if (_disposed) return;
+    state = state.copyWith(
+      ordersByShift: {...state.ordersByShift, shiftId: orders},
+      ordersLoadingId: null,
+    );
+  }
+
+  /// Print a single order's receipt from an expanded shift row — renders in
+  /// the core and streams to the configured printer, with toast feedback.
+  Future<void> printOrder(OrderSummaryView order) async {
+    final config = _bridge.deviceConfig();
+    final host = config.printerHost?.trim() ?? '';
+    if (host.isEmpty) {
+      _showToast('receipt.no_printer', tone: ChipTone.warning, icon: 'printer');
+      return;
+    }
+    try {
+      final bytes = await _bridge.renderOrderReceipt(
+        orderId: order.id,
+        storeName: config.branchName ?? '',
+        currency: _bridge.currentSession()?.currencyCode ?? '',
+        width: _printWidth,
+        brand: config.printerBrand == 'star'
+            ? PrinterBrand.star
+            : PrinterBrand.epson,
+      );
+      await _bridge.sendToPrinter(
+        host: host,
+        port: config.printerPort ?? _printerPort,
+        bytes: bytes,
+      );
+      if (!_disposed) {
+        _showToast(
+          'receipt.printed',
+          tone: ChipTone.success,
+          icon: 'checkmark.circle',
+        );
+      }
+    } on Exception catch (_) {
+      if (!_disposed) {
+        _showToast(
+          'receipt.print_failed',
+          tone: ChipTone.danger,
+          icon: 'xmark.circle',
+        );
+      }
     }
   }
 

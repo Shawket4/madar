@@ -591,6 +591,11 @@ impl Renderer {
                     .unwrap_or_else(|| "—".to_string());
                 let left = format!("{}  {}", num, time_only(&o.created_at));
                 self.row(&left, &m(o.total_minor), SZ_SMALL, Weight::NORMAL);
+                // Payment method under the row — the on-screen preview shows
+                // it, so the printed report must too (parity).
+                if !o.payment_label.is_empty() {
+                    self.indented(&o.payment_label, SZ_SMALL, 16);
+                }
                 // Voided orders were never collected — flag them under the row.
                 if o.status == "voided" {
                     self.indented(&lab.voided, SZ_SMALL, 16);

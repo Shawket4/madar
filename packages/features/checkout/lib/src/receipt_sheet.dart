@@ -49,21 +49,18 @@ class ReceiptPreviewNotifier extends Notifier<ReceiptPreviewState> {
   ReceiptPreviewState build() {
     _live = true;
     ref.onDispose(() => _live = false);
-    _loadLogo();
-    return const ReceiptPreviewState();
+    // Seed the logo IN the initial state — writing `state` during build()
+    // throws (it briefly rendered the reprint sheet blank), and the local
+    // path is a cheap sync read anyway.
+    return ReceiptPreviewState(
+      orgLogoPath: ref.read(bridgeProvider).orgLogoLocalPath(),
+    );
   }
 
   MadarBridge get _bridge => ref.read(bridgeProvider);
 
   void _update(ReceiptPreviewState Function(ReceiptPreviewState s) transform) {
     if (_live) state = transform(state);
-  }
-
-  void _loadLogo() {
-    // Core-cached local file (downloaded during refresh_catalog's image
-    // phase) — a cheap sync read; the paper renders without a brand mark
-    // until the first successful sync.
-    _update((s) => s.copyWith(orgLogoPath: _bridge.orgLogoLocalPath()));
   }
 
   void _toast(String text, {required ChipTone tone, String? icon}) {

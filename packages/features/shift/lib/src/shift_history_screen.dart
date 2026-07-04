@@ -13,6 +13,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_shift/src/controls.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
@@ -152,6 +153,13 @@ class _HistoryBody extends ConsumerWidget {
     final reportLoadingId = ref.watch(
       shiftHistoryProvider.select((s) => s.reportLoadingId),
     );
+    final expanded = ref.watch(shiftHistoryProvider.select((s) => s.expanded));
+    final ordersByShift = ref.watch(
+      shiftHistoryProvider.select((s) => s.ordersByShift),
+    );
+    final ordersLoadingId = ref.watch(
+      shiftHistoryProvider.select((s) => s.ordersLoadingId),
+    );
     if (loading && shifts.isEmpty && live == null) {
       return const Align(alignment: Alignment.topCenter, child: SkeletonList());
     }
@@ -188,7 +196,20 @@ class _HistoryBody extends ConsumerWidget {
                           loadingReport: reportLoadingId == s.id,
                           bridge: bridge,
                           onTap: () => unawaited(_openReport(context, ref, s)),
+                          ordersExpanded: expanded.contains(s.id),
+                          onToggleOrders: () => unawaited(
+                            ref
+                                .read(shiftHistoryProvider.notifier)
+                                .toggleShiftOrders(s.id),
+                          ),
                         ),
+                        if (expanded.contains(s.id))
+                          _ShiftOrdersPanel(
+                            orders: ordersByShift[s.id],
+                            loading: ordersLoadingId == s.id,
+                            currency: currency,
+                            bridge: bridge,
+                          ),
                         const ShiftHairline(),
                       ],
                     ],
@@ -202,7 +223,20 @@ class _HistoryBody extends ConsumerWidget {
                       loadingReport: reportLoadingId == s.id,
                       bridge: bridge,
                       onTap: () => unawaited(_openReport(context, ref, s)),
+                      ordersExpanded: expanded.contains(s.id),
+                      onToggleOrders: () => unawaited(
+                        ref
+                            .read(shiftHistoryProvider.notifier)
+                            .toggleShiftOrders(s.id),
+                      ),
                     ),
+                    if (expanded.contains(s.id))
+                      _ShiftOrdersPanel(
+                        orders: ordersByShift[s.id],
+                        loading: ordersLoadingId == s.id,
+                        currency: currency,
+                        bridge: bridge,
+                      ),
                   ],
               ],
             ),
@@ -300,6 +334,8 @@ class _WideShiftRow extends StatelessWidget {
     required this.loadingReport,
     required this.bridge,
     required this.onTap,
+    required this.ordersExpanded,
+    required this.onToggleOrders,
   });
 
   final ShiftSummaryView shift;
@@ -308,6 +344,12 @@ class _WideShiftRow extends StatelessWidget {
   final bool loadingReport;
   final MadarBridge bridge;
   final VoidCallback onTap;
+
+  /// The inline orders panel under this row is open.
+  final bool ordersExpanded;
+
+  /// Expand/collapse the inline orders panel.
+  final VoidCallback onToggleOrders;
 
   @override
   Widget build(BuildContext context) {
@@ -398,6 +440,8 @@ class _WideShiftRow extends StatelessWidget {
                   ),
                 ),
               ),
+              // Inline orders expander — row by row, printable.
+              _OrdersToggle(expanded: ordersExpanded, onTap: onToggleOrders),
               SizedBox(
                 width: _chevronColWidth,
                 child: Center(
@@ -421,6 +465,8 @@ class _NarrowShiftCard extends StatelessWidget {
     required this.loadingReport,
     required this.bridge,
     required this.onTap,
+    required this.ordersExpanded,
+    required this.onToggleOrders,
   });
 
   final ShiftSummaryView shift;
@@ -428,6 +474,12 @@ class _NarrowShiftCard extends StatelessWidget {
   final bool loadingReport;
   final MadarBridge bridge;
   final VoidCallback onTap;
+
+  /// The inline orders panel under this card is open.
+  final bool ordersExpanded;
+
+  /// Expand/collapse the inline orders panel.
+  final VoidCallback onToggleOrders;
 
   @override
   Widget build(BuildContext context) {
@@ -468,6 +520,10 @@ class _NarrowShiftCard extends StatelessWidget {
                   StatusChip(
                     label: t(s.isOpen ? 'shifts.open_now' : 'shifts.closed'),
                     tone: s.isOpen ? ChipTone.success : ChipTone.neutral,
+                  ),
+                  _OrdersToggle(
+                    expanded: ordersExpanded,
+                    onTap: onToggleOrders,
                   ),
                   _RowDisclosure(loading: loadingReport),
                 ],
@@ -549,6 +605,189 @@ class _MetricRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The inline orders expander on a shift row — a list glyph that flips to a
+/// collapse chevron while its panel is open. Separate from the row tap
+/// (which opens the Z-report preview).
+class _OrdersToggle extends StatelessWidget {
+  const _OrdersToggle({required this.expanded, required this.onTap});
+
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return GestureDetector(
+      onTap: () {
+        MadarHaptics.selection();
+        onTap();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox.square(
+        dimension: _chevronColWidth,
+        child: Center(
+          child: MadarIcon(
+            expanded ? 'chevron.up' : 'list.bullet',
+            tint: expanded ? colors.accent : colors.textMuted,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A past shift's orders, row by row under its shift row: number · time ·
+/// payment method · total, voided rows struck through, each printable via
+/// the trailing printer glyph. Loaded lazily on first expand.
+class _ShiftOrdersPanel extends ConsumerWidget {
+  const _ShiftOrdersPanel({
+    required this.orders,
+    required this.loading,
+    required this.currency,
+    required this.bridge,
+  });
+
+  /// The loaded orders — null while the first fetch is in flight.
+  final List<OrderSummaryView>? orders;
+  final bool loading;
+  final String currency;
+  final MadarBridge bridge;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final orders = this.orders;
+    if (loading || orders == null) {
+      return const Padding(
+        padding: EdgeInsetsDirectional.all(Space.lg),
+        child: SkeletonList(count: 3),
+      );
+    }
+    if (orders.isEmpty) {
+      return Padding(
+        padding: const EdgeInsetsDirectional.all(Space.lg),
+        child: Text(
+          bridge.tr(key: 'shifts.no_orders'),
+          style: MadarType.bodySm.copyWith(color: colors.textMuted),
+        ),
+      );
+    }
+    return ColoredBox(
+      color: colors.surfaceAlt.withValues(alpha: 0.5),
+      child: Column(
+        children: [
+          for (final order in orders)
+            _ShiftOrderLine(
+              order: order,
+              currency: currency,
+              bridge: bridge,
+              onPrint: () => unawaited(
+                ref.read(shiftHistoryProvider.notifier).printOrder(order),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One order line in the panel. Tapping the row opens the shared receipt
+/// preview (print from there too); the trailing printer glyph one-tap
+/// prints. Voided rows fade with a struck-through total.
+class _ShiftOrderLine extends ConsumerWidget {
+  const _ShiftOrderLine({
+    required this.order,
+    required this.currency,
+    required this.bridge,
+    required this.onPrint,
+  });
+
+  final OrderSummaryView order;
+  final String currency;
+  final MadarBridge bridge;
+  final VoidCallback onPrint;
+
+  Future<void> _openPreview(BuildContext context, WidgetRef ref) async {
+    final ReceiptView receipt;
+    try {
+      receipt = await bridge.orderReceiptView(orderId: order.id);
+    } on MadarError {
+      return; // Best-effort — a missing cached receipt just no-ops.
+    }
+    if (!context.mounted) return;
+    await showMadarSheet<void>(
+      context,
+      size: SheetSize.large,
+      builder: (_) => ReceiptSheet(receipt: receipt),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final voided = order.status == 'voided';
+    final number = order.orderNumber;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => unawaited(_openPreview(context, ref)),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Space.lg,
+          vertical: Space.sm,
+        ),
+        child: Row(
+          spacing: Space.md,
+          children: [
+            SizedBox(
+              width: 52,
+              child: Text(
+                number != null ? '#$number' : '—',
+                style: MadarType.title.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: voided ? colors.textMuted : colors.textPrimary,
+                ),
+              ),
+            ),
+            Text(
+              bridge.formatTime(
+                rfc3339: order.createdAt,
+                style: TimeStyle.time,
+              ),
+              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+            ),
+            Expanded(
+              child: Text(
+                voided ? bridge.tr(key: 'history.voided') : order.paymentLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MadarType.bodySm.copyWith(
+                  color: voided ? colors.danger : colors.textMuted,
+                ),
+              ),
+            ),
+            Text(
+              Money.format(order.totalMinor, currency: currency),
+              textDirection: TextDirection.ltr,
+              style: MadarType.money.copyWith(
+                color: voided ? colors.textMuted : colors.textPrimary,
+                decoration: voided ? TextDecoration.lineThrough : null,
+              ),
+            ),
+            GestureDetector(
+              onTap: onPrint,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsetsDirectional.all(Space.xs),
+                child: MadarIcon('printer', tint: colors.accent),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
