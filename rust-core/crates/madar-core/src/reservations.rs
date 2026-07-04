@@ -13,7 +13,8 @@ use madar_api::models;
 use crate::error::CoreError;
 
 /// A floor area (e.g. Patio, Indoor) with its canvas extent for to-scale render.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct FloorSectionView {
     pub id: String,
     pub name: String,
@@ -35,7 +36,8 @@ impl From<models::FloorSection> for FloorSectionView {
 }
 
 /// A table's geometry + live status, ready to draw on the floor canvas.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct FloorTableView {
     pub id: String,
     pub section_id: Option<String>,
@@ -71,7 +73,8 @@ impl From<models::FloorTable> for FloorTableView {
 }
 
 /// A booking — reservation (`reserved_for` set) or waitlist entry (none).
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct ReservationView {
     pub id: String,
     pub branch_id: String,

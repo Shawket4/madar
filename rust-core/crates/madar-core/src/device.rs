@@ -83,7 +83,8 @@ pub(crate) fn update(store: &Store, f: impl FnOnce(&mut DeviceConfig)) -> CoreRe
 
 /// The FFI view the host reads to render device-setup / Settings (and to know which
 /// screen chrome to show). `configured` is the derived "ready to use" bit.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct DeviceConfigView {
     pub branch_id: Option<String>,
     pub branch_name: Option<String>,

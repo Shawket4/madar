@@ -51,7 +51,8 @@ pub(crate) struct VoidTicketCommand {
 /// The slim "sent to kitchen" confirmation after a fire/round — deliberately NOT
 /// a money-laden receipt (a fired ticket has no payment yet). `queued_offline` is
 /// true when the fire is still in the outbox (no network) — the UI shows "queued".
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct TicketFiredView {
     /// The client ticket id (idempotency key) — stable across the offline→online
     /// transition, so the UI can track the ticket before the server view arrives.
@@ -62,7 +63,8 @@ pub struct TicketFiredView {
 }
 
 /// An open ticket for the waiter list / detail screens.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct TicketView {
     pub id: String,
     pub ticket_ref: Option<String>,
@@ -84,7 +86,8 @@ pub struct TicketView {
 /// One bill line (display projection of the frozen `StoredTicketLine`).
 // PartialEq/Eq + serde so it can be embedded in `DeliveryOrderView` (which derives
 // them) — tickets and delivery share this one line shape so both render identically.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TicketLineView {
     pub name: String,
     pub qty: i32,

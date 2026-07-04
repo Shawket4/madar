@@ -32,7 +32,8 @@ pub struct BumpCommand {
 // ── FFI view DTOs ─────────────────────────────────────────────────────────────
 
 /// A kitchen station (Grill, Bar…) for the KDS station picker + chit printing.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct KdsStationView {
     pub id: String,
     pub name: String,
@@ -45,7 +46,8 @@ pub struct KdsStationView {
 }
 
 /// One outstanding kitchen ticket (a fired waiter round or a teller order).
-#[derive(uniffi::Record, Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KdsTicketView {
     pub id: String,
     pub kitchen_ref: Option<String>,
@@ -60,7 +62,8 @@ pub struct KdsTicketView {
 }
 
 /// One kitchen line (NO prices — the kitchen copy is slim by design).
-#[derive(uniffi::Record, Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KdsLineView {
     pub id: String,
     pub name: String,

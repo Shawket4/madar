@@ -28,7 +28,8 @@ use crate::error::{CoreError, CoreResult};
 /// is the raw JSON `data:` payload — the host (or a thin core projection) matches on
 /// `event_type` and decodes `data` for the topic it cares about. One shape for every
 /// topic keeps the FFI surface tiny.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct RealtimeEvent {
     pub event_type: String,
     pub data: String,
@@ -38,7 +39,7 @@ pub struct RealtimeEvent {
 /// `on_event` as frames arrive and `on_connection_changed` on every connect/drop.
 /// Implementations MUST return promptly (hop to the UI thread and return) — the
 /// call runs on the supervisor task and blocking it stalls the stream.
-#[uniffi::export(callback_interface)]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::export(callback_interface))]
 pub trait EventListener: Send + Sync {
     fn on_event(&self, event: RealtimeEvent);
     fn on_connection_changed(&self, connected: bool);
@@ -49,7 +50,7 @@ pub trait EventListener: Send + Sync {
 /// notification, and fire a haptic. NO decision logic lives here: the CORE decides
 /// WHEN to alert (which events, deduped) and builds the localized title/body — the
 /// host just performs the primitive. Like `EventListener`, calls must return promptly.
-#[uniffi::export(callback_interface)]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::export(callback_interface))]
 pub trait RealtimePlayer: Send + Sync {
     /// Play the short "new work" ping (the host's bundled sound asset).
     fn play_ping(&self);

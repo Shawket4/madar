@@ -83,7 +83,8 @@ pub(crate) struct StoredLine {
 }
 
 /// A host-supplied addon choice (id + how many). The CORE resolves its price.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct AddonSelection {
     pub addon_item_id: String,
     pub qty: i64,
@@ -92,7 +93,8 @@ pub struct AddonSelection {
 /// An addon offered for an item, with its CHARGED price already resolved (swap
 /// delta / full) — so the customization sheet just displays it, no pricing rules
 /// in the UI. Grouped by `addon_type` by the host (per slot / global card).
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ItemAddonView {
     pub addon_item_id: String,
     pub name: String,
@@ -100,7 +102,8 @@ pub struct ItemAddonView {
     pub charged_price_minor: i64,
 }
 
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CartAddonView {
     pub addon_item_id: String,
     pub name: String,
@@ -108,7 +111,8 @@ pub struct CartAddonView {
     pub price_modifier_minor: i64,
 }
 
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CartOptionalView {
     pub optional_field_id: String,
     pub name: String,
@@ -116,7 +120,8 @@ pub struct CartOptionalView {
 }
 
 /// A configured component of a bundle cart line, for the bundle row breakdown.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CartBundleComponentView {
     pub item_id: String,
     pub name: String,
@@ -130,7 +135,8 @@ pub struct CartBundleComponentView {
 /// `bundle_id` is set the line is a bundle: `name` is the bundle name,
 /// `unit_price_minor` the fixed bundle price, and `bundle_components` the
 /// configured items (the row renders their breakdown).
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CartLineView {
     /// Stable line key (the selection signature) — use for set_qty/remove/edit.
     pub key: String,
@@ -148,7 +154,8 @@ pub struct CartLineView {
 }
 
 /// The priced cart summary the host shows in the cart panel + action-bar badge.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CartTotals {
     /// Sum of quantities — the badge count on the cart button.
     pub item_count: i64,
@@ -438,7 +445,8 @@ fn resolve_optionals(item: &menu::MenuItemView, optional_ids: &[String]) -> Vec<
 
 /// A host-supplied configured component of a bundle (which item, its size, and
 /// the chosen addons/optionals). The CORE resolves the charged extra prices.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct BundleComponentSelection {
     pub item_id: String,
     pub size_label: Option<String>,
@@ -521,7 +529,8 @@ pub(crate) fn item_addons(
 // grouped view money-identical to the parity-proven flat path.
 
 /// How a group's selections are submitted at add-to-cart time.
-#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Enum))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModifierGroupKind {
     /// Options are addon items — submit as `AddonSelection { addon_item_id: option.id }`.
     Addon,
@@ -531,7 +540,8 @@ pub enum ModifierGroupKind {
 
 /// One option inside a modifier group, with its CHARGED price already resolved
 /// (swap delta / full / optional price) — display-ready, no pricing in the UI.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModifierOptionView {
     /// Stable id: the addon_item_id (kind Addon) or optional_field_id (kind
     /// Optional) to submit — unchanged by the backend migration.
@@ -544,7 +554,8 @@ pub struct ModifierOptionView {
 /// min/max/required; addon types offered without a slot get a default group
 /// (milk is single-select by convention); the item's priced optionals surface
 /// as one `Optional`-kind group.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModifierGroupView {
     /// The slot id when slot-configured, else `type:<addon_type>` / `options`.
     pub group_id: String,
@@ -560,7 +571,8 @@ pub struct ModifierGroupView {
 }
 
 /// A group whose constraints the current selection breaks (too few / too many).
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GroupViolationView {
     pub group_id: String,
     pub group_name: String,
@@ -901,7 +913,8 @@ struct StoredDraft {
 }
 
 /// A parked cart, summarized for the drafts list.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DraftView {
     pub id: String,
     pub name: String,

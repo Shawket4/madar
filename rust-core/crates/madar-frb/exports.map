@@ -1,0 +1,12 @@
+/* Only the flutter_rust_bridge surface leaves the cdylib. The UniFFI
+   scaffolding (the archived natives' FFI) goes local, so LTO + gc-sections
+   can drop it and everything only it referenced. */
+{
+  global:
+    frb_*;
+    frbgen_*;
+    free_zero_copy_buffer_*;
+    store_dart_post_cobject;
+  local:
+    *;
+};

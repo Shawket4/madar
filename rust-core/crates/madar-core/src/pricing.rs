@@ -21,7 +21,8 @@
 pub type MoneyMinor = i64;
 
 /// Discount basis (mirrors the cart's discount handling).
-#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Enum))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DiscountKind {
     /// No discount.
     None,
@@ -34,14 +35,16 @@ pub enum DiscountKind {
 /// A selected addon on a line (or bundle component). `price_modifier` is the
 /// CHARGED delta already resolved at selection time (swap families clamp to ≥0
 /// upstream); trusted verbatim here.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct AddonSel {
     pub price_modifier: MoneyMinor,
     pub quantity: i64,
 }
 
 /// A selected optional field. `price` is absolute (`0` == free).
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct OptionalSel {
     pub price: MoneyMinor,
 }
@@ -49,7 +52,8 @@ pub struct OptionalSel {
 /// One configured component inside a bundle line. Only its addons + optionals
 /// add money; the component's base/size price is **never** charged (the bundle's
 /// fixed price already covers the components).
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct BundleComponentSel {
     pub addons: Vec<AddonSel>,
     pub optionals: Vec<OptionalSel>,
@@ -59,7 +63,8 @@ pub struct BundleComponentSel {
 /// price and extras come from `addons` + `optionals`. For a bundle line, set
 /// `is_bundle = true`, `unit_price` = the fixed bundle price, and put the
 /// per-component extras in `bundle_components`.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct CartLine {
     pub quantity: i64,
     pub unit_price: MoneyMinor,
@@ -70,7 +75,8 @@ pub struct CartLine {
 }
 
 /// Everything needed to price a cart.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct PriceCartInput {
     pub lines: Vec<CartLine>,
     pub discount_kind: DiscountKind,
@@ -88,7 +94,8 @@ pub struct PriceCartInput {
 
 /// The computed breakdown — integer minor-units. This is exactly what the host
 /// renders and what the order payload carries.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PricedBreakdown {
     pub subtotal_minor: MoneyMinor,
     pub discount_minor: MoneyMinor,
@@ -133,7 +140,7 @@ fn line_total(line: &CartLine) -> MoneyMinor {
 ///
 /// FFI entry: hosts call this for live cart totals and to fill the order payload
 /// they submit. Send the full breakdown on every order.
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
     let subtotal: MoneyMinor = input.lines.iter().map(line_total).sum();
 

@@ -22,7 +22,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
 [dependencies]
 # Proc-macro UniFFI (no .udl). "cli" gates uniffi_bindgen_main for the bin below;
 # "tokio" lets us export `async fn`s with `async_runtime = "tokio"`.
-uniffi = { version = "0.32", features = ["cli", "tokio"] }
+uniffi = { version = "0.32", features = ["cli", "tokio"], optional = true }
 
 # The typed reqwest API client generated from the backend OpenAPI spec
 # (tool/generate_api.sh). The `net/` layer drives it; nothing here hand-rolls wire.
@@ -93,11 +93,19 @@ thiserror = "2"
 cosmic-text = { version = "0.19", default-features = false, features = ["std", "swash"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 
+# UniFFI is the ARCHIVED natives' FFI — off by default so the Flutter
+# artifacts carry zero scaffolding (575 dead exports + their code, gone).
+# The archived kotlin/swift apps would build with `--features uniffi-ffi`.
+[features]
+default = []
+uniffi-ffi = ["dep:uniffi"]
+
 # The standalone uniffi-bindgen used to emit Swift/Kotlin bindings in library
 # mode (`uniffi-bindgen generate --library <dylib> --language swift`).
 [[bin]]
 name = "uniffi-bindgen"
 path = "src/bin/uniffi-bindgen.rs"
+required-features = ["uniffi-ffi"]
 
 # Integration tests (tests/) drive the async FFI surface against a live dev
 # backend; they need their own tokio runtime + the macro for `#[tokio::test]`.

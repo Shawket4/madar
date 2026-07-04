@@ -7,7 +7,8 @@
 //! `icon` key set to their native glyph (SF Symbol / emoji).
 
 /// A resolved category style: an icon key + four hex colours (`#RRGGBB`).
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CatStyleView {
     /// Icon family key — the host maps it to a platform glyph. One of:
     /// coffee, mocha, bakery, lunch, icecream, drink, tea, water, ice, matcha, cafe.

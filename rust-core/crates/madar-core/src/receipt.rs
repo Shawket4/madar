@@ -30,7 +30,8 @@ pub enum Size {
 /// Which thermal-printer command dialect to emit. Epson (ESC/POS) and Star
 /// (Star Line Mode) are NOT byte-compatible — different alignment, character
 /// size, cut and drawer-kick commands. The host picks this in Settings.
-#[derive(uniffi::Enum, Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Enum))]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PrinterBrand {
     Epson,
     Star,

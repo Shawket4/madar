@@ -38,7 +38,8 @@ pub(crate) const K_SESSION_BLOB: &str = "session:blob";
 
 /// PIN (tellers) xor email+password (managers/admins). Enforced in Rust, not the
 /// all-`Option` wire.
-#[derive(uniffi::Enum, Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Enum))]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum LoginMode {
     Pin,
     Email,
@@ -47,7 +48,8 @@ pub enum LoginMode {
 /// A login attempt. Field requirements depend on `mode` (validated in
 /// `wire_login_request`): PIN needs `name`+`pin`+`branch_id`; Email needs
 /// `email`+`password` (`org_id` optional).
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct LoginRequest {
     pub mode: LoginMode,
     /// Teller display name (PIN mode).
@@ -63,7 +65,8 @@ pub struct LoginRequest {
 }
 
 /// A selectable branch (device-setup picker).
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct BranchView {
     pub id: String,
     pub name: String,
@@ -75,7 +78,8 @@ pub struct BranchView {
 }
 
 /// The cached session the host renders chrome from. Money/tax are pre-resolved.
-#[derive(uniffi::Record, Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SessionSnapshot {
     pub user_id: String,
     pub display_name: String,

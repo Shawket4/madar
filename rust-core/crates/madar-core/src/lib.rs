@@ -13,6 +13,7 @@
 //!   Phase 4: sync engine + backend offline-first support.
 //!   Phase 5: printing (ESC/POS) in Rust.
 
+#[cfg(feature = "uniffi-ffi")]
 uniffi::setup_scaffolding!();
 
 mod config;
@@ -89,7 +90,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use error::CoreError;
 
 /// Crate version (semver of the core library).
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 pub fn core_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
@@ -98,7 +99,7 @@ pub fn core_version() -> String {
 /// on every breaking change to the exported API so all three apps can assert at
 /// startup that they were built against a compatible core (see PLAN.md §"FFI
 /// surface versioning").
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 pub fn ffi_surface_version() -> u32 {
     // 1: realtime SSE (`subscribe_realtime`/`unsubscribe_realtime` + `EventListener`)
     //    + `AppRoute` payload variants (KitchenDisplay/WaiterTickets).
@@ -115,7 +116,7 @@ pub fn ffi_surface_version() -> u32 {
 }
 
 /// Smoke-test call used to prove the binding pipeline end-to-end from each host.
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 pub fn greet(name: String) -> String {
     format!("Madar core v{} says hello, {name}", core_version())
 }
@@ -123,7 +124,8 @@ pub fn greet(name: String) -> String {
 /// The screen the host should show, decided by the core (PLAN §R11). The host
 /// consults this only at deliberate transitions (cold start, post-login,
 /// post-open/close-shift, sign-out) — never as a side effect of connectivity.
-#[derive(uniffi::Enum, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Enum))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AppRoute {
     /// Till not bound to a branch → manager device-setup.
     DeviceSetup,
@@ -141,7 +143,8 @@ pub enum AppRoute {
 
 /// A till (physical drawer) the device can bind to — the device-setup / Settings
 /// till picker. Cash continuity + the one-open-shift rule key on the till.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct TillView {
     pub id: String,
     pub name: String,
@@ -154,7 +157,7 @@ pub struct TillView {
 /// Phase 1 exposes config + version only. Later phases hang the API client,
 /// local store, sync engine and printer off this object — the host keeps
 /// holding the same handle.
-#[derive(uniffi::Object)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Object))]
 pub struct MadarCore {
     config: MadarConfig,
     /// The ONE embedded store (single writer behind its internal Mutex). `Arc` so the
@@ -221,7 +224,8 @@ pub struct MadarCore {
 }
 
 /// One diagnostic log line.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct DiagLogView {
     pub at: String,
     pub level: String,
@@ -235,12 +239,12 @@ struct DiagEntry {
     message: String,
 }
 
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
     /// Construct with explicit config (the host fills `db_path` with an
     /// app-private file). Opens + migrates the local store and builds the HTTP
     /// client; the session starts empty (host calls `restore_session` at boot).
-    #[uniffi::constructor]
+    #[cfg_attr(feature = "uniffi-ffi", uniffi::constructor)]
     pub fn new(config: MadarConfig) -> Result<Arc<Self>, error::CoreError> {
         let store = Arc::new(store::Store::open(&config.db_path)?);
         // Restore the last-known server skew so even a cold OFFLINE boot (no ping
@@ -277,7 +281,7 @@ impl MadarCore {
 
     /// Construct from the baked-in `.env` defaults (in-memory store until the
     /// host supplies a `db_path`).
-    #[uniffi::constructor]
+    #[cfg_attr(feature = "uniffi-ffi", uniffi::constructor)]
     pub fn from_env() -> Result<Arc<Self>, error::CoreError> {
         Self::new(MadarConfig::from_env())
     }
@@ -647,7 +651,7 @@ impl MadarCore {
 
     /// Set the live `online` flag. A CONFIRMED connectivity (`true`) also resets the
     /// unconfirmed-failure streak, so the next lone probe failure starts fresh.
-    /// (Kept in this NON-`#[uniffi::export]` impl so it stays an internal helper and
+    /// (Kept in this NON-`#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]` impl so it stays an internal helper and
     /// doesn't leak into the FFI surface the hosts see.)
     fn set_online(&self, online: bool) {
         if let Some(sess) = self
@@ -1424,7 +1428,7 @@ fn cash_i32(v: i64, field: &str) -> Result<i32, CoreError> {
 /// the projected views as JSON so the NEXT read returns the last-synced snapshot
 /// when offline (or when the live fetch fails) — the history screens (orders,
 /// shifts, cash, delivery) stay populated offline instead of collapsing to only
-/// the locally-queued rows. Free functions, not methods, because `#[uniffi::export]`
+/// the locally-queued rows. Free functions, not methods, because `#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]`
 /// can't carry a generic across the FFI. Best-effort: a write failure skips the cache.
 fn cache_views<T: serde::Serialize>(store: &store::Store, key: &str, views: &[T]) {
     if let Ok(json) = serde_json::to_string(views) {
@@ -1578,7 +1582,7 @@ fn token_is_expired(token: &str, now_secs: i64) -> bool {
 }
 
 // ── shift + routing (sync reads) ─────────────────────────────────────────────
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
     /// The device's current shift (open or closed), served from the local store.
     pub fn current_shift(&self) -> Result<Option<shift::ShiftView>, CoreError> {
@@ -1715,7 +1719,7 @@ impl MadarCore {
 }
 
 // ── realtime bus (one SSE per device) ─────────────────────────────────────────
-#[uniffi::export(async_runtime = "tokio")]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
 impl MadarCore {
     /// Open (or REPLACE) the device's ONE realtime subscription for `branch_id`,
     /// asking only for `topics` the device's role/mode needs (e.g. `["delivery"]`
@@ -2016,7 +2020,7 @@ impl MadarCore {
 }
 
 // ── LAN relay control (Phase E) ───────────────────────────────────────────────
-#[uniffi::export(async_runtime = "tokio")]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
 impl MadarCore {
     /// Start the LAN relay for the signed-in branch (idempotent). Needs a session +
     /// the cached bundle's LAN secret; binds the embedded server, begins discovery
@@ -2068,7 +2072,7 @@ impl MadarCore {
     }
 }
 
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
     /// Stop + tear down the LAN relay (idempotent). Call on logout / branch switch.
     pub fn lan_stop(&self) {
@@ -2121,7 +2125,7 @@ impl MadarCore {
 }
 
 // ── localization (sync) ──────────────────────────────────────────────────────
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
     /// Localized UI string for `key` in the device locale (en/ar; falls back to
     /// en, then the key). The single source of truth for both hosts.
@@ -2145,7 +2149,7 @@ impl MadarCore {
 }
 
 // ── receipt rendering (sync; pure byte assembly) ─────────────────────────────
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
     /// Render a placed order's receipt to printer bytes ready to stream to a
     /// thermal printer. The receipt is rasterized to a 1-bit bitmap (logo +
@@ -2278,7 +2282,7 @@ impl MadarCore {
 }
 
 // ── catalog reads (sync; serve the local mirror, always succeed offline) ─────
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
     /// Themed style (icon key + gradient palette) for a category/item name —
     /// the host maps `icon` to a glyph and paints the gradient. Pure; mirrors
@@ -2340,7 +2344,7 @@ impl MadarCore {
 }
 
 // ── cart (sync; client-only order state, offline-safe, kv-persisted) ──────────
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
     /// The current cart lines (empty when none).
     pub fn cart_lines(&self) -> Result<Vec<cart::CartLineView>, CoreError> {
@@ -2583,7 +2587,8 @@ impl MadarCore {
 }
 
 /// A queued/failed outbox command, projected for the sync center.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct OutboxItemView {
     pub id: String,
     /// `open_shift` | `close_shift` | `create_order` | …
@@ -2598,7 +2603,8 @@ pub struct OutboxItemView {
 /// One-shot sync health for the action-bar chip + offline banner. `pending` is
 /// the in-flight/queued set, `failed` the stuck (dead) set, `online` the
 /// session's connectivity. The host maps these to the chip label/tone.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SyncStatusView {
     pub pending: u32,
     pub failed: u32,
@@ -2614,7 +2620,7 @@ pub struct SyncStatusView {
 }
 
 // ── sync center (outbox visibility + retry/discard) ──────────────────────────
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
     /// Queued + failed commands for the sync center (acked rows hidden), oldest
     /// first. Always succeeds offline.
@@ -2732,7 +2738,7 @@ impl MadarCore {
     }
 }
 
-#[uniffi::export(async_runtime = "tokio")]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
 impl MadarCore {
     /// Online login (PIN or email). Mints a bearer, mirrors permissions, caches
     /// the org's offline-auth bundle for later offline unlock, and persists the
@@ -4445,7 +4451,7 @@ impl MadarCore {
 }
 
 // ── waiter open tickets (fire-now-pay-later via the outbox) ───────────────────
-#[uniffi::export(async_runtime = "tokio")]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
 impl MadarCore {
     /// FIRE the current cart as a new dine-in open ticket (round 1). Prices the
     /// cart client-authoritatively (same engine as checkout), enqueues the durable
@@ -4799,7 +4805,7 @@ impl MadarCore {
 }
 
 // ── Kitchen Display System (station feed + bump) ─────────────────────────────
-#[uniffi::export(async_runtime = "tokio")]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
 impl MadarCore {
     /// The branch's kitchen stations (the KDS device-setup / chit-routing picker).
     /// Write-through cached so the picker survives offline.
@@ -4906,7 +4912,7 @@ impl MadarCore {
     }
 }
 
-#[uniffi::export(async_runtime = "tokio")]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
 impl MadarCore {
     /// The branch's delivery queue (newest first). `status` is a comma-separated
     /// wire filter (e.g. "received,confirmed"); `None` = all. Online-only.
@@ -6656,7 +6662,7 @@ mod lifecycle_tests {
 // View types + conversions live in `reservations.rs`; these exported methods are
 // here so they can reach MadarCore's private `api` + session via `self`. These
 // are LIVE host actions (not offline outbox ops) — direct calls to the backend.
-#[uniffi::export(async_runtime = "tokio")]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
 impl MadarCore {
     /// Floor sections for the signed-in branch (dashboard-authored geometry).
     pub async fn list_floor_sections(

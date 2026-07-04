@@ -20,7 +20,7 @@ publish = false
 # Smaller, faster native libs for the mobile/desktop artifacts.
 lto = true
 codegen-units = 1
-strip = "debuginfo"
+strip = "symbols"
 
 # Profiling: fully release-optimized (inherits LTO + codegen-units=1) but keeps
 # symbols so Xcode Instruments / Flutter DevTools attribute native time to real

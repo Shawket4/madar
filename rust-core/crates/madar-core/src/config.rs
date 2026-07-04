@@ -5,7 +5,8 @@
 //! pass only runtime knobs (where to put the SQLite file).
 
 /// Runtime configuration handed to [`crate::MadarCore`].
-#[derive(Debug, Clone, uniffi::Record)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Debug, Clone)]
 pub struct MadarConfig {
     /// API base URL, e.g. `https://api.madar-pos.cloud`.
     pub base_url: String,
@@ -38,7 +39,7 @@ impl MadarConfig {
 /// Hand the host the baked-in `.env` defaults as a `MadarConfig` Record it can
 /// tweak (e.g. fill `db_path`) before passing to [`crate::MadarCore::new`].
 /// (Records can't carry exported methods, so this is a free function.)
-#[uniffi::export]
+#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 pub fn default_config() -> MadarConfig {
     MadarConfig::from_env()
 }

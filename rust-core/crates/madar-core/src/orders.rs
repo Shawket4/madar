@@ -35,7 +35,8 @@ pub(crate) fn pending_void_ids(store: &Store) -> CoreResult<HashSet<String>> {
 }
 
 /// A page of all-orders search results (history lookup across shifts).
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OrderSearchPage {
     pub orders: Vec<OrderSummaryView>,
     /// 1-based page just returned.
@@ -47,7 +48,8 @@ pub struct OrderSearchPage {
 }
 
 /// One order row for the history list (+ a totals detail).
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OrderSummaryView {
     /// Server id, or the client order uuid while queued.
     pub id: String,
@@ -77,7 +79,8 @@ pub struct OrderSummaryView {
 
 /// One line of a fetched order (item + its chosen modifiers) — the expanded
 /// history detail.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct OrderDetailLineView {
     pub name: String,
     pub qty: i64,
@@ -90,7 +93,8 @@ pub struct OrderDetailLineView {
 }
 
 /// A fetched order with its lines — drives the history detail + reprint.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct OrderDetailView {
     pub id: String,
     pub order_number: Option<i32>,
@@ -330,7 +334,8 @@ fn compose_address(d: &models::OrderDeliveryInfo, locale: &str) -> Option<String
 /// Live shift totals for the action-bar stats pill: sales total + order count,
 /// voided orders excluded (a voided sale is no revenue and not a fulfilled
 /// order). Mirrors the Flutter pill, which sums `orderHistoryProvider` the same way.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShiftStatsView {
     pub sales_minor: i64,
     pub order_count: i64,

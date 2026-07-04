@@ -14,7 +14,8 @@ use madar_api::models;
 
 /// One delivery order, projected for the queue list + detail. Money is minor
 /// units; `channel`/`status` are wire strings the host localizes.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DeliveryOrderView {
     pub id: String,
     pub order_ref: Option<String>,
@@ -43,7 +44,8 @@ pub struct DeliveryOrderView {
 }
 
 /// The branch's delivery configuration + the POS-owned accepting overrides.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeliverySettingsView {
     pub in_mall_enabled: bool,
     /// "auto" | "open" | "closed".
@@ -55,7 +57,8 @@ pub struct DeliverySettingsView {
 }
 
 /// Result of finalizing a delivery order into a real sale.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeliveryFinalizeView {
     pub order_id: String,
     pub order_ref: Option<String>,

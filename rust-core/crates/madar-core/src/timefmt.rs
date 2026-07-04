@@ -11,7 +11,8 @@ use crate::checkout::KEY_BRANCH_TZ;
 use crate::store::Store;
 
 /// Display styles, mirroring Flutter's `formatting.dart` helpers + the receipt stamp.
-#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Enum))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimeStyle {
     /// `hh:mm a` — a clock time (Flutter `timeShort`). Order/cash rows.
     Time,

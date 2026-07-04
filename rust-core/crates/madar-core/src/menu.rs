@@ -28,7 +28,8 @@ pub(crate) const K_DISCOUNTS: &str = "catalog:discounts"; // Vec<Discount>
 
 // ── view DTOs (host-facing) ─────────────────────────────────────────────────
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct MenuItemView {
     pub id: String,
     pub name: String,
@@ -54,7 +55,8 @@ pub struct MenuItemView {
     pub recipes: Vec<RecipeLineView>,
 }
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct ItemSizeView {
     pub id: String,
     pub label: String,
@@ -63,7 +65,8 @@ pub struct ItemSizeView {
     pub is_active: bool,
 }
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct AddonSlotView {
     pub id: String,
     pub label: Option<String>,
@@ -74,7 +77,8 @@ pub struct AddonSlotView {
     pub max_selections: Option<i32>,
 }
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct OptionalFieldView {
     pub id: String,
     pub name: String,
@@ -89,7 +93,8 @@ pub struct OptionalFieldView {
     pub org_ingredient_id: Option<String>,
 }
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct RecipeLineView {
     pub ingredient_name: String,
     /// Quantity used (major units of the ingredient's unit, e.g. 18.0 g).
@@ -108,7 +113,8 @@ pub struct RecipeLineView {
 /// One ingredient embedded in an addon item (`/addon-items` wire). Drives the
 /// recipe preview: a milk/coffee addon's first ingredient replaces the base
 /// line; other addons add their ingredients (scaled by qty).
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct AddonIngredientView {
     pub ingredient_name: String,
     pub unit: String,
@@ -116,7 +122,8 @@ pub struct AddonIngredientView {
     pub org_ingredient_id: Option<String>,
 }
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct CategoryView {
     pub id: String,
     pub name: String,
@@ -124,7 +131,8 @@ pub struct CategoryView {
     pub is_active: bool,
 }
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct AddonItemView {
     pub id: String,
     pub name: String,
@@ -136,7 +144,8 @@ pub struct AddonItemView {
     pub ingredients: Vec<AddonIngredientView>,
 }
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct BundleView {
     pub id: String,
     pub name: String,
@@ -160,14 +169,16 @@ pub struct BundleView {
 /// One item that makes up a bundle (hydrated from the bundle list). The
 /// component's base price is never charged separately — the bundle price covers
 /// it; only its addon/optional up-charges add money.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct BundleComponentView {
     pub item_id: String,
     pub item_name: String,
     pub quantity: i64,
 }
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct PaymentMethodView {
     pub id: String,
     pub name: String,
@@ -176,7 +187,8 @@ pub struct PaymentMethodView {
     pub color: String,
 }
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct DiscountView {
     pub id: String,
     pub name: String,

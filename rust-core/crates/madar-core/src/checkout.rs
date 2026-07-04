@@ -31,7 +31,8 @@ pub struct CheckoutCommand {
 /// A priced modifier on a receipt line (an addon or a chosen optional). The
 /// layout prints `+ name` and, when `price_minor > 0`, the charge. Mirrors the
 /// Flutter receipt's addon/optional rows.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReceiptModifierView {
     pub name: String,
     pub price_minor: i64,
@@ -39,7 +40,8 @@ pub struct ReceiptModifierView {
 
 /// One component of a bundle line on the receipt, with its own modifiers —
 /// printed indented under the bundle header (Flutter `bundleComponents`).
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReceiptComponentView {
     pub name: String,
     pub size_label: Option<String>,
@@ -50,7 +52,8 @@ pub struct ReceiptComponentView {
 /// One line on the receipt the host shows after placing an order. Carries the
 /// full modifier/bundle breakdown so the printed receipt matches Flutter's
 /// `printer_service.dart` item block exactly.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReceiptLineView {
     pub name: String,
     pub qty: i64,
@@ -65,7 +68,8 @@ pub struct ReceiptLineView {
 }
 
 /// The order confirmation / receipt summary.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReceiptView {
     /// Client-generated order id (the outbox idempotency key). The server id
     /// lands later via sync; this identifies the order locally meanwhile.
@@ -114,14 +118,16 @@ pub struct ReceiptView {
 }
 
 /// One leg of a split payment (a method + the amount paid on it).
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct CheckoutSplit {
     pub payment_method_id: String,
     pub amount_minor: i64,
 }
 
 /// Everything the tender screen collects for a checkout.
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct CheckoutInput {
     /// The (primary) payment method id.
     pub payment_method_id: String,

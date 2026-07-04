@@ -18,7 +18,8 @@ use crate::cart::AddonSelection;
 use crate::menu::{AddonItemView, MenuItemView, RecipeLineView};
 
 /// One effective ingredient line, tagged by origin so the sheet can chip it.
-#[derive(uniffi::Record, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ComputedRecipeLineView {
     pub ingredient_name: String,
     pub unit: String,

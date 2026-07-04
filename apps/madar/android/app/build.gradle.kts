@@ -36,6 +36,9 @@ android {
     defaultConfig {
         // Same id the native apps ship under; release replaces them in place.
         applicationId = "com.madar.pos"
+        // The app localizes en + ar only — drop every other locale's
+        // resources from plugins/AndroidX (a quiet multi-hundred-KB saving).
+        resourceConfigurations += listOf("en", "ar")
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -75,6 +78,15 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // R8: shrink + optimize the Java/Kotlin side and drop unused
+            // resources (plugin locale files, unused drawables). Flutter's
+            // default proguard rules ride along via the gradle plugin.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

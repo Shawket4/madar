@@ -17,7 +17,8 @@ pub(crate) const CURRENT_SHIFT_KEY: &str = "current_shift";
 /// prefill it either way.
 pub(crate) const SUGGESTED_OPEN_CASH_KEY: &str = "shift:suggested_open_cash";
 
-#[derive(uniffi::Record, Clone, Debug)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
 pub struct ShiftView {
     pub id: String,
     pub branch_id: String,
@@ -54,7 +55,8 @@ pub(crate) struct CashMovementCommand {
 
 /// A cash-drawer movement (pay-in / pay-out). `amount_minor` is signed:
 /// positive = cash in, negative = cash out.
-#[derive(uniffi::Record, Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CashMovementView {
     pub id: String,
     pub amount_minor: i64,
@@ -96,7 +98,8 @@ pub fn merge_cash_for_view(
 }
 
 /// A past shift, projected for the history list.
-#[derive(uniffi::Record, Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ShiftSummaryView {
     pub id: String,
     pub branch_name: Option<String>,
@@ -232,7 +235,8 @@ pub(crate) fn local_shifts(store: &Store) -> Vec<ShiftSummaryView> {
 }
 
 /// One payment-method line in the shift report.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShiftReportPaymentLine {
     pub method: String,
     pub is_cash: bool,
@@ -243,7 +247,8 @@ pub struct ShiftReportPaymentLine {
 /// The shift report shown on close (drives the system-cash + discrepancy) and in
 /// a report preview. `expected_cash_minor` is the server's expected drawer cash
 /// PLUS still-queued cash sales (offline: opening cash + queued cash).
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShiftReportView {
     /// Teller who ran the shift, and the open/close/print timestamps (RFC3339) —
     /// the host stamps them to the branch timezone for display.
@@ -282,7 +287,8 @@ pub struct ShiftReportView {
 
 /// One itemised cash-drawer movement on the report. `amount_minor` is signed
 /// (positive = pay-in, negative = pay-out).
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShiftReportCashLine {
     pub amount_minor: i64,
     pub note: String,
