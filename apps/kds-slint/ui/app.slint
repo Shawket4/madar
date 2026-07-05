@@ -1,0 +1,327 @@
+// Madar KDS root — screen routing mirrors the Flutter shell's app_route()
+// switch: Boot (splash) → Setup / Login / StationPick → Board. All state
+// flows in through globals; all intent flows out through callbacks the Rust
+// side wires to madar-core.
+import "../assets/fonts/Cairo-Regular.ttf";
+import "../assets/fonts/Cairo-Medium.ttf";
+import "../assets/fonts/Cairo-SemiBold.ttf";
+import "../assets/fonts/Cairo-Bold.ttf";
+import "../assets/fonts/Cairo-ExtraBold.ttf";
+
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Spinner, Banner, Tone, CTA, Press, Icon, SurfaceCard, SectionHeader, Chip } from "components.slint";
+import { Auth, LoginScreen, SetupScreen, StationScreen, BranchData, StationData } from "auth.slint";
+import { Kds, KdsBoard, KdsTicketData, KdsLineData } from "kds.slint";
+
+export { T, Auth, Kds, BranchData, StationData, KdsTicketData, KdsLineData }
+
+export enum Screen { boot, setup, login, station, board, unsupported }
+
+export component AppWindow inherits Window {
+    title: "Madar KDS";
+    background: T.bg;
+    default-font-family: "Cairo";
+    preferred-width: 1024px;
+    preferred-height: 768px;
+
+    in property <Screen> screen: Screen.boot;
+    in property <string> tr-unsupported-role;
+    in property <string> tr-sign-out;
+    // settings overlay strings (core tr keys)
+    in property <string> tr-settings-title;
+    in property <string> tr-appearance;
+    in property <string> tr-theme-light;
+    in property <string> tr-theme-dark;
+    in property <string> tr-language;
+    in property <string> tr-change-station;
+    in-out property <bool> settings-open: false;
+
+    // auth intents
+    callback submit-login(string /* name */);
+    callback push-digit(string);
+    callback pop-digit();
+    callback begin-reconfigure();
+    callback authenticate(string, string);
+    callback pick-branch(string, string);
+    callback cancel-setup();
+    callback pick-station(string);
+    callback sign-out();
+    // board intents
+    callback toggle-line(string, bool);
+    // settings intents
+    callback set-locale(string);
+    callback change-station();
+    // periodic age re-render + disconnected safety poll (Rust decides which).
+    callback tick();
+
+    Timer {
+        interval: 30s;
+        running: root.screen == Screen.board;
+        triggered => { root.tick(); }
+    }
+
+    if root.screen == Screen.boot: Rectangle {
+        background: T.bg;
+        VerticalLayout {
+            alignment: center;
+            spacing: Sp.xl;
+            HorizontalLayout {
+                alignment: center;
+                Image {
+                    width: 96px; height: 96px;
+                    source: T.dark ? @image-url("../assets/symbol_reversed.png") : @image-url("../assets/symbol_primary.png");
+                }
+            }
+            HorizontalLayout {
+                alignment: center;
+                Spinner { }
+            }
+        }
+    }
+
+    if root.screen == Screen.setup: SetupScreen {
+        width: parent.width; height: parent.height;
+        authenticate(e, p) => { root.authenticate(e, p); }
+        pick-branch(id, name) => { root.pick-branch(id, name); }
+        cancel => { root.cancel-setup(); }
+    }
+
+    if root.screen == Screen.login: LoginScreen {
+        width: parent.width; height: parent.height;
+        submit(name) => { root.submit-login(name); }
+        digit(d) => { root.push-digit(d); }
+        backspace => { root.pop-digit(); }
+        reconfigure => { root.begin-reconfigure(); }
+    }
+
+    if root.screen == Screen.station: StationScreen {
+        width: parent.width; height: parent.height;
+        pick-station(id) => { root.pick-station(id); }
+        sign-out => { root.sign-out(); }
+    }
+
+    if root.screen == Screen.board: KdsBoard {
+        width: parent.width; height: parent.height;
+        toggle-line(id, bumped) => { root.toggle-line(id, bumped); }
+        open-settings => { root.settings-open = true; }
+    }
+
+    // ── Settings overlay — the KDS-relevant slice of the Flutter
+    // SettingsScreen (appearance, language, station, sign out) as a
+    // scrimmed modal card. ──────────────────────────────────────────────
+    if root.settings-open: Rectangle {
+        width: parent.width; height: parent.height;
+        TouchArea { clicked => { root.settings-open = false; } }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            background: #00000073; // Opacities.scrim on black
+        }
+        panel := SurfaceCard {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: Math.min(420px, parent.width - 64px);
+            height: panel-col.preferred-height;
+            TouchArea { } // swallow scrim taps under the card
+            panel-col := VerticalLayout {
+                padding: Sp.xl;
+                spacing: Sp.lg;
+                HorizontalLayout {
+                    Text {
+                        text: root.tr-settings-title;
+                        color: T.text-primary;
+                        font-size: 22px; font-weight: 700;
+                        horizontal-stretch: 1;
+                    }
+                    Press {
+                        width: 32px;
+                        clicked => { root.settings-open = false; }
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: @image-url("../assets/icons/circle.svg");
+                            tint: transparent;
+                        }
+                        Text {
+                            x: (parent.width - self.preferred-width) / 2;
+                            y: (parent.height - self.preferred-height) / 2;
+                            text: "✕";
+                            color: T.text-secondary;
+                            font-size: 16px; font-weight: 600;
+                        }
+                    }
+                }
+                // Appearance — light / dark segmented pair.
+                SectionHeader { text: root.tr-appearance; }
+                HorizontalLayout {
+                    spacing: Sp.sm;
+                    seg-light := Press {
+                        horizontal-stretch: 1;
+                        clicked => { T.dark = false; }
+                        Rectangle {
+                            height: 44px;
+                            border-radius: Rd.sm;
+                            background: !T.dark ? T.accent-bg : T.surface-alt;
+                            border-width: !T.dark ? 2px : 1px;
+                            border-color: !T.dark ? T.accent : T.border-light;
+                            Text {
+                                x: (parent.width - self.preferred-width) / 2;
+                                y: (parent.height - self.preferred-height) / 2;
+                                text: root.tr-theme-light;
+                                color: !T.dark ? T.accent : T.text-secondary;
+                                font-size: 14px; font-weight: 600;
+                            }
+                        }
+                    }
+                    seg-dark := Press {
+                        horizontal-stretch: 1;
+                        clicked => { T.dark = true; }
+                        Rectangle {
+                            height: 44px;
+                            border-radius: Rd.sm;
+                            background: T.dark ? T.accent-bg : T.surface-alt;
+                            border-width: T.dark ? 2px : 1px;
+                            border-color: T.dark ? T.accent : T.border-light;
+                            Text {
+                                x: (parent.width - self.preferred-width) / 2;
+                                y: (parent.height - self.preferred-height) / 2;
+                                text: root.tr-theme-dark;
+                                color: T.dark ? T.accent : T.text-secondary;
+                                font-size: 14px; font-weight: 600;
+                            }
+                        }
+                    }
+                }
+                // Language — English / Arabic segmented pair.
+                SectionHeader { text: root.tr-language; }
+                HorizontalLayout {
+                    spacing: Sp.sm;
+                    Press {
+                        horizontal-stretch: 1;
+                        clicked => { root.set-locale("en"); }
+                        Rectangle {
+                            height: 44px;
+                            border-radius: Rd.sm;
+                            background: !T.rtl ? T.accent-bg : T.surface-alt;
+                            border-width: !T.rtl ? 2px : 1px;
+                            border-color: !T.rtl ? T.accent : T.border-light;
+                            Text {
+                                x: (parent.width - self.preferred-width) / 2;
+                                y: (parent.height - self.preferred-height) / 2;
+                                text: "English";
+                                color: !T.rtl ? T.accent : T.text-secondary;
+                                font-size: 14px; font-weight: 600;
+                            }
+                        }
+                    }
+                    Press {
+                        horizontal-stretch: 1;
+                        clicked => { root.set-locale("ar"); }
+                        Rectangle {
+                            height: 44px;
+                            border-radius: Rd.sm;
+                            background: T.rtl ? T.accent-bg : T.surface-alt;
+                            border-width: T.rtl ? 2px : 1px;
+                            border-color: T.rtl ? T.accent : T.border-light;
+                            Text {
+                                x: (parent.width - self.preferred-width) / 2;
+                                y: (parent.height - self.preferred-height) / 2;
+                                text: "العربية";
+                                color: T.rtl ? T.accent : T.text-secondary;
+                                font-size: 14px; font-weight: 600;
+                            }
+                        }
+                    }
+                }
+                // Station — current binding, tap to re-commission.
+                SectionHeader { text: root.tr-change-station; }
+                Press {
+                    clicked => {
+                        root.settings-open = false;
+                        root.change-station();
+                    }
+                    Rectangle {
+                        height: 52px;
+                        border-radius: Rd.sm;
+                        background: T.surface-alt;
+                        border-width: 1px;
+                        border-color: T.border-light;
+                        HorizontalLayout {
+                            padding-left: Sp.lg; padding-right: Sp.lg;
+                            spacing: Sp.md;
+                            Icon {
+                                y: (parent.height - self.height) / 2;
+                                source: @image-url("../assets/icons/utensils-crossed.svg");
+                                tint: T.accent;
+                            }
+                            Text {
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                text: Kds.station-name;
+                                color: T.text-primary;
+                                font-size: 15px; font-weight: 600;
+                            }
+                            Icon {
+                                y: (parent.height - self.height) / 2;
+                                width: Ic.xs;
+                                source: @image-url("../assets/icons/chevron-right.svg");
+                                tint: T.text-muted;
+                                transform-rotation: T.rtl ? 180deg : 0deg;
+                            }
+                        }
+                    }
+                }
+                // Sign out — the recessive danger exit.
+                Press {
+                    clicked => {
+                        root.settings-open = false;
+                        root.sign-out();
+                    }
+                    Rectangle {
+                        height: 52px;
+                        border-radius: Rd.sm;
+                        background: T.danger-bg;
+                        border-width: 1px;
+                        border-color: T.danger.with-alpha(0.25);
+                        HorizontalLayout {
+                            padding-left: Sp.lg; padding-right: Sp.lg;
+                            spacing: Sp.md;
+                            Icon {
+                                y: (parent.height - self.height) / 2;
+                                source: @image-url("../assets/icons/log-out.svg");
+                                tint: T.danger;
+                            }
+                            Text {
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                text: root.tr-sign-out;
+                                color: T.danger;
+                                font-size: 15px; font-weight: 600;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // A non-kitchen teller signed in on a KDS terminal — surface it plainly
+    // with the one exit instead of dead-ending on a wrong board.
+    if root.screen == Screen.unsupported: VerticalLayout {
+        alignment: center;
+        spacing: Sp.lg;
+        padding: Sp.xxl;
+        Banner {
+            text: root.tr-unsupported-role;
+            tone: Tone.warning;
+        }
+        HorizontalLayout {
+            alignment: center;
+            CTA {
+                width: 240px;
+                label: root.tr-sign-out;
+                primary: false;
+                clicked => { root.sign-out(); }
+            }
+        }
+    }
+}

@@ -1,0 +1,40 @@
+# Madar KDS — the standalone Slint kitchen display. Links madar-core as a
+# plain Rust dependency (no FFI): the first Slint surface of the migration.
+#
+# Renderer: Skia (not the default FemtoVG) — Skia shapes text through
+# HarfBuzz, which is what makes Arabic ligatures/contextual forms render
+# correctly. Do not switch renderers without re-verifying Arabic.
+[package]
+name = "madar-kds"
+version = "0.1.0"
+edition = "2021"
+license = "UNLICENSED"
+publish = false
+
+[dependencies]
+madar-core = { path = "../../rust-core/crates/madar-core" }
+slint = { version = "1", default-features = false, features = [
+    "std",
+    "compat-1-2",
+    "backend-winit",
+    "renderer-skia",
+    "accessibility",
+] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+chrono = "0.4"
+dirs = "6"
+
+[build-dependencies]
+slint-build = "1"
+
+# Standalone crate — not a member of the rust-core workspace.
+[workspace]
+
+# Production profile: fat LTO + single codegen unit lets the linker see the
+# whole program (dead-strips unused Skia/core paths), symbols stripped.
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = 3
+panic = "abort"

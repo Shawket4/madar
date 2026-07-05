@@ -163,66 +163,98 @@ class _FloorPlanScreenState extends ConsumerState<FloorPlanScreen>
               top: false,
               child: Stack(
                 children: [
-                  ListView(
-                    padding: const EdgeInsetsDirectional.all(Space.lg),
-                    children: [
-                      if (floor.error case final error?) ...[
-                        NoticeBanner(
-                          text: error,
-                          tone: ChipTone.danger,
-                          icon: 'exclamationmark.circle',
-                          onTap: notifier.clearError,
+                  // Slivers: the canvas + chrome stay one box; the
+                  // reservation rows build lazily (peak service can queue
+                  // dozens to hundreds of bookings).
+                  CustomScrollView(
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsetsDirectional.only(
+                          start: Space.lg,
+                          end: Space.lg,
+                          top: Space.lg,
                         ),
-                        const SizedBox(height: Space.md),
-                      ],
-                      if (floor.sections.length > 1) ...[
-                        _SectionPicker(
-                          sections: floor.sections,
-                          activeId: section?.id,
-                          onPick: notifier.pickSection,
-                        ),
-                        const SizedBox(height: Space.md),
-                      ],
-                      _FloorCanvas(
-                        canvasW: (section?.canvasW ?? 0) > 0
-                            ? section!.canvasW.toDouble()
-                            : _fallbackCanvasW,
-                        canvasH: (section?.canvasH ?? 0) > 0
-                            ? section!.canvasH.toDouble()
-                            : _fallbackCanvasH,
-                        tables: tables,
-                        onTap: (table) => unawaited(_onTapTable(table)),
-                        onLongPress: (table) =>
-                            unawaited(_openStatusPicker(table)),
-                      ),
-                      const SizedBox(height: Space.md),
-                      Text(
-                        tr('reservations.title'),
-                        style: MadarType.h3.copyWith(
-                          fontSize: _resTitleSize,
-                          fontWeight: FontWeight.w700,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: Space.md),
-                      if (floor.reservations.isEmpty)
-                        Text(
-                          tr('reservations.noBookings'),
-                          style: MadarType.bodySm.copyWith(
-                            color: colors.textMuted,
+                        sliver: SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (floor.error case final error?) ...[
+                                NoticeBanner(
+                                  text: error,
+                                  tone: ChipTone.danger,
+                                  icon: 'exclamationmark.circle',
+                                  onTap: notifier.clearError,
+                                ),
+                                const SizedBox(height: Space.md),
+                              ],
+                              if (floor.sections.length > 1) ...[
+                                _SectionPicker(
+                                  sections: floor.sections,
+                                  activeId: section?.id,
+                                  onPick: notifier.pickSection,
+                                ),
+                                const SizedBox(height: Space.md),
+                              ],
+                              _FloorCanvas(
+                                canvasW: (section?.canvasW ?? 0) > 0
+                                    ? section!.canvasW.toDouble()
+                                    : _fallbackCanvasW,
+                                canvasH: (section?.canvasH ?? 0) > 0
+                                    ? section!.canvasH.toDouble()
+                                    : _fallbackCanvasH,
+                                tables: tables,
+                                onTap: (table) => unawaited(_onTapTable(table)),
+                                onLongPress: (table) =>
+                                    unawaited(_openStatusPicker(table)),
+                              ),
+                              const SizedBox(height: Space.md),
+                              Text(
+                                tr('reservations.title'),
+                                style: MadarType.h3.copyWith(
+                                  fontSize: _resTitleSize,
+                                  fontWeight: FontWeight.w700,
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: Space.md),
+                              if (floor.reservations.isEmpty)
+                                Text(
+                                  tr('reservations.noBookings'),
+                                  style: MadarType.bodySm.copyWith(
+                                    color: colors.textMuted,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                      for (final booking in floor.reservations) ...[
-                        _ReservationRow(
-                          booking: booking,
-                          seatLabel: tr('reservations.seat'),
-                          onSeat: () => unawaited(_openSeat(booking)),
-                          onNotify: () => unawaited(
-                            notifier.notifyReservation(booking.id),
-                          ),
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsetsDirectional.only(
+                          start: Space.lg,
+                          end: Space.lg,
+                          bottom: Space.lg,
                         ),
-                        const SizedBox(height: Space.md),
-                      ],
+                        sliver: SliverList.builder(
+                          itemCount: floor.reservations.length,
+                          itemBuilder: (context, index) {
+                            final booking = floor.reservations[index];
+                            return Padding(
+                              key: ValueKey(booking.id),
+                              padding: const EdgeInsetsDirectional.only(
+                                bottom: Space.md,
+                              ),
+                              child: _ReservationRow(
+                                booking: booking,
+                                seatLabel: tr('reservations.seat'),
+                                onSeat: () => unawaited(_openSeat(booking)),
+                                onNotify: () => unawaited(
+                                  notifier.notifyReservation(booking.id),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ],
                   ),
                   // Toasts float above everything on this screen.

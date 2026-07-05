@@ -402,6 +402,12 @@ class _OrderTopBar extends ConsumerWidget {
             ),
             child: Row(
               children: [
+                // Phone: no side rail — a leading toggle opens the shell's
+                // nav drawer (the natives' OrderTopBar options box).
+                if (!wide) ...[
+                  const _NavDrawerButton(),
+                  const SizedBox(width: Space.sm),
+                ],
                 // Status — teller + live shift totals (wide) + sync state;
                 // the shell owns the rest of the nav chrome.
                 if (!isWaiter && wide && shift != null) ...[
@@ -560,6 +566,42 @@ class _SyncChip extends ConsumerWidget {
 
 /// Manual "sync server data" — re-pulls the catalog. Spins + disables while
 /// running.
+/// Phone-only leading toggle for the shell's nav drawer — the natives'
+/// OrderTopBar options box: 36pt rounded-rect, surfaceAlt fill, hairline
+/// border, hamburger glyph. The shell listens on
+/// [navDrawerRequestProvider] and presents the drawer.
+class _NavDrawerButton extends ConsumerWidget {
+  const _NavDrawerButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    return Semantics(
+      button: true,
+      label: bridge.tr(key: 'chrome.more'),
+      child: TactileScale(
+        onTap: () => ref.read(navDrawerRequestProvider.notifier).request(),
+        child: Container(
+          width: kSquareControl,
+          height: kSquareControl,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(Radii.sm),
+            border: Border.all(color: colors.borderLight),
+          ),
+          child: MadarIcon(
+            'line.3.horizontal',
+            tint: colors.textPrimary,
+            size: IconSize.lg,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SyncDataButton extends ConsumerWidget {
   const _SyncDataButton();
 

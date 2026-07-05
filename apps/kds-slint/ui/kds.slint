@@ -1,0 +1,382 @@
+// Kitchen Display board — pixel/behavior port of the Flutter
+// kitchen_display_screen.dart (itself a port of KitchenDisplayScreen.kt):
+// station header (34px accent tile, 8px live dot, count chip, gear),
+// reconnecting banner, success-tinted all-clear state, the adaptive
+// ≥260px-cell grid with top-aligned rows, age-escalating ticket cards
+// (fresh accent → amber @5m → red @10m, green + heavy border when ready),
+// bumpable line rows with the 700ms SweepCheck acknowledgment.
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Press, Icon, Chip, Tone, Banner } from "components.slint";
+
+export struct KdsLineData {
+    id: string,
+    title: string,        // "2× Burger · L" (qty × name · size)
+    modifiers: string,    // pre-joined ", "
+    notes: string,
+    station: string,      // uppercase routing hint ("" hides)
+    bumped: bool,
+}
+
+export struct KdsTicketData {
+    id: string,
+    title: string,        // tableLabel ?? kitchenRef ?? "#round"
+    age-minutes: int,
+    ready: bool,
+    open-ticket: bool,    // waiter source → person glyph
+    lines: [KdsLineData],
+}
+
+export global Kds {
+    in property <string> station-name;
+    in property <bool> connected: true;
+    in property <[KdsTicketData]> tickets;
+    in property <string> tr-reconnecting;
+    in property <string> tr-all-clear;
+}
+
+// ── Age escalation (thresholds 5m / 10m — the natives' exact cutoffs). ─────
+global Age {
+    public pure function fg(minutes: int, ready: bool) -> color {
+        if (ready) { return T.success; }
+        if (minutes >= 10) { return T.danger; }
+        if (minutes >= 5) { return T.warning; }
+        return T.accent;
+    }
+    public pure function bg(minutes: int, ready: bool) -> color {
+        if (ready) { return T.success-bg; }
+        if (minutes >= 10) { return T.danger-bg; }
+        if (minutes >= 5) { return T.warning-bg; }
+        return T.accent-bg;
+    }
+}
+
+// ── One bumpable line row + the SweepCheck acknowledgment: a translucent
+// accent band sweeps across (honoring text direction), the row dips 3px to
+// "receive" it, and a success check pops at the trailing edge (~700ms). ─────
+component LineRow {
+    in property <KdsLineData> line;
+    callback toggle;
+
+    // First-line box of the 15px title (Cairo leading) — the check toggle,
+    // the station label, and the strike hairline all center against it.
+    property <length> first-line: 28px;
+
+    // Sweep drivers: plain bindings + per-property animates. Slint `states`
+    // with in/out transition animations silently break the subtree (the CTA
+    // lesson) — do not reintroduce them here.
+    property <bool> sweeping: false;
+    property <float> band-t: sweeping ? 1 : 0;
+    property <float> dip-t: sweeping ? 1 : 0;
+    property <float> check-s: sweeping ? 1 : 0;
+    animate band-t { duration: 448ms; easing: cubic-bezier(0.4, 0, 0.2, 1); }
+    animate dip-t { duration: 700ms; easing: linear; }
+    animate check-s { delay: 280ms; duration: 320ms; easing: ease-out-back; }
+
+    height: content.preferred-height + 16px; // 8px vertical insets
+
+    sweep-timer := Timer {
+        interval: 700ms;
+        running: root.sweeping;
+        triggered => { root.sweeping = false; }
+    }
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-scale: 0.97;
+        clicked => {
+            if (!root.line.bumped) { root.sweeping = true; }
+            root.toggle();
+        }
+
+        row := Rectangle {
+            width: parent.width; height: parent.height;
+            // The dip: 3px sine bump over the 36–79% window of the sweep.
+            y: 3px * Math.sin(Math.min(Math.max((root.dip-t - 0.36) / 0.43, 0), 1) * 180deg);
+            clip: true;
+
+            content := HorizontalLayout {
+                y: 8px;
+                width: parent.width;
+                spacing: Sp.sm;
+                // Check toggle — centered on the title's first line.
+                VerticalLayout {
+                    alignment: start;
+                    Rectangle {
+                        width: 22px; height: root.first-line;
+                        Icon {
+                            x: 0; y: (parent.height - self.height) / 2;
+                            width: 22px;
+                            source: root.line.bumped
+                                ? @image-url("../assets/icons/circle-check-big.svg")
+                                : @image-url("../assets/icons/circle.svg");
+                            tint: root.line.bumped ? T.success : T.text-muted;
+                        }
+                    }
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 2px;
+                    title-wrap := Rectangle {
+                        height: title-txt.preferred-height;
+                        title-txt := Text {
+                            x: T.rtl ? parent.width - self.preferred-width : 0;
+                            text: root.line.title;
+                            color: root.line.bumped ? T.text-muted : T.text-primary;
+                            font-size: 15px; font-weight: 600;
+                            wrap: word-wrap;
+                            width: parent.width;
+                        }
+                        // Slint Text has no strikethrough — a hairline in the
+                        // text color across the first line stands in.
+                        if root.line.bumped: Rectangle {
+                            x: T.rtl ? title-txt.width - self.width : 0;
+                            y: root.first-line / 2;
+                            width: Math.min(title-txt.preferred-width, title-txt.width);
+                            height: 1.5px;
+                            background: T.text-muted;
+                        }
+                    }
+                    if root.line.modifiers != "": Text {
+                        text: root.line.modifiers;
+                        color: T.text-secondary;
+                        font-size: 12px; font-weight: 500;
+                        wrap: word-wrap;
+                    }
+                    if root.line.notes != "": Text {
+                        text: root.line.notes;
+                        color: T.warning;
+                        font-size: 12px; font-weight: 600;
+                        wrap: word-wrap;
+                    }
+                }
+                // Station routing hint — centered on the same first line.
+                if root.line.station != "": VerticalLayout {
+                    alignment: start;
+                    Rectangle {
+                        height: root.first-line;
+                        width: station-txt.preferred-width;
+                        station-txt := Text {
+                            y: (parent.height - self.preferred-height) / 2;
+                            text: root.line.station;
+                            color: T.text-muted;
+                            font-size: 10px; font-weight: 700;
+                        }
+                    }
+                }
+            }
+
+            // Sweep band — accent @ .14, traverses leading → trailing.
+            if root.sweeping: Rectangle {
+                width: parent.width;
+                height: parent.height;
+                x: T.rtl
+                    ? parent.width * 1.1 - (parent.width * 2.2 * root.band-t)
+                    : -parent.width * 1.1 + (parent.width * 2.2 * root.band-t);
+                background: T.accent.with-alpha(0.14);
+            }
+            // The pop check at the trailing edge.
+            if root.sweeping: Icon {
+                x: T.rtl ? 14px : parent.width - self.width - 14px;
+                y: (parent.height - self.height) / 2;
+                source: @image-url("../assets/icons/circle-check-big.svg");
+                tint: T.success;
+                transform-scale-x: root.check-s;
+                transform-scale-y: root.check-s;
+            }
+        }
+    }
+}
+
+// ── Ticket card — raised, clipped, age-tinted FIXED 54px header strip so
+// every card's first item starts at the same y. ─────────────────────────────
+component TicketCard inherits Rectangle {
+    in property <KdsTicketData> ticket;
+    callback toggle-line(string /* line id */, bool /* bumped */);
+
+    property <color> age-fg: Age.fg(ticket.age-minutes, ticket.ready);
+    property <color> age-bg: Age.bg(ticket.age-minutes, ticket.ready);
+
+    background: T.surface;
+    border-radius: Rd.md;
+    border-width: ticket.ready ? 2px : 1px;
+    border-color: ticket.ready ? T.success.with-alpha(0.6) : T.border-light;
+    drop-shadow-color: T.shadow-card-color;
+    drop-shadow-blur: T.shadow-card-blur;
+    drop-shadow-offset-y: T.shadow-card-dy;
+    clip: true;
+    preferred-height: card.preferred-height;
+
+    card := VerticalLayout {
+        width: parent.width;
+        // Age strip.
+        Rectangle {
+            height: 54px;
+            background: root.age-bg;
+            HorizontalLayout {
+                padding-left: Sp.md; padding-right: Sp.md;
+                spacing: Sp.sm;
+                Text {
+                    vertical-alignment: center;
+                    text: root.ticket.title;
+                    color: T.text-primary;
+                    font-size: 19px; font-weight: 800;
+                    overflow: elide;
+                }
+                if root.ticket.open-ticket: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: @image-url("../assets/icons/user.svg");
+                    tint: root.age-fg;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Text {
+                    vertical-alignment: center;
+                    text: root.ticket.age-minutes + "m";
+                    color: root.age-fg;
+                    font-size: 18px; font-weight: 800;
+                }
+            }
+        }
+        // Lines.
+        VerticalLayout {
+            padding-left: Sp.md; padding-right: Sp.md;
+            padding-top: Sp.xs; padding-bottom: Sp.xs;
+            for line in root.ticket.lines: LineRow {
+                line: line;
+                toggle => { root.toggle-line(line.id, line.bumped); }
+            }
+        }
+    }
+}
+
+// ── The board: header + banner + all-clear / adaptive grid. ─────────────────
+export component KdsBoard {
+    callback toggle-line(string, bool);
+    callback open-settings;
+
+    VerticalLayout {
+        // Header — surface edge-to-edge, hairline below.
+        Rectangle {
+            background: T.surface;
+            height: 34px + 28px + 1px; // tile + 14px vertical insets + divider
+            VerticalLayout {
+                HorizontalLayout {
+                    padding-left: Sp.lg; padding-right: Sp.lg;
+                    padding-top: 14px; padding-bottom: 14px;
+                    spacing: Sp.sm;
+                    Rectangle {
+                        width: 34px; height: 34px;
+                        border-radius: Rd.sm;
+                        background: T.accent-bg;
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: @image-url("../assets/icons/utensils-crossed.svg");
+                            tint: T.accent;
+                        }
+                    }
+                    Text {
+                        vertical-alignment: center;
+                        text: Kds.station-name;
+                        color: T.text-primary;
+                        font-size: 20px; font-weight: 800;
+                        overflow: elide;
+                    }
+                    Rectangle {
+                        y: (parent.height - 8px) / 2;
+                        width: 8px; height: 8px; border-radius: 4px;
+                        background: Kds.connected ? T.success : T.text-muted;
+                        animate background { duration: 220ms; easing: ease-out; }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    if Kds.tickets.length > 0: Chip {
+                        y: (parent.height - self.height) / 2;
+                        label: Kds.tickets.length;
+                        tone: Tone.accent;
+                    }
+                    Press {
+                        width: 28px;
+                        clicked => { root.open-settings(); }
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: @image-url("../assets/icons/settings.svg");
+                            tint: T.text-secondary;
+                        }
+                    }
+                }
+                Rectangle { height: 1px; background: T.border; }
+            }
+        }
+
+        // Reconnecting strip — realtime is down, the safety poll is driving.
+        if !Kds.connected: VerticalLayout {
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            padding-top: Sp.sm; padding-bottom: Sp.sm;
+            Banner {
+                text: Kds.tr-reconnecting;
+                tone: Tone.warning;
+                has-icon: true;
+                icon: @image-url("../assets/icons/wifi-off.svg");
+            }
+        }
+
+        // All clear — success-tinted: "no tickets" is GOOD news here.
+        if Kds.tickets.length == 0: Rectangle {
+            vertical-stretch: 1;
+            VerticalLayout {
+                alignment: center;
+                spacing: Sp.md;
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 72px; height: 72px;
+                        border-radius: Rd.lg;
+                        background: T.success-bg;
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            width: 36px;
+                            source: @image-url("../assets/icons/circle-check.svg");
+                            tint: T.success;
+                        }
+                    }
+                }
+                Text {
+                    horizontal-alignment: center;
+                    text: Kds.tr-all-clear;
+                    color: T.text-secondary;
+                    font-size: 16px; font-weight: 600;
+                }
+            }
+        }
+
+        // Adaptive grid — as many equal columns as fit at ≥260px, Space.md
+        // gaps, top-aligned rows (each row as tall as its tallest card).
+        if Kds.tickets.length > 0: board := Flickable {
+            vertical-stretch: 1;
+            property <int> cols: Math.max(1, Math.floor((self.width - 2 * Sp.lg + Sp.md) / (260px + Sp.md)));
+            property <int> row-count: Math.ceil(Kds.tickets.length / self.cols);
+            viewport-height: grid.preferred-height;
+
+            grid := VerticalLayout {
+                padding: Sp.lg;
+                spacing: Sp.md;
+                for r in board.row-count: HorizontalLayout {
+                    spacing: Sp.md;
+                    // Top-aligned cells: each row is as tall as its tallest
+                    // card; shorter cards hug their content (Compose's line
+                    // behavior in the Flutter port).
+                    for c in board.cols: cell := VerticalLayout {
+                        alignment: start;
+                        horizontal-stretch: 1;
+                        property <int> idx: r * board.cols + c;
+                        if cell.idx < Kds.tickets.length: TicketCard {
+                            ticket: Kds.tickets[cell.idx];
+                            toggle-line(id, bumped) => { root.toggle-line(id, bumped); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

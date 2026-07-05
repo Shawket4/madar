@@ -108,19 +108,119 @@ List<ShiftSummaryView> _rowsWithLocalOpen(
 }
 
 /// The page body — skeleton / empty / responsive table or cards, driven by
-/// its own narrow slices of [shiftHistoryProvider].
+/// its own narrow slices of [shiftHistoryProvider]. Watches only the row
+/// LIST here; per-row state (report spinner, orders expansion) is watched
+/// row-locally in [_ShiftRowGroup] so toggling one row never rebuilds the
+/// rest of the table.
 class _HistoryBody extends ConsumerWidget {
   const _HistoryBody();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
+    final shifts = ref.watch(shiftHistoryProvider.select((s) => s.shifts));
+    final live = ref.watch(shiftHistoryProvider.select((s) => s.live));
+    final loading = ref.watch(shiftHistoryProvider.select((s) => s.loading));
+    if (loading && shifts.isEmpty && live == null) {
+      return const Align(alignment: Alignment.topCenter, child: SkeletonList());
+    }
+    final rows = _rowsWithLocalOpen(shifts, live);
+    if (rows.isEmpty) {
+      return EmptyState(
+        icon: 'clock.arrow.circlepath',
+        title: t('shifts.empty'),
+      );
+    }
+    final currency = bridge.currentSession()?.currencyCode ?? '';
+    // Width-driven, matching the natives' `wide = maxWidth >= 680`.
+    return ResponsiveBuilder(
+      builder: (context, info) {
+        final wide = info.isWideTable;
+        return Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
+            // Wide: header + rows live in one card; narrow keeps per-row
+            // cards, built lazily.
+            child: wide
+                ? ListView(
+                    padding: const EdgeInsetsDirectional.all(Space.lg),
+                    children: [
+                      ShiftFlushCard(
+                        children: [
+                          _ColumnHeader(tr: t),
+                          for (final (index, s) in rows.indexed)
+                            _ShiftRowGroup(
+                              key: ValueKey(s.id),
+                              shift: s,
+                              odd: index.isOdd,
+                              currency: currency,
+                              bridge: bridge,
+                              wide: true,
+                            ),
+                        ],
+                      ),
+                    ],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsetsDirectional.all(Space.lg),
+                    itemCount: rows.length,
+                    itemBuilder: (context, index) {
+                      final s = rows[index];
+                      return Padding(
+                        padding: EdgeInsetsDirectional.only(
+                          top: index > 0 ? Space.sm : 0,
+                        ),
+                        child: _ShiftRowGroup(
+                          key: ValueKey(s.id),
+                          shift: s,
+                          odd: index.isOdd,
+                          currency: currency,
+                          bridge: bridge,
+                          wide: false,
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// One shift's row + (optionally) its inline orders panel — the rebuild
+/// isolation unit. Watches only ITS shift's slices of
+/// [shiftHistoryProvider], so a spinner or expansion on one row leaves
+/// every other row untouched. The orders slices are watched only while
+/// expanded, so collapsed rows also ignore orders churn entirely.
+class _ShiftRowGroup extends ConsumerWidget {
+  const _ShiftRowGroup({
+    required this.shift,
+    required this.odd,
+    required this.currency,
+    required this.bridge,
+    required this.wide,
+    super.key,
+  });
+
+  final ShiftSummaryView shift;
+
+  /// Zebra fill (wide table only).
+  final bool odd;
+  final String currency;
+  final MadarBridge bridge;
+
+  /// Table row (with trailing hairline) vs narrow card.
+  final bool wide;
 
   /// Open a shift's Z-report in the shared preview sheet — the live shift
   /// loads the current report in-sheet; a past shift is fetched via
   /// `shiftReportFor` first (spinner in the row's chevron slot, danger
   /// toast on failure — the natives' `openShiftReportPreviewFor`).
-  Future<void> _openReport(
-    BuildContext context,
-    WidgetRef ref,
-    ShiftSummaryView s,
-  ) async {
+  Future<void> _openReport(BuildContext context, WidgetRef ref) async {
+    final s = shift;
     final state = ref.read(shiftHistoryProvider);
     if (state.reportLoadingId != null) return;
     MadarHaptics.selection();
@@ -145,104 +245,56 @@ class _HistoryBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
-    String t(String key) => bridge.tr(key: key);
-    final shifts = ref.watch(shiftHistoryProvider.select((s) => s.shifts));
-    final live = ref.watch(shiftHistoryProvider.select((s) => s.live));
-    final loading = ref.watch(shiftHistoryProvider.select((s) => s.loading));
-    final reportLoadingId = ref.watch(
-      shiftHistoryProvider.select((s) => s.reportLoadingId),
+    final s = shift;
+    final loadingReport = ref.watch(
+      shiftHistoryProvider.select((st) => st.reportLoadingId == s.id),
     );
-    final expanded = ref.watch(shiftHistoryProvider.select((s) => s.expanded));
-    final ordersByShift = ref.watch(
-      shiftHistoryProvider.select((s) => s.ordersByShift),
+    final expanded = ref.watch(
+      shiftHistoryProvider.select((st) => st.expanded.contains(s.id)),
     );
-    final ordersLoadingId = ref.watch(
-      shiftHistoryProvider.select((s) => s.ordersLoadingId),
+    void toggleOrders() => unawaited(
+      ref.read(shiftHistoryProvider.notifier).toggleShiftOrders(s.id),
     );
-    if (loading && shifts.isEmpty && live == null) {
-      return const Align(alignment: Alignment.topCenter, child: SkeletonList());
-    }
-    final rows = _rowsWithLocalOpen(shifts, live);
-    if (rows.isEmpty) {
-      return EmptyState(
-        icon: 'clock.arrow.circlepath',
-        title: t('shifts.empty'),
-      );
-    }
-    final currency = bridge.currentSession()?.currencyCode ?? '';
-    // Width-driven, matching the natives' `wide = maxWidth >= 680`.
-    return ResponsiveBuilder(
-      builder: (context, info) {
-        final wide = info.isWideTable;
-        return Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
-            child: ListView(
-              padding: const EdgeInsetsDirectional.all(Space.lg),
-              children: [
-                // Wide: header + rows live in one card; narrow keeps
-                // per-row cards.
-                if (wide)
-                  ShiftFlushCard(
-                    children: [
-                      _ColumnHeader(tr: t),
-                      for (final (index, s) in rows.indexed) ...[
-                        _WideShiftRow(
-                          shift: s,
-                          currency: currency,
-                          odd: index.isOdd,
-                          loadingReport: reportLoadingId == s.id,
-                          bridge: bridge,
-                          onTap: () => unawaited(_openReport(context, ref, s)),
-                          ordersExpanded: expanded.contains(s.id),
-                          onToggleOrders: () => unawaited(
-                            ref
-                                .read(shiftHistoryProvider.notifier)
-                                .toggleShiftOrders(s.id),
-                          ),
-                        ),
-                        if (expanded.contains(s.id))
-                          _ShiftOrdersPanel(
-                            orders: ordersByShift[s.id],
-                            loading: ordersLoadingId == s.id,
-                            currency: currency,
-                            bridge: bridge,
-                          ),
-                        const ShiftHairline(),
-                      ],
-                    ],
-                  )
-                else
-                  for (final (index, s) in rows.indexed) ...[
-                    if (index > 0) const SizedBox(height: Space.sm),
-                    _NarrowShiftCard(
-                      shift: s,
-                      currency: currency,
-                      loadingReport: reportLoadingId == s.id,
-                      bridge: bridge,
-                      onTap: () => unawaited(_openReport(context, ref, s)),
-                      ordersExpanded: expanded.contains(s.id),
-                      onToggleOrders: () => unawaited(
-                        ref
-                            .read(shiftHistoryProvider.notifier)
-                            .toggleShiftOrders(s.id),
-                      ),
-                    ),
-                    if (expanded.contains(s.id))
-                      _ShiftOrdersPanel(
-                        orders: ordersByShift[s.id],
-                        loading: ordersLoadingId == s.id,
-                        currency: currency,
-                        bridge: bridge,
-                      ),
-                  ],
-              ],
+    final panel = expanded
+        ? _ShiftOrdersPanel(
+            orders: ref.watch(
+              shiftHistoryProvider.select((st) => st.ordersByShift[s.id]),
             ),
+            loading: ref.watch(
+              shiftHistoryProvider.select((st) => st.ordersLoadingId == s.id),
+            ),
+            currency: currency,
+            bridge: bridge,
+          )
+        : null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (wide)
+          _WideShiftRow(
+            shift: s,
+            currency: currency,
+            odd: odd,
+            loadingReport: loadingReport,
+            bridge: bridge,
+            onTap: () => unawaited(_openReport(context, ref)),
+            ordersExpanded: expanded,
+            onToggleOrders: toggleOrders,
+          )
+        else
+          _NarrowShiftCard(
+            shift: s,
+            currency: currency,
+            loadingReport: loadingReport,
+            bridge: bridge,
+            onTap: () => unawaited(_openReport(context, ref)),
+            ordersExpanded: expanded,
+            onToggleOrders: toggleOrders,
           ),
-        );
-      },
+        ?panel,
+        if (wide) const ShiftHairline(),
+      ],
     );
   }
 }

@@ -53,10 +53,7 @@ class BrandPanel extends StatelessWidget {
           const PositionedDirectional(
             start: _watermarkOffset,
             top: _watermarkOffset,
-            child: Opacity(
-              opacity: _watermarkAlpha,
-              child: MadarSymbol(size: _watermarkSize),
-            ),
+            child: MadarSymbol(size: _watermarkSize, opacity: _watermarkAlpha),
           ),
           Padding(
             padding: const EdgeInsetsDirectional.all(_panelPad),

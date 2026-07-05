@@ -53,10 +53,14 @@ class MadarLockup extends StatelessWidget {
 /// the ambient [Theme] brightness is dark.
 class MadarSymbol extends StatelessWidget {
   /// Creates the standalone Madar symbol at [size] logical pixels.
-  const MadarSymbol({super.key, this.size = 48});
+  const MadarSymbol({super.key, this.size = 48, this.opacity = 1});
 
   /// Rendered width and height in logical pixels.
   final double size;
+
+  /// Paint-level alpha (0–1) — applied in the image paint itself, so faded
+  /// watermarks don't need an [Opacity] wrapper (which forces a saveLayer).
+  final double opacity;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +71,7 @@ class MadarSymbol extends StatelessWidget {
       width: size,
       height: size,
       fit: BoxFit.contain,
+      opacity: opacity == 1 ? null : AlwaysStoppedAnimation(opacity),
       semanticLabel: _semanticLabel,
     );
   }

@@ -1,0 +1,73 @@
+// Design tokens — verbatim from the Flutter design_system (colors.dart /
+// dimens.dart / typography.dart / motion.dart / elevation.dart), which are
+// themselves the natives' Theme.kt / Tokens.swift values. One global; every
+// color role derives from `dark` so theme flips are one property write.
+export global T {
+    in-out property <bool> dark: false;
+    in-out property <bool> rtl: false;
+
+    // ── color roles (MadarColors.light / .dark) ─────────────────────────
+    out property <color> bg: dark ? #14181E : #EFF3F4;
+    out property <color> surface: dark ? #1B2128 : #FFFFFF;
+    out property <color> surface-alt: dark ? #222A32 : #E7EEEF;
+    out property <color> surface-raised: dark ? #262F38 : #FFFFFF;
+    out property <color> border: dark ? #313B45 : #D7E0E1;
+    out property <color> border-light: dark ? #232C35 : #E7EEEF;
+    out property <color> text-primary: dark ? #EFF3F4 : #14181E;
+    out property <color> text-secondary: dark ? #AEB9C0 : #54636B;
+    out property <color> text-muted: #76828B;
+    out property <color> text-on-accent: #FFFFFF;
+    out property <color> accent: dark ? #2E94A6 : #0D6273;
+    out property <color> accent-bg: dark ? #123038 : #DCE9EB;
+    out property <color> navy: dark ? #5FB6C7 : #0D6273;
+    out property <color> navy-bg: dark ? #15333B : #DCE9EB;
+    out property <color> success: dark ? #3BCE7E : #16A34A;
+    out property <color> success-bg: dark ? #13291D : #E7F6EC;
+    out property <color> danger: dark ? #F4655A : #DC2626;
+    out property <color> danger-bg: dark ? #33191B : #FBEAEA;
+    out property <color> warning: dark ? #F0A23F : #B45309;
+    out property <color> warning-bg: dark ? #332512 : #F7ECDD;
+
+    // ── elevation (MadarElevation.card / .raised / .glow) ───────────────
+    // card: ink@0.07 blur 10 dy 4 (light) / black@0.45 blur 14 dy 4 (dark)
+    out property <color> shadow-card-color: dark ? #00000073 : #14181E12;
+    out property <length> shadow-card-blur: dark ? 14px : 10px;
+    out property <length> shadow-card-dy: 4px;
+    // raised: ink@0.13 blur 22 dy 10 / black@0.55 blur 30 dy 10
+    out property <color> shadow-raised-color: dark ? #0000008C : #14181E21;
+    out property <length> shadow-raised-blur: dark ? 30px : 22px;
+    out property <length> shadow-raised-dy: 10px;
+    // glow: accent@0.38 blur 18 / accent@0.55 blur 18
+    out property <color> shadow-glow-color: dark ? #2E94A68C : #0D627361;
+    out property <length> shadow-glow-blur: 18px;
+}
+
+// 4-pt spacing scale (Space).
+export global Sp {
+    out property <length> xs: 4px;
+    out property <length> sm: 8px;
+    out property <length> md: 12px;
+    out property <length> lg: 16px;
+    out property <length> xl: 24px;
+    out property <length> xxl: 32px;
+}
+
+// Corner radii (Radii). `pill` fully rounds.
+export global Rd {
+    out property <length> xs: 8px;
+    out property <length> sm: 12px;
+    out property <length> md: 16px;
+    out property <length> lg: 20px;
+    out property <length> xl: 24px;
+    out property <length> pill: 999px;
+}
+
+// Semantic icon sizes (IconSize).
+export global Ic {
+    out property <length> xs: 12px;
+    out property <length> sm: 14px;
+    out property <length> md: 16px;
+    out property <length> lg: 18px;
+    out property <length> xl: 20px;
+    out property <length> xxl: 24px;
+}

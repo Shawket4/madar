@@ -5,6 +5,7 @@ library;
 
 export 'src/banners.dart';
 export 'src/brand.dart';
+export 'src/drawer.dart';
 export 'src/focus.dart';
 export 'src/gallery.dart';
 export 'src/header.dart';

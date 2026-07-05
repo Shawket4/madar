@@ -84,9 +84,9 @@ class Hairline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return Container(
+    return SizedBox(
       height: 1,
-      color: light ? colors.borderLight : colors.border,
+      child: ColoredBox(color: light ? colors.borderLight : colors.border),
     );
   }
 }

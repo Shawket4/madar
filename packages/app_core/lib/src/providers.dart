@@ -176,6 +176,20 @@ final reauthRequestProvider = NotifierProvider<ReauthNotifier, int>(
   ReauthNotifier.new,
 );
 
+/// Bumped when a screen's chrome asks for the shell's nav drawer (the
+/// narrow layouts' More menu — the natives' phone drawer). The order top
+/// bar's leading toggle bumps it; the app shell listens and presents.
+class NavDrawerNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void request() => state++;
+}
+
+final navDrawerRequestProvider = NotifierProvider<NavDrawerNotifier, int>(
+  NavDrawerNotifier.new,
+);
+
 /// Bumped each time the app-level connectivity service refreshes the core's
 /// online state (OS network change / app resume / a failed request). Screens
 /// that show connectivity (the sync chip, the offline banner) watch this and

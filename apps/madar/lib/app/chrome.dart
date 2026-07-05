@@ -262,11 +262,35 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
     ]);
   }
 
-  /// The More sheet. On wide layouts it holds only the overflow rows; on
-  /// narrow ones it doubles as the natives' phone drawer, carrying every
-  /// rail section above them (the rail itself is hidden there).
-  Future<void> _openMore({bool includeSections = false}) async {
-    // A snapshot for the sheet's lifetime — the rows only carry
+  /// The wide layouts' More sheet — only the overflow rows (the rail
+  /// carries the sections there).
+  Future<void> _openMore() async {
+    await showMadarSheet<void>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (sheetContext) =>
+          _moreContent(sheetContext, includeSections: false),
+    );
+  }
+
+  /// The narrow layouts' nav drawer — the natives' phone drawer: every
+  /// rail section plus the overflow rows, sliding from the start edge.
+  Future<void> _openMoreDrawer() async {
+    await showMadarDrawer<void>(
+      context,
+      builder: (drawerContext) =>
+          _moreContent(drawerContext, includeSections: true),
+    );
+  }
+
+  /// The shared More menu body. [presContext] is the presenting route's
+  /// context (sheet or drawer) — rows pop it before navigating.
+  Widget _moreContent(
+    BuildContext presContext, {
+    required bool includeSections,
+  }) {
+    // A snapshot for the surface's lifetime — the rows only carry
     // glyph/label/onTap, so badge state is irrelevant here.
     final sections = includeSections
         ? [
@@ -278,10 +302,7 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
           ]
         : const <_RailSection>[];
     final moreLabel = _t('chrome.more');
-    await showMadarSheet<void>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: Responsive.sheetCompactMaxWidth,
+    return Builder(
       builder: (sheetContext) {
         final colors = sheetContext.madarColors;
         Widget row(
@@ -422,13 +443,19 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(alertProvider, (_, next) {
-      // The notifier pairs each command with a sequence counter so
-      // identical consecutive commands still fire — only the command
-      // matters here.
-      final cmd = next?.$2;
-      if (cmd != null) _onAlert(cmd);
-    });
+    ref
+      ..listen(alertProvider, (_, next) {
+        // The notifier pairs each command with a sequence counter so
+        // identical consecutive commands still fire — only the command
+        // matters here.
+        final cmd = next?.$2;
+        if (cmd != null) _onAlert(cmd);
+      })
+      // A screen's leading toggle (the order top bar on narrow layouts)
+      // asked for the nav drawer — the shell owns and presents it.
+      ..listen(navDrawerRequestProvider, (_, _) {
+        unawaited(_openMoreDrawer());
+      });
     final role = ref.watch(shellProvider.select((s) => s.session?.role));
     final deliveryTick = ref.watch(deliveryTickProvider);
     final ticketTick = ref.watch(ticketTickProvider);
@@ -470,31 +497,6 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
                   Expanded(child: widget.child),
                 ],
               ),
-              // Narrow layouts have no rail — the natives' phone drawer:
-              // a floating nav button opening the full grouped More sheet.
-              if (rail == null)
-                PositionedDirectional(
-                  bottom: Space.lg,
-                  start: Space.lg,
-                  child: TactileScale(
-                    onTap: () => unawaited(_openMore(includeSections: true)),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: colors.surfaceRaised,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: colors.border),
-                      ),
-                      child: MadarIcon(
-                        'ellipsis',
-                        tint: colors.textSecondary,
-                        size: IconSize.xl,
-                      ),
-                    ),
-                  ),
-                ),
               if (toast != null)
                 Align(
                   alignment: Alignment.bottomCenter,

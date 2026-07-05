@@ -211,12 +211,35 @@ class _DeliveryBodyState extends ConsumerState<DeliveryBody>
               icon: 'exclamationmark.circle',
             ),
           ),
-        Expanded(child: _buildList(colors)),
+        Expanded(
+          child: _DeliveryList(
+            onView: _viewOrder,
+            onFinalize: _finalize,
+            onCancel: _cancel,
+          ),
+        ),
       ],
     );
   }
+}
 
-  Widget _buildList(MadarColors colors) {
+/// The order list — its own widget so queue churn (SSE ticks reloading
+/// [IncomingState.deliveryOrders]) rebuilds only the list, never the
+/// toolbar/accepting-chips chrome above it.
+class _DeliveryList extends ConsumerWidget {
+  const _DeliveryList({
+    required this.onView,
+    required this.onFinalize,
+    required this.onCancel,
+  });
+
+  final Future<void> Function(DeliveryOrderView o) onView;
+  final Future<void> Function(DeliveryOrderView o) onFinalize;
+  final Future<void> Function(DeliveryOrderView o) onCancel;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final notifier = ref.read(incomingProvider.notifier);
     final orders = ref.watch(
@@ -257,15 +280,17 @@ class _DeliveryBodyState extends ConsumerState<DeliveryBody>
       itemBuilder: (context, index) {
         final o = orders[index];
         return Center(
+          // Keyed so SSE reorders move elements instead of rebuilding them.
+          key: ValueKey(o.id),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: kBoardCardMaxWidth),
             child: _DeliveryOrderCard(
               order: o,
-              onView: () => unawaited(_viewOrder(o)),
+              onView: () => unawaited(onView(o)),
               onAdvance: () => unawaited(notifier.advanceDelivery(o)),
               onPrep: () => unawaited(notifier.addDeliveryPrep(o)),
-              onFinalize: () => unawaited(_finalize(o)),
-              onCancel: () => unawaited(_cancel(o)),
+              onFinalize: () => unawaited(onFinalize(o)),
+              onCancel: () => unawaited(onCancel(o)),
             ),
           ),
         );

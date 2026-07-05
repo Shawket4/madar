@@ -47,10 +47,7 @@ class BrandPanel extends ConsumerWidget {
           const PositionedDirectional(
             start: _watermarkInset,
             top: _watermarkInset,
-            child: Opacity(
-              opacity: _watermarkAlpha,
-              child: MadarSymbol(size: _watermarkSize),
-            ),
+            child: MadarSymbol(size: _watermarkSize, opacity: _watermarkAlpha),
           ),
           Padding(
             padding: const EdgeInsets.all(_panelPad),

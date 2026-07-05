@@ -366,10 +366,14 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
                   padding: EdgeInsets.only(bottom: bottomInset),
                   child: AnimatedBuilder(
                     animation: Listenable.merge([_slide, _drag]),
+                    // Clamped at 0: the sheet spring is underdamped (.9), and
+                    // an overshoot past rest would lift the bottom-anchored
+                    // card off the screen edge, flashing the screen behind
+                    // through the gap (visible on drag-release spring-back).
                     builder: (context, child) => Transform.translate(
                       offset: Offset(
                         0,
-                        _slide.value * hiddenExtent + _drag.value,
+                        math.max(0, _slide.value * hiddenExtent + _drag.value),
                       ),
                       child: child,
                     ),

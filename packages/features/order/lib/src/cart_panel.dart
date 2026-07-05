@@ -149,9 +149,10 @@ class CartPanel extends ConsumerWidget {
             )
           else ...[
             Expanded(
-              child: ListView(
+              child: ListView.builder(
                 padding: const EdgeInsetsDirectional.all(Space.lg),
-                children: _cartLineRows(cartLines),
+                itemCount: cartLines.length,
+                itemBuilder: (context, index) => _cartLineRow(cartLines[index]),
               ),
             ),
             footer,
@@ -162,18 +163,19 @@ class CartPanel extends ConsumerWidget {
   }
 
   List<Widget> _cartLineRows(List<CartLineView> cartLines) => [
-    for (final line in cartLines)
-      Padding(
-        key: ValueKey('cart-${line.key}'),
-        padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
-        child: CartLineRow(
-          line: line,
-          // Bundles aren't re-editable in place (reconfigure by removing +
-          // re-adding); only plain lines reopen the customization sheet.
-          onEdit: line.bundleId == null ? () => onEditLine(line) : null,
-        ),
-      ),
+    for (final line in cartLines) _cartLineRow(line),
   ];
+
+  Widget _cartLineRow(CartLineView line) => Padding(
+    key: ValueKey('cart-${line.key}'),
+    padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
+    child: CartLineRow(
+      line: line,
+      // Bundles aren't re-editable in place (reconfigure by removing +
+      // re-adding); only plain lines reopen the customization sheet.
+      onEdit: line.bundleId == null ? () => onEditLine(line) : null,
+    ),
+  );
 }
 
 // ── Header ─────────────────────────────────────────────────────────────────────
@@ -496,26 +498,31 @@ class CartLineRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    return Dismissible(
-      key: ValueKey('dismiss-${line.key}'),
-      direction: DismissDirection.endToStart,
-      onDismissed: (_) => unawaited(
-        ref.read(orderProvider.notifier).swipeRemoveCartLine(line),
-      ),
-      background: Container(
-        alignment: AlignmentDirectional.centerEnd,
-        padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.xl),
-        decoration: BoxDecoration(
-          color: colors.danger,
-          borderRadius: BorderRadius.circular(Radii.sm),
+    // ClipRect: Dismissible slides its child sideways WITHOUT clipping, and
+    // a non-overflowing ListView doesn't clip either — unclipped, the row
+    // sails out of the cart panel over the catalog mid-swipe/dismiss.
+    return ClipRect(
+      child: Dismissible(
+        key: ValueKey('dismiss-${line.key}'),
+        direction: DismissDirection.endToStart,
+        onDismissed: (_) => unawaited(
+          ref.read(orderProvider.notifier).swipeRemoveCartLine(line),
         ),
-        child: MadarIcon(
-          'trash',
-          tint: colors.textOnAccent,
-          size: IconSize.lg,
+        background: Container(
+          alignment: AlignmentDirectional.centerEnd,
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.xl),
+          decoration: BoxDecoration(
+            color: colors.danger,
+            borderRadius: BorderRadius.circular(Radii.sm),
+          ),
+          child: MadarIcon(
+            'trash',
+            tint: colors.textOnAccent,
+            size: IconSize.lg,
+          ),
         ),
+        child: _CartLineBody(line: line, onEdit: onEdit),
       ),
-      child: _CartLineBody(line: line, onEdit: onEdit),
     );
   }
 }

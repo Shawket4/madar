@@ -113,6 +113,8 @@ class _TicketsSettleBodyState extends ConsumerState<TicketsSettleBody> {
                   itemBuilder: (context, index) {
                     final ticket = settleable[index];
                     return Center(
+                      // Keyed so list reorders move elements, not rebuild.
+                      key: ValueKey(ticket.id),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(
                           maxWidth: kBoardCardMaxWidth,

@@ -1,0 +1,296 @@
+// Shared widget kit — Slint ports of the design_system pieces the KDS app
+// touches: Press (TactileScale), Icon (MadarIcon), Chip (StatusChip),
+// Banner (NoticeBanner), Spinner, and the auth controls' visual language.
+// Metrics are the natives' verbatim values via tokens.slint.
+import { T, Sp, Rd, Ic } from "tokens.slint";
+
+// ── Press — the TactileScale press-scale (MotionSpec.press ≈ spring 620/.72,
+// scale .97; PIN keys pass .92). Press-in is quick; release rebounds with a
+// slight overshoot, approximating the spring's tail. ─────────────────────────
+export component Press {
+    in property <float> press-scale: 0.97;
+    in property <bool> press-enabled: true;
+    callback clicked;
+
+    ta := TouchArea {
+        enabled: root.press-enabled;
+        clicked => { root.clicked(); }
+    }
+    content := Rectangle {
+        width: parent.width; height: parent.height;
+        transform-scale-x: ta.pressed && root.press-enabled ? root.press-scale : 1.0;
+        transform-scale-y: self.transform-scale-x;
+        animate transform-scale-x { duration: 160ms; easing: ease-out-back; }
+        @children
+    }
+}
+
+// ── Icon — MadarIcon: a colorized Lucide glyph. ──────────────────────────────
+export component Icon inherits Image {
+    in property <color> tint;
+    width: Ic.lg; height: self.width;
+    colorize: tint;
+    image-fit: contain;
+}
+
+// ── Chip tones (ChipTone) ────────────────────────────────────────────────────
+export enum Tone { neutral, info, accent, success, warning, danger }
+
+export global ToneMap {
+    public pure function fg(t: Tone) -> color {
+        if (t == Tone.info) { return T.navy; }
+        if (t == Tone.accent) { return T.accent; }
+        if (t == Tone.success) { return T.success; }
+        if (t == Tone.warning) { return T.warning; }
+        if (t == Tone.danger) { return T.danger; }
+        return T.text-secondary;
+    }
+    public pure function bg(t: Tone) -> color {
+        if (t == Tone.info) { return T.navy-bg; }
+        if (t == Tone.accent) { return T.accent-bg; }
+        if (t == Tone.success) { return T.success-bg; }
+        if (t == Tone.warning) { return T.warning-bg; }
+        if (t == Tone.danger) { return T.danger-bg; }
+        return T.surface-alt;
+    }
+}
+
+// ── Chip — StatusChip: tone pill, hairline tone border (alpha .25), leading
+// icon or the signature 6px tone dot, 11pt semibold label. ──────────────────
+export component Chip inherits Rectangle {
+    in property <string> label;
+    in property <Tone> tone: Tone.neutral;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+
+    property <color> fg: ToneMap.fg(self.tone);
+
+    background: ToneMap.bg(self.tone);
+    border-radius: Rd.pill;
+    border-width: 1px;
+    border-color: fg.with-alpha(0.25);
+    height: row.preferred-height + 10px; // 5px vertical inset
+    width: row.preferred-width + 20px;   // 10px horizontal inset
+
+    row := HorizontalLayout {
+        x: 10px; y: 5px;
+        spacing: 5px;
+        alignment: start;
+        if root.has-icon: Icon {
+            y: (parent.height - self.height) / 2;
+            source: root.icon; tint: root.fg;
+            width: Ic.xs;
+        }
+        if !root.has-icon: Rectangle {
+            y: (parent.height - self.height) / 2;
+            width: 6px; height: 6px; border-radius: 3px;
+            background: root.fg;
+        }
+        Text {
+            text: root.label;
+            color: root.fg;
+            font-size: 11px; font-weight: 600;
+        }
+    }
+}
+
+// ── Banner — NoticeBanner: tone-tinted rounded row, hairline tone border,
+// optional leading icon. 14px horizontal / Space.md vertical insets. ────────
+export component Banner inherits Rectangle {
+    in property <string> text;
+    in property <Tone> tone: Tone.warning;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+
+    property <color> fg: ToneMap.fg(self.tone);
+
+    background: ToneMap.bg(self.tone);
+    border-radius: Rd.sm;
+    border-width: 1px;
+    border-color: fg.with-alpha(0.25);
+    height: brow.preferred-height + 2 * Sp.md;
+
+    brow := HorizontalLayout {
+        x: 14px; y: Sp.md;
+        width: parent.width - 28px;
+        spacing: 10px;
+        if root.has-icon: Icon {
+            y: (parent.height - self.height) / 2;
+            source: root.icon; tint: root.fg;
+        }
+        Text {
+            text: root.text;
+            color: root.fg;
+            font-size: 13px; font-weight: 600;
+            wrap: word-wrap;
+            horizontal-stretch: 1;
+        }
+    }
+}
+
+// ── Spinner — the 20px / 2.5-stroke loading arc (CircularProgressIndicator).
+// A 270° arc spinning once per 900ms on the render tick. ────────────────────
+export component Spinner {
+    in property <color> spin-color: T.accent;
+    in property <length> diameter: 20px;
+
+    width: diameter; height: diameter;
+    preferred-width: diameter; preferred-height: diameter;
+    Image {
+        width: parent.width; height: parent.height;
+        source: @image-url("../assets/icons/spinner-arc.svg");
+        colorize: root.spin-color;
+        transform-rotation: Math.mod(animation-tick() / 1ms, 900) / 900 * 360deg;
+    }
+}
+
+// ── SurfaceCard — the natives' MadarCard: bordered raised surface column. ───
+export component SurfaceCard inherits Rectangle {
+    background: T.surface;
+    border-radius: Rd.lg;
+    border-width: 1px;
+    border-color: T.border-light;
+    drop-shadow-color: T.shadow-card-color;
+    drop-shadow-blur: T.shadow-card-blur;
+    drop-shadow-offset-y: T.shadow-card-dy;
+}
+
+// ── SectionHeader — uppercase muted label anchored by an accent icon or the
+// signature 3×12 accent capsule. ─────────────────────────────────────────────
+export component SectionHeader {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    height: 16px;
+
+    HorizontalLayout {
+        spacing: Sp.sm;
+        alignment: start;
+        if root.has-icon: Icon {
+            y: (parent.height - self.height) / 2;
+            source: root.icon; tint: T.accent; width: Ic.xs;
+        }
+        if !root.has-icon: Rectangle {
+            y: (parent.height - 12px) / 2;
+            width: 3px; height: 12px; border-radius: Rd.pill;
+            background: T.accent;
+        }
+        Text {
+            text: root.text.to-uppercase();
+            color: T.text-secondary;
+            font-size: 12px; font-weight: 600;
+            letter-spacing: 0.6px;
+        }
+    }
+}
+
+// ── CTA — the auth MadarButton: accent fill with the top-lit gradient
+// (lerp(accent→white, .16)), glow shadow, spinner while loading; ghost is a
+// transparent recessive exit. ────────────────────────────────────────────────
+export component CTA {
+    in property <string> label;
+    in property <bool> primary: true;
+    in property <bool> loading: false;
+    in property <bool> cta-enabled: true;
+    in property <length> cta-height: 54px;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    callback clicked;
+
+    property <bool> active: cta-enabled && !loading;
+    property <color> fg: primary ? T.text-on-accent : T.text-secondary;
+
+    // Layouts size children by preferred/min height — pin them explicitly
+    // (the Press/Rectangle composition otherwise collapses to 0).
+    preferred-height: cta-height;
+    min-height: cta-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: root.active;
+        clicked => { root.clicked(); }
+
+        Rectangle {
+            width: parent.width; height: parent.height;
+            border-radius: Rd.md;
+            background: !root.primary ? transparent
+                : root.active
+                    ? @linear-gradient(180deg, T.accent.mix(#FFFFFF, 0.84) 0%, T.accent 100%)
+                    : T.accent.with-alpha(0.45);
+            drop-shadow-color: root.primary && root.active ? T.shadow-glow-color : transparent;
+            drop-shadow-blur: T.shadow-glow-blur;
+
+            if root.loading: Spinner {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                spin-color: root.fg;
+            }
+            if !root.loading: HorizontalLayout {
+                alignment: center;
+                spacing: Sp.sm;
+                if root.has-icon: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: root.icon; tint: root.fg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    color: root.fg;
+                    font-size: 15px; font-weight: 700;
+                    letter-spacing: 0.2px;
+                }
+            }
+        }
+    }
+}
+
+// ── Field — the auth MadarTextField: rounded filled field, leading icon,
+// animated focus ring (accent border + glow, surfaceAlt → surface). ─────────
+export component Field {
+    in property <string> placeholder;
+    in property <image> icon;
+    in property <bool> secure: false;
+    in property <bool> field-enabled: true;
+    in-out property <string> text <=> input.text;
+    callback accepted;
+
+    height: 54px; // 15px text + 16px vertical insets + border
+    opacity: field-enabled ? 1.0 : 0.45;
+
+    box := Rectangle {
+        border-radius: Rd.md;
+        background: input.has-focus ? T.surface : T.surface-alt;
+        border-width: input.has-focus ? 2px : 1px;
+        border-color: input.has-focus ? T.accent : T.border;
+        drop-shadow-color: input.has-focus ? T.accent.with-alpha(0.35) : transparent;
+        drop-shadow-blur: 8px;
+        animate background, border-color, drop-shadow-color { duration: 220ms; easing: ease-out; }
+
+        HorizontalLayout {
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            spacing: 10px;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                source: root.icon;
+                tint: input.has-focus ? T.accent : T.text-muted;
+            }
+            input := TextInput {
+                vertical-alignment: center;
+                enabled: root.field-enabled;
+                single-line: true;
+                input-type: root.secure ? InputType.password : InputType.text;
+                color: T.text-primary;
+                font-size: 15px; font-weight: 400;
+                accepted => { root.accepted(); }
+            }
+        }
+        // Placeholder overlays the (empty) input, mirroring the hint style.
+        if input.text == "": Text {
+            x: Sp.lg + Ic.lg + 10px;
+            y: (parent.height - self.height) / 2;
+            text: root.placeholder;
+            color: T.text-muted;
+            font-size: 15px; font-weight: 400;
+        }
+    }
+}

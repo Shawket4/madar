@@ -331,6 +331,40 @@ class OrderNotifier extends Notifier<OrderState> {
   }
 
   // ── catalog ────────────────────────────────────────────────────────────────
+
+  /// Profiling-only synthetic catalog multiplier
+  /// (`--dart-define=MADAR_SYNTH_CATALOG=N`): each real item is cloned N−1
+  /// times with unique ids/names, simulating a production-size menu.
+  /// Defaults to 1 (off) — the expansion branch is tree-shaken out of every
+  /// build that doesn't pass the define.
+  static const int _synthCatalog = int.fromEnvironment(
+    'MADAR_SYNTH_CATALOG',
+    defaultValue: 1,
+  );
+
+  static List<MenuItemView> _synthesize(List<MenuItemView> items) => [
+    for (var i = 0; i < _synthCatalog; i++)
+      for (final m in items)
+        i == 0
+            ? m
+            : MenuItemView(
+                id: '${m.id}-synth$i',
+                name: '${m.name} $i',
+                description: m.description,
+                categoryId: m.categoryId,
+                basePriceMinor: m.basePriceMinor,
+                imageUrl: m.imageUrl,
+                localImagePath: m.localImagePath,
+                isActive: m.isActive,
+                defaultMilkAddonId: m.defaultMilkAddonId,
+                allowedAddonIds: m.allowedAddonIds,
+                sizes: m.sizes,
+                addonSlots: m.addonSlots,
+                optionalFields: m.optionalFields,
+                recipes: m.recipes,
+              ),
+  ];
+
   Future<void> loadCatalog() async {
     try {
       final categories = await _bridge.listCategories();
@@ -340,7 +374,7 @@ class OrderNotifier extends Notifier<OrderState> {
       );
       state = state.copyWith(
         categories: categories,
-        menuItems: menuItems,
+        menuItems: _synthCatalog > 1 ? _synthesize(menuItems) : menuItems,
         bundles: bundles,
         isLoadingCatalog: false,
       );

@@ -1,0 +1,633 @@
+// Auth surface — Slint ports of the Flutter auth feature at pixel parity:
+// AuthSplitScaffold (brand panel + form split on wide, stacked on narrow),
+// DeviceSetupForm (manager email/password → branch pick), the teller PIN
+// login (name + 6-digit pad, shake on failure), and StationPickerScreen.
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Press, Icon, Chip, Tone, Banner, Spinner, CTA, Field, SurfaceCard, SectionHeader } from "components.slint";
+
+export struct BranchData { id: string, name: string }
+export struct StationData { id: string, name: string, is-default: bool }
+
+// Localized strings + shared auth state, set from Rust (core.tr()).
+export global Auth {
+    // brand panel
+    in property <string> brand-headline;
+    in property <[string]> brand-headline-lines;
+    in property <string> brand-tagline;
+    // login
+    in property <string> tr-welcome-back;
+    in property <string> tr-subtitle;
+    in property <string> tr-branch-label;   // resolved branch chip label
+    in property <string> tr-reconfigure;
+    in property <string> tr-name;
+    in property <string> tr-sign-in;
+    in property <string> tr-pin-hint;
+    // setup
+    in property <string> tr-setup-title;
+    in property <string> tr-setup-desc;
+    in property <string> tr-choose-branch;
+    in property <string> tr-choose-branch-desc;
+    in property <string> tr-email;
+    in property <string> tr-password;
+    in property <string> tr-continue;
+    in property <string> tr-cancel;
+    // station picker
+    in property <string> tr-choose-station;
+    in property <string> tr-choose-station-desc;
+    in property <string> tr-stations-section;
+    in property <string> tr-station-default;
+    in property <string> tr-no-stations;
+    in property <string> tr-sign-out;
+
+    // state
+    in-out property <string> login-name; // teller name field (auto-submit reads it)
+    in property <bool> busy;
+    in property <string> error;              // "" = none
+    in property <int> pin-length;            // dots filled
+    in property <int> fail-count;            // bump → shake
+    in property <bool> show-cancel;          // setup: reconfigure cancel row
+    in property <bool> picking-branch;       // setup phase
+    in property <[BranchData]> branches;
+    in property <[StationData]> stations;
+    in property <bool> stations-loading;
+    in property <string> branch-name;        // bound branch (chips)
+}
+
+// ── Brand panel (wide split only) — surfaceAlt field, faded watermark,
+// lockup, display headline, tagline, accent-dot copyright. ──────────────────
+component BrandPanel inherits Rectangle {
+    background: T.surface-alt;
+
+    // Watermark — 360px at 80px inset, alpha .05, start-anchored (RTL flips).
+    Image {
+        x: T.rtl ? parent.width - 80px - self.width : 80px;
+        y: 80px;
+        width: 360px; height: 360px;
+        source: T.dark ? @image-url("../assets/symbol_reversed.png") : @image-url("../assets/symbol_primary.png");
+        opacity: 0.05;
+    }
+    VerticalLayout {
+        padding: 48px;
+        Image {
+            height: 28px;
+            image-fit: contain;
+            horizontal-alignment: T.rtl ? right : left;
+            source: T.dark ? @image-url("../assets/lockup_latin_reversed.png") : @image-url("../assets/lockup_latin.png");
+        }
+        Rectangle { vertical-stretch: 1; }
+        // Natives: 50px line height at 44px — Slint has no line-height, so
+        // each (pre-split) headline line renders in its own 50px-tall row.
+        VerticalLayout {
+            spacing: 0;
+            for line in Auth.brand-headline-lines: Rectangle {
+                height: 50px;
+                clip: false;
+                Text {
+                    x: T.rtl ? parent.width - self.preferred-width : 0;
+                    y: (parent.height - self.preferred-height) / 2;
+                    text: line;
+                    color: T.text-primary;
+                    font-size: 44px; font-weight: 800;
+                }
+            }
+        }
+        Rectangle { height: Sp.lg; }
+        Text {
+            width: Math.min(300px, parent.width - 96px);
+            text: Auth.brand-tagline;
+            color: T.text-secondary;
+            font-size: 15px; font-weight: 500;
+            wrap: word-wrap;
+        }
+        Rectangle { vertical-stretch: 1; }
+        HorizontalLayout {
+            spacing: Sp.sm;
+            alignment: start;
+            Rectangle {
+                y: (parent.height - 6px) / 2;
+                width: 6px; height: 6px; border-radius: 3px;
+                background: T.accent;
+            }
+            Text {
+                text: "© 2026 Madar"; // literal in the natives too
+                color: T.text-muted;
+                font-size: 12px; font-weight: 500;
+            }
+        }
+    }
+}
+
+// ── Split scaffold: brand panel (55%) + centered form column on wide;
+// stacked centered form with the logo above on narrow. ──────────────────────
+component AuthSplit {
+    in property <length> form-max-width: 400px;
+    in property <float> brand-ratio: 0.55;
+    property <bool> wide: root.width >= 760px;
+    out property <bool> show-logo: !wide;
+
+    HorizontalLayout {
+        if root.wide: BrandPanel {
+            width: parent.width * root.brand-ratio;
+        }
+        Rectangle {
+            background: T.bg;
+            Flickable {
+                viewport-height: Math.max(form.preferred-height + 96px, parent.height);
+                form := VerticalLayout {
+                    y: Math.max((parent.height - self.preferred-height) / 2, 48px);
+                    x: (parent.width - self.width) / 2;
+                    width: Math.min(root.form-max-width, parent.width - 64px);
+                    // Hug content — never stretch-distribute the form rows.
+                    height: self.preferred-height;
+                    @children
+                }
+            }
+        }
+    }
+}
+
+// ── PIN pad — 6 spring dots over the 4×3 disc pad; forced LTR. ──────────────
+component PinDot {
+    in property <bool> filled;
+    width: 14px; height: 14px;
+    dot := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: filled ? 14px : 12px;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: filled ? T.accent : transparent;
+        border-width: 2px;
+        border-color: filled ? T.accent : T.border;
+        drop-shadow-color: filled ? T.accent : transparent;
+        drop-shadow-blur: 6px;
+        // Bouncy spring (MotionSpec.bouncy 520/.5) ≈ quick overshoot.
+        animate width { duration: 260ms; easing: ease-out-back; }
+    }
+}
+
+component PinKey {
+    in property <string> glyph;
+    in property <bool> backspace: false;
+    callback pressed;
+    width: 64px; height: 64px;
+
+    if glyph != "" || backspace: Press {
+        width: parent.width; height: parent.height;
+        press-scale: 0.92;
+        clicked => { root.pressed(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            border-radius: self.width / 2;
+            background: T.surface;
+            border-width: 1.5px;
+            border-color: T.border;
+            drop-shadow-color: T.shadow-card-color;
+            drop-shadow-blur: T.shadow-card-blur;
+            drop-shadow-offset-y: T.shadow-card-dy;
+            if root.backspace: Icon {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: 22px;
+                source: @image-url("../assets/icons/delete.svg");
+                tint: T.text-secondary;
+            }
+            if !root.backspace: Text {
+                x: 0; y: 0; width: parent.width; height: parent.height;
+                horizontal-alignment: center; vertical-alignment: center;
+                text: root.glyph;
+                color: T.text-primary;
+                font-size: 22px; font-weight: 600;
+            }
+        }
+    }
+}
+
+component PinPad {
+    callback digit(string);
+    callback backspace;
+
+    VerticalLayout {
+        spacing: Sp.md;
+        alignment: center;
+        // dots
+        HorizontalLayout {
+            alignment: center;
+            spacing: Sp.lg;
+            padding-bottom: Sp.sm;
+            for i in 6: PinDot { filled: i < Auth.pin-length; }
+        }
+        for row[r] in [["1","2","3"], ["4","5","6"], ["7","8","9"], ["","0","<"]]: HorizontalLayout {
+            alignment: center;
+            spacing: 14px;
+            for key in row: PinKey {
+                glyph: key == "<" ? "" : key;
+                backspace: key == "<";
+                pressed => { key == "<" ? root.backspace() : root.digit(key); }
+            }
+        }
+    }
+}
+
+// ── Teller PIN login form ────────────────────────────────────────────────────
+export component LoginScreen {
+    callback submit(string /* name */);
+    callback digit(string);
+    callback backspace;
+    callback reconfigure;
+
+    // Failure shake: −8, 8, −6, 6, 0 over 300ms (5 × 60ms keyframes),
+    // approximated by an eased ping-pong driven off fail-count bumps.
+    property <int> seen-fails: 0;
+    property <length> shake: 0px;
+    function kick() {
+        root.shake = -8px;
+        shake-timer.running = true;
+    }
+    shake-timer := Timer {
+        interval: 60ms;
+        running: false;
+        triggered => {
+            if (root.shake == -8px) { root.shake = 8px; }
+            else if (root.shake == 8px) { root.shake = -6px; }
+            else if (root.shake == -6px) { root.shake = 6px; }
+            else { root.shake = 0px; self.running = false; }
+        }
+    }
+    changed-fails := Timer {
+        // Poll-free trigger: Auth.fail-count changes arrive via this binding.
+        interval: 16ms; running: Auth.fail-count != root.seen-fails;
+        triggered => {
+            root.seen-fails = Auth.fail-count;
+            root.kick();
+        }
+    }
+
+    split := AuthSplit {
+        width: parent.width; height: parent.height;
+        shaker := Rectangle {
+            x: root.shake;
+            animate x { duration: 55ms; easing: ease-in-out; }
+            VerticalLayout {
+                if split.show-logo: VerticalLayout {
+                    alignment: center;
+                    padding-bottom: Sp.xxl;
+                    Image {
+                        x: (parent.width - self.width) / 2;
+                        width: 56px; height: 56px;
+                        source: T.dark ? @image-url("../assets/symbol_reversed.png") : @image-url("../assets/symbol_primary.png");
+                    }
+                }
+                // Greeting hero + quiet eyebrow (28sp Black, −0.5 tracking).
+                Text {
+                    horizontal-alignment: center;
+                    text: Auth.tr-welcome-back;
+                    color: T.text-primary;
+                    font-size: 28px; font-weight: 800;
+                    letter-spacing: -0.5px;
+                }
+                Rectangle { height: Sp.xs; }
+                Text {
+                    horizontal-alignment: center;
+                    text: Auth.tr-subtitle;
+                    color: T.text-secondary;
+                    font-size: 14px; font-weight: 500;
+                }
+                Rectangle { height: Sp.md; }
+                // Bound-branch identity chip + reconfigure link.
+                HorizontalLayout {
+                    alignment: center;
+                    Chip {
+                        label: Auth.tr-branch-label;
+                        tone: Tone.accent;
+                        has-icon: true;
+                        icon: @image-url("../assets/icons/building-2.svg");
+                    }
+                }
+                Rectangle { height: Sp.xs; }
+                HorizontalLayout {
+                    alignment: center;
+                    Press {
+                        clicked => { root.reconfigure(); }
+                        Text {
+                            text: Auth.tr-reconfigure;
+                            color: T.text-muted;
+                            font-size: 12px; font-weight: 500;
+                        }
+                    }
+                }
+                Rectangle { height: Sp.xxl; }
+                name := Field {
+                    placeholder: Auth.tr-name;
+                    icon: @image-url("../assets/icons/user.svg");
+                    field-enabled: !Auth.busy;
+                    text <=> Auth.login-name;
+                }
+                Rectangle { height: Sp.xl; }
+                PinPad {
+                    digit(d) => { root.digit(d); }
+                    backspace => { root.backspace(); }
+                }
+                if Auth.error != "": VerticalLayout {
+                    padding-top: Sp.sm;
+                    Banner {
+                        text: Auth.error;
+                        tone: Tone.danger;
+                        has-icon: true;
+                        icon: @image-url("../assets/icons/circle-alert.svg");
+                    }
+                }
+                Rectangle { height: Sp.xl; }
+                CTA {
+                    label: Auth.tr-sign-in;
+                    loading: Auth.busy;
+                    cta-height: 52px;
+                    has-icon: true;
+                    icon: @image-url("../assets/icons/circle-arrow-right.svg");
+                    clicked => { root.submit(name.text); }
+                }
+                Rectangle { height: Sp.sm; }
+                Text {
+                    horizontal-alignment: center;
+                    text: Auth.tr-pin-hint;
+                    color: T.text-muted;
+                    font-size: 12px; font-weight: 500;
+                }
+            }
+        }
+    }
+}
+
+// ── Manager device setup: credentials → branch pick. ────────────────────────
+export component SetupScreen {
+    callback authenticate(string /* email */, string /* password */);
+    callback pick-branch(string /* id */, string /* name */);
+    callback cancel;
+
+    split := AuthSplit {
+        width: parent.width; height: parent.height;
+        VerticalLayout {
+            spacing: Sp.lg;
+            if split.show-logo: VerticalLayout {
+                alignment: center;
+                Image {
+                    x: (parent.width - self.width) / 2;
+                    width: 56px; height: 56px;
+                    source: T.dark ? @image-url("../assets/symbol_reversed.png") : @image-url("../assets/symbol_primary.png");
+                }
+            }
+            VerticalLayout {
+                spacing: Sp.xs;
+                padding-bottom: Sp.sm;
+                Text {
+                    horizontal-alignment: center;
+                    text: Auth.picking-branch ? Auth.tr-choose-branch : Auth.tr-setup-title;
+                    color: T.text-primary;
+                    font-size: 24px; font-weight: 800;
+                    letter-spacing: -0.4px;
+                }
+                Text {
+                    horizontal-alignment: center;
+                    text: Auth.picking-branch ? Auth.tr-choose-branch-desc : Auth.tr-setup-desc;
+                    color: T.text-secondary;
+                    font-size: 13px; font-weight: 500;
+                    wrap: word-wrap;
+                }
+            }
+            if Auth.picking-branch: VerticalLayout {
+                spacing: Sp.lg;
+                for branch in Auth.branches: Press {
+                    clicked => { root.pick-branch(branch.id, branch.name); }
+                    Rectangle {
+                        height: 64px; // 36px tile + 14px insets
+                        background: T.surface;
+                        border-radius: Rd.sm;
+                        border-width: 1px;
+                        border-color: T.border-light;
+                        drop-shadow-color: T.shadow-card-color;
+                        drop-shadow-blur: T.shadow-card-blur;
+                        drop-shadow-offset-y: T.shadow-card-dy;
+                        HorizontalLayout {
+                            padding: 14px;
+                            spacing: Sp.md;
+                            Rectangle {
+                                width: 36px; height: 36px;
+                                border-radius: Rd.sm;
+                                background: T.accent-bg;
+                                Icon {
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                    source: @image-url("../assets/icons/building-2.svg");
+                                    tint: T.accent;
+                                }
+                            }
+                            Text {
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                text: branch.name;
+                                color: T.text-primary;
+                                font-size: 15px; font-weight: 600;
+                                overflow: elide;
+                            }
+                            Icon {
+                                y: (parent.height - self.height) / 2;
+                                width: Ic.xs;
+                                source: @image-url("../assets/icons/chevron-right.svg");
+                                tint: T.text-muted;
+                                transform-rotation: T.rtl ? 180deg : 0deg;
+                            }
+                        }
+                    }
+                }
+            }
+            if !Auth.picking-branch: VerticalLayout {
+                spacing: Sp.lg;
+                email := Field {
+                    placeholder: Auth.tr-email;
+                    icon: @image-url("../assets/icons/mail.svg");
+                    field-enabled: !Auth.busy;
+                }
+                password := Field {
+                    placeholder: Auth.tr-password;
+                    icon: @image-url("../assets/icons/lock.svg");
+                    secure: true;
+                    field-enabled: !Auth.busy;
+                    accepted => { root.authenticate(email.text, password.text); }
+                }
+                if Auth.error != "": Banner {
+                    text: Auth.error;
+                    tone: Tone.danger;
+                    has-icon: true;
+                    icon: @image-url("../assets/icons/circle-alert.svg");
+                }
+                CTA {
+                    label: Auth.tr-continue;
+                    loading: Auth.busy;
+                    has-icon: true;
+                    icon: @image-url("../assets/icons/circle-arrow-right.svg");
+                    clicked => { root.authenticate(email.text, password.text); }
+                }
+            }
+            if Auth.picking-branch && Auth.error != "": Banner {
+                text: Auth.error;
+                tone: Tone.danger;
+                has-icon: true;
+                icon: @image-url("../assets/icons/circle-alert.svg");
+            }
+            if Auth.picking-branch || Auth.show-cancel: CTA {
+                label: Auth.tr-cancel;
+                primary: false;
+                clicked => { root.cancel(); }
+            }
+        }
+    }
+}
+
+// ── Station picker — the kitchen commissioning screen (even 50/50 split,
+// 480px column, fixed 72px station rows, default lifted with accent). ───────
+export component StationScreen {
+    callback pick-station(string /* id */);
+    callback sign-out;
+
+    split := AuthSplit {
+        width: parent.width; height: parent.height;
+        form-max-width: 480px;
+        brand-ratio: 0.5;
+        VerticalLayout {
+            spacing: Sp.lg;
+            if split.show-logo: VerticalLayout {
+                alignment: center;
+                Image {
+                    x: (parent.width - self.width) / 2;
+                    width: 56px; height: 56px;
+                    source: T.dark ? @image-url("../assets/symbol_reversed.png") : @image-url("../assets/symbol_primary.png");
+                }
+            }
+            // Hero: accent circle tile + title + desc + branch chip.
+            VerticalLayout {
+                spacing: Sp.sm;
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 56px; height: 56px; border-radius: 28px;
+                        background: T.accent-bg;
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            width: 28px;
+                            source: @image-url("../assets/icons/utensils-crossed.svg");
+                            tint: T.accent;
+                        }
+                    }
+                }
+                Text {
+                    horizontal-alignment: center;
+                    text: Auth.tr-choose-station;
+                    color: T.text-primary;
+                    font-size: 26px; font-weight: 800;
+                }
+                Text {
+                    horizontal-alignment: center;
+                    text: Auth.tr-choose-station-desc;
+                    color: T.text-muted;
+                    font-size: 13px; font-weight: 500;
+                    wrap: word-wrap;
+                }
+                if Auth.branch-name != "": HorizontalLayout {
+                    alignment: center;
+                    padding-top: Sp.xs;
+                    Chip {
+                        label: Auth.branch-name;
+                        tone: Tone.info;
+                        has-icon: true;
+                        icon: @image-url("../assets/icons/building-2.svg");
+                    }
+                }
+            }
+            if Auth.error != "": Banner {
+                text: Auth.error;
+                tone: Tone.danger;
+                has-icon: true;
+                icon: @image-url("../assets/icons/circle-alert.svg");
+            }
+            SurfaceCard {
+                VerticalLayout {
+                    padding: Sp.lg;
+                    spacing: Sp.md;
+                    SectionHeader {
+                        text: Auth.tr-stations-section;
+                        has-icon: true;
+                        icon: @image-url("../assets/icons/layers.svg");
+                    }
+                    if Auth.stations-loading: HorizontalLayout {
+                        alignment: center;
+                        padding: Sp.xl;
+                        Spinner { }
+                    }
+                    if !Auth.stations-loading && Auth.stations.length == 0: Text {
+                        horizontal-alignment: center;
+                        text: Auth.tr-no-stations;
+                        color: T.text-muted;
+                        font-size: 13px; font-weight: 500;
+                    }
+                    for station in Auth.stations: Press {
+                        clicked => { root.pick-station(station.id); }
+                        Rectangle {
+                            height: 72px;
+                            background: T.surface;
+                            border-radius: Rd.md;
+                            border-width: station.is-default ? 2px : 1px;
+                            border-color: station.is-default ? T.accent.with-alpha(0.55) : T.border-light;
+                            drop-shadow-color: T.shadow-card-color;
+                            drop-shadow-blur: T.shadow-card-blur;
+                            drop-shadow-offset-y: T.shadow-card-dy;
+                            HorizontalLayout {
+                                padding-left: Sp.lg; padding-right: Sp.lg;
+                                spacing: Sp.md;
+                                Rectangle {
+                                    y: (parent.height - self.height) / 2;
+                                    width: 44px; height: 44px;
+                                    border-radius: Rd.sm;
+                                    background: station.is-default ? T.accent : T.accent-bg;
+                                    Icon {
+                                        x: (parent.width - self.width) / 2;
+                                        y: (parent.height - self.height) / 2;
+                                        width: Ic.xl;
+                                        source: @image-url("../assets/icons/utensils-crossed.svg");
+                                        tint: station.is-default ? T.text-on-accent : T.accent;
+                                    }
+                                }
+                                Text {
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                    text: station.name;
+                                    color: T.text-primary;
+                                    font-size: 17px; font-weight: 700;
+                                    overflow: elide;
+                                }
+                                if station.is-default: Chip {
+                                    y: (parent.height - self.height) / 2;
+                                    label: Auth.tr-station-default;
+                                    tone: Tone.accent;
+                                }
+                                Icon {
+                                    y: (parent.height - self.height) / 2;
+                                    source: @image-url("../assets/icons/chevron-right.svg");
+                                    tint: T.text-muted;
+                                    transform-rotation: T.rtl ? 180deg : 0deg;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            CTA {
+                label: Auth.tr-sign-out;
+                primary: false;
+                has-icon: true;
+                icon: @image-url("../assets/icons/log-out.svg");
+                clicked => { root.sign-out(); }
+            }
+        }
+    }
+}
