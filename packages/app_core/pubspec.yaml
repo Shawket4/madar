@@ -12,6 +12,10 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.3.2
+  # Bluetooth Classic (SPP) receipt printing — connection + raw writeBytes only;
+  # the ESC/POS bytes come fully rendered from the Rust core.
+  permission_handler: ^12.0.0
+  print_bluetooth_thermal: ^1.2.2
   rust_bridge: ^0.1.0
 
 dev_dependencies:

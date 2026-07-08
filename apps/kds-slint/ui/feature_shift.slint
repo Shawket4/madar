@@ -1,0 +1,2248 @@
+// Shift feature — Slint port of packages/features/shift at pixel parity:
+// OpenShiftScreen (brand split + hero count), CloseShiftScreen (summary /
+// counted cash / Z-report breakdown / danger close), ShiftReportSheet (the
+// Z-report on white "thermal paper" — fixed ink hex, NOT theme roles),
+// CashMovementsScreen (pay-in/out ledger) and ShiftHistoryScreen (responsive
+// wide-table / narrow-cards with expandable per-shift orders panels).
+// The Flutter source is the spec; metrics/comments are kept verbatim.
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Press, Icon, Chip, Tone, ToneMap, Banner, Spinner, SurfaceCard, SectionHeader } from "components.slint";
+import { MadarHeader, MoneyText, SkeletonBlock, SkeletonRow, SkeletonList, EmptyState, ToastHost, Rsp } from "kit.slint";
+import { SheetFrame } from "sheet.slint";
+import { Icons } from "icons.slint";
+import { Auth } from "auth.slint";
+
+// ─── Data structs (Rust maps core views → these; money/time pre-formatted
+// in Rust with the exact Money.format / core.format_time algorithms) ─────────
+
+// One payment-method line of the Z-report: name · order count · total over a
+// proportional bar. `fraction` is pre-clamped in Rust (floor 0.02, cap 1.0).
+export struct ShiftPaymentLineData {
+    method: string,
+    count-text: string,   // " · N"
+    total-text: string,
+    fraction: float,
+    is-cash: bool,
+}
+
+// One itemised drawer movement on the report: note (or who moved it) + the
+// signed amount ("+/−" pre-applied in Rust).
+export struct ShiftMovementLineData {
+    title: string,
+    amount-text: string,
+    is-out: bool,
+}
+
+// The Z-report breakdown, display-ready. "" hides optional rows (the Dart
+// conditionals); diff-tone: 0 positive, 1 negative, 2 caution.
+export struct ShiftReportData {
+    loaded: bool,
+    teller: string,
+    opened-text: string,
+    from-server: bool,
+    payment-lines: [ShiftPaymentLineData],
+    cash-in-text: string,      // "" hides (cashInMinor > 0)
+    cash-out-text: string,     // "" hides; pre-signed "−…"
+    movements: [ShiftMovementLineData],
+    voided-text: string,       // "" hides; pre-signed "−…"
+    payments-text: string,
+    opening-text: string,
+    mismatch-visible: bool,    // openingCashWasEdited && original present
+    mismatch-text: string,     // signed "+…/−…"
+    mismatch-caution: bool,    // opening != original → caution, else soft
+    reason-text: string,       // "" hides ("<label>: <reason>")
+    expected-text: string,
+    counted-text: string,      // "" hides (closingCashDeclaredMinor present)
+    diff-label: string,        // "" hides (needs counted)
+    diff-text: string,
+    diff-tone: int,
+}
+
+// One order row (report paper Orders section + history orders panels).
+export struct ShiftOrderData {
+    id: string,
+    number-text: string,   // "#N" or the localized fallback
+    time-text: string,
+    payment-text: string,
+    total-text: string,
+    voided: bool,
+}
+
+// One past-shift row of the history page (the _ShiftRowGroup unit — the
+// expansion/orders state rides the row so one row's churn is one row write).
+export struct ShiftRowData {
+    id: string,
+    teller: string,          // "—" fallback pre-applied
+    opened-text: string,     // dateTime (wide table)
+    opened-short-text: string, // dateShort (narrow card title)
+    closed-text: string,     // "—" when still open
+    closed-missing: bool,
+    declared-text: string,   // "—" when not declared
+    declared-missing: bool,
+    opening-text: string,
+    discrepancy-text: string, // "" hides; pre-signed "+…/−…"
+    status-kind: int,        // 0 open→success, 1 force_closed→danger, 2 muted
+    is-open: bool,
+    loading-report: bool,
+    expanded: bool,
+    orders-loaded: bool,     // false while the first fetch is in flight
+    orders: [ShiftOrderData],
+}
+
+// One ledger movement row (cash in/out screen).
+export struct CashMovementData {
+    title: string,        // note, or the localized In/Out fallback
+    sub-text: string,     // "movedBy · time"
+    amount-text: string,  // "+ …" / "− …"
+    positive: bool,
+}
+
+// Tone set the breakdown renders with: theme palette inside the close-shift
+// report card, or fixed ink-on-paper inside the Z-report preview sheet
+// (the Dart ShiftReportPalette).
+export struct ReportPalette {
+    strong: color,
+    soft: color,
+    muted: color,
+    rule: color,
+    positive: color,
+    negative: color,
+    caution: color,
+    bar-track: color,
+    bar-cash: color,
+    bar-other: color,
+}
+
+// ── Theme-invariant "thermal paper" ink (ReceiptPaper.kt): a receipt is
+// always white paper with dark ink, so these are fixed, not tokens. ─────────
+global PaperInk {
+    out property <color> paper: #FFFFFF;
+    out property <color> ink: #1A1A1A;
+    out property <color> faint: #6B6B6B;
+    out property <color> rule: #CCCCCC;
+    out property <color> ink-track: #EEEEEE;
+    out property <color> ink-success: #2E7D32;
+    out property <color> ink-danger: #B71C1C;
+    out property <color> ink-warning: #B26A00;
+}
+
+// ─── ShiftState — localized strings + per-surface state, set from Rust
+// (core.tr()); intents flow out through the callbacks. ───────────────────────
+export global ShiftState {
+    // shared
+    in property <string> currency;          // uppercased ISO code ("" hides)
+    in property <string> store-name;        // branch name (paper masthead falls back to "MADAR" in Rust)
+
+    // ── open shift ──────────────────────────────────────────────────────
+    in property <string> tr-welcome;
+    in property <string> open-display-name; // session name, or tr(shift.open_title)
+    in property <string> open-branch-name;  // "" hides the chip
+    in property <string> tr-opening-cash;
+    in property <string> tr-suggested-from-close;
+    in property <string> tr-opening-reason-label;
+    in property <string> tr-opening-reason-hint;
+    in property <string> tr-opening-hint;
+    in property <string> tr-open-button;
+    in property <string> tr-switch-teller;
+    in property <string> tr-offline-banner;
+    in property <string> tr-auth-paused;
+    in property <string> tr-auth-paused-action;
+    in-out property <string> open-amount-text;  // Rust prefill honors last-emitted
+    in-out property <string> open-reason-text;
+    in property <bool> open-suggested-visible;
+    in property <string> open-suggested-text;
+    in property <bool> open-needs-reason;
+    in property <bool> open-busy;
+    in property <string> open-error;        // "" = none
+    in property <bool> open-online: true;
+    in property <bool> open-auth-paused;
+    callback open-amount-edited(string);
+    callback open-submit();
+    callback open-sign-out();
+    callback open-heartbeat();
+
+    // ── close shift ─────────────────────────────────────────────────────
+    in property <string> tr-close-title;
+    in property <string> tr-closing-desc;
+    in property <string> tr-summary;
+    in property <string> tr-teller;
+    in property <string> tr-opened-at;
+    in property <string> tr-payments;
+    in property <string> tr-voided;
+    in property <string> tr-counted-cash;
+    in property <string> tr-system-cash;
+    in property <string> tr-system-cash-explain;
+    in property <string> tr-cash-note;
+    in property <string> tr-report-title;
+    in property <string> tr-print-report;
+    in property <string> tr-close-shift;    // order.close_shift
+    in property <bool> close-shift-loaded;
+    in property <string> close-teller;
+    in property <string> close-opening-text;
+    in property <string> close-opened-text;
+    in property <string> close-payments-text;  // "" hides (report pending)
+    in property <string> close-voided-text;    // "" hides; pre-signed "−…"
+    in property <ShiftReportData> close-report;
+    in property <string> close-expected-text;
+    in-out property <string> close-amount-text;
+    in-out property <string> close-note-text;
+    in property <bool> close-needs-reason;
+    in property <int> close-diff-kind;      // 0 matched, 1 over, 2 short
+    in property <string> close-diff-label;
+    in property <bool> close-busy;
+    in property <string> close-error;       // "" = none
+    callback close-counted-edited(string);
+    callback close-submit();
+    callback close-back();
+    callback close-open-preview();
+
+    // ── Z-report preview sheet ──────────────────────────────────────────
+    in property <string> tr-online;
+    in property <string> tr-offline;
+    in property <string> tr-printing;
+    in property <string> tr-printed;
+    in property <string> tr-no-printer;
+    in property <string> tr-print-failed;
+    in property <string> tr-done;
+    in property <string> tr-orders;
+    in property <string> tr-no-orders;
+    in property <string> tr-history-empty;      // history.empty (empty breakdown)
+    in property <string> tr-cash-in;
+    in property <string> tr-cash-out;
+    in property <string> tr-opening-mismatch;
+    in property <string> tr-expected-cash;
+    in-out property <bool> sheet-open;
+    in property <ShiftReportData> sheet-report;
+    in property <bool> sheet-orders-expanded;   // OFF by default
+    in property <bool> sheet-orders-loaded;     // false → skeleton rows while expanded
+    in property <[ShiftOrderData]> sheet-orders;
+    in property <int> sheet-print;              // 0 idle 1 printing 2 printed 3 noPrinter 4 failed
+    callback report-print();
+    callback report-toggle-orders();
+    callback report-print-order(string /* order id */);
+    callback report-dismissed();
+
+    // ── cash movements ──────────────────────────────────────────────────
+    in property <string> tr-cash-title;
+    in property <string> tr-cash-history;
+    in property <string> tr-cash-empty;
+    in property <string> tr-total-in;
+    in property <string> tr-total-out;
+    in property <string> tr-net;
+    in property <string> tr-cash-in-chip;   // cash.in
+    in property <string> tr-cash-out-chip;  // cash.out
+    in property <string> tr-cash-note-ph;   // cash.note
+    in property <string> tr-cash-record;
+    in property <[CashMovementData]> cash-movements;
+    in property <bool> cash-loading;
+    in property <string> cash-error;        // "" = none
+    in property <bool> cash-is-in: true;
+    in-out property <string> cash-amount-text;
+    in-out property <string> cash-note-text;
+    in property <bool> cash-busy;
+    in property <bool> cash-can-record;
+    in property <bool> cash-has-movements;
+    in property <string> cash-total-in-text;   // "+ …"
+    in property <string> cash-total-out-text;  // "− …"
+    in property <string> cash-net-text;        // signed
+    in property <bool> cash-net-negative;
+    callback cash-set-direction(bool /* isIn */);
+    callback cash-amount-edited(string);
+    callback cash-record();
+    callback cash-back();
+
+    // ── shift history ───────────────────────────────────────────────────
+    in property <string> tr-shifts-title;
+    in property <string> tr-shifts-empty;
+    in property <string> tr-shifts-closed;
+    in property <string> tr-shifts-declared;
+    in property <string> tr-shifts-open-now;
+    in property <string> tr-shifts-opening;
+    in property <string> tr-shifts-discrepancy;
+    in property <[ShiftRowData]> history-rows;   // live shift pre-pinned in Rust
+    in property <bool> history-loading;
+    // toast: 0 hidden, 1 printed(success), 2 no-printer(warning), 3 failed(danger)
+    in property <int> history-toast-kind;
+    in property <string> history-toast-text;
+    callback history-row-tapped(string /* shift id */);
+    callback history-toggle-orders(string /* shift id */);
+    callback history-order-tapped(string /* order id */);
+    callback history-print-order(string /* order id */);
+    callback history-toast-dismiss();
+    callback history-back();
+}
+
+// ─── Shift control kit — the Flutter controls.dart mirror ───────────────────
+
+// 1-px hairline separator — `light` picks borderLight over border.
+component ShiftHairline inherits Rectangle {
+    in property <bool> light: true;
+    height: 1px;
+    background: light ? T.border-light : T.border;
+}
+
+// Button variants — the natives' `BtnVariant`.
+export enum ShiftBtnVariant { primary, outline, ghost, danger }
+
+// The natives' `MadarButton`: 54-tall flat rounded CTA on the shared
+// press-scale, top-lit gradient (lerp(accent→white, .16)) + accent glow on
+// the primary variant, 1.5px outline, and a centered 20px/2.5 spinner while
+// loading. Label: 15px w700, 0.2 tracking.
+component ShiftButton {
+    in property <string> label;
+    in property <ShiftBtnVariant> variant: ShiftBtnVariant.primary;
+    in property <bool> loading: false;
+    in property <bool> btn-enabled: true;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    callback clicked;
+
+    property <bool> active: btn-enabled && !loading;
+    property <color> fg: variant == ShiftBtnVariant.outline ? T.accent
+        : variant == ShiftBtnVariant.ghost ? T.text-secondary
+        : T.text-on-accent;
+
+    // Pin the composed height — layouts otherwise collapse the Press slot.
+    preferred-height: 54px;
+    min-height: 54px;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: root.active;
+        clicked => { root.clicked(); }
+
+        Rectangle {
+            width: parent.width; height: parent.height;
+            border-radius: Rd.md;
+            background: root.variant == ShiftBtnVariant.primary
+                ? (root.active
+                    ? @linear-gradient(180deg, T.accent.mix(#FFFFFF, 0.84) 0%, T.accent 100%)
+                    : T.accent.with-alpha(0.45))
+                : root.variant == ShiftBtnVariant.danger
+                    ? (root.active ? T.danger : T.danger.with-alpha(0.45))
+                    : transparent;
+            border-width: root.variant == ShiftBtnVariant.outline ? 1.5px : 0px;
+            border-color: T.accent;
+            drop-shadow-color: root.variant == ShiftBtnVariant.primary && root.active
+                ? T.shadow-glow-color : transparent;
+            drop-shadow-blur: T.shadow-glow-blur;
+
+            if root.loading: Spinner {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                spin-color: root.fg;
+            }
+            if !root.loading: HorizontalLayout {
+                alignment: center;
+                spacing: Sp.sm;
+                if root.has-icon: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: root.icon;
+                    tint: root.fg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    color: root.fg;
+                    font-size: 15px; font-weight: 700;
+                    letter-spacing: 0.2px;
+                }
+            }
+        }
+    }
+}
+
+// The natives' `MadarCard`: bordered, softly-elevated surface container with
+// a spaced column. `card-radius` covers the close screen's Radii.md variant.
+component ShiftCard inherits Rectangle {
+    in property <length> card-radius: Rd.lg;
+    in property <length> gap: Sp.md;
+    background: T.surface;
+    border-radius: card-radius;
+    border-width: 1px;
+    border-color: T.border-light;
+    drop-shadow-color: T.shadow-card-color;
+    drop-shadow-blur: T.shadow-card-blur;
+    drop-shadow-offset-y: T.shadow-card-dy;
+    VerticalLayout {
+        padding: Sp.lg;
+        spacing: root.gap;
+        @children
+    }
+}
+
+// A zero-inset ShiftCard: same surface / hairline border / soft elevation,
+// but flush children own their insets and separators.
+component ShiftFlushCard inherits Rectangle {
+    background: T.surface;
+    border-radius: Rd.lg;
+    border-width: 1px;
+    border-color: T.border-light;
+    drop-shadow-color: T.shadow-card-color;
+    drop-shadow-blur: T.shadow-card-blur;
+    drop-shadow-offset-y: T.shadow-card-dy;
+    clip: true;
+    VerticalLayout {
+        @children
+    }
+}
+
+// The natives' `MadarTextField`: rounded field with an animated focus ring
+// (accent border + soft glow, surfaceAlt → surface fill) and a leading icon
+// that tints accent while focused. 16px vertical inset / 10px icon gap.
+component ShiftTextField {
+    in property <string> placeholder;
+    in property <image> icon;
+    in-out property <string> text <=> input.text;
+
+    height: 54px; // 15px text + 16px vertical insets + border
+    preferred-height: 54px;
+    min-height: 54px;
+
+    Rectangle {
+        border-radius: Rd.md;
+        background: input.has-focus ? T.surface : T.surface-alt;
+        border-width: input.has-focus ? 2px : 1px;
+        border-color: input.has-focus ? T.accent : T.border;
+        drop-shadow-color: input.has-focus ? T.accent.with-alpha(0.35) : transparent;
+        drop-shadow-blur: 8px;
+        animate background, border-color, drop-shadow-color { duration: 220ms; easing: ease-out; }
+
+        HorizontalLayout {
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            spacing: 10px;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                source: root.icon;
+                tint: input.has-focus ? T.accent : T.text-muted;
+            }
+            input := TextInput {
+                vertical-alignment: center;
+                single-line: true;
+                color: T.text-primary;
+                font-size: 15px; font-weight: 400;
+            }
+        }
+        if input.text == "": Text {
+            x: Sp.lg + Ic.lg + 10px;
+            y: (parent.height - self.height) / 2;
+            text: root.placeholder;
+            color: T.text-muted;
+            font-size: 15px; font-weight: 400;
+        }
+    }
+}
+
+// The natives' `AmountField`: one contained 64-tall hero row — a muted
+// currency prefix, then the big tabular amount. Text is two-way bound so
+// Rust can prefill; the never-clobber-mid-typing guard (didUpdateWidget's
+// lastEmitted check) lives on the Rust side: external prefills write `text`
+// only when they differ from the last value the teller emitted.
+component AmountField {
+    in property <bool> autofocus: false;
+    in-out property <string> text <=> input.text;
+    callback edited(string);
+
+    height: 64px; // Metrics.amountFieldHeight
+    preferred-height: 64px;
+    min-height: 64px;
+
+    Rectangle {
+        background: T.surface;
+        border-radius: Rd.md;
+        border-width: input.has-focus ? 2px : 1px;
+        border-color: input.has-focus ? T.accent : T.border;
+        animate border-color { duration: 220ms; easing: ease-out; }
+
+        HorizontalLayout {
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            spacing: Sp.sm;
+            prefix := Text {
+                vertical-alignment: center;
+                text: ShiftState.currency;
+                color: T.text-muted;
+                font-size: 15px; font-weight: 700;
+            }
+            input := TextInput {
+                vertical-alignment: center;
+                single-line: true;
+                color: T.text-primary;
+                font-size: 24px; font-weight: 800;
+                edited => { root.edited(self.text); }
+                init => { if (root.autofocus) { self.focus(); } }
+            }
+        }
+        // "0.00" hint overlays the empty input (money is LTR-composed).
+        if input.text == "": Text {
+            x: Sp.lg + prefix.preferred-width + Sp.sm;
+            y: (parent.height - self.height) / 2;
+            text: "0.00";
+            color: T.text-muted;
+            font-size: 24px; font-weight: 800;
+        }
+    }
+}
+
+// NoticeBanner with the optional trailing BannerActionPill (kit's Banner has
+// no trailing slot — local, flagged in NOTES for promotion). 14px horizontal
+// / Space.md vertical insets, 10px gaps; bodySm w600 text.
+component ShiftBanner {
+    in property <string> text;
+    in property <Tone> tone: Tone.warning;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <string> action-label; // "" hides the pill
+
+    property <color> fg: ToneMap.fg(self.tone);
+    preferred-height: brow.preferred-height + 2 * Sp.md;
+    min-height: brow.preferred-height + 2 * Sp.md;
+
+    Rectangle {
+        background: ToneMap.bg(root.tone);
+        border-radius: Rd.sm;
+        border-width: 1px;
+        border-color: root.fg.with-alpha(0.25);
+    }
+    brow := HorizontalLayout {
+        x: 14px; y: Sp.md;
+        width: parent.width - 28px;
+        spacing: 10px;
+        if root.has-icon: Icon {
+            y: (parent.height - self.height) / 2;
+            source: root.icon; tint: root.fg;
+        }
+        Text {
+            text: root.text;
+            color: root.fg;
+            font-size: 13px; font-weight: 600;
+            wrap: word-wrap;
+            horizontal-stretch: 1;
+        }
+        // BannerActionPill — purely decorative (the natives' AuthPausedBanner):
+        // accent pill, 10/5 insets, 12px w700 label + a forward chevron.
+        if root.action-label != "": Rectangle {
+            y: (parent.height - self.height) / 2;
+            background: T.accent;
+            border-radius: Rd.pill;
+            width: pill-row.preferred-width + 20px;
+            height: pill-row.preferred-height + 10px;
+            pill-row := HorizontalLayout {
+                x: 10px; y: 5px;
+                spacing: Sp.xs;
+                Text {
+                    text: root.action-label;
+                    color: T.text-on-accent;
+                    font-size: 12px; font-weight: 700;
+                }
+                Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.xs;
+                    source: Icons.chevron-forward;
+                    tint: T.text-on-accent;
+                    transform-rotation: T.rtl ? 180deg : 0deg;
+                }
+            }
+        }
+    }
+}
+
+// ─── Brand panel — the wide split's brand half, shared with Login so the
+// two screens read as one continuous onboarding act (brand_panel.dart).
+// Reads the Auth global's core strings (brand.headline / brand.tagline). ────
+component ShiftBrandPanel inherits Rectangle {
+    background: T.surface-alt;
+
+    // Faded watermark mark — 360px at the 80px offset, alpha .05,
+    // start-anchored so it mirrors in RTL.
+    Image {
+        x: T.rtl ? parent.width - 80px - self.width : 80px;
+        y: 80px;
+        width: 360px; height: 360px;
+        source: T.dark ? @image-url("../assets/symbol_reversed.png") : @image-url("../assets/symbol_primary.png");
+        opacity: 0.05;
+    }
+    VerticalLayout {
+        padding: 48px; // panel inset (natives: 48.dp)
+        // Lockup (natives: 28.dp tall).
+        Image {
+            height: 28px;
+            image-fit: contain;
+            horizontal-alignment: T.rtl ? right : left;
+            source: T.dark ? @image-url("../assets/lockup_latin_reversed.png") : @image-url("../assets/lockup_latin.png");
+        }
+        Rectangle { vertical-stretch: 1; }
+        // Headline — 44sp black at 50sp line height; each pre-split line
+        // renders in its own 50px row (Slint has no line-height).
+        VerticalLayout {
+            spacing: 0;
+            for line in Auth.brand-headline-lines: Rectangle {
+                height: 50px;
+                Text {
+                    x: T.rtl ? parent.width - self.preferred-width : 0;
+                    y: (parent.height - self.preferred-height) / 2;
+                    text: line;
+                    color: T.text-primary;
+                    font-size: 44px; font-weight: 800;
+                }
+            }
+        }
+        Rectangle { height: Sp.lg; }
+        // Tagline — 300px cap.
+        Text {
+            width: Math.min(300px, parent.width - 96px);
+            text: Auth.brand-tagline;
+            color: T.text-secondary;
+            font-size: 15px; font-weight: 500;
+            wrap: word-wrap;
+        }
+        Rectangle { vertical-stretch: 1; }
+        // Footer — 6px accent dot + the copyright literal (not localized).
+        HorizontalLayout {
+            spacing: Sp.sm;
+            alignment: start;
+            Rectangle {
+                y: (parent.height - 6px) / 2;
+                width: 6px; height: 6px; border-radius: 3px;
+                background: T.accent;
+            }
+            Text {
+                text: "© 2026 Madar";
+                color: T.text-muted;
+                font-size: 12px; font-weight: 400;
+            }
+        }
+    }
+}
+
+// ─── Z-report breakdown pieces (shift_report_sheet.dart) ────────────────────
+
+// 1-px hairline divider in the palette's rule tone.
+component ReportRule inherits Rectangle {
+    in property <color> rule-color;
+    height: 1px;
+    background: rule-color;
+}
+
+// A quiet (or emphasized) label/value totals row — tabular money values.
+// Quiet: 13px w500 label / 13px w600 value; emphasized: 15px w700 / 16px w800.
+component TotalRow {
+    in property <string> label;
+    in property <string> value;
+    in property <color> tone;
+    in property <color> label-strong;
+    in property <color> label-soft;
+    in property <bool> emphasized: false;
+    preferred-height: row.preferred-height;
+    min-height: row.preferred-height;
+
+    row := HorizontalLayout {
+        Text {
+            horizontal-stretch: 1;
+            text: root.label;
+            color: root.emphasized ? root.label-strong : root.label-soft;
+            font-size: root.emphasized ? 15px : 13px;
+            font-weight: root.emphasized ? 700 : 500;
+        }
+        Text {
+            text: root.value;
+            color: root.tone;
+            font-size: root.emphasized ? 16px : 13px;
+            font-weight: root.emphasized ? 800 : 600;
+        }
+    }
+}
+
+// One payment-method line: name · order count · total, over a 5px
+// proportional bar (cash tinted success, everything else accent/ink).
+component MethodRow {
+    in property <ShiftPaymentLineData> line;
+    in property <ReportPalette> p;
+    preferred-height: col.preferred-height;
+    min-height: col.preferred-height;
+
+    col := VerticalLayout {
+        spacing: Sp.xs;
+        HorizontalLayout {
+            Text {
+                text: root.line.method;
+                color: root.p.strong;
+                font-size: 13px; font-weight: 600;
+            }
+            Text {
+                horizontal-stretch: 1;
+                text: root.line.count-text;
+                color: root.p.muted;
+                font-size: 11px; font-weight: 400;
+            }
+            Text {
+                text: root.line.total-text;
+                color: root.p.strong;
+                font-size: 13px; font-weight: 700;
+            }
+        }
+        Rectangle {
+            height: 5px; // proportional bar (natives: 5.dp)
+            border-radius: Rd.pill;
+            background: root.p.bar-track;
+            clip: true;
+            Rectangle {
+                x: T.rtl ? parent.width - self.width : 0;
+                width: parent.width * root.line.fraction;
+                height: parent.height;
+                background: root.line.is-cash ? root.p.bar-cash : root.p.bar-other;
+            }
+        }
+    }
+}
+
+// One itemised drawer movement: note (or who moved it) + the signed amount.
+component MovementRow {
+    in property <ShiftMovementLineData> movement;
+    in property <ReportPalette> p;
+    preferred-height: row.preferred-height;
+    min-height: row.preferred-height;
+
+    row := HorizontalLayout {
+        Text {
+            horizontal-stretch: 1;
+            text: root.movement.title;
+            color: root.p.muted;
+            font-size: 11px; font-weight: 400;
+            overflow: elide;
+        }
+        Text {
+            text: root.movement.amount-text;
+            color: root.movement.is-out ? root.p.negative : root.p.positive;
+            font-size: 11px; font-weight: 600;
+        }
+    }
+}
+
+// The Z-report breakdown — per-method sales rows with proportional bars,
+// drawer pay-in/out (with each itemised movement), the voided total,
+// payments + opening cash (and the opening mismatch with its reason), the
+// expected cash, and — once the shift is closed — the counted drawer and
+// the over/short difference. Reused by the close-shift report card (theme
+// palette) and the preview sheet (paper ink).
+component ShiftReportBreakdown {
+    in property <ShiftReportData> data;
+    in property <ReportPalette> p;
+    preferred-height: col.preferred-height;
+    min-height: col.preferred-height;
+
+    col := VerticalLayout {
+        spacing: Sp.md;
+        if data.payment-lines.length == 0: Text {
+            text: ShiftState.tr-history-empty;
+            color: root.p.muted;
+            font-size: 12px; font-weight: 400;
+        }
+        if data.payment-lines.length > 0: VerticalLayout {
+            spacing: Sp.sm;
+            for line in root.data.payment-lines: MethodRow { line: line; p: root.p; }
+        }
+        ReportRule { rule-color: root.p.rule; }
+        if data.cash-in-text != "": TotalRow {
+            label: ShiftState.tr-cash-in; value: root.data.cash-in-text;
+            tone: root.p.positive; label-strong: root.p.strong; label-soft: root.p.soft;
+        }
+        if data.cash-out-text != "": TotalRow {
+            label: ShiftState.tr-cash-out; value: root.data.cash-out-text;
+            tone: root.p.negative; label-strong: root.p.strong; label-soft: root.p.soft;
+        }
+        if data.movements.length > 0: VerticalLayout {
+            padding-left: T.rtl ? 0px : Sp.sm;   // EdgeInsetsDirectional start
+            padding-right: T.rtl ? Sp.sm : 0px;
+            spacing: 3px; // movement-list rhythm (natives: spacedBy(3.dp))
+            for m in root.data.movements: MovementRow { movement: m; p: root.p; }
+        }
+        if data.voided-text != "": TotalRow {
+            label: ShiftState.tr-voided; value: root.data.voided-text;
+            tone: root.p.negative; label-strong: root.p.strong; label-soft: root.p.soft;
+        }
+        ReportRule { rule-color: root.p.rule; }
+        TotalRow {
+            label: ShiftState.tr-payments; value: root.data.payments-text;
+            tone: root.p.strong; label-strong: root.p.strong; label-soft: root.p.soft;
+        }
+        // Opening float (drawer carry-over) — the base Expected cash builds on.
+        TotalRow {
+            label: ShiftState.tr-opening-cash; value: root.data.opening-text;
+            tone: root.p.strong; label-strong: root.p.strong; label-soft: root.p.soft;
+        }
+        // Opening mismatch — the counted opening float differed from the
+        // suggested (last close); the signed difference + the teller's reason.
+        if data.mismatch-visible: TotalRow {
+            label: ShiftState.tr-opening-mismatch; value: root.data.mismatch-text;
+            tone: root.data.mismatch-caution ? root.p.caution : root.p.soft;
+            label-strong: root.p.strong; label-soft: root.p.soft;
+        }
+        if data.reason-text != "": HorizontalLayout {
+            padding-left: T.rtl ? 0px : Sp.sm;
+            padding-right: T.rtl ? Sp.sm : 0px;
+            Text {
+                horizontal-stretch: 1;
+                text: root.data.reason-text;
+                color: root.p.muted;
+                font-size: 11px; font-weight: 400;
+                wrap: word-wrap;
+            }
+        }
+        TotalRow {
+            label: ShiftState.tr-expected-cash; value: root.data.expected-text;
+            tone: root.p.strong; label-strong: root.p.strong; label-soft: root.p.soft;
+            emphasized: true;
+        }
+        // Reconciliation — the counted drawer + over/short, present once the
+        // shift is closed (declared cash set). Mirrors the printed Z-report.
+        if data.counted-text != "": TotalRow {
+            label: ShiftState.tr-counted-cash; value: root.data.counted-text;
+            tone: root.p.strong; label-strong: root.p.strong; label-soft: root.p.soft;
+            emphasized: true;
+        }
+        if data.diff-label != "": TotalRow {
+            label: root.data.diff-label; value: root.data.diff-text;
+            tone: root.data.diff-tone == 0 ? root.p.positive
+                : root.data.diff-tone == 1 ? root.p.negative
+                : root.p.caution;
+            label-strong: root.p.strong; label-soft: root.p.soft;
+        }
+    }
+}
+
+// ─── Report paper pieces (theme-invariant ink) ───────────────────────────────
+
+// The natives' danger StatusChip, rendered in fixed paper ink so it reads in
+// both themes on the white paper (tinted pill + hairline danger border).
+component VoidedTag {
+    in property <string> label;
+    preferred-width: tag.width;
+    min-width: tag.width;
+    preferred-height: tag.height;
+    min-height: tag.height;
+    tag := Rectangle {
+        background: PaperInk.ink-danger.with-alpha(0.08);
+        border-radius: Rd.pill;
+        border-width: 1px;
+        border-color: PaperInk.ink-danger.with-alpha(0.25);
+        width: txt.preferred-width + 12px;  // 6px horizontal insets
+        height: txt.preferred-height + 4px; // 2px vertical insets
+        txt := Text {
+            x: 6px; y: 2px;
+            text: root.label;
+            color: PaperInk.ink-danger;
+            font-size: 11px; font-weight: 600;
+        }
+    }
+}
+
+// One order row — the Kotlin ShiftOrderRow's anatomy (number, time, voided
+// tag, payment, total) in fixed paper ink. Voided orders fade + strike
+// through the total (hairline overlay — Slint has no strikethrough).
+component PaperOrderRow {
+    in property <ShiftOrderData> order;
+    in property <string> voided-label;
+    callback print;
+    preferred-height: box.preferred-height;
+    min-height: box.preferred-height;
+
+    box := Rectangle {
+        opacity: root.order.voided ? 0.55 : 1;
+        background: PaperInk.ink-track;
+        border-radius: Rd.xs;
+        preferred-height: row.preferred-height + 10px; // 5px vertical padding
+        row := HorizontalLayout {
+            x: Sp.sm; y: 5px;
+            width: parent.width - 2 * Sp.sm;
+            spacing: Sp.sm;
+            Text {
+                text: root.order.number-text;
+                color: PaperInk.ink;
+                font-size: 11px; font-weight: 600;
+            }
+            Text {
+                text: root.order.time-text;
+                color: PaperInk.faint;
+                font-size: 11px; font-weight: 400;
+            }
+            if root.order.voided: VoidedTag {
+                y: (parent.height - self.height) / 2;
+                label: root.voided-label;
+            }
+            Text {
+                horizontal-stretch: 1;
+                text: root.order.payment-text;
+                color: PaperInk.faint;
+                font-size: 11px; font-weight: 400;
+                overflow: elide;
+                horizontal-alignment: T.rtl ? left : right;
+            }
+            Rectangle {
+                width: total-txt.preferred-width;
+                total-txt := Text {
+                    y: (parent.height - self.preferred-height) / 2;
+                    text: root.order.total-text;
+                    color: root.order.voided ? PaperInk.faint : PaperInk.ink;
+                    font-size: 12px; font-weight: 700;
+                }
+                if root.order.voided: Rectangle {
+                    y: parent.height / 2;
+                    width: parent.width; height: 1px;
+                    background: PaperInk.faint;
+                }
+            }
+            // Per-order print — reprint this one order's receipt.
+            Press {
+                preferred-width: Ic.lg + Sp.xs;
+                min-width: Ic.lg + Sp.xs;
+                clicked => { root.print(); }
+                Icon {
+                    x: T.rtl ? 0px : Sp.xs;
+                    y: (parent.height - self.height) / 2;
+                    source: Icons.printer;
+                    tint: PaperInk.faint;
+                }
+            }
+        }
+    }
+}
+
+// The lazy "Orders" section under the breakdown — uppercase faint-ink label
+// + a chevron; COLLAPSED by default. Skeleton rows while the list loads, a
+// muted line when the shift has none.
+component PaperOrdersSection {
+    preferred-height: col.preferred-height;
+    min-height: col.preferred-height;
+
+    col := VerticalLayout {
+        spacing: Sp.xs;
+        Press {
+            preferred-height: hdr.preferred-height + 2 * Sp.xs;
+            min-height: hdr.preferred-height + 2 * Sp.xs;
+            clicked => { ShiftState.report-toggle-orders(); }
+            hdr := HorizontalLayout {
+                y: Sp.xs;
+                width: parent.width;
+                Text {
+                    horizontal-stretch: 1;
+                    text: ShiftState.tr-orders.to-uppercase();
+                    color: PaperInk.faint;
+                    font-size: 11px; font-weight: 600;
+                    letter-spacing: 0.6px;
+                }
+                Icon {
+                    source: ShiftState.sheet-orders-expanded ? Icons.chevron-up : Icons.chevron-down;
+                    tint: PaperInk.faint;
+                }
+            }
+        }
+        if ShiftState.sheet-orders-expanded && !ShiftState.sheet-orders-loaded: VerticalLayout {
+            spacing: Sp.xs;
+            SkeletonBlock { bar-height: 26px; }
+            SkeletonBlock { bar-height: 26px; }
+            SkeletonBlock { bar-height: 26px; }
+        }
+        if ShiftState.sheet-orders-expanded && ShiftState.sheet-orders-loaded
+            && ShiftState.sheet-orders.length == 0: Text {
+            text: ShiftState.tr-no-orders;
+            color: PaperInk.faint;
+            font-size: 11px; font-weight: 400;
+        }
+        if ShiftState.sheet-orders-expanded && ShiftState.sheet-orders-loaded: VerticalLayout {
+            spacing: Sp.xs;
+            for order in ShiftState.sheet-orders: PaperOrderRow {
+                order: order;
+                voided-label: ShiftState.tr-voided;
+                print => { ShiftState.report-print-order(order.id); }
+            }
+        }
+    }
+}
+
+// The report on "thermal paper": store-name masthead, the teller/opened
+// stamp, then the shared breakdown in fixed ink. Theme-invariant by design
+// (ReceiptPaper.kt) — white paper with dark ink in both themes.
+component ReportPaper {
+    in property <ShiftReportData> data;
+    preferred-height: card.preferred-height;
+    min-height: card.preferred-height;
+
+    card := Rectangle {
+        background: PaperInk.paper;
+        border-radius: 10px; // paper corner (natives: 10.dp)
+        border-width: 1px;
+        border-color: PaperInk.rule;
+        preferred-height: col.preferred-height + 36px; // 18px paper inset
+        col := VerticalLayout {
+            x: 18px; y: 18px;
+            width: parent.width - 36px;
+            spacing: 6px; // paper row rhythm (natives: spacedBy(6.dp))
+            Text {
+                horizontal-alignment: center;
+                text: ShiftState.store-name.to-uppercase();
+                color: PaperInk.ink;
+                font-size: 15px; font-weight: 700;
+                wrap: word-wrap;
+            }
+            Text {
+                horizontal-alignment: center;
+                text: ShiftState.tr-report-title.to-uppercase();
+                color: PaperInk.faint;
+                font-size: 11px; font-weight: 600;
+                letter-spacing: 0.6px;
+            }
+            ReportRule { rule-color: PaperInk.rule; }
+            HorizontalLayout {
+                Text {
+                    horizontal-stretch: 1;
+                    text: ShiftState.tr-teller;
+                    color: PaperInk.faint;
+                    font-size: 11px; font-weight: 400;
+                }
+                Text {
+                    text: root.data.teller;
+                    color: PaperInk.ink;
+                    font-size: 11px; font-weight: 600;
+                }
+            }
+            HorizontalLayout {
+                Text {
+                    horizontal-stretch: 1;
+                    text: ShiftState.tr-opened-at;
+                    color: PaperInk.faint;
+                    font-size: 11px; font-weight: 400;
+                }
+                Text {
+                    text: root.data.opened-text;
+                    color: PaperInk.ink;
+                    font-size: 11px; font-weight: 600;
+                }
+            }
+            ReportRule { rule-color: PaperInk.rule; }
+            ShiftReportBreakdown {
+                data: root.data;
+                p: {
+                    strong: PaperInk.ink, soft: PaperInk.ink, muted: PaperInk.faint,
+                    rule: PaperInk.rule, positive: PaperInk.ink-success,
+                    negative: PaperInk.ink-danger, caution: PaperInk.ink-warning,
+                    bar-track: PaperInk.ink-track, bar-cash: PaperInk.ink-success,
+                    bar-other: PaperInk.ink,
+                };
+            }
+            ReportRule { rule-color: PaperInk.rule; }
+            PaperOrdersSection { }
+        }
+    }
+}
+
+// Loading placeholder while the current shift's report is fetched.
+component PaperSkeleton {
+    preferred-height: col.preferred-height;
+    min-height: col.preferred-height;
+    col := VerticalLayout {
+        spacing: Sp.md;
+        SkeletonBlock { bar-height: Sp.xl; }
+        SkeletonBlock { bar-height: Sp.xl; }
+        SkeletonBlock { bar-height: 3 * Sp.xxl; }
+    }
+}
+
+// ─── ShiftReportSheet — the Z-report preview: header (title + teller +
+// data-source chip), the paper body, and the print footer with terminal
+// feedback (sent / no printer / failed). ─────────────────────────────────────
+component ShiftReportSheetBody {
+    VerticalLayout {
+        // ── Header: title + teller, and the report's data source ─────────
+        HorizontalLayout {
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            padding-top: Sp.md; padding-bottom: Sp.md;
+            spacing: Sp.sm;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                Text {
+                    text: ShiftState.tr-report-title;
+                    color: T.text-primary;
+                    font-size: 18px; font-weight: 800;
+                }
+                if ShiftState.sheet-report.loaded: Text {
+                    text: ShiftState.sheet-report.teller;
+                    color: T.text-secondary;
+                    font-size: 12px; font-weight: 400;
+                }
+            }
+            if ShiftState.sheet-report.loaded: Chip {
+                y: (parent.height - self.height) / 2;
+                label: ShiftState.sheet-report.from-server ? ShiftState.tr-online : ShiftState.tr-offline;
+                tone: ShiftState.sheet-report.from-server ? Tone.success : Tone.warning;
+            }
+        }
+        Rectangle { height: 1px; background: T.border; }
+        // ── Body: the report on thermal paper ─────────────────────────────
+        Flickable {
+            vertical-stretch: 1;
+            viewport-height: paper-wrap.preferred-height + Sp.lg + Sp.xl;
+            paper-wrap := VerticalLayout {
+                y: Sp.lg;
+                x: (parent.width - self.width) / 2;
+                width: Math.min(360px, parent.width - 2 * Sp.lg); // paper cap
+                height: self.preferred-height;
+                if !ShiftState.sheet-report.loaded: PaperSkeleton { }
+                if ShiftState.sheet-report.loaded: ReportPaper { data: ShiftState.sheet-report; }
+            }
+        }
+        // ── Footer: print feedback + actions ──────────────────────────────
+        VerticalLayout {
+            padding: Sp.lg;
+            spacing: Sp.sm;
+            // Terminal print feedback — the teller must know whether the
+            // Z-report actually printed, hit no configured printer, or failed.
+            if ShiftState.sheet-print >= 2: HorizontalLayout {
+                alignment: center;
+                Chip {
+                    label: ShiftState.sheet-print == 2 ? ShiftState.tr-printed
+                        : ShiftState.sheet-print == 3 ? ShiftState.tr-no-printer
+                        : ShiftState.tr-print-failed;
+                    tone: ShiftState.sheet-print == 2 ? Tone.success
+                        : ShiftState.sheet-print == 3 ? Tone.warning
+                        : Tone.danger;
+                    has-icon: true;
+                    icon: ShiftState.sheet-print == 2 ? Icons.checkmark-circle : Icons.exclamationmark-triangle;
+                }
+            }
+            ShiftButton {
+                label: ShiftState.sheet-print == 1 ? ShiftState.tr-printing : ShiftState.tr-print-report;
+                has-icon: true; icon: Icons.printer;
+                loading: ShiftState.sheet-print == 1;
+                btn-enabled: ShiftState.sheet-report.loaded;
+                clicked => { ShiftState.report-print(); }
+            }
+            ShiftButton {
+                label: ShiftState.tr-done;
+                variant: ShiftBtnVariant.ghost;
+                clicked => { ShiftState.report-dismissed(); }
+            }
+        }
+    }
+}
+
+// The sheet presenter — SheetSize.large (0.94), Rsp.sheet-max cap. Owned by
+// the close + history screens as a trailing overlay.
+component ShiftReportOverlay {
+    frame := SheetFrame {
+        width: parent.width; height: parent.height;
+        open <=> ShiftState.sheet-open;
+        height-fraction: 0.94;
+        sheet-max-width: Rsp.sheet-max;
+        dismissed => { ShiftState.report-dismissed(); }
+        ShiftReportSheetBody {
+            width: parent.width; height: parent.height;
+        }
+    }
+}
+
+// ─── Close-shift building blocks ─────────────────────────────────────────────
+
+// Leading teal tone-tile behind the glyph + a bold card title — matches the
+// confident Kitchen/Order/Sync header (accentBg + accent icon, 34px tile).
+component CardHeader {
+    in property <image> icon;
+    in property <string> title;
+    preferred-height: 34px;
+    min-height: 34px;
+
+    HorizontalLayout {
+        spacing: Sp.sm;
+        Rectangle {
+            width: 34px; height: 34px;
+            border-radius: Rd.sm;
+            background: T.accent-bg;
+            Icon {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                source: root.icon;
+                tint: T.accent;
+            }
+        }
+        Text {
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            text: root.title;
+            color: T.text-primary;
+            font-size: 17px; font-weight: 700;
+        }
+    }
+}
+
+// Quiet label/value row; money values are the hero — bold teal, tabular.
+component InfoRow {
+    in property <string> label;
+    in property <string> value;
+    in property <bool> money: false;
+    preferred-height: row.preferred-height;
+    min-height: row.preferred-height;
+
+    row := HorizontalLayout {
+        Text {
+            horizontal-stretch: 1;
+            text: root.label;
+            color: T.text-secondary;
+            font-size: 13px; font-weight: 400;
+        }
+        Text {
+            text: root.value;
+            color: root.money ? T.accent : T.text-primary;
+            font-size: root.money ? 14px : 13px;
+            font-weight: root.money ? 700 : 600;
+        }
+    }
+}
+
+// The system-expected cash — bold teal money in a tinted teal block, the
+// figure the declared count is reconciled against (h 16 / v 14 insets,
+// 20sp Black tabular money).
+component ExpectedCashBlock {
+    preferred-height: block.preferred-height;
+    min-height: block.preferred-height;
+
+    block := Rectangle {
+        background: T.accent-bg;
+        border-radius: Rd.md;
+        preferred-height: row.preferred-height + 28px; // 14px vertical insets
+        row := HorizontalLayout {
+            x: Sp.lg; y: 14px;
+            width: parent.width - 2 * Sp.lg;
+            spacing: Sp.sm;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 2px;
+                Text {
+                    text: ShiftState.tr-system-cash;
+                    color: T.accent;
+                    font-size: 12px; font-weight: 700;
+                }
+                Text {
+                    text: ShiftState.tr-system-cash-explain;
+                    color: T.text-muted;
+                    font-size: 11px; font-weight: 500;
+                    wrap: word-wrap;
+                }
+            }
+            Text {
+                vertical-alignment: center;
+                text: ShiftState.close-expected-text;
+                color: T.accent;
+                font-size: 20px; font-weight: 800;
+            }
+        }
+    }
+}
+
+// Live drawer variance: matched (success), over (warning), short (danger).
+// 14/12 insets, 10px gap, bodySm w500.
+component DiscrepancyBanner {
+    property <color> fg: ShiftState.close-diff-kind == 0 ? T.success
+        : ShiftState.close-diff-kind == 1 ? T.warning
+        : T.danger;
+    preferred-height: row.preferred-height + 24px;
+    min-height: row.preferred-height + 24px;
+
+    Rectangle {
+        background: ShiftState.close-diff-kind == 0 ? T.success-bg
+            : ShiftState.close-diff-kind == 1 ? T.warning-bg
+            : T.danger-bg;
+        border-radius: Rd.sm;
+        border-width: 1px;
+        border-color: root.fg.with-alpha(0.25);
+    }
+    row := HorizontalLayout {
+        x: 14px; y: 12px;
+        width: parent.width - 28px;
+        spacing: 10px;
+        Icon {
+            y: (parent.height - self.height) / 2;
+            source: ShiftState.close-diff-kind == 0 ? Icons.checkmark-circle
+                : ShiftState.close-diff-kind == 1 ? Icons.arrow-up-circle
+                : Icons.arrow-down-circle;
+            tint: root.fg;
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: ShiftState.close-diff-label;
+            color: root.fg;
+            font-size: 13px; font-weight: 500;
+            wrap: word-wrap;
+        }
+    }
+}
+
+// ─── OpenShiftScreen — login's continuation: a name-first greeting, one
+// isolated hero count field (auto-focused), one loud primary. Wide screens
+// split into the same BrandPanel as login (50/50); narrow shows one calm
+// centered column. Auth-flow split-brand screen → no MadarHeader. ───────────
+export component OpenShiftScreen {
+    property <bool> wide: self.width >= 760px;
+    // Form cap for the container width (Responsive.formWidth on the SCREEN
+    // width, as the Dart screen passes info.width).
+    property <length> form-cap: self.width >= 600px ? 600px : 520px;
+
+    // The heartbeat chrome refresh — the app-wide ConnectivityService pulse
+    // stands in as a 15s tick here (Rust pings + re-reads the sync chrome).
+    Timer {
+        interval: 15s;
+        running: true;
+        triggered => { ShiftState.open-heartbeat(); }
+    }
+
+    Rectangle { background: T.bg; }
+
+    HorizontalLayout {
+        if root.wide: ShiftBrandPanel {
+            width: parent.width * 0.5; // Expanded | Expanded → even split
+        }
+        Rectangle {
+            Flickable {
+                viewport-height: Math.max(form.preferred-height, parent.height);
+                form := VerticalLayout {
+                    x: (parent.width - self.width) / 2;
+                    y: Math.max((parent.height - self.preferred-height) / 2, 0px);
+                    width: Math.min(root.form-cap, parent.width);
+                    height: self.preferred-height;
+                    padding-left: Sp.xxl; padding-right: Sp.xxl;
+                    padding-top: 48px; padding-bottom: 48px; // form inset (natives: 48.dp)
+
+                    if !root.wide: VerticalLayout {
+                        padding-bottom: Sp.xl;
+                        HorizontalLayout {
+                            alignment: center;
+                            Image {
+                                width: 56px; height: 56px; // MadarMark(56.dp)
+                                source: T.dark ? @image-url("../assets/symbol_reversed.png") : @image-url("../assets/symbol_primary.png");
+                            }
+                        }
+                    }
+                    // ── Greeting (the teller's name IS the hero) ──────────
+                    Text {
+                        horizontal-alignment: center;
+                        text: ShiftState.tr-welcome;
+                        color: T.text-secondary;
+                        font-size: 15px; font-weight: 500;
+                    }
+                    Rectangle { height: Sp.xs; }
+                    // 28sp black, −0.5 tracking (Cairo tops out at ExtraBold).
+                    Text {
+                        horizontal-alignment: center;
+                        text: ShiftState.open-display-name;
+                        color: T.text-primary;
+                        font-size: 28px; font-weight: 800;
+                        letter-spacing: -0.5px;
+                    }
+                    if ShiftState.open-branch-name != "": VerticalLayout {
+                        padding-top: Sp.sm;
+                        HorizontalLayout {
+                            alignment: center;
+                            Chip {
+                                label: ShiftState.open-branch-name;
+                                tone: Tone.info;
+                                has-icon: true;
+                                icon: Icons.building-2;
+                            }
+                        }
+                    }
+                    Rectangle { height: Sp.xxl; }
+                    // ── Hero count field (the one thing the teller must do) ─
+                    ShiftCard {
+                        SectionHeader {
+                            text: ShiftState.tr-opening-cash;
+                            has-icon: true;
+                            icon: Icons.banknote;
+                        }
+                        AmountField {
+                            autofocus: true;
+                            text <=> ShiftState.open-amount-text;
+                            edited(v) => { ShiftState.open-amount-edited(v); }
+                        }
+                        // Carried-over suggestion (previous declared closing) —
+                        // a tinted teal block carrying the prior figure as bold
+                        // teal money, the twin of CloseShift's ExpectedCashBlock.
+                        if ShiftState.open-suggested-visible: Rectangle {
+                            background: T.accent-bg;
+                            border-radius: Rd.md;
+                            preferred-height: hint-row.preferred-height + 28px; // 14px insets
+                            min-height: hint-row.preferred-height + 28px;
+                            hint-row := HorizontalLayout {
+                                x: 14px; y: 14px;
+                                width: parent.width - 28px;
+                                spacing: Sp.sm;
+                                Icon {
+                                    y: (parent.height - self.height) / 2;
+                                    width: Ic.sm;
+                                    source: Icons.clock-arrow-circlepath;
+                                    tint: T.accent;
+                                }
+                                Text {
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                    text: ShiftState.tr-suggested-from-close;
+                                    color: T.accent;
+                                    font-size: 12px; font-weight: 700;
+                                    wrap: word-wrap;
+                                }
+                                Text {
+                                    vertical-alignment: center;
+                                    text: ShiftState.open-suggested-text;
+                                    color: T.accent;
+                                    font-size: 20px; font-weight: 800;
+                                }
+                            }
+                        }
+                        // Discrepancy reason — only when the count deviates.
+                        if ShiftState.open-needs-reason: ShiftTextField {
+                            placeholder: ShiftState.tr-opening-reason-label;
+                            icon: Icons.exclamationmark-bubble;
+                            text <=> ShiftState.open-reason-text;
+                        }
+                        Text {
+                            horizontal-alignment: center;
+                            text: ShiftState.open-needs-reason
+                                ? ShiftState.tr-opening-reason-hint
+                                : ShiftState.tr-opening-hint;
+                            color: T.text-muted;
+                            font-size: 12px; font-weight: 400;
+                            wrap: word-wrap;
+                        }
+                    }
+                    // ── Error (next to the action that triggers it) ────────
+                    Rectangle { height: Sp.xl; }
+                    if ShiftState.open-error != "": VerticalLayout {
+                        padding-bottom: Sp.md;
+                        ShiftBanner {
+                            text: ShiftState.open-error;
+                            tone: Tone.danger;
+                            has-icon: true;
+                            icon: Icons.exclamationmark-circle;
+                        }
+                    }
+                    // ── Primary action ─────────────────────────────────────
+                    ShiftButton {
+                        label: ShiftState.tr-open-button;
+                        has-icon: true; icon: Icons.lock-open;
+                        loading: ShiftState.open-busy;
+                        clicked => { ShiftState.open-submit(); }
+                    }
+                    Rectangle { height: Sp.sm; }
+                    // ── Recessive exit ─────────────────────────────────────
+                    ShiftButton {
+                        label: ShiftState.tr-switch-teller;
+                        variant: ShiftBtnVariant.ghost;
+                        clicked => { ShiftState.open-sign-out(); }
+                    }
+                }
+            }
+        }
+    }
+
+    // Top-pinned chrome so a teller WAITING here still sees + recovers
+    // connectivity / a genuine session expiry — not only on the order screen.
+    VerticalLayout {
+        x: 0; y: 0;
+        width: parent.width;
+        height: self.preferred-height;
+        padding-left: Sp.lg; padding-right: Sp.lg;
+        padding-top: Sp.sm; padding-bottom: Sp.sm;
+        spacing: Sp.sm;
+        if !ShiftState.open-online: ShiftBanner {
+            text: ShiftState.tr-offline-banner;
+            has-icon: true;
+            icon: Icons.wifi-slash;
+        }
+        if ShiftState.open-auth-paused: ShiftBanner {
+            text: ShiftState.tr-auth-paused;
+            tone: Tone.danger;
+            has-icon: true;
+            icon: Icons.lock;
+            action-label: ShiftState.tr-auth-paused-action;
+        }
+    }
+}
+
+// ─── CloseShiftScreen — count the closing drawer and end the shift:
+// summary card, counted-cash card (expected hero block + live over/short),
+// the full Z-report breakdown, the report preview entry, one loud danger
+// CTA. Shown over the order screen; the header's back pops it. ──────────────
+export component CloseShiftScreen {
+    VerticalLayout {
+        MadarHeader {
+            title: ShiftState.tr-close-title;
+            subtitle: ShiftState.tr-closing-desc;
+            has-back: true;
+            back => { ShiftState.close-back(); }
+        }
+        Flickable {
+            vertical-stretch: 1;
+            viewport-height: content.preferred-height + 2 * Sp.xl;
+            content := VerticalLayout {
+                y: Sp.xl;
+                x: (parent.width - self.width) / 2;
+                width: Math.min(640px, parent.width - 2 * Sp.xl); // content cap
+                height: self.preferred-height;
+                spacing: Sp.lg;
+
+                // ── Summary: teller, opening float (hero money), opened-at,
+                // + the headline figures once the Z-report lands ────────────
+                if ShiftState.close-shift-loaded: ShiftCard {
+                    card-radius: Rd.md;
+                    CardHeader { icon: Icons.doc-text; title: ShiftState.tr-summary; }
+                    InfoRow { label: ShiftState.tr-teller; value: ShiftState.close-teller; }
+                    // Opening cash is money — the hero treatment (bold teal, tabular).
+                    InfoRow { label: ShiftState.tr-opening-cash; value: ShiftState.close-opening-text; money: true; }
+                    InfoRow { label: ShiftState.tr-opened-at; value: ShiftState.close-opened-text; }
+                    if ShiftState.close-payments-text != "": InfoRow {
+                        label: ShiftState.tr-payments; value: ShiftState.close-payments-text; money: true;
+                    }
+                    if ShiftState.close-voided-text != "": InfoRow {
+                        label: ShiftState.tr-voided; value: ShiftState.close-voided-text; money: true;
+                    }
+                }
+                // ── Counted cash: expected hero block, the count, the live
+                // over/short banner, and the (maybe REQUIRED) note ──────────
+                ShiftCard {
+                    card-radius: Rd.md;
+                    CardHeader { icon: Icons.banknote; title: ShiftState.tr-counted-cash; }
+                    if ShiftState.close-report.loaded: ExpectedCashBlock { }
+                    AmountField {
+                        autofocus: true;
+                        text <=> ShiftState.close-amount-text;
+                        edited(v) => { ShiftState.close-counted-edited(v); }
+                    }
+                    if ShiftState.close-report.loaded: DiscrepancyBanner { }
+                    ShiftTextField {
+                        placeholder: ShiftState.close-needs-reason
+                            ? ShiftState.tr-opening-reason-label
+                            : ShiftState.tr-cash-note;
+                        icon: ShiftState.close-needs-reason
+                            ? Icons.exclamationmark-bubble
+                            : Icons.note-text;
+                        text <=> ShiftState.close-note-text;
+                    }
+                }
+                // ── Full Z-report breakdown (theme palette) ────────────────
+                if ShiftState.close-report.loaded: ShiftCard {
+                    card-radius: Rd.md;
+                    CardHeader { icon: Icons.list-bullet-rectangle; title: ShiftState.tr-report-title; }
+                    ShiftReportBreakdown {
+                        data: ShiftState.close-report;
+                        p: {
+                            strong: T.text-primary, soft: T.text-secondary,
+                            muted: T.text-muted, rule: T.border,
+                            positive: T.success, negative: T.danger, caution: T.warning,
+                            bar-track: T.surface-alt, bar-cash: T.success, bar-other: T.accent,
+                        };
+                    }
+                }
+                // Preview the Z-report (paper layout) before printing — works
+                // with no printer; Print lives inside the preview.
+                if ShiftState.close-report.loaded: ShiftButton {
+                    label: ShiftState.tr-print-report;
+                    has-icon: true; icon: Icons.printer;
+                    variant: ShiftBtnVariant.outline;
+                    clicked => { ShiftState.close-open-preview(); }
+                }
+                if ShiftState.close-error != "": ShiftBanner {
+                    text: ShiftState.close-error;
+                    tone: Tone.danger;
+                    has-icon: true;
+                    icon: Icons.exclamationmark-circle;
+                }
+                ShiftButton {
+                    label: ShiftState.tr-close-shift;
+                    has-icon: true; icon: Icons.lock;
+                    variant: ShiftBtnVariant.danger;
+                    loading: ShiftState.close-busy;
+                    clicked => { ShiftState.close-submit(); }
+                }
+            }
+        }
+    }
+    ShiftReportOverlay { width: parent.width; height: parent.height; }
+}
+
+// ─── CashMovementsScreen — the open shift's pay-in / pay-out ledger.
+// Movements record a signed pay-in / pay-out against the open shift —
+// OFFLINE-FIRST (queued through the durable outbox). ─────────────────────────
+
+// Pay-in / pay-out toggle chip — success/danger fill when active,
+// surfaceAlt otherwise.
+component DirectionChip {
+    in property <string> label;
+    in property <bool> active;
+    in property <color> tone;
+    callback tapped;
+    preferred-height: txt.preferred-height + 2 * Sp.md;
+    min-height: txt.preferred-height + 2 * Sp.md;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.tapped(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            background: root.active ? root.tone : T.surface-alt;
+            border-radius: Rd.sm;
+            txt := Text {
+                x: (parent.width - self.preferred-width) / 2;
+                y: (parent.height - self.preferred-height) / 2;
+                text: root.label;
+                color: root.active ? T.text-on-accent : T.text-secondary;
+                font-size: 15px; font-weight: 600;
+                overflow: elide;
+            }
+        }
+    }
+}
+
+// One lighter stat above the Net block: uppercase muted label + toned
+// tabular money.
+component CashStat {
+    in property <string> label;
+    in property <string> value;
+    in property <color> tone;
+    preferred-height: col.preferred-height;
+    min-height: col.preferred-height;
+
+    col := VerticalLayout {
+        spacing: Sp.xs;
+        Text {
+            text: root.label.to-uppercase();
+            color: T.text-muted;
+            font-size: 11px; font-weight: 600;
+            letter-spacing: 0.6px;
+            overflow: elide;
+        }
+        Text {
+            text: root.value;
+            color: root.tone;
+            font-size: 16px; font-weight: 700;
+            overflow: elide;
+        }
+    }
+}
+
+// One movement: toned direction tile (38px circle), note (or the In/Out
+// fallback) over who moved it + when, and the signed amount.
+component CashMovementRow {
+    in property <CashMovementData> movement;
+    preferred-height: row.preferred-height + 2 * Sp.md;
+    min-height: row.preferred-height + 2 * Sp.md;
+
+    row := HorizontalLayout {
+        x: Sp.lg; y: Sp.md;
+        width: parent.width - 2 * Sp.lg;
+        spacing: Sp.md;
+        Rectangle {
+            y: (parent.height - self.height) / 2;
+            width: 38px; height: 38px; // Metrics.iconTile
+            border-radius: 19px;
+            background: root.movement.positive ? T.success-bg : T.danger-bg;
+            Icon {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                source: root.movement.positive ? Icons.arrow-down-left : Icons.arrow-up-right;
+                tint: root.movement.positive ? T.success : T.danger;
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 2px; // title/subtitle gap (natives: spacedBy(2.dp))
+            alignment: center;
+            Text {
+                text: root.movement.title;
+                color: T.text-primary;
+                font-size: 15px; font-weight: 600;
+                overflow: elide;
+            }
+            Text {
+                text: root.movement.sub-text;
+                color: T.text-secondary;
+                font-size: 13px; font-weight: 400;
+                overflow: elide;
+            }
+        }
+        Text {
+            vertical-alignment: center;
+            text: root.movement.amount-text;
+            color: root.movement.positive ? T.success : T.danger;
+            font-size: 14px; font-weight: 700;
+        }
+    }
+}
+
+export component CashMovementsScreen {
+    VerticalLayout {
+        MadarHeader {
+            title: ShiftState.tr-cash-title;
+            has-back: true;
+            back => { ShiftState.cash-back(); }
+        }
+        Flickable {
+            vertical-stretch: 1;
+            viewport-height: content.preferred-height + 2 * Sp.lg;
+            content := VerticalLayout {
+                y: Sp.lg;
+                x: (parent.width - self.width) / 2;
+                width: Math.min(560px, parent.width - 2 * Sp.lg); // content cap
+                height: self.preferred-height;
+                spacing: Sp.lg;
+
+                if ShiftState.cash-error != "": ShiftBanner {
+                    text: ShiftState.cash-error;
+                    tone: Tone.danger;
+                    has-icon: true;
+                    icon: Icons.exclamationmark-circle;
+                }
+                // ── Total in / out / net — In / Out as lighter stats above a
+                // tinted-teal Net block (the hero figure tellers look at) ───
+                if ShiftState.cash-has-movements: ShiftCard {
+                    HorizontalLayout {
+                        spacing: Sp.sm;
+                        CashStat {
+                            width: (parent.width - Sp.sm) / 2;
+                            label: ShiftState.tr-total-in;
+                            value: ShiftState.cash-total-in-text;
+                            tone: T.success;
+                        }
+                        CashStat {
+                            width: (parent.width - Sp.sm) / 2;
+                            label: ShiftState.tr-total-out;
+                            value: ShiftState.cash-total-out-text;
+                            tone: T.danger;
+                        }
+                    }
+                    // Net — the running figure for the shift, in the
+                    // signature tinted-teal block.
+                    Rectangle {
+                        background: T.accent-bg;
+                        border-radius: Rd.md;
+                        preferred-height: net-row.preferred-height + 2 * Sp.md;
+                        min-height: net-row.preferred-height + 2 * Sp.md;
+                        net-row := HorizontalLayout {
+                            x: Sp.md; y: Sp.md;
+                            width: parent.width - 2 * Sp.md;
+                            Text {
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                text: ShiftState.tr-net;
+                                color: T.accent;
+                                font-size: 14px; font-weight: 700;
+                            }
+                            Text {
+                                text: ShiftState.cash-net-text;
+                                color: ShiftState.cash-net-negative ? T.danger : T.accent;
+                                font-size: 24px; font-weight: 800;
+                            }
+                        }
+                    }
+                }
+                // ── Record card: In/Out chips, amount, note, Record CTA ────
+                ShiftCard {
+                    HorizontalLayout {
+                        spacing: Sp.sm;
+                        DirectionChip {
+                            width: (parent.width - Sp.sm) / 2;
+                            label: ShiftState.tr-cash-in-chip;
+                            active: ShiftState.cash-is-in;
+                            tone: T.success;
+                            tapped => { ShiftState.cash-set-direction(true); }
+                        }
+                        DirectionChip {
+                            width: (parent.width - Sp.sm) / 2;
+                            label: ShiftState.tr-cash-out-chip;
+                            active: !ShiftState.cash-is-in;
+                            tone: T.danger;
+                            tapped => { ShiftState.cash-set-direction(false); }
+                        }
+                    }
+                    AmountField {
+                        text <=> ShiftState.cash-amount-text;
+                        edited(v) => { ShiftState.cash-amount-edited(v); }
+                    }
+                    ShiftTextField {
+                        placeholder: ShiftState.tr-cash-note-ph;
+                        icon: Icons.text-bubble;
+                        text <=> ShiftState.cash-note-text;
+                    }
+                    ShiftButton {
+                        label: ShiftState.tr-cash-record;
+                        has-icon: true; icon: Icons.plus-forwardslash-minus;
+                        loading: ShiftState.cash-busy;
+                        btn-enabled: ShiftState.cash-can-record;
+                        clicked => { ShiftState.cash-record(); }
+                    }
+                }
+                SectionHeader { text: ShiftState.tr-cash-history; }
+                // Skeleton while the first load is in flight.
+                if ShiftState.cash-loading && !ShiftState.cash-has-movements: VerticalLayout {
+                    spacing: Sp.sm;
+                    SkeletonRow { }
+                    SkeletonRow { }
+                    SkeletonRow { }
+                }
+                if !ShiftState.cash-loading && !ShiftState.cash-has-movements: VerticalLayout {
+                    padding-top: Sp.lg; padding-bottom: Sp.lg;
+                    Text {
+                        horizontal-alignment: center;
+                        text: ShiftState.tr-cash-empty;
+                        color: T.text-muted;
+                        font-size: 13px; font-weight: 400;
+                    }
+                }
+                // One card, rows separated by hairlines (the natives'
+                // zero-inset MadarCard).
+                if ShiftState.cash-has-movements: ShiftFlushCard {
+                    for m[i] in ShiftState.cash-movements: VerticalLayout {
+                        if i > 0: ShiftHairline { }
+                        CashMovementRow { movement: m; }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── ShiftHistoryScreen — the branch's closed-shift history. Responsive:
+// a fixed-column table at width ≥ 680, per-row cards below it. The locally-
+// open shift is pinned on top (done in Rust — `shiftsWithLocalOpen`);
+// tapping a row opens the shared Z-report preview sheet. ─────────────────────
+
+// The row's trailing affordance: a forward chevron, or a small spinner
+// while that row's Z-report is being fetched (14px / 2px stroke).
+component RowDisclosure {
+    in property <bool> loading;
+    preferred-width: Ic.lg;
+    min-width: Ic.lg;
+    if root.loading: Spinner {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        diameter: 14px;
+    }
+    if !root.loading: Icon {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        source: Icons.chevron-forward;
+        tint: T.text-muted;
+        transform-rotation: T.rtl ? 180deg : 0deg;
+    }
+}
+
+// The inline orders expander on a shift row — a list glyph that flips to a
+// collapse chevron while its panel is open. Separate from the row tap
+// (which opens the Z-report preview). 44px square.
+component OrdersToggle {
+    in property <bool> expanded;
+    callback tapped;
+    width: 44px;
+    preferred-height: 44px;
+    min-height: 44px;
+    TouchArea {
+        clicked => { root.tapped(); }
+        Icon {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            source: root.expanded ? Icons.chevron-up : Icons.list-bullet;
+            tint: root.expanded ? T.accent : T.text-muted;
+        }
+    }
+}
+
+// The natives' `MetricRow`: label ↔ tabular money value, optional tone.
+component MetricRow {
+    in property <string> label;
+    in property <string> value;
+    in property <bool> danger: false;
+    preferred-height: row.preferred-height;
+    min-height: row.preferred-height;
+
+    row := HorizontalLayout {
+        spacing: Sp.md;
+        Text {
+            horizontal-stretch: 1;
+            text: root.label;
+            color: root.danger ? T.danger : T.text-secondary;
+            font-size: 13px; font-weight: 400;
+        }
+        Text {
+            text: root.value;
+            color: root.danger ? T.danger : T.text-primary;
+            font-size: 14px; font-weight: 700;
+        }
+    }
+}
+
+// One order line in the expanded panel. Tapping the row opens the shared
+// receipt preview; the trailing printer glyph one-tap prints. Voided rows
+// fade with a struck-through total.
+component HistoryOrderLine {
+    in property <ShiftOrderData> order;
+    in property <string> voided-label;
+    preferred-height: row.preferred-height + 2 * Sp.sm;
+    min-height: row.preferred-height + 2 * Sp.sm;
+
+    TouchArea {
+        clicked => { ShiftState.history-order-tapped(root.order.id); }
+    }
+    row := HorizontalLayout {
+        x: Sp.lg; y: Sp.sm;
+        width: parent.width - 2 * Sp.lg;
+        spacing: Sp.md;
+        Rectangle {
+            width: 52px;
+            Text {
+                y: (parent.height - self.preferred-height) / 2;
+                x: T.rtl ? parent.width - self.preferred-width : 0;
+                text: root.order.number-text;
+                color: root.order.voided ? T.text-muted : T.text-primary;
+                font-size: 15px; font-weight: 700;
+            }
+        }
+        Text {
+            vertical-alignment: center;
+            text: root.order.time-text;
+            color: T.text-secondary;
+            font-size: 13px; font-weight: 400;
+        }
+        Text {
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            text: root.order.voided ? root.voided-label : root.order.payment-text;
+            color: root.order.voided ? T.danger : T.text-muted;
+            font-size: 13px; font-weight: 400;
+            overflow: elide;
+        }
+        Rectangle {
+            width: line-total.preferred-width;
+            line-total := Text {
+                y: (parent.height - self.preferred-height) / 2;
+                text: root.order.total-text;
+                color: root.order.voided ? T.text-muted : T.text-primary;
+                font-size: 14px; font-weight: 700;
+            }
+            if root.order.voided: Rectangle {
+                y: parent.height / 2;
+                width: parent.width; height: 1px;
+                background: T.text-muted;
+            }
+        }
+        Press {
+            preferred-width: Ic.lg + 2 * Sp.xs;
+            min-width: Ic.lg + 2 * Sp.xs;
+            clicked => { ShiftState.history-print-order(root.order.id); }
+            Icon {
+                x: Sp.xs;
+                y: (parent.height - self.height) / 2;
+                source: Icons.printer;
+                tint: T.accent;
+            }
+        }
+    }
+}
+
+// A past shift's orders, row by row under its shift row — loaded lazily on
+// first expand (skeletons while in flight, a muted line when none).
+component ShiftOrdersPanel {
+    in property <ShiftRowData> row;
+    preferred-height: wrap.preferred-height;
+    min-height: wrap.preferred-height;
+
+    wrap := VerticalLayout {
+        if !root.row.orders-loaded: VerticalLayout {
+            padding: Sp.lg;
+            spacing: Sp.sm;
+            SkeletonRow { }
+            SkeletonRow { }
+            SkeletonRow { }
+        }
+        if root.row.orders-loaded && root.row.orders.length == 0: VerticalLayout {
+            padding: Sp.lg;
+            Text {
+                text: ShiftState.tr-no-orders;
+                color: T.text-muted;
+                font-size: 13px; font-weight: 400;
+            }
+        }
+        if root.row.orders-loaded && root.row.orders.length > 0: Rectangle {
+            background: T.surface-alt.with-alpha(0.5);
+            preferred-height: panel-col.preferred-height;
+            min-height: panel-col.preferred-height;
+            panel-col := VerticalLayout {
+                width: parent.width;
+                for order in root.row.orders: HistoryOrderLine {
+                    order: order;
+                    voided-label: ShiftState.tr-voided;
+                }
+            }
+        }
+    }
+}
+
+// Wide-table column header — 42-tall, surfaceAlt fill, bottom hairline:
+// `[status dot 26][Teller][Opened][Closed][Declared 110][chevron 44]`.
+// The status-dot label is blank; Declared end-aligns.
+component HistoryColumnHeader {
+    preferred-height: 43px; // 42 + hairline
+    min-height: 43px;
+
+    Rectangle {
+        background: T.surface-alt;
+        VerticalLayout {
+            HorizontalLayout {
+                height: 42px; // Metrics.tableHeaderHeight
+                padding-left: Sp.lg; padding-right: Sp.lg;
+                spacing: Sp.md;
+                Rectangle { width: 26px; }
+                Text {
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    text: ShiftState.tr-teller.to-uppercase();
+                    color: T.text-muted;
+                    font-size: 11px; font-weight: 600;
+                    overflow: elide;
+                }
+                Text {
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    text: ShiftState.tr-opened-at.to-uppercase();
+                    color: T.text-muted;
+                    font-size: 11px; font-weight: 600;
+                    overflow: elide;
+                }
+                Text {
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    text: ShiftState.tr-shifts-closed.to-uppercase();
+                    color: T.text-muted;
+                    font-size: 11px; font-weight: 600;
+                    overflow: elide;
+                }
+                Text {
+                    vertical-alignment: center;
+                    width: 110px;
+                    text: ShiftState.tr-shifts-declared.to-uppercase();
+                    color: T.text-muted;
+                    font-size: 11px; font-weight: 600;
+                    overflow: elide;
+                    horizontal-alignment: T.rtl ? left : right;
+                }
+                Rectangle { width: 44px; }
+            }
+            ShiftHairline { }
+        }
+    }
+}
+
+// A single table row, 56-tall, zebra fill on odd rows —
+// `[status dot][Teller][Opened][Closed][Declared][orders toggle][chevron]`.
+component WideShiftRow {
+    in property <ShiftRowData> row;
+    in property <bool> odd;
+    preferred-height: 56px; // Metrics.tableRowHeight
+    min-height: 56px;
+
+    Rectangle {
+        background: root.odd ? T.surface-alt : transparent;
+        TouchArea {
+            clicked => { ShiftState.history-row-tapped(root.row.id); }
+        }
+        HorizontalLayout {
+            height: 56px;
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            spacing: Sp.md;
+            Rectangle {
+                width: 26px;
+                Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: 8px; height: 8px; border-radius: 4px; // status dot
+                    background: root.row.status-kind == 0 ? T.success
+                        : root.row.status-kind == 1 ? T.danger
+                        : T.text-muted;
+                }
+            }
+            Text {
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                text: root.row.teller;
+                color: T.text-primary;
+                font-size: 15px; font-weight: 600;
+                overflow: elide;
+            }
+            Text {
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                text: root.row.opened-text;
+                color: T.text-secondary;
+                font-size: 13px; font-weight: 400;
+                overflow: elide;
+            }
+            Text {
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                text: root.row.closed-text;
+                color: root.row.closed-missing ? T.text-muted : T.text-secondary;
+                font-size: 13px; font-weight: 400;
+                overflow: elide;
+            }
+            Text {
+                vertical-alignment: center;
+                width: 110px; // declared column
+                text: root.row.declared-text;
+                color: root.row.declared-missing ? T.text-muted : T.text-primary;
+                font-size: 14px; font-weight: 700;
+                overflow: elide;
+                horizontal-alignment: T.rtl ? left : right;
+            }
+            // Inline orders expander — row by row, printable.
+            OrdersToggle {
+                expanded: root.row.expanded;
+                tapped => { ShiftState.history-toggle-orders(root.row.id); }
+            }
+            Rectangle {
+                width: 44px; // chevron column
+                RowDisclosure {
+                    x: (parent.width - self.width) / 2;
+                    height: parent.height;
+                    loading: root.row.loading-report;
+                }
+            }
+        }
+    }
+}
+
+// Narrow row card: opened date + status chip up top, then the opening /
+// declared / discrepancy metric rows.
+component NarrowShiftCard {
+    in property <ShiftRowData> row;
+    preferred-height: box.preferred-height;
+    min-height: box.preferred-height;
+
+    box := Rectangle {
+        background: T.surface;
+        border-radius: Rd.md;
+        border-width: 1px;
+        border-color: T.border-light;
+        preferred-height: col.preferred-height + 2 * Sp.lg;
+        TouchArea {
+            clicked => { ShiftState.history-row-tapped(root.row.id); }
+        }
+        col := VerticalLayout {
+            x: Sp.lg; y: Sp.lg;
+            width: parent.width - 2 * Sp.lg;
+            spacing: Sp.sm;
+            HorizontalLayout {
+                Text {
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    text: root.row.opened-short-text;
+                    color: T.text-primary;
+                    font-size: 15px; font-weight: 600;
+                    overflow: elide;
+                }
+                Chip {
+                    y: (parent.height - self.height) / 2;
+                    label: root.row.is-open ? ShiftState.tr-shifts-open-now : ShiftState.tr-shifts-closed;
+                    tone: root.row.is-open ? Tone.success : Tone.neutral;
+                }
+                OrdersToggle {
+                    expanded: root.row.expanded;
+                    tapped => { ShiftState.history-toggle-orders(root.row.id); }
+                }
+                RowDisclosure { loading: root.row.loading-report; }
+            }
+            MetricRow { label: ShiftState.tr-shifts-opening; value: root.row.opening-text; }
+            if !root.row.declared-missing: MetricRow {
+                label: ShiftState.tr-shifts-declared; value: root.row.declared-text;
+            }
+            if root.row.discrepancy-text != "": MetricRow {
+                label: ShiftState.tr-shifts-discrepancy; value: root.row.discrepancy-text;
+                danger: true;
+            }
+        }
+    }
+}
+
+export component ShiftHistoryScreen {
+    property <bool> wide: self.width >= 680px; // Responsive.wideTable
+
+    // Toast auto-dismiss (design_system ToastHost's internal timer).
+    Timer {
+        interval: 3s;
+        running: ShiftState.history-toast-kind != 0;
+        triggered => { ShiftState.history-toast-dismiss(); }
+    }
+
+    VerticalLayout {
+        MadarHeader {
+            title: ShiftState.tr-shifts-title;
+            has-back: true;
+            back => { ShiftState.history-back(); }
+        }
+        Rectangle {
+            vertical-stretch: 1;
+            if ShiftState.history-loading && ShiftState.history-rows.length == 0: SkeletonList {
+                x: (parent.width - self.width) / 2;
+                width: Math.min(Rsp.list-max, parent.width);
+            }
+            if !ShiftState.history-loading && ShiftState.history-rows.length == 0: EmptyState {
+                width: parent.width; height: parent.height;
+                icon: Icons.clock-arrow-circlepath;
+                title: ShiftState.tr-shifts-empty;
+            }
+            // Wide: header + rows live in one flush card.
+            if ShiftState.history-rows.length > 0 && root.wide: Flickable {
+                width: parent.width; height: parent.height;
+                viewport-height: wide-content.preferred-height + 2 * Sp.lg;
+                wide-content := VerticalLayout {
+                    y: Sp.lg;
+                    x: (parent.width - self.width) / 2;
+                    width: Math.min(880px, parent.width - 2 * Sp.lg); // content cap
+                    height: self.preferred-height;
+                    ShiftFlushCard {
+                        HistoryColumnHeader { }
+                        for row in ShiftState.history-rows: VerticalLayout {
+                            WideShiftRow { row: row; odd: false; }
+                            if row.expanded: ShiftOrdersPanel { row: row; }
+                            ShiftHairline { }
+                        }
+                    }
+                }
+            }
+            // Narrow keeps per-row cards.
+            if ShiftState.history-rows.length > 0 && !root.wide: Flickable {
+                width: parent.width; height: parent.height;
+                viewport-height: narrow-content.preferred-height + 2 * Sp.lg;
+                narrow-content := VerticalLayout {
+                    y: Sp.lg;
+                    x: (parent.width - self.width) / 2;
+                    width: Math.min(880px, parent.width - 2 * Sp.lg);
+                    height: self.preferred-height;
+                    spacing: Sp.sm;
+                    for row in ShiftState.history-rows: VerticalLayout {
+                        NarrowShiftCard { row: row; }
+                        if row.expanded: ShiftOrdersPanel { row: row; }
+                    }
+                }
+            }
+        }
+    }
+    // Toasts float above everything on this screen.
+    ToastHost {
+        width: parent.width; height: parent.height;
+        shown: ShiftState.history-toast-kind != 0;
+        text: ShiftState.history-toast-text;
+        tone: ShiftState.history-toast-kind == 1 ? Tone.success
+            : ShiftState.history-toast-kind == 2 ? Tone.warning
+            : Tone.danger;
+        has-icon: true;
+        icon: ShiftState.history-toast-kind == 1 ? Icons.checkmark-circle
+            : ShiftState.history-toast-kind == 2 ? Icons.printer
+            : Icons.xmark-circle;
+    }
+    ShiftReportOverlay { width: parent.width; height: parent.height; }
+}

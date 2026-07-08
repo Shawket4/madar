@@ -552,6 +552,21 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// `None` host clears it.
   Future<void> setDevicePrinter({String? host, int? port, String? brand});
 
+  /// Bind the paired Bluetooth printer (MAC `address` + cached display `name`).
+  /// `None` address clears it. The core stores the binding; the Flutter
+  /// transport opens the socket.
+  Future<void> setDevicePrinterBt({String? address, String? name});
+
+  /// Pin the receipt raster width in dots (Settings paper-size toggle): 384 for
+  /// a 58 mm roll, 576 for 80 mm. `None` clears it → the width falls back to the
+  /// transport default (Bluetooth → 384, LAN → 576).
+  Future<void> setDevicePrinterPaper({int? dots});
+
+  /// Pick the printer transport — `"bluetooth"` (Classic SPP) or `"lan"`
+  /// (raw-TCP, the default). Only the active transport's binding is used at
+  /// print time; the other is retained so switching back is lossless.
+  Future<void> setDevicePrinterTransport({required String kind});
+
   /// Bind the device's kitchen station (a KDS device). `None` clears it.
   Future<void> setDeviceStation({String? stationId});
 

@@ -78,16 +78,17 @@ class ReceiptPreviewNotifier extends Notifier<ReceiptPreviewState> {
     _update((s) => s.copyWith(clearToast: true));
   }
 
-  /// Render [receipt] in the core and stream it to the configured network
-  /// printer. Guards on the device's printer config: with no printer bound
-  /// it raises a warning toast instead of attempting the send.
+  /// Render [receipt] in the core and stream it to the configured printer
+  /// (Bluetooth or network, whichever the device is set to). Guards on the
+  /// device's printer config: with no printer bound it raises a warning toast
+  /// instead of attempting the send.
   Future<void> print(ReceiptView receipt) async {
     if (state.printing) return;
     final bridge = _bridge;
     String tr(String key) => bridge.tr(key: key);
     final config = bridge.deviceConfig();
-    final host = config.printerHost?.trim() ?? '';
-    if (host.isEmpty) {
+    final tx = ref.read(printerServiceProvider).activeTransport();
+    if (tx == null) {
       _toast(
         tr('receipt.no_printer'),
         tone: ChipTone.warning,
@@ -99,16 +100,12 @@ class ReceiptPreviewNotifier extends Notifier<ReceiptPreviewState> {
     try {
       final bytes = await bridge.renderReceipt(
         receipt: receipt,
-        storeName: bridge.deviceConfig().branchName ?? '',
+        storeName: config.branchName ?? '',
         currency: bridge.currentSession()?.currencyCode ?? '',
         width: kReceiptChars,
         brand: printerBrandOf(config.printerBrand),
       );
-      await bridge.sendToPrinter(
-        host: host,
-        port: config.printerPort ?? kJetDirectPort,
-        bytes: bytes,
-      );
+      await tx.send(bytes);
       _toast(
         tr('receipt.printed'),
         tone: ChipTone.success,

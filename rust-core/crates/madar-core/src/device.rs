@@ -17,6 +17,13 @@ use crate::store::Store;
 /// kv key holding the device-config JSON blob.
 const KEY: &str = "device_config";
 
+/// Default raster width (dots @ 203 dpi) for a Bluetooth printer — a 58 mm
+/// portable (the P300 class), ~48 mm / 384 printable dots.
+const BT_PAPER_DOTS: u32 = 384;
+/// Default raster width for a LAN printer — a 72 mm desktop head (Epson/Star),
+/// 576 dots. Matches `render::PRINT_WIDTH`, the historical hardcoded value.
+const LAN_PAPER_DOTS: u32 = 576;
+
 /// The persisted device binding. All-`Option` because a fresh install has none of
 /// it; the device-setup flow fills branch (+ till for a POS, or station for a KDS).
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -37,6 +44,26 @@ pub(crate) struct DeviceConfig {
     /// Printer command dialect — `"epson"` (ESC/POS) or `"star"` (Star Line Mode).
     /// The two are not byte-compatible; the host maps this to the render brand.
     pub printer_brand: Option<String>,
+    /// Which transport carries the rendered receipt bytes — `"lan"` (raw-TCP
+    /// JetDirect, the default when `None`) or `"bluetooth"` (Classic SPP to a
+    /// paired device). Picks the active binding; the two coexist so switching
+    /// back doesn't lose the other's address.
+    #[serde(default)]
+    pub printer_transport: Option<String>,
+    /// The paired Bluetooth printer's MAC address (an Android bonded device).
+    /// The CORE never opens the socket — the Flutter transport does — but the
+    /// binding lives here beside the network printer for one source of truth.
+    #[serde(default)]
+    pub printer_bt_address: Option<String>,
+    /// Cached Bluetooth printer display name (so Settings shows it offline).
+    #[serde(default)]
+    pub printer_bt_name: Option<String>,
+    /// Raster width in dots for the rendered receipt bitmap. `None` = resolve from
+    /// the active transport (Bluetooth → 384 / 58 mm, LAN → 576 / 72 mm); an
+    /// explicit value (the Settings paper-size toggle) always wins. Lets a 58 mm
+    /// portable and an 80 mm desktop head coexist with no re-render path.
+    #[serde(default)]
+    pub printer_paper_dots: Option<u32>,
     /// `true` while the manager is re-running device setup — forces `DeviceSetup`
     /// even though a branch is already bound.
     #[serde(default)]
@@ -52,6 +79,23 @@ impl DeviceConfig {
     /// Whether the device is ready to use (bound to a branch and not mid-setup).
     pub fn configured(&self) -> bool {
         self.branch_id.is_some() && !self.reconfiguring
+    }
+
+    /// Effective raster width in dots. Honors an explicit `printer_paper_dots`;
+    /// otherwise defaults by transport — a Bluetooth printer is assumed to be a
+    /// 58 mm portable (384 dots), LAN a 72 mm desktop head (576 dots).
+    pub fn paper_dots(&self) -> u32 {
+        self.printer_paper_dots.unwrap_or(match self.printer_transport.as_deref() {
+            Some("bluetooth") => BT_PAPER_DOTS,
+            _ => LAN_PAPER_DOTS,
+        })
+    }
+
+    /// Whether the active printer has an auto-cutter. Desktop (LAN) heads do;
+    /// Bluetooth portables (the P300 class) don't — so the raster feeds extra
+    /// paper instead of emitting a `GS V` cut the head would choke on or ignore.
+    pub fn printer_has_cutter(&self) -> bool {
+        self.printer_transport.as_deref() != Some("bluetooth")
     }
 }
 
@@ -93,6 +137,10 @@ pub struct DeviceConfigView {
     pub printer_host: Option<String>,
     pub printer_port: Option<u16>,
     pub printer_brand: Option<String>,
+    pub printer_transport: Option<String>,
+    pub printer_bt_address: Option<String>,
+    pub printer_bt_name: Option<String>,
+    pub printer_paper_dots: Option<u32>,
     pub reconfiguring: bool,
     pub lan_hub: Option<String>,
     pub configured: bool,
@@ -109,6 +157,10 @@ impl From<DeviceConfig> for DeviceConfigView {
             printer_host: c.printer_host,
             printer_port: c.printer_port,
             printer_brand: c.printer_brand,
+            printer_transport: c.printer_transport,
+            printer_bt_address: c.printer_bt_address,
+            printer_bt_name: c.printer_bt_name,
+            printer_paper_dots: c.printer_paper_dots,
             reconfiguring: c.reconfiguring,
             lan_hub: c.lan_hub,
             configured,

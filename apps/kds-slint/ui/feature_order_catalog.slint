@@ -1,0 +1,1907 @@
+// Order feature — CATALOG side (Part A). 1:1 port of the Flutter sources:
+//   catalog_column.dart      → CatalogColumn (tabs · search · item/bundle grid)
+//   item_detail_sheet.dart   → ItemDetailSheet (+ ItemSheet global)
+//   bundle_detail_sheet.dart → BundleDetailSheet (+ BundleSheet global)
+//   widgets.dart             → OrderActionButton / OrderField / OrderSectionTitle
+// The Flutter files are the specification; metrics/type/colors are verbatim.
+// All selection state lives in Rust (src/feature_order_catalog.rs — the
+// ItemConfigNotifier / BundleConfigNotifier ports); this file is a pure view:
+// data flows in through the three globals, intent flows out through callbacks.
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Press, Icon, Chip, Tone, Spinner } from "components.slint";
+import { Icons } from "icons.slint";
+import { EmptyState } from "kit.slint";
+
+// ── data structs (declarations must precede use) ────────────────────────────
+
+// One category tab. icon-key: "" = text only (custom category — the monogram
+// carries identity on the card, widgets.dart categoryIconName), "all",
+// "combos", or "cat.<key>" for the core style families.
+export struct CatalogTabData {
+    id: string,        // "" = All, "__combos__" = Combos, else category id
+    label: string,
+    icon-key: string,
+}
+
+// One catalog card. Colors come pre-parsed from the core's CatStyleView hex
+// (hexColor lives in Rust); price-label is Money.format'ed in Rust.
+export struct CatalogItemData {
+    id: string,
+    name: string,
+    monogram: string,
+    price-label: string,
+    in-cart-qty: int,
+    has-image: bool,
+    img: image,         // core-cached LOCAL file, loaded in Rust
+    accent: color,
+    bg-top: color,
+    bg-bottom: color,
+}
+
+export struct BundleCardData {
+    id: string,
+    name: string,
+    includes-line: string,  // "${components.length} ${tr(order.bundle_includes)}"
+    price-label: string,
+    has-image: bool,
+    img: image,
+}
+
+// A size chip (label over its price).
+export struct SizeChipData {
+    label: string,
+    price-label: string,
+    active: bool,
+}
+
+// One addon option chip. qty > 0 && multi ⇒ render the selected qty-stepper
+// chip; else the plain option chip (selected = single-select accent fill).
+export struct AddonChipData {
+    id: string,
+    name: string,
+    price-label: string,     // "+EGP 5.00" ("" hides the pill)
+    selected: bool,
+    multi: bool,
+    qty: int,
+    qty-price-label: string, // "+EGP 10.00" (price × qty, "" hides)
+}
+
+// Chips pre-chunked into wrap rows by Rust (Slint has no flow layout — the
+// chunker estimates Cairo advances against the sheet's fixed content width).
+export struct AddonChipRow { chips: [AddonChipData] }
+
+export struct AddonGroupData {
+    id: string,
+    title: string,
+    required: bool,
+    max-label: string,   // "≤3" ("" hides)
+    count: int,          // selected count (0 hides the chip)
+    has-search: bool,    // > 5 options
+    search-text: string, // Rust-held query, restored across model rebuilds
+    rows: [AddonChipRow],
+}
+
+export struct OptChipData {
+    id: string,
+    name: string,
+    price-label: string,
+    on: bool,
+}
+
+export struct OptChipRow { chips: [OptChipData] }
+
+export struct RecipeLineData {
+    qty-label: string,     // whole numbers without a decimal (Rust _fmtQty)
+    unit: string,
+    name: string,
+    source-label: string,  // pre-uppercased in Rust
+    is-base: bool,
+}
+
+export struct BundleComponentRowData {
+    title: string,        // "2× Burger"
+    subtitle: string,     // "" hides; "Configure" / "size · +N"
+    configurable: bool,
+    configured: bool,
+    extras-label: string, // "+EGP 4.00" ("" hides)
+}
+
+// ── globals: data in / intent out ───────────────────────────────────────────
+
+// Catalog column state. The grid model arrives PRE-FILTERED from Rust
+// (category + query, one pass — the natives' memoized filter); keystrokes
+// only round-trip search-changed → items, never touching the tab strip.
+export global OrderCatalog {
+    in property <[CatalogTabData]> tabs;
+    in property <string> selected-tab: "";     // "" = All
+    in property <[CatalogItemData]> items;
+    in property <[BundleCardData]> bundles;
+    in property <bool> loading: true;          // isLoadingCatalog → skeleton
+    in property <bool> searching: false;       // query non-empty → no-match empty state
+
+    // tr keys (order.*) resolved by Rust.
+    in property <string> tr-search;
+    in property <string> tr-empty-search;
+    in property <string> tr-empty;
+    in property <string> tr-empty-desc;
+    in property <string> tr-sync-menu;
+
+    // Toast slot (max-reached / validation warnings from the sheets, sync
+    // results). Rust auto-clears after `seconds` — see NOTES for the Part B
+    // consolidation with the order screen's ToastHost.
+    in property <bool> toast-shown: false;
+    in property <string> toast-text;
+    in property <Tone> toast-tone: Tone.neutral;
+    in property <string> toast-icon-key;       // "" = dot
+
+    callback select-tab(string /* tab id */);
+    callback search-changed(string /* raw text */);
+    callback item-tapped(string /* item id */);
+    callback bundle-tapped(string /* bundle id */);
+    callback sync-menu();
+}
+
+// Item customization sheet state — the render projection of the Rust-side
+// ItemConfigNotifier port (seeded per presentation; auto-reset on open).
+export global ItemSheet {
+    in-out property <bool> open: false;
+    in property <bool> configuring: false;   // bundle-component configure mode
+    in property <string> item-name;
+    in property <string> item-description;   // "" hides
+    in property <string> header-total;       // Money.format'ed live unit total
+    in property <bool> has-recipe: false;
+    in property <bool> show-recipe: false;
+    in property <[RecipeLineData]> recipe-lines;
+    in property <[SizeChipData]> sizes;
+    in property <[AddonGroupData]> groups;
+    in property <bool> has-more: false;      // "show all" reveals more
+    in property <bool> show-all: false;
+    in property <string> show-all-label;     // tr order.show_all/assigned_addons
+    in property <[OptChipRow]> optional-rows;
+    in property <bool> optionals-visible: false;
+    in property <bool> optionals-search-visible: false; // > 4 fields
+    in property <string> optionals-search-text;
+    in-out property <string> notes-text;     // seeded from the edit line by Rust
+    in property <int> qty: 1;
+    in property <string> footer-total;
+    in property <string> footer-label;       // add/update/save/"Select X"
+    in property <bool> can-add: true;
+    in property <bool> committing: false;    // double-tap latch → spinner
+
+    in property <string> tr-recipe;
+    in property <string> tr-size;
+    in property <string> tr-notes;
+    in property <string> tr-notes-hint;
+    in property <string> tr-optionals;
+    in property <string> tr-search-addons;
+    in property <string> tr-required;
+    in property <string> tr-total;
+
+    callback toggle-recipe();
+    callback select-size(string /* label */);
+    callback toggle-single(string /* group id */, string /* addon id */);
+    callback toggle-multi(string, string);
+    callback inc-multi(string, string);
+    callback dec-multi(string, string);
+    callback toggle-optional(string /* field id */);
+    callback toggle-show-all();
+    callback dec-qty();
+    callback inc-qty();
+    callback group-search(string /* group id */, string /* query */);
+    callback optionals-search(string /* query */);
+    callback commit(string /* notes */);
+    callback closed();   // slide-out finished — Rust clears the backing state
+}
+
+// Bundle configuration sheet state (BundleConfigNotifier port).
+export global BundleSheet {
+    in-out property <bool> open: false;
+    in property <string> bundle-name;
+    in property <string> bundle-description;  // "" hides
+    in property <string> price-label;          // header badge (fixed price)
+    in property <[BundleComponentRowData]> components;
+    in property <string> subtotal-value;       // base price, formatted
+    in property <string> extras-value;         // "+X" ("" hides the row)
+    in property <string> total-value;          // live total (base + extras)
+    in property <bool> can-add: true;
+    in property <bool> adding: false;
+    in property <string> footer-cta-label;     // tr add_to_cart / configure
+
+    in property <string> tr-bundle-includes;
+    in property <string> tr-subtotal;
+    in property <string> tr-extra;             // order.addon_extra
+    in property <string> tr-total;
+
+    callback component-tapped(int /* index */);
+    callback add();
+    callback closed();
+}
+
+// ── icon-key → glyph map (widgets.dart categoryIconName + the tab icons) ────
+global CatIcon {
+    public pure function of(key: string) -> image {
+        if (key == "all") { return Icons.square-grid-2x2-fill; }
+        if (key == "combos") { return Icons.square-stack-3d-up-fill; }
+        if (key == "cat.coffee") { return Icons.cat-coffee; }
+        if (key == "cat.mocha") { return Icons.cat-mocha; }
+        if (key == "cat.tea") { return Icons.cat-tea; }
+        if (key == "cat.bakery") { return Icons.cat-bakery; }
+        if (key == "cat.lunch") { return Icons.cat-lunch; }
+        if (key == "cat.icecream") { return Icons.cat-icecream; }
+        if (key == "cat.drink") { return Icons.cat-drink; }
+        if (key == "cat.water") { return Icons.cat-water; }
+        if (key == "cat.ice") { return Icons.cat-ice; }
+        if (key == "cat.matcha") { return Icons.cat-matcha; }
+        return Icons.square-grid-2x2;
+    }
+    // Toast icons the catalog feature raises (order_providers showToast calls).
+    public pure function toast(key: string) -> image {
+        if (key == "hand.raised") { return Icons.hand-raised; }
+        if (key == "checkmark.circle") { return Icons.checkmark-circle; }
+        if (key == "xmark.circle") { return Icons.xmark-circle; }
+        return Icons.checkmark-circle;
+    }
+}
+
+// ── widgets.dart ports (shared with the cart side — see NOTES: promote) ─────
+
+// SectionTitle — accent dot + bold uppercase label (SIZE / NOTES / OPTIONALS).
+export component OrderSectionTitle {
+    in property <string> text;
+    preferred-height: 17px;
+    min-height: 17px;
+    HorizontalLayout {
+        spacing: Sp.sm;
+        alignment: start;
+        Rectangle {
+            y: (parent.height - Sp.sm) / 2;
+            width: Sp.sm; height: Sp.sm; border-radius: Sp.sm / 2;
+            background: T.accent;
+        }
+        Text {
+            text: root.text.to-uppercase();
+            color: T.text-secondary;
+            font-size: 11px; font-weight: 700;
+            letter-spacing: 0.6px; // MadarType.tracking
+            overflow: elide;
+        }
+    }
+}
+
+// OrderTextField — leading icon, muted placeholder, surface-alt fill with a
+// hairline border, Metrics.inputHeight (48). `text` is two-way so Rust can
+// seed (edit-line notes) and read (commit) without rebuilding the field.
+export component OrderField {
+    in property <string> placeholder;
+    in property <image> icon;
+    in property <bool> has-icon: true;
+    in-out property <string> text <=> input.text;
+    callback edited(string);
+
+    preferred-height: 48px;
+    min-height: 48px;
+
+    Rectangle {
+        height: 48px;
+        background: T.surface-alt;
+        border-radius: Rd.sm;
+        border-width: 1px;
+        border-color: T.border-light;
+        HorizontalLayout {
+            padding-left: Sp.md; padding-right: Sp.md;
+            spacing: Sp.sm;
+            if root.has-icon: Icon {
+                y: (parent.height - self.height) / 2;
+                width: Ic.md;
+                source: root.icon;
+                tint: T.text-muted;
+            }
+            input := TextInput {
+                vertical-alignment: center;
+                single-line: true;
+                horizontal-stretch: 1;
+                color: T.text-primary;
+                font-size: 14px; font-weight: 500; // MadarType.body
+                edited => { root.edited(self.text); }
+            }
+        }
+        if input.text == "": Text {
+            x: Sp.md + (root.has-icon ? Ic.md + Sp.sm : 0);
+            y: (parent.height - self.preferred-height) / 2;
+            text: root.placeholder;
+            color: T.text-muted;
+            font-size: 14px; font-weight: 500;
+        }
+    }
+}
+
+// ActionButton — the natives' MadarButton: 50px tactile CTA, optional leading
+// icon, loading spinner, disabled 45%-alpha (Opacities.disabled). variant:
+// 0 = filled (accent), 1 = outline, 2 = danger.
+export component OrderActionButton {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <bool> btn-enabled: true;
+    in property <bool> loading: false;
+    in property <int> variant: 0;
+    callback clicked;
+
+    property <bool> active: btn-enabled && !loading;
+    property <color> bg: variant == 1 ? T.surface : variant == 2 ? T.danger : T.accent;
+    property <color> fg: variant == 1 ? T.text-primary : T.text-on-accent;
+
+    preferred-height: 50px; // kActionButtonHeight
+    min-height: 50px;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: root.active;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: 50px;
+            border-radius: Rd.sm;
+            background: root.active ? root.bg : root.bg.with-alpha(0.45);
+            border-width: root.variant == 1 ? 1px : 0;
+            border-color: T.border;
+            HorizontalLayout {
+                alignment: center;
+                spacing: Sp.sm;
+                if root.loading: Spinner {
+                    y: (parent.height - self.height) / 2;
+                    diameter: Ic.md;
+                    spin-color: root.fg;
+                }
+                if !root.loading && root.has-icon: Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.lg;
+                    source: root.icon;
+                    tint: root.fg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    color: root.fg;
+                    font-size: 14px; font-weight: 700;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+}
+
+// StepButton — 30px circular qty stepper (cart_panel.dart; shared — NOTES).
+export component OrderStepButton {
+    in property <image> glyph;
+    in property <bool> danger: false;
+    callback clicked;
+    width: 30px; // Metrics.stepper
+    preferred-height: 30px;
+    min-height: 30px;
+    Press {
+        press-scale: 0.9;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: 30px; height: 30px;
+            border-radius: 15px;
+            background: T.surface-alt;
+            border-width: 1px;
+            border-color: T.border;
+            Icon {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: Ic.sm;
+                source: root.glyph;
+                tint: root.danger ? T.danger : T.text-primary;
+            }
+        }
+    }
+}
+
+// GrandTotalBlock — tinted teal total row (cart_panel.dart; shared — NOTES).
+export component GrandTotalBlock {
+    in property <string> label;
+    in property <string> total; // pre-formatted (Money.format in Rust)
+    preferred-height: row.preferred-height + 2 * Sp.md;
+    min-height: row.preferred-height + 2 * Sp.md;
+    Rectangle {
+        background: T.accent-bg;
+        border-radius: Rd.md;
+        row := HorizontalLayout {
+            x: Sp.md; y: Sp.md;
+            width: parent.width - 2 * Sp.md;
+            Text {
+                text: root.label;
+                vertical-alignment: center;
+                color: T.accent;
+                font-size: 14px; font-weight: 700;
+                horizontal-stretch: 1;
+            }
+            Text {
+                text: root.total;
+                vertical-alignment: center;
+                color: T.accent;
+                font-size: 20px; font-weight: 900; // moneyLg @20 w900
+            }
+        }
+    }
+}
+
+// ── local sheet frame with HUG sizing (SheetSize.hug, cap 0.92) ─────────────
+// sheet.slint's SheetFrame is fixed-fraction; the order sheets hug content
+// when it fits (a short sheet for a sparse item) and cap at 92% — this local
+// variant mirrors SheetFrame's scrim/springs/drag verbatim but sizes the card
+// to its content. Flagged in NOTES for promotion into sheet.slint.
+export component HugSheet {
+    in-out property <bool> open: false;
+    in property <length> sheet-max-width: 600px; // Responsive.sheetMaxWidth
+    callback dismissed;
+
+    public function close() {
+        root.open = false;
+        root.drag = 0;
+        pop-timer.running = true;
+    }
+
+    property <float> slide: open ? 0.0 : 1.0;
+    animate slide { duration: 420ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    property <float> scrim-t: open ? 1.0 : 0.0;
+    animate scrim-t { duration: 220ms; easing: ease-out; }
+    property <length> drag: 0;
+    animate drag { duration: 320ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    property <length> drag-anchor: 0;
+
+    // Hug: handle strip + content, capped at 92% of the stage.
+    property <length> sheet-h: Math.min(content.preferred-height + 25px, self.height * 0.92);
+    property <length> hidden-extent: self.height + 80px;
+    property <bool> on-stage: root.slide < 0.999 || root.open;
+
+    pop-timer := Timer {
+        interval: 280ms; // MotionSpec.sheetDismissDelay
+        running: false;
+        triggered => { self.running = false; root.dismissed(); }
+    }
+
+    scrim := Rectangle {
+        width: parent.width; height: parent.height;
+        visible: root.on-stage;
+        background: #000000;
+        opacity: 0.45 * root.scrim-t; // Opacities.scrim
+        TouchArea { clicked => { root.close(); } }
+    }
+
+    card := Rectangle {
+        visible: root.on-stage;
+        x: (parent.width - self.width) / 2;
+        y: parent.height - root.sheet-h
+            + Math.max(0px, root.slide * root.hidden-extent + root.drag);
+        width: Math.min(root.sheet-max-width, parent.width);
+        height: root.sheet-h;
+        background: T.surface;
+        border-radius: Rd.xl;
+        border-width: 1px;
+        border-color: T.border-light;
+        drop-shadow-color: T.shadow-raised-color;
+        drop-shadow-blur: T.shadow-raised-blur;
+        drop-shadow-offset-y: T.shadow-raised-dy;
+        clip: true;
+
+        TouchArea { } // swallow scrim taps under the card
+
+        handle-strip := Rectangle {
+            x: 0; y: 0;
+            width: parent.width; height: 25px;
+            TouchArea {
+                moved => {
+                    if (self.pressed) {
+                        root.drag = Math.max(0px, root.drag-anchor + self.mouse-y - self.pressed-y);
+                    }
+                }
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down) { root.drag-anchor = root.drag; }
+                    if (e.kind == PointerEventKind.up && root.drag > root.sheet-h * 0.28) {
+                        root.close();
+                    }
+                    if (e.kind == PointerEventKind.up && root.drag <= root.sheet-h * 0.28) {
+                        root.drag = 0;
+                    }
+                    if (e.kind == PointerEventKind.cancel) { root.drag = 0; }
+                }
+            }
+            Rectangle {
+                x: (parent.width - 40px) / 2; y: Sp.md;
+                width: 40px; height: 5px;
+                border-radius: Rd.pill;
+                background: T.border;
+            }
+        }
+
+        content := Rectangle {
+            x: 0; y: 25px;
+            width: parent.width;
+            height: parent.height - 25px;
+            @children
+        }
+    }
+}
+
+// ── Category tab strip ───────────────────────────────────────────────────────
+
+component CategoryTab {
+    in property <string> label;
+    in property <string> icon-key;
+    in property <bool> active;
+    callback clicked;
+
+    property <color> fg: active ? T.accent : T.text-muted;
+
+    preferred-width: inner.preferred-width;
+    min-width: inner.preferred-width;
+    preferred-height: 46px; // kCategoryTabsHeight
+    min-height: 46px;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.clicked(); }
+        inner := VerticalLayout {
+            HorizontalLayout {
+                vertical-stretch: 1;
+                spacing: 5px;
+                if root.icon-key != "": Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.sm;
+                    source: CatIcon.of(root.icon-key);
+                    tint: root.fg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    color: root.fg;
+                    font-size: 13px; // MadarType.bodySm
+                    font-weight: root.active ? 700 : 500;
+                }
+            }
+            // Active-tab underline.
+            Rectangle {
+                height: 2px;
+                background: root.active ? T.accent : transparent;
+            }
+        }
+    }
+}
+
+component CategoryTabs {
+    Rectangle {
+        background: T.surface;
+        VerticalLayout {
+            strip := Flickable {
+                height: 46px;
+                viewport-width: Math.max(self.width, tabrow.preferred-width);
+                viewport-height: 46px;
+                tabrow := HorizontalLayout {
+                    alignment: T.rtl ? end : start;
+                    padding-left: Sp.md; padding-right: Sp.md;
+                    spacing: Sp.lg;
+                    for tab in OrderCatalog.tabs: CategoryTab {
+                        label: tab.label;
+                        icon-key: tab.icon-key;
+                        active: OrderCatalog.selected-tab == tab.id;
+                        clicked => { OrderCatalog.select-tab(tab.id); }
+                    }
+                }
+            }
+            Rectangle { height: 1px; background: T.border; }
+        }
+    }
+}
+
+// ── Search field (kSearchFieldHeight 40, card shadow) ───────────────────────
+
+component CatalogSearchField {
+    preferred-height: 40px;
+    min-height: 40px;
+    Rectangle {
+        height: 40px;
+        background: T.surface-alt;
+        border-radius: Rd.sm;
+        border-width: 1px;
+        border-color: T.border-light;
+        drop-shadow-color: T.shadow-card-color;
+        drop-shadow-blur: T.shadow-card-blur;
+        drop-shadow-offset-y: T.shadow-card-dy;
+        HorizontalLayout {
+            padding-left: Sp.md; padding-right: Sp.md;
+            spacing: Sp.sm;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                width: Ic.md;
+                source: Icons.magnifyingglass;
+                tint: T.text-muted;
+            }
+            input := TextInput {
+                vertical-alignment: center;
+                single-line: true;
+                horizontal-stretch: 1;
+                color: T.text-primary;
+                font-size: 15px; font-weight: 500; // MadarType.title w500
+                edited => { OrderCatalog.search-changed(self.text); }
+            }
+            // Clear affordance — only while there's text (per-keystroke chrome).
+            if input.text != "": Rectangle {
+                width: Ic.sm;
+                TouchArea {
+                    clicked => {
+                        input.text = "";
+                        OrderCatalog.search-changed("");
+                    }
+                }
+                Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.sm;
+                    source: Icons.xmark;
+                    tint: T.text-muted;
+                }
+            }
+        }
+        if input.text == "": Text {
+            x: Sp.md + Ic.md + Sp.sm;
+            y: (parent.height - self.preferred-height) / 2;
+            text: OrderCatalog.tr-search;
+            color: T.text-muted;
+            font-size: 15px; font-weight: 500;
+        }
+    }
+}
+
+// ── Menu item card — gradient hero (monogram + ring), photo, in-cart badge,
+// fixed 48px footer (name · bold teal price). ────────────────────────────────
+
+component MenuItemCard {
+    in property <CatalogItemData> item;
+    callback clicked;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-scale: 0.98;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            background: T.surface;
+            border-radius: Rd.md;
+            border-width: 1px;
+            border-color: T.border-light;
+            drop-shadow-color: T.shadow-card-color;
+            drop-shadow-blur: T.shadow-card-blur;
+            drop-shadow-offset-y: T.shadow-card-dy;
+            clip: true;
+            VerticalLayout {
+                // ── Hero (gradient + ring + monogram + photo + badge) ──────
+                hero := Rectangle {
+                    vertical-stretch: 1;
+                    clip: true;
+                    Rectangle {
+                        width: parent.width; height: parent.height;
+                        background: @linear-gradient(135deg, root.item.bg-top 0%, root.item.bg-bottom 100%);
+                    }
+                    // Decorative ring bleeding off the bottom-end corner
+                    // (130px circle, 46px bleed, accent @ .16, 2px stroke).
+                    Rectangle {
+                        x: T.rtl ? -46px : parent.width - 130px + 46px;
+                        y: parent.height - 130px + 46px;
+                        width: 130px; height: 130px;
+                        border-radius: 65px;
+                        border-width: 2px;
+                        border-color: root.item.accent.with-alpha(0.16);
+                    }
+                    Text {
+                        x: (parent.width - self.preferred-width) / 2;
+                        y: (parent.height - self.preferred-height) / 2;
+                        text: root.item.monogram;
+                        font-size: 42px; font-weight: 400;
+                        color: root.item.accent.with-alpha(T.dark ? 0.7 : 0.55);
+                    }
+                    // Real photo (when present) covers the gradient — the CORE
+                    // downloads catalog images during refresh_catalog and hands
+                    // a LOCAL path (fully offline); Rust decodes it bounded.
+                    if root.item.has-image: Image {
+                        width: parent.width; height: parent.height;
+                        source: root.item.img;
+                        image-fit: cover;
+                    }
+                    // Live in-cart quantity badge (7px inset, 1.5 surface ring).
+                    if root.item.in-cart-qty > 0: Rectangle {
+                        x: T.rtl ? 7px : parent.width - self.width - 7px;
+                        y: 7px;
+                        width: Math.max(badge-txt.preferred-width + 12px, badge-txt.preferred-height + 6px);
+                        height: badge-txt.preferred-height + 6px;
+                        border-radius: self.height / 2;
+                        background: T.accent;
+                        border-width: 1.5px;
+                        border-color: T.surface;
+                        badge-txt := Text {
+                            x: (parent.width - self.preferred-width) / 2;
+                            y: (parent.height - self.preferred-height) / 2;
+                            text: root.item.in-cart-qty;
+                            color: T.text-on-accent;
+                            font-size: 12px; font-weight: 800;
+                        }
+                    }
+                }
+                // ── Footer (name · bold teal price), fixed 48px ────────────
+                Rectangle {
+                    height: 48px;
+                    background: T.surface;
+                    HorizontalLayout {
+                        padding-left: Sp.md; padding-right: Sp.md;
+                        spacing: Sp.sm;
+                        Text {
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                            text: root.item.name;
+                            color: T.text-primary;
+                            font-size: 13px; font-weight: 600;
+                            wrap: word-wrap;   // maxLines 2 bounded by the 48px box
+                            overflow: elide;
+                        }
+                        Text {
+                            vertical-alignment: center;
+                            text: root.item.price-label;
+                            color: T.accent;
+                            font-size: 14px; font-weight: 800; // money w800
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Bundle (combo) card — accent-gradient hero + Combo chip. ────────────────
+
+component BundleCard {
+    in property <BundleCardData> bundle;
+    in property <string> combo-label;
+    callback clicked;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-scale: 0.98;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            background: T.surface;
+            border-radius: Rd.md;
+            border-width: 1px;
+            border-color: T.border;
+            clip: true;
+            VerticalLayout {
+                // ── Hero (accent gradient + optional photo @ .55 + chip) ──
+                Rectangle {
+                    vertical-stretch: 1;
+                    clip: true;
+                    Rectangle {
+                        width: parent.width; height: parent.height;
+                        background: @linear-gradient(135deg, T.accent 0%, T.accent.with-alpha(0.7) 100%);
+                    }
+                    if root.bundle.has-image: Image {
+                        width: parent.width; height: parent.height;
+                        source: root.bundle.img;
+                        image-fit: cover;
+                        opacity: 0.55;
+                    }
+                    Chip {
+                        x: T.rtl ? parent.width - self.width - Sp.sm : Sp.sm;
+                        y: Sp.sm;
+                        label: root.combo-label;
+                        tone: Tone.accent;
+                        has-icon: true;
+                        icon: Icons.bag-fill;
+                    }
+                }
+                // ── Footer (name · component count · price) ────────────────
+                footer := Rectangle {
+                    background: T.surface;
+                    height: fcol.preferred-height + 2 * Sp.md;
+                    fcol := VerticalLayout {
+                        x: Sp.md; y: Sp.md;
+                        width: parent.width - 2 * Sp.md;
+                        Text {
+                            text: root.bundle.name;
+                            color: T.text-primary;
+                            font-size: 14px; font-weight: 700;
+                            overflow: elide;
+                        }
+                        Rectangle { height: Sp.xs; }
+                        Text {
+                            text: root.bundle.includes-line;
+                            color: T.text-secondary;
+                            font-size: 11px; font-weight: 400;
+                            overflow: elide;
+                        }
+                        Rectangle { height: Sp.xs; }
+                        Text {
+                            text: root.bundle.price-label;
+                            color: T.accent;
+                            font-size: 14px; font-weight: 800;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Skeleton card (pulsing placeholder while the catalog loads) ─────────────
+
+component SkeletonCard {
+    property <float> pulse: 0.75 + 0.25 * Math.sin(Math.mod(animation-tick() / 1ms, 1800) / 1800 * 360deg);
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: T.surface;
+        border-radius: Rd.md;
+        border-width: 1px;
+        border-color: T.border-light;
+        clip: true;
+        VerticalLayout {
+            // Hero pulse fill (the _PulseFill expand-filling block).
+            Rectangle {
+                vertical-stretch: 1;
+                background: T.surface-alt;
+                opacity: root.pulse;
+            }
+            Rectangle {
+                height: 13px + 2 * Sp.md;
+                HorizontalLayout {
+                    padding: Sp.md;
+                    Rectangle {
+                        width: 84px; height: 13px; border-radius: 6px;
+                        background: T.surface-alt;
+                        opacity: root.pulse;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Rectangle {
+                        width: 44px; height: 13px; border-radius: 6px;
+                        background: T.surface-alt;
+                        opacity: root.pulse;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── The catalog column: tabs · search · adaptive grid ───────────────────────
+// Grid delegate = SliverGridDelegateWithMaxCrossAxisExtent(Grid.cellMax 208,
+// gutter 16, aspect kMenuCardAspect 0.94), padding Grid.padding 16.
+
+export component CatalogColumn {
+    property <bool> combos: OrderCatalog.selected-tab == "__combos__";
+
+    VerticalLayout {
+        CategoryTabs { }
+
+        // ── Combos tab: the bundle grid ────────────────────────────────────
+        if root.combos: bgrid := Flickable {
+            vertical-stretch: 1;
+            property <int> cols: Math.max(1, Math.ceil((self.width - 2 * 16px) / (208px + 16px)));
+            property <length> cell-w: (self.width - 2 * 16px - (self.cols - 1) * 16px) / self.cols;
+            property <length> cell-h: self.cell-w / 0.94;
+            property <int> row-count: Math.ceil(OrderCatalog.bundles.length / self.cols);
+            viewport-height: self.row-count * (self.cell-h + 16px) + 16px;
+            VerticalLayout {
+                padding: 16px;
+                spacing: 16px;
+                for r in bgrid.row-count: HorizontalLayout {
+                    spacing: 16px;
+                    alignment: T.rtl ? end : start;
+                    for c in bgrid.cols: Rectangle {
+                        width: bgrid.cell-w;
+                        height: bgrid.cell-h;
+                        property <int> idx: r * bgrid.cols + c;
+                        if self.idx < OrderCatalog.bundles.length: BundleCard {
+                            width: parent.width; height: parent.height;
+                            bundle: OrderCatalog.bundles[idx];
+                            combo-label: {
+                                // tr(order.combos) — reuse the Combos tab label.
+                                OrderCatalog.tabs.length > 1 && OrderCatalog.tabs[1].id == "__combos__"
+                                    ? OrderCatalog.tabs[1].label : "";
+                            }
+                            clicked => { OrderCatalog.bundle-tapped(OrderCatalog.bundles[idx].id); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Items: search + skeleton / empty / grid ────────────────────────
+        if !root.combos: VerticalLayout {
+            vertical-stretch: 1;
+            VerticalLayout {
+                padding: Sp.lg;
+                CatalogSearchField { }
+            }
+            // Skeleton — 8 card-shaped pulsing placeholders.
+            if OrderCatalog.loading: skel := Flickable {
+                vertical-stretch: 1;
+                interactive: false; // NeverScrollableScrollPhysics
+                property <int> cols: Math.max(1, Math.ceil((self.width - 2 * 16px) / (208px + 16px)));
+                property <length> cell-w: (self.width - 2 * 16px - (self.cols - 1) * 16px) / self.cols;
+                property <length> cell-h: self.cell-w / 0.94;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 16px;
+                    for r in Math.ceil(8 / skel.cols): HorizontalLayout {
+                        spacing: 16px;
+                        alignment: T.rtl ? end : start;
+                        for c in skel.cols: Rectangle {
+                            width: skel.cell-w;
+                            height: skel.cell-h;
+                            property <int> idx: r * skel.cols + c;
+                            if self.idx < 8: SkeletonCard {
+                                width: parent.width; height: parent.height;
+                            }
+                        }
+                    }
+                }
+            }
+            // No-match search / genuinely-empty catalog (offers the sync fix).
+            if !OrderCatalog.loading && OrderCatalog.items.length == 0 && OrderCatalog.searching: EmptyState {
+                vertical-stretch: 1;
+                icon: Icons.magnifyingglass;
+                title: OrderCatalog.tr-empty-search;
+            }
+            if !OrderCatalog.loading && OrderCatalog.items.length == 0 && !OrderCatalog.searching: EmptyState {
+                vertical-stretch: 1;
+                icon: Icons.tray;
+                title: OrderCatalog.tr-empty;
+                message: OrderCatalog.tr-empty-desc;
+                action-label: OrderCatalog.tr-sync-menu;
+                action => { OrderCatalog.sync-menu(); }
+            }
+            if !OrderCatalog.loading && OrderCatalog.items.length > 0: igrid := Flickable {
+                vertical-stretch: 1;
+                property <int> cols: Math.max(1, Math.ceil((self.width - 2 * 16px) / (208px + 16px)));
+                property <length> cell-w: (self.width - 2 * 16px - (self.cols - 1) * 16px) / self.cols;
+                property <length> cell-h: self.cell-w / 0.94;
+                property <int> row-count: Math.ceil(OrderCatalog.items.length / self.cols);
+                viewport-height: self.row-count * (self.cell-h + 16px) + 16px;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 16px;
+                    for r in igrid.row-count: HorizontalLayout {
+                        spacing: 16px;
+                        alignment: T.rtl ? end : start;
+                        for c in igrid.cols: Rectangle {
+                            width: igrid.cell-w;
+                            height: igrid.cell-h;
+                            property <int> idx: r * igrid.cols + c;
+                            if self.idx < OrderCatalog.items.length: MenuItemCard {
+                                width: parent.width; height: parent.height;
+                                item: OrderCatalog.items[idx];
+                                clicked => { OrderCatalog.item-tapped(OrderCatalog.items[idx].id); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Item sheet building blocks ───────────────────────────────────────────────
+
+// The little "+price" pill inside a chip.
+component PricePill {
+    in property <string> text;
+    in property <bool> on;
+    preferred-width: pill.width;
+    min-width: pill.width;
+    preferred-height: pill.height;
+    min-height: pill.height;
+    pill := Rectangle {
+        width: ptxt.preferred-width + 12px;
+        height: ptxt.preferred-height + 4px;
+        border-radius: Rd.pill;
+        background: root.on ? T.text-on-accent.with-alpha(0.2) : T.accent-bg;
+        ptxt := Text {
+            x: (parent.width - self.preferred-width) / 2;
+            y: (parent.height - self.preferred-height) / 2;
+            text: root.text;
+            font-size: 10px; font-weight: 700;
+            color: root.on ? T.text-on-accent : T.accent;
+        }
+    }
+}
+
+// A selectable addon chip: accent fill when selected; multi chips show a
+// leading plus while unselected.
+component AddonOptionChip {
+    in property <AddonChipData> chip;
+    callback clicked;
+    property <color> fg: chip.selected ? T.text-on-accent : T.text-primary;
+
+    preferred-width: body.width;
+    min-width: body.width;
+    preferred-height: body.height;
+    min-height: body.height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.clicked(); }
+        body := Rectangle {
+            width: crow.preferred-width + 2 * Sp.md;
+            height: crow.preferred-height + 18px; // 9px vertical insets
+            background: root.chip.selected ? T.accent : T.surface-alt;
+            border-radius: Rd.xs;
+            border-width: root.chip.selected ? 0 : 1px;
+            border-color: T.border;
+            crow := HorizontalLayout {
+                x: Sp.md; y: 9px;
+                spacing: 6px;
+                if root.chip.multi && !root.chip.selected: Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.xs;
+                    source: Icons.plus;
+                    tint: T.text-primary.with-alpha(0.6);
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.chip.name;
+                    color: root.fg;
+                    font-size: 13px; font-weight: 600;
+                }
+                if root.chip.price-label != "": PricePill {
+                    y: (parent.height - self.height) / 2;
+                    text: root.chip.price-label;
+                    on: root.chip.selected;
+                }
+            }
+        }
+    }
+}
+
+// The 24×30 inline stepper hit target inside a selected qty chip.
+component ChipStep {
+    in property <image> glyph;
+    callback clicked;
+    preferred-width: 24px;
+    min-width: 24px;
+    preferred-height: 30px; // Metrics.stepper
+    min-height: 30px;
+    TouchArea {
+        clicked => { root.clicked(); }
+        Icon {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: Ic.sm;
+            source: root.glyph;
+            tint: T.text-on-accent;
+        }
+    }
+}
+
+// A selected multi-select chip with an inline qty stepper.
+component AddonQtyChip {
+    in property <AddonChipData> chip;
+    callback dec;
+    callback inc;
+
+    preferred-width: body.width;
+    min-width: body.width;
+    preferred-height: body.height;
+    min-height: body.height;
+
+    body := Rectangle {
+        width: qrow.preferred-width + 2 * Sp.xs;
+        height: qrow.preferred-height + 6px; // 3px vertical insets
+        background: T.accent;
+        border-radius: Rd.xs;
+        qrow := HorizontalLayout {
+            x: Sp.xs; y: 3px;
+            spacing: 2px;
+            ChipStep {
+                y: (parent.height - self.height) / 2;
+                glyph: Icons.minus;
+                clicked => { root.dec(); }
+            }
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: root.chip.name;
+                    color: T.text-on-accent;
+                    font-size: 12px; font-weight: 600;
+                    horizontal-alignment: center;
+                }
+                if root.chip.qty-price-label != "": Text {
+                    text: root.chip.qty-price-label;
+                    color: T.text-on-accent.with-alpha(0.85);
+                    font-size: 9px; font-weight: 700;
+                    horizontal-alignment: center;
+                }
+            }
+            Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: qty-txt.preferred-width + 12px;
+                height: qty-txt.preferred-height + 4px;
+                border-radius: Rd.pill;
+                background: T.text-on-accent.with-alpha(0.22);
+                qty-txt := Text {
+                    x: (parent.width - self.preferred-width) / 2;
+                    y: (parent.height - self.preferred-height) / 2;
+                    text: root.chip.qty;
+                    color: T.text-on-accent;
+                    font-size: 11px; font-weight: 900;
+                }
+            }
+            ChipStep {
+                y: (parent.height - self.height) / 2;
+                glyph: Icons.plus;
+                clicked => { root.inc(); }
+            }
+        }
+    }
+}
+
+// An optional-field toggle chip: check-circle leading glyph, accent fill on.
+component OptionalChip {
+    in property <OptChipData> chip;
+    callback clicked;
+    property <color> fg: chip.on ? T.text-on-accent : T.text-primary;
+
+    preferred-width: body.width;
+    min-width: body.width;
+    preferred-height: body.height;
+    min-height: body.height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.clicked(); }
+        body := Rectangle {
+            width: crow.preferred-width + 2 * Sp.md;
+            height: crow.preferred-height + 18px;
+            background: root.chip.on ? T.accent : T.surface-alt;
+            border-radius: Rd.xs;
+            border-width: root.chip.on ? 0 : 1px;
+            border-color: T.border;
+            crow := HorizontalLayout {
+                x: Sp.md; y: 9px;
+                spacing: 6px;
+                Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.xs;
+                    source: root.chip.on ? Icons.checkmark-circle-fill : Icons.circle;
+                    tint: root.fg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.chip.name;
+                    color: root.fg;
+                    font-size: 13px; font-weight: 600;
+                }
+                if root.chip.price-label != "": PricePill {
+                    y: (parent.height - self.height) / 2;
+                    text: root.chip.price-label;
+                    on: root.chip.on;
+                }
+            }
+        }
+    }
+}
+
+// A size chip: label over its price, accent fill when active.
+component SelectChip {
+    in property <SizeChipData> size-data;
+    callback clicked;
+    property <color> fg: size-data.active ? T.text-on-accent : T.text-primary;
+
+    preferred-width: body.width;
+    min-width: body.width;
+    preferred-height: body.height;
+    min-height: body.height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.clicked(); }
+        body := Rectangle {
+            width: scol.preferred-width + 2 * Sp.lg;
+            height: scol.preferred-height + 2 * Sp.sm;
+            background: root.size-data.active ? T.accent : T.surface;
+            border-radius: Rd.sm;
+            border-width: root.size-data.active ? 0 : 1px;
+            border-color: T.border;
+            scol := VerticalLayout {
+                x: Sp.lg; y: Sp.sm;
+                Text {
+                    text: root.size-data.label;
+                    color: root.fg;
+                    font-size: 13px; font-weight: 600;
+                    horizontal-alignment: center;
+                }
+                if root.size-data.price-label != "": Text {
+                    text: root.size-data.price-label;
+                    font-size: 11px; font-weight: 500;
+                    color: root.size-data.active ? T.text-on-accent.with-alpha(0.8) : T.text-secondary;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+}
+
+// One card per ingredient: fixed quantity box, the name, the source chip.
+component RecipeRow {
+    in property <RecipeLineData> line;
+    preferred-height: rrow.preferred-height + 2 * Sp.md;
+    min-height: rrow.preferred-height + 2 * Sp.md;
+    Rectangle {
+        background: root.line.is-base ? T.navy-bg : T.surface;
+        border-radius: Rd.sm;
+        border-width: 1px;
+        border-color: root.line.is-base ? T.navy.with-alpha(0.25) : T.border;
+        rrow := HorizontalLayout {
+            x: Sp.md; y: Sp.md;
+            width: parent.width - 2 * Sp.md;
+            spacing: Sp.md;
+            Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: 54px; // Metrics.ingredientBox
+                height: qcol.preferred-height + 12px; // 6px vertical insets
+                background: T.surface;
+                border-radius: Rd.xs;
+                border-width: 1px;
+                border-color: T.border-light;
+                qcol := VerticalLayout {
+                    y: 6px;
+                    width: parent.width;
+                    Text {
+                        text: root.line.qty-label;
+                        color: T.text-primary;
+                        font-size: 14px; font-weight: 700;
+                        horizontal-alignment: center;
+                    }
+                    Text {
+                        text: root.line.unit;
+                        color: T.text-muted;
+                        font-size: 10px; font-weight: 600;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+            Text {
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                text: root.line.name;
+                color: T.text-primary;
+                font-size: 14px;
+                font-weight: root.line.is-base ? 700 : 600;
+                overflow: elide;
+            }
+            Chip {
+                y: (parent.height - self.height) / 2;
+                label: root.line.source-label;
+                tone: root.line.is-base ? Tone.accent : Tone.neutral;
+            }
+        }
+    }
+}
+
+// A bordered surface card per addon group: dotted uppercase header with
+// required / max / count chips, optional search (>5), then the chip rows.
+component AddonGroupCard {
+    in property <AddonGroupData> g;
+    preferred-height: col.preferred-height + 2 * Sp.md;
+    min-height: col.preferred-height + 2 * Sp.md;
+    Rectangle {
+        background: T.surface;
+        border-radius: Rd.md;
+        border-width: 1px;
+        border-color: T.border;
+        col := VerticalLayout {
+            x: Sp.md; y: Sp.md;
+            width: parent.width - 2 * Sp.md;
+            HorizontalLayout {
+                spacing: Sp.sm;
+                Rectangle {
+                    y: (parent.height - Sp.sm) / 2;
+                    width: Sp.sm; height: Sp.sm; border-radius: Sp.sm / 2;
+                    background: T.accent;
+                }
+                // Title flexes + ellipsizes so a long group name can't push
+                // the chips off the end edge.
+                Text {
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    text: root.g.title.to-uppercase();
+                    color: T.text-secondary;
+                    font-size: 11px; font-weight: 700;
+                    letter-spacing: 0.6px;
+                    overflow: elide;
+                }
+                if root.g.required: Chip {
+                    y: (parent.height - self.height) / 2;
+                    label: ItemSheet.tr-required;
+                    tone: Tone.danger;
+                }
+                if root.g.max-label != "": Chip {
+                    y: (parent.height - self.height) / 2;
+                    label: root.g.max-label;
+                }
+                if root.g.count > 0: Chip {
+                    y: (parent.height - self.height) / 2;
+                    label: root.g.count;
+                    tone: Tone.accent;
+                }
+            }
+            Rectangle { height: Sp.md; }
+            if root.g.has-search: VerticalLayout {
+                search := OrderField {
+                    icon: Icons.magnifyingglass;
+                    placeholder: ItemSheet.tr-search-addons;
+                    edited(t) => { ItemSheet.group-search(root.g.id, t); }
+                    // Restore the Rust-held query when the model rebuilds
+                    // (a toggle replaces the row; the field would blank).
+                    init => { self.text = root.g.search-text; }
+                }
+                Rectangle { height: Sp.md; }
+            }
+            // Chip wrap (rows pre-chunked in Rust, Space.sm gaps).
+            VerticalLayout {
+                spacing: Sp.sm;
+                for row in root.g.rows: HorizontalLayout {
+                    spacing: Sp.sm;
+                    alignment: T.rtl ? end : start;
+                    for chip in row.chips: HorizontalLayout {
+                        if chip.multi && chip.qty > 0: AddonQtyChip {
+                            chip: chip;
+                            dec => { ItemSheet.dec-multi(root.g.id, chip.id); }
+                            inc => { ItemSheet.inc-multi(root.g.id, chip.id); }
+                        }
+                        if !(chip.multi && chip.qty > 0): AddonOptionChip {
+                            chip: chip;
+                            clicked => {
+                                if (chip.multi) {
+                                    ItemSheet.toggle-multi(root.g.id, chip.id);
+                                } else {
+                                    ItemSheet.toggle-single(root.g.id, chip.id);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Centered "Show all / show assigned add-ons" toggle.
+component ShowAllToggle {
+    preferred-height: 17px + 2 * Sp.sm;
+    min-height: 17px + 2 * Sp.sm;
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { ItemSheet.toggle-show-all(); }
+        HorizontalLayout {
+            alignment: center;
+            spacing: 6px;
+            padding-top: Sp.sm; padding-bottom: Sp.sm;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                width: Ic.xs;
+                source: ItemSheet.show-all ? Icons.chevron-up : Icons.plus;
+                tint: T.accent;
+            }
+            Text {
+                vertical-alignment: center;
+                text: ItemSheet.show-all-label;
+                color: T.accent;
+                font-size: 13px; font-weight: 600;
+            }
+        }
+    }
+}
+
+// ── Item customization sheet — size, addons (per slot + global types),
+// optionals, live recipe preview, notes, qty. Prices come pre-resolved from
+// the core; Rust only displays and sums. Render as a trailing overlay:
+// `ItemDetailSheet { }` with ItemSheet.open driving presentation. ───────────
+
+export component ItemDetailSheet {
+    frame := HugSheet {
+        width: parent.width; height: parent.height;
+        open <=> ItemSheet.open;
+        dismissed => { ItemSheet.closed(); }
+
+        VerticalLayout {
+            // ── Header (name + description · price badge · recipe · close) ─
+            Rectangle {
+                background: T.surface;
+                height: hrow.preferred-height + 2 * Sp.md + 1px;
+                VerticalLayout {
+                    hrow := HorizontalLayout {
+                        padding-left: Sp.xl; padding-right: Sp.xl;
+                        padding-top: Sp.md; padding-bottom: Sp.md;
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: start;
+                            Text {
+                                text: ItemSheet.item-name;
+                                color: T.text-primary;
+                                font-size: 18px; font-weight: 900;
+                                overflow: elide;
+                            }
+                            if ItemSheet.item-description != "": VerticalLayout {
+                                padding-top: 2px;
+                                Text {
+                                    text: ItemSheet.item-description;
+                                    color: T.text-secondary;
+                                    font-size: 12px; font-weight: 400;
+                                    wrap: word-wrap;
+                                    overflow: elide;
+                                    max-height: 38px; // maxLines: 2
+                                }
+                            }
+                        }
+                        Rectangle { width: Sp.md; }
+                        // Price badge · recipe chip · close, common baseline.
+                        Rectangle {
+                            height: 32px; // Metrics.closeButton
+                            width: badge-money.preferred-width + 20px;
+                            border-radius: Rd.sm;
+                            background: T.navy-bg;
+                            badge-money := Text {
+                                x: (parent.width - self.preferred-width) / 2;
+                                y: (parent.height - self.preferred-height) / 2;
+                                text: ItemSheet.header-total;
+                                color: T.navy;
+                                font-size: 14px; font-weight: 700;
+                            }
+                        }
+                        if ItemSheet.has-recipe: HorizontalLayout {
+                            padding-left: Sp.sm;
+                            Press {
+                                width: 32px; preferred-height: 32px; min-height: 32px;
+                                clicked => { ItemSheet.toggle-recipe(); }
+                                Rectangle {
+                                    width: 32px; height: 32px;
+                                    border-radius: Rd.sm;
+                                    background: ItemSheet.show-recipe ? T.accent : T.accent-bg;
+                                    Icon {
+                                        x: (parent.width - self.width) / 2;
+                                        y: (parent.height - self.height) / 2;
+                                        width: Ic.md;
+                                        source: Icons.list-bullet-rectangle;
+                                        tint: ItemSheet.show-recipe ? T.text-on-accent : T.accent;
+                                    }
+                                }
+                            }
+                        }
+                        Rectangle { width: Sp.sm; }
+                        Press {
+                            width: 32px; preferred-height: 32px; min-height: 32px;
+                            clicked => { frame.close(); }
+                            Rectangle {
+                                width: 32px; height: 32px;
+                                border-radius: Rd.sm;
+                                background: T.surface-alt;
+                                border-width: 1px;
+                                border-color: T.border-light;
+                                Icon {
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                    width: Ic.sm;
+                                    source: Icons.xmark;
+                                    tint: T.text-muted;
+                                }
+                            }
+                        }
+                    }
+                    Rectangle { height: 1px; background: T.border; }
+                }
+            }
+
+            // ── Body: hug when it fits, scroll when the options overflow ──
+            body := Flickable {
+                vertical-stretch: 1;
+                preferred-height: bodycol.preferred-height;
+                viewport-height: bodycol.preferred-height;
+                Rectangle {
+                    width: parent.width;
+                    height: Math.max(bodycol.preferred-height, body.height);
+                    background: T.surface-alt;
+                }
+                bodycol := VerticalLayout {
+                    width: parent.width;
+                    padding-left: Sp.xl; padding-right: Sp.xl;
+                    padding-top: Sp.lg; padding-bottom: Sp.sm;
+                    alignment: start;
+
+                    // Recipe section — gentle expand/collapse (AnimatedSize
+                    // ≈ animated clip height, 300ms ease-in-out).
+                    recipe-clip := Rectangle {
+                        clip: true;
+                        height: ItemSheet.show-recipe && ItemSheet.recipe-lines.length > 0
+                            ? recipe-col.preferred-height : 0;
+                        animate height { duration: 300ms; easing: ease-in-out; }
+                        recipe-col := VerticalLayout {
+                            y: 0;
+                            width: parent.width;
+                            alignment: start;
+                            OrderSectionTitle { text: ItemSheet.tr-recipe; }
+                            Rectangle { height: Sp.sm; }
+                            for line in ItemSheet.recipe-lines: VerticalLayout {
+                                RecipeRow { line: line; }
+                                Rectangle { height: Sp.sm; }
+                            }
+                            Rectangle { height: Sp.xs; }
+                        }
+                    }
+
+                    // Size selector — horizontal scroll of size chips.
+                    if ItemSheet.sizes.length > 0: VerticalLayout {
+                        OrderSectionTitle { text: ItemSheet.tr-size; }
+                        Rectangle { height: Sp.sm; }
+                        sizes-strip := Flickable {
+                            height: sizes-row.preferred-height;
+                            viewport-width: Math.max(self.width, sizes-row.preferred-width);
+                            viewport-height: sizes-row.preferred-height;
+                            sizes-row := HorizontalLayout {
+                                alignment: T.rtl ? end : start;
+                                spacing: Sp.sm;
+                                for size in ItemSheet.sizes: SelectChip {
+                                    size-data: size;
+                                    clicked => { ItemSheet.select-size(size.label); }
+                                }
+                            }
+                        }
+                        Rectangle { height: Sp.md; }
+                    }
+
+                    // Addon group cards.
+                    for g in ItemSheet.groups: VerticalLayout {
+                        AddonGroupCard { g: g; }
+                        Rectangle { height: Sp.md; }
+                    }
+
+                    if ItemSheet.has-more: ShowAllToggle { }
+
+                    // Optional fields — selected chips always stay visible so
+                    // a filter never hides an active selection (Rust filter).
+                    if ItemSheet.optionals-visible: VerticalLayout {
+                        Rectangle { height: Sp.md; }
+                        OrderSectionTitle { text: ItemSheet.tr-optionals; }
+                        Rectangle { height: Sp.sm; }
+                        if ItemSheet.optionals-search-visible: VerticalLayout {
+                            OrderField {
+                                icon: Icons.magnifyingglass;
+                                placeholder: ItemSheet.tr-search-addons;
+                                edited(t) => { ItemSheet.optionals-search(t); }
+                                init => { self.text = ItemSheet.optionals-search-text; }
+                            }
+                            Rectangle { height: Sp.sm; }
+                        }
+                        VerticalLayout {
+                            spacing: Sp.sm;
+                            for row in ItemSheet.optional-rows: HorizontalLayout {
+                                spacing: Sp.sm;
+                                alignment: T.rtl ? end : start;
+                                for chip in row.chips: OptionalChip {
+                                    chip: chip;
+                                    clicked => { ItemSheet.toggle-optional(chip.id); }
+                                }
+                            }
+                        }
+                        Rectangle { height: Sp.md; }
+                    }
+
+                    // Notes (hidden in bundle-component configure mode).
+                    if !ItemSheet.configuring: VerticalLayout {
+                        OrderSectionTitle { text: ItemSheet.tr-notes; }
+                        Rectangle { height: Sp.sm; }
+                        OrderField {
+                            icon: Icons.text-bubble;
+                            placeholder: ItemSheet.tr-notes-hint;
+                            text <=> ItemSheet.notes-text;
+                        }
+                    }
+                }
+            }
+
+            // ── Footer (total block · qty stepper · CTA) ───────────────────
+            Rectangle {
+                background: T.surface;
+                height: fcol.preferred-height + 2 * Sp.md;
+                fcol := VerticalLayout {
+                    x: Sp.xl; y: Sp.md;
+                    width: parent.width - 2 * Sp.xl;
+                    Rectangle { height: 1px; background: T.border; }
+                    Rectangle { height: Sp.md; }
+                    GrandTotalBlock {
+                        label: ItemSheet.tr-total;
+                        total: ItemSheet.footer-total;
+                    }
+                    Rectangle { height: Sp.md; }
+                    HorizontalLayout {
+                        // Qty stepper — hidden in configure mode.
+                        if !ItemSheet.configuring: HorizontalLayout {
+                            OrderStepButton {
+                                y: (parent.height - self.height) / 2;
+                                glyph: Icons.minus;
+                                clicked => { ItemSheet.dec-qty(); }
+                            }
+                            Rectangle {
+                                min-width: 24px + 2 * Sp.sm;
+                                Text {
+                                    x: (parent.width - self.preferred-width) / 2;
+                                    y: (parent.height - self.preferred-height) / 2;
+                                    text: ItemSheet.qty;
+                                    color: T.text-primary;
+                                    font-size: 16px; font-weight: 700;
+                                }
+                            }
+                            OrderStepButton {
+                                y: (parent.height - self.height) / 2;
+                                glyph: Icons.plus;
+                                clicked => { ItemSheet.inc-qty(); }
+                            }
+                            Rectangle { width: Sp.md; }
+                        }
+                        OrderActionButton {
+                            horizontal-stretch: 1;
+                            label: ItemSheet.footer-label;
+                            btn-enabled: ItemSheet.can-add;
+                            loading: ItemSheet.committing;
+                            clicked => { ItemSheet.commit(ItemSheet.notes-text); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Bundle sheet pieces ──────────────────────────────────────────────────────
+
+// Base + extras — light sub-rows so the total carries weight.
+component BundleFooterRow {
+    in property <string> label;
+    in property <string> value;
+    preferred-height: Math.max(l.preferred-height, v.preferred-height);
+    min-height: self.preferred-height;
+    l := Text {
+        x: T.rtl ? parent.width - self.preferred-width : 0;
+        text: root.label;
+        color: T.text-secondary;
+        font-size: 13px; font-weight: 500;
+    }
+    v := Text {
+        x: T.rtl ? 0 : parent.width - self.preferred-width;
+        text: root.value;
+        color: T.text-secondary;
+        font-size: 13px; font-weight: 600;
+    }
+}
+
+// A bundle component row — status tile, qty× name + config summary, the
+// chosen extras up-charge, chevron when configurable.
+component ComponentTile {
+    in property <BundleComponentRowData> comp;
+    callback clicked;
+
+    // Leading status tile — navy "included" ✓ when fixed, success ✓ once
+    // configured, an accent slider glyph while it still needs configuring.
+    property <color> tile-bg: !comp.configurable ? T.navy-bg
+        : comp.configured ? T.success-bg : T.accent-bg;
+    property <color> glyph-color: !comp.configurable ? T.navy
+        : comp.configured ? T.success : T.accent;
+
+    preferred-height: trow.preferred-height + 2 * Sp.md;
+    min-height: trow.preferred-height + 2 * Sp.md;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-scale: 0.99;
+        press-enabled: root.comp.configurable;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            background: T.surface;
+            border-radius: Rd.md;
+            border-width: 1px;
+            border-color: root.comp.configured ? T.accent.with-alpha(0.4) : T.border-light;
+            drop-shadow-color: T.shadow-card-color;
+            drop-shadow-blur: T.shadow-card-blur;
+            drop-shadow-offset-y: T.shadow-card-dy;
+            trow := HorizontalLayout {
+                x: Sp.md; y: Sp.md;
+                width: parent.width - 2 * Sp.md;
+                spacing: Sp.md;
+                Rectangle {
+                    y: (parent.height - self.height) / 2;
+                    width: 38px; height: 38px; // Metrics.iconTile
+                    border-radius: Rd.sm;
+                    background: root.tile-bg;
+                    Icon {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: Ic.md;
+                        source: root.comp.configurable && !root.comp.configured
+                            ? Icons.slider-horizontal-3 : Icons.checkmark-circle-fill;
+                        tint: root.glyph-color;
+                    }
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    Text {
+                        text: root.comp.title;
+                        color: T.text-primary;
+                        font-size: 15px; font-weight: 600; // MadarType.title
+                        overflow: elide;
+                    }
+                    if root.comp.subtitle != "": VerticalLayout {
+                        padding-top: 2px;
+                        Text {
+                            text: root.comp.subtitle;
+                            font-size: 12px;
+                            font-weight: root.comp.configured ? 600 : 500;
+                            color: root.comp.configured ? T.accent : T.text-secondary;
+                            overflow: elide;
+                        }
+                    }
+                }
+                if root.comp.extras-label != "": Text {
+                    vertical-alignment: center;
+                    text: root.comp.extras-label;
+                    color: T.accent;
+                    font-size: 12px; font-weight: 700;
+                }
+                if root.comp.configurable: Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.sm;
+                    source: Icons.chevron-forward;
+                    tint: T.text-muted;
+                    transform-rotation: T.rtl ? 180deg : 0deg;
+                }
+            }
+        }
+    }
+}
+
+// ── Bundle (combo) configuration sheet. Each configurable component opens
+// the SAME ItemDetailSheet in configure mode (declare ItemDetailSheet AFTER
+// BundleDetailSheet in the screen so it stacks on top). ─────────────────────
+
+export component BundleDetailSheet {
+    bframe := HugSheet {
+        width: parent.width; height: parent.height;
+        open <=> BundleSheet.open;
+        dismissed => { BundleSheet.closed(); }
+
+        VerticalLayout {
+            // ── Header (name + description · price badge · close) ─────────
+            Rectangle {
+                background: T.surface;
+                height: bhrow.preferred-height + 2 * Sp.md + 1px;
+                VerticalLayout {
+                    bhrow := HorizontalLayout {
+                        padding-left: Sp.lg; padding-right: Sp.lg;
+                        padding-top: Sp.md; padding-bottom: Sp.md;
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: start;
+                            Text {
+                                text: BundleSheet.bundle-name;
+                                color: T.text-primary;
+                                font-size: 18px; font-weight: 900;
+                                overflow: elide;
+                            }
+                            if BundleSheet.bundle-description != "": Text {
+                                text: BundleSheet.bundle-description;
+                                color: T.text-secondary;
+                                font-size: 12px; font-weight: 400;
+                                wrap: word-wrap;
+                                overflow: elide;
+                                max-height: 38px; // maxLines: 2
+                            }
+                        }
+                        Rectangle { width: Sp.sm; }
+                        Rectangle {
+                            height: 32px;
+                            width: bprice.preferred-width + 20px;
+                            border-radius: Rd.sm;
+                            background: T.navy-bg;
+                            bprice := Text {
+                                x: (parent.width - self.preferred-width) / 2;
+                                y: (parent.height - self.preferred-height) / 2;
+                                text: BundleSheet.price-label;
+                                color: T.navy;
+                                font-size: 14px; font-weight: 700;
+                            }
+                        }
+                        Rectangle { width: Sp.sm; }
+                        Press {
+                            width: 32px; preferred-height: 32px; min-height: 32px;
+                            clicked => { bframe.close(); }
+                            Rectangle {
+                                width: 32px; height: 32px;
+                                border-radius: Rd.sm;
+                                background: T.surface-alt;
+                                border-width: 1px;
+                                border-color: T.border;
+                                Icon {
+                                    x: (parent.width - self.width) / 2;
+                                    y: (parent.height - self.height) / 2;
+                                    width: Ic.sm;
+                                    source: Icons.xmark;
+                                    tint: T.text-muted;
+                                }
+                            }
+                        }
+                    }
+                    Rectangle { height: 1px; background: T.border; }
+                }
+            }
+
+            // ── Body: the component list ───────────────────────────────────
+            bbody := Flickable {
+                vertical-stretch: 1;
+                preferred-height: bcol.preferred-height;
+                viewport-height: bcol.preferred-height;
+                Rectangle {
+                    width: parent.width;
+                    height: Math.max(bcol.preferred-height, bbody.height);
+                    background: T.surface-alt;
+                }
+                bcol := VerticalLayout {
+                    width: parent.width;
+                    padding: Sp.lg;
+                    alignment: start;
+                    OrderSectionTitle { text: BundleSheet.tr-bundle-includes; }
+                    Rectangle { height: Sp.md; }
+                    for comp[i] in BundleSheet.components: VerticalLayout {
+                        ComponentTile {
+                            comp: comp;
+                            clicked => { BundleSheet.component-tapped(i); }
+                        }
+                        Rectangle { height: Sp.md; }
+                    }
+                }
+            }
+
+            // ── Footer (base + extras · tinted teal total · Add to cart) ──
+            Rectangle {
+                background: T.surface;
+                height: bfcol.preferred-height + 2 * Sp.lg + 1px;
+                VerticalLayout {
+                    Rectangle { height: 1px; background: T.border; }
+                    bfcol := VerticalLayout {
+                        padding: Sp.lg;
+                        BundleFooterRow {
+                            label: BundleSheet.tr-subtotal;
+                            value: BundleSheet.subtotal-value;
+                        }
+                        if BundleSheet.extras-value != "": VerticalLayout {
+                            padding-top: Sp.sm;
+                            BundleFooterRow {
+                                label: BundleSheet.tr-extra;
+                                value: BundleSheet.extras-value;
+                            }
+                        }
+                        Rectangle { height: Sp.sm; }
+                        GrandTotalBlock {
+                            label: BundleSheet.tr-total;
+                            total: BundleSheet.total-value;
+                        }
+                        Rectangle { height: Sp.md; }
+                        OrderActionButton {
+                            label: BundleSheet.footer-cta-label;
+                            btn-enabled: BundleSheet.can-add;
+                            loading: BundleSheet.adding;
+                            clicked => { BundleSheet.add(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

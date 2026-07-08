@@ -1,0 +1,759 @@
+// Floor plan + host board — pixel/behavior port of the Flutter
+// feature_floor package (floor_plan_screen.dart / floor_sheets.dart /
+// widgets.dart), itself a port of the Kotlin FloorPlanScreen.kt over the
+// shared Rust core. Geometry is authored in the dashboard; this renders the
+// branch floor to scale, shows live status, and drives host ops (seat /
+// notify / set status), plus the settle jump: tap a table occupied by an
+// open ticket to review + settle it.
+//
+// Native metrics kept verbatim (they fall between the 4-pt Space steps):
+//   table outline stroke 2px, table fill alpha 0.22, canvas wash alpha 0.04,
+//   fallback canvas 1000×700, seats line 10px, reservations header 18px bold,
+//   reservation row radius/inset 10px, Seat→bell gap 6px, button height 40px,
+//   live-status refresh 15s.
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Press, Icon, Chip, Tone, Banner, Spinner } from "components.slint";
+import { MadarHeader, MoneyText, ToastHost, Rsp } from "kit.slint";
+import { SheetFrame } from "sheet.slint";
+import { Icons } from "icons.slint";
+
+// ── Data models (madar-core views → display projections; Rust fills) ────────
+
+export struct FloorSectionData {
+    id: string,
+    name: string,
+}
+
+// One table's geometry (CANVAS units — the screen scales) + live status.
+export struct FloorTableData {
+    id: string,
+    label: string,
+    seats-text: string,   // "${table.seats}"
+    circle: bool,         // shape == 'circle'
+    status: string,       // free | held | seated | dirty
+    pos-x: float,
+    pos-y: float,
+    w: float,
+    h: float,
+}
+
+// One booking row — name + "party · status" (raw status, as the Dart row).
+export struct FloorBookingData {
+    id: string,
+    name: string,
+    meta: string,
+}
+
+// One toggle row in the seat sheet — "label · seats · status".
+export struct SeatRowData {
+    id: string,
+    text: string,
+    picked: bool,
+}
+
+// One bill line in the ticket review card (money pre-formatted in Rust).
+export struct FloorTicketLineData {
+    text: string,         // "qty× name"
+    money: string,
+    voided: bool,
+}
+
+// ── State + intents (Rust fills data in; callbacks flow out) ────────────────
+
+export global FloorState {
+    // floor slices (the FloorState provider mirror)
+    in property <[FloorSectionData]> sections;
+    in property <string> active-section-id;
+    in property <float> canvas-w: 1000;   // fallback when a section carries none
+    in property <float> canvas-h: 700;
+    in property <[FloorTableData]> tables;      // active section, canvas order
+    in property <[FloorBookingData]> bookings;  // reservations + waitlist
+    in property <string> branch-name;           // header subtitle ("" hides)
+    in property <string> error;                 // "" = no banner
+    in property <bool> busy;                    // blocking floor op in flight
+
+    // toast (ToastData mirror; Rust owns the payload + id)
+    in property <bool> toast-shown;
+    in property <int> toast-id;
+    in property <string> toast-text;
+    in property <string> toast-tone: "neutral"; // neutral | success
+    in property <bool> toast-has-icon;          // seated toast: checkmark.circle
+
+    // status picker sheet (TableStatusSheet)
+    in-out property <bool> status-open;
+    in property <string> status-table-id;
+    in property <string> status-table-label;
+
+    // seat sheet (SeatReservationSheet; pick set lives in Rust)
+    in-out property <bool> seat-open;
+    in property <string> seat-title;            // booking.customerName
+    in property <[SeatRowData]> seat-rows;
+    in property <bool> seat-any-picked;
+
+    // occupied-table summary sheet (TableTicketSheet + TicketReviewCard)
+    in-out property <bool> ticket-open;
+    in property <string> ticket-id;
+    in property <string> ticket-table-label;
+    in property <string> ticket-ref-label;      // ticketRef ?? tr('waiter.ticket')
+    in property <string> ticket-status-label;   // tr('ticket.status.<s>')
+    in property <string> ticket-status-tone: "accent"; // success|warning|neutral|accent
+    in property <[FloorTicketLineData]> ticket-lines;
+
+    // core-localized strings (keys exactly as the Dart source uses them)
+    in property <string> tr-title;         // reservations.title
+    in property <string> tr-no-bookings;   // reservations.noBookings
+    in property <string> tr-seat;          // reservations.seat
+    in property <string> tr-set-status;    // reservations.setStatus
+    in property <string> tr-status-free;   // reservations.status_free
+    in property <string> tr-status-held;   // reservations.status_held
+    in property <string> tr-status-seated; // reservations.status_seated
+    in property <string> tr-status-dirty;  // reservations.status_dirty
+    in property <string> tr-cancel;        // common.cancel
+    in property <string> tr-settle;        // waiter.settle
+
+    // intents out (Rust glue wires these to madar-core)
+    callback back();
+    callback pick-section(string /* section id */);
+    callback tap-table(string /* table id */);        // Rust routes: ticket ⇒ summary, else status picker
+    callback long-press-table(string /* table id */); // always the status picker
+    callback pick-status(string /* table id */, string /* status */);
+    callback open-seat(string /* booking id */);
+    callback notify(string /* booking id */);
+    callback toggle-seat-pick(string /* table id */);
+    callback confirm-seat();
+    callback settle-ticket(string /* ticket id */);   // integrator: open the shared checkout settle drawer
+    callback clear-error();
+    callback dismiss-toast(int /* toast id */);
+    callback poll-tick();                             // 15s heartbeat; Rust polls only while realtime is down
+}
+
+// ── Status → tone color, the natives' `tableColor` mapped onto tokens
+// (green/amber/blue/gray → success/warning/navy/textMuted). ─────────────────
+global FloorPalette {
+    public pure function status-color(status: string) -> color {
+        if (status == "free") { return T.success; }
+        if (status == "held") { return T.warning; }
+        if (status == "seated") { return T.navy; }
+        return T.text-muted;
+    }
+    // Chip tone names → the kit Tone (ticketStatusTone in floor_sheets.dart).
+    public pure function tone(name: string) -> Tone {
+        if (name == "success") { return Tone.success; }
+        if (name == "warning") { return Tone.warning; }
+        if (name == "neutral") { return Tone.neutral; }
+        return Tone.accent;
+    }
+}
+
+// ── FloorButton — the compact design-system button standing in for the
+// natives' M3 Button/OutlinedButton (widgets.dart): 40px tall, Radii.sm,
+// accent fill (primary) / hairline outline on the surface (outline),
+// 15px w700 label, optional leading icon, spinner while loading,
+// Opacities.disabled (0.45) when inactive. ──────────────────────────────────
+component FloorButton {
+    in property <string> label;
+    in property <bool> primary: true;
+    in property <bool> fb-enabled: true;
+    in property <bool> loading: false;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    callback clicked;
+
+    property <bool> active: fb-enabled && !loading;
+    property <color> fg: primary ? T.text-on-accent : T.text-primary;
+
+    // 40px M3 height; width hugs content + Space.lg horizontal insets
+    // (layout callers may stretch it — the Dart column stretch behavior).
+    preferred-height: 40px;
+    min-height: 40px;
+    preferred-width: content-row.preferred-width + 2 * Sp.lg;
+    min-width: content-row.preferred-width + 2 * Sp.lg;
+    opacity: active ? 1.0 : 0.45;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: root.active;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            border-radius: Rd.sm;
+            background: root.primary ? T.accent : T.surface;
+            border-width: root.primary ? 0px : 1px;
+            border-color: T.border;
+            // Loading swaps the content for a spinner (visible:false keeps
+            // the measured width so the button doesn't jump).
+            content-row := HorizontalLayout {
+                visible: !root.loading;
+                alignment: center;
+                spacing: Sp.sm;
+                if root.has-icon: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: root.icon;
+                    tint: root.fg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    color: root.fg;
+                    font-size: 15px; font-weight: 700;
+                    overflow: elide;
+                }
+            }
+            if root.loading: Spinner {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                diameter: Ic.lg;
+                spin-color: root.fg;
+            }
+        }
+    }
+}
+
+// ── One table on the canvas — status-tinted fill + border (rect or circle),
+// label + seats centered, FittedBox-style scale-down so text never spills.
+// Tap routes through the screen; long-press (500ms hold) always opens the
+// status picker (the Dart GestureDetector pair). ────────────────────────────
+component TableCell {
+    in property <FloorTableData> table;
+    callback tap;
+    callback long-press;
+
+    property <color> c: FloorPalette.status-color(table.status);
+    property <bool> long-fired: false;
+    // BoxFit.scaleDown: shrink the label stack to fit, never grow.
+    property <float> fit: Math.min(1.0, Math.min(
+        (self.width - 4px) / Math.max(1px, labels.preferred-width),
+        (self.height - 4px) / Math.max(1px, labels.preferred-height)));
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: root.c.with-alpha(0.22);       // natives: 0.22f fill
+        border-width: 2px;                          // natives: 2.dp stroke
+        border-color: root.c;
+        // circle ⇒ Radii.pill (clamped to the cell), rect ⇒ Radii.xs.
+        border-radius: root.table.circle ? Math.min(self.width, self.height) / 2 : Rd.xs;
+        clip: true;
+
+        labels := VerticalLayout {
+            x: (parent.width - self.preferred-width) / 2;
+            y: (parent.height - self.preferred-height) / 2;
+            width: self.preferred-width;
+            height: self.preferred-height;
+            transform-scale-x: root.fit;
+            transform-scale-y: root.fit;
+            Text { // MadarType.label w700
+                horizontal-alignment: center;
+                text: root.table.label;
+                color: T.text-primary;
+                font-size: 12px; font-weight: 700;
+            }
+            Text { // MadarType.labelSm at the natives' 10.sp
+                horizontal-alignment: center;
+                text: root.table.seats-text;
+                color: T.text-muted;
+                font-size: 10px; font-weight: 600;
+            }
+        }
+    }
+
+    ta := TouchArea {
+        clicked => {
+            if (!root.long-fired) { root.tap(); }
+            root.long-fired = false;
+        }
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down) { root.long-fired = false; }
+        }
+    }
+    // Long-press: 500ms hold (Flutter's kLongPressTimeout).
+    Timer {
+        interval: 500ms;
+        running: ta.pressed && !root.long-fired;
+        triggered => {
+            root.long-fired = true;
+            root.long-press();
+        }
+    }
+}
+
+// ── The to-scale canvas — the natives' BoxWithConstraintsFloor: full width,
+// height following the section's aspect, every table positioned + sized by
+// `geometry × (width / canvasW)`. RTL mirrors the start-anchored x. ─────────
+component FloorCanvas {
+    in property <[FloorTableData]> tables;
+    in property <float> canvas-w: 1000;
+    in property <float> canvas-h: 700;
+    callback tap(string);
+    callback long-press(string);
+
+    property <float> scale-f: (self.width / 1px) / Math.max(1.0, self.canvas-w);
+    preferred-height: self.canvas-h * self.scale-f * 1px;
+    min-height: self.canvas-h * self.scale-f * 1px;
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        clip: true;                                 // ClipRRect(Radii.sm)
+        border-radius: Rd.sm;
+        background: T.text-primary.with-alpha(0.04); // natives: 0x0A ink wash
+
+        for table in root.tables: TableCell {
+            x: T.rtl
+                ? parent.width - (table.pos-x + table.w) * root.scale-f * 1px
+                : table.pos-x * root.scale-f * 1px;
+            y: table.pos-y * root.scale-f * 1px;
+            width: table.w * root.scale-f * 1px;
+            height: table.h * root.scale-f * 1px;
+            table: table;
+            tap => { root.tap(table.id); }
+            long-press => { root.long-press(table.id); }
+        }
+    }
+}
+
+// ── One booking row — name + "party · status", a Seat button, the notify
+// bell (natives: an OutlinedButton + a 🔔 TextButton). ──────────────────────
+component ReservationRow {
+    in property <FloorBookingData> booking;
+    callback seat;
+    callback notify;
+
+    preferred-height: box.preferred-height;
+    min-height: box.preferred-height;
+
+    box := Rectangle {
+        width: parent.width;
+        background: T.surface-alt;
+        border-radius: 10px;                       // natives: 10.dp
+        preferred-height: row.preferred-height + 20px; // 10.dp inset each side
+
+        row := HorizontalLayout {
+            x: 10px; y: 10px;
+            width: parent.width - 20px;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                Text { // MadarType.title
+                    text: root.booking.name;
+                    color: T.text-primary;
+                    font-size: 15px; font-weight: 600;
+                    overflow: elide;
+                }
+                Text { // MadarType.label w500
+                    text: root.booking.meta;
+                    color: T.text-muted;
+                    font-size: 12px; font-weight: 500;
+                    overflow: elide;
+                }
+            }
+            Rectangle { width: Sp.sm; }
+            VerticalLayout {
+                alignment: center;
+                FloorButton {
+                    primary: false;
+                    label: FloorState.tr-seat;
+                    clicked => { root.seat(); }
+                }
+            }
+            Rectangle { width: 6px; }              // the Seat → bell gap
+            VerticalLayout {
+                alignment: center;
+                bell := Press {
+                    preferred-width: bell-txt.preferred-width + 2 * Sp.sm;
+                    min-width: bell-txt.preferred-width + 2 * Sp.sm;
+                    preferred-height: bell-txt.preferred-height + 2 * Sp.sm;
+                    min-height: bell-txt.preferred-height + 2 * Sp.sm;
+                    clicked => { root.notify(); }
+                    bell-txt := Text {
+                        x: Sp.sm; y: Sp.sm;
+                        text: "🔔";
+                        color: T.text-primary;
+                        font-size: 14px;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── One toggle row in the seat sheet — check glyph + "label · seats ·
+// status", accent-tinted when picked. ───────────────────────────────────────
+component SeatTableRow {
+    in property <SeatRowData> row-data;
+    callback toggle;
+
+    preferred-height: box.preferred-height;
+    min-height: box.preferred-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-scale: 0.99;
+        clicked => { root.toggle(); }
+        box := Rectangle {
+            width: parent.width;
+            preferred-height: inner.preferred-height + 2 * Sp.md;
+            height: parent.height;
+            background: root.row-data.picked ? T.accent-bg : T.surface;
+            border-radius: Rd.sm;
+            border-width: 1px;
+            // picked border: accent @ Opacities.disabled (0.45)
+            border-color: root.row-data.picked ? T.accent.with-alpha(0.45) : T.border;
+
+            inner := HorizontalLayout {
+                x: Sp.md; y: Sp.md;
+                width: parent.width - 2 * Sp.md;
+                spacing: Sp.md;
+                Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.lg;
+                    source: root.row-data.picked ? Icons.checkmark-circle : Icons.circle;
+                    tint: root.row-data.picked ? T.accent : T.text-muted;
+                }
+                Text { // MadarType.body, w700 when picked
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    text: root.row-data.text;
+                    color: T.text-primary;
+                    font-size: 14px;
+                    font-weight: root.row-data.picked ? 700 : 500;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+}
+
+// ── Compact line-item review card — port of the natives' TicketSettleHeader
+// (WaiterScreen.kt): ref + status chip header, one row per line
+// (strikethrough when voided), money per line. ──────────────────────────────
+component TicketReviewCard {
+    preferred-height: card-col.preferred-height + 2 * Sp.lg;
+    min-height: card-col.preferred-height + 2 * Sp.lg;
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: T.surface;
+        border-radius: Rd.md;
+        border-width: 1px;
+        border-color: T.border-light;
+        drop-shadow-color: T.shadow-card-color;
+        drop-shadow-blur: T.shadow-card-blur;
+        drop-shadow-offset-y: T.shadow-card-dy;
+
+        card-col := VerticalLayout {
+            x: Sp.lg; y: Sp.lg;
+            width: parent.width - 2 * Sp.lg;
+            HorizontalLayout {
+                spacing: Sp.sm;
+                Text { // MadarType.title
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    text: FloorState.ticket-ref-label;
+                    color: T.text-primary;
+                    font-size: 15px; font-weight: 600;
+                    overflow: elide;
+                }
+                Chip {
+                    label: FloorState.ticket-status-label;
+                    tone: FloorPalette.tone(FloorState.ticket-status-tone);
+                }
+            }
+            for line in FloorState.ticket-lines: VerticalLayout {
+                Rectangle { height: Sp.sm; }
+                HorizontalLayout {
+                    spacing: Sp.sm;
+                    line-wrap := Rectangle {
+                        horizontal-stretch: 1;
+                        height: line-txt.preferred-height;
+                        line-txt := Text { // MadarType.bodySm
+                            x: T.rtl ? parent.width - self.preferred-width : 0;
+                            width: Math.min(self.preferred-width, parent.width);
+                            text: line.text;
+                            color: T.text-secondary;
+                            font-size: 13px; font-weight: 400;
+                            overflow: elide;
+                        }
+                        // No strikethrough in Slint Text — hairline overlay
+                        // at line center (the kds.slint LineRow pattern).
+                        if line.voided: Rectangle {
+                            x: line-txt.x;
+                            y: parent.height / 2;
+                            width: line-txt.width;
+                            height: 1px;
+                            background: T.text-secondary;
+                        }
+                    }
+                    MoneyText { // MadarType.money, textPrimary
+                        vertical-alignment: center;
+                        text: line.money;
+                        color: T.text-primary;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── The screen — header + scrolling board (error banner, section picker,
+// canvas, reservations), toasts floating above, sheets overlaid. ────────────
+export component FloorPlanScreen {
+    // Live-status refresh period (the app's connectivity heartbeat) — Rust
+    // polls ONLY while realtime is disconnected (RealtimeGatedPoll).
+    Timer {
+        interval: 15s;
+        running: true;
+        triggered => { FloorState.poll-tick(); }
+    }
+    // Toast auto-dismiss (ToastData.seconds default 2.6s).
+    Timer {
+        interval: 2600ms;
+        running: FloorState.toast-shown;
+        triggered => { FloorState.dismiss-toast(FloorState.toast-id); }
+    }
+
+    VerticalLayout {
+        MadarHeader {
+            title: FloorState.tr-title;
+            subtitle: FloorState.branch-name;
+            has-back: true;
+            back => { FloorState.back(); }
+        }
+
+        content-area := Rectangle {
+            vertical-stretch: 1;
+            clip: true;
+
+            scroller := Flickable {
+                width: parent.width; height: parent.height;
+                viewport-height: scroll-col.preferred-height;
+
+                scroll-col := VerticalLayout {
+                    padding-left: Sp.lg;
+                    padding-right: Sp.lg;
+                    padding-top: Sp.lg;
+                    padding-bottom: Sp.lg;
+                    alignment: start;
+
+                    // Error banner — tap dismisses (NoticeBanner onTap).
+                    if FloorState.error != "": VerticalLayout {
+                        err-banner := Banner {
+                            text: FloorState.error;
+                            tone: Tone.danger;
+                            has-icon: true;
+                            icon: Icons.exclamationmark-circle;
+                            TouchArea { clicked => { FloorState.clear-error(); } }
+                        }
+                        Rectangle { height: Sp.md; }
+                    }
+
+                    // Section picker — one outlined chip per floor section;
+                    // the active one is accent-tinted so the pick reads.
+                    if FloorState.sections.length > 1: VerticalLayout {
+                        HorizontalLayout {
+                            alignment: start;
+                            spacing: Sp.sm;
+                            for section in FloorState.sections: FloorButton {
+                                primary: section.id == FloorState.active-section-id;
+                                label: section.name;
+                                clicked => { FloorState.pick-section(section.id); }
+                            }
+                        }
+                        Rectangle { height: Sp.md; }
+                    }
+
+                    FloorCanvas {
+                        tables: FloorState.tables;
+                        canvas-w: FloorState.canvas-w;
+                        canvas-h: FloorState.canvas-h;
+                        tap(id) => { FloorState.tap-table(id); }
+                        long-press(id) => { FloorState.long-press-table(id); }
+                    }
+
+                    Rectangle { height: Sp.md; }
+                    Text { // MadarType.h3 at the natives' 18.sp bold
+                        text: FloorState.tr-title;
+                        color: T.text-primary;
+                        font-size: 18px; font-weight: 700;
+                    }
+                    Rectangle { height: Sp.md; }
+
+                    if FloorState.bookings.length == 0: Text { // MadarType.bodySm
+                        text: FloorState.tr-no-bookings;
+                        color: T.text-muted;
+                        font-size: 13px; font-weight: 400;
+                    }
+
+                    for booking in FloorState.bookings: VerticalLayout {
+                        ReservationRow {
+                            booking: booking;
+                            seat => { FloorState.open-seat(booking.id); }
+                            notify => { FloorState.notify(booking.id); }
+                        }
+                        Rectangle { height: Sp.md; }
+                    }
+                }
+            }
+
+            // Toasts float above everything on this screen (below the sheets).
+            ToastHost {
+                width: parent.width; height: parent.height;
+                shown: FloorState.toast-shown;
+                text: FloorState.toast-text;
+                tone: FloorPalette.tone(FloorState.toast-tone);
+                has-icon: FloorState.toast-has-icon;
+                icon: Icons.checkmark-circle;  // the seated toast's icon
+            }
+        }
+    }
+
+    // ── Set-status sheet — the natives' set-status AlertDialog: a
+    // "label · Set status" title, one full-width button per state, Cancel.
+    // SheetSize.hug at the compact width cap. ───────────────────────────────
+    status-sheet := SheetFrame {
+        width: parent.width; height: parent.height;
+        open <=> FloorState.status-open;
+        sheet-max-width: Rsp.sheet-compact-max;
+        height-fraction: Math.min(0.92,
+            (status-col.preferred-height + 25px) / Math.max(1px, self.height));
+
+        status-col := VerticalLayout {
+            padding: Sp.lg;
+            alignment: start;
+            Text { // MadarType.h2
+                text: FloorState.status-table-label + " · " + FloorState.tr-set-status;
+                color: T.text-primary;
+                font-size: 22px; font-weight: 700;
+                overflow: elide;
+            }
+            Rectangle { height: Sp.md; }
+            // The four live table states, in the natives' pick order.
+            FloorButton {
+                label: FloorState.tr-status-free;
+                clicked => {
+                    FloorState.status-open = false;
+                    FloorState.pick-status(FloorState.status-table-id, "free");
+                }
+            }
+            Rectangle { height: Sp.sm; }
+            FloorButton {
+                label: FloorState.tr-status-held;
+                clicked => {
+                    FloorState.status-open = false;
+                    FloorState.pick-status(FloorState.status-table-id, "held");
+                }
+            }
+            Rectangle { height: Sp.sm; }
+            FloorButton {
+                label: FloorState.tr-status-seated;
+                clicked => {
+                    FloorState.status-open = false;
+                    FloorState.pick-status(FloorState.status-table-id, "seated");
+                }
+            }
+            Rectangle { height: Sp.sm; }
+            FloorButton {
+                label: FloorState.tr-status-dirty;
+                clicked => {
+                    FloorState.status-open = false;
+                    FloorState.pick-status(FloorState.status-table-id, "dirty");
+                }
+            }
+            Rectangle { height: Sp.sm; }
+            FloorButton {
+                primary: false;
+                label: FloorState.tr-cancel;
+                clicked => { FloorState.status-open = false; }
+            }
+        }
+    }
+
+    // ── Occupied-table summary — the ticket's line-item review with a Settle
+    // CTA pinned under it. Settle closes here and hands off to the shared
+    // checkout drawer (the integrator's TableSettleSheet). ──────────────────
+    ticket-sheet := SheetFrame {
+        width: parent.width; height: parent.height;
+        open <=> FloorState.ticket-open;
+        sheet-max-width: Rsp.sheet-max;
+        height-fraction: Math.min(0.92,
+            (ticket-col.preferred-height + 25px) / Math.max(1px, self.height));
+
+        Flickable {
+            width: parent.width; height: parent.height;
+            viewport-height: ticket-col.preferred-height;
+            ticket-col := VerticalLayout {
+                padding: Sp.lg;
+                alignment: start;
+                Text { // MadarType.h2
+                    text: FloorState.ticket-table-label;
+                    color: T.text-primary;
+                    font-size: 22px; font-weight: 700;
+                    overflow: elide;
+                }
+                Rectangle { height: Sp.md; }
+                TicketReviewCard { }
+                Rectangle { height: Sp.md; }
+                FloorButton {
+                    label: FloorState.tr-settle;
+                    has-icon: true;
+                    icon: Icons.checkmark-circle;
+                    clicked => {
+                        FloorState.ticket-open = false;
+                        FloorState.settle-ticket(FloorState.ticket-id);
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Seat sheet — the natives' seat AlertDialog: the booking's name, one
+    // toggle row per table in the active section (multiple picks ⇒ merged
+    // tables), then Cancel / Seat. Rust pops it after a successful seat. ────
+    seat-sheet := SheetFrame {
+        width: parent.width; height: parent.height;
+        open <=> FloorState.seat-open;
+        sheet-max-width: Rsp.sheet-compact-max;
+        height-fraction: Math.min(0.92,
+            (seat-col.preferred-height + 25px) / Math.max(1px, self.height));
+
+        Flickable {
+            width: parent.width; height: parent.height;
+            viewport-height: seat-col.preferred-height;
+            seat-col := VerticalLayout {
+                padding: Sp.lg;
+                alignment: start;
+                Text { // MadarType.h2
+                    text: FloorState.seat-title;
+                    color: T.text-primary;
+                    font-size: 22px; font-weight: 700;
+                    overflow: elide;
+                }
+                Rectangle { height: Sp.md; }
+                for row in FloorState.seat-rows: VerticalLayout {
+                    SeatTableRow {
+                        row-data: row;
+                        toggle => { FloorState.toggle-seat-pick(row.id); }
+                    }
+                    Rectangle { height: Sp.sm; }
+                }
+                Rectangle { height: Sp.xs; }
+                HorizontalLayout {
+                    spacing: Sp.sm;
+                    FloorButton {
+                        horizontal-stretch: 1;
+                        primary: false;
+                        label: FloorState.tr-cancel;
+                        clicked => { FloorState.seat-open = false; }
+                    }
+                    FloorButton {
+                        horizontal-stretch: 1;
+                        label: FloorState.tr-seat;
+                        has-icon: true;
+                        icon: Icons.checkmark-circle;
+                        fb-enabled: FloorState.seat-any-picked;
+                        loading: FloorState.busy;
+                        clicked => { FloorState.confirm-seat(); }
+                    }
+                }
+            }
+        }
+    }
+}

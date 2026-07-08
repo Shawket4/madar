@@ -115,6 +115,8 @@ const Map<String, IconData> madarIconCatalog = <String, IconData>{
   'heart.circle': LucideIcons.heart,
   'wifi': LucideIcons.wifi,
   'wifi.slash': LucideIcons.wifiOff,
+  'bluetooth': LucideIcons.bluetooth,
+  'bluetooth.connected': LucideIcons.bluetoothConnected,
   'bicycle': LucideIcons.bike,
   'iphone': LucideIcons.smartphone,
   'number': LucideIcons.hash,

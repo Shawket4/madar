@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>For LAN Waiter and KDS</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Madar connects to a paired Bluetooth thermal printer to print receipts.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

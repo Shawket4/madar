@@ -21,6 +21,10 @@ pub struct _DeviceConfigView {
     pub printer_host: Option<String>,
     pub printer_port: Option<u16>,
     pub printer_brand: Option<String>,
+    pub printer_transport: Option<String>,
+    pub printer_bt_address: Option<String>,
+    pub printer_bt_name: Option<String>,
+    pub printer_paper_dots: Option<u32>,
     pub reconfiguring: bool,
     pub lan_hub: Option<String>,
     pub configured: bool,
@@ -79,6 +83,37 @@ impl MadarBridge {
     ) -> Result<(), MadarError> {
         self.inner
             .set_device_printer(host, port, brand)
+            .map_err(MadarError::from)
+    }
+
+    /// Pick the printer transport — `"bluetooth"` (Classic SPP) or `"lan"`
+    /// (raw-TCP, the default). Only the active transport's binding is used at
+    /// print time; the other is retained so switching back is lossless.
+    pub fn set_device_printer_transport(&self, kind: String) -> Result<(), MadarError> {
+        self.inner
+            .set_device_printer_transport(kind)
+            .map_err(MadarError::from)
+    }
+
+    /// Bind the paired Bluetooth printer (MAC `address` + cached display `name`).
+    /// `None` address clears it. The core stores the binding; the Flutter
+    /// transport opens the socket.
+    pub fn set_device_printer_bt(
+        &self,
+        address: Option<String>,
+        name: Option<String>,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .set_device_printer_bt(address, name)
+            .map_err(MadarError::from)
+    }
+
+    /// Pin the receipt raster width in dots (Settings paper-size toggle): 384 for
+    /// a 58 mm roll, 576 for 80 mm. `None` clears it → the width falls back to the
+    /// transport default (Bluetooth → 384, LAN → 576).
+    pub fn set_device_printer_paper(&self, dots: Option<u32>) -> Result<(), MadarError> {
+        self.inner
+            .set_device_printer_paper(dots)
             .map_err(MadarError::from)
     }
 

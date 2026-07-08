@@ -45,6 +45,10 @@ class DeviceConfigView {
   final String? printerHost;
   final int? printerPort;
   final String? printerBrand;
+  final String? printerTransport;
+  final String? printerBtAddress;
+  final String? printerBtName;
+  final int? printerPaperDots;
   final bool reconfiguring;
   final String? lanHub;
   final bool configured;
@@ -57,6 +61,10 @@ class DeviceConfigView {
     this.printerHost,
     this.printerPort,
     this.printerBrand,
+    this.printerTransport,
+    this.printerBtAddress,
+    this.printerBtName,
+    this.printerPaperDots,
     required this.reconfiguring,
     this.lanHub,
     required this.configured,
@@ -71,6 +79,10 @@ class DeviceConfigView {
       printerHost.hashCode ^
       printerPort.hashCode ^
       printerBrand.hashCode ^
+      printerTransport.hashCode ^
+      printerBtAddress.hashCode ^
+      printerBtName.hashCode ^
+      printerPaperDots.hashCode ^
       reconfiguring.hashCode ^
       lanHub.hashCode ^
       configured.hashCode;
@@ -87,6 +99,10 @@ class DeviceConfigView {
           printerHost == other.printerHost &&
           printerPort == other.printerPort &&
           printerBrand == other.printerBrand &&
+          printerTransport == other.printerTransport &&
+          printerBtAddress == other.printerBtAddress &&
+          printerBtName == other.printerBtName &&
+          printerPaperDots == other.printerPaperDots &&
           reconfiguring == other.reconfiguring &&
           lanHub == other.lanHub &&
           configured == other.configured;

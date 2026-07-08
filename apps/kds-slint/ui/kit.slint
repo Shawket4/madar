@@ -1,0 +1,349 @@
+// Shared chrome kit — Slint ports of design_system's header, money text,
+// skeletons, empty/error states, and the toast host. Metrics verbatim from
+// the Flutter sources (which mirror the Kotlin/Swift natives).
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Press, Icon, Tone, ToneMap } from "components.slint";
+import { Icons } from "icons.slint";
+
+// Responsive width caps (responsive.dart).
+export global Rsp {
+    out property <length> wide: 760px;
+    out property <length> wide-table: 680px;
+    out property <length> form-max: 520px;
+    out property <length> form-max-wide: 600px;
+    out property <length> list-max: 560px;
+    out property <length> content-max: 880px;
+    out property <length> sheet-max: 600px;
+    out property <length> sheet-compact-max: 540px;
+}
+
+// ── MadarHeader — THE screen header: surface bar, mirrored 36px back tile,
+// w800 title + muted subtitle, trailing actions slot, hairline base. ────────
+export component MadarHeader {
+    in property <string> title;
+    in property <string> subtitle; // "" hides
+    in property <bool> has-back: false;
+    in property <bool> tinted: false;
+    callback back;
+
+    preferred-height: 61px; // 60 content + hairline (top inset = 0 on desktop)
+    min-height: 61px;
+
+    Rectangle {
+        background: root.tinted ? T.accent-bg : T.surface;
+        VerticalLayout {
+            HorizontalLayout {
+                height: 60px;
+                padding-left: Sp.lg; padding-right: Sp.lg;
+                spacing: Sp.md;
+                if root.has-back: Press {
+                    y: (parent.height - 36px) / 2;
+                    width: 36px; preferred-height: 36px; min-height: 36px;
+                    clicked => { root.back(); }
+                    Rectangle {
+                        width: 36px; height: 36px;
+                        border-radius: Rd.sm;
+                        background: T.surface-alt;
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: Icons.chevron-backward;
+                            tint: T.text-primary;
+                            transform-rotation: T.rtl ? 180deg : 0deg;
+                        }
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    Text {
+                        text: root.title;
+                        color: T.text-primary;
+                        font-size: 17px; font-weight: 800;
+                        overflow: elide;
+                    }
+                    if root.subtitle != "": Text {
+                        text: root.subtitle;
+                        color: T.text-muted;
+                        font-size: 11px; font-weight: 600;
+                        overflow: elide;
+                    }
+                }
+                @children
+            }
+            Rectangle { height: 1px; background: T.border-light; }
+        }
+    }
+}
+
+// A round 36px header action tile (MadarHeaderAction).
+export component HeaderAction {
+    in property <image> icon;
+    in property <color> tint: T.text-secondary;
+    callback clicked;
+    width: 36px; preferred-height: 36px; min-height: 36px;
+    Press {
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: 36px; height: 36px;
+            border-radius: Rd.sm;
+            background: T.surface-alt;
+            Icon {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                source: root.icon;
+                tint: root.tint;
+            }
+        }
+    }
+}
+
+// ── MoneyText — pre-formatted amount (Rust does Money.format), tabular
+// money type, accent by default, forced LTR. ────────────────────────────────
+export component MoneyText inherits Text {
+    color: T.accent;
+    font-size: 14px; font-weight: 700;
+    // Money strings are LTR even in Arabic UI (digits + code).
+}
+
+// ── Skeletons — one implicit global pulse: every block derives alpha from
+// animation-tick(), so all blocks tick in sync by construction (the Flutter
+// SkeletonScope's shared-ticker behavior, for free). 1.0→0.5 over 900ms,
+// reverse-repeating. ─────────────────────────────────────────────────────────
+export component SkeletonBlock inherits Rectangle {
+    in property <length> bar-height: 13px;
+    in property <length> corner: 6px;
+    height: bar-height;
+    border-radius: corner;
+    background: T.surface-alt;
+    opacity: 0.75 + 0.25 * Math.sin(Math.mod(animation-tick() / 1ms, 1800) / 1800 * 360deg);
+}
+
+export component SkeletonRow inherits Rectangle {
+    background: T.surface;
+    border-radius: Rd.sm;
+    border-width: 1px;
+    border-color: T.border;
+    preferred-height: 63px; // 14 + 8 + 11 bars + 2*12 padding + border
+    min-height: 63px;
+    HorizontalLayout {
+        padding: Sp.md;
+        spacing: Sp.md;
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: Sp.sm;
+            alignment: start;
+            SkeletonBlock { width: 130px; bar-height: 14px; }
+            SkeletonBlock { width: 80px; bar-height: 11px; }
+        }
+        VerticalLayout {
+            alignment: start;
+            SkeletonBlock { width: 56px; bar-height: 14px; }
+        }
+    }
+}
+
+export component SkeletonList {
+    in property <int> count: 6;
+    preferred-width: Rsp.list-max;
+    VerticalLayout {
+        x: Math.max((parent.width - Math.min(Rsp.list-max, parent.width)) / 2, 0);
+        width: Math.min(Rsp.list-max, parent.width);
+        padding: Sp.lg;
+        spacing: Sp.sm;
+        for i in root.count: SkeletonRow { }
+    }
+}
+
+// ── Empty / Error states — centered badge circle + title (+ message /
+// action). Lottie assets render as the icon badge (no Lottie player —
+// documented divergence). ───────────────────────────────────────────────────
+export component EmptyState {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> message; // "" hides
+    in property <string> action-label; // "" hides
+    callback action;
+
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 44px + 2 * Sp.lg; height: self.width;
+                border-radius: self.width / 2;
+                background: T.surface-alt;
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: 44px;
+                    source: root.icon;
+                    tint: T.text-muted;
+                }
+            }
+        }
+        Rectangle { height: Sp.md; }
+        Text {
+            horizontal-alignment: center;
+            text: root.title;
+            color: T.text-secondary;
+            font-size: 15px; font-weight: 600;
+            wrap: word-wrap;
+        }
+        if root.message != "": VerticalLayout {
+            padding-top: Sp.xs;
+            Text {
+                horizontal-alignment: center;
+                text: root.message;
+                color: T.text-muted;
+                font-size: 13px; font-weight: 400;
+                wrap: word-wrap;
+            }
+        }
+        if root.action-label != "": VerticalLayout {
+            padding-top: Sp.xl;
+            alignment: center;
+            HorizontalLayout {
+                alignment: center;
+                Press {
+                    preferred-height: 54px; min-height: 54px;
+                    clicked => { root.action(); }
+                    Rectangle {
+                        height: 54px;
+                        border-radius: Rd.md;
+                        background: T.accent;
+                        HorizontalLayout {
+                            padding-left: Sp.xxl; padding-right: Sp.xxl;
+                            Text {
+                                vertical-alignment: center;
+                                text: root.action-label;
+                                color: T.text-on-accent;
+                                font-size: 15px; font-weight: 600;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component ErrorState {
+    in property <string> message;
+    in property <string> retry-label;
+    callback retry;
+
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 44px + 2 * Sp.lg; height: self.width;
+                border-radius: self.width / 2;
+                background: T.danger-bg;
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: 44px;
+                    source: Icons.exclamationmark-triangle;
+                    tint: T.danger;
+                }
+            }
+        }
+        Rectangle { height: Sp.md; }
+        Text {
+            horizontal-alignment: center;
+            text: root.message;
+            color: T.text-primary;
+            font-size: 14px; font-weight: 500;
+            wrap: word-wrap;
+        }
+        Rectangle { height: Sp.xl; }
+        HorizontalLayout {
+            alignment: center;
+            Press {
+                preferred-height: 54px; min-height: 54px;
+                clicked => { root.retry(); }
+                Rectangle {
+                    height: 54px;
+                    border-radius: Rd.md;
+                    background: T.accent;
+                    HorizontalLayout {
+                        padding-left: Sp.xxl; padding-right: Sp.xxl;
+                        spacing: Sp.sm;
+                        Icon {
+                            y: (parent.height - self.height) / 2;
+                            source: Icons.arrow-clockwise;
+                            tint: T.text-on-accent;
+                        }
+                        Text {
+                            vertical-alignment: center;
+                            text: root.retry-label;
+                            color: T.text-on-accent;
+                            font-size: 15px; font-weight: 600;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── ToastHost — bottom-center pill: fade+slide in over 220ms, auto-dismiss
+// timer (Rust re-clears via on dismissed), optional tone action label.
+// The last payload is kept by the CALLER (Rust) until the exit completes. ───
+export component ToastHost {
+    in property <bool> shown: false;
+    in property <string> text;
+    in property <Tone> tone: Tone.neutral;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <string> action-label; // "" hides
+    callback action;
+
+    property <float> t: shown ? 1.0 : 0.0;
+    animate t { duration: 220ms; easing: ease-out; }
+
+    if root.t > 0.001: Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 40px + 24px * (1 - root.t);
+        opacity: root.t;
+        width: Math.min(row.preferred-width + 2 * Sp.lg, 460px);
+        height: row.preferred-height + 2 * Sp.md;
+        background: T.surface-raised;
+        border-radius: Rd.pill;
+        border-width: 1px;
+        border-color: T.border;
+        drop-shadow-color: T.shadow-raised-color;
+        drop-shadow-blur: T.shadow-raised-blur;
+        drop-shadow-offset-y: T.shadow-raised-dy;
+
+        row := HorizontalLayout {
+            x: Sp.lg; y: Sp.md;
+            spacing: Sp.sm;
+            if root.has-icon: Icon {
+                y: (parent.height - self.height) / 2;
+                source: root.icon;
+                tint: ToneMap.fg(root.tone);
+            }
+            Text {
+                vertical-alignment: center;
+                text: root.text;
+                color: T.text-primary;
+                font-size: 13px; font-weight: 600;
+            }
+            if root.action-label != "": Press {
+                preferred-width: action-txt.preferred-width + Sp.xs;
+                clicked => { root.action(); }
+                action-txt := Text {
+                    x: Sp.xs;
+                    vertical-alignment: center;
+                    height: 100%;
+                    text: root.action-label;
+                    color: ToneMap.fg(root.tone);
+                    font-size: 13px; font-weight: 800;
+                }
+            }
+        }
+    }
+}

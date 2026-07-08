@@ -1725,6 +1725,42 @@ impl MadarCore {
         Ok(())
     }
 
+    /// Pick the printer transport — `"bluetooth"` (Classic SPP) or anything else
+    /// (defaults to `"lan"`, raw-TCP). Only the active transport's binding is used
+    /// at print time; the other's address is kept so switching back is lossless.
+    pub fn set_device_printer_transport(&self, kind: String) -> Result<(), CoreError> {
+        let kind = if kind == "bluetooth" { "bluetooth" } else { "lan" };
+        device::update(&self.store, |c| {
+            c.printer_transport = Some(kind.to_string());
+        })?;
+        Ok(())
+    }
+
+    /// Bind the paired Bluetooth printer (MAC + cached display name). `None`
+    /// address clears the binding. The CORE stores it but never opens the socket
+    /// — the Flutter transport connects; this is just the single source of truth.
+    pub fn set_device_printer_bt(
+        &self,
+        address: Option<String>,
+        name: Option<String>,
+    ) -> Result<(), CoreError> {
+        device::update(&self.store, |c| {
+            c.printer_bt_address = address.filter(|s| !s.is_empty());
+            c.printer_bt_name = name.filter(|s| !s.is_empty());
+        })?;
+        Ok(())
+    }
+
+    /// Pin the receipt raster width in dots (the Settings paper-size toggle):
+    /// 384 for a 58 mm roll, 576 for 80 mm. `None` clears the override so the
+    /// width falls back to the transport default (Bluetooth → 384, LAN → 576).
+    pub fn set_device_printer_paper(&self, dots: Option<u32>) -> Result<(), CoreError> {
+        device::update(&self.store, |c| {
+            c.printer_paper_dots = dots.filter(|&d| d >= 64);
+        })?;
+        Ok(())
+    }
+
     /// Re-enter device setup (keeps the binding but forces the setup screen until
     /// `set_device_branch` confirms a — possibly new — branch).
     pub fn start_reconfigure(&self) -> Result<(), CoreError> {
@@ -2176,8 +2212,10 @@ impl MadarCore {
     /// Arabic, matching the on-screen preview) and wrapped in the brand's raster
     /// protocol — text commands can't drive the raster-only TSP143III. Labels
     /// resolve from the active locale; `store_name` (branch) and `currency` come
-    /// from the host. `width` is retained for API stability but unused (the raster
-    /// width is fixed at 576 dots). Pair with `send_to_printer`.
+    /// from the host. `width` (a character count) is retained for API stability;
+    /// the raster width now comes from the device's paper config
+    /// (`DeviceConfig::paper_dots` — 384 dots for a 58 mm Bluetooth portable, 576
+    /// for a 72 mm LAN head). Pair with `send_to_printer`.
     pub fn render_receipt(
         &self,
         mut receipt: checkout::ReceiptView,
@@ -2232,8 +2270,12 @@ impl MadarCore {
             .blob_get(checkout::KEY_ORG_LOGO_PNG)
             .ok()
             .flatten();
-        let bitmap = render::render_receipt(&receipt, &ctx, logo.as_deref());
-        receipt::raster_for(brand, &bitmap)
+        // Raster width + cut come from the device's paper config, not the host —
+        // a 58 mm Bluetooth portable renders 384 dots with no cut, a 72 mm LAN
+        // head renders 576 dots with a partial cut.
+        let cfg = device::load(&self.store);
+        let bitmap = render::render_receipt(&receipt, &ctx, logo.as_deref(), cfg.paper_dots());
+        receipt::raster_for(brand, &bitmap, cfg.printer_has_cutter())
     }
 
     /// Cash-drawer kick bytes for the chosen printer dialect — send via
@@ -2245,8 +2287,8 @@ impl MadarCore {
 
     /// Render the shift report (Z-report) to printer bytes — rasterized like
     /// `render_receipt` (text commands can't drive the TSP143III). `width` is
-    /// retained for API stability but unused (raster width is fixed at 576 dots).
-    /// Pair with `send_to_printer`.
+    /// retained for API stability; the raster width comes from the device's paper
+    /// config (`DeviceConfig::paper_dots`). Pair with `send_to_printer`.
     pub fn render_shift_report(
         &self,
         mut report: shift::ShiftReportView,
@@ -2296,8 +2338,16 @@ impl MadarCore {
             cash_moves: tr("shift.cash_moves"),
             by_method: tr("shift.by_method"),
         };
-        let bitmap = render::render_shift_report(&report, &store_name, &currency, &labels, &orders);
-        receipt::raster_for(brand, &bitmap)
+        let cfg = device::load(&self.store);
+        let bitmap = render::render_shift_report(
+            &report,
+            &store_name,
+            &currency,
+            &labels,
+            &orders,
+            cfg.paper_dots(),
+        );
+        receipt::raster_for(brand, &bitmap, cfg.printer_has_cutter())
     }
 }
 

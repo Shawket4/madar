@@ -135,18 +135,17 @@ export component AppWindow inherits Window {
                     Press {
                         width: 32px;
                         clicked => { root.settings-open = false; }
-                        Icon {
-                            x: (parent.width - self.width) / 2;
-                            y: (parent.height - self.height) / 2;
-                            source: @image-url("../assets/icons/circle.svg");
-                            tint: transparent;
-                        }
-                        Text {
-                            x: (parent.width - self.preferred-width) / 2;
-                            y: (parent.height - self.preferred-height) / 2;
-                            text: "✕";
-                            color: T.text-secondary;
-                            font-size: 16px; font-weight: 600;
+                        Rectangle {
+                            width: 32px; height: 32px;
+                            border-radius: 16px;
+                            background: T.surface-alt;
+                            Text {
+                                x: (parent.width - self.preferred-width) / 2;
+                                y: (parent.height - self.preferred-height) / 2;
+                                text: "✕";
+                                color: T.text-secondary;
+                                font-size: 15px; font-weight: 600;
+                            }
                         }
                     }
                 }
@@ -156,6 +155,7 @@ export component AppWindow inherits Window {
                     spacing: Sp.sm;
                     seg-light := Press {
                         horizontal-stretch: 1;
+                        preferred-height: 44px; min-height: 44px;
                         clicked => { T.dark = false; }
                         Rectangle {
                             height: 44px;
@@ -174,6 +174,7 @@ export component AppWindow inherits Window {
                     }
                     seg-dark := Press {
                         horizontal-stretch: 1;
+                        preferred-height: 44px; min-height: 44px;
                         clicked => { T.dark = true; }
                         Rectangle {
                             height: 44px;
@@ -197,6 +198,7 @@ export component AppWindow inherits Window {
                     spacing: Sp.sm;
                     Press {
                         horizontal-stretch: 1;
+                        preferred-height: 44px; min-height: 44px;
                         clicked => { root.set-locale("en"); }
                         Rectangle {
                             height: 44px;
@@ -215,6 +217,7 @@ export component AppWindow inherits Window {
                     }
                     Press {
                         horizontal-stretch: 1;
+                        preferred-height: 44px; min-height: 44px;
                         clicked => { root.set-locale("ar"); }
                         Rectangle {
                             height: 44px;
@@ -235,6 +238,7 @@ export component AppWindow inherits Window {
                 // Station — current binding, tap to re-commission.
                 SectionHeader { text: root.tr-change-station; }
                 Press {
+                    preferred-height: 52px; min-height: 52px;
                     clicked => {
                         root.settings-open = false;
                         root.change-station();
@@ -272,6 +276,7 @@ export component AppWindow inherits Window {
                 }
                 // Sign out — the recessive danger exit.
                 Press {
+                    preferred-height: 52px; min-height: 52px;
                     clicked => {
                         root.settings-open = false;
                         root.sign-out();
@@ -325,3 +330,36 @@ export component AppWindow inherits Window {
         }
     }
 }
+
+// Kit smoke imports — keep the shared kit compiling with the app.
+import { MadarHeader, HeaderAction, SkeletonList, EmptyState, ErrorState, ToastHost, Rsp } from "kit.slint";
+import { SheetFrame } from "sheet.slint";
+export { MadarHeader, SkeletonList, ToastHost, SheetFrame }
+
+// ── Feature: floor (integration in progress) ────────────────────────────────
+import { FloorPlanScreen, FloorState, FloorSectionData, FloorTableData, FloorBookingData, SeatRowData, FloorTicketLineData } from "feature_floor.slint";
+export { FloorState, FloorSectionData, FloorTableData, FloorBookingData, SeatRowData, FloorTicketLineData }
+
+// ── Feature: settings + sync ────────────────────────────────────────────────
+import { SettingsScreen, SyncScreen, SettingsState, SyncState, SettingsTillData, SettingsStationData, SettingsDiagData, SyncOutboxData } from "feature_settings.slint";
+export { SettingsState, SyncState, SettingsTillData, SettingsStationData, SettingsDiagData, SyncOutboxData }
+
+// ── Feature: incoming (delivery + tickets) ──────────────────────────────────
+import { IncomingScreen, In, OrderLineData, DeliveryOrderData, TicketData, PaymentMethodData } from "feature_incoming.slint";
+export { In, OrderLineData, DeliveryOrderData, TicketData, PaymentMethodData }
+
+// ── Feature: checkout (drawer + receipt) ────────────────────────────────────
+import { CheckoutDrawer, ReceiptSheet, TenderSheet, CheckoutState, PayMethodData, SplitRowData, QuickCashData, DiscountChipData, PaperRowData } from "feature_checkout.slint";
+export { CheckoutState, PayMethodData, SplitRowData, QuickCashData, DiscountChipData, PaperRowData }
+
+// ── Feature: history + search ───────────────────────────────────────────────
+import { HistoryScreen, SearchScreen, HistoryState, SearchState, HistoryRowData, StatChipData, DetailLineData, DetailRowData, SearchRowData, ContextChipData, SheetLineData, ReceiptRowData } from "feature_history.slint";
+export { HistoryState, SearchState, HistoryRowData, StatChipData, DetailLineData, DetailRowData, SearchRowData, ContextChipData, SheetLineData, ReceiptRowData }
+
+// ── Feature: shift (open/close/report/cash/history) ─────────────────────────
+import { OpenShiftScreen, CloseShiftScreen, CashMovementsScreen, ShiftHistoryScreen, ShiftState, ShiftPaymentLineData, ShiftMovementLineData, ShiftReportData, ShiftOrderData, ShiftRowData, CashMovementData, ReportPalette } from "feature_shift.slint";
+export { ShiftState, ShiftPaymentLineData, ShiftMovementLineData, ShiftReportData, ShiftOrderData, ShiftRowData, CashMovementData, ReportPalette }
+
+// ── Feature: order catalog + item/bundle sheets ─────────────────────────────
+import { CatalogColumn, ItemDetailSheet, BundleDetailSheet, OrderCatalog, ItemSheet, BundleSheet, CatalogTabData, CatalogItemData, BundleCardData, SizeChipData, AddonChipData, AddonChipRow, AddonGroupData, OptChipData, OptChipRow, RecipeLineData, BundleComponentRowData } from "feature_order_catalog.slint";
+export { OrderCatalog, ItemSheet, BundleSheet, CatalogTabData, CatalogItemData, BundleCardData, SizeChipData, AddonChipData, AddonChipRow, AddonGroupData, OptChipData, OptChipRow, RecipeLineData, BundleComponentRowData }

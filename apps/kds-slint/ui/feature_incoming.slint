@@ -1,0 +1,1997 @@
+// Incoming — the unified "Orders" surface (teller): delivery + waiter
+// open-tickets in ONE place, two tabs, fed by session-level realtime ticks.
+// 1:1 port of the Flutter feature_incoming package (incoming_screen.dart +
+// delivery_body.dart + tickets_settle_body.dart + details_sheets.dart +
+// widgets.dart), which is itself the port of the Kotlin IncomingScreen.kt /
+// DeliveryScreen.kt / WaiterScreen.kt / OrderDetailsSheet.kt. All business
+// rules (status steps, reject-vs-cancel, finalize replay, settle dedup)
+// live in the CORE; this only renders + collects.
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Press, Icon, Chip, Tone, ToneMap, Banner, Spinner } from "components.slint";
+import { MadarHeader, MoneyText, SkeletonList, EmptyState, ToastHost, Rsp } from "kit.slint";
+import { SheetFrame } from "sheet.slint";
+import { Icons } from "icons.slint";
+
+// ── Data structs (Rust maps core views → these; money pre-formatted with
+// the exact Money.format algorithm; every dynamic tr resolved in Rust). ─────
+
+// One bill line (TicketLineView) — shared by tickets and delivery.
+export struct OrderLineData {
+    qty-label: string,      // "2×"
+    name: string,
+    detail: string,         // size + modifiers pre-joined " · " ("" hides)
+    total: string,          // Money.format(lineTotalMinor)
+    voided: bool,
+}
+
+// DeliveryOrderView + its per-order derived labels.
+export struct DeliveryOrderData {
+    id: string,
+    order-ref: string,      // "" hides
+    status: string,         // wire status (drives the strip tint)
+    status-label: string,   // tr('delivery.status.<status>')
+    channel-label: string,  // tr('delivery.<channel>')
+    customer-name: string,
+    customer-phone: string,
+    address: string,        // "" hides
+    delivery-notes: string, // "" hides
+    payment-hint: string,   // "" hides
+    total: string,
+    subtotal: string,
+    discount: string,       // "−EGP 5.00" ("" hides the row)
+    delivery-fee: string,   // "" hides the row
+    fee-line: string,       // "· Delivery fee EGP 10.00" ("" hides)
+    items-label: string,    // "3 items" (count + tr('delivery.items'))
+    next-label: string,     // tr('delivery.action.<next>'), "" → finalize
+    is-terminal: bool,
+    lines: [OrderLineData],
+}
+
+// TicketView + its per-ticket derived labels.
+export struct TicketData {
+    id: string,
+    ticket-ref: string,     // ticketRef ?? tr('waiter.ticket') (Rust resolves)
+    status: string,         // wire status (drives the strip tint + chip tone)
+    status-label: string,   // tr('ticket.status.<status>')
+    customer-name: string,  // "" hides
+    waiter-line: string,    // "Waiter: name" composed ("" hides)
+    ctx-waiter: string,     // details chips ("" hides each)
+    ctx-table: string,
+    ctx-covers: string,
+    queued-offline: bool,
+    subtotal: string,       // Money.format(subtotalMinor)
+    items-label: string,    // "3 items" (lines.length + tr('waiter.items'))
+    lines: [OrderLineData],
+}
+
+export struct PaymentMethodData {
+    id: string,
+    name: string,
+    is-cash: bool,
+}
+
+// Button variants — the natives' `BtnVariant` (primary/outline/danger).
+export enum BtnVariant { primary, outline, danger }
+
+// ── The Incoming state global: both tab feeds + everything the boards
+// render, plus intent callbacks out to Rust (incoming_provider.dart). ───────
+export global In {
+    // Selected tab (0 = delivery, 1 = tickets). Slint-owned; Rust seeds it
+    // on enter (the natives' `incomingTab` steering).
+    in-out property <int> tab: 0;
+    // Shared busy flag for the mutation buttons (the natives' isBusy).
+    in property <bool> busy: false;
+    // Banner text from the last failed bridge call ("" = none).
+    in property <string> error;
+    // Realtime connection state — gates the 60s delivery safety poll.
+    in property <bool> realtime-connected: true;
+
+    // Delivery tab feed.
+    in property <[DeliveryOrderData]> delivery-orders;
+    in property <bool> loading-delivery: false;
+    in-out property <bool> delivery-active-only: true;
+    // Accepting settings ("" chips row hides until the quiet load lands).
+    in property <bool> has-settings: false;
+    in property <string> in-mall-chip;     // "In-mall: Auto" composed in Rust
+    in property <bool> in-mall-enabled;
+    in property <string> in-mall-mode;     // auto|open|closed (tone + cycle)
+    in property <string> outside-chip;
+    in property <bool> outside-enabled;
+    in property <string> outside-mode;
+
+    // Tickets tab feed — already filtered to settleable (open|ready) in Rust
+    // (IncomingState.settleableTickets).
+    in property <[TicketData]> tickets;
+
+    // Payment methods for the finalize/settle sheet.
+    in property <[PaymentMethodData]> payment-methods;
+
+    // Toast (sequence-keyed in Rust; 2.6s auto-dismiss here). Tone is an int
+    // so the Rust API needs no slint enum export: 0 neutral · 1 success ·
+    // 2 warning (the only tones the Dart notifier fires).
+    in-out property <bool> toast-shown: false;
+    in property <string> toast-text;
+    in property <int> toast-tone: 0;
+    in property <int> toast-icon: 0;   // 0 none · 1 checkmark.circle · 2 exclamationmark.triangle
+
+    // Sheets Rust must be able to close on success.
+    in-out property <bool> cancel-open: false;
+    in-out property <bool> pay-open: false;
+
+    // ── Localized strings (core tr keys, exactly as the Dart source). ──────
+    in property <string> tr-title;              // incoming.title
+    in property <string> tr-delivery-tab;       // delivery.title
+    in property <string> tr-tickets-tab;        // waiter.title
+    in property <string> tr-active;             // delivery.active
+    in property <string> tr-all;                // delivery.all
+    in property <string> tr-accepting;          // delivery.accepting
+    in property <string> tr-delivery-empty;     // delivery.empty
+    in property <string> tr-view-order;         // order.view_order
+    in property <string> tr-finalize;           // delivery.finalize
+    in property <string> tr-add-prep;           // delivery.add_prep
+    in property <string> tr-cancel;             // delivery.cancel
+    in property <string> tr-cancel-reason;      // delivery.cancel_reason
+    in property <string> tr-restore-inventory;  // delivery.restore_inventory
+    in property <string> tr-settle;             // waiter.settle
+    in property <string> tr-no-tickets;         // waiter.no_tickets
+    in property <string> tr-queued;             // waiter.queued
+    in property <string> tr-items-header;       // order.items
+    in property <string> tr-cart-empty;         // order.cart_empty
+    in property <string> tr-total;              // order.total
+    in property <string> tr-subtotal;           // order.subtotal
+    in property <string> tr-discount;           // order.discount
+    in property <string> tr-delivery-fee;       // receipt.delivery_fee
+    in property <string> tr-address;            // receipt.address (colon stripped)
+    in property <string> tr-payment-method;     // order.payment_method
+    in property <string> tr-delivery-title;     // delivery.title (sheet fallback)
+
+    // ── Intents (all bridge writes flow through Rust). ─────────────────────
+    callback back();
+    callback reload-delivery();
+    callback reload-tickets();
+    callback delivery-poll();                       // 60s safety net (gated)
+    callback set-active-only(bool);
+    callback cycle-accepting(string /*channel*/, string /*current mode*/);
+    callback advance(string /*id*/, string /*status*/);
+    callback add-prep(string /*id*/);
+    callback cancel-delivery(string /*id*/, string /*reason*/, bool /*restock*/);
+    callback finalize(string /*id*/, string /*payment method id*/);
+    callback settle(string /*ticket id*/, string /*payment method id*/,
+                    string /*tendered text*/, bool /*method is cash*/);
+}
+
+// ── Status → (foreground, tinted-background) pairs + chip tones — the Dart
+// _statusTint / _ticketStatusTint / deliveryStatusTone / ticketStatusTone. ──
+global StatusTint {
+    public pure function d-fg(s: string) -> color {
+        if (s == "received") { return T.navy; }
+        if (s == "confirmed" || s == "out_for_delivery") { return T.accent; }
+        if (s == "preparing") { return T.warning; }
+        if (s == "ready" || s == "delivered") { return T.success; }
+        if (s == "cancelled" || s == "rejected") { return T.danger; }
+        return T.text-secondary;
+    }
+    public pure function d-bg(s: string) -> color {
+        if (s == "received") { return T.navy-bg; }
+        if (s == "confirmed" || s == "out_for_delivery") { return T.accent-bg; }
+        if (s == "preparing") { return T.warning-bg; }
+        if (s == "ready" || s == "delivered") { return T.success-bg; }
+        if (s == "cancelled" || s == "rejected") { return T.danger-bg; }
+        return T.surface-alt;
+    }
+    public pure function t-fg(s: string) -> color {
+        if (s == "ready") { return T.success; }
+        if (s == "queued") { return T.warning; }
+        if (s == "settled") { return T.text-secondary; }
+        return T.accent;
+    }
+    public pure function t-bg(s: string) -> color {
+        if (s == "ready") { return T.success-bg; }
+        if (s == "queued") { return T.warning-bg; }
+        if (s == "settled") { return T.surface-alt; }
+        return T.accent-bg;
+    }
+    // Ticket status → chip tone (the natives' ticketStatusTone).
+    public pure function ticket-tone(s: string) -> Tone {
+        if (s == "ready") { return Tone.success; }
+        if (s == "queued") { return Tone.warning; }
+        if (s == "settled") { return Tone.neutral; }
+        return Tone.accent;
+    }
+    // Delivery status → chip tone for the DETAILS sheet (deliveryDetailTone).
+    public pure function delivery-tone(s: string) -> Tone {
+        if (s == "ready" || s == "delivered") { return Tone.success; }
+        if (s == "preparing") { return Tone.warning; }
+        if (s == "cancelled" || s == "rejected") { return Tone.danger; }
+        return Tone.accent;
+    }
+    // Accepting-override chip tone (dashboard-disabled → neutral, muted).
+    public pure function accepting-tone(enabled: bool, mode: string) -> Tone {
+        if (!enabled) { return Tone.neutral; }
+        if (mode == "closed") { return Tone.danger; }
+        if (mode == "open") { return Tone.success; }
+        return Tone.accent;
+    }
+}
+
+// ── IncomingHairline — 1-px `border`-colored divider. ───────────────────────
+component MenuRow {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> danger: false;
+    callback tapped;
+    preferred-height: 44px; min-height: 44px;
+    ta := TouchArea { clicked => { root.tapped(); } }
+    Rectangle {
+        width: parent.width; height: parent.height;
+        border-radius: Rd.xs;
+        background: ta.has-hover ? T.surface-alt : transparent;
+        HorizontalLayout {
+            padding-left: Sp.md; padding-right: Sp.md;
+            spacing: Sp.md;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                source: root.icon;
+                tint: root.danger ? T.danger : T.text-secondary;
+            }
+            Text {
+                vertical-alignment: center;
+                text: root.label;
+                color: root.danger ? T.danger : T.text-primary;
+                font-size: 14px; font-weight: 500; // MadarType.body
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+        }
+    }
+}
+
+component TotalsRow {
+    in property <string> label;
+    in property <string> value;
+    preferred-height: tr-row.preferred-height;
+    min-height: tr-row.preferred-height;
+    tr-row := HorizontalLayout {
+        width: parent.width;
+        Text {
+            text: root.label;
+            color: T.text-secondary;
+            font-size: 13px; font-weight: 500; // bodySm w500
+            horizontal-stretch: 1;
+        }
+        Text {
+            text: root.value;
+            color: T.text-secondary;
+            font-size: 13px; font-weight: 600; // bodySm w600 tabular
+        }
+    }
+}
+
+component Hairline inherits Rectangle {
+    height: 1px;
+    background: T.border;
+}
+
+// ── IncomingButton — the natives' MadarButton: 54px flat rounded CTA on the
+// shared press-scale, top-lit gradient + accent glow on primary, centered
+// 20px/2.5 spinner while loading. `expand` mirrors `fullWidth`. ─────────────
+export component IncomingButton {
+    in property <string> label;
+    in property <BtnVariant> variant: BtnVariant.primary;
+    in property <bool> loading: false;
+    in property <bool> btn-enabled: true;
+    in property <bool> expand: true;   // false hugs the label (board cards)
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    callback clicked;
+
+    property <bool> active: btn-enabled && !loading;
+    property <color> fg: variant == BtnVariant.outline ? T.accent : T.text-on-accent;
+
+    // Metrics.buttonHeight = 54; hug width = row + 2×Space.lg insets.
+    preferred-height: 54px;
+    min-height: 54px;
+    min-width: inner.preferred-width + 2 * Sp.lg;
+    preferred-width: expand ? 10000px : inner.preferred-width + 2 * Sp.lg;
+    horizontal-stretch: expand ? 1 : 0;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: root.active;
+        clicked => { root.clicked(); }
+
+        Rectangle {
+            width: parent.width; height: parent.height;
+            border-radius: Rd.md;
+            // primary: top-lit gradient (lerp(accent→white, .16)) when active,
+            // accent @ Opacities.disabled otherwise; danger: flat danger fill;
+            // outline: transparent + 1.5px accent border.
+            background: root.variant == BtnVariant.primary
+                ? (root.active
+                    ? @linear-gradient(180deg, T.accent.mix(#FFFFFF, 0.84) 0%, T.accent 100%)
+                    : T.accent.with-alpha(0.45))
+                : root.variant == BtnVariant.danger
+                    ? (root.active ? T.danger : T.danger.with-alpha(0.45))
+                    : transparent;
+            border-width: root.variant == BtnVariant.outline ? 1.5px : 0px;
+            border-color: T.accent;
+            drop-shadow-color: root.variant == BtnVariant.primary && root.active
+                ? T.shadow-glow-color : transparent;
+            drop-shadow-blur: T.shadow-glow-blur;
+
+            if root.loading: Spinner {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                spin-color: root.fg;
+            }
+            inner := HorizontalLayout {
+                visible: !root.loading;
+                alignment: center;
+                spacing: Sp.sm;
+                if root.has-icon: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: root.icon; tint: root.fg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    color: root.fg;
+                    // MadarType.title w700, 0.2 tracking (the natives').
+                    font-size: 15px; font-weight: 700;
+                    letter-spacing: 0.2px;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+}
+
+// ── IncomingField — the natives' MadarTextField: leading icon, muted
+// placeholder, surface-alt fill with a hairline `border` border (no focus
+// ring in the Dart source — kept faithful; cursor is accent). ───────────────
+component IncomingField {
+    in property <string> placeholder;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in-out property <string> text <=> input.text;
+
+    // body(14) line + 16px vertical insets.
+    preferred-height: 54px;
+    min-height: 54px;
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: T.surface-alt;
+        border-radius: Rd.md;
+        border-width: 1px;
+        border-color: T.border;
+
+        HorizontalLayout {
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            spacing: 10px; // _fieldGap
+            if root.has-icon: Icon {
+                y: (parent.height - self.height) / 2;
+                source: root.icon; tint: T.text-muted;
+            }
+            input := TextInput {
+                vertical-alignment: center;
+                single-line: true;
+                color: T.text-primary;
+                font-size: 14px; font-weight: 500; // MadarType.body
+            }
+        }
+        if input.text == "": Text {
+            x: root.has-icon ? Sp.lg + Ic.lg + 10px : Sp.lg;
+            y: (parent.height - self.height) / 2;
+            text: root.placeholder;
+            color: T.text-muted;
+            font-size: 14px; font-weight: 500;
+        }
+    }
+}
+
+// ── IncomingCard — the shared raised-card shell: surface fill, borderLight
+// hairline, Radii.md corners, card shadow; `clip` for the strip cards. ──────
+component IncomingCard inherits Rectangle {
+    background: T.surface;
+    border-radius: Rd.md;
+    border-width: 1px;
+    border-color: T.border-light;
+    drop-shadow-color: T.shadow-card-color;
+    drop-shadow-blur: T.shadow-card-blur;
+    drop-shadow-offset-y: T.shadow-card-dy;
+}
+
+// ── MSwitch — the cancel sheet's restock toggle (Material Switch, accent
+// active track). Track 52×32, 24px thumb sliding over 160ms. ────────────────
+component MSwitch {
+    in-out property <bool> checked: true;
+    callback toggled;
+    width: 52px;
+    preferred-height: 32px; min-height: 32px;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.checked = !root.checked; root.toggled(); }
+        Rectangle {
+            width: 52px; height: 32px;
+            border-radius: Rd.pill;
+            background: root.checked ? T.accent : T.surface-alt;
+            border-width: root.checked ? 0px : 1px;
+            border-color: T.border;
+            animate background { duration: 160ms; easing: ease-out; }
+            Rectangle {
+                // RTL: the thumb rides the mirrored edge.
+                x: root.checked == !T.rtl ? parent.width - self.width - 4px : 4px;
+                y: 4px;
+                width: 24px; height: 24px;
+                border-radius: 12px;
+                background: root.checked ? T.text-on-accent : T.text-muted;
+                animate x { duration: 160ms; easing: ease-out; }
+            }
+        }
+    }
+}
+
+// ── Two-line-max wrapped text — Flutter's `maxLines: 2` + ellipsis has no
+// Slint equivalent; a clipped 2-line box stands in (documented). ────────────
+component TwoLineText inherits Rectangle {
+    in property <string> text;
+    in property <color> text-color;
+    in property <length> size: 12px;
+    in property <int> weight: 400;
+    property <length> line-h: size * 1.9; // Cairo leading
+    clip: true;
+    preferred-height: Math.min(txt.preferred-height, 2 * line-h);
+    height: Math.min(txt.preferred-height, 2 * line-h);
+    txt := Text {
+        x: T.rtl ? parent.width - self.width : 0;
+        width: parent.width;
+        text: root.text;
+        color: root.text-color;
+        font-size: root.size;
+        font-weight: root.weight;
+        wrap: word-wrap;
+    }
+}
+
+// ── DeliveryNoteInset — warning-tinted delivery-instructions ("leave at
+// door") the dispatcher can't miss. 7px vertical band, Space.sm sides. ──────
+component DeliveryNoteInset inherits Rectangle {
+    in property <string> note;
+    background: T.warning-bg;
+    border-radius: Rd.sm;
+    preferred-height: note-row.preferred-height + 14px; // 2 × _noteVPad
+    min-height: note-row.preferred-height + 14px;
+    note-row := HorizontalLayout {
+        x: Sp.sm; y: 7px;
+        width: parent.width - 2 * Sp.sm;
+        spacing: Sp.xs;
+        VerticalLayout {
+            alignment: start;
+            Icon { source: Icons.text-bubble; tint: T.warning; width: Ic.sm; }
+        }
+        Text {
+            text: root.note;
+            color: T.warning;
+            font-size: 12px; font-weight: 500; // MadarType.label w500
+            wrap: word-wrap;
+            horizontal-stretch: 1;
+        }
+    }
+}
+
+// ── One segment of the Incoming tab bar — label + optional count pill, teal
+// fill when active (the held-orders tab idiom). ─────────────────────────────
+component IncomingTab {
+    in property <string> label;
+    in property <int> count;
+    in property <bool> active;
+    callback tapped;
+
+    property <color> fg: active ? T.text-on-accent : T.text-secondary;
+    preferred-height: seg.preferred-height;
+    min-height: seg.preferred-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.tapped(); }
+        seg := Rectangle {
+            width: parent.width; height: parent.height;
+            background: root.active ? T.accent : transparent;
+            border-radius: Rd.xs;
+            preferred-height: tab-row.preferred-height + 2 * Sp.sm;
+            tab-row := HorizontalLayout {
+                y: Sp.sm;
+                padding-left: Sp.md; padding-right: Sp.md;
+                alignment: center;
+                spacing: Sp.sm;
+                Text {
+                    text: root.label;
+                    color: root.fg;
+                    // MadarType.title, w700 active / w600 idle.
+                    font-size: 15px;
+                    font-weight: root.active ? 700 : 600;
+                    overflow: elide;
+                }
+                // Count pill — insets (xs+2)×1 (the natives'), stadium.
+                if root.count > 0: Rectangle {
+                    y: (parent.height - self.height) / 2;
+                    background: root.active ? T.text-on-accent.with-alpha(0.25) : T.surface;
+                    border-radius: Rd.pill;
+                    width: pill-txt.preferred-width + 2 * (Sp.xs + 2px);
+                    height: pill-txt.preferred-height + 2px;
+                    pill-txt := Text {
+                        x: Sp.xs + 2px; y: 1px;
+                        text: root.count;
+                        color: root.fg;
+                        font-size: 11px; font-weight: 700; // labelSm w700
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Active/All segmented toggle (teal active fill on a surface-alt track,
+// 2px inset/gap, 6px segment vertical inset). ───────────────────────────────
+component SegToggle {
+    in property <bool> active-only;
+    in property <string> active-label;
+    in property <string> all-label;
+    callback change(bool);
+
+    preferred-height: track.preferred-height;
+    min-height: track.preferred-height;
+    preferred-width: track.preferred-width;
+    min-width: track.preferred-width;
+
+    track := Rectangle {
+        background: T.surface-alt;
+        border-radius: Rd.sm;
+        preferred-height: seg-row.preferred-height + 2 * 2px; // _segPad
+        preferred-width: seg-row.preferred-width + 2 * 2px;
+        seg-row := HorizontalLayout {
+            x: 2px; y: 2px;
+            spacing: 2px;
+            seg-a := Press {
+                preferred-height: a-rect.preferred-height;
+                min-height: a-rect.preferred-height;
+                clicked => { root.change(true); }
+                a-rect := Rectangle {
+                    background: root.active-only ? T.accent : transparent;
+                    border-radius: Rd.sm - 2px;
+                    preferred-height: a-txt.preferred-height + 2 * 6px; // _segVPad
+                    preferred-width: a-txt.preferred-width + 2 * Sp.md;
+                    a-txt := Text {
+                        x: Sp.md; y: 6px;
+                        text: root.active-label;
+                        color: root.active-only ? T.text-on-accent : T.text-secondary;
+                        font-size: 12px; font-weight: 600; // MadarType.label
+                    }
+                }
+            }
+            seg-b := Press {
+                preferred-height: b-rect.preferred-height;
+                min-height: b-rect.preferred-height;
+                clicked => { root.change(false); }
+                b-rect := Rectangle {
+                    background: !root.active-only ? T.accent : transparent;
+                    border-radius: Rd.sm - 2px;
+                    preferred-height: b-txt.preferred-height + 2 * 6px;
+                    preferred-width: b-txt.preferred-width + 2 * Sp.md;
+                    b-txt := Text {
+                        x: Sp.md; y: 6px;
+                        text: root.all-label;
+                        color: !root.active-only ? T.text-on-accent : T.text-secondary;
+                        font-size: 12px; font-weight: 600;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Per-channel accepting override chip — tap cycles auto → open → closed;
+// dashboard-disabled channels can't be opened, shown muted @0.5. ────────────
+component AcceptingChip {
+    in property <string> chip-label;   // "In-mall: Auto" (composed in Rust)
+    in property <string> channel;      // in_mall | outside
+    in property <string> mode;
+    in property <bool> chip-enabled;
+
+    preferred-height: c.preferred-height;
+    min-height: c.preferred-height;
+    preferred-width: c.preferred-width;
+    min-width: c.preferred-width;
+    opacity: chip-enabled ? 1.0 : 0.5;  // _disabledChipAlpha
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: root.chip-enabled;
+        clicked => {
+            if (!In.busy) { In.cycle-accepting(root.channel, root.mode); }
+        }
+        c := Chip {
+            label: root.chip-label;
+            tone: StatusTint.accepting-tone(root.chip-enabled, root.mode);
+        }
+    }
+}
+
+// ── The ⋯ overflow menu — view / +5 min prep / finalize / cancel (danger).
+// Mirrors the natives' DropdownMenu on the 34-dp ellipsis box. ──────────────
+component OverflowMenu {
+    in property <string> tr-view;
+    in property <string> tr-prep;
+    in property <string> tr-finalize;
+    in property <string> tr-cancel;
+    callback view; callback prep; callback do-finalize; callback do-cancel;
+
+    width: 34px;                 // kMenuButton
+    preferred-height: 34px; min-height: 34px;
+
+    menu := PopupWindow {
+        // Right-aligned under the button (mirrored in RTL).
+        x: T.rtl ? 0px : 34px - 220px;
+        y: 38px;
+        width: 220px;
+        height: menu-col.preferred-height;
+        Rectangle {
+            background: T.surface;
+            border-radius: Rd.sm;
+            border-width: 1px;
+            border-color: T.border-light;
+            drop-shadow-color: T.shadow-raised-color;
+            drop-shadow-blur: T.shadow-raised-blur;
+            drop-shadow-offset-y: T.shadow-raised-dy;
+            menu-col := VerticalLayout {
+                padding: Sp.xs;
+                MenuRow { icon: Icons.list-bullet; label: root.tr-view;
+                    tapped => { root.view(); } }
+                MenuRow { icon: Icons.clock; label: root.tr-prep;
+                    tapped => { root.prep(); } }
+                MenuRow { icon: Icons.checkmark-seal; label: root.tr-finalize;
+                    tapped => { root.do-finalize(); } }
+                // ONE terminal action: Cancel — the sheet carries the restock
+                // toggle (restock = the old "reject", waste = made food).
+                MenuRow { icon: Icons.xmark-circle; label: root.tr-cancel;
+                    danger: true;
+                    tapped => { root.do-cancel(); } }
+            }
+        }
+    }
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { menu.show(); }
+        Rectangle {
+            width: 34px; height: 34px;
+            background: T.surface-alt;
+            border-radius: Rd.sm;
+            border-width: 1px;
+            border-color: T.border-light;
+            Icon {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                source: Icons.ellipsis; tint: T.text-secondary;
+            }
+        }
+    }
+}
+
+
+// ── One delivery order card — status-tinted 50px header strip, customer +
+// money hero, address/notes, then the action row while the order is live. ───
+component DeliveryOrderCard {
+    in property <DeliveryOrderData> order;
+    callback view; callback do-advance; callback prep;
+    callback do-finalize; callback do-cancel;
+
+    property <color> status-fg: StatusTint.d-fg(order.status);
+    property <color> status-bg: StatusTint.d-bg(order.status);
+
+    preferred-height: shell.preferred-height;
+    min-height: shell.preferred-height;
+
+    // Tap the card to review the full order (lines + money + context).
+    TouchArea { clicked => { root.view(); } }
+
+    shell := IncomingCard {
+        width: parent.width;
+        clip: true;
+        preferred-height: card-col.preferred-height;
+        card-col := VerticalLayout {
+            width: parent.width;
+            // Status-tinted header strip — fixed 50px so every card's body
+            // starts at the same y. Status + channel chips lead; the order
+            // ref pins to the trailing edge.
+            Rectangle {
+                height: 50px; // kDeliveryStripHeight
+                background: root.status-bg;
+                HorizontalLayout {
+                    padding-left: Sp.md; padding-right: Sp.md;
+                    spacing: Sp.sm;
+                    Rectangle {
+                        y: (parent.height - 8px) / 2;
+                        width: 8px; height: 8px; border-radius: 4px; // kStatusDot
+                        background: root.status-fg;
+                    }
+                    Text {
+                        vertical-alignment: center;
+                        text: root.order.status-label;
+                        color: root.status-fg;
+                        font-size: 14px; font-weight: 900; // _statusLabelSize Black
+                        overflow: elide;
+                    }
+                    Chip {
+                        y: (parent.height - self.height) / 2;
+                        label: root.order.channel-label;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    if root.order.order-ref != "": Text {
+                        vertical-alignment: center;
+                        text: root.order.order-ref;
+                        color: root.status-fg;
+                        font-size: 13px; font-weight: 700; // _stripRefSize money
+                    }
+                }
+            }
+            VerticalLayout {
+                padding: Sp.md;
+                spacing: Sp.sm;
+                // Customer header — leading tone-tile + name/phone, money as
+                // the hero in a tinted teal block on the trailing edge.
+                HorizontalLayout {
+                    spacing: Sp.sm;
+                    Rectangle {
+                        y: (parent.height - 40px) / 2;
+                        width: 40px; height: 40px; // kPersonTile
+                        background: T.accent-bg;
+                        border-radius: Rd.sm;
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: Icons.person-fill; tint: T.accent;
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px; // Space.xs / 2
+                        Text {
+                            text: root.order.customer-name;
+                            color: T.text-primary;
+                            font-size: 16px; font-weight: 700; // _customerNameSize
+                            overflow: elide;
+                        }
+                        Text {
+                            text: root.order.customer-phone;
+                            color: T.text-secondary;
+                            font-size: 12px; font-weight: 500; // label w500
+                        }
+                    }
+                    Rectangle {
+                        y: (parent.height - self.height) / 2;
+                        background: T.accent-bg;
+                        border-radius: Rd.sm;
+                        width: hero.preferred-width + 2 * Sp.md;
+                        height: hero.preferred-height + 2 * 7px; // kMoneyPillVPad
+                        hero := MoneyText {
+                            x: Sp.md; y: 7px;
+                            text: root.order.total;
+                            font-size: 17px; font-weight: 900; // _cardMoneySize Black
+                        }
+                    }
+                }
+                if root.order.address != "": TwoLineText {
+                    text: root.order.address;
+                    text-color: T.text-secondary;
+                    size: 12px; weight: 400; // label w400
+                }
+                // Customer delivery instructions — warning-tinted inset so
+                // the dispatcher can't miss them.
+                if root.order.delivery-notes != "": DeliveryNoteInset {
+                    note: root.order.delivery-notes;
+                }
+                HorizontalLayout {
+                    spacing: Sp.sm;
+                    Text {
+                        text: root.order.items-label;
+                        color: T.text-muted;
+                        font-size: 11px; font-weight: 600; // labelSm
+                    }
+                    if root.order.fee-line != "": Text {
+                        text: root.order.fee-line;
+                        color: T.text-muted;
+                        font-size: 11px; font-weight: 500;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                    if root.order.fee-line == "": Rectangle { horizontal-stretch: 1; }
+                }
+                if !root.order.is-terminal: HorizontalLayout {
+                    spacing: Sp.sm;
+                    // Visible "View order" — the same OUTLINE affordance the
+                    // open-tickets card exposes.
+                    IncomingButton {
+                        label: In.tr-view-order;
+                        icon: Icons.list-bullet; has-icon: true;
+                        variant: BtnVariant.outline;
+                        expand: false;
+                        clicked => { root.view(); }
+                    }
+                    // Next lifecycle step, or — out_for_delivery being the
+                    // last advance — Settle (finalize into a real sale).
+                    if root.order.next-label != "": IncomingButton {
+                        label: root.order.next-label;
+                        icon: Icons.arrow-right-circle; has-icon: true;
+                        expand: false;
+                        clicked => { root.do-advance(); }
+                    }
+                    if root.order.next-label == "": IncomingButton {
+                        label: In.tr-finalize;
+                        icon: Icons.checkmark-seal; has-icon: true;
+                        expand: false;
+                        clicked => { root.do-finalize(); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    VerticalLayout {
+                        alignment: center;
+                        OverflowMenu {
+                            tr-view: In.tr-view-order;
+                            tr-prep: In.tr-add-prep;
+                            tr-finalize: In.tr-finalize;
+                            tr-cancel: In.tr-cancel;
+                            view => { root.view(); }
+                            prep => { root.prep(); }
+                            do-finalize => { root.do-finalize(); }
+                            do-cancel => { root.do-cancel(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Settle-tab ticket card — the SAME status-tinted shell as the delivery
+// card (56px strip + bold-teal total), covering + View/Settle pair. ─────────
+component SettleTicketCard {
+    in property <TicketData> ticket;
+    callback view; callback do-settle;
+
+    property <color> status-fg: StatusTint.t-fg(ticket.status);
+    property <color> status-bg: StatusTint.t-bg(ticket.status);
+
+    preferred-height: shell.preferred-height;
+    min-height: shell.preferred-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.view(); }
+        shell := IncomingCard {
+            width: parent.width; height: parent.height;
+            clip: true;
+            preferred-height: card-col.preferred-height;
+            card-col := VerticalLayout {
+                width: parent.width;
+                // Status-tinted strip — dot + ref + state lead, money hero.
+                Rectangle {
+                    height: 56px; // kTicketStripHeight
+                    background: root.status-bg;
+                    HorizontalLayout {
+                        padding-left: Sp.md; padding-right: Sp.md;
+                        spacing: Sp.sm;
+                        Rectangle {
+                            y: (parent.height - 8px) / 2;
+                            width: 8px; height: 8px; border-radius: 4px;
+                            background: root.status-fg;
+                        }
+                        Text {
+                            vertical-alignment: center;
+                            text: root.ticket.ticket-ref;
+                            color: T.text-primary;
+                            font-size: 19px; font-weight: 900; // _ticketRefSize Black
+                            overflow: elide;
+                        }
+                        Chip {
+                            y: (parent.height - self.height) / 2;
+                            label: root.ticket.status-label;
+                            tone: StatusTint.ticket-tone(root.ticket.status);
+                        }
+                        if root.ticket.queued-offline: Chip {
+                            y: (parent.height - self.height) / 2;
+                            label: In.tr-queued;
+                            tone: Tone.warning;
+                            has-icon: true;
+                            icon: Icons.icloud-and-arrow-up;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Rectangle {
+                            y: (parent.height - self.height) / 2;
+                            background: T.accent-bg;
+                            border-radius: Rd.sm;
+                            width: t-hero.preferred-width + 2 * Sp.md;
+                            height: t-hero.preferred-height + 2 * 7px; // kMoneyPillVPad
+                            t-hero := MoneyText {
+                                x: Sp.md; y: 7px;
+                                text: root.ticket.subtotal;
+                                font-size: 16px; font-weight: 900; // _stripMoneySize
+                            }
+                        }
+                    }
+                }
+                VerticalLayout {
+                    padding: Sp.md;
+                    spacing: Sp.sm;
+                    // Covering + item count — leading person tile (mirrors
+                    // the delivery card, 34px small variant).
+                    HorizontalLayout {
+                        spacing: Sp.sm;
+                        Rectangle {
+                            y: (parent.height - 34px) / 2;
+                            width: 34px; height: 34px; // kPersonTileSm
+                            background: T.accent-bg;
+                            border-radius: Rd.sm;
+                            Icon {
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                                source: Icons.person-fill; tint: T.accent;
+                            }
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            horizontal-stretch: 1;
+                            spacing: 2px; // Space.xs / 2
+                            if root.ticket.customer-name != "": Text {
+                                text: root.ticket.customer-name;
+                                color: T.text-primary;
+                                font-size: 15px; font-weight: 600; // title
+                                overflow: elide;
+                            }
+                            // The waiter who opened the ticket — so the
+                            // teller sees who took it.
+                            if root.ticket.waiter-line != "": Text {
+                                text: root.ticket.waiter-line;
+                                color: T.text-secondary;
+                                font-size: 11px; font-weight: 500; // labelSm w500
+                                overflow: elide;
+                            }
+                            Text {
+                                text: root.ticket.items-label;
+                                color: T.text-muted;
+                                font-size: 11px; font-weight: 600; // labelSm
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: Sp.sm;
+                        IncomingButton {
+                            label: In.tr-view-order;
+                            icon: Icons.list-bullet; has-icon: true;
+                            variant: BtnVariant.outline;
+                            clicked => { root.view(); }
+                        }
+                        IncomingButton {
+                            label: In.tr-settle;
+                            icon: Icons.checkmark-circle; has-icon: true;
+                            clicked => { root.do-settle(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Details-sheet pieces (details_sheets.dart) ───────────────────────────────
+
+// A clean stacked sheet header: accent icon tile + bold title, then the
+// status/channel chips on their own row (never squished on a narrow sheet).
+component SheetHeader {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> chip-a; in property <Tone> tone-a;
+    in property <string> chip-b; in property <Tone> tone-b;   // "" hides
+    in property <bool> chip-b-icon: false;
+    in property <image> chip-b-image;
+
+    preferred-height: head-col.preferred-height;
+    min-height: head-col.preferred-height;
+
+    head-col := VerticalLayout {
+        width: parent.width;
+        HorizontalLayout {
+            spacing: Sp.sm;
+            Rectangle {
+                width: 40px; height: 40px;
+                background: T.accent-bg;
+                border-radius: Rd.sm;
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.xl;
+                    source: root.icon; tint: T.accent;
+                }
+            }
+            Text {
+                vertical-alignment: center;
+                text: root.title;
+                color: T.text-primary;
+                font-size: 22px; font-weight: 700; // MadarType.h2
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+        }
+        Rectangle { height: Sp.md; }
+        HorizontalLayout {
+            spacing: Sp.sm;
+            alignment: start;
+            Chip { label: root.chip-a; tone: root.tone-a; }
+            if root.chip-b != "": Chip {
+                label: root.chip-b; tone: root.tone-b;
+                has-icon: root.chip-b-icon; icon: root.chip-b-image;
+            }
+        }
+    }
+}
+
+// A pill of context (waiter / customer / table / covers) with an icon.
+component ContextChip inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    background: T.surface-alt;
+    border-radius: Rd.pill;
+    width: ctx-row.preferred-width + 2 * Sp.md;
+    height: ctx-row.preferred-height + 2 * 6px; // _contextChipVPad
+    ctx-row := HorizontalLayout {
+        x: Sp.md; y: 6px;
+        spacing: Sp.xs;
+        Icon {
+            y: (parent.height - self.height) / 2;
+            width: Ic.sm;
+            source: root.icon; tint: T.text-secondary;
+        }
+        Text {
+            text: root.label;
+            color: T.text-primary;
+            font-size: 12px; font-weight: 600; // MadarType.label
+        }
+    }
+}
+
+// The delivery customer hero — leading person tile, name + phone, the order
+// total as the hero figure in a tinted teal block on the trailing edge.
+component CustomerHero inherits IncomingCard {
+    in property <string> name;
+    in property <string> phone;
+    in property <string> total;
+    preferred-height: hero-row.preferred-height + 2 * Sp.lg;
+    min-height: hero-row.preferred-height + 2 * Sp.lg;
+    hero-row := HorizontalLayout {
+        x: Sp.lg; y: Sp.lg;
+        width: parent.width - 2 * Sp.lg;
+        spacing: Sp.sm;
+        Rectangle {
+            y: (parent.height - 40px) / 2;
+            width: 40px; height: 40px;
+            background: T.surface-alt;
+            border-radius: Rd.sm;
+            Icon {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                source: Icons.person-fill; tint: T.text-secondary;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            spacing: 2px; // Space.xs / 2
+            Text {
+                text: root.name;
+                color: T.text-primary;
+                font-size: 15px; font-weight: 600; // title
+                overflow: elide;
+            }
+            if root.phone != "": Text {
+                text: root.phone;
+                color: T.text-secondary;
+                font-size: 12px; font-weight: 500; // label w500
+            }
+        }
+        Rectangle {
+            y: (parent.height - self.height) / 2;
+            background: T.accent-bg;
+            border-radius: Rd.sm;
+            width: total-txt.preferred-width + 2 * Sp.md;
+            height: total-txt.preferred-height + 2 * Sp.sm;
+            total-txt := MoneyText {
+                x: Sp.md; y: Sp.sm;
+                text: root.total;
+                font-size: 20px; font-weight: 900; // _totalSize Black
+            }
+        }
+    }
+}
+
+// A labelled context row — leading icon + label + end-aligned value.
+component DetailRow {
+    in property <image> icon;
+    in property <string> label;
+    in property <string> value;
+    preferred-height: d-row.preferred-height;
+    min-height: d-row.preferred-height;
+    d-row := HorizontalLayout {
+        width: parent.width;
+        spacing: Sp.sm;
+        Icon {
+            y: (parent.height - self.height) / 2;
+            source: root.icon; tint: T.text-muted;
+        }
+        Text {
+            vertical-alignment: center;
+            text: root.label;
+            color: T.text-muted;
+            font-size: 12px; font-weight: 600; // MadarType.label
+        }
+        Text {
+            vertical-alignment: center;
+            horizontal-alignment: right;
+            text: root.value;
+            color: T.text-primary;
+            font-size: 13px; font-weight: 600; // bodySm w600
+            wrap: word-wrap;
+            horizontal-stretch: 1;
+        }
+    }
+}
+
+// A single order line — qty badge + name (+ size / modifiers) + total.
+// Voided lines strike through (hairline overlay — Slint has none native).
+component OrderLineRow {
+    in property <OrderLineData> line;
+    property <color> name-color: line.voided ? T.text-muted : T.text-primary;
+    property <length> first-line: 27px; // body(14) Cairo line box
+
+    preferred-height: line-row.preferred-height;
+    min-height: line-row.preferred-height;
+
+    line-row := HorizontalLayout {
+        width: parent.width;
+        spacing: Sp.sm;
+        // Qty badge — teal pill so the count reads at a glance.
+        VerticalLayout {
+            alignment: start;
+            Rectangle {
+                background: T.accent-bg;
+                border-radius: Rd.xs;
+                width: qty-txt.preferred-width + 2 * Sp.sm;
+                height: qty-txt.preferred-height + 2 * 3px; // _qtyBadgeVPad
+                qty-txt := Text {
+                    x: Sp.sm; y: 3px;
+                    text: root.line.qty-label;
+                    color: T.accent;
+                    font-size: 13px; font-weight: 700; // bodySm w700
+                }
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 2px; // Space.xs / 2
+            name-wrap := Rectangle {
+                height: name-txt.preferred-height;
+                name-txt := Text {
+                    x: T.rtl ? parent.width - self.width : 0;
+                    width: parent.width;
+                    text: root.line.name;
+                    color: root.name-color;
+                    font-size: 14px; font-weight: 600; // body w600
+                    wrap: word-wrap;
+                }
+                if root.line.voided: Rectangle {
+                    x: T.rtl ? name-txt.width - self.width : 0;
+                    y: root.first-line / 2;
+                    width: Math.min(name-txt.preferred-width, name-txt.width);
+                    height: 1.5px;
+                    background: root.name-color;
+                }
+            }
+            // Size + modifiers as a light secondary line.
+            if root.line.detail != "": det-wrap := Rectangle {
+                height: det-txt.preferred-height;
+                det-txt := Text {
+                    x: T.rtl ? parent.width - self.width : 0;
+                    width: parent.width;
+                    text: root.line.detail;
+                    color: T.text-secondary;
+                    font-size: 12px; font-weight: 500; // label w500
+                    wrap: word-wrap;
+                }
+                if root.line.voided: Rectangle {
+                    x: T.rtl ? det-txt.width - self.width : 0;
+                    y: 11px;
+                    width: Math.min(det-txt.preferred-width, det-txt.width);
+                    height: 1px;
+                    background: T.text-secondary;
+                }
+            }
+        }
+        VerticalLayout {
+            alignment: start;
+            padding-top: 2px; // Space.xs / 2
+            MoneyText {
+                text: root.line.total;
+                color: root.name-color;
+                // MadarType.money (14 / w700 — the component default)
+            }
+        }
+    }
+}
+
+// Line-items card — one row per line: `qty× name`, size + modifiers under
+// it, the per-line price on the trailing edge.
+component OrderLinesCard inherits IncomingCard {
+    in property <[OrderLineData]> lines;
+    preferred-height: lines-col.preferred-height + 2 * Sp.lg;
+    min-height: lines-col.preferred-height + 2 * Sp.lg;
+    lines-col := VerticalLayout {
+        x: Sp.lg; y: Sp.lg;
+        width: parent.width - 2 * Sp.lg;
+        spacing: Sp.md;
+        Text {
+            text: In.tr-items-header.to-uppercase();
+            color: T.text-muted;
+            font-size: 12px; font-weight: 700; // label w700
+        }
+        if root.lines.length == 0: Text {
+            text: In.tr-cart-empty;
+            color: T.text-secondary;
+            font-size: 13px; font-weight: 400; // bodySm
+        }
+        for line in root.lines: OrderLineRow { line: line; }
+    }
+}
+
+// Totals block — light muted breakdown rows above a tinted-teal grand total
+// (the hero figure), matching the CheckoutDrawer's summary card.
+component TotalsBlock inherits IncomingCard {
+    in property <string> subtotal;      // "" hides
+    in property <string> discount;      // "" hides
+    in property <string> delivery-fee;  // "" hides
+    in property <string> total;
+
+    preferred-height: totals-col.preferred-height + 2 * Sp.lg;
+    min-height: totals-col.preferred-height + 2 * Sp.lg;
+
+    totals-col := VerticalLayout {
+        x: Sp.lg; y: Sp.lg;
+        width: parent.width - 2 * Sp.lg;
+        spacing: Sp.xs;
+        if root.subtotal != "": TotalsRow { label: In.tr-subtotal; value: root.subtotal; }
+        if root.discount != "": TotalsRow { label: In.tr-discount; value: root.discount; }
+        if root.delivery-fee != "": TotalsRow { label: In.tr-delivery-fee; value: root.delivery-fee; }
+        VerticalLayout {
+            padding-top: Sp.xs;
+            Rectangle {
+                background: T.accent-bg;
+                border-radius: Rd.md;
+                height: gt-row.preferred-height + 2 * Sp.md;
+                gt-row := HorizontalLayout {
+                    x: Sp.md; y: Sp.md;
+                    width: parent.width - 2 * Sp.md;
+                    Text {
+                        vertical-alignment: center;
+                        text: In.tr-total;
+                        color: T.accent;
+                        font-size: 14px; font-weight: 700; // body w700
+                        horizontal-stretch: 1;
+                    }
+                    MoneyText {
+                        vertical-alignment: center;
+                        text: root.total;
+                        font-size: 20px; font-weight: 900; // _totalSize Black
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+// Compact "qty× name … total" review row (the finalize/settle drawer
+// headers), with the voided strike for settle.
+component ReviewLineRow {
+    in property <OrderLineData> line;
+    preferred-height: rv-row.preferred-height;
+    min-height: rv-row.preferred-height;
+    rv-row := HorizontalLayout {
+        width: parent.width;
+        spacing: Sp.sm;
+        rv-wrap := Rectangle {
+            horizontal-stretch: 1;
+            height: rv-txt.preferred-height;
+            rv-txt := Text {
+                x: T.rtl ? parent.width - self.width : 0;
+                width: parent.width;
+                text: root.line.qty-label + " " + root.line.name;
+                color: T.text-secondary;
+                font-size: 13px; font-weight: 400; // bodySm
+                wrap: word-wrap;
+            }
+            if root.line.voided: Rectangle {
+                x: T.rtl ? rv-txt.width - self.width : 0;
+                y: 12px;
+                width: Math.min(rv-txt.preferred-width, rv-txt.width);
+                height: 1px;
+                background: T.text-secondary;
+            }
+        }
+        MoneyText {
+            vertical-alignment: top;
+            text: root.line.total;
+            color: T.text-primary;
+            font-size: 13px; font-weight: 600;
+        }
+    }
+}
+
+// ── Delivery empty column — the natives' bespoke bicycle glyph + quiet line.
+component DeliveryEmpty {
+    VerticalLayout {
+        alignment: center;
+        spacing: Sp.md;
+        HorizontalLayout {
+            alignment: center;
+            Icon { width: 40px; source: Icons.bicycle; tint: T.text-muted; } // _emptyIcon
+        }
+        Text {
+            horizontal-alignment: center;
+            text: In.tr-delivery-empty;
+            color: T.text-secondary;
+            font-size: 14px; font-weight: 400; // body w400
+        }
+    }
+}
+
+// ── DeliveryBody — the delivery board: filter toolbar, accepting chips,
+// error banner, then the centered ≤620px card list. ─────────────────────────
+component DeliveryBody {
+    callback view(DeliveryOrderData);
+    callback do-finalize(DeliveryOrderData);
+    callback do-cancel(DeliveryOrderData);
+
+    // (Re)entering the tab refreshes the queue (the Dart initState reload).
+    init => { In.reload-delivery(); }
+
+    VerticalLayout {
+        // Active/All filter toolbar (the unified header owns back+title).
+        Rectangle {
+            background: T.surface;
+            height: bar.preferred-height + 1px;
+            VerticalLayout {
+                bar := HorizontalLayout {
+                    padding-left: Sp.lg; padding-right: Sp.lg;
+                    padding-top: Sp.sm; padding-bottom: Sp.sm;
+                    Rectangle { horizontal-stretch: 1; }
+                    SegToggle {
+                        active-only: In.delivery-active-only;
+                        active-label: In.tr-active;
+                        all-label: In.tr-all;
+                        change(a) => { In.set-active-only(a); }
+                    }
+                }
+                Hairline { }
+            }
+        }
+        // Accepting chips (in-mall / outside: auto → open → closed).
+        if In.has-settings: Rectangle {
+            background: T.surface;
+            height: chips-row.preferred-height + 1px;
+            VerticalLayout {
+                chips-row := HorizontalLayout {
+                    padding-left: Sp.lg; padding-right: Sp.lg;
+                    padding-top: Sp.sm; padding-bottom: Sp.sm;
+                    spacing: Sp.sm;
+                    alignment: start;
+                    Text {
+                        vertical-alignment: center;
+                        text: In.tr-accepting;
+                        color: T.text-muted;
+                        font-size: 11px; font-weight: 600; // labelSm
+                    }
+                    AcceptingChip {
+                        chip-label: In.in-mall-chip;
+                        channel: "in_mall";
+                        mode: In.in-mall-mode;
+                        chip-enabled: In.in-mall-enabled;
+                    }
+                    AcceptingChip {
+                        chip-label: In.outside-chip;
+                        channel: "outside";
+                        mode: In.outside-mode;
+                        chip-enabled: In.outside-enabled;
+                    }
+                }
+                Hairline { }
+            }
+        }
+        if In.error != "": VerticalLayout {
+            padding: Sp.lg;
+            Banner {
+                text: In.error;
+                has-icon: true;
+                icon: Icons.exclamationmark-circle;
+            }
+        }
+        // The order list.
+        if In.loading-delivery && In.delivery-orders.length == 0: Rectangle {
+            vertical-stretch: 1;
+            SkeletonList {
+                x: (parent.width - self.width) / 2;
+                y: 0;
+                width: Math.min(Rsp.list-max, parent.width);
+            }
+        }
+        if !In.loading-delivery && In.delivery-orders.length == 0: Rectangle {
+            vertical-stretch: 1;
+            DeliveryEmpty { width: parent.width; height: parent.height; }
+        }
+        if In.delivery-orders.length > 0: Flickable {
+            vertical-stretch: 1;
+            viewport-height: d-list.preferred-height;
+            d-list := VerticalLayout {
+                padding: Sp.lg;
+                spacing: Sp.sm;
+                for o in In.delivery-orders: Rectangle {
+                    height: d-card.preferred-height;
+                    // Cards center under the 620px cap (kBoardCardMaxWidth).
+                    d-card := DeliveryOrderCard {
+                        x: (parent.width - self.width) / 2;
+                        width: Math.min(620px, parent.width);
+                        order: o;
+                        view => { root.view(o); }
+                        do-advance => { In.advance(o.id, o.status); }
+                        prep => { In.add-prep(o.id); }
+                        do-finalize => { root.do-finalize(o); }
+                        do-cancel => { root.do-cancel(o); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── TicketsSettleBody — the open-tickets settle board. ──────────────────────
+component TicketsSettleBody {
+    callback view(TicketData);
+    callback do-settle(TicketData);
+
+    // (Re)entering the tab refreshes the board (the Dart initState reload).
+    init => { In.reload-tickets(); }
+
+    VerticalLayout {
+        if In.error != "": VerticalLayout {
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            padding-top: Sp.sm; padding-bottom: Sp.sm;
+            Banner {
+                text: In.error;
+                has-icon: true;
+                icon: Icons.exclamationmark-circle;
+            }
+        }
+        if In.tickets.length == 0: Rectangle {
+            vertical-stretch: 1;
+            EmptyState {
+                width: parent.width; height: parent.height;
+                icon: Icons.tray;
+                title: In.tr-no-tickets;
+            }
+        }
+        if In.tickets.length > 0: Flickable {
+            vertical-stretch: 1;
+            viewport-height: t-list.preferred-height;
+            t-list := VerticalLayout {
+                padding: Sp.lg;
+                spacing: Sp.sm;
+                for t in In.tickets: Rectangle {
+                    height: t-card.preferred-height;
+                    t-card := SettleTicketCard {
+                        x: (parent.width - self.width) / 2;
+                        width: Math.min(620px, parent.width);
+                        ticket: t;
+                        view => { root.view(t); }
+                        do-settle => { root.do-settle(t); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── IncomingScreen — the unified Orders surface: shared header, live
+// segmented tab bar, the two bodies, sheets, and the floating toast. ────────
+export component IncomingScreen {
+    // Sheet state — the tapped order/ticket snapshots ride in by value (the
+    // Dart sheets capture the order object at open time the same way).
+    property <DeliveryOrderData> sel-order;
+    property <TicketData> sel-ticket;
+    property <bool> d-details-open: false;
+    property <bool> t-details-open: false;
+    // Pay sheet mode: true = delivery finalize, false = ticket settle.
+    property <bool> pay-is-finalize: true;
+    property <string> pay-selected-id: "";
+    property <bool> pay-selected-cash: false;
+    property <string> pay-tendered: "";
+
+    function open-pay(finalize: bool) {
+        root.pay-is-finalize = finalize;
+        root.pay-selected-id = In.payment-methods.length > 0 ? In.payment-methods[0].id : "";
+        root.pay-selected-cash = In.payment-methods.length > 0 && In.payment-methods[0].is-cash;
+        root.pay-tendered = "";
+        In.pay-open = true;
+    }
+
+    // Toast auto-dismiss (ToastData.seconds = 2.6).
+    toast-timer := Timer {
+        interval: 2.6s;
+        running: In.toast-shown;
+        triggered => { In.toast-shown = false; }
+    }
+    // The 60s delivery safety-net poll — Rust reloads ONLY while realtime is
+    // down (RealtimeGatedPoll); a connected board relies on the SSE ticks.
+    poll-timer := Timer {
+        interval: 60s;
+        running: In.tab == 0 && !In.realtime-connected;
+        triggered => { In.delivery-poll(); }
+    }
+
+    VerticalLayout {
+        // THE shared header; the live segmented tab bar rides beneath it.
+        MadarHeader {
+            title: In.tr-title;
+            has-back: true;
+            back => { In.back(); }
+        }
+        // Segmented tab bar (teal active fill) with live per-tab badges.
+        Rectangle {
+            background: T.surface;
+            height: tabs-pad.preferred-height + 1px;
+            VerticalLayout {
+                tabs-pad := VerticalLayout {
+                    padding-left: Sp.lg; padding-right: Sp.lg;
+                    padding-top: Sp.md; padding-bottom: Sp.md;
+                    Rectangle {
+                        background: T.surface-alt;
+                        border-radius: Rd.sm;
+                        height: tabs-row.preferred-height + 2 * Sp.xs;
+                        tabs-row := HorizontalLayout {
+                            x: Sp.xs; y: Sp.xs;
+                            width: parent.width - 2 * Sp.xs;
+                            spacing: Sp.xs;
+                            IncomingTab {
+                                horizontal-stretch: 1;
+                                label: In.tr-delivery-tab;
+                                count: In.delivery-orders.length;
+                                active: In.tab == 0;
+                                tapped => { In.tab = 0; }
+                            }
+                            IncomingTab {
+                                horizontal-stretch: 1;
+                                label: In.tr-tickets-tab;
+                                count: In.tickets.length;
+                                active: In.tab == 1;
+                                tapped => { In.tab = 1; }
+                            }
+                        }
+                    }
+                }
+                Hairline { }
+            }
+        }
+        // Body — the `if` remounts the tab so each body's own init (refresh)
+        // runs on (re)entry, like the natives' `when(tab)`.
+        if In.tab == 0: DeliveryBody {
+            vertical-stretch: 1;
+            view(o) => { root.sel-order = o; root.d-details-open = true; }
+            do-finalize(o) => { root.sel-order = o; root.open-pay(true); }
+            do-cancel(o) => { root.sel-order = o; In.cancel-open = true; }
+        }
+        if In.tab == 1: TicketsSettleBody {
+            vertical-stretch: 1;
+            view(t) => { root.sel-ticket = t; root.t-details-open = true; }
+            do-settle(t) => { root.sel-ticket = t; root.open-pay(false); }
+        }
+    }
+
+    // ── Delivery order details — the SHARED details layout (customer /
+    // address / channel + lines + money breakdown); Finalize CTA pinned
+    // while the order is live. ──────────────────────────────────────────────
+    d-details := SheetFrame {
+        width: parent.width; height: parent.height;
+        open: root.d-details-open;
+        height-fraction: 0.94;                 // SheetSize.large
+        sheet-max-width: Rsp.list-max;         // Responsive.listMaxWidth
+        dismissed => { root.d-details-open = false; }
+        VerticalLayout {
+            Flickable {
+                vertical-stretch: 1;
+                viewport-height: dd-col.preferred-height;
+                dd-col := VerticalLayout {
+                    padding: Sp.lg;
+                    spacing: Sp.md;
+                    // Stacked header — ref title + status/channel chips.
+                    SheetHeader {
+                        icon: Icons.bicycle;
+                        title: root.sel-order.order-ref != ""
+                            ? root.sel-order.order-ref : In.tr-delivery-title;
+                        chip-a: root.sel-order.status-label;
+                        tone-a: StatusTint.delivery-tone(root.sel-order.status);
+                        chip-b: root.sel-order.channel-label;
+                        tone-b: Tone.neutral;
+                        chip-b-icon: true;
+                        chip-b-image: Icons.bag-fill;
+                    }
+                    // Customer hero — matches the card so the sheet feels
+                    // like its expansion.
+                    CustomerHero {
+                        name: root.sel-order.customer-name;
+                        phone: root.sel-order.customer-phone;
+                        total: root.sel-order.total;
+                    }
+                    // Address + payment context (only rows carrying data).
+                    if root.sel-order.address != "" || root.sel-order.payment-hint != "": ctx-card := IncomingCard {
+                        preferred-height: ctx-col.preferred-height + 2 * Sp.lg;
+                        min-height: ctx-col.preferred-height + 2 * Sp.lg;
+                        ctx-col := VerticalLayout {
+                            x: Sp.lg; y: Sp.lg;
+                            width: parent.width - 2 * Sp.lg;
+                            spacing: Sp.sm;
+                            if root.sel-order.address != "": DetailRow {
+                                icon: Icons.mappin-and-ellipse;
+                                label: In.tr-address;
+                                value: root.sel-order.address;
+                            }
+                            if root.sel-order.payment-hint != "": DetailRow {
+                                icon: Icons.creditcard;
+                                label: In.tr-payment-method;
+                                value: root.sel-order.payment-hint;
+                            }
+                        }
+                    }
+                    // Customer delivery instructions — can't be missed.
+                    if root.sel-order.delivery-notes != "": DeliveryNoteInset {
+                        note: root.sel-order.delivery-notes;
+                    }
+                    // Line items — the SAME card tickets use.
+                    OrderLinesCard { lines: root.sel-order.lines; }
+                    // Money breakdown — the projection gives a full total.
+                    TotalsBlock {
+                        subtotal: root.sel-order.subtotal;
+                        discount: root.sel-order.discount;
+                        delivery-fee: root.sel-order.delivery-fee;
+                        total: root.sel-order.total;
+                    }
+                }
+            }
+            // Finalize CTA pinned when the order is live.
+            if !root.sel-order.is-terminal: VerticalLayout {
+                padding: Sp.lg;
+                IncomingButton {
+                    label: In.tr-finalize;
+                    icon: Icons.checkmark-seal; has-icon: true;
+                    clicked => {
+                        root.d-details-open = false;
+                        root.open-pay(true);
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Ticket details — the SHARED details layout (real line items) with
+    // the Settle CTA pinned under the scrolling details. ────────────────────
+    t-details := SheetFrame {
+        width: parent.width; height: parent.height;
+        open: root.t-details-open;
+        height-fraction: 0.94;                 // SheetSize.large
+        sheet-max-width: Rsp.list-max;
+        dismissed => { root.t-details-open = false; }
+        VerticalLayout {
+            Flickable {
+                vertical-stretch: 1;
+                viewport-height: td-col.preferred-height;
+                td-col := VerticalLayout {
+                    padding: Sp.lg;
+                    spacing: Sp.md;
+                    // Stacked header — ticket ref + status/queued chips.
+                    SheetHeader {
+                        icon: Icons.doc-text;
+                        title: root.sel-ticket.ticket-ref;
+                        chip-a: root.sel-ticket.status-label;
+                        tone-a: StatusTint.ticket-tone(root.sel-ticket.status);
+                        chip-b: root.sel-ticket.queued-offline ? In.tr-queued : "";
+                        tone-b: Tone.warning;
+                        chip-b-icon: true;
+                        chip-b-image: Icons.icloud-and-arrow-up;
+                    }
+                    // Context chips — waiter / customer / table / covers.
+                    if root.sel-ticket.ctx-waiter != "" || root.sel-ticket.customer-name != ""
+                        || root.sel-ticket.ctx-table != "" || root.sel-ticket.ctx-covers != "": HorizontalLayout {
+                        spacing: Sp.sm;
+                        alignment: start;
+                        if root.sel-ticket.ctx-waiter != "": ContextChip {
+                            icon: Icons.fork-knife; label: root.sel-ticket.ctx-waiter;
+                        }
+                        if root.sel-ticket.customer-name != "": ContextChip {
+                            icon: Icons.person-fill; label: root.sel-ticket.customer-name;
+                        }
+                        if root.sel-ticket.ctx-table != "": ContextChip {
+                            icon: Icons.square-grid-2x2; label: root.sel-ticket.ctx-table;
+                        }
+                        if root.sel-ticket.ctx-covers != "": ContextChip {
+                            icon: Icons.person-fill; label: root.sel-ticket.ctx-covers;
+                        }
+                    }
+                    // Line items card — voided lines strike.
+                    OrderLinesCard { lines: root.sel-ticket.lines; }
+                    // Totals — a ticket carries a single frozen subtotal.
+                    TotalsBlock {
+                        subtotal: ""; discount: ""; delivery-fee: "";
+                        total: root.sel-ticket.subtotal;
+                    }
+                }
+            }
+            VerticalLayout {
+                padding: Sp.lg;
+                IncomingButton {
+                    label: In.tr-settle;
+                    icon: Icons.checkmark-circle; has-icon: true;
+                    clicked => {
+                        root.t-details-open = false;
+                        root.open-pay(false);
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Cancel sheet — optional reason, the restock switch, and a danger
+    // confirm. restock=false means the food was made and is wasted. ─────────
+    cancel-sheet := SheetFrame {
+        width: parent.width; height: parent.height;
+        open: In.cancel-open;
+        height-fraction: 0.62;                     // SheetSize.hug (approx.)
+        sheet-max-width: Rsp.sheet-compact-max;    // sheetCompactMaxWidth
+        dismissed => { In.cancel-open = false; }
+        VerticalLayout {
+            padding: Sp.lg;
+            spacing: Sp.md;
+            alignment: start;
+            Text {
+                text: In.tr-cancel;
+                color: T.text-primary;
+                font-size: 22px; font-weight: 700; // h2
+            }
+            Text {
+                text: root.sel-order.customer-name;
+                color: T.text-secondary;
+                font-size: 13px; font-weight: 400; // bodySm
+            }
+            // A failed cancel surfaces INSIDE the sheet — the board's own
+            // banner sits behind the modal scrim.
+            if In.error != "": Banner {
+                text: In.error;
+                tone: Tone.danger;
+                has-icon: true;
+                icon: Icons.exclamationmark-circle;
+            }
+            reason-field := IncomingField {
+                placeholder: In.tr-cancel-reason;
+                icon: Icons.text-bubble; has-icon: true;
+            }
+            HorizontalLayout {
+                spacing: Sp.sm;
+                Text {
+                    vertical-alignment: center;
+                    text: In.tr-restore-inventory;
+                    color: T.text-primary;
+                    font-size: 14px; font-weight: 500; // body
+                    horizontal-stretch: 1;
+                    wrap: word-wrap;
+                }
+                restock-switch := MSwitch { checked: true; }
+            }
+            IncomingButton {
+                label: In.tr-cancel;
+                icon: Icons.xmark-circle; has-icon: true;
+                variant: BtnVariant.danger;
+                loading: In.busy;
+                clicked => {
+                    In.cancel-delivery(root.sel-order.id, reason-field.text, restock-switch.checked);
+                }
+            }
+        }
+    }
+
+    // ── Finalize / settle sheet — a compact stand-in for the app's shared
+    // CheckoutDrawer (that feature isn't ported yet — see NOTES): the order
+    // review header, the payment-method picker, cash tendered on settle,
+    // and the terminal action. The backend finalize only needs the chosen
+    // method; settle additionally takes the tendered cash. ──────────────────
+    pay-sheet := SheetFrame {
+        width: parent.width; height: parent.height;
+        open: In.pay-open;
+        height-fraction: 0.94;                 // SheetSize.large
+        sheet-max-width: Rsp.sheet-max;
+        dismissed => { In.pay-open = false; }
+        VerticalLayout {
+            Flickable {
+                vertical-stretch: 1;
+                viewport-height: pay-col.preferred-height;
+                pay-col := VerticalLayout {
+                    padding: Sp.lg;
+                    spacing: Sp.md;
+                    Text {
+                        text: root.pay-is-finalize ? In.tr-finalize : In.tr-settle;
+                        color: T.text-primary;
+                        font-size: 22px; font-weight: 700; // h2 (drawer title)
+                    }
+                    // Compact order review — the teller sees WHO + WHAT
+                    // they're charging before tendering.
+                    if root.pay-is-finalize: fin-head := IncomingCard {
+                        preferred-height: fin-col.preferred-height + 2 * Sp.lg;
+                        min-height: fin-col.preferred-height + 2 * Sp.lg;
+                        fin-col := VerticalLayout {
+                            x: Sp.lg; y: Sp.lg;
+                            width: parent.width - 2 * Sp.lg;
+                            spacing: Sp.sm;
+                            HorizontalLayout {
+                                spacing: Sp.sm;
+                                Icon {
+                                    y: (parent.height - self.height) / 2;
+                                    source: Icons.bicycle; tint: T.accent;
+                                }
+                                Text {
+                                    vertical-alignment: center;
+                                    text: root.sel-order.order-ref != ""
+                                        ? root.sel-order.order-ref : In.tr-delivery-title;
+                                    color: T.text-primary;
+                                    font-size: 15px; font-weight: 600; // title
+                                    overflow: elide;
+                                    horizontal-stretch: 1;
+                                }
+                                Chip {
+                                    y: (parent.height - self.height) / 2;
+                                    label: root.sel-order.channel-label;
+                                }
+                            }
+                            Text {
+                                text: root.sel-order.customer-name;
+                                color: T.text-secondary;
+                                font-size: 13px; font-weight: 500; // bodySm w500
+                            }
+                            if root.sel-order.address != "": TwoLineText {
+                                text: root.sel-order.address;
+                                text-color: T.text-muted;
+                                size: 12px; weight: 400; // label w400
+                            }
+                            for line in root.sel-order.lines: ReviewLineRow { line: line; }
+                        }
+                    }
+                    if !root.pay-is-finalize: set-head := IncomingCard {
+                        preferred-height: set-col.preferred-height + 2 * Sp.lg;
+                        min-height: set-col.preferred-height + 2 * Sp.lg;
+                        set-col := VerticalLayout {
+                            x: Sp.lg; y: Sp.lg;
+                            width: parent.width - 2 * Sp.lg;
+                            spacing: Sp.sm;
+                            HorizontalLayout {
+                                spacing: Sp.sm;
+                                Text {
+                                    vertical-alignment: center;
+                                    text: root.sel-ticket.ticket-ref;
+                                    color: T.text-primary;
+                                    font-size: 15px; font-weight: 600; // title
+                                    overflow: elide;
+                                    horizontal-stretch: 1;
+                                }
+                                Chip {
+                                    y: (parent.height - self.height) / 2;
+                                    label: root.sel-ticket.status-label;
+                                    tone: StatusTint.ticket-tone(root.sel-ticket.status);
+                                }
+                            }
+                            for line in root.sel-ticket.lines: ReviewLineRow { line: line; }
+                        }
+                    }
+                    // Failure surfaces INSIDE the drawer (the natives'
+                    // model.error) — the board banner sits behind the scrim.
+                    if In.error != "": Banner {
+                        text: In.error;
+                        tone: Tone.danger;
+                        has-icon: true;
+                        icon: Icons.exclamationmark-circle;
+                    }
+                    // Payment method picker.
+                    Text {
+                        text: In.tr-payment-method.to-uppercase();
+                        color: T.text-muted;
+                        font-size: 12px; font-weight: 700; // label w700
+                    }
+                    for m in In.payment-methods: method-row := Press {
+                        preferred-height: 54px; min-height: 54px;
+                        clicked => {
+                            root.pay-selected-id = m.id;
+                            root.pay-selected-cash = m.is-cash;
+                        }
+                        Rectangle {
+                            width: parent.width; height: 54px;
+                            background: T.surface-alt;
+                            border-radius: Rd.md;
+                            border-width: root.pay-selected-id == m.id ? 2px : 1px;
+                            border-color: root.pay-selected-id == m.id ? T.accent : T.border-light;
+                            HorizontalLayout {
+                                padding-left: Sp.lg; padding-right: Sp.lg;
+                                spacing: Sp.md;
+                                Icon {
+                                    y: (parent.height - self.height) / 2;
+                                    source: m.is-cash ? Icons.banknote : Icons.creditcard;
+                                    tint: root.pay-selected-id == m.id ? T.accent : T.text-secondary;
+                                }
+                                Text {
+                                    vertical-alignment: center;
+                                    text: m.name;
+                                    color: T.text-primary;
+                                    font-size: 15px; font-weight: 600; // title
+                                    horizontal-stretch: 1;
+                                    overflow: elide;
+                                }
+                                if root.pay-selected-id == m.id: Icon {
+                                    y: (parent.height - self.height) / 2;
+                                    source: Icons.checkmark-circle; tint: T.accent;
+                                }
+                            }
+                        }
+                    }
+                    // Cash tendered (settle + cash primary only — the Dart
+                    // settle mapping sends tendered just for cash).
+                    if !root.pay-is-finalize && root.pay-selected-cash: tendered-field := IncomingField {
+                        placeholder: "0.00";
+                        icon: Icons.banknote; has-icon: true;
+                        text <=> root.pay-tendered;
+                    }
+                }
+            }
+            // Terminal action pinned under the scroll.
+            VerticalLayout {
+                padding: Sp.lg;
+                IncomingButton {
+                    label: root.pay-is-finalize ? In.tr-finalize : In.tr-settle;
+                    icon: root.pay-is-finalize ? Icons.checkmark-seal : Icons.checkmark-circle;
+                    has-icon: true;
+                    loading: In.busy;
+                    btn-enabled: root.pay-selected-id != "";
+                    clicked => {
+                        if (root.pay-is-finalize) {
+                            In.finalize(root.sel-order.id, root.pay-selected-id);
+                        } else {
+                            In.settle(root.sel-ticket.id, root.pay-selected-id,
+                                      root.pay-tendered, root.pay-selected-cash);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Toasts float above everything on this screen.
+    ToastHost {
+        width: parent.width; height: parent.height;
+        shown: In.toast-shown;
+        text: In.toast-text;
+        tone: In.toast-tone == 1 ? Tone.success : In.toast-tone == 2 ? Tone.warning : Tone.neutral;
+        has-icon: In.toast-icon != 0;
+        icon: In.toast-icon == 1 ? Icons.checkmark-circle : Icons.exclamationmark-triangle;
+    }
+}

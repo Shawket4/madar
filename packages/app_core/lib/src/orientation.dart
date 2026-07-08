@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -16,9 +17,20 @@ class OrientationController extends ChangeNotifier {
   /// The one instance every screen reads.
   static final OrientationController instance = OrientationController._();
 
-  /// Tablet-class breakpoint on the shortest side (Material's tablet cutoff).
-  static const double tabletShortestSide = 600;
+  /// Android's mdpi baseline: 160 logical (dp) pixels per inch. Because dp is
+  /// already density-normalized, this ratio holds regardless of the device's
+  /// actual devicePixelRatio.
+  static const double _dpPerInch = 160;
 
+  /// Default tablet cutoff, in diagonal inches. A shortest-side dp check
+  /// (Material's old sw600 convention) misreads small, low-aspect-ratio ~7"
+  /// tablets as phones when their reported density inflates devicePixelRatio;
+  /// the full diagonal holds up across odd aspect ratios. User-configurable
+  /// via [setTabletThresholdInches] for exactly that kind of device quirk.
+  static const double defaultTabletThresholdInches = 7;
+
+  double _tabletThresholdInches = defaultTabletThresholdInches;
+  Size _lastSize = Size.zero;
   bool _isTablet = true;
   bool _landscapeRight = true;
   bool _applied = false;
@@ -32,21 +44,69 @@ class OrientationController extends ChangeNotifier {
   /// The flip is only meaningful on a tablet (phones are portrait-locked).
   bool get canFlip => _isTablet;
 
+  /// Current tablet cutoff, in diagonal inches.
+  double get tabletThresholdInches => _tabletThresholdInches;
+
   /// Host hook that persists the flip choice — the app wires this to its
   /// vault at boot (this package is storage-agnostic). Called after each
   /// user [flip]; never on [restoreFlip] (no persist echo).
   void Function({required bool landscapeRight})? persister;
 
-  /// Set the device class (from the platform view at launch, then confirmed
-  /// from MediaQuery on the first frame) and apply the lock. Applies once
-  /// per distinct class; safe to call every build.
-  void setDeviceClass({required bool isTablet}) {
+  /// Host hook that persists the tablet threshold — wired at boot like
+  /// [persister]. Called after each [setTabletThresholdInches]; never on
+  /// [restoreTabletThresholdInches] (no persist echo).
+  void Function({required double tabletThresholdInches})? thresholdPersister;
+
+  /// Diagonal screen size in inches, assuming the 160dp/inch baseline.
+  static double diagonalInches(Size size) {
+    if (size.isEmpty) return 0;
+    return math.sqrt(size.width * size.width + size.height * size.height) /
+        _dpPerInch;
+  }
+
+  /// Set the device class from a logical [size] (from the platform view at
+  /// launch, then confirmed from MediaQuery on the first frame) and apply
+  /// the lock. Applies once per distinct class; safe to call every build.
+  void setDeviceClass({required Size size}) {
+    if (!size.isEmpty) _lastSize = size;
+    // No signal yet (physicalSize can be 0 pre-frame) → default to tablet;
+    // the MediaQuery-confirmed call corrects it on first frame.
+    final isTablet =
+        _lastSize.isEmpty ||
+        diagonalInches(_lastSize) >= _tabletThresholdInches;
     if (_applied && isTablet == _isTablet) return;
     _isTablet = isTablet;
     _apply();
     // Deferred so a MediaQuery-time caller (MaterialApp.builder) never
     // notifies listeners mid-build.
     scheduleMicrotask(notifyListeners);
+  }
+
+  /// Change the tablet cutoff (diagonal inches) and re-evaluate the current
+  /// device against it.
+  void setTabletThresholdInches(double inches) {
+    if (_tabletThresholdInches == inches) return;
+    _setThresholdInches(inches);
+    thresholdPersister?.call(tabletThresholdInches: inches);
+    scheduleMicrotask(notifyListeners);
+  }
+
+  /// Seed the persisted threshold at boot — re-evaluates against whatever
+  /// [Size] has already landed via [setDeviceClass].
+  void restoreTabletThresholdInches(double inches) {
+    if (_tabletThresholdInches == inches) return;
+    _setThresholdInches(inches);
+    scheduleMicrotask(notifyListeners);
+  }
+
+  void _setThresholdInches(double inches) {
+    _tabletThresholdInches = inches;
+    if (_lastSize.isEmpty) return;
+    final isTablet = diagonalInches(_lastSize) >= _tabletThresholdInches;
+    if (isTablet != _isTablet) {
+      _isTablet = isTablet;
+      _apply();
+    }
   }
 
   /// Seed the persisted flip at boot (the vault loads async, so this lands
@@ -89,9 +149,7 @@ class OrientationController extends ChangeNotifier {
 /// mounted (splash vs the ready shell).
 Widget orientationProbe(BuildContext context, Widget? child) {
   OrientationController.instance.setDeviceClass(
-    isTablet:
-        MediaQuery.sizeOf(context).shortestSide >=
-        OrientationController.tabletShortestSide,
+    size: MediaQuery.sizeOf(context),
   );
   // App-wide tap-to-dismiss: a tap that lands outside any field drops focus
   // (and hides the keyboard). Paired with EntranceFocus (never raw autofocus),

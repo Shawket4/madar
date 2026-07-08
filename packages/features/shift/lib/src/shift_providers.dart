@@ -20,9 +20,6 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// ESC/POS character columns (natives: renderShiftReport(..., 32u, ...)).
 const int _printWidth = 32;
 
-/// Default JetDirect printer port (natives: parsePrinter's 9100).
-const int _printerPort = 9100;
-
 /// copyWith sentinel so nullable fields can be cleared explicitly.
 const Object _unset = Object();
 
@@ -728,8 +725,8 @@ class ShiftHistoryNotifier extends Notifier<ShiftHistoryState> {
   /// the core and streams to the configured printer, with toast feedback.
   Future<void> printOrder(OrderSummaryView order) async {
     final config = _bridge.deviceConfig();
-    final host = config.printerHost?.trim() ?? '';
-    if (host.isEmpty) {
+    final tx = ref.read(printerServiceProvider).activeTransport();
+    if (tx == null) {
       _showToast('receipt.no_printer', tone: ChipTone.warning, icon: 'printer');
       return;
     }
@@ -743,11 +740,7 @@ class ShiftHistoryNotifier extends Notifier<ShiftHistoryState> {
             ? PrinterBrand.star
             : PrinterBrand.epson,
       );
-      await _bridge.sendToPrinter(
-        host: host,
-        port: config.printerPort ?? _printerPort,
-        bytes: bytes,
-      );
+      await tx.send(bytes);
       if (!_disposed) {
         _showToast(
           'receipt.printed',
@@ -932,8 +925,8 @@ class ShiftReportNotifier extends Notifier<ShiftReportSheetState> {
     final report = state.report;
     if (report == null || state.print == ShiftPrintState.printing) return;
     final config = _bridge.deviceConfig();
-    final host = config.printerHost?.trim() ?? '';
-    if (host.isEmpty) {
+    final tx = ref.read(printerServiceProvider).activeTransport();
+    if (tx == null) {
       state = state.copyWith(print: ShiftPrintState.noPrinter);
       return;
     }
@@ -953,11 +946,7 @@ class ShiftReportNotifier extends Notifier<ShiftReportSheetState> {
             ? (state.orders ?? const <OrderSummaryView>[])
             : const <OrderSummaryView>[],
       );
-      await _bridge.sendToPrinter(
-        host: host,
-        port: config.printerPort ?? _printerPort,
-        bytes: bytes,
-      );
+      await tx.send(bytes);
       if (!_disposed) state = state.copyWith(print: ShiftPrintState.printed);
     } on Exception catch (_) {
       if (!_disposed) state = state.copyWith(print: ShiftPrintState.failed);
@@ -970,8 +959,8 @@ class ShiftReportNotifier extends Notifier<ShiftReportSheetState> {
   Future<void> printOrder(OrderSummaryView order) async {
     if (state.print == ShiftPrintState.printing) return;
     final config = _bridge.deviceConfig();
-    final host = config.printerHost?.trim() ?? '';
-    if (host.isEmpty) {
+    final tx = ref.read(printerServiceProvider).activeTransport();
+    if (tx == null) {
       state = state.copyWith(print: ShiftPrintState.noPrinter);
       return;
     }
@@ -986,11 +975,7 @@ class ShiftReportNotifier extends Notifier<ShiftReportSheetState> {
             ? PrinterBrand.star
             : PrinterBrand.epson,
       );
-      await _bridge.sendToPrinter(
-        host: host,
-        port: config.printerPort ?? _printerPort,
-        bytes: bytes,
-      );
+      await tx.send(bytes);
       if (!_disposed) state = state.copyWith(print: ShiftPrintState.printed);
     } on Exception catch (_) {
       if (!_disposed) state = state.copyWith(print: ShiftPrintState.failed);

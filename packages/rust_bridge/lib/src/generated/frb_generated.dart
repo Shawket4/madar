@@ -84,7 +84,7 @@ class RustBridge
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 2064878342;
+  int get rustContentHash => 661685353;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -618,6 +618,22 @@ abstract class RustBridgeApi extends BaseApi {
     String? host,
     int? port,
     String? brand,
+  });
+
+  Future<void> crateApiBridgeMadarBridgeSetDevicePrinterBt({
+    required MadarBridge that,
+    String? address,
+    String? name,
+  });
+
+  Future<void> crateApiBridgeMadarBridgeSetDevicePrinterPaper({
+    required MadarBridge that,
+    int? dots,
+  });
+
+  Future<void> crateApiBridgeMadarBridgeSetDevicePrinterTransport({
+    required MadarBridge that,
+    required String kind,
   });
 
   Future<void> crateApiBridgeMadarBridgeSetDeviceStation({
@@ -4887,6 +4903,123 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<void> crateApiBridgeMadarBridgeSetDevicePrinterBt({
+    required MadarBridge that,
+    String? address,
+    String? name,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_opt_String(address, serializer);
+          sse_encode_opt_String(name, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 112,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeSetDevicePrinterBtConstMeta,
+        argValues: [that, address, name],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeSetDevicePrinterBtConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_set_device_printer_bt",
+        argNames: ["that", "address", "name"],
+      );
+
+  @override
+  Future<void> crateApiBridgeMadarBridgeSetDevicePrinterPaper({
+    required MadarBridge that,
+    int? dots,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_opt_box_autoadd_u_32(dots, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 113,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeSetDevicePrinterPaperConstMeta,
+        argValues: [that, dots],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeSetDevicePrinterPaperConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_set_device_printer_paper",
+        argNames: ["that", "dots"],
+      );
+
+  @override
+  Future<void> crateApiBridgeMadarBridgeSetDevicePrinterTransport({
+    required MadarBridge that,
+    required String kind,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(kind, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 114,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeSetDevicePrinterTransportConstMeta,
+        argValues: [that, kind],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiBridgeMadarBridgeSetDevicePrinterTransportConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_set_device_printer_transport",
+        argNames: ["that", "kind"],
+      );
+
+  @override
   Future<void> crateApiBridgeMadarBridgeSetDeviceStation({
     required MadarBridge that,
     String? stationId,
@@ -4903,7 +5036,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 112,
+            funcId: 115,
             port: port_,
           );
         },
@@ -4941,7 +5074,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 113,
+            funcId: 116,
             port: port_,
           );
         },
@@ -4981,7 +5114,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 114,
+            funcId: 117,
             port: port_,
           );
         },
@@ -5019,7 +5152,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 115,
+            funcId: 118,
           )!;
         },
         codec: SseCodec(
@@ -5072,7 +5205,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 116,
+            funcId: 119,
             port: port_,
           );
         },
@@ -5130,7 +5263,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 117,
+            funcId: 120,
             port: port_,
           );
         },
@@ -5168,7 +5301,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 118,
+            funcId: 121,
             port: port_,
           );
         },
@@ -5206,7 +5339,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 119,
+            funcId: 122,
             port: port_,
           );
         },
@@ -5244,7 +5377,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 120,
+            funcId: 123,
             port: port_,
           );
         },
@@ -5284,7 +5417,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 121,
+            funcId: 124,
             port: port_,
           );
         },
@@ -5320,7 +5453,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 122,
+            funcId: 125,
             port: port_,
           );
         },
@@ -5356,7 +5489,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 123,
+            funcId: 126,
             port: port_,
           );
         },
@@ -5391,7 +5524,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 124,
+            funcId: 127,
             port: port_,
           );
         },
@@ -5427,7 +5560,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 125,
+            funcId: 128,
             port: port_,
           );
         },
@@ -5465,7 +5598,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 126,
+            funcId: 129,
           )!;
         },
         codec: SseCodec(
@@ -5506,7 +5639,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 127,
+            funcId: 130,
             port: port_,
           );
         },
@@ -5542,7 +5675,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 128,
+            funcId: 131,
           )!;
         },
         codec: SseCodec(
@@ -5584,7 +5717,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 129,
+            funcId: 132,
             port: port_,
           );
         },
@@ -5618,7 +5751,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 130,
+            funcId: 133,
           )!;
         },
         codec: SseCodec(
@@ -5661,7 +5794,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 131,
+            funcId: 134,
             port: port_,
           );
         },
@@ -5701,7 +5834,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 132,
+            funcId: 135,
             port: port_,
           );
         },
@@ -5731,7 +5864,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 133,
+            funcId: 136,
           )!;
         },
         codec: SseCodec(
@@ -5759,7 +5892,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 134,
+            funcId: 137,
           )!;
         },
         codec: SseCodec(
@@ -5789,7 +5922,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 135,
+            funcId: 138,
           )!;
         },
         codec: SseCodec(
@@ -6039,6 +6172,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
 
   @protected
   int dco_decode_box_autoadd_u_16(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
   }
@@ -6335,8 +6474,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   DeviceConfigView dco_decode_device_config_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 14)
+      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
     return DeviceConfigView(
       branchId: dco_decode_opt_String(arr[0]),
       branchName: dco_decode_opt_String(arr[1]),
@@ -6345,9 +6484,13 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       printerHost: dco_decode_opt_String(arr[4]),
       printerPort: dco_decode_opt_box_autoadd_u_16(arr[5]),
       printerBrand: dco_decode_opt_String(arr[6]),
-      reconfiguring: dco_decode_bool(arr[7]),
-      lanHub: dco_decode_opt_String(arr[8]),
-      configured: dco_decode_bool(arr[9]),
+      printerTransport: dco_decode_opt_String(arr[7]),
+      printerBtAddress: dco_decode_opt_String(arr[8]),
+      printerBtName: dco_decode_opt_String(arr[9]),
+      printerPaperDots: dco_decode_opt_box_autoadd_u_32(arr[10]),
+      reconfiguring: dco_decode_bool(arr[11]),
+      lanHub: dco_decode_opt_String(arr[12]),
+      configured: dco_decode_bool(arr[13]),
     );
   }
 
@@ -7058,6 +7201,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   int? dco_decode_opt_box_autoadd_u_16(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_16(raw);
+  }
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_u_32(raw);
   }
 
   @protected
@@ -7831,6 +7980,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_u_32(deserializer));
+  }
+
+  @protected
   BranchView sse_decode_branch_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
@@ -8198,6 +8353,10 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_printerHost = sse_decode_opt_String(deserializer);
     var var_printerPort = sse_decode_opt_box_autoadd_u_16(deserializer);
     var var_printerBrand = sse_decode_opt_String(deserializer);
+    var var_printerTransport = sse_decode_opt_String(deserializer);
+    var var_printerBtAddress = sse_decode_opt_String(deserializer);
+    var var_printerBtName = sse_decode_opt_String(deserializer);
+    var var_printerPaperDots = sse_decode_opt_box_autoadd_u_32(deserializer);
     var var_reconfiguring = sse_decode_bool(deserializer);
     var var_lanHub = sse_decode_opt_String(deserializer);
     var var_configured = sse_decode_bool(deserializer);
@@ -8209,6 +8368,10 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       printerHost: var_printerHost,
       printerPort: var_printerPort,
       printerBrand: var_printerBrand,
+      printerTransport: var_printerTransport,
+      printerBtAddress: var_printerBtAddress,
+      printerBtName: var_printerBtName,
+      printerPaperDots: var_printerPaperDots,
       reconfiguring: var_reconfiguring,
       lanHub: var_lanHub,
       configured: var_configured,
@@ -9363,6 +9526,17 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_u_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   OptionalFieldView sse_decode_optional_field_view(
     SseDeserializer deserializer,
   ) {
@@ -10292,6 +10466,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self, serializer);
+  }
+
+  @protected
   void sse_encode_branch_view(BranchView self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
@@ -10535,6 +10715,10 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.printerHost, serializer);
     sse_encode_opt_box_autoadd_u_16(self.printerPort, serializer);
     sse_encode_opt_String(self.printerBrand, serializer);
+    sse_encode_opt_String(self.printerTransport, serializer);
+    sse_encode_opt_String(self.printerBtAddress, serializer);
+    sse_encode_opt_String(self.printerBtName, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.printerPaperDots, serializer);
     sse_encode_bool(self.reconfiguring, serializer);
     sse_encode_opt_String(self.lanHub, serializer);
     sse_encode_bool(self.configured, serializer);
@@ -11486,6 +11670,16 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_u_16(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_u_32(self, serializer);
     }
   }
 
@@ -12850,6 +13044,33 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         host: host,
         port: port,
         brand: brand,
+      );
+
+  /// Bind the paired Bluetooth printer (MAC `address` + cached display `name`).
+  /// `None` address clears it. The core stores the binding; the Flutter
+  /// transport opens the socket.
+  Future<void> setDevicePrinterBt({String? address, String? name}) =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeSetDevicePrinterBt(
+        that: this,
+        address: address,
+        name: name,
+      );
+
+  /// Pin the receipt raster width in dots (Settings paper-size toggle): 384 for
+  /// a 58 mm roll, 576 for 80 mm. `None` clears it → the width falls back to the
+  /// transport default (Bluetooth → 384, LAN → 576).
+  Future<void> setDevicePrinterPaper({int? dots}) => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeSetDevicePrinterPaper(that: this, dots: dots);
+
+  /// Pick the printer transport — `"bluetooth"` (Classic SPP) or `"lan"`
+  /// (raw-TCP, the default). Only the active transport's binding is used at
+  /// print time; the other is retained so switching back is lossless.
+  Future<void> setDevicePrinterTransport({required String kind}) => RustBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeSetDevicePrinterTransport(
+        that: this,
+        kind: kind,
       );
 
   /// Bind the device's kitchen station (a KDS device). `None` clears it.

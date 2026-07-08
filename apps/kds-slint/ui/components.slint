@@ -12,12 +12,17 @@ export component Press {
     in property <bool> press-enabled: true;
     callback clicked;
 
+    // Preferred size flows from the slotted children — explicit size
+    // bindings on `content` would sever the chain and collapse every Press
+    // to a 0-height layout slot.
+    preferred-width: content.preferred-width;
+    preferred-height: content.preferred-height;
+
     ta := TouchArea {
         enabled: root.press-enabled;
         clicked => { root.clicked(); }
     }
     content := Rectangle {
-        width: parent.width; height: parent.height;
         transform-scale-x: ta.pressed && root.press-enabled ? root.press-scale : 1.0;
         transform-scale-y: self.transform-scale-x;
         animate transform-scale-x { duration: 160ms; easing: ease-out-back; }
@@ -161,7 +166,8 @@ export component SectionHeader {
     in property <string> text;
     in property <image> icon;
     in property <bool> has-icon: false;
-    height: 16px;
+    preferred-height: 17px;
+    min-height: 17px;
 
     HorizontalLayout {
         spacing: Sp.sm;

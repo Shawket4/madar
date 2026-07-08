@@ -1,0 +1,121 @@
+// SheetFrame — THE modal bottom-sheet presenter (design_system sheet.dart):
+// black scrim @ .45 fading over 220ms, a bottom-anchored surface card with
+// Radii.xl top corners, hairline border, raised shadow, centered width cap,
+// and a 40×5 drag handle. Slide-in approximates the natives' spring
+// (300/.9); drag past 28% of the sheet height dismisses; scrim tap
+// dismisses. `dismissed` fires 280ms after the slide-out starts (the
+// route-pop delay), letting Rust clear the backing state.
+//
+// No routes in Slint: callers render `SheetFrame { open: <state>; ... }` as
+// a trailing overlay child and flip `open`. The translation clamp (never
+// above rest) is baked in — the Flutter sheet's overshoot lesson.
+import { T, Sp, Rd } from "tokens.slint";
+
+export component SheetFrame {
+    in-out property <bool> open: false;
+    in property <float> height-fraction: 0.88; // auto .88 / large .94 / hug cap .92
+    in property <length> sheet-max-width: 600px;
+    callback dismissed;
+
+    // Base slide: 0 = shown, 1 = hidden. Spring(300,.9) ≈ ease-out-quint.
+    property <float> slide: open ? 0.0 : 1.0;
+    animate slide { duration: 420ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    property <float> scrim-t: open ? 1.0 : 0.0;
+    animate scrim-t { duration: 220ms; easing: ease-out; }
+
+    // Live drag offset (>= 0); springs back on sub-threshold release.
+    property <length> drag: 0;
+    animate drag { duration: 320ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    property <length> drag-anchor: 0;
+
+    property <length> sheet-h: self.height * height-fraction;
+    property <length> hidden-extent: self.height + 80px; // + shadow clearance
+    property <bool> on-stage: root.slide < 0.999 || root.open;
+
+    pop-timer := Timer {
+        interval: 280ms;
+        running: false;
+        triggered => { self.running = false; root.dismissed(); }
+    }
+
+    // Scrim — tap to dismiss (visible:false skips paint + input).
+    scrim := Rectangle {
+        width: parent.width; height: parent.height;
+        visible: root.on-stage;
+        background: #000000;
+        opacity: 0.45 * root.scrim-t;
+        TouchArea {
+            clicked => {
+                root.open = false;
+                root.drag = 0;
+                pop-timer.running = true;
+            }
+        }
+    }
+
+    // The card — clamped: never above rest.
+    card := Rectangle {
+        visible: root.on-stage;
+        x: (parent.width - self.width) / 2;
+        y: parent.height - root.sheet-h
+            + Math.max(0px, root.slide * root.hidden-extent + root.drag);
+        width: Math.min(root.sheet-max-width, parent.width);
+        height: root.sheet-h;
+        background: T.surface;
+        border-radius: Rd.xl; // top-rounded look; bottom corners off-screen
+        border-width: 1px;
+        border-color: T.border-light;
+        drop-shadow-color: T.shadow-raised-color;
+        drop-shadow-blur: T.shadow-raised-blur;
+        drop-shadow-offset-y: T.shadow-raised-dy;
+        clip: true;
+
+        // Swallow scrim taps under the card.
+        TouchArea { }
+
+        // Grab handle — full-width drag strip (40×5 pill, 12/8 insets).
+        handle-strip := Rectangle {
+            x: 0; y: 0;
+            width: parent.width;
+            height: 25px;
+            TouchArea {
+                moved => {
+                    if (self.pressed) {
+                        root.drag = Math.max(0px, root.drag-anchor + self.mouse-y - self.pressed-y);
+                    }
+                }
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down) {
+                        root.drag-anchor = root.drag;
+                    }
+                    if (e.kind == PointerEventKind.up && root.drag > root.sheet-h * 0.28) {
+                        root.open = false;
+                        root.drag = 0;
+                        pop-timer.running = true;
+                    }
+                    if (e.kind == PointerEventKind.up && root.drag <= root.sheet-h * 0.28) {
+                        root.drag = 0;
+                    }
+                    if (e.kind == PointerEventKind.cancel) {
+                        root.drag = 0;
+                    }
+                }
+            }
+            Rectangle {
+                x: (parent.width - 40px) / 2;
+                y: Sp.md;
+                width: 40px; height: 5px;
+                border-radius: Rd.pill;
+                background: T.border;
+            }
+        }
+
+        // Sheet content, below the handle.
+        content := Rectangle {
+            x: 0; y: 25px;
+            width: parent.width;
+            height: parent.height - 25px;
+            @children
+        }
+    }
+}

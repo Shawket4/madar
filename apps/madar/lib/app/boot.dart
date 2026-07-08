@@ -72,6 +72,14 @@ class BootNotifier extends AsyncNotifier<BootData> {
       OrientationController.instance.restoreFlip(
         landscapeRight: vault.landscapeRight,
       );
+      // Persisted tablet-cutoff override — same wiring shape as the flip.
+      OrientationController.instance.thresholdPersister =
+          ({required tabletThresholdInches}) {
+            vault.tabletThresholdInches = tabletThresholdInches;
+          };
+      OrientationController.instance.restoreTabletThresholdInches(
+        vault.tabletThresholdInches,
+      );
       return BootData(core: core, vault: vault);
     } on Object catch (e) {
       final bridge = core?.bridge;

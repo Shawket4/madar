@@ -300,6 +300,7 @@ class _AppearanceCard extends ConsumerWidget {
         // Tablets lock to ONE landscape (no auto-rotate); this flips between
         // the two. Phones are portrait-locked, so the control is hidden.
         if (OrientationController.instance.canFlip) const _OrientationFlipRow(),
+        const _TabletThresholdRow(),
       ],
     );
   }
@@ -335,6 +336,97 @@ class _OrientationFlipRow extends ConsumerWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Diagonal-inch cutoff between the phone (portrait-locked) and tablet
+/// (landscape-locked) orientation behavior — some ~7" tablets under-report
+/// their density and land just under the default cutoff, misreading as a
+/// phone; this lets the device be nudged onto the right side of it.
+class _TabletThresholdRow extends ConsumerWidget {
+  const _TabletThresholdRow();
+
+  static const _step = 0.5;
+  static const _min = 5.0;
+  static const _max = 10.0;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    return ListenableBuilder(
+      listenable: OrientationController.instance,
+      builder: (context, _) {
+        final controller = OrientationController.instance;
+        final inches = controller.tabletThresholdInches;
+        return Row(
+          children: [
+            Expanded(
+              child: Text(
+                bridge.tr(key: 'settings.tablet_threshold'),
+                style: MadarType.body.copyWith(color: colors.textSecondary),
+              ),
+            ),
+            _StepChip(
+              icon: 'minus',
+              onTap: inches > _min
+                  ? () => controller.setTabletThresholdInches(
+                      (inches - _step).clamp(_min, _max),
+                    )
+                  : null,
+            ),
+            SizedBox(
+              width: 44,
+              child: Text(
+                '${inches.toStringAsFixed(1)}"',
+                textAlign: TextAlign.center,
+                style: MadarType.body.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            _StepChip(
+              icon: 'plus',
+              onTap: inches < _max
+                  ? () => controller.setTabletThresholdInches(
+                      (inches + _step).clamp(_min, _max),
+                    )
+                  : null,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// A small circular icon button — the +/- ends of [_TabletThresholdRow].
+class _StepChip extends StatelessWidget {
+  const _StepChip({required this.icon, required this.onTap});
+
+  final String icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final enabled = onTap != null;
+    return TactileScale(
+      onTap: onTap ?? () {},
+      child: Container(
+        width: Metrics.stepper,
+        height: Metrics.stepper,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          shape: BoxShape.circle,
+          border: Border.all(color: colors.border),
+        ),
+        child: MadarIcon(
+          icon,
+          tint: enabled ? colors.textPrimary : colors.textMuted,
+          size: IconSize.sm,
+        ),
+      ),
     );
   }
 }
@@ -391,6 +483,11 @@ class _PrinterCard extends ConsumerWidget {
     final bridge = ref.watch(bridgeProvider);
     final brand = ref.watch(settingsProvider.select((s) => s.brand));
     final printState = ref.watch(settingsProvider.select((s) => s.printState));
+    final config = ref.watch(settingsProvider.select((s) => s.config));
+    final isBluetooth = (config.printerTransport ?? 'lan') == 'bluetooth';
+    // Effective paper width, mirroring the core default (Bluetooth → 58 mm / 384
+    // dots, LAN → 80 mm / 576) until the user pins one explicitly.
+    final paperDots = config.printerPaperDots ?? (isBluetooth ? 384 : 576);
     final status = switch (printState) {
       PrintState.idle => null,
       PrintState.printing => (
@@ -426,13 +523,68 @@ class _PrinterCard extends ConsumerWidget {
             color: colors.textMuted,
           ),
         ),
-        _SettingsTextField(
-          controller: printerHost,
-          placeholder: bridge.tr(key: 'settings.printer_hint'),
-          icon: 'printer',
-          onChanged: (value) => unawaited(
-            ref.read(settingsProvider.notifier).persistPrinter(value),
+        // Transport picker — the printer's LAN IP unified with Bluetooth. The
+        // brand + test-print below apply to whichever transport is active.
+        Row(
+          spacing: Space.sm,
+          children: [
+            Expanded(
+              child: _Chip(
+                label: bridge.tr(key: 'settings.printer_lan'),
+                icon: 'wifi',
+                active: !isBluetooth,
+                onTap: () => unawaited(
+                  ref.read(settingsProvider.notifier).setTransport('lan'),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _Chip(
+                label: bridge.tr(key: 'settings.printer_bluetooth'),
+                icon: 'bluetooth',
+                active: isBluetooth,
+                onTap: () => unawaited(
+                  ref.read(settingsProvider.notifier).setTransport('bluetooth'),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (isBluetooth)
+          _BluetoothPicker(config: config)
+        else
+          _SettingsTextField(
+            controller: printerHost,
+            placeholder: bridge.tr(key: 'settings.printer_hint'),
+            icon: 'printer',
+            onChanged: (value) => unawaited(
+              ref.read(settingsProvider.notifier).persistPrinter(value),
+            ),
           ),
+        // Paper width — 58 mm portables (the Bluetooth default) vs 80 mm desktop
+        // rolls. Shown for either transport; the receipt raster renders to match.
+        Row(
+          spacing: Space.sm,
+          children: [
+            Expanded(
+              child: _Chip(
+                label: bridge.tr(key: 'settings.printer_paper_58'),
+                active: paperDots == 384,
+                onTap: () => unawaited(
+                  ref.read(settingsProvider.notifier).setPaperDots(384),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _Chip(
+                label: bridge.tr(key: 'settings.printer_paper_80'),
+                active: paperDots == 576,
+                onTap: () => unawaited(
+                  ref.read(settingsProvider.notifier).setPaperDots(576),
+                ),
+              ),
+            ),
+          ],
         ),
         Row(
           spacing: Space.sm,
@@ -478,6 +630,66 @@ class _PrinterCard extends ConsumerWidget {
           Text(
             status.$1,
             style: MadarType.labelSm.copyWith(color: status.$2),
+          ),
+      ],
+    );
+  }
+}
+
+/// Bluetooth transport config: the paired-device picker shown when the printer
+/// transport is Bluetooth. Pairing itself happens in Android's Bluetooth
+/// settings (SPP, PIN 0000/1234); this only lists ALREADY-paired (bonded)
+/// devices and binds the chosen one. Refresh re-scans; the empty state points
+/// the user back to Android settings to pair first.
+class _BluetoothPicker extends ConsumerWidget {
+  const _BluetoothPicker({required this.config});
+
+  final DeviceConfigView config;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final devices = ref.watch(settingsProvider.select((s) => s.pairedDevices));
+    final scanning = ref.watch(settingsProvider.select((s) => s.scanningBt));
+    final selectedAddress = config.printerBtAddress;
+    String tr(String key) => bridge.tr(key: key);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        _Cta(
+          label: tr('settings.printer_bt_scan'),
+          icon: 'arrow.clockwise',
+          loading: scanning,
+          onTap: () => unawaited(
+            ref.read(settingsProvider.notifier).loadPairedDevices(),
+          ),
+        ),
+        // The pair-first hint when nothing is bonded, bound, or scanning.
+        if (devices.isEmpty && !scanning && selectedAddress == null)
+          Text(
+            tr('settings.printer_bt_none'),
+            style: MadarType.labelSm.copyWith(
+              fontWeight: FontWeight.w400,
+              color: colors.textMuted,
+            ),
+          ),
+        for (final device in devices)
+          _PickerRow(
+            label: device.name,
+            selected: device.address == selectedAddress,
+            onTap: () => unawaited(
+              ref.read(settingsProvider.notifier).selectBtDevice(device),
+            ),
+          ),
+        // A bound device that isn't in the (unscanned/stale) list — still show
+        // what's selected so the binding is visible without a scan.
+        if (selectedAddress != null &&
+            !devices.any((d) => d.address == selectedAddress))
+          _InfoRow(
+            label: tr('settings.printer_bluetooth'),
+            value: config.printerBtName ?? selectedAddress,
           ),
       ],
     );

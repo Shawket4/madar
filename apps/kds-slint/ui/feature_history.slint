@@ -1,0 +1,2187 @@
+// Order history feature — pixel/behavior port of the Flutter feature_history
+// package (history_screen.dart + search_screen.dart + order_details_sheet.dart
+// + widgets.dart), itself a port of the Kotlin OrderHistoryScreen.kt /
+// OrderSearchScreen.kt over the shared Rust core.
+//
+// Two exported screens:
+//   HistoryScreen — the current shift's orders: stats header with payment
+//     breakdown chips, search + two filter-chip rows, a sortable TABLE at
+//     width ≥ 680 (Responsive.wideTable) / stacked expandable CARDS below it,
+//     expandable rows with detail panels + Print / Void actions, the void
+//     confirm sheet and the receipt (reprint) preview sheet as SheetFrame
+//     overlays.
+//   SearchScreen — the all-orders lookup ACROSS shifts (date range + status +
+//     teller), paginated, with the shared OrderDetailsSheet per result hrow.
+//
+// All data/strings flow in through the HistoryState / SearchState globals;
+// all intent flows out through their callbacks (Rust: src/feature_history.rs).
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Press, Icon, Chip, Tone, ToneMap, Banner, Spinner } from "components.slint";
+import { MadarHeader, HeaderAction, MoneyText, SkeletonList, EmptyState, ToastHost, Rsp } from "kit.slint";
+import { SheetFrame } from "sheet.slint";
+import { Icons } from "icons.slint";
+
+// ── Native metrics (OrderHistoryScreen.kt) that fall between the 4-pt Space
+// steps — kept verbatim so the Slint chrome measures identically. ────────────
+global HM {
+    // Content column cap (natives: widthIn(max = 960.dp)).
+    out property <length> content-max-width: 960px;
+    // Table column widths (natives: 104 / 110 / 44.dp) and sort arrow (9.dp).
+    out property <length> number-col-width: 104px;
+    out property <length> amount-col-width: 110px;
+    out property <length> disclosure-col-width: 44px;
+    out property <length> sort-arrow-size: 9px;
+    // Header/inline spinner diameters (natives: 18 / 16.dp).
+    out property <length> header-spinner: 18px;
+    out property <length> row-spinner: 16px;
+    // Stat divider height (natives: 28.dp) and orderRef size (9.sp).
+    out property <length> stat-divider-height: 28px;
+    out property <length> order-ref-size: 9px;
+    // Voided rows dim to 55% (natives: alpha 0.55).
+    out property <float> voided-alpha: 0.55;
+    // Void sheet width cap (natives: maxWidth = 520.dp).
+    out property <length> void-sheet-max-width: 520px;
+    // Restock switch track (44×26) and thumb (20).
+    out property <length> switch-track-w: 44px;
+    out property <length> switch-track-h: 26px;
+    out property <length> switch-thumb: 20px;
+    // Table hrow min height (Metrics.tableRowHeight) / button height
+    // (Metrics.buttonHeight) / close button (Metrics.closeButton) / the
+    // checkout ActionButton height (kActionButtonHeight).
+    out property <length> table-row-height: 56px;
+    out property <length> button-height: 54px;
+    out property <length> close-button: 32px;
+    out property <length> action-button-height: 50px;
+    // Result-row money size (search natives: Type.money(17.sp)).
+    out property <length> row-money-size: 17px;
+    // The natives' card-payment purple (OrderHistoryScreen.kt `paymentTint`) —
+    // hardcoded there too, so it is kept verbatim rather than tokenized.
+    out property <color> card-purple: #7C3AED;
+
+    // A colored payment tint keyed off the label (cash = success, card =
+    // purple, mixed = warning, else navy) — Rust classifies the label into
+    // `kind` (0 navy / 1 cash / 2 card / 3 mixed), this maps it to color.
+    public pure function payment-tint(kind: int) -> color {
+        if (kind == 1) { return T.success; }
+        if (kind == 2) { return card-purple; }
+        if (kind == 3) { return T.warning; }
+        return T.navy;
+    }
+}
+
+// ── Data structs (Rust marshals madar-core views into these) ────────────────
+
+// One order hrow of the shift history (pre-formatted in Rust: money via the
+// shared Money.format, time via core.format_time).
+export struct HistoryRowData {
+    id: string,
+    number-label: string,     // "#123" or tr('history.order')
+    order-ref: string,        // "" hides
+    queued: bool,
+    voided: bool,
+    failed: bool,
+    payment-label: string,
+    payment-kind: int,        // 0 navy / 1 cash / 2 card / 3 mixed
+    customer: string,         // "" hides
+    time: string,
+    teller: string,           // "—" fallback pre-applied
+    amount: string,
+    can-act: bool,            // !queued && status != 'voided'
+}
+
+// One payment-method chip of the stats strip ("Cash · EGP 12.50 · 40%").
+export struct StatChipData { label: string, tone: Tone }
+
+// One fetched line of the expanded detail ("2× Burger" + mods + total).
+export struct DetailLineData { title: string, mods: string, amount: string }
+
+// One money breakdown hrow (subtotal / discount / tax) — fallback-to-summary
+// logic lives in Rust, green renders the discount in success.
+export struct DetailRowData { label: string, value: string, green: bool }
+
+// One cross-shift search result hrow.
+export struct SearchRowData {
+    id: string,
+    number-label: string,     // "#12" / "#—"
+    timestamp: string,
+    amount: string,
+    dead: bool,               // voided/failed — mute + strike the money
+    payment-label: string,
+    status-label: string,
+    status-tone: Tone,
+}
+
+// One context chip of the details sheet (icon-kind: 0 person / 1 person-fill
+// / 2 clock / 3 creditcard).
+export struct ContextChipData { icon-kind: int, label: string }
+
+// One line of the details sheet's lines card.
+export struct SheetLineData { qty: string, name: string, mods: string, amount: string }
+
+// One hrow of the receipt paper, flattened in Rust from the core ReceiptView
+// following receipt_paper.dart's exact ordering. kind: 0 text / 1 rule.
+// color-kind: 0 ink / 1 faint / 2 void red. center: centered mono text.
+export struct ReceiptRowData {
+    kind: int,
+    left: string,
+    right: string,            // "" hides the trailing amount
+    size: length,
+    weight: int,              // 400 / 600 / 700
+    color-kind: int,
+    center: bool,
+}
+
+// ── State globals ────────────────────────────────────────────────────────────
+
+export global HistoryState {
+    // strings (core tr keys — resolved in Rust, see feature_history.rs)
+    in property <string> tr-title;              // history.title
+    in property <string> tr-current-shift;      // history.current_shift
+    in property <string> tr-search;             // history.search
+    in property <string> tr-empty;              // history.empty
+    in property <string> tr-no-match;           // history.no_match
+    in property <string> tr-voided;             // history.voided
+    in property <string> tr-failed;             // history.failed
+    in property <string> tr-queued;             // history.queued
+    in property <string> tr-payment;            // order.payment
+    in property <string> tr-col-time;           // history.hcol.time
+    in property <string> tr-col-teller;         // history.hcol.teller
+    in property <string> tr-col-amount;         // history.hcol.amount
+    in property <string> tr-stat-orders;        // history.stat.orders
+    in property <string> tr-total;              // order.total
+    in property <string> tr-print;              // receipt.print
+    in property <string> tr-void-action;        // void.action
+    in property <string> tr-void-title;         // void.title
+    in property <string> tr-void-reason;        // void.reason
+    in property <string> tr-void-note;          // void.note
+    in property <string> tr-void-restock;       // void.restock
+    in property <string> tr-void-cancel;        // void.cancel
+    in property <string> tr-void-confirm;       // void.confirm
+    in property <string> tr-receipt-title;      // receipt.title
+    in property <string> tr-done;               // order.done
+
+    // shift state
+    in property <bool> has-shift: false;
+    in property <bool> loading: false;
+    in property <bool> has-history: false;      // history.isNotEmpty
+    in property <bool> has-filtered: false;     // filtered.isNotEmpty
+
+    // filter chips — labels pre-composed in Rust ("label · count")
+    in property <[string]> type-chips;          // all / dine-in / delivery
+    in property <[string]> sync-chips;          // all / synced / pending / voided
+    in property <int> type-active: 0;
+    in property <int> sync-active: 0;
+
+    // sort
+    in property <int> sort-col: 0;              // number/payment/time/teller/amount
+    in property <bool> sort-ascending: false;   // # defaults to DESC (newest first)
+
+    // stats header
+    in property <string> stat-orders-value;
+    in property <string> stat-total-value;
+    in property <[StatChipData]> stat-chips;
+
+    // rows (the visible slice — Rust applies filter/sort/visibleLimit)
+    in property <[HistoryRowData]> rows;
+    in property <string> show-more-label;       // "" hides; {count} substituted
+
+    // expansion
+    in property <string> expanded-id;
+    in property <bool> detail-loading: false;
+    in property <[DetailLineData]> detail-lines;
+    in property <[DetailRowData]> detail-rows;
+
+    // toast
+    in property <bool> toast-shown: false;
+    in property <string> toast-text;
+    in property <Tone> toast-tone: Tone.neutral;
+    in property <image> toast-icon;
+    in property <bool> toast-has-icon: false;
+
+    // void sheet
+    in-out property <bool> void-open: false;
+    in property <string> void-number;
+    in property <string> void-total;
+    in property <[string]> void-reason-labels;  // mistake/customer/quality/other
+    in property <int> void-reason: 0;
+    in property <bool> void-restock: true;
+    in property <bool> void-busy: false;
+    in property <string> void-error;            // "" hides
+
+    // receipt (reprint preview) sheet
+    in-out property <bool> receipt-open: false;
+    in property <[ReceiptRowData]> receipt-rows;
+    in property <image> receipt-logo;
+    in property <bool> receipt-has-logo: false;
+    in property <bool> receipt-printing: false;
+    in property <bool> receipt-toast-shown: false;
+    in property <string> receipt-toast-text;
+    in property <Tone> receipt-toast-tone: Tone.neutral;
+    in property <image> receipt-toast-icon;
+    in property <bool> receipt-toast-has-icon: false;
+
+    // intents
+    callback back();
+    callback set-search(string);
+    callback set-type(int);
+    callback set-sync(int);
+    callback set-sort(int);
+    callback show-more();
+    callback toggle-row(string /* order id */);
+    callback print-order(string /* order id */);
+    callback open-void(string /* order id */);
+    callback void-select-reason(int);
+    callback void-set-restock(bool);
+    callback void-confirm(string /* note */);
+    callback void-dismissed();
+    callback receipt-print();
+    callback receipt-dismissed();
+    callback toast-dismissed();
+    callback receipt-toast-dismissed();
+}
+
+export global SearchState {
+    // strings
+    in property <string> tr-title;              // search.title
+    in property <string> tr-24h;                // search.date_24h
+    in property <string> tr-7d;                 // search.date_7d
+    in property <string> tr-30d;                // search.date_30d
+    in property <string> tr-all;                // order.all
+    in property <string> tr-completed;          // history.completed
+    in property <string> tr-voided;             // history.voided
+    in property <string> tr-teller-hint;        // search.teller_hint
+    in property <string> tr-load-more;          // search.load_more
+    in property <string> tr-no-match;           // history.no_match
+    in property <string> tr-items;              // order.items
+    in property <string> tr-total;              // order.total
+
+    // filters + results
+    in property <int> days: 7;                  // 1 / 7 / 30 / 0 = all
+    in property <int> status-index: 0;          // 0 all / 1 completed / 2 voided
+    in property <bool> searching: false;
+    in property <[SearchRowData]> results;
+    in property <int> total: 0;
+    in property <bool> has-more: false;
+
+    // order details sheet
+    in-out property <bool> details-open: false;
+    in property <string> det-title;             // "#12" / tr('history.order')
+    in property <string> det-status-label;
+    in property <Tone> det-status-tone: Tone.success;
+    in property <image> det-status-icon;
+    in property <bool> det-status-has-icon: false;
+    in property <[ContextChipData]> det-chips;
+    in property <bool> det-loading: false;
+    in property <[SheetLineData]> det-lines;
+    in property <[DetailRowData]> det-rows;
+    in property <string> det-total;
+
+    // toast
+    in property <bool> toast-shown: false;
+    in property <string> toast-text;
+    in property <Tone> toast-tone: Tone.neutral;
+    in property <image> toast-icon;
+    in property <bool> toast-has-icon: false;
+
+    // intents
+    callback back();
+    callback set-days(int, string /* teller field text */);
+    callback set-status(int, string /* teller field text */);
+    callback run(string /* teller field text */);   // reset: true
+    callback load-more(string /* teller field text */);
+    callback export-csv();
+    callback open-details(string /* order id */);
+    callback details-dismissed();
+    callback toast-dismissed();
+}
+
+// ── Local widget kit (widgets.dart ports — flagged in NOTES for promotion) ──
+
+// A 1-px hairline rule in the theme border color.
+component Hairline inherits Rectangle {
+    in property <bool> light: false;
+    height: 1px;
+    background: light ? T.border-light : T.border;
+}
+
+// The natives' `MadarButton` (widgets.dart HistoryButton): flat rounded CTA
+// on the shared press-scale with a centered spinner while loading.
+// variant: 0 primary / 1 outline / 2 danger.
+component HistoryButton {
+    in property <string> label;
+    in property <int> variant: 0;
+    in property <bool> loading: false;
+    in property <bool> btn-enabled: true;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    callback clicked;
+
+    property <bool> active: btn-enabled && !loading;
+    property <color> fg: variant == 1 ? T.accent : T.text-on-accent;
+    property <color> fill: variant == 0
+        ? (active ? T.accent : T.accent.with-alpha(0.45))
+        : variant == 2
+            ? (active ? T.danger : T.danger.with-alpha(0.45))
+            : transparent;
+
+    preferred-height: HM.button-height;
+    min-height: HM.button-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: root.active;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            border-radius: Rd.md;
+            background: root.fill;
+            // Outline button border (natives: 1.5.dp).
+            border-width: root.variant == 1 ? 1.5px : 0px;
+            border-color: T.accent;
+            // Primary glow while active (MadarElevation.glow).
+            drop-shadow-color: root.variant == 0 && root.active ? T.shadow-glow-color : transparent;
+            drop-shadow-blur: T.shadow-glow-blur;
+
+            // Button loading spinner (natives: 20.dp / 2.5-stroke).
+            if root.loading: Spinner {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                diameter: 20px;
+                spin-color: root.fg;
+            }
+            if !root.loading: HorizontalLayout {
+                padding-left: Sp.lg; padding-right: Sp.lg;
+                alignment: center;
+                if root.has-icon: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: root.icon; tint: root.fg;
+                }
+                if root.has-icon: Rectangle { width: Sp.sm; }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    overflow: elide;
+                    // Button label letter-spacing (natives: 0.2.sp).
+                    color: root.fg;
+                    font-size: 15px; font-weight: 700;
+                    letter-spacing: 0.2px;
+                }
+            }
+        }
+    }
+}
+
+// The natives' `MadarTextField` (widgets.dart HistoryTextField): rounded
+// field with an animated focus ring (accent border + soft glow, surfaceAlt →
+// surface fill), an optional leading icon that tints accent while focused,
+// and a live `edited` for the history filter search.
+component HistoryField {
+    in property <string> placeholder;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <bool> field-enabled: true;
+    in-out property <string> text <=> input.text;
+    callback edited(string);
+
+    // 15px title text + 16px vertical insets (natives: 16.dp) + border.
+    preferred-height: 54px;
+    min-height: 54px;
+
+    box := Rectangle {
+        width: parent.width; height: parent.height;
+        border-radius: Rd.md;
+        background: input.has-focus ? T.surface : T.surface-alt;
+        border-width: input.has-focus ? 2px : 1px;
+        border-color: input.has-focus ? T.accent : T.border;
+        // Focus glow (natives: shadow(8.dp, accent) @ Opacities.focusGlow).
+        drop-shadow-color: input.has-focus ? T.accent.with-alpha(0.35) : transparent;
+        drop-shadow-blur: 8px;
+        animate background, border-color, drop-shadow-color { duration: 220ms; easing: ease-out; }
+
+        HorizontalLayout {
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            spacing: 10px; // icon↔text gap (natives: 10.dp)
+            if root.has-icon: Icon {
+                y: (parent.height - self.height) / 2;
+                source: root.icon;
+                tint: input.has-focus ? T.accent : T.text-muted;
+            }
+            input := TextInput {
+                vertical-alignment: center;
+                enabled: root.field-enabled;
+                single-line: true;
+                color: T.text-primary;
+                font-size: 15px; font-weight: 400;
+                edited => { root.edited(self.text); }
+            }
+        }
+        if input.text == "": Text {
+            x: root.has-icon
+                ? (T.rtl ? parent.width - self.preferred-width - Sp.lg - Ic.lg - 10px : Sp.lg + Ic.lg + 10px)
+                : (T.rtl ? parent.width - self.preferred-width - Sp.lg : Sp.lg);
+            y: (parent.height - self.height) / 2;
+            text: root.placeholder;
+            color: T.text-muted;
+            font-size: 15px; font-weight: 400;
+        }
+    }
+}
+
+// The history screen's filter chip — filled in its active tone, neutral when
+// off (OrderHistoryScreen.kt `HistoryChip`).
+component HistoryFilterChip {
+    in property <image> glyph;
+    in property <string> label;
+    in property <bool> active: false;
+    in property <Tone> tone: Tone.accent;
+    callback clicked;
+
+    property <color> fg: active ? ToneMap.fg(tone) : T.text-secondary;
+    property <color> bg: active ? ToneMap.bg(tone) : T.surface-alt;
+
+    preferred-width: chip-row.preferred-width + 24px;  // 12px h insets
+    preferred-height: chip-row.preferred-height + 12px; // 6px v insets
+    min-height: chip-row.preferred-height + 12px;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-scale: 0.96; // kChipPressScale
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            background: root.bg;
+            border-radius: Rd.pill;
+            border-width: 1px;
+            border-color: root.active ? root.fg.with-alpha(0.25) : transparent;
+            chip-row := HorizontalLayout {
+                x: 12px; y: 6px; // chip insets (natives: 12/6.dp)
+                spacing: 5px;   // icon↔label gap (natives: 5.dp)
+                Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: root.glyph; tint: root.fg;
+                    width: Ic.xs;
+                }
+                Text {
+                    text: root.label;
+                    color: root.fg;
+                    font-size: 12px; font-weight: 600;
+                }
+            }
+        }
+    }
+}
+
+// The natives' `SelectableChip` (widgets.dart SelectChip): a toggle pill that
+// fills with its tone (+ soft accent glow) while selected — the search
+// screen's date/status filters.
+component SelectChip {
+    in property <string> label;
+    in property <bool> selected: false;
+    in property <Tone> tone: Tone.accent;
+    callback clicked;
+
+    property <color> fg: selected ? T.text-on-accent : T.text-secondary;
+
+    preferred-width: chip-txt.preferred-width + 2 * Sp.md;
+    preferred-height: chip-txt.preferred-height + 2 * Sp.sm;
+    min-height: chip-txt.preferred-height + 2 * Sp.sm;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            background: root.selected ? ToneMap.fg(root.tone) : T.surface-alt;
+            border-radius: Rd.pill;
+            border-width: root.selected ? 0px : 1px;
+            border-color: T.border;
+            drop-shadow-color: root.selected ? T.shadow-glow-color : transparent;
+            drop-shadow-blur: T.shadow-glow-blur;
+            chip-txt := Text {
+                x: Sp.md; y: Sp.sm;
+                text: root.label;
+                color: root.fg;
+                font-size: 15px; font-weight: 600;
+            }
+        }
+    }
+}
+
+// A colored payment pill (not a StatusChip): tinted bg @ ~14% (Opacities.
+// subtle), colored label; voided → muted on surfaceAlt (PaymentBadge).
+component PaymentBadge {
+    in property <string> label;
+    in property <int> kind: 0;
+    in property <bool> voided: false;
+
+    property <color> tint: HM.payment-tint(kind);
+    property <color> fg: voided ? T.text-muted : tint;
+
+    preferred-width: badge-txt.preferred-width + 16px; // 8px h insets
+    preferred-height: badge-txt.preferred-height + 6px; // 3px v insets
+    min-height: badge-txt.preferred-height + 6px;
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: root.voided ? T.surface-alt : root.tint.with-alpha(0.14);
+        border-radius: Rd.pill;
+        badge-txt := Text {
+            x: 8px; y: 3px; // badge insets (natives: 8/3.dp)
+            text: root.label;
+            overflow: elide;
+            width: Math.min(self.preferred-width, parent.width - 16px);
+            color: root.fg;
+            font-size: 11px; font-weight: 600;
+        }
+    }
+}
+
+// The trailing chevron that rotates open, or the hrow's detail spinner.
+component DisclosureIndicator {
+    in property <bool> expanded: false;
+    in property <bool> loading: false;
+    preferred-width: 16px;
+    preferred-height: 16px;
+    min-height: 16px;
+
+    if root.loading: Spinner {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        diameter: HM.row-spinner; // 16px
+        spin-color: T.text-muted;
+    }
+    if !root.loading: Icon {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 13px; // chevron.down @ 13
+        source: Icons.chevron-down;
+        tint: T.text-muted;
+        // AnimatedRotation turns 0.5, MotionSpec.standard (220ms ease-out).
+        transform-rotation: root.expanded ? 180deg : 0deg;
+        animate transform-rotation { duration: 220ms; easing: ease-out; }
+    }
+}
+
+// One stat of the stats strip — uppercase muted label over a money figure.
+component StatCell {
+    in property <string> label;
+    in property <string> value;
+    in property <color> cell-color: T.text-primary;
+
+    preferred-width: Math.max(cell-label.preferred-width, cell-value.preferred-width);
+    preferred-height: cell-col.preferred-height;
+    min-height: cell-col.preferred-height;
+
+    cell-col := VerticalLayout {
+        spacing: 2px;
+        cell-label := Text {
+            text: root.label.to-uppercase();
+            color: T.text-muted;
+            font-size: 11px; font-weight: 600;
+        }
+        cell-value := Text {
+            // Money type at 16 (MadarType.money.copyWith(fontSize: 16)).
+            text: root.value;
+            color: root.cell-color;
+            font-size: 16px; font-weight: 700;
+        }
+    }
+}
+
+// An amount that strikes through when dead — Slint Text has no strikethrough,
+// a hairline overlay at line center stands in (the kds.slint LineRow lesson).
+component StrikableMoney {
+    in property <string> text;
+    in property <length> money-size: 14px;
+    in property <int> weight: 600;
+    in property <color> money-color: T.text-primary;
+    in property <bool> struck: false;
+    in property <bool> trailing: false; // right-align within the cell
+
+    preferred-width: struck-txt.preferred-width;
+    preferred-height: struck-txt.preferred-height;
+    min-height: struck-txt.preferred-height;
+
+    struck-txt := Text {
+        x: root.trailing ? parent.width - self.preferred-width : 0;
+        text: root.text;
+        color: root.money-color;
+        font-size: root.money-size;
+        font-weight: root.weight;
+    }
+    if root.struck: Rectangle {
+        x: root.trailing ? parent.width - struck-txt.preferred-width : 0;
+        y: struck-txt.height / 2;
+        width: struck-txt.preferred-width;
+        height: 1px;
+        background: root.money-color;
+    }
+}
+
+// A leading-icon text action in the expanded detail panel (Print / Void).
+component DetailAction {
+    in property <string> label;
+    in property <image> glyph;
+    in property <color> action-color;
+    callback clicked;
+
+    preferred-width: act-row.preferred-width;
+    preferred-height: act-row.preferred-height;
+    min-height: act-row.preferred-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.clicked(); }
+        act-row := HorizontalLayout {
+            spacing: Sp.xs;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                source: root.glyph; tint: root.action-color;
+                width: Ic.xs;
+            }
+            Text {
+                vertical-alignment: center;
+                text: root.label;
+                color: root.action-color;
+                font-size: 12px; font-weight: 600;
+            }
+        }
+    }
+}
+
+// ── Shared expanded detail (line items + totals + Print/Void) ────────────────
+component OrderDetailPanel {
+    in property <HistoryRowData> hrow;
+
+    preferred-height: panel-col.preferred-height;
+    min-height: panel-col.preferred-height;
+
+    panel-col := VerticalLayout {
+        width: parent.width;
+        spacing: Sp.sm;
+        // One fetched order line — "qty× name" + its modifiers on the left,
+        // the line total on the right.
+        for line in HistoryState.detail-lines: HorizontalLayout {
+            spacing: Sp.sm;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 1px;
+                Text {
+                    text: line.title;
+                    color: T.text-primary;
+                    font-size: 13px; font-weight: 600;
+                    wrap: word-wrap;
+                }
+                if line.mods != "": Text {
+                    text: line.mods;
+                    color: T.text-muted;
+                    font-size: 11px; font-weight: 400;
+                    wrap: word-wrap;
+                }
+            }
+            MoneyText { text: line.amount; font-size: 13px; }
+        }
+        if HistoryState.detail-lines.length > 0: Hairline { light: true; }
+        // Subtotal / discount / tax rows (Rust resolves detail vs summary
+        // fallback, the discount in success green with a leading −).
+        for drow in HistoryState.detail-rows: HorizontalLayout {
+            Text {
+                horizontal-stretch: 1;
+                text: drow.label;
+                color: T.text-secondary;
+                font-size: 13px; font-weight: 400;
+            }
+            Text {
+                text: drow.value;
+                color: drow.green ? T.success : T.text-primary;
+                font-size: 13px; font-weight: 600;
+            }
+        }
+        // Grand-total block — tinted teal, money as the hero (mirrors the
+        // cart's CartFooter total).
+        Rectangle {
+            background: T.accent-bg;
+            border-radius: Rd.md;
+            height: total-row.preferred-height + 2 * Sp.sm;
+            total-row := HorizontalLayout {
+                x: Sp.md; y: Sp.sm;
+                width: parent.width - 2 * Sp.md;
+                Text {
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    text: HistoryState.tr-total;
+                    color: T.accent;
+                    font-size: 14px; font-weight: 700;
+                }
+                MoneyText {
+                    vertical-alignment: center;
+                    text: root.hrow.amount;
+                    font-size: 18px; font-weight: 800;
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: Sp.md;
+            Text {
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+                text: root.hrow.payment-label;
+                overflow: elide;
+                color: T.text-secondary;
+                font-size: 12px; font-weight: 400;
+            }
+            if root.hrow.can-act: DetailAction {
+                label: HistoryState.tr-print;
+                glyph: Icons.printer;
+                action-color: T.accent;
+                clicked => { HistoryState.print-order(root.hrow.id); }
+            }
+            if root.hrow.can-act: DetailAction {
+                label: HistoryState.tr-void-action;
+                glyph: Icons.trash;
+                action-color: T.danger;
+                clicked => { HistoryState.open-void(root.hrow.id); }
+            }
+        }
+    }
+}
+
+// The status chip trio (voided / failed / queued) a hrow shows at most one of.
+component RowStatusChip {
+    in property <HistoryRowData> hrow;
+    in property <bool> queued-icon: false; // table shows the sync glyph
+    preferred-width: chip-holder.preferred-width;
+    preferred-height: chip-holder.preferred-height;
+    min-height: chip-holder.preferred-height;
+    chip-holder := HorizontalLayout {
+        if root.hrow.voided: Chip { label: HistoryState.tr-voided; tone: Tone.danger; }
+        if !root.hrow.voided && root.hrow.failed: Chip { label: HistoryState.tr-failed; tone: Tone.danger; }
+        if !root.hrow.voided && !root.hrow.failed && root.hrow.queued: Chip {
+            label: HistoryState.tr-queued;
+            tone: Tone.warning;
+            has-icon: root.queued-icon;
+            icon: Icons.arrow-triangle-2-circlepath;
+        }
+    }
+}
+
+// ── Stats header ─────────────────────────────────────────────────────────────
+// `[orders count] | [Total (success)] [· one chip per payment method]`.
+component StatsHeader {
+    preferred-height: stat-strip.preferred-height + 2 * Sp.md + 2px;
+    min-height: stat-strip.preferred-height + 2 * Sp.md + 2px;
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: T.surface;
+        border-radius: Rd.md;
+        border-width: 1px;
+        border-color: T.border;
+        clip: true;
+        stats-flick := Flickable {
+            x: 0; y: 0;
+            width: parent.width; height: parent.height;
+            viewport-width: Math.max(self.width, stat-strip.preferred-width + 2 * Sp.lg);
+            stat-strip := HorizontalLayout {
+                x: Sp.lg; y: Sp.md;
+                spacing: Sp.md;
+                StatCell {
+                    label: HistoryState.tr-stat-orders;
+                    value: HistoryState.stat-orders-value;
+                    cell-color: T.text-primary;
+                }
+                Rectangle {
+                    y: (parent.height - HM.stat-divider-height) / 2;
+                    width: 1px; height: HM.stat-divider-height;
+                    background: T.border;
+                }
+                StatCell {
+                    label: HistoryState.tr-total;
+                    value: HistoryState.stat-total-value;
+                    cell-color: T.success;
+                }
+                for chip in HistoryState.stat-chips: Chip {
+                    y: (parent.height - self.height) / 2;
+                    label: chip.label;
+                    tone: chip.tone;
+                }
+            }
+        }
+    }
+}
+
+// ── Filter bar (search + two filter-chip rows with counts) ──────────────────
+component FilterBar {
+    preferred-height: filter-col.preferred-height + 2 * Sp.sm + 1px;
+    min-height: filter-col.preferred-height + 2 * Sp.sm + 1px;
+    callback edited(string);
+
+    property <[image]> type-glyphs: [
+        Icons.slider-horizontal-3, Icons.fork-knife, Icons.shippingbox];
+    property <[image]> sync-glyphs: [
+        Icons.list-bullet, Icons.checkmark-icloud,
+        Icons.icloud-and-arrow-up, Icons.xmark-circle];
+    property <[Tone]> sync-tones: [Tone.accent, Tone.success, Tone.warning, Tone.danger];
+
+    VerticalLayout {
+        width: parent.width;
+        Rectangle {
+            background: T.surface;
+            height: filter-col.preferred-height + 2 * Sp.sm;
+            filter-col := VerticalLayout {
+                x: Sp.lg; y: Sp.sm;
+                width: parent.width - 2 * Sp.lg;
+                spacing: Sp.sm;
+                HistoryField {
+                    placeholder: HistoryState.tr-search;
+                    icon: Icons.magnifyingglass;
+                    has-icon: true;
+                    edited(q) => { root.edited(q); HistoryState.set-search(q); }
+                }
+                type-flick := Flickable {
+                    height: type-row.preferred-height;
+                    viewport-width: Math.max(self.width, type-row.preferred-width);
+                    type-row := HorizontalLayout {
+                        alignment: start;
+                        spacing: Sp.sm;
+                        for label[i] in HistoryState.type-chips: HistoryFilterChip {
+                            glyph: root.type-glyphs[i];
+                            label: label;
+                            active: HistoryState.type-active == i;
+                            clicked => { HistoryState.set-type(i); }
+                        }
+                    }
+                }
+                sync-flick := Flickable {
+                    height: sync-row.preferred-height;
+                    viewport-width: Math.max(self.width, sync-row.preferred-width);
+                    sync-row := HorizontalLayout {
+                        alignment: start;
+                        spacing: Sp.sm;
+                        for label[i] in HistoryState.sync-chips: HistoryFilterChip {
+                            glyph: root.sync-glyphs[i];
+                            label: label;
+                            active: HistoryState.sync-active == i;
+                            tone: root.sync-tones[i];
+                            clicked => { HistoryState.set-sync(i); }
+                        }
+                    }
+                }
+            }
+        }
+        Hairline { light: true; }
+    }
+}
+
+// ── Wide TABLE ───────────────────────────────────────────────────────────────
+component HeaderCell {
+    in property <string> label;
+    in property <int> hcol;
+    in property <bool> trailing: false;
+
+    property <bool> active: HistoryState.sort-col == hcol;
+    property <color> fg: active ? T.accent : T.text-muted;
+
+    preferred-height: hc-row.preferred-height;
+    min-height: hc-row.preferred-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { HistoryState.set-sort(root.hcol); }
+        hc-row := HorizontalLayout {
+            alignment: root.trailing ? end : start;
+            spacing: 3px;
+            if root.trailing && root.active: Icon {
+                y: (parent.height - self.height) / 2;
+                width: HM.sort-arrow-size; // 9px
+                source: HistoryState.sort-ascending ? Icons.arrow-up : Icons.arrow-down;
+                tint: root.fg;
+            }
+            Text {
+                text: root.label.to-uppercase();
+                overflow: elide;
+                color: root.fg;
+                font-size: 11px; font-weight: 700;
+            }
+            if !root.trailing && root.active: Icon {
+                y: (parent.height - self.height) / 2;
+                width: HM.sort-arrow-size;
+                source: HistoryState.sort-ascending ? Icons.arrow-up : Icons.arrow-down;
+                tint: root.fg;
+            }
+        }
+    }
+}
+
+// The payment cell — badge + at most one status chip + optional customer.
+component PaymentCell {
+    in property <HistoryRowData> hrow;
+    preferred-height: pc-row.preferred-height;
+    min-height: pc-row.preferred-height;
+    pc-row := HorizontalLayout {
+        alignment: start;
+        spacing: 6px;
+        PaymentBadge {
+            y: (parent.height - self.height) / 2;
+            label: root.hrow.payment-label;
+            kind: root.hrow.payment-kind;
+            voided: root.hrow.voided;
+        }
+        RowStatusChip {
+            y: (parent.height - self.height) / 2;
+            hrow: root.hrow; queued-icon: true;
+        }
+        if root.hrow.customer != "": Text {
+            vertical-alignment: center;
+            text: root.hrow.customer;
+            overflow: elide;
+            color: T.text-muted;
+            font-size: 12px; font-weight: 400;
+        }
+    }
+}
+
+// The teller cell — person glyph + name (12 in the table, 11 on cards).
+component TellerCell {
+    in property <string> teller;
+    in property <length> font-size: 12px;
+    preferred-height: tc-row.preferred-height;
+    min-height: tc-row.preferred-height;
+    tc-row := HorizontalLayout {
+        alignment: start;
+        spacing: Sp.xs;
+        Icon {
+            y: (parent.height - self.height) / 2;
+            source: Icons.person; tint: T.text-muted;
+            width: Ic.xs;
+        }
+        Text {
+            vertical-alignment: center;
+            text: root.teller;
+            overflow: elide;
+            color: T.text-secondary;
+            font-size: root.font-size; font-weight: 400;
+        }
+    }
+}
+
+component TableRow {
+    in property <HistoryRowData> hrow;
+    in property <bool> zebra: false;
+
+    property <bool> expanded: HistoryState.expanded-id == hrow.id;
+    property <bool> loading-detail: expanded && !hrow.queued && HistoryState.detail-loading;
+
+    preferred-height: trow-col.preferred-height;
+    min-height: trow-col.preferred-height;
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: root.expanded ? T.navy-bg : root.zebra ? T.surface-alt : transparent;
+        trow-col := VerticalLayout {
+            width: parent.width;
+            head := Rectangle {
+                height: Math.max(HM.table-row-height, head-row.preferred-height);
+                TouchArea { clicked => { HistoryState.toggle-row(root.hrow.id); } }
+                // Voided rows dim to 55%.
+                Rectangle {
+                    width: parent.width; height: parent.height;
+                    opacity: root.hrow.voided ? HM.voided-alpha : 1.0;
+                    head-row := HorizontalLayout {
+                        x: Sp.md;
+                        width: parent.width - 2 * Sp.md;
+                        spacing: Sp.md;
+                        // # cell — queued cloud icon, else number (+ ref).
+                        Rectangle {
+                            width: HM.number-col-width;
+                            if root.hrow.queued: Icon {
+                                x: T.rtl ? parent.width - self.width : 0;
+                                y: (parent.height - self.height) / 2;
+                                source: Icons.icloud-and-arrow-up;
+                                tint: T.warning;
+                            }
+                            if !root.hrow.queued: VerticalLayout {
+                                alignment: center;
+                                spacing: 1px;
+                                Text {
+                                    text: root.hrow.number-label;
+                                    color: T.navy;
+                                    font-size: 14px; font-weight: 700;
+                                }
+                                if root.hrow.order-ref != "": Text {
+                                    text: root.hrow.order-ref;
+                                    overflow: elide;
+                                    color: T.text-muted;
+                                    font-size: HM.order-ref-size; font-weight: 400;
+                                }
+                            }
+                        }
+                        PaymentCell {
+                            y: (parent.height - self.height) / 2;
+                            horizontal-stretch: 1;
+                            hrow: root.hrow;
+                        }
+                        Text {
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                            text: root.hrow.time;
+                            color: T.text-secondary;
+                            font-size: 13px; font-weight: 400;
+                        }
+                        TellerCell {
+                            y: (parent.height - self.height) / 2;
+                            horizontal-stretch: 1;
+                            teller: root.hrow.teller;
+                            font-size: 12px;
+                        }
+                        StrikableMoney {
+                            y: (parent.height - self.height) / 2;
+                            width: HM.amount-col-width;
+                            text: root.hrow.amount;
+                            weight: 600;
+                            money-color: root.hrow.voided ? T.text-muted : T.text-primary;
+                            struck: root.hrow.voided;
+                        }
+                        Rectangle {
+                            width: HM.disclosure-col-width;
+                            DisclosureIndicator {
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                                expanded: root.expanded;
+                                loading: root.loading-detail;
+                            }
+                        }
+                    }
+                }
+            }
+            if root.expanded: VerticalLayout {
+                padding-left: Sp.md; padding-right: Sp.md;
+                padding-bottom: Sp.md;
+                OrderDetailPanel { hrow: root.hrow; }
+            }
+        }
+    }
+}
+
+component OrderTable {
+    preferred-height: table-col.preferred-height + 2px;
+    min-height: table-col.preferred-height + 2px;
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: T.surface;
+        border-radius: Rd.md;
+        border-width: 1px;
+        border-color: T.border;
+        clip: true;
+        table-col := VerticalLayout {
+            width: parent.width;
+            // Sortable column headers on surfaceAlt.
+            Rectangle {
+                background: T.surface-alt;
+                height: header-row.preferred-height + 2 * Sp.sm;
+                header-row := HorizontalLayout {
+                    x: Sp.md; y: Sp.sm;
+                    width: parent.width - 2 * Sp.md;
+                    spacing: Sp.md;
+                    HeaderCell { width: HM.number-col-width; label: "#"; hcol: 0; }
+                    HeaderCell { horizontal-stretch: 1; label: HistoryState.tr-payment; hcol: 1; }
+                    HeaderCell { horizontal-stretch: 1; label: HistoryState.tr-col-time; hcol: 2; }
+                    HeaderCell { horizontal-stretch: 1; label: HistoryState.tr-col-teller; hcol: 3; }
+                    HeaderCell { width: HM.amount-col-width; label: HistoryState.tr-col-amount; hcol: 4; trailing: true; }
+                    Rectangle { width: HM.disclosure-col-width; }
+                }
+            }
+            Hairline { }
+            for hrow[i] in HistoryState.rows: VerticalLayout {
+                TableRow { hrow: hrow; zebra: Math.mod(i, 2) == 1; }
+                if i < HistoryState.rows.length - 1: Hairline { light: true; }
+            }
+        }
+    }
+}
+
+// ── Narrow CARD ──────────────────────────────────────────────────────────────
+component OrderCard {
+    in property <HistoryRowData> hrow;
+
+    property <bool> expanded: HistoryState.expanded-id == hrow.id;
+    property <bool> loading-detail: expanded && !hrow.queued && HistoryState.detail-loading;
+
+    preferred-height: card-col.preferred-height + 2 * Sp.md + 2px;
+    min-height: card-col.preferred-height + 2 * Sp.md + 2px;
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: root.expanded ? T.navy-bg : T.surface;
+        border-radius: Rd.md;
+        border-width: 1px;
+        border-color: T.border;
+        card-col := VerticalLayout {
+            x: Sp.lg; y: Sp.md;
+            width: parent.width - 2 * Sp.lg;
+            spacing: Sp.sm;
+            head := Rectangle {
+                height: head-row.preferred-height;
+                TouchArea { clicked => { HistoryState.toggle-row(root.hrow.id); } }
+                Rectangle {
+                    width: parent.width; height: parent.height;
+                    opacity: root.hrow.voided ? HM.voided-alpha : 1.0;
+                    head-row := HorizontalLayout {
+                        width: parent.width;
+                        spacing: Sp.sm;
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            spacing: Sp.xs;
+                            HorizontalLayout {
+                                alignment: start;
+                                spacing: 6px;
+                                if root.hrow.queued: Icon {
+                                    y: (parent.height - self.height) / 2;
+                                    source: Icons.icloud-and-arrow-up;
+                                    tint: T.warning;
+                                    width: Ic.sm;
+                                }
+                                Text {
+                                    text: root.hrow.number-label;
+                                    color: T.navy;
+                                    font-size: 14px; font-weight: 700;
+                                }
+                                Text {
+                                    vertical-alignment: center;
+                                    text: root.hrow.time;
+                                    color: T.text-muted;
+                                    font-size: 11px; font-weight: 400;
+                                }
+                            }
+                            HorizontalLayout {
+                                alignment: start;
+                                spacing: 6px;
+                                PaymentBadge {
+                                    label: root.hrow.payment-label;
+                                    kind: root.hrow.payment-kind;
+                                    voided: root.hrow.voided;
+                                }
+                                // Card path: queued chip without the sync glyph.
+                                RowStatusChip { hrow: root.hrow; queued-icon: false; }
+                            }
+                            if root.hrow.customer != "": Text {
+                                text: root.hrow.customer;
+                                overflow: elide;
+                                color: T.text-muted;
+                                font-size: 12px; font-weight: 400;
+                            }
+                            TellerCell { teller: root.hrow.teller; font-size: 11px; }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: Sp.xs;
+                            StrikableMoney {
+                                text: root.hrow.amount;
+                                money-size: 15px;
+                                weight: 700;
+                                money-color: root.hrow.voided ? T.text-muted : T.text-primary;
+                                struck: root.hrow.voided;
+                                trailing: true;
+                            }
+                            HorizontalLayout {
+                                alignment: end;
+                                DisclosureIndicator {
+                                    expanded: root.expanded;
+                                    loading: root.loading-detail;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if root.expanded: VerticalLayout {
+                spacing: Sp.sm;
+                Hairline { }
+                OrderDetailPanel { hrow: root.hrow; }
+            }
+        }
+    }
+}
+
+// ── Pagination footer ────────────────────────────────────────────────────────
+component ShowMoreFooter {
+    preferred-height: Sp.lg + more-inner.preferred-height + 2 * Sp.md + 2px;
+    min-height: Sp.lg + more-inner.preferred-height + 2 * Sp.md + 2px;
+
+    VerticalLayout {
+        width: parent.width;
+        padding-top: Sp.lg;
+        Press {
+            press-scale: 0.98;
+            preferred-height: more-inner.preferred-height + 2 * Sp.md + 2px;
+            min-height: more-inner.preferred-height + 2 * Sp.md + 2px;
+            clicked => { HistoryState.show-more(); }
+            Rectangle {
+                width: parent.width; height: parent.height;
+                background: T.surface;
+                border-radius: Rd.sm;
+                border-width: 1px;
+                border-color: T.border;
+                more-inner := HorizontalLayout {
+                    y: Sp.md;
+                    width: parent.width;
+                    alignment: center;
+                    spacing: 6px;
+                    Icon {
+                        y: (parent.height - self.height) / 2;
+                        source: Icons.chevron-down; tint: T.accent;
+                        width: Ic.xs;
+                    }
+                    Text {
+                        text: HistoryState.show-more-label;
+                        color: T.accent;
+                        font-size: 13px; font-weight: 600;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Void sheet internals ─────────────────────────────────────────────────────
+
+// One reason radio hrow — dangerBg + danger ring while active.
+component ReasonRow {
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked;
+
+    preferred-height: rr-row.preferred-height + 2 * Sp.md + 2px;
+    min-height: rr-row.preferred-height + 2 * Sp.md + 2px;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-scale: 0.99;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            background: root.active ? T.danger-bg : T.surface;
+            border-radius: Rd.sm;
+            border-width: 1px;
+            // Active ring at Opacities.disabled (0.45).
+            border-color: root.active ? T.danger.with-alpha(0.45) : T.border;
+            rr-row := HorizontalLayout {
+                x: Sp.md; y: Sp.md;
+                width: parent.width - 2 * Sp.md;
+                spacing: Sp.md;
+                Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: root.active ? Icons.largecircle-fill-circle : Icons.circle;
+                    tint: root.active ? T.danger : T.text-muted;
+                    width: Ic.lg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    text: root.label;
+                    color: T.text-primary;
+                    font-size: 14px; font-weight: root.active ? 700 : 500;
+                }
+            }
+        }
+    }
+}
+
+// A tokens-only toggle standing in for the natives' material Switch — accent
+// track when on, bordered surfaceAlt when off, animated thumb.
+component RestockSwitch {
+    in property <bool> value: false;
+    callback toggled(bool);
+
+    preferred-width: HM.switch-track-w;
+    preferred-height: HM.switch-track-h;
+    min-height: HM.switch-track-h;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.toggled(!root.value); }
+        Rectangle {
+            width: HM.switch-track-w; height: HM.switch-track-h;
+            border-radius: Rd.pill;
+            background: root.value ? T.accent : T.surface-alt;
+            border-width: root.value ? 0px : 1px;
+            border-color: T.border;
+            animate background { duration: 220ms; easing: ease-out; }
+            Rectangle {
+                property <length> inset: (HM.switch-track-h - HM.switch-thumb) / 2;
+                // AnimatedAlign centerStart ⇄ centerEnd (RTL mirrored).
+                x: (root.value != T.rtl)
+                    ? parent.width - self.width - self.inset
+                    : self.inset;
+                y: self.inset;
+                width: HM.switch-thumb; height: HM.switch-thumb;
+                border-radius: HM.switch-thumb / 2;
+                background: root.value ? T.text-on-accent : T.text-muted;
+                animate x, background { duration: 220ms; easing: ease-out; }
+            }
+        }
+    }
+}
+
+// ── Receipt paper (feature_checkout receipt_paper.dart) ─────────────────────
+// Theme-invariant BY DESIGN: a receipt is always white paper with dark ink.
+component ReceiptPaper {
+    // Paper palette (natives hardcode the same in both themes).
+    property <color> paper: #FFFFFF;
+    property <color> ink: #1A1A1A;
+    property <color> faint: #6B6B6B;
+    property <color> rule: #CCCCCC;
+    // The voided stamp's red (natives: 0xFFB71C1C) renders via color-kind 2.
+    property <color> void-red: #B71C1C;
+
+    pure function row-color(kind: int) -> color {
+        if (kind == 1) { return faint; }
+        if (kind == 2) { return void-red; }
+        return ink;
+    }
+
+    // Paper card metrics (natives: 360.dp cap, 10.dp corners, 18.dp padding,
+    // 6.dp hrow gap).
+    preferred-width: 360px;
+    width: Math.min(360px, parent.width);
+    preferred-height: paper-col.preferred-height + 36px + 2px;
+    min-height: paper-col.preferred-height + 36px + 2px;
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: root.paper;
+        border-radius: 10px;
+        border-width: 1px;
+        border-color: root.rule;
+        paper-col := VerticalLayout {
+            x: 18px; y: 18px;
+            width: parent.width - 36px;
+            spacing: 6px;
+            // Org brand mark at the top — the CORE-cached local file; nothing
+            // draws on failure (offline reprint shows just the store name).
+            // Logo box: max 60×220, aspect-preserved, 6px bottom gap.
+            if HistoryState.receipt-has-logo: VerticalLayout {
+                padding-bottom: 6px;
+                alignment: center;
+                HorizontalLayout {
+                    alignment: center;
+                    Image {
+                        source: HistoryState.receipt-logo;
+                        image-fit: contain;
+                        width: Math.min(220px, self.preferred-width);
+                        height: Math.min(60px, self.preferred-height);
+                    }
+                }
+            }
+            for rrow in HistoryState.receipt-rows: Rectangle {
+                preferred-height: rrow.kind == 1 ? 3px : rrow-inner.preferred-height;
+                min-height: rrow.kind == 1 ? 3px : rrow-inner.preferred-height;
+                // A hairline paper rule (1px + 1px vertical insets).
+                if rrow.kind == 1: Rectangle {
+                    y: 1px;
+                    width: parent.width; height: 1px;
+                    background: root.rule;
+                }
+                rrow-inner := HorizontalLayout {
+                    width: parent.width;
+                    if rrow.kind == 0: Text {
+                        horizontal-stretch: 1;
+                        horizontal-alignment: rrow.center ? center : (T.rtl ? right : left);
+                        text: rrow.left;
+                        color: root.row-color(rrow.color-kind);
+                        font-size: rrow.size;
+                        font-weight: rrow.weight;
+                        wrap: word-wrap;
+                    }
+                    if rrow.kind == 0 && rrow.right != "": Text {
+                        text: rrow.right;
+                        color: root.row-color(rrow.color-kind);
+                        font-size: rrow.size;
+                        font-weight: rrow.weight;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// The checkout ActionButton (Print / Done): 50px, radius sm, filled accent /
+// outline surface+border, spinner while loading.
+component ActionButton {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <bool> outline: false;
+    in property <bool> loading: false;
+    callback clicked;
+
+    property <bool> active: !loading;
+    property <color> fg: outline ? T.text-primary : T.text-on-accent;
+
+    preferred-height: HM.action-button-height;
+    min-height: HM.action-button-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: root.active;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            border-radius: Rd.sm;
+            background: root.outline
+                ? T.surface
+                : (root.active ? T.accent : T.accent.with-alpha(0.45));
+            border-width: root.outline ? 1px : 0px;
+            border-color: T.border;
+            HorizontalLayout {
+                alignment: center;
+                if root.loading: Spinner {
+                    y: (parent.height - self.height) / 2;
+                    diameter: Ic.md; // 16px
+                    spin-color: root.fg;
+                }
+                if !root.loading && root.has-icon: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: root.icon; tint: root.fg;
+                }
+                if root.loading || root.has-icon: Rectangle { width: Sp.sm; }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    overflow: elide;
+                    color: root.fg;
+                    font-size: 14px; font-weight: 700;
+                }
+            }
+        }
+    }
+}
+
+// ── HistoryScreen — the current shift's order history ────────────────────────
+export component HistoryScreen {
+    Rectangle { width: parent.width; height: parent.height; background: T.bg; }
+
+    VerticalLayout {
+        width: parent.width; height: parent.height;
+        MadarHeader {
+            title: HistoryState.tr-title;
+            subtitle: HistoryState.has-shift ? HistoryState.tr-current-shift : "";
+            has-back: true;
+            back => { HistoryState.back(); }
+            // The header's trailing refresh spinner — reload over a
+            // populated list only.
+            if HistoryState.loading && HistoryState.has-history: Spinner {
+                y: (parent.height - self.height) / 2;
+                diameter: HM.header-spinner; // 18px, stroke 2
+            }
+        }
+        if HistoryState.has-history: FilterBar { }
+
+        // ── Content ─────────────────────────────────────────────────────
+        content-area := Rectangle {
+            vertical-stretch: 1;
+            property <bool> wide: self.width >= Rsp.wide-table; // 680px
+
+            // Skeleton — initial load over an empty list.
+            if HistoryState.loading && !HistoryState.has-history: SkeletonList {
+                width: parent.width;
+            }
+            // Empty / no-match states.
+            if !HistoryState.loading && !HistoryState.has-filtered: EmptyState {
+                width: parent.width; height: parent.height;
+                icon: HistoryState.has-history
+                    ? Icons.line-3-horizontal-decrease-circle : Icons.tray;
+                title: HistoryState.has-history
+                    ? HistoryState.tr-no-match : HistoryState.tr-empty;
+            }
+            // The list — one scroll surface, 960px column cap, centered.
+            if HistoryState.has-filtered: list-flick := Flickable {
+                width: parent.width; height: parent.height;
+                viewport-height: list-col.preferred-height;
+                list-col := VerticalLayout {
+                    x: Math.max((content-area.width - Math.min(HM.content-max-width, content-area.width)) / 2, 0);
+                    width: Math.min(HM.content-max-width, content-area.width);
+                    padding: Sp.lg;
+                    VerticalLayout {
+                        padding-bottom: Sp.lg;
+                        StatsHeader { }
+                    }
+                    if content-area.wide: OrderTable { }
+                    if !content-area.wide: VerticalLayout {
+                        for hrow in HistoryState.rows: VerticalLayout {
+                            padding-bottom: Sp.lg;
+                            OrderCard { hrow: hrow; }
+                        }
+                    }
+                    if HistoryState.show-more-label != "": ShowMoreFooter { }
+                }
+            }
+        }
+    }
+
+    // The screen toast, driven by HistoryState.toast-*.
+    ToastHost {
+        width: parent.width; height: parent.height;
+        shown: HistoryState.toast-shown;
+        text: HistoryState.toast-text;
+        tone: HistoryState.toast-tone;
+        icon: HistoryState.toast-icon;
+        has-icon: HistoryState.toast-has-icon;
+    }
+
+    // ── Void sheet — the natives' VoidOverlay (SheetSize.hug, 520 cap) ──
+    void-sheet := SheetFrame {
+        width: parent.width; height: parent.height;
+        open <=> HistoryState.void-open;
+        sheet-max-width: HM.void-sheet-max-width; // 520px
+        // hug: content height, capped at the hug fraction (0.92).
+        height-fraction: Math.min(0.92,
+            (void-col.preferred-height + 25px) / Math.max(root.height, 1px));
+        dismissed => { HistoryState.void-dismissed(); }
+
+        Flickable {
+            width: parent.width; height: parent.height;
+            viewport-height: void-col.preferred-height;
+            void-col := VerticalLayout {
+                width: parent.width;
+                padding: Sp.xl;
+                spacing: Sp.lg;
+                HorizontalLayout {
+                    Text {
+                        horizontal-stretch: 1;
+                        text: HistoryState.tr-void-title;
+                        color: T.text-primary;
+                        font-size: 22px; font-weight: 800;
+                        overflow: elide;
+                    }
+                    Press {
+                        width: Ic.lg; preferred-height: Ic.lg; min-height: Ic.lg;
+                        clicked => {
+                            void-sheet.open = false;
+                            HistoryState.void-dismissed();
+                        }
+                        Icon { source: Icons.xmark; tint: T.text-muted; }
+                    }
+                }
+                // The order being voided — number + total.
+                Rectangle {
+                    background: T.surface;
+                    border-radius: Rd.sm;
+                    border-width: 1px;
+                    border-color: T.border-light;
+                    drop-shadow-color: T.shadow-card-color;
+                    drop-shadow-blur: T.shadow-card-blur;
+                    drop-shadow-offset-y: T.shadow-card-dy;
+                    height: void-order-row.preferred-height + 2 * Sp.md;
+                    void-order-row := HorizontalLayout {
+                        x: Sp.md; y: Sp.md;
+                        width: parent.width - 2 * Sp.md;
+                        Text {
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                            text: HistoryState.void-number;
+                            color: T.text-primary;
+                            font-size: 14px; font-weight: 600;
+                        }
+                        MoneyText {
+                            vertical-alignment: center;
+                            text: HistoryState.void-total;
+                            color: T.text-primary;
+                            font-size: 15px;
+                        }
+                    }
+                }
+                Text {
+                    text: HistoryState.tr-void-reason;
+                    color: T.text-muted;
+                    font-size: 12px; font-weight: 700;
+                    letter-spacing: 0.6px; // MadarType.tracking
+                }
+                for label[i] in HistoryState.void-reason-labels: ReasonRow {
+                    label: label;
+                    active: HistoryState.void-reason == i;
+                    clicked => { HistoryState.void-select-reason(i); }
+                }
+                note-field := HistoryField {
+                    placeholder: HistoryState.tr-void-note;
+                    icon: Icons.note-text;
+                    has-icon: true;
+                    field-enabled: !HistoryState.void-busy;
+                }
+                Hairline { }
+                HorizontalLayout {
+                    spacing: Sp.sm;
+                    Text {
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                        text: HistoryState.tr-void-restock;
+                        color: T.text-primary;
+                        font-size: 14px; font-weight: 700;
+                        wrap: word-wrap;
+                    }
+                    RestockSwitch {
+                        y: (parent.height - self.height) / 2;
+                        value: HistoryState.void-restock;
+                        toggled(v) => { HistoryState.void-set-restock(v); }
+                    }
+                }
+                if HistoryState.void-error != "": Banner {
+                    text: HistoryState.void-error;
+                    tone: Tone.danger;
+                }
+                HorizontalLayout {
+                    spacing: Sp.md;
+                    HistoryButton {
+                        horizontal-stretch: 1;
+                        label: HistoryState.tr-void-cancel;
+                        variant: 1; // outline
+                        clicked => {
+                            void-sheet.open = false;
+                            HistoryState.void-dismissed();
+                        }
+                    }
+                    HistoryButton {
+                        horizontal-stretch: 1;
+                        label: HistoryState.tr-void-confirm;
+                        variant: 2; // danger
+                        icon: Icons.trash;
+                        has-icon: true;
+                        loading: HistoryState.void-busy;
+                        clicked => { HistoryState.void-confirm(note-field.text); }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Receipt (reprint) preview sheet — feature_checkout's ReceiptSheet
+    // presented at SheetSize.large (0.94). ──────────────────────────────
+    receipt-sheet := SheetFrame {
+        width: parent.width; height: parent.height;
+        open <=> HistoryState.receipt-open;
+        height-fraction: 0.94;
+        sheet-max-width: Rsp.sheet-max; // 600px
+        dismissed => { HistoryState.receipt-dismissed(); }
+
+        VerticalLayout {
+            width: parent.width; height: parent.height;
+            // Sticky header — title + close (natives' preview header).
+            HorizontalLayout {
+                padding-left: Sp.lg; padding-right: Sp.lg;
+                padding-top: Sp.md; padding-bottom: Sp.md;
+                Text {
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    text: HistoryState.tr-receipt-title;
+                    color: T.text-primary;
+                    font-size: 17px; font-weight: 800; // h3 w900 → Cairo caps at 800
+                }
+                Press {
+                    width: HM.close-button;
+                    preferred-height: HM.close-button; min-height: HM.close-button;
+                    clicked => {
+                        receipt-sheet.open = false;
+                        HistoryState.receipt-dismissed();
+                    }
+                    Rectangle {
+                        width: HM.close-button; height: HM.close-button;
+                        border-radius: HM.close-button / 2;
+                        background: T.surface-alt;
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: Icons.xmark; tint: T.text-muted;
+                            width: Ic.sm;
+                        }
+                    }
+                }
+            }
+            Hairline { }
+            // Scrolling paper — centered like the natives' preview.
+            paper-flick := Flickable {
+                vertical-stretch: 1;
+                viewport-height: paper-wrap.preferred-height;
+                paper-wrap := VerticalLayout {
+                    width: parent.width;
+                    padding: Sp.lg;
+                    HorizontalLayout {
+                        alignment: center;
+                        ReceiptPaper { }
+                    }
+                }
+            }
+            // Pinned actions — Print + Done.
+            Rectangle {
+                background: T.surface;
+                height: actions-col.preferred-height;
+                actions-col := VerticalLayout {
+                    width: parent.width;
+                    Hairline { }
+                    HorizontalLayout {
+                        padding: Sp.lg;
+                        spacing: Sp.sm;
+                        ActionButton {
+                            horizontal-stretch: 1;
+                            label: HistoryState.tr-print;
+                            icon: Icons.printer;
+                            has-icon: true;
+                            outline: true;
+                            loading: HistoryState.receipt-printing;
+                            clicked => { HistoryState.receipt-print(); }
+                        }
+                        ActionButton {
+                            horizontal-stretch: 1;
+                            label: HistoryState.tr-done;
+                            icon: Icons.checkmark;
+                            has-icon: true;
+                            clicked => {
+                                receipt-sheet.open = false;
+                                HistoryState.receipt-dismissed();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Local toast layer — print feedback presents inside the sheet.
+        ToastHost {
+            width: parent.width; height: parent.height;
+            shown: HistoryState.receipt-toast-shown;
+            text: HistoryState.receipt-toast-text;
+            tone: HistoryState.receipt-toast-tone;
+            icon: HistoryState.receipt-toast-icon;
+            has-icon: HistoryState.receipt-toast-has-icon;
+        }
+    }
+}
+
+// ── Search internals ─────────────────────────────────────────────────────────
+
+// One order result card: number + timestamp leading, bold-teal money + a
+// tone chip + payment label trailing.
+component SearchResultRow {
+    in property <SearchRowData> hrow;
+    callback clicked;
+
+    preferred-height: sr-row.preferred-height + 2 * Sp.md + 2px;
+    min-height: sr-row.preferred-height + 2 * Sp.md + 2px;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            background: T.surface;
+            border-radius: Rd.md;
+            border-width: 1px;
+            border-color: T.border-light;
+            drop-shadow-color: T.shadow-card-color;
+            drop-shadow-blur: T.shadow-card-blur;
+            drop-shadow-offset-y: T.shadow-card-dy;
+            sr-row := HorizontalLayout {
+                x: Sp.lg; y: Sp.md;
+                width: parent.width - 2 * Sp.lg;
+                spacing: Sp.md;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: Sp.xs;
+                    Text {
+                        text: root.hrow.number-label;
+                        color: T.text-primary;
+                        font-size: 17px; font-weight: 600; // h3
+                    }
+                    Text {
+                        text: root.hrow.timestamp;
+                        color: T.text-muted;
+                        font-size: 13px; font-weight: 400;
+                    }
+                }
+                VerticalLayout {
+                    alignment: start;
+                    spacing: Sp.sm;
+                    // Money is the hero — bold teal; struck + muted once dead.
+                    StrikableMoney {
+                        text: root.hrow.amount;
+                        money-size: HM.row-money-size; // 17px
+                        weight: 700;
+                        money-color: root.hrow.dead ? T.text-muted : T.accent;
+                        struck: root.hrow.dead;
+                        trailing: true;
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: Sp.sm;
+                        Text {
+                            vertical-alignment: center;
+                            text: root.hrow.payment-label;
+                            color: T.text-muted;
+                            font-size: 11px; font-weight: 600;
+                        }
+                        Chip { label: root.hrow.status-label; tone: root.hrow.status-tone; }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A pill of context (teller / customer / time / payment) with a leading icon.
+component ContextChip {
+    in property <ContextChipData> chip;
+
+    pure function icon-of(kind: int) -> image {
+        if (kind == 1) { return Icons.person-fill; }
+        if (kind == 2) { return Icons.clock; }
+        if (kind == 3) { return Icons.creditcard; }
+        return Icons.person;
+    }
+
+    preferred-width: cc-row.preferred-width + 2 * Sp.md;
+    preferred-height: cc-row.preferred-height + 12px; // 6px v insets
+    min-height: cc-row.preferred-height + 12px;
+
+    Rectangle {
+        width: parent.width; height: parent.height;
+        background: T.surface-alt;
+        border-radius: Rd.pill;
+        cc-row := HorizontalLayout {
+            x: Sp.md; y: 6px; // context-chip v inset (natives: 6.dp)
+            spacing: Sp.xs;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                source: root.icon-of(root.chip.icon-kind);
+                tint: T.text-secondary;
+                width: Ic.sm;
+            }
+            Text {
+                text: root.chip.label;
+                color: T.text-primary;
+                font-size: 12px; font-weight: 600;
+            }
+        }
+    }
+}
+
+// ── SearchScreen — cross-shift order search (online) ─────────────────────────
+export component SearchScreen {
+    Rectangle { width: parent.width; height: parent.height; background: T.bg; }
+
+    VerticalLayout {
+        width: parent.width; height: parent.height;
+        MadarHeader {
+            title: SearchState.tr-title;
+            has-back: true;
+            back => { SearchState.back(); }
+            // Trailing result count + CSV export.
+            if SearchState.total > 0: Text {
+                vertical-alignment: center;
+                text: SearchState.total;
+                color: T.text-secondary;
+                font-size: 15px; font-weight: 600;
+            }
+            if SearchState.results.length > 0: HeaderAction {
+                y: (parent.height - 36px) / 2;
+                icon: Icons.square-and-arrow-up;
+                tint: T.accent;
+                clicked => { SearchState.export-csv(); }
+            }
+        }
+
+        // ── Filters — date range, status, and a teller lookup ───────────
+        Rectangle {
+            background: T.surface;
+            height: filters-col.preferred-height + 2 * Sp.lg;
+            filters-col := VerticalLayout {
+                x: Sp.lg; y: Sp.lg;
+                width: parent.width - 2 * Sp.lg;
+                spacing: Sp.md;
+                // Date-range chips (Wrap → horizontally scrollable hrow).
+                date-flick := Flickable {
+                    height: date-row.preferred-height;
+                    viewport-width: Math.max(self.width, date-row.preferred-width);
+                    date-row := HorizontalLayout {
+                        alignment: start;
+                        spacing: Sp.sm;
+                        SelectChip {
+                            label: SearchState.tr-24h;
+                            selected: SearchState.days == 1;
+                            clicked => { SearchState.set-days(1, teller-field.text); }
+                        }
+                        SelectChip {
+                            label: SearchState.tr-7d;
+                            selected: SearchState.days == 7;
+                            clicked => { SearchState.set-days(7, teller-field.text); }
+                        }
+                        SelectChip {
+                            label: SearchState.tr-30d;
+                            selected: SearchState.days == 30;
+                            clicked => { SearchState.set-days(30, teller-field.text); }
+                        }
+                        SelectChip {
+                            label: SearchState.tr-all;
+                            selected: SearchState.days == 0;
+                            clicked => { SearchState.set-days(0, teller-field.text); }
+                        }
+                    }
+                }
+                // Status chips.
+                status-flick := Flickable {
+                    height: status-row.preferred-height;
+                    viewport-width: Math.max(self.width, status-row.preferred-width);
+                    status-row := HorizontalLayout {
+                        alignment: start;
+                        spacing: Sp.sm;
+                        SelectChip {
+                            label: SearchState.tr-all;
+                            selected: SearchState.status-index == 0;
+                            clicked => { SearchState.set-status(0, teller-field.text); }
+                        }
+                        SelectChip {
+                            label: SearchState.tr-completed;
+                            selected: SearchState.status-index == 1;
+                            tone: Tone.success;
+                            clicked => { SearchState.set-status(1, teller-field.text); }
+                        }
+                        SelectChip {
+                            label: SearchState.tr-voided;
+                            selected: SearchState.status-index == 2;
+                            tone: Tone.danger;
+                            clicked => { SearchState.set-status(2, teller-field.text); }
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: Sp.sm;
+                    teller-field := HistoryField {
+                        horizontal-stretch: 1;
+                        placeholder: SearchState.tr-teller-hint;
+                        icon: Icons.person;
+                        has-icon: true;
+                    }
+                    HistoryButton {
+                        label: SearchState.tr-title;
+                        icon: Icons.magnifyingglass;
+                        has-icon: true;
+                        loading: SearchState.searching;
+                        clicked => { SearchState.run(teller-field.text); }
+                    }
+                }
+            }
+        }
+        Hairline { }
+
+        // ── Results ──────────────────────────────────────────────────────
+        results-area := Rectangle {
+            vertical-stretch: 1;
+            // First page in flight — centered spinner.
+            if SearchState.searching && SearchState.results.length == 0: Spinner {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                diameter: 36px;
+            }
+            if !SearchState.searching && SearchState.results.length == 0: EmptyState {
+                width: parent.width; height: parent.height;
+                icon: Icons.magnifyingglass;
+                title: SearchState.tr-no-match;
+            }
+            if SearchState.results.length > 0: results-flick := Flickable {
+                width: parent.width; height: parent.height;
+                viewport-height: results-col.preferred-height;
+                results-col := VerticalLayout {
+                    width: parent.width;
+                    padding: Sp.lg;
+                    spacing: Sp.sm;
+                    for hrow in SearchState.results: SearchResultRow {
+                        hrow: hrow;
+                        clicked => { SearchState.open-details(hrow.id); }
+                    }
+                    if SearchState.has-more: HistoryButton {
+                        label: SearchState.tr-load-more;
+                        variant: 1; // outline
+                        icon: Icons.arrow-down-circle;
+                        has-icon: true;
+                        loading: SearchState.searching;
+                        clicked => { SearchState.load-more(teller-field.text); }
+                    }
+                }
+            }
+        }
+    }
+
+    // The screen toast, driven by SearchState.toast-*.
+    ToastHost {
+        width: parent.width; height: parent.height;
+        shown: SearchState.toast-shown;
+        text: SearchState.toast-text;
+        tone: SearchState.toast-tone;
+        icon: SearchState.toast-icon;
+        has-icon: SearchState.toast-has-icon;
+    }
+
+    // ── OrderDetailsSheet — a result hrow's full line breakdown (hug) ────
+    details-sheet := SheetFrame {
+        width: parent.width; height: parent.height;
+        open <=> SearchState.details-open;
+        sheet-max-width: Rsp.sheet-max; // 600px
+        height-fraction: Math.min(0.92,
+            (det-col.preferred-height + 25px) / Math.max(root.height, 1px));
+        dismissed => { SearchState.details-dismissed(); }
+
+        Flickable {
+            width: parent.width; height: parent.height;
+            viewport-height: det-col.preferred-height;
+            det-col := VerticalLayout {
+                width: parent.width;
+                padding: Sp.lg;
+                spacing: Sp.md;
+                // Title hrow — order number + status chip.
+                HorizontalLayout {
+                    alignment: start;
+                    spacing: Sp.sm;
+                    Icon {
+                        y: (parent.height - self.height) / 2;
+                        source: Icons.receipt; tint: T.accent;
+                        width: Ic.lg;
+                    }
+                    Text {
+                        text: SearchState.det-title;
+                        overflow: elide;
+                        color: T.text-primary;
+                        font-size: 22px; font-weight: 700; // h2
+                    }
+                    Chip {
+                        y: (parent.height - self.height) / 2;
+                        label: SearchState.det-status-label;
+                        tone: SearchState.det-status-tone;
+                        icon: SearchState.det-status-icon;
+                        has-icon: SearchState.det-status-has-icon;
+                    }
+                }
+                // Context chips — teller / customer / rung time / payment.
+                ctx-flick := Flickable {
+                    height: ctx-row.preferred-height;
+                    viewport-width: Math.max(self.width, ctx-row.preferred-width);
+                    ctx-row := HorizontalLayout {
+                        alignment: start;
+                        spacing: Sp.sm;
+                        for chip in SearchState.det-chips: ContextChip { chip: chip; }
+                    }
+                }
+                // Line items — the fetched breakdown (synced orders only).
+                if SearchState.det-loading: SkeletonList { count: 3; }
+                if !SearchState.det-loading && SearchState.det-lines.length > 0: Rectangle {
+                    background: T.surface;
+                    border-radius: Rd.md;
+                    border-width: 1px;
+                    border-color: T.border-light;
+                    drop-shadow-color: T.shadow-card-color;
+                    drop-shadow-blur: T.shadow-card-blur;
+                    drop-shadow-offset-y: T.shadow-card-dy;
+                    height: lines-col.preferred-height + 2 * Sp.lg;
+                    lines-col := VerticalLayout {
+                        x: Sp.lg; y: Sp.lg;
+                        width: parent.width - 2 * Sp.lg;
+                        spacing: Sp.md;
+                        Text {
+                            text: SearchState.tr-items.to-uppercase();
+                            color: T.text-muted;
+                            font-size: 12px; font-weight: 600;
+                        }
+                        for line in SearchState.det-lines: HorizontalLayout {
+                            spacing: Sp.sm;
+                            // Teal qty badge (radius xs, 8/3 insets).
+                            Rectangle {
+                                width: qty-txt.preferred-width + 2 * Sp.sm;
+                                height: qty-txt.preferred-height + 6px;
+                                border-radius: Rd.xs;
+                                background: T.accent-bg;
+                                qty-txt := Text {
+                                    x: Sp.sm; y: 3px;
+                                    text: line.qty;
+                                    color: T.accent;
+                                    font-size: 13px; font-weight: 700;
+                                }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                spacing: 2px;
+                                Text {
+                                    text: line.name;
+                                    color: T.text-primary;
+                                    font-size: 14px; font-weight: 600;
+                                    wrap: word-wrap;
+                                }
+                                if line.mods != "": Text {
+                                    text: line.mods;
+                                    color: T.text-secondary;
+                                    font-size: 12px; font-weight: 500;
+                                    wrap: word-wrap;
+                                }
+                            }
+                            MoneyText {
+                                text: line.amount;
+                                color: T.text-primary;
+                            }
+                        }
+                    }
+                }
+                // Money breakdown — muted rows above a tinted-teal grand total.
+                Rectangle {
+                    background: T.surface;
+                    border-radius: Rd.md;
+                    border-width: 1px;
+                    border-color: T.border-light;
+                    drop-shadow-color: T.shadow-card-color;
+                    drop-shadow-blur: T.shadow-card-blur;
+                    drop-shadow-offset-y: T.shadow-card-dy;
+                    height: totals-col.preferred-height + 2 * Sp.lg;
+                    totals-col := VerticalLayout {
+                        x: Sp.lg; y: Sp.lg;
+                        width: parent.width - 2 * Sp.lg;
+                        spacing: Sp.xs;
+                        for drow in SearchState.det-rows: HorizontalLayout {
+                            Text {
+                                horizontal-stretch: 1;
+                                text: drow.label;
+                                color: T.text-secondary;
+                                font-size: 13px; font-weight: 500;
+                            }
+                            MoneyText {
+                                text: drow.value;
+                                color: drow.green ? T.success : T.text-secondary;
+                                font-size: 13px; font-weight: 600;
+                            }
+                        }
+                        VerticalLayout {
+                            padding-top: Sp.xs;
+                            Rectangle {
+                                background: T.accent-bg;
+                                border-radius: Rd.md;
+                                height: gt-row.preferred-height + 2 * Sp.md;
+                                gt-row := HorizontalLayout {
+                                    x: Sp.md; y: Sp.md;
+                                    width: parent.width - 2 * Sp.md;
+                                    Text {
+                                        horizontal-stretch: 1;
+                                        vertical-alignment: center;
+                                        text: SearchState.tr-total;
+                                        color: T.accent;
+                                        font-size: 14px; font-weight: 700;
+                                    }
+                                    MoneyText {
+                                        vertical-alignment: center;
+                                        text: SearchState.det-total;
+                                        // Grand total 20.sp Black; Cairo tops
+                                        // out at w800.
+                                        font-size: 20px; font-weight: 800;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

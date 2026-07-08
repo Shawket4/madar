@@ -48,8 +48,13 @@ const CAIRO_BOLD: &[u8] = include_bytes!("../assets/fonts/Cairo-Bold.ttf");
 
 /// Render the receipt to a 1-bit bitmap. `logo` is the decoded org-logo image
 /// bytes the core fetched + cached, or `None` to print without it.
-pub fn render_receipt(receipt: &ReceiptView, ctx: &EscPosCtx, logo: Option<&[u8]>) -> Bitmap {
-    let mut r = Renderer::new();
+pub fn render_receipt(
+    receipt: &ReceiptView,
+    ctx: &EscPosCtx,
+    logo: Option<&[u8]>,
+    width: u32,
+) -> Bitmap {
+    let mut r = Renderer::new(width);
     r.build(receipt, ctx, logo);
     r.canvas.into_bitmap()
 }
@@ -64,8 +69,9 @@ pub fn render_shift_report(
     currency: &str,
     labels: &ShiftReportLabels,
     orders: &[crate::orders::OrderSummaryView],
+    width: u32,
 ) -> Bitmap {
-    let mut r = Renderer::new();
+    let mut r = Renderer::new(width);
     r.build_shift(report, store, currency, labels, orders);
     r.canvas.into_bitmap()
 }
@@ -144,10 +150,24 @@ struct Renderer {
     cache: SwashCache,
     canvas: Canvas,
     y: i32, // current baseline cursor (top of the next block)
+    // Paper geometry. The module constants above are tuned for `PRINT_WIDTH`
+    // (576 dots / 72 mm); on a narrower roll (e.g. 384 dots / 58 mm) everything
+    // — fonts, margins, logo box — scales down by `scale` so the layout is a
+    // faithful miniature and never collides or overflows the head.
+    width: i32,
+    scale: f32,
+    margin: i32,
+    bottom_pad: i32,
+    logo_w: u32,
+    logo_h: u32,
 }
 
 impl Renderer {
-    fn new() -> Self {
+    fn new(width: u32) -> Self {
+        // Guard against absurd/zero widths (would divide-by-zero the canvas).
+        let width = width.clamp(64, 4096);
+        let scale = width as f32 / PRINT_WIDTH as f32;
+        let sc = |v: i32| (v as f32 * scale).round() as i32;
         let mut db = cosmic_text::fontdb::Database::new();
         db.load_font_data(CAIRO_REGULAR.to_vec());
         db.load_font_data(CAIRO_SEMIBOLD.to_vec());
@@ -158,18 +178,32 @@ impl Renderer {
         Renderer {
             fonts,
             cache: SwashCache::new(),
-            canvas: Canvas::new(PRINT_WIDTH as usize),
-            y: TOP_PAD,
+            canvas: Canvas::new(width as usize),
+            y: sc(TOP_PAD),
+            width: width as i32,
+            scale,
+            margin: sc(MARGIN),
+            bottom_pad: sc(BOTTOM_PAD),
+            logo_w: (LOGO_MAX_W as f32 * scale).round() as u32,
+            logo_h: (LOGO_MAX_H as f32 * scale).round() as u32,
         }
     }
 
+    /// Scale a `PRINT_WIDTH`-tuned dot measure (margin gaps, indents) to this roll.
+    fn sx(&self, v: i32) -> i32 {
+        (v as f32 * self.scale).round() as i32
+    }
+
     fn content_w(&self) -> i32 {
-        PRINT_WIDTH as i32 - 2 * MARGIN
+        self.width - 2 * self.margin
     }
 
     /// Shape one string into a laid-out buffer at the given size/weight, wrapping
     /// at `max_w` dots.
     fn shape(&mut self, text: &str, size: f32, weight: Weight, max_w: i32) -> Buffer {
+        // Fonts are tuned for PRINT_WIDTH; scale to the active roll. `max_w` is
+        // already in real (scaled) dots, so wrapping stays proportional.
+        let size = size * self.scale;
         let mut buf = Buffer::new(&mut self.fonts, Metrics::new(size, size * LINE));
         // cosmic-text 0.19: set_size/set_text no longer take the FontSystem
         // (shaping is deferred to shape_until_scroll); attrs pass by ref.
@@ -215,7 +249,7 @@ impl Renderer {
         }
         let buf = self.shape(s, size, weight, self.content_w());
         let (w, h) = Self::measure(&buf);
-        let ox = ((PRINT_WIDTH as f32 - w) / 2.0).round() as i32;
+        let ox = ((self.width as f32 - w) / 2.0).round() as i32;
         let oy = self.y;
         self.blit(&buf, ox, oy);
         self.y += h.ceil() as i32;
@@ -226,13 +260,14 @@ impl Renderer {
         let right_buf = self.shape(right, size, weight, self.content_w());
         let (rw, rh) = Self::measure(&right_buf);
         // Keep the label clear of the value.
-        let left_max = (self.content_w() as f32 - rw - 12.0).max(40.0) as i32;
+        let left_max = (self.content_w() as f32 - rw - self.sx(12) as f32).max(self.sx(40) as f32)
+            as i32;
         let left_buf = self.shape(left, size, weight, left_max);
         let (_, lh) = Self::measure(&left_buf);
         let oy = self.y;
-        self.blit(&left_buf, MARGIN, oy);
+        self.blit(&left_buf, self.margin, oy);
         if !right.is_empty() {
-            let rx = PRINT_WIDTH as i32 - MARGIN - rw.round() as i32;
+            let rx = self.width - self.margin - rw.round() as i32;
             self.blit(&right_buf, rx, oy);
         }
         self.y += lh.max(rh).ceil() as i32;
@@ -240,18 +275,19 @@ impl Renderer {
 
     /// A left-aligned line indented by `indent` dots (modifiers / address).
     fn indented(&mut self, s: &str, size: f32, indent: i32) {
+        let indent = self.sx(indent);
         let buf = self.shape(s, size, Weight::NORMAL, self.content_w() - indent);
         let (_, h) = Self::measure(&buf);
         let oy = self.y;
-        self.blit(&buf, MARGIN + indent, oy);
+        self.blit(&buf, self.margin + indent, oy);
         self.y += h.ceil() as i32;
     }
 
     fn rule(&mut self) {
-        self.y += 4;
+        self.y += self.sx(4);
         self.canvas
-            .rule(MARGIN, PRINT_WIDTH as i32 - MARGIN, self.y, 2);
-        self.y += 8;
+            .rule(self.margin, self.width - self.margin, self.y, 2);
+        self.y += self.sx(8);
     }
 
     fn gap(&mut self, dots: i32) {
@@ -260,10 +296,10 @@ impl Renderer {
 
     /// Decode, scale-to-fit and dither the org logo, then composite it centered.
     fn logo(&mut self, bytes: &[u8]) {
-        let Some((w, h, ink)) = decode_logo(bytes, LOGO_MAX_W, LOGO_MAX_H) else {
+        let Some((w, h, ink)) = decode_logo(bytes, self.logo_w, self.logo_h) else {
             return;
         };
-        let ox = ((PRINT_WIDTH as i32 - w as i32) / 2).max(0);
+        let ox = ((self.width - w as i32) / 2).max(0);
         let oy = self.y;
         for ly in 0..h {
             for lx in 0..w {
@@ -272,7 +308,7 @@ impl Renderer {
                 }
             }
         }
-        self.y += h as i32 + 8;
+        self.y += h as i32 + self.sx(8);
     }
 
     /// Walk the receipt top-to-bottom, mirroring `ReceiptPaper.kt`.
@@ -415,7 +451,7 @@ impl Renderer {
             self.center(&lab.queued, SZ_SMALL, Weight::NORMAL);
         }
         self.center(&lab.thank_you, SZ_BODY, Weight::NORMAL);
-        self.gap(BOTTOM_PAD);
+        self.gap(self.bottom_pad);
     }
 
     /// Walk the Z-report top-to-bottom — the full detailed layout, mirroring the
@@ -609,7 +645,7 @@ impl Renderer {
             SZ_SMALL,
             Weight::SEMIBOLD,
         );
-        self.gap(BOTTOM_PAD);
+        self.gap(self.bottom_pad);
     }
 
     /// One item line + its modifier/bundle breakdown (mirrors `lineBlock`).
@@ -642,6 +678,7 @@ impl Renderer {
     fn modifier(&mut self, m: &ReceiptModifierView, cur: &str, indent: i32) {
         if m.price_minor > 0 {
             // Indented label on the left, charge flush-right.
+            let indent = self.sx(indent);
             let buf = self.shape(
                 &format!("+ {}", m.name),
                 SZ_SMALL,
@@ -657,8 +694,8 @@ impl Renderer {
             );
             let (rw, rh) = Self::measure(&right);
             let oy = self.y;
-            self.blit(&buf, MARGIN + indent, oy);
-            self.blit(&right, PRINT_WIDTH as i32 - MARGIN - rw.round() as i32, oy);
+            self.blit(&buf, self.margin + indent, oy);
+            self.blit(&right, self.width - self.margin - rw.round() as i32, oy);
             self.y += lh.max(rh).ceil() as i32;
         } else {
             self.indented(&format!("+ {}", m.name), SZ_SMALL, indent);
@@ -828,7 +865,7 @@ mod tests {
 
     #[test]
     fn renders_full_width_nonblank_bitmap() {
-        let bmp = render_receipt(&receipt(), &ctx(), None);
+        let bmp = render_receipt(&receipt(), &ctx(), None, PRINT_WIDTH);
         assert_eq!(bmp.width, PRINT_WIDTH);
         assert!(
             bmp.rows > 200,
@@ -844,10 +881,32 @@ mod tests {
     }
 
     #[test]
+    fn renders_narrow_58mm_roll_to_384_dots() {
+        // A 58 mm portable (384 dots) must render to exactly that width, stay
+        // non-blank, and — being a scaled miniature — come out shorter than the
+        // 72 mm render of the same receipt.
+        let narrow = render_receipt(&receipt(), &ctx(), None, 384);
+        let wide = render_receipt(&receipt(), &ctx(), None, PRINT_WIDTH);
+        assert_eq!(narrow.width, 384);
+        assert_eq!(narrow.row_bytes(), 48); // 384 / 8
+        assert_eq!(narrow.bytes.len(), narrow.row_bytes() * narrow.rows as usize);
+        assert!(
+            narrow.bytes.iter().any(|&b| b != 0),
+            "narrow bitmap is entirely blank"
+        );
+        assert!(
+            narrow.rows < wide.rows,
+            "58 mm miniature ({} rows) should be shorter than 72 mm ({} rows)",
+            narrow.rows,
+            wide.rows
+        );
+    }
+
+    #[test]
     fn render_is_deterministic() {
         let (a, b) = (
-            render_receipt(&receipt(), &ctx(), None),
-            render_receipt(&receipt(), &ctx(), None),
+            render_receipt(&receipt(), &ctx(), None, PRINT_WIDTH),
+            render_receipt(&receipt(), &ctx(), None, PRINT_WIDTH),
         );
         assert_eq!(a, b, "same input must produce a byte-identical bitmap");
     }
@@ -855,7 +914,7 @@ mod tests {
     #[test]
     fn ignores_undecodable_logo() {
         // A bogus "logo" must not panic or abort the render — just no logo.
-        let bmp = render_receipt(&receipt(), &ctx(), Some(b"not an image"));
+        let bmp = render_receipt(&receipt(), &ctx(), Some(b"not an image"), PRINT_WIDTH);
         assert!(bmp.rows > 200);
     }
 
@@ -937,7 +996,8 @@ mod tests {
 
     #[test]
     fn renders_shift_report_bitmap() {
-        let bmp = render_shift_report(&shift_report(), "Cafe Madar", "EGP", &shift_labels(), &[]);
+        let bmp =
+            render_shift_report(&shift_report(), "Cafe Madar", "EGP", &shift_labels(), &[], PRINT_WIDTH);
         assert_eq!(bmp.width, PRINT_WIDTH);
         assert!(bmp.rows > 150);
         assert!(
@@ -965,11 +1025,11 @@ mod tests {
     #[ignore]
     fn dump_receipt_png() {
         save_png(
-            &render_receipt(&receipt(), &ctx(), None),
+            &render_receipt(&receipt(), &ctx(), None, PRINT_WIDTH),
             "/tmp/receipt.png",
         );
         save_png(
-            &render_shift_report(&shift_report(), "Cafe Madar", "EGP", &shift_labels(), &[]),
+            &render_shift_report(&shift_report(), "Cafe Madar", "EGP", &shift_labels(), &[], PRINT_WIDTH),
             "/tmp/shift_report.png",
         );
         // Synthetic 4:1 wordmark (border + diagonal) to check logo sizing.
@@ -988,7 +1048,7 @@ mod tests {
             .write_to(&mut png, image::ImageFormat::Png)
             .unwrap();
         save_png(
-            &render_receipt(&receipt(), &ctx(), Some(png.get_ref())),
+            &render_receipt(&receipt(), &ctx(), Some(png.get_ref()), PRINT_WIDTH),
             "/tmp/receipt_logo.png",
         );
     }

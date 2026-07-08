@@ -590,35 +590,58 @@ pub fn star_raster(bmp: &Bitmap) -> Vec<u8> {
     b
 }
 
+/// Max dot-rows per `GS v 0` block. A portable head (e.g. the Xprinter P300) has
+/// a small input buffer and can silently drop a single monolithic raster; shipping
+/// the image in short bands bounds buffer use so each band prints before the next
+/// arrives (the same reason RawBT bands). Desktop heads render banded output
+/// identically, so this is unconditional.
+const RASTER_BAND_ROWS: u32 = 128;
+
 /// Wrap a 1-bit bitmap in **ESC/POS `GS v 0`** raster for an Epson printer (or a
-/// Star unit in ESC/POS emulation). Init, the raster block (`m`=0, `xL xH` =
-/// bytes/row, `yL yH` = rows), then feed + partial cut. Mirrors the Flutter
-/// `_pngToEscPos` epilogue (`ESC d 5`, `GS V 65 5`).
-pub fn escpos_raster(bmp: &Bitmap) -> Vec<u8> {
+/// Star unit in ESC/POS emulation). Init, the raster shipped as one `GS v 0` block
+/// per band of ≤ [`RASTER_BAND_ROWS`] rows (`m`=0, `xL xH` = bytes/row, `yL yH` =
+/// rows in the band), then a feed and — only when the head has a cutter (`cut`) —
+/// a partial cut. Mirrors the Flutter `_pngToEscPos` epilogue (`ESC d 5`,
+/// `GS V 65 5`); a cutterless portable just feeds so the ticket clears the tear bar.
+///
+/// NB: shipping the FULL raster (blank rows included) is deliberate — feeding past
+/// blank runs with `ESC J`/`ESC d` to save bytes was tried and reverted, because
+/// portable heads like the P300 ignore those feeds and collapse the line spacing.
+pub fn escpos_raster(bmp: &Bitmap, cut: bool) -> Vec<u8> {
     let wb = bmp.row_bytes();
-    let rows = bmp.rows as usize;
-    let mut b: Vec<u8> = Vec::with_capacity(bmp.bytes.len() + 20);
+    let mut b: Vec<u8> = Vec::with_capacity(bmp.bytes.len() + 32);
     b.extend_from_slice(&[ESC, b'@']); // ESC @ — initialize
-    b.extend_from_slice(&[
-        GS,
-        b'v',
-        b'0',
-        0x00, // m — normal
-        (wb & 0xFF) as u8,
-        ((wb >> 8) & 0xFF) as u8, // xL xH — bytes per row
-        (rows & 0xFF) as u8,
-        ((rows >> 8) & 0xFF) as u8, // yL yH — number of rows
-    ]);
-    b.extend_from_slice(&bmp.bytes);
+    let mut row = 0u32;
+    while row < bmp.rows {
+        let band = (bmp.rows - row).min(RASTER_BAND_ROWS);
+        let start = row as usize * wb;
+        let end = start + band as usize * wb;
+        b.extend_from_slice(&[
+            GS,
+            b'v',
+            b'0',
+            0x00, // m — normal
+            (wb & 0xFF) as u8,
+            ((wb >> 8) & 0xFF) as u8, // xL xH — bytes per row
+            (band & 0xFF) as u8,
+            ((band >> 8) & 0xFF) as u8, // yL yH — rows in this band
+        ]);
+        b.extend_from_slice(&bmp.bytes[start..end]);
+        row += band;
+    }
     b.extend_from_slice(&[ESC, b'd', 0x05]); // ESC d 5 — feed 5 lines
-    b.extend_from_slice(&[GS, b'V', 0x41, 0x05]); // GS V 65 5 — partial cut with feed
+    if cut {
+        b.extend_from_slice(&[GS, b'V', 0x41, 0x05]); // GS V 65 5 — partial cut with feed
+    }
     b
 }
 
-/// Wrap a rendered bitmap for the chosen brand.
-pub fn raster_for(brand: PrinterBrand, bmp: &Bitmap) -> Vec<u8> {
+/// Wrap a rendered bitmap for the chosen brand. `cut` requests an auto-cut —
+/// honored on cutter-equipped desktop heads (ESC/POS), ignored on the Star path
+/// (always a desktop TSP with a cutter).
+pub fn raster_for(brand: PrinterBrand, bmp: &Bitmap, cut: bool) -> Vec<u8> {
     match brand {
-        PrinterBrand::Epson => escpos_raster(bmp),
+        PrinterBrand::Epson => escpos_raster(bmp, cut),
         PrinterBrand::Star => star_raster(bmp),
     }
 }
@@ -1695,6 +1718,8 @@ mod tests {
 
     #[test]
     fn escpos_raster_frames_bitmap_exactly() {
+        // 2 rows ≤ RASTER_BAND_ROWS → a single GS v 0 band; with a cutter the
+        // tail is ESC d 5 + GS V 65 5 (the historical framing, unchanged).
         #[rustfmt::skip]
         let want: Vec<u8> = vec![
             0x1B, 0x40,                                     // ESC @
@@ -1703,17 +1728,59 @@ mod tests {
             0x1B, 0x64, 0x05,                               // ESC d 5
             0x1D, 0x56, 0x41, 0x05,                         // GS V 65 5
         ];
-        assert_eq!(escpos_raster(&tiny_bitmap()), want);
+        assert_eq!(escpos_raster(&tiny_bitmap(), true), want);
+    }
+
+    #[test]
+    fn escpos_raster_omits_cut_for_cutterless() {
+        // Same single band, but no GS V (0x1D 0x56) when the head has no cutter.
+        let out = escpos_raster(&tiny_bitmap(), false);
+        assert!(
+            out.ends_with(&[0x1B, 0x64, 0x05]),
+            "cutterless tail must end at the feed, got {out:02X?}"
+        );
+        assert!(
+            !out.windows(2).any(|w| w == [0x1D, 0x56]),
+            "cutterless raster must not emit a GS V cut"
+        );
+    }
+
+    #[test]
+    fn escpos_raster_bands_tall_bitmaps() {
+        // A bitmap taller than one band must split into multiple GS v 0 blocks
+        // (130 rows → 128 + 2), each ≤ RASTER_BAND_ROWS, covering every row once.
+        let rows = RASTER_BAND_ROWS + 2;
+        let bmp = Bitmap {
+            width: 8,
+            rows,
+            bytes: vec![0xFF; rows as usize], // 1 byte/row
+        };
+        let out = escpos_raster(&bmp, false);
+        // Count GS v 0 headers and sum their declared row counts (yL yH).
+        let mut headers = 0usize;
+        let mut declared_rows = 0u32;
+        let mut i = 0;
+        while i + 8 <= out.len() {
+            if out[i..i + 4] == [GS, b'v', b'0', 0x00] {
+                headers += 1;
+                declared_rows += out[i + 6] as u32 + ((out[i + 7] as u32) << 8);
+                i += 8 + out[i + 4] as usize * (out[i + 6] as usize + ((out[i + 7] as usize) << 8));
+                continue;
+            }
+            i += 1;
+        }
+        assert_eq!(headers, 2, "130 rows should split into 2 bands");
+        assert_eq!(declared_rows, rows, "every row must be shipped exactly once");
     }
 
     #[test]
     fn raster_for_dispatches_by_brand() {
         let b = tiny_bitmap();
-        assert_eq!(raster_for(PrinterBrand::Star, &b), star_raster(&b));
-        assert_eq!(raster_for(PrinterBrand::Epson, &b), escpos_raster(&b));
+        assert_eq!(raster_for(PrinterBrand::Star, &b, true), star_raster(&b));
+        assert_eq!(raster_for(PrinterBrand::Epson, &b, true), escpos_raster(&b, true));
         assert_ne!(
-            raster_for(PrinterBrand::Star, &b),
-            raster_for(PrinterBrand::Epson, &b)
+            raster_for(PrinterBrand::Star, &b, true),
+            raster_for(PrinterBrand::Epson, &b, true)
         );
     }
 

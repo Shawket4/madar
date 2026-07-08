@@ -1,0 +1,1544 @@
+// Checkout feature — 1:1 Slint port of packages/features/checkout/lib/src/
+// (checkout_drawer.dart, tender_sheet.dart, receipt_sheet.dart,
+// receipt_paper.dart, widgets.dart), themselves ports of TenderScreen.kt.
+// The drawer collects the tender (method / cash with live change / tip /
+// discount / split); ALL money math + session state live in Rust
+// (src/feature_checkout.rs mirrors checkout_provider.dart) — this file only
+// renders state and reports intent through the CheckoutState callbacks.
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Press, Icon, Chip, Tone, Banner, Spinner } from "components.slint";
+import { Icons } from "icons.slint";
+import { SheetFrame } from "sheet.slint";
+import { ToastHost } from "kit.slint";
+
+// ── Native metrics (TenderScreen.kt) that fall between the 4-pt Space steps —
+// kept verbatim so the chrome measures identically (checkout_drawer.dart). ───
+global M {
+    // Sticky-header title size (natives: 19.sp Black).
+    out property <length> header-title-size: 19px;
+    // Sticky-header live total size (natives: 20.sp Black).
+    out property <length> header-total-size: 20px;
+    // Summary sub-row text size (natives: 13.sp).
+    out property <length> row-size: 13px;
+    // Grand-total block amount size (natives: 20.sp Black).
+    out property <length> grand-total-size: 20px;
+    // Amount-due hero amount size (natives: 18.sp Black).
+    out property <length> due-amount-size: 18px;
+    // Split-toggle pill insets (natives: 8×4.dp) and label size (11.sp).
+    out property <length> split-toggle-pad-h: 8px;
+    out property <length> split-toggle-pad-v: 4px;
+    out property <length> pill-label-size: 11px;
+    // Split-allocator method dot (natives: 9.dp) and name cap (96.dp).
+    out property <length> split-dot: 9px;
+    out property <length> split-name-max: 96px;
+    // Tone-banner vertical inset (natives: 10.dp).
+    out property <length> banner-v-pad: 10px;
+    // Change-banner amount size (natives: 15.sp Black).
+    out property <length> change-amount-size: 15px;
+    // Pay chip insets (natives: 12×13.dp).
+    out property <length> pay-chip-pad-h: 12px;
+    out property <length> pay-chip-pad-v: 13px;
+    // Discount chip insets (natives: 14×10.dp) and icon/label gap (5.dp).
+    out property <length> discount-chip-pad-h: 14px;
+    out property <length> discount-chip-pad-v: 10px;
+    out property <length> chip-gap: 5px;
+    // Quick-cash pill insets (natives: 14×7.dp).
+    out property <length> quick-cash-pad-h: 14px;
+    out property <length> quick-cash-pad-v: 7px;
+    // Tip-method pill insets (natives: 11×6.dp).
+    out property <length> tip-pill-pad-h: 11px;
+    out property <length> tip-pill-pad-v: 6px;
+    // Small active-check glyph inside chips (natives: 10.dp).
+    out property <length> chip-check: 10px;
+    // Tip-card heart glyph (natives: 13.dp).
+    out property <length> tip-heart: 13px;
+    // Primary action button height (widgets.dart kActionButtonHeight: 50.dp).
+    out property <length> action-button-height: 50px;
+    // Section-label font size (natives: 12.sp bold uppercase).
+    out property <length> section-label-size: 12px;
+    // Metrics.inputHeight / amountFieldHeight / closeButton (dimens.dart).
+    out property <length> input-height: 48px;
+    out property <length> amount-field-height: 64px;
+    out property <length> close-button: 32px;
+    // "Order placed" headline size (tender_sheet.dart: 22.sp Black).
+    out property <length> placed-title-size: 22px;
+}
+
+// ── Receipt-paper metrics + LITERAL ink-on-paper colors (receipt_paper.dart).
+// Theme-invariant BY DESIGN: a receipt is always white paper with dark ink —
+// the natives hardcode the same palette in both themes. NOT theme roles. ────
+global Paper {
+    out property <color> paper: #FFFFFF;
+    out property <color> ink: #1A1A1A;
+    out property <color> faint: #6B6B6B;
+    out property <color> rule: #CCCCCC;
+    // The voided stamp's red (natives: 0xFFB71C1C).
+    out property <color> void-red: #B71C1C;
+    // Paper card metrics (natives: 360.dp cap, 10.dp corners, 18.dp padding,
+    // 6.dp row gap).
+    out property <length> paper-max-width: 360px;
+    out property <length> paper-radius: 10px;
+    out property <length> paper-pad: 18px;
+    out property <length> paper-gap: 6px;
+    // Org logo box (natives: max 60×220.dp, 6.dp bottom gap).
+    out property <length> logo-max-height: 60px;
+    out property <length> logo-max-width: 220px;
+    // Type sizes on the paper (natives: 15/13/12/11.sp).
+    out property <length> store-size: 15px;
+    out property <length> bold-row-size: 13px;
+    out property <length> row-size: 12px;
+    out property <length> meta-size: 11px;
+}
+
+// ── Data models (Rust maps core views → these) ──────────────────────────────
+
+export struct PayMethodData {
+    id: string,
+    name: string,
+    is-cash: bool,
+    glyph: string,   // backend icon token; PayGlyphs.glyph maps to the catalog
+    brand: color,    // hexColor(method.color) parsed in Rust
+}
+
+export struct SplitRowData {
+    id: string,
+    name: string,
+    brand: color,
+    amount-text: string, // initial field text; edits flow out via split-edited
+}
+
+export struct QuickCashData {
+    label: string,   // Exact label or Money.format(preset)
+    minor: int,
+    active: bool,
+}
+
+export struct DiscountChipData {
+    id: string,      // "" = the No-discount chip
+    label: string,   // "name value%" for percentage, else name (Rust builds)
+    active: bool,
+}
+
+// One flattened receipt-paper row (Rust flattens ReceiptView → these,
+// mirroring receipt_paper.dart's _Mono/_MoneyRow/_Rule sequence exactly).
+export enum PaperRowKind { mono, money, rule }
+
+export struct PaperRowData {
+    kind: PaperRowKind,
+    text: string,        // mono text / money left column
+    right: string,       // money right column ("" hides)
+    size: length,        // mono font size
+    weight: int,         // mono font weight
+    ink: color,          // mono ink (ink / faint / void-red literals)
+    align-start: bool,   // mono TextAlign.start (default center)
+    bold: bool,          // money row: 13px w700 (else 12px w400)
+    faint: bool,         // money row: faint ink
+}
+
+// Print lifecycle of the receipt confirmation (checkout_provider.dart).
+export enum PrintState { idle, printing, printed, failed, no-printer }
+
+// ── payGlyph — backend payment-icon token → catalog glyph (widgets.dart). ───
+export global PayGlyphs {
+    public pure function glyph(icon: string) -> image {
+        if (icon == "money" || icon == "cash" || icon == "banknote") { return Icons.banknote; }
+        if (icon == "credit_card" || icon == "card" || icon == "creditcard" || icon == "visa" || icon == "mastercard" || icon == "debit") { return Icons.creditcard; }
+        if (icon == "wallet" || icon == "ewallet" || icon == "e_wallet") { return Icons.wallet; }
+        if (icon == "pie_chart") { return Icons.chart-pie; }
+        if (icon == "delivery") { return Icons.bicycle; }
+        if (icon == "qr_code" || icon == "qr") { return Icons.qrcode; }
+        if (icon == "bank" || icon == "transfer" || icon == "bank_transfer") { return Icons.bank; }
+        if (icon == "gift_card") { return Icons.gift; }
+        if (icon == "smartphone" || icon == "phone" || icon == "mobile" || icon == "vodafone" || icon == "instapay") { return Icons.iphone; }
+        if (icon == "receipt") { return Icons.receipt; }
+        if (icon == "store") { return Icons.storefront; }
+        if (icon == "star") { return Icons.star; }
+        if (icon == "link") { return Icons.link; }
+        return Icons.banknote;
+    }
+}
+
+// ── CheckoutState — all data/strings in, all intent out. The Rust glue is
+// the checkout_provider.dart port: it owns the session and recomputes every
+// derived field (due / change / canPlace / split remaining) on each intent. ──
+export global CheckoutState {
+    // Drawer config (TenderSheet passes tender strings; a settle flow its own).
+    in property <string> title;
+    in property <string> terminal-label;
+    in property <image> terminal-icon: Icons.checkmark;
+    in property <bool> show-discount-picker: true;
+    in property <bool> show-customer-fields: true;
+
+    // tr strings (core keys, resolved in Rust exactly as the Dart source).
+    in property <string> tr-total;            // order.total
+    in property <string> tr-subtotal;         // order.subtotal
+    in property <string> tr-discount;         // order.discount
+    in property <string> tr-tax;              // order.tax
+    in property <string> tr-payment-method;   // order.payment_method
+    in property <string> tr-split-payment;    // order.split_payment
+    in property <string> tr-split-remaining;  // order.split_remaining
+    in property <string> tr-cash-received;    // order.cash_received
+    in property <string> tr-change-due;       // order.change_due
+    in property <string> tr-short-by;         // order.short_by
+    in property <string> tr-tip;              // order.tip
+    in property <string> tr-customer;         // order.customer
+    in property <string> tr-customer-hint;    // order.customer_hint
+    in property <string> tr-notes-hint;       // order.notes_hint
+    in property <string> tr-order-placed;     // order.order_placed
+    in property <string> tr-status-hint;      // order.queued_hint / order.sent_hint (Rust picks)
+    in property <string> tr-new-order;        // order.new_order
+    in property <string> tr-done;             // order.done
+    in property <string> tr-reprint;          // receipt.reprint
+    in property <string> tr-printed;          // receipt.printed
+    in property <string> tr-no-printer;       // receipt.no_printer
+    in property <string> tr-print-failed;     // receipt.print_failed
+    in property <string> tr-receipt-title;    // receipt.title
+    in property <string> tr-print;            // receipt.print
+    in property <string> tr-settled;          // receipt.settled
+
+    // ── session data (Rust-computed) ────────────────────────────────────────
+    in property <string> currency-code;       // uppercased amount-field prefix
+    in property <string> header-total;        // Money.format(summary.total)
+    in property <string> summary-subtotal;
+    in property <string> summary-discount;    // "−X" ("" hides)
+    in property <string> summary-tax;         // "" hides
+    in property <string> summary-total;
+    in property <[PayMethodData]> methods;
+    in property <string> selected-id;         // effective (cash-first fallback)
+    in property <bool> selected-is-cash;
+    in property <bool> split-mode;
+    in property <[SplitRowData]> split-rows;
+    in property <string> split-remaining-text;
+    in property <bool> split-settled;         // remaining == 0
+    in property <string> due-cash-text;       // Money.format(total + cash tip)
+    in-out property <string> tendered-text;   // Rust prefills on quick-cash only
+    in property <[QuickCashData]> quick-cash; // Exact + presets ≥ due (take 3)
+    in property <bool> show-change;           // tendered > 0
+    in property <bool> change-ok;             // short <= 0
+    in property <string> change-text;         // Money.format(change | short)
+    in-out property <string> tip-text;
+    in property <string> tip-chip;            // Money.format(tip) ("" hides)
+    in property <string> tip-method-id;       // effective (tipMethod ?? selected)
+    in property <[DiscountChipData]> discount-chips; // empty hides the section
+    in property <string> error;               // "" hides
+    in property <bool> placing;
+    in property <bool> can-place;
+    in-out property <string> customer-text;
+    in-out property <string> notes-text;
+
+    // ── confirmation / receipt paper ────────────────────────────────────────
+    in property <bool> has-receipt;
+    in property <bool> queued-offline;
+    in property <PrintState> print-state;
+    in property <[PaperRowData]> paper-rows;
+    in property <image> org-logo;
+    in property <bool> has-logo;
+
+    // ── receipt preview sheet (receipt_sheet.dart) ──────────────────────────
+    in property <bool> preview-printing;
+    in property <bool> celebrate;
+    in property <bool> toast-shown;
+    in property <string> toast-text;
+    in property <Tone> toast-tone;
+    in property <image> toast-icon;
+
+    // ── intent out (Rust wires each to the session notifier port) ───────────
+    callback select-method(string /* id */);
+    callback toggle-split();
+    callback split-edited(string /* id */, string /* text */);
+    callback tendered-edited(string /* text */);
+    callback quick-cash-tap(int /* minor */);
+    callback tip-edited(string /* text */);
+    callback tip-method(string /* id */);
+    callback pick-discount(string /* id, "" = none */);
+    callback fire-terminal(string /* customer */, string /* notes */);
+    callback closed();          // drawer close / sheet dismissed
+    callback reprint();         // confirmation reprint (kickDrawer: false)
+    callback new-order();       // confirmation terminal — pops the sheet
+    callback preview-print();   // receipt sheet print
+    callback preview-done();    // receipt sheet done/close
+    callback toast-dismiss();
+}
+
+// ── Hairline — 1px rule in the theme border color (widgets.dart). ───────────
+component Hairline inherits Rectangle {
+    height: 1px;
+    background: T.border;
+}
+
+// ── SectionLabel — small uppercase muted heading (the natives' SectionLabel
+// in TenderScreen.kt; plain, no accent dot — NOT the kit's SectionHeader). ───
+component SectionLabel inherits Text {
+    text: self.label.to-uppercase();
+    in property <string> label;
+    color: T.text-muted;
+    font-size: M.section-label-size; font-weight: 700;
+    overflow: elide;
+    vertical-alignment: center;
+}
+
+// ── ActionButton — the natives' MadarButton: full-width tactile CTA with an
+// optional leading icon, a loading spinner, and a disabled (45%-alpha) state
+// (widgets.dart). filled = accent terminal action; outline = reprint. ───────
+component ActionButton {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> has-icon: true;
+    in property <bool> action-enabled: true;
+    in property <bool> action-loading: false;
+    in property <bool> outline: false;
+
+    callback tap;
+
+    property <bool> active: action-enabled && !action-loading;
+    property <color> bg: outline ? T.surface : T.accent;
+    property <color> fg: outline ? T.text-primary : T.text-on-accent;
+
+    preferred-height: M.action-button-height;
+    min-height: M.action-button-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: root.active;
+        clicked => { if (root.active) { root.tap(); } }
+        Rectangle {
+            width: parent.width; height: M.action-button-height;
+            border-radius: Rd.sm;
+            // Opacities.disabled = 0.45 on the fill, natives keep fg solid.
+            background: root.active ? root.bg : root.bg.with-alpha(0.45);
+            border-width: root.outline ? 1px : 0;
+            border-color: T.border;
+            HorizontalLayout {
+                alignment: center;
+                spacing: Sp.sm;
+                if root.action-loading: Spinner {
+                    y: (parent.height - self.height) / 2;
+                    diameter: Ic.md;
+                    spin-color: root.fg;
+                }
+                if !root.action-loading && root.has-icon: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: root.icon; tint: root.fg;
+                    width: Ic.lg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    color: root.fg;
+                    font-size: 14px; font-weight: 700;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+}
+
+// ── CheckoutTextField — the natives' MadarTextField: leading icon, muted
+// placeholder, surface-alt fill with a hairline border (widgets.dart). ──────
+component CheckoutTextField {
+    in property <string> placeholder;
+    in property <image> icon;
+    in-out property <string> text <=> input.text;
+
+    preferred-height: M.input-height;
+    min-height: M.input-height;
+
+    Rectangle {
+        width: parent.width; height: M.input-height;
+        background: T.surface-alt;
+        border-radius: Rd.sm;
+        border-width: 1px;
+        border-color: T.border-light;
+        HorizontalLayout {
+            padding-left: Sp.md; padding-right: Sp.md;
+            spacing: Sp.sm;
+            field-icon := Icon {
+                y: (parent.height - self.height) / 2;
+                source: root.icon; tint: T.text-muted;
+                width: Ic.md;
+            }
+            input := TextInput {
+                vertical-alignment: center;
+                single-line: true;
+                color: T.text-primary;
+                font-size: 14px; font-weight: 500;
+            }
+        }
+        if input.text == "": Text {
+            x: Sp.md + Ic.md + Sp.sm;
+            y: (parent.height - self.preferred-height) / 2;
+            text: root.placeholder;
+            color: T.text-muted;
+            font-size: 14px; font-weight: 500;
+        }
+    }
+}
+
+// ── AmountField — the natives' hero amount row: a muted currency prefix,
+// then the big tabular amount at Metrics.amountFieldHeight (widgets.dart).
+// External prefills (quick-cash writing tendered) land via the two-way text;
+// Rust only writes it on quick-cash taps, so typing is never clobbered. ─────
+component AmountField {
+    in property <string> currency-code;
+    in-out property <string> text <=> input.text;
+    callback edited(string);
+
+    preferred-height: M.amount-field-height;
+    min-height: M.amount-field-height;
+
+    Rectangle {
+        width: parent.width; height: M.amount-field-height;
+        background: T.surface;
+        border-radius: Rd.md;
+        border-width: input.has-focus ? 2px : 1px;
+        border-color: input.has-focus ? T.accent : T.border;
+        HorizontalLayout {
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            spacing: Sp.sm;
+            prefix := Text {
+                vertical-alignment: center;
+                text: root.currency-code.to-uppercase();
+                color: T.text-muted;
+                font-size: 15px; font-weight: 700; // MadarType.title w700
+            }
+            input := TextInput {
+                vertical-alignment: center;
+                single-line: true;
+                input-type: InputType.decimal;
+                color: T.text-primary;
+                font-size: 24px; font-weight: 800; // MadarType.moneyLg
+                edited => { root.edited(self.text); }
+            }
+        }
+        if input.text == "": Text {
+            x: Sp.lg + prefix.preferred-width + Sp.sm;
+            y: (parent.height - self.preferred-height) / 2;
+            text: "0.00";
+            color: T.text-muted;
+            font-size: 24px; font-weight: 800;
+        }
+    }
+}
+
+// ── TenderHeader — bold title + the live order total in hero teal + a close
+// affordance. Mirrors the natives' TenderHeader (checkout_drawer.dart). ─────
+component TenderHeader {
+    callback close;
+
+    preferred-height: hrow.preferred-height;
+    min-height: hrow.preferred-height;
+
+    hrow := HorizontalLayout {
+        padding-left: Sp.xl; padding-right: Sp.xl;
+        padding-top: Sp.sm; padding-bottom: Sp.md;
+        spacing: Sp.sm;
+        Text {
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+            text: CheckoutState.title;
+            color: T.text-primary;
+            font-size: M.header-title-size; font-weight: 900;
+            overflow: elide;
+        }
+        Text {
+            vertical-alignment: center;
+            text: CheckoutState.header-total;
+            color: T.accent;
+            font-size: M.header-total-size; font-weight: 900; // MadarType.money w900
+        }
+        Press {
+            width: M.close-button;
+            preferred-height: M.close-button; min-height: M.close-button;
+            clicked => { root.close(); }
+            Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: M.close-button; height: M.close-button;
+                border-radius: self.width / 2;
+                background: T.surface-alt;
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    source: Icons.xmark; tint: T.text-muted;
+                    width: Ic.sm;
+                }
+            }
+        }
+    }
+}
+
+// ── SummaryCard — subtotal/discount/tax in light muted rows, then the grand
+// total in a tinted teal block (bold teal figure). ──────────────────────────
+component SummaryRow {
+    in property <string> label;
+    in property <string> value;
+    in property <color> value-color: T.text-secondary;
+    preferred-height: srow.preferred-height;
+    min-height: srow.preferred-height;
+    srow := HorizontalLayout {
+        Text {
+            horizontal-stretch: 1;
+            text: root.label;
+            color: T.text-secondary;
+            font-size: 13px; font-weight: 500; // MadarType.bodySm w500
+        }
+        Text {
+            text: root.value;
+            color: root.value-color;
+            font-size: M.row-size; font-weight: 600; // tabular via Cairo
+        }
+    }
+}
+
+component SummaryCard inherits Rectangle {
+    background: T.surface;
+    border-radius: Rd.md;
+    border-width: 1px;
+    border-color: T.border-light;
+    drop-shadow-color: T.shadow-card-color;
+    drop-shadow-blur: T.shadow-card-blur;
+    drop-shadow-offset-y: T.shadow-card-dy;
+    preferred-height: col.preferred-height;
+    min-height: col.preferred-height;
+
+    col := VerticalLayout {
+        padding: Sp.lg;
+        spacing: Sp.xs;
+        SummaryRow { label: CheckoutState.tr-subtotal; value: CheckoutState.summary-subtotal; }
+        if CheckoutState.summary-discount != "": SummaryRow {
+            label: CheckoutState.tr-discount;
+            value: CheckoutState.summary-discount;
+            value-color: T.success;
+        }
+        if CheckoutState.summary-tax != "": SummaryRow {
+            label: CheckoutState.tr-tax;
+            value: CheckoutState.summary-tax;
+        }
+        // Grand-total block — tinted teal, the hero figure.
+        VerticalLayout {
+            padding-top: Sp.xs;
+            Rectangle {
+                background: T.accent-bg;
+                border-radius: Rd.md;
+                height: grow.preferred-height;
+                grow := HorizontalLayout {
+                    padding: Sp.md;
+                    Text {
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                        text: CheckoutState.tr-total;
+                        color: T.accent;
+                        font-size: 14px; font-weight: 700; // MadarType.body w700
+                    }
+                    Text {
+                        vertical-alignment: center;
+                        text: CheckoutState.summary-total;
+                        color: T.accent;
+                        font-size: M.grand-total-size; font-weight: 900;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── PayChip — per-method icon (in the method's brand color) + label + check
+// when active; fills with the brand color when selected. ────────────────────
+component PayChip {
+    in property <PayMethodData> method;
+    in property <bool> active;
+    callback tap;
+
+    preferred-height: press-el.preferred-height;
+    min-height: press-el.preferred-height;
+
+    press-el := Press {
+        width: parent.width;
+        clicked => { root.tap(); }
+        Rectangle {
+            width: parent.width;
+            height: prow.preferred-height;
+            background: root.active ? root.method.brand : T.surface;
+            border-radius: Rd.sm;
+            border-width: root.active ? 0 : 1px;
+            border-color: T.border;
+            prow := HorizontalLayout {
+                padding-left: M.pay-chip-pad-h; padding-right: M.pay-chip-pad-h;
+                padding-top: M.pay-chip-pad-v; padding-bottom: M.pay-chip-pad-v;
+                spacing: Sp.sm;
+                Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: PayGlyphs.glyph(root.method.glyph);
+                    tint: root.active ? T.text-on-accent : root.method.brand;
+                    width: Ic.md;
+                }
+                Text {
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    text: root.method.name;
+                    color: root.active ? T.text-on-accent : T.text-primary;
+                    font-size: 13px; font-weight: 600;
+                    overflow: elide;
+                }
+                if root.active: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: Icons.checkmark; tint: T.text-on-accent;
+                    width: Ic.sm;
+                }
+            }
+        }
+    }
+}
+
+// ── QuickCash — a quick-tender amount chip (Exact / round presets). ─────────
+component QuickCash {
+    in property <string> label;
+    in property <bool> active;
+    callback tap;
+
+    preferred-width: press-el.preferred-width;
+    min-width: press-el.preferred-width;
+    preferred-height: press-el.preferred-height;
+    min-height: press-el.preferred-height;
+
+    press-el := Press {
+        clicked => { root.tap(); }
+        Rectangle {
+            width: qrow.preferred-width;
+            height: qrow.preferred-height;
+            background: root.active ? T.accent : T.surface-alt;
+            border-radius: Rd.pill;
+            border-width: root.active ? 0 : 1px;
+            border-color: T.border;
+            qrow := HorizontalLayout {
+                padding-left: M.quick-cash-pad-h; padding-right: M.quick-cash-pad-h;
+                padding-top: M.quick-cash-pad-v; padding-bottom: M.quick-cash-pad-v;
+                Text {
+                    text: root.label;
+                    color: root.active ? T.text-on-accent : T.text-secondary;
+                    font-size: 12px; font-weight: 700; // MadarType.label w700 tabular
+                }
+            }
+        }
+    }
+}
+
+// ── TipMethodPill — which-method-pays-the-tip; brand-filled when active. ────
+component TipMethodPill {
+    in property <PayMethodData> method;
+    in property <bool> active;
+    callback tap;
+
+    preferred-width: press-el.preferred-width;
+    min-width: press-el.preferred-width;
+    preferred-height: press-el.preferred-height;
+    min-height: press-el.preferred-height;
+
+    press-el := Press {
+        clicked => { root.tap(); }
+        Rectangle {
+            width: trow.preferred-width;
+            height: trow.preferred-height;
+            background: root.active ? root.method.brand : T.surface-alt;
+            border-radius: Rd.pill;
+            border-width: root.active ? 0 : 1px;
+            border-color: T.border;
+            trow := HorizontalLayout {
+                padding-left: M.tip-pill-pad-h; padding-right: M.tip-pill-pad-h;
+                padding-top: M.tip-pill-pad-v; padding-bottom: M.tip-pill-pad-v;
+                spacing: Sp.xs;
+                if root.active: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: Icons.checkmark; tint: T.text-on-accent;
+                    width: M.chip-check;
+                }
+                Text {
+                    text: root.method.name;
+                    color: root.active ? T.text-on-accent : T.text-secondary;
+                    font-size: M.pill-label-size; font-weight: 600; // labelSm
+                }
+            }
+        }
+    }
+}
+
+// ── DiscountChip — content-width pill with a leading check when active. ─────
+component DiscountChip {
+    in property <string> label;
+    in property <bool> active;
+    callback tap;
+
+    preferred-width: press-el.preferred-width;
+    min-width: press-el.preferred-width;
+    preferred-height: press-el.preferred-height;
+    min-height: press-el.preferred-height;
+
+    press-el := Press {
+        clicked => { root.tap(); }
+        Rectangle {
+            width: drow.preferred-width;
+            height: drow.preferred-height;
+            background: root.active ? T.accent : T.surface-alt;
+            border-radius: Rd.sm;
+            border-width: root.active ? 0 : 1px;
+            border-color: T.border;
+            drow := HorizontalLayout {
+                padding-left: M.discount-chip-pad-h; padding-right: M.discount-chip-pad-h;
+                padding-top: M.discount-chip-pad-v; padding-bottom: M.discount-chip-pad-v;
+                spacing: M.chip-gap;
+                if root.active: Icon {
+                    y: (parent.height - self.height) / 2;
+                    source: Icons.checkmark; tint: T.text-on-accent;
+                    width: M.chip-check;
+                }
+                Text {
+                    text: root.label;
+                    color: root.active ? T.text-on-accent : T.text-primary;
+                    font-size: 13px; font-weight: 600; // bodySm w600
+                }
+            }
+        }
+    }
+}
+
+// ── ChangeBanner — green "Change due" / red "Short by" under the cash field:
+// a leading tone icon + the hero change figure. ──────────────────────────────
+component ChangeBanner inherits Rectangle {
+    property <bool> ok: CheckoutState.change-ok;
+    property <color> fg: ok ? T.success : T.danger;
+
+    background: ok ? T.success-bg : T.danger-bg;
+    border-radius: Rd.sm;
+    preferred-height: crow.preferred-height;
+    min-height: crow.preferred-height;
+
+    crow := HorizontalLayout {
+        padding-left: Sp.md; padding-right: Sp.md;
+        padding-top: M.banner-v-pad; padding-bottom: M.banner-v-pad;
+        spacing: Sp.sm;
+        Icon {
+            y: (parent.height - self.height) / 2;
+            source: root.ok ? Icons.checkmark-circle-fill : Icons.exclamationmark-triangle-fill;
+            tint: root.fg;
+            width: Ic.lg;
+        }
+        Text {
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+            text: root.ok ? CheckoutState.tr-change-due : CheckoutState.tr-short-by;
+            color: root.fg;
+            font-size: 13px; font-weight: 600;
+        }
+        Text {
+            vertical-alignment: center;
+            text: CheckoutState.change-text;
+            color: root.fg;
+            font-size: M.change-amount-size; font-weight: 900;
+        }
+    }
+}
+
+// ── The ONE real checkout drawer (checkout_drawer.dart CheckoutDrawer):
+// sticky header · scrolling sections · sticky terminal footer. ──────────────
+export component CheckoutDrawer {
+    callback close;
+
+    VerticalLayout {
+        // Sticky header — pins outside the scroll like the natives' sheet.
+        TenderHeader { close => { root.close(); } }
+        Hairline { }
+        Flickable {
+            vertical-stretch: 1;
+            viewport-height: body.preferred-height;
+            body := VerticalLayout {
+                padding-left: Sp.xl; padding-right: Sp.xl;
+                padding-top: Sp.lg; padding-bottom: Sp.lg;
+                spacing: Sp.lg;
+
+                // Caller-supplied header block (e.g. a settle line-item
+                // review) — sits above the summary so the teller sees WHAT
+                // they're charging first. (@children can't be gated by `if`.)
+                @children
+
+                // Order summary card.
+                SummaryCard { }
+
+                // Payment — section label + split toggle, then either the
+                // brand-color method grid or the split allocator.
+                VerticalLayout {
+                    spacing: Sp.sm;
+                    HorizontalLayout {
+                        SectionLabel {
+                            horizontal-stretch: 1;
+                            label: CheckoutState.tr-payment-method;
+                        }
+                        if CheckoutState.methods.length > 1: split-toggle := Press {
+                            preferred-width: sp-row.preferred-width;
+                            preferred-height: sp-row.preferred-height;
+                            min-height: sp-row.preferred-height;
+                            clicked => { CheckoutState.toggle-split(); }
+                            Rectangle {
+                                width: sp-row.preferred-width;
+                                height: sp-row.preferred-height;
+                                background: CheckoutState.split-mode ? T.accent-bg : T.surface-alt;
+                                border-radius: Rd.pill;
+                                sp-row := HorizontalLayout {
+                                    padding-left: M.split-toggle-pad-h; padding-right: M.split-toggle-pad-h;
+                                    padding-top: M.split-toggle-pad-v; padding-bottom: M.split-toggle-pad-v;
+                                    spacing: Sp.xs;
+                                    Icon {
+                                        y: (parent.height - self.height) / 2;
+                                        source: CheckoutState.split-mode
+                                            ? Icons.checkmark-circle-fill
+                                            : Icons.rectangle-split-2x1;
+                                        tint: CheckoutState.split-mode ? T.accent : T.text-muted;
+                                        width: Ic.md;
+                                    }
+                                    Text {
+                                        vertical-alignment: center;
+                                        text: CheckoutState.tr-split-payment;
+                                        color: CheckoutState.split-mode ? T.accent : T.text-muted;
+                                        font-size: M.pill-label-size; font-weight: 600;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Split allocator — per-method amount entry + a live
+                    // remaining indicator (must reach 0).
+                    if CheckoutState.split-mode: VerticalLayout {
+                        spacing: Sp.sm;
+                        for row in CheckoutState.split-rows: HorizontalLayout {
+                            spacing: Sp.sm;
+                            Rectangle {
+                                y: (parent.height - M.split-dot) / 2;
+                                width: M.split-dot; height: M.split-dot;
+                                border-radius: M.split-dot / 2;
+                                background: row.brand;
+                            }
+                            split-name := Text {
+                                vertical-alignment: center;
+                                width: Math.min(self.preferred-width, M.split-name-max);
+                                text: row.name;
+                                color: T.text-primary;
+                                font-size: 13px; font-weight: 600;
+                                overflow: elide;
+                            }
+                            AmountField {
+                                horizontal-stretch: 1;
+                                currency-code: CheckoutState.currency-code;
+                                text: row.amount-text;
+                                edited(t) => { CheckoutState.split-edited(row.id, t); }
+                            }
+                        }
+                        Rectangle {
+                            background: CheckoutState.split-settled ? T.success-bg : T.warning-bg;
+                            border-radius: Rd.sm;
+                            height: rem-row.preferred-height;
+                            rem-row := HorizontalLayout {
+                                padding-left: Sp.md; padding-right: Sp.md;
+                                padding-top: M.banner-v-pad; padding-bottom: M.banner-v-pad;
+                                Text {
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                    text: CheckoutState.tr-split-remaining;
+                                    color: T.text-secondary;
+                                    font-size: 12px; font-weight: 500; // label w500
+                                }
+                                Text {
+                                    vertical-alignment: center;
+                                    text: CheckoutState.split-remaining-text;
+                                    color: CheckoutState.split-settled ? T.success : T.danger;
+                                    font-size: M.row-size; font-weight: 700; // money @13
+                                }
+                            }
+                        }
+                    }
+
+                    // Two-column method grid (rows of 2, Space.sm gaps).
+                    if !CheckoutState.split-mode: VerticalLayout {
+                        spacing: Sp.sm;
+                        for r in Math.ceil(CheckoutState.methods.length / 2): HorizontalLayout {
+                            spacing: Sp.sm;
+                            PayChip {
+                                horizontal-stretch: 1;
+                                method: CheckoutState.methods[r * 2];
+                                active: CheckoutState.methods[r * 2].id == CheckoutState.selected-id;
+                                tap => { CheckoutState.select-method(CheckoutState.methods[r * 2].id); }
+                            }
+                            if r * 2 + 1 < CheckoutState.methods.length: PayChip {
+                                horizontal-stretch: 1;
+                                method: CheckoutState.methods[r * 2 + 1];
+                                active: CheckoutState.methods[r * 2 + 1].id == CheckoutState.selected-id;
+                                tap => { CheckoutState.select-method(CheckoutState.methods[r * 2 + 1].id); }
+                            }
+                            // Odd count: an empty stretch cell keeps the pair grid.
+                            if r * 2 + 1 >= CheckoutState.methods.length: Rectangle {
+                                horizontal-stretch: 1;
+                            }
+                        }
+                    }
+                }
+
+                // Cash tendered (cash, non-split) — tinted teal amount-due
+                // hero block, the cash field, round presets, live change.
+                if CheckoutState.selected-is-cash && !CheckoutState.split-mode: VerticalLayout {
+                    spacing: Sp.sm;
+                    SectionLabel { label: CheckoutState.tr-cash-received; }
+                    Rectangle {
+                        background: T.accent-bg;
+                        border-radius: Rd.md;
+                        height: due-row.preferred-height;
+                        due-row := HorizontalLayout {
+                            padding: Sp.md;
+                            Text {
+                                horizontal-stretch: 1;
+                                vertical-alignment: center;
+                                text: CheckoutState.tr-total;
+                                color: T.accent;
+                                font-size: 13px; font-weight: 700; // bodySm w700
+                            }
+                            Text {
+                                vertical-alignment: center;
+                                text: CheckoutState.due-cash-text;
+                                color: T.accent;
+                                font-size: M.due-amount-size; font-weight: 900;
+                            }
+                        }
+                    }
+                    AmountField {
+                        currency-code: CheckoutState.currency-code;
+                        text <=> CheckoutState.tendered-text;
+                        edited(t) => { CheckoutState.tendered-edited(t); }
+                    }
+                    // Round-number presets at or above the amount due
+                    // (Exact + take(3) of 50/100/200/500 major).
+                    HorizontalLayout {
+                        alignment: start;
+                        spacing: Sp.sm;
+                        for qc in CheckoutState.quick-cash: QuickCash {
+                            label: qc.label;
+                            active: qc.active;
+                            tap => { CheckoutState.quick-cash-tap(qc.minor); }
+                        }
+                    }
+                    if CheckoutState.show-change: ChangeBanner { }
+                }
+
+                // Tip card — optional, with which method pays the tip.
+                Rectangle {
+                    background: T.surface;
+                    border-radius: Rd.md;
+                    border-width: 1px;
+                    border-color: T.border-light;
+                    drop-shadow-color: T.shadow-card-color;
+                    drop-shadow-blur: T.shadow-card-blur;
+                    drop-shadow-offset-y: T.shadow-card-dy;
+                    height: tip-col.preferred-height;
+                    tip-col := VerticalLayout {
+                        padding: Sp.lg;
+                        spacing: Sp.sm;
+                        HorizontalLayout {
+                            spacing: Sp.xs + 2px;
+                            Icon {
+                                y: (parent.height - self.height) / 2;
+                                source: Icons.heart-circle; tint: T.text-muted;
+                                width: M.tip-heart;
+                            }
+                            SectionLabel {
+                                horizontal-stretch: 1;
+                                label: CheckoutState.tr-tip;
+                            }
+                            if CheckoutState.tip-chip != "": Chip {
+                                label: CheckoutState.tip-chip;
+                                tone: Tone.success;
+                                has-icon: true;
+                                icon: Icons.plus;
+                            }
+                        }
+                        if CheckoutState.methods.length > 1: HorizontalLayout {
+                            alignment: start;
+                            spacing: Sp.xs + 2px;
+                            for m in CheckoutState.methods: TipMethodPill {
+                                method: m;
+                                active: CheckoutState.tip-method-id == m.id;
+                                tap => { CheckoutState.tip-method(m.id); }
+                            }
+                        }
+                        AmountField {
+                            currency-code: CheckoutState.currency-code;
+                            text <=> CheckoutState.tip-text;
+                            edited(t) => { CheckoutState.tip-edited(t); }
+                        }
+                    }
+                }
+
+                // Discount (cart only — a ticket's is frozen at fire time).
+                // Rust builds the chips (No discount first) and hides the
+                // whole section by sending an empty list when none are active.
+                if CheckoutState.show-discount-picker && CheckoutState.discount-chips.length > 0: VerticalLayout {
+                    spacing: Sp.sm;
+                    SectionLabel { label: CheckoutState.tr-discount; }
+                    HorizontalLayout {
+                        alignment: start;
+                        spacing: Sp.sm;
+                        for d in CheckoutState.discount-chips: DiscountChip {
+                            label: d.label;
+                            active: d.active;
+                            tap => { CheckoutState.pick-discount(d.id); }
+                        }
+                    }
+                }
+
+                // Customer + notes (cart only).
+                if CheckoutState.show-customer-fields: VerticalLayout {
+                    spacing: Sp.sm;
+                    SectionLabel { label: CheckoutState.tr-customer; }
+                    CheckoutTextField {
+                        placeholder: CheckoutState.tr-customer-hint;
+                        icon: Icons.person;
+                        text <=> CheckoutState.customer-text;
+                    }
+                    CheckoutTextField {
+                        placeholder: CheckoutState.tr-notes-hint;
+                        icon: Icons.text-bubble;
+                        text <=> CheckoutState.notes-text;
+                    }
+                }
+
+                if CheckoutState.error != "": Banner {
+                    text: CheckoutState.error;
+                    tone: Tone.danger;
+                    has-icon: true;
+                    icon: Icons.exclamationmark-circle;
+                }
+            }
+        }
+        // Sticky footer — the terminal action (Place Order / Settle).
+        Rectangle {
+            background: T.surface;
+            height: foot.preferred-height;
+            foot := VerticalLayout {
+                Hairline { }
+                VerticalLayout {
+                    padding: Sp.lg;
+                    ActionButton {
+                        label: CheckoutState.terminal-label;
+                        icon: CheckoutState.terminal-icon;
+                        action-loading: CheckoutState.placing;
+                        action-enabled: CheckoutState.can-place;
+                        tap => {
+                            CheckoutState.fire-terminal(
+                                CheckoutState.customer-text,
+                                CheckoutState.notes-text);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── ReceiptPaper — the on-screen "thermal paper" preview (receipt_paper.dart)
+// rendered from the Rust-flattened row model. Fixed ink-on-paper palette. ────
+export component ReceiptPaper inherits Rectangle {
+    preferred-width: Paper.paper-max-width;
+    background: Paper.paper;
+    border-radius: Paper.paper-radius;
+    border-width: 1px;
+    border-color: Paper.rule;
+    preferred-height: pcol.preferred-height;
+    min-height: pcol.preferred-height;
+
+    pcol := VerticalLayout {
+        padding: Paper.paper-pad;
+        spacing: Paper.paper-gap;
+
+        // Org brand mark at the top of the paper — the CORE-cached local
+        // file; nothing draws on failure, so an offline reprint just shows
+        // the store name. Extra 6dp bottom gap under the logo (the natives').
+        if CheckoutState.has-logo: VerticalLayout {
+            padding-bottom: Paper.paper-gap;
+            HorizontalLayout {
+                alignment: center;
+                Image {
+                    source: CheckoutState.org-logo;
+                    image-fit: contain;
+                    width: Math.min(Paper.logo-max-width,
+                        self.source.width * 1px * Paper.logo-max-height / Math.max(1px, self.source.height * 1px));
+                    height: Paper.logo-max-height;
+                }
+            }
+        }
+
+        for row in CheckoutState.paper-rows: Rectangle {
+            preferred-height: row.kind == PaperRowKind.rule
+                ? 3px // 1px rule + 1px vertical padding each side
+                : (row.kind == PaperRowKind.mono ? mono-t.preferred-height : money-r.preferred-height);
+            min-height: self.preferred-height;
+
+            // A hairline paper rule.
+            if row.kind == PaperRowKind.rule: Rectangle {
+                y: 1px;
+                width: parent.width;
+                height: 1px;
+                background: Paper.rule;
+            }
+
+            // Centered ink text in the paper's mono-feel scale.
+            mono-t := Text {
+                visible: row.kind == PaperRowKind.mono;
+                width: parent.width;
+                text: row.kind == PaperRowKind.mono ? row.text : "";
+                color: row.ink;
+                font-size: row.size;
+                font-weight: row.weight;
+                wrap: word-wrap;
+                horizontal-alignment: row.align-start
+                    ? (T.rtl ? right : left)
+                    : center;
+            }
+
+            // Left-label / right-amount row — LTR digits, tabular column.
+            money-r := HorizontalLayout {
+                visible: row.kind == PaperRowKind.money;
+                width: parent.width;
+                Text {
+                    horizontal-stretch: 1;
+                    text: row.kind == PaperRowKind.money ? row.text : "";
+                    color: row.faint ? Paper.faint : Paper.ink;
+                    font-size: row.bold ? Paper.bold-row-size : Paper.row-size;
+                    font-weight: row.bold ? 700 : 400;
+                    wrap: word-wrap;
+                }
+                if row.right != "": Text {
+                    text: row.right;
+                    color: row.faint ? Paper.faint : Paper.ink;
+                    font-size: row.bold ? Paper.bold-row-size : Paper.row-size;
+                    font-weight: row.bold ? 700 : 400;
+                }
+            }
+        }
+    }
+}
+
+// ── SettleMark — the checkout celebration (playful.dart, ~1.3s one-shot):
+// track ring fades in, the disc floods teal with a spring, the white check
+// strikes in, and the optional label chip rises last. Plays once on mount.
+// (Ring-draw arc, burst ring and the 8 sparks need arc/canvas primitives
+// Slint lacks — approximated by the disc spring; flagged in NOTES.) ─────────
+export component SettleMark {
+    in property <length> mark-size: 116px;
+    in property <string> label; // "" = no chip
+
+    property <bool> play: false;
+    init => { root.play = true; }
+    // Timeline fractions of the 1300ms prototype, as delays + durations.
+    property <float> track-t: play ? 1.0 : 0.0;
+    animate track-t { duration: 150ms; easing: ease-out; }
+    property <float> disc-t: play ? 1.0 : 0.0;
+    animate disc-t { delay: 520ms; duration: 450ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+    property <float> check-t: play ? 1.0 : 0.0;
+    animate check-t { delay: 620ms; duration: 280ms; easing: cubic-bezier(0.2, 0.8, 0.3, 1); }
+    property <float> chip-t: play ? 1.0 : 0.0;
+    animate chip-t { delay: 880ms; duration: 400ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+    property <length> u: mark-size / 120;
+
+    preferred-width: mark-size;
+    preferred-height: mark-size + (label == "" ? 0px : mark-size * 0.1 + 28px);
+    min-height: self.preferred-height;
+
+    VerticalLayout {
+        alignment: start;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: root.mark-size; height: root.mark-size;
+                // Track ring (context for the draw) — accentBg stroke 5u.
+                Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: 92 * root.u; height: self.width; // r = 46u
+                    border-radius: self.width / 2;
+                    border-width: 5 * root.u;
+                    border-color: T.accent-bg;
+                    opacity: root.track-t;
+                }
+                // Disc floods teal on the impact frame (spring overshoot).
+                Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: 92 * root.u; height: self.width;
+                    border-radius: self.width / 2;
+                    background: T.accent;
+                    transform-scale-x: root.disc-t;
+                    transform-scale-y: root.disc-t;
+                }
+                // The check strikes in — white on the flooded disc.
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    source: Icons.checkmark;
+                    tint: T.text-on-accent;
+                    width: 44 * root.u;
+                    transform-scale-x: root.check-t;
+                    transform-scale-y: root.check-t;
+                }
+            }
+        }
+        if root.label != "": VerticalLayout {
+            padding-top: root.mark-size * 0.1;
+            HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    opacity: root.chip-t;
+                    y: 8px * (1 - root.chip-t); // rises 8px as it fades in
+                    width: chip-row.preferred-width;
+                    height: chip-row.preferred-height;
+                    background: T.accent-bg;
+                    border-radius: Rd.pill;
+                    chip-row := HorizontalLayout {
+                        padding-left: 14px; padding-right: 14px;
+                        padding-top: 5px; padding-bottom: 5px;
+                        Text {
+                            text: root.label;
+                            color: T.accent;
+                            font-size: 13px; font-weight: 600;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── QueuedMark — the queued-offline confirmation: the amber clock, alive.
+// The disc springs in once, then the clock LOOPS (4s) — minute hand sweeps,
+// hour hand creeps, a soft halo breathes (playful.dart QueuedMark). ─────────
+export component QueuedMark {
+    in property <length> mark-size: 88px;
+
+    property <bool> play: false;
+    init => { root.play = true; }
+    property <float> enter: play ? 1.0 : 0.0;
+    animate enter { duration: 550ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+    property <length> u: mark-size / 120;
+    // 4s loop, 0..1 (the natives' _loop controller).
+    property <float> loop: Math.mod(animation-tick() / 1ms, 4000) / 4000;
+    property <float> wave: 0.5 + 0.5 * Math.sin(loop * 360deg);
+
+    preferred-width: mark-size;
+    preferred-height: mark-size;
+    min-height: mark-size;
+
+    Rectangle {
+        width: root.mark-size; height: root.mark-size;
+        // Breathing halo (the "waiting" pulse).
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: (104 + 8 * root.wave) * root.u * root.enter;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: T.warning.with-alpha(0.10 + 0.05 * root.wave);
+        }
+        // The amber disc springing in with the face ring riding its edge.
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 92 * root.u; height: self.width;
+            border-radius: self.width / 2;
+            background: T.warning-bg;
+            border-width: 4 * root.u;
+            border-color: T.warning;
+            transform-scale-x: root.enter;
+            transform-scale-y: root.enter;
+        }
+        // Minute hand — sweeps a revolution per loop.
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: root.mark-size; height: root.mark-size;
+            transform-rotation: root.loop * 360deg;
+            Rectangle {
+                x: (parent.width - self.width) / 2;
+                y: parent.height / 2 - 30 * root.u;
+                width: 5 * root.u; height: 30 * root.u;
+                border-radius: self.width / 2;
+                background: T.warning;
+            }
+        }
+        // Hour hand — creeps (a 12th of the minute rate, 0.72 turns offset).
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: root.mark-size; height: root.mark-size;
+            transform-rotation: (root.loop / 12 + 0.72) * 360deg;
+            Rectangle {
+                x: (parent.width - self.width) / 2;
+                y: parent.height / 2 - 19 * root.u;
+                width: 6 * root.u; height: 19 * root.u;
+                border-radius: self.width / 2;
+                background: T.warning;
+            }
+        }
+        // Center pivot dot.
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 9 * root.u; height: 9 * root.u;
+            border-radius: self.width / 2;
+            background: T.warning;
+        }
+    }
+}
+
+// ── ReceiptConfirmation — post-checkout: fixed status header · scrolling
+// receipt · pinned footer (tender_sheet.dart _ReceiptConfirmation). ─────────
+export component ReceiptConfirmation {
+    callback done;
+
+    VerticalLayout {
+        // ── Fixed status header ──
+        VerticalLayout {
+            padding-left: Sp.xl; padding-right: Sp.xl;
+            padding-top: Sp.lg; padding-bottom: Sp.lg;
+            spacing: Sp.sm;
+            // Settle celebration one-shot; a queued-offline sale gets the
+            // LOOPING amber clock instead — done, but "waiting to sync".
+            if CheckoutState.queued-offline: HorizontalLayout {
+                alignment: center;
+                QueuedMark { mark-size: 88px; }
+            }
+            if !CheckoutState.queued-offline: HorizontalLayout {
+                alignment: center;
+                SettleMark { mark-size: 88px; }
+            }
+            Text {
+                horizontal-alignment: center;
+                text: CheckoutState.tr-order-placed;
+                color: T.text-primary;
+                font-size: M.placed-title-size; font-weight: 900;
+            }
+            HorizontalLayout {
+                alignment: center;
+                Chip {
+                    label: CheckoutState.tr-status-hint;
+                    tone: CheckoutState.queued-offline ? Tone.warning : Tone.success;
+                    has-icon: true;
+                    icon: CheckoutState.queued-offline ? Icons.clock : Icons.checkmark-circle;
+                }
+            }
+        }
+        // ── Scrolling receipt (only the paper scrolls) ──
+        conf-flick := Flickable {
+            vertical-stretch: 1;
+            viewport-height: paper-wrap.preferred-height;
+            paper-wrap := VerticalLayout {
+                padding-left: Sp.xl; padding-right: Sp.xl;
+                HorizontalLayout {
+                    alignment: center;
+                    ReceiptPaper {
+                        width: Math.min(Paper.paper-max-width, conf-flick.width - 2 * Sp.xl);
+                    }
+                }
+            }
+        }
+        // ── Pinned footer (surface + top hairline): print status + actions ──
+        Rectangle {
+            background: T.surface;
+            height: cfoot.preferred-height;
+            cfoot := VerticalLayout {
+                Hairline { }
+                VerticalLayout {
+                    padding: Sp.lg;
+                    spacing: Sp.sm;
+                    if CheckoutState.print-state == PrintState.printed: HorizontalLayout {
+                        alignment: start;
+                        Chip {
+                            label: CheckoutState.tr-printed;
+                            tone: Tone.success;
+                            has-icon: true;
+                            icon: Icons.checkmark-circle;
+                        }
+                    }
+                    if CheckoutState.print-state == PrintState.no-printer: HorizontalLayout {
+                        alignment: start;
+                        Chip {
+                            label: CheckoutState.tr-no-printer;
+                            tone: Tone.warning;
+                            has-icon: true;
+                            icon: Icons.exclamationmark-triangle;
+                        }
+                    }
+                    if CheckoutState.print-state == PrintState.failed: HorizontalLayout {
+                        alignment: start;
+                        Chip {
+                            label: CheckoutState.tr-print-failed;
+                            tone: Tone.danger;
+                            has-icon: true;
+                            icon: Icons.exclamationmark-triangle;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: Sp.sm;
+                        ActionButton {
+                            horizontal-stretch: 1;
+                            label: CheckoutState.tr-reprint;
+                            icon: Icons.printer;
+                            outline: true;
+                            action-loading: CheckoutState.print-state == PrintState.printing;
+                            tap => { CheckoutState.reprint(); }
+                        }
+                        ActionButton {
+                            horizontal-stretch: 1;
+                            label: CheckoutState.tr-new-order;
+                            icon: Icons.plus;
+                            tap => { root.done(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── TenderSheet — THE checkout drawer in a large sheet; flips to the receipt
+// confirmation when the order settles (tender_sheet.dart). The host flips
+// `open`; Rust starts the cart session as it opens. ──────────────────────────
+export component TenderSheet {
+    in-out property <bool> open <=> frame.open;
+
+    frame := SheetFrame {
+        width: 100%; height: 100%;
+        height-fraction: 0.94; // SheetSize.large
+        dismissed => { CheckoutState.closed(); }
+
+        if !CheckoutState.has-receipt: CheckoutDrawer {
+            width: parent.width; height: parent.height;
+            close => {
+                frame.open = false;
+                CheckoutState.closed();
+            }
+        }
+        if CheckoutState.has-receipt: ReceiptConfirmation {
+            width: parent.width; height: parent.height;
+            done => {
+                frame.open = false;
+                CheckoutState.new-order();
+            }
+        }
+    }
+}
+
+// ── ReceiptSheet — preview of any order's receipt with Print + Done actions
+// (receipt_sheet.dart). `celebrate` plays the one-shot SettleMark above the
+// paper for just-completed payments; never reprints. ─────────────────────────
+export component ReceiptSheet {
+    in-out property <bool> open <=> frame.open;
+
+    frame := SheetFrame {
+        width: 100%; height: 100%;
+        height-fraction: 0.88;
+
+        VerticalLayout {
+            width: parent.width; height: parent.height;
+            // Sticky header — title + close (natives' preview header).
+            HorizontalLayout {
+                padding-left: Sp.lg; padding-right: Sp.lg;
+                padding-top: Sp.md; padding-bottom: Sp.md;
+                Text {
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    text: CheckoutState.tr-receipt-title;
+                    color: T.text-primary;
+                    font-size: 17px; font-weight: 900; // h3 w900
+                }
+                Press {
+                    width: M.close-button;
+                    preferred-height: M.close-button; min-height: M.close-button;
+                    clicked => {
+                        frame.open = false;
+                        CheckoutState.preview-done();
+                    }
+                    Rectangle {
+                        y: (parent.height - self.height) / 2;
+                        width: M.close-button; height: M.close-button;
+                        border-radius: self.width / 2;
+                        background: T.surface-alt;
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            source: Icons.xmark; tint: T.text-muted;
+                            width: Ic.sm;
+                        }
+                    }
+                }
+            }
+            Hairline { }
+            // Scrolling paper — centered like the natives' preview.
+            prev-flick := Flickable {
+                vertical-stretch: 1;
+                viewport-height: preview-col.preferred-height;
+                preview-col := VerticalLayout {
+                    padding: Sp.lg;
+                    // One-shot settle celebration — just-paid presentations
+                    // only (plays once on mount).
+                    if CheckoutState.celebrate: VerticalLayout {
+                        padding-bottom: Sp.lg;
+                        HorizontalLayout {
+                            alignment: center;
+                            SettleMark { label: CheckoutState.tr-settled; }
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        ReceiptPaper {
+                            width: Math.min(Paper.paper-max-width, prev-flick.width - 2 * Sp.lg);
+                        }
+                    }
+                }
+            }
+            // Pinned actions — Print + Done.
+            Rectangle {
+                background: T.surface;
+                height: pfoot.preferred-height;
+                pfoot := VerticalLayout {
+                    Hairline { }
+                    HorizontalLayout {
+                        padding: Sp.lg;
+                        spacing: Sp.sm;
+                        ActionButton {
+                            horizontal-stretch: 1;
+                            label: CheckoutState.tr-print;
+                            icon: Icons.printer;
+                            outline: true;
+                            action-loading: CheckoutState.preview-printing;
+                            tap => { CheckoutState.preview-print(); }
+                        }
+                        ActionButton {
+                            horizontal-stretch: 1;
+                            label: CheckoutState.tr-done;
+                            icon: Icons.checkmark;
+                            tap => {
+                                frame.open = false;
+                                CheckoutState.preview-done();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Local toast layer — print feedback presents inside the sheet.
+        ToastHost {
+            width: parent.width; height: parent.height;
+            shown: CheckoutState.toast-shown;
+            text: CheckoutState.toast-text;
+            tone: CheckoutState.toast-tone;
+            has-icon: true;
+            icon: CheckoutState.toast-icon;
+        }
+    }
+}

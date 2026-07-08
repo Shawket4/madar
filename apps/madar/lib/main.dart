@@ -22,11 +22,7 @@ void main() {
   final size = view == null
       ? Size.zero
       : view.physicalSize / view.devicePixelRatio;
-  OrientationController.instance.setDeviceClass(
-    isTablet:
-        size.shortestSide == 0 ||
-        size.shortestSide >= OrientationController.tabletShortestSide,
-  );
+  OrientationController.instance.setDeviceClass(size: size);
   runApp(const ProviderScope(child: MadarApp()));
 }
 

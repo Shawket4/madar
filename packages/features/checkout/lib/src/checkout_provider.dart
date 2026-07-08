@@ -7,10 +7,6 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// Thermal receipt width in characters — the natives' `32u` raster width.
 const int kReceiptChars = 32;
 
-/// Default JetDirect (raw-TCP) printer port, used when the device config
-/// carries no explicit port (the natives' `parsePrinter` fallback).
-const int kJetDirectPort = 9100;
-
 /// Print lifecycle of the receipt confirmation — the natives' `PrintState`.
 enum PrintState { idle, printing, printed, failed, noPrinter }
 
@@ -339,14 +335,14 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final bridge = _bridge;
     final r = state.receipt;
     if (r == null) return;
-    final config = bridge.deviceConfig();
-    final host = config.printerHost?.trim() ?? '';
-    if (host.isEmpty) {
+    // Resolve the device's transport (Bluetooth or raw-TCP) up front; null
+    // means no printer is bound yet.
+    final tx = ref.read(printerServiceProvider).activeTransport();
+    if (tx == null) {
       _update((s) => s.copyWith(printState: PrintState.noPrinter));
       return;
     }
-    final port = config.printerPort ?? kJetDirectPort;
-    final brand = printerBrandOf(config.printerBrand);
+    final brand = printerBrandOf(bridge.deviceConfig().printerBrand);
     _update((s) => s.copyWith(printState: PrintState.printing));
     try {
       final bytes = await bridge.renderReceipt(
@@ -356,13 +352,16 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         width: kReceiptChars,
         brand: brand,
       );
-      await bridge.sendToPrinter(host: host, port: port, bytes: bytes);
+      await tx.send(bytes);
       if (kickDrawer && r.isCash) {
-        await _quiet(() async {
+        // Best-effort — a drawer that fails to open must not mark the receipt
+        // (already printed) as failed, whatever the transport throws.
+        try {
           final kick = await bridge.cashDrawerKick(brand: brand);
-          await bridge.sendToPrinter(host: host, port: port, bytes: kick);
-          return true;
-        });
+          await tx.send(kick);
+        } on Exception {
+          // ignored: the receipt printed; the kick is a bonus.
+        }
       }
       _update((s) => s.copyWith(printState: PrintState.printed));
     } on Exception {

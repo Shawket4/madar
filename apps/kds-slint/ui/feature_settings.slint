@@ -1,0 +1,1108 @@
+// Settings + Sync center — pixel/behavior ports of the Flutter
+// feature_settings package (settings_screen.dart + sync_screen.dart, which
+// are themselves ports of the Kotlin SettingsScreen.kt / SyncScreen.kt):
+// account card, appearance + language (provider-owned prefs), printer
+// (host:port + brand + test print), till/station binding, LAN relay,
+// device reconfigure, diagnostics (versions, server, pending, realtime,
+// recent warnings), sign-out — and the durable-outbox inspector (queued /
+// in-flight / failed rows, Retry, Sync now, per-row discard).
+// All data flows in through the SettingsState / SyncState globals; all
+// intent flows out through their callbacks (Rust glue: feature_settings.rs).
+import { T, Sp, Rd, Ic } from "tokens.slint";
+import { Press, Icon, Chip, Tone, Banner, Spinner } from "components.slint";
+import { MadarHeader } from "kit.slint";
+import { Icons } from "icons.slint";
+
+// ── Native metrics (SettingsScreen.kt) that fall between the 4-pt Space
+// steps — kept verbatim so the chrome measures identically. ─────────────────
+// Content column cap (natives: widthIn(max = 640.dp)):        640px
+// Account avatar tile (48.dp, Radii.sm), initial size 16.sp:  48px / 16px
+// Chip label size (13.sp SemiBold):                           13px
+// CTA spinner (20.dp / 2.5.dp), outline width 1.5.dp:         20px / 1.5px
+// Text-field vertical inset 16.dp, icon↔text gap 10.dp:       16px / 10px
+// Metrics.buttonHeight 54.dp, Metrics.stepper 30.dp:          54px / 30px
+
+// ── Data rows (structs precede use). ─────────────────────────────────────────
+
+export struct SettingsTillData { id: string, name: string }
+export struct SettingsStationData { id: string, name: string }
+export struct SettingsDiagData { message: string, at: string, level: string }
+
+// One outbox row: raw wire fields for the glyph/status maps + the
+// pre-localized op label (unknown ops show their raw wire name — Rust).
+export struct SyncOutboxData {
+    id: string,
+    op: string,          // open_shift | close_shift | create_order | …
+    op-label: string,    // localized (sync.op_*) or raw wire name
+    status: string,      // pending | inflight | dead
+    error: string,       // lastError ?? ""
+    attempts: int,
+}
+
+// ── SettingsState — the settings screen's data/strings + callbacks-out. ────
+export global SettingsState {
+    // strings (core tr keys, resolved in Rust — exactly the Dart keys)
+    in property <string> tr-title;                 // settings.title
+    in property <string> tr-account;               // settings.account
+    in property <string> tr-appearance;            // settings.appearance
+    in property <string> tr-theme-light;           // settings.theme_light
+    in property <string> tr-theme-dark;            // settings.theme_dark
+    in property <string> tr-orientation;           // settings.orientation
+    in property <string> tr-flip-screen;           // settings.flip_screen
+    in property <string> tr-tablet-threshold;      // settings.tablet_threshold
+    in property <string> tr-language;              // settings.language
+    in property <string> tr-printer;               // settings.printer
+    in property <string> tr-device-code-hint;      // settings.device_code_hint
+    in property <string> tr-device-code-caption;   // settings.device_code_caption
+    in property <string> tr-printer-hint;          // settings.printer_hint
+    in property <string> tr-printer-epson;         // settings.printer_epson
+    in property <string> tr-printer-star;          // settings.printer_star
+    in property <string> tr-print;                 // receipt.print
+    in property <string> tr-printing;              // receipt.printing
+    in property <string> tr-printed;               // receipt.printed
+    in property <string> tr-print-failed;          // receipt.print_failed
+    in property <string> tr-no-printer;            // receipt.no_printer
+    in property <string> tr-till;                  // settings.till
+    in property <string> tr-till-default;          // settings.till_default
+    in property <string> tr-choose-station;        // setup.choose_station
+    in property <string> tr-lan;                   // settings.lan
+    in property <string> tr-lan-hub-hint;          // settings.lan_hub_hint
+    in property <string> tr-lan-caption;           // settings.lan_caption
+    in property <string> tr-lan-active;            // settings.lan_active
+    in property <string> tr-lan-offline;           // settings.lan_offline
+    in property <string> tr-lan-peers;             // settings.lan_peers
+    in property <string> tr-device;                // settings.device
+    in property <string> tr-reconfigure;           // settings.reconfigure
+    in property <string> tr-diagnostics;           // settings.diagnostics
+    in property <string> tr-version;               // settings.version
+    in property <string> tr-server;                // settings.server
+    in property <string> tr-pending;               // settings.pending
+    in property <string> tr-realtime;              // settings.realtime
+    in property <string> tr-realtime-on;           // settings.realtime_on
+    in property <string> tr-realtime-off;          // settings.realtime_off
+    in property <string> tr-recent-warnings;       // settings.recent_warnings
+    in property <string> tr-clear;                 // settings.clear
+    in property <string> tr-sign-out;              // settings.sign_out
+
+    // state (the SettingsState mirror — custody lives in the CORE)
+    in property <string> error;                    // "" = none (guard banner)
+    in property <string> teller-name;              // "" → "—" / "?" initial
+    in property <string> avatar-initial;           // precomputed (Rust)
+    in property <string> branch-name;              // "" hides the row
+    in property <string> role-label;               // UPPERCASED, "_"→" "; "" hides
+    in property <bool> is-kitchen;
+    in property <bool> has-open-shift;             // sign-out/reconfigure guard
+    in property <[SettingsTillData]> tills;
+    in property <string> till-id;                  // "" = branch default
+    in property <[SettingsStationData]> stations;
+    in property <string> station-id;
+    in-out property <bool> brand-star;             // brand chip (epson otherwise)
+    in property <int> print-state;                 // 0 idle 1 printing 2 printed 3 failed 4 no-printer
+    in-out property <string> device-code;          // field mirror (Rust seeds on open)
+    in-out property <string> printer-address;      // field mirror (Rust seeds on open)
+    in-out property <string> lan-hub;              // field mirror (Rust seeds on open)
+    in property <bool> lan-active;
+    in property <int> lan-peer-count;
+    in property <string> version;                  // coreVersion()
+    in property <string> server;                   // bridge.baseUrl()
+    in property <int> pending;
+    in property <bool> realtime-on;
+    in property <[SettingsDiagData]> diagnostics;  // Rust truncates to 15 (Dart .take(15))
+    in property <bool> locale-is-en;               // locale.startsWith('en')
+    // Orientation (OrientationController mirror): tablets lock to ONE
+    // landscape (no auto-rotate); phones are portrait-locked so the flip
+    // control is hidden (can-flip = false).
+    in property <bool> can-flip;
+    in property <bool> landscape-right;
+    in property <float> tablet-threshold: 7.0;     // diagonal-inch cutoff
+    in property <string> tablet-threshold-label;   // '7.0"' (Rust formats)
+
+    // intents
+    callback back();
+    callback set-dark(bool);
+    callback set-locale(string);
+    callback flip-orientation();
+    callback set-tablet-threshold(float);
+    callback set-device-code(string);
+    callback printer-changed(string /* address */);
+    callback pick-brand(string /* epson|star */, string /* address */);
+    callback test-print();
+    callback bind-till(string /* id; "" = default */);
+    callback bind-station(string /* id */);
+    callback set-lan-hub(string);
+    callback reconfigure();
+    callback sign-out();
+    callback clear-diagnostics();
+}
+
+// ── SyncState — the sync center's data/strings + callbacks-out. ─────────────
+export global SyncState {
+    in property <string> tr-title;      // sync.title
+    in property <string> tr-retry;      // sync.retry
+    in property <string> tr-push;       // sync.push
+    in property <string> tr-pushing;    // sync.pushing
+    in property <string> tr-empty;      // sync.empty
+    in property <string> tr-attempts;   // sync.attempts
+    in property <string> tr-failed;     // sync.failed
+    in property <string> tr-sending;    // sync.sending
+    in property <string> tr-queued;     // sync.queued
+
+    in property <[SyncOutboxData]> outbox;
+    in property <bool> pushing;
+    in property <bool> has-failed;      // any status == "dead"
+
+    callback back();
+    callback retry();
+    callback sync-now();
+    callback discard(string /* id */);
+
+    // Localized op-status label (the Dart _statusLabel switch).
+    public pure function status-label(status: string) -> string {
+        if (status == "dead") { return self.tr-failed; }
+        if (status == "inflight") { return self.tr-sending; }
+        return self.tr-queued;
+    }
+}
+
+// Op glyph — dead → warning mark, else per op_type (the natives' opGlyph).
+global OpGlyph {
+    public pure function glyph(op: string, status: string) -> image {
+        if (status == "dead") { return Icons.exclamationmark-circle; }
+        if (op == "open_shift") { return Icons.play-circle; }
+        if (op == "close_shift") { return Icons.lock; }
+        if (op == "create_order") { return Icons.doc-text; }
+        return Icons.arrow-clockwise;
+    }
+}
+
+// ── _SettingsCard — uppercase muted label above a bordered, softly-elevated
+// surface card (Radii.md, borderLight hairline, card shadow, Space.lg pad,
+// Space.md inner spacing, Space.sm label gap). ───────────────────────────────
+component SettingsCard {
+    in property <string> title;
+    VerticalLayout {
+        spacing: Sp.sm;
+        Text {
+            text: root.title.to-uppercase();
+            color: T.text-muted;
+            font-size: 12px; font-weight: 700;
+            letter-spacing: 0.6px; // MadarType.tracking
+        }
+        Rectangle {
+            background: T.surface;
+            border-radius: Rd.md;
+            border-width: 1px;
+            border-color: T.border-light;
+            drop-shadow-color: T.shadow-card-color;
+            drop-shadow-blur: T.shadow-card-blur;
+            drop-shadow-offset-y: T.shadow-card-dy;
+            VerticalLayout {
+                padding: Sp.lg;
+                spacing: Sp.md;
+                @children
+            }
+        }
+    }
+}
+
+// ── _Chip — segmented choice chip: accent-filled when active, quiet bordered
+// surface otherwise (the natives' Chip). Space.md insets, Radii.sm, 13sp
+// SemiBold label, optional leading glyph (the orientation-flip rotate). ─────
+component SettingsChip {
+    in property <string> label;
+    in property <bool> active;
+    in property <bool> has-icon: false;
+    in property <image> icon;
+    callback clicked;
+
+    property <color> fg: active ? T.text-on-accent : T.text-primary;
+
+    // Composed Press: pin preferred AND min height (layout sizing gotcha).
+    preferred-height: crow.preferred-height + 2 * Sp.md;
+    min-height: self.preferred-height;
+    preferred-width: crow.preferred-width + 2 * Sp.md;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            border-radius: Rd.sm;
+            background: root.active ? T.accent : T.surface-alt;
+            border-width: root.active ? 0px : 1px;
+            border-color: T.border;
+            crow := HorizontalLayout {
+                alignment: center;
+                spacing: Sp.xs;
+                if root.has-icon: Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.md; // MadarIcon default = IconSize.md
+                    source: root.icon;
+                    tint: root.fg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    color: root.fg;
+                    font-size: 13px; font-weight: 600;
+                }
+            }
+        }
+    }
+}
+
+// ── _StepChip — small circular icon button (the +/- ends of the tablet
+// threshold row): Metrics.stepper 30dp circle, surfaceAlt, border. ───────────
+component StepChip {
+    in property <image> icon;
+    in property <bool> step-enabled: true;
+    callback clicked;
+
+    width: 30px;
+    preferred-height: 30px; min-height: 30px;
+
+    Press {
+        width: parent.width; height: parent.height;
+        // Dart passes a no-op onTap when disabled — same tactile response,
+        // no action; enabled-ness only recolors the glyph.
+        clicked => { if (root.step-enabled) { root.clicked(); } }
+        Rectangle {
+            width: 30px; height: 30px;
+            border-radius: 15px;
+            background: T.surface-alt;
+            border-width: 1px;
+            border-color: T.border;
+            Icon {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: Ic.sm;
+                source: root.icon;
+                tint: root.step-enabled ? T.text-primary : T.text-muted;
+            }
+        }
+    }
+}
+
+// ── _PickerRow — radio-style picker row (the natives' TillRow): leading
+// check circle (IconSize.lg), accent when selected. ─────────────────────────
+component PickerRow {
+    in property <string> label;
+    in property <bool> selected;
+    callback clicked;
+
+    preferred-height: prow.preferred-height;
+    min-height: self.preferred-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.clicked(); }
+        prow := HorizontalLayout {
+            spacing: Sp.sm;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                width: Ic.lg;
+                source: root.selected ? Icons.checkmark-circle : Icons.circle;
+                tint: root.selected ? T.accent : T.text-muted;
+            }
+            Text {
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                text: root.label;
+                color: T.text-primary;
+                font-size: 14px; font-weight: 500; // MadarType.body
+            }
+        }
+    }
+}
+
+// ── _InfoRow — quiet label/value row (value end-aligned, single line). ──────
+component InfoRow {
+    in property <string> label;
+    in property <string> value;
+    HorizontalLayout {
+        spacing: Sp.md;
+        Text {
+            vertical-alignment: center;
+            text: root.label;
+            color: T.text-secondary;
+            font-size: 13px; font-weight: 400; // MadarType.bodySm
+        }
+        Text {
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            horizontal-alignment: T.rtl ? left : right; // TextAlign.end
+            text: root.value;
+            color: T.text-primary;
+            font-size: 13px; font-weight: 600;
+            overflow: elide;
+        }
+    }
+}
+
+// ── _SettingsTextField — the natives' MadarTextField: rounded field with an
+// animated focus ring (accent border + glow @ .35, surfaceAlt → surface
+// fill), a leading icon that tints accent while focused, 16dp vertical
+// insets, 10dp icon↔text gap, per-keystroke edited-out. (Local extension of
+// kit Field — the kit lacks a per-keystroke callback; flag for promotion.) ──
+component SettingsTextField {
+    in property <string> placeholder;
+    in property <image> icon;
+    in-out property <string> text <=> input.text;
+    callback edited(string);
+
+    height: 54px; // 15px title text + 2×16dp vertical insets + border
+    preferred-height: 54px; min-height: 54px;
+
+    box := Rectangle {
+        border-radius: Rd.md;
+        background: input.has-focus ? T.surface : T.surface-alt;
+        border-width: input.has-focus ? 2px : 1px;
+        border-color: input.has-focus ? T.accent : T.border;
+        drop-shadow-color: input.has-focus ? T.accent.with-alpha(0.35) : transparent;
+        drop-shadow-blur: 8px;
+        animate background, border-color, drop-shadow-color { duration: 220ms; easing: ease-out; }
+
+        HorizontalLayout {
+            padding-left: Sp.lg; padding-right: Sp.lg;
+            spacing: 10px;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                source: root.icon;
+                tint: input.has-focus ? T.accent : T.text-muted;
+            }
+            input := TextInput {
+                vertical-alignment: center;
+                single-line: true;
+                color: T.text-primary;
+                font-size: 15px; font-weight: 400; // MadarType.title w400
+                edited => { root.edited(self.text); }
+            }
+        }
+        // Placeholder overlays the (empty) input, mirroring the hint style.
+        if input.text == "": Text {
+            x: Sp.lg + Ic.lg + 10px;
+            y: (parent.height - self.height) / 2;
+            text: root.placeholder;
+            color: T.text-muted;
+            font-size: 15px; font-weight: 400;
+        }
+    }
+}
+
+// ── _Cta — the natives' MadarButton at the two variants this screen needs:
+// outline (test print, accent 1.5dp border) and danger (sign out, danger
+// fill), Metrics.buttonHeight 54, centered 20dp spinner while loading. ──────
+component SettingsCta {
+    in property <string> label;
+    in property <bool> danger: false;
+    in property <bool> loading: false;
+    in property <bool> has-icon: false;
+    in property <image> icon;
+    callback clicked;
+
+    property <color> fg: danger ? T.text-on-accent : T.accent;
+
+    preferred-height: 54px; min-height: 54px;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: !root.loading; // loading → bare button, no tap
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            border-radius: Rd.md;
+            background: root.danger ? T.danger : transparent;
+            border-width: root.danger ? 0px : 1.5px;
+            border-color: T.accent;
+            if root.loading: Spinner {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                diameter: 20px;
+                spin-color: root.fg;
+            }
+            if !root.loading: HorizontalLayout {
+                alignment: center;
+                spacing: Sp.sm;
+                if root.has-icon: Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.md;
+                    source: root.icon;
+                    tint: root.fg;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: root.label;
+                    color: root.fg;
+                    font-size: 15px; font-weight: 700; // MadarType.title w700
+                }
+            }
+        }
+    }
+}
+
+// Hairline divider (SizedBox(height:1) + borderLight).
+component Hairline inherits Rectangle {
+    height: 1px;
+    background: T.border-light;
+}
+
+// ── The settings overlay. Full-screen over the order screen / KDS board;
+// the header's back pops it (SettingsState.back). ────────────────────────────
+export component SettingsScreen {
+    // Diagonal-inch stepper bounds (the Dart _TabletThresholdRow constants).
+    property <float> threshold-step: 0.5;
+    property <float> threshold-min: 5.0;
+    property <float> threshold-max: 10.0;
+
+    Rectangle { background: T.bg; }
+
+    VerticalLayout {
+        MadarHeader {
+            title: SettingsState.tr-title;
+            has-back: true;
+            back => { SettingsState.back(); }
+        }
+        Flickable {
+            vertical-stretch: 1;
+            viewport-height: col.preferred-height + 2 * Sp.lg;
+
+            col := VerticalLayout {
+                y: Sp.lg;
+                // Center the capped content column (max 640) inside Space.lg pad.
+                width: Math.min(640px, parent.width - 2 * Sp.lg);
+                x: (parent.width - self.width) / 2;
+                // Hug content — never stretch-distribute the cards.
+                height: self.preferred-height;
+                spacing: Sp.lg;
+
+                // Guard-failure banner (open-shift sign-out/reconfigure).
+                if SettingsState.error != "": Banner {
+                    text: SettingsState.error;
+                    tone: Tone.warning; // NoticeBanner default tone
+                    has-icon: true;
+                    icon: Icons.exclamationmark-circle;
+                }
+
+                // ── Account: avatar initial tile, teller + branch, role chip.
+                SettingsCard {
+                    title: SettingsState.tr-account;
+                    HorizontalLayout {
+                        spacing: Sp.md;
+                        Rectangle {
+                            y: (parent.height - 48px) / 2;
+                            width: 48px; height: 48px;
+                            border-radius: Rd.sm;
+                            background: T.navy-bg;
+                            Text {
+                                x: (parent.width - self.preferred-width) / 2;
+                                y: (parent.height - self.preferred-height) / 2;
+                                text: SettingsState.avatar-initial;
+                                color: T.navy;
+                                font-size: 16px; font-weight: 700;
+                            }
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            horizontal-stretch: 1;
+                            spacing: 2px;
+                            Text {
+                                text: SettingsState.teller-name == "" ? "—" : SettingsState.teller-name;
+                                color: T.text-primary;
+                                font-size: 15px; font-weight: 600; // MadarType.title
+                            }
+                            if SettingsState.branch-name != "": HorizontalLayout {
+                                spacing: Sp.xs;
+                                Icon {
+                                    y: (parent.height - self.height) / 2;
+                                    width: Ic.sm;
+                                    source: Icons.storefront;
+                                    tint: T.text-muted;
+                                }
+                                Text {
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                    text: SettingsState.branch-name;
+                                    color: T.text-secondary;
+                                    font-size: 12px; font-weight: 400; // label w400
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                        if SettingsState.role-label != "": Chip {
+                            y: (parent.height - self.height) / 2;
+                            label: SettingsState.role-label;
+                            tone: Tone.info;
+                        }
+                    }
+                }
+
+                // ── Appearance: light/dark; the host persists the choice.
+                SettingsCard {
+                    title: SettingsState.tr-appearance;
+                    HorizontalLayout {
+                        spacing: Sp.sm;
+                        SettingsChip {
+                            horizontal-stretch: 1;
+                            label: SettingsState.tr-theme-light;
+                            active: !T.dark;
+                            clicked => { SettingsState.set-dark(false); }
+                        }
+                        SettingsChip {
+                            horizontal-stretch: 1;
+                            label: SettingsState.tr-theme-dark;
+                            active: T.dark;
+                            clicked => { SettingsState.set-dark(true); }
+                        }
+                    }
+                    // Tablets lock to ONE landscape (no auto-rotate); this
+                    // flips between the two. Phones are portrait-locked, so
+                    // the control is hidden.
+                    if SettingsState.can-flip: HorizontalLayout {
+                        Text {
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                            text: SettingsState.tr-orientation;
+                            color: T.text-secondary;
+                            font-size: 14px; font-weight: 500; // MadarType.body
+                        }
+                        SettingsChip {
+                            label: SettingsState.tr-flip-screen;
+                            active: false;
+                            has-icon: true;
+                            icon: SettingsState.landscape-right ? Icons.rotate-left : Icons.rotate-right;
+                            clicked => { SettingsState.flip-orientation(); }
+                        }
+                    }
+                    // Diagonal-inch cutoff between the phone (portrait-locked)
+                    // and tablet (landscape-locked) orientation behavior —
+                    // some ~7" tablets under-report their density and land
+                    // just under the default cutoff, misreading as a phone;
+                    // this lets the device be nudged onto the right side.
+                    HorizontalLayout {
+                        Text {
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                            text: SettingsState.tr-tablet-threshold;
+                            color: T.text-secondary;
+                            font-size: 14px; font-weight: 500;
+                        }
+                        StepChip {
+                            icon: Icons.minus;
+                            step-enabled: SettingsState.tablet-threshold > root.threshold-min;
+                            clicked => {
+                                SettingsState.set-tablet-threshold(
+                                    Math.max(root.threshold-min,
+                                        Math.min(root.threshold-max,
+                                            SettingsState.tablet-threshold - root.threshold-step)));
+                            }
+                        }
+                        Text {
+                            width: 44px;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                            text: SettingsState.tablet-threshold-label;
+                            color: T.text-primary;
+                            font-size: 14px; font-weight: 600; // body w600
+                        }
+                        StepChip {
+                            icon: Icons.plus;
+                            step-enabled: SettingsState.tablet-threshold < root.threshold-max;
+                            clicked => {
+                                SettingsState.set-tablet-threshold(
+                                    Math.max(root.threshold-min,
+                                        Math.min(root.threshold-max,
+                                            SettingsState.tablet-threshold + root.threshold-step)));
+                            }
+                        }
+                    }
+                }
+
+                // ── Language: live en/ar switch — strings + RTL re-resolve in
+                // place. Labels are each language's own name, never translated.
+                SettingsCard {
+                    title: SettingsState.tr-language;
+                    HorizontalLayout {
+                        spacing: Sp.sm;
+                        SettingsChip {
+                            horizontal-stretch: 1;
+                            label: "English";
+                            active: SettingsState.locale-is-en;
+                            clicked => { SettingsState.set-locale("en"); }
+                        }
+                        SettingsChip {
+                            horizontal-stretch: 1;
+                            label: "العربية";
+                            active: !SettingsState.locale-is-en;
+                            clicked => { SettingsState.set-locale("ar"); }
+                        }
+                    }
+                }
+
+                // ── Printer: this till's device code (the `<DEVICE>` segment
+                // of every order_ref) alongside the printer host + brand,
+                // plus the test print.
+                SettingsCard {
+                    title: SettingsState.tr-printer;
+                    device-code-field := SettingsTextField {
+                        placeholder: SettingsState.tr-device-code-hint;
+                        icon: Icons.number;
+                        text <=> SettingsState.device-code;
+                        edited(t) => { SettingsState.set-device-code(t); }
+                    }
+                    Text {
+                        text: SettingsState.tr-device-code-caption;
+                        color: T.text-muted;
+                        font-size: 11px; font-weight: 400; // labelSm w400
+                        wrap: word-wrap;
+                    }
+                    printer-field := SettingsTextField {
+                        placeholder: SettingsState.tr-printer-hint;
+                        icon: Icons.printer;
+                        text <=> SettingsState.printer-address;
+                        edited(t) => { SettingsState.printer-changed(t); }
+                    }
+                    HorizontalLayout {
+                        spacing: Sp.sm;
+                        SettingsChip {
+                            horizontal-stretch: 1;
+                            label: SettingsState.tr-printer-epson;
+                            active: !SettingsState.brand-star;
+                            clicked => { SettingsState.pick-brand("epson", printer-field.text); }
+                        }
+                        SettingsChip {
+                            horizontal-stretch: 1;
+                            label: SettingsState.tr-printer-star;
+                            active: SettingsState.brand-star;
+                            clicked => { SettingsState.pick-brand("star", printer-field.text); }
+                        }
+                    }
+                    SettingsCta {
+                        label: SettingsState.tr-print;
+                        has-icon: true;
+                        icon: Icons.printer;
+                        loading: SettingsState.print-state == 1;
+                        clicked => { SettingsState.test-print(); }
+                    }
+                    // Test-print lifecycle status line.
+                    if SettingsState.print-state != 0: Text {
+                        text: SettingsState.print-state == 1 ? SettingsState.tr-printing
+                            : SettingsState.print-state == 2 ? SettingsState.tr-printed
+                            : SettingsState.print-state == 3 ? SettingsState.tr-print-failed
+                            : SettingsState.tr-no-printer;
+                        color: SettingsState.print-state == 1 ? T.text-muted
+                            : SettingsState.print-state == 2 ? T.success
+                            : SettingsState.print-state == 3 ? T.danger
+                            : T.warning;
+                        font-size: 11px; font-weight: 600; // labelSm
+                    }
+                }
+
+                // ── Till (drawer) binding — which POS drawer this device
+                // controls. Hidden on kitchen devices (they bind a station).
+                if !SettingsState.is-kitchen && SettingsState.tills.length > 0: SettingsCard {
+                    title: SettingsState.tr-till;
+                    PickerRow {
+                        label: SettingsState.tr-till-default;
+                        selected: SettingsState.till-id == "";
+                        clicked => { SettingsState.bind-till(""); }
+                    }
+                    for till in SettingsState.tills: PickerRow {
+                        label: till.name;
+                        selected: SettingsState.till-id == till.id;
+                        clicked => { SettingsState.bind-till(till.id); }
+                    }
+                }
+
+                // ── Station binding for kitchen devices — which station this
+                // display shows (and routes chits for).
+                if SettingsState.is-kitchen && SettingsState.stations.length > 0: SettingsCard {
+                    title: SettingsState.tr-choose-station;
+                    for station in SettingsState.stations: PickerRow {
+                        label: station.name;
+                        selected: SettingsState.station-id == station.id;
+                        clicked => { SettingsState.bind-station(station.id); }
+                    }
+                }
+
+                // ── LAN: optional fixed hub-IP for the relay when mDNS
+                // auto-discovery can't reach peers, plus the live relay row.
+                SettingsCard {
+                    title: SettingsState.tr-lan;
+                    lan-field := SettingsTextField {
+                        placeholder: SettingsState.tr-lan-hub-hint;
+                        icon: Icons.wifi;
+                        text <=> SettingsState.lan-hub;
+                        edited(t) => { SettingsState.set-lan-hub(t); }
+                    }
+                    Text {
+                        text: SettingsState.tr-lan-caption;
+                        color: T.text-muted;
+                        font-size: 11px; font-weight: 400;
+                        wrap: word-wrap;
+                    }
+                    InfoRow {
+                        label: SettingsState.lan-active ? SettingsState.tr-lan-active : SettingsState.tr-lan-offline;
+                        value: SettingsState.lan-active
+                            ? SettingsState.lan-peer-count + " " + SettingsState.tr-lan-peers
+                            : "—";
+                    }
+                }
+
+                // ── Device: the begin-reconfigure entry (guarded by an open
+                // drawer in the glue).
+                SettingsCard {
+                    title: SettingsState.tr-device;
+                    reconfig-row := Rectangle {
+                        preferred-height: rrow.preferred-height;
+                        min-height: self.preferred-height;
+                        Press {
+                            width: parent.width; height: parent.height;
+                            clicked => { SettingsState.reconfigure(); }
+                            rrow := HorizontalLayout {
+                                spacing: Sp.lg;
+                                Icon {
+                                    y: (parent.height - self.height) / 2;
+                                    width: Ic.xl;
+                                    source: Icons.building-2;
+                                    tint: T.text-secondary;
+                                }
+                                Text {
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                    text: SettingsState.tr-reconfigure;
+                                    color: T.text-primary;
+                                    font-size: 15px; font-weight: 600; // MadarType.title
+                                }
+                                Icon {
+                                    y: (parent.height - self.height) / 2;
+                                    width: Ic.md;
+                                    source: Icons.chevron-forward;
+                                    tint: T.text-muted;
+                                    transform-rotation: T.rtl ? 180deg : 0deg;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── Diagnostics: core version, server, pending count,
+                // realtime channel health, recent-warnings feed (with clear).
+                SettingsCard {
+                    title: SettingsState.tr-diagnostics;
+                    InfoRow { label: SettingsState.tr-version; value: SettingsState.version; }
+                    InfoRow { label: SettingsState.tr-server; value: SettingsState.server; }
+                    InfoRow { label: SettingsState.tr-pending; value: SettingsState.pending; }
+                    // Realtime (SSE) channel health — the teller's order
+                    // alerts ride this; surfacing it makes a silent drop
+                    // diagnosable.
+                    InfoRow {
+                        label: SettingsState.tr-realtime;
+                        value: SettingsState.realtime-on ? SettingsState.tr-realtime-on : SettingsState.tr-realtime-off;
+                    }
+                    if SettingsState.diagnostics.length > 0: Hairline { }
+                    if SettingsState.diagnostics.length > 0: HorizontalLayout {
+                        Text {
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                            text: SettingsState.tr-recent-warnings;
+                            color: T.text-muted;
+                            font-size: 12px; font-weight: 600; // MadarType.label
+                        }
+                        clear-press := Rectangle {
+                            width: clear-txt.preferred-width;
+                            preferred-height: clear-txt.preferred-height;
+                            min-height: self.preferred-height;
+                            Press {
+                                width: parent.width; height: parent.height;
+                                clicked => { SettingsState.clear-diagnostics(); }
+                                clear-txt := Text {
+                                    vertical-alignment: center;
+                                    height: 100%;
+                                    text: SettingsState.tr-clear;
+                                    color: T.accent;
+                                    font-size: 12px; font-weight: 600;
+                                }
+                            }
+                        }
+                    }
+                    // The feed (first 15 — truncated in Rust like Dart's take).
+                    for entry in SettingsState.diagnostics: VerticalLayout {
+                        spacing: 1px;
+                        Text {
+                            text: entry.message;
+                            color: entry.level == "error" ? T.danger : T.warning;
+                            font-size: 12px; font-weight: 400; // label w400
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: entry.at;
+                            color: T.text-muted;
+                            font-size: 10px; font-weight: 400; // labelSm @10
+                        }
+                    }
+                }
+
+                // ── Sign-out (guarded in the glue by the open drawer).
+                SettingsCta {
+                    label: SettingsState.tr-sign-out;
+                    danger: true;
+                    has-icon: true;
+                    icon: Icons.rectangle-portrait-and-arrow-right;
+                    clicked => { SettingsState.sign-out(); }
+                }
+            }
+        }
+    }
+}
+
+// ── Sync center ───────────────────────────────────────────────────────────────
+// Native metrics (SyncScreen.kt): pill vertical inset 7dp, pill spinner
+// 14dp/2dp, icon↔label gap 6dp, action label 13sp; outbox card cap 560dp,
+// row min height 68dp, leading op tile 40dp, text gap 3dp; empty tile 72dp
+// (Radii.lg), glyph 36dp.
+
+// Requeue-the-failed action — a quiet accent text button.
+component RetryAction {
+    callback clicked;
+    preferred-width: rrow.preferred-width;
+    width: self.preferred-width;
+    preferred-height: 36px; min-height: 36px;
+    Press {
+        width: parent.width; height: parent.height;
+        clicked => { root.clicked(); }
+        rrow := HorizontalLayout {
+            spacing: 6px;
+            Icon {
+                y: (parent.height - self.height) / 2;
+                width: Ic.sm;
+                source: Icons.arrow-clockwise;
+                tint: T.accent;
+            }
+            Text {
+                vertical-alignment: center;
+                text: SyncState.tr-retry;
+                color: T.accent;
+                font-size: 13px; font-weight: 600;
+            }
+        }
+    }
+}
+
+// Force-push-the-queue action — the teal pill CTA; spins + disables while
+// pushing.
+component SyncNowAction {
+    callback clicked;
+    preferred-width: pill.preferred-width + 2 * Sp.md;
+    width: self.preferred-width;
+    preferred-height: pill.preferred-height + 14px; // 7dp vertical insets
+    min-height: self.preferred-height;
+
+    Press {
+        width: parent.width; height: parent.height;
+        press-enabled: !SyncState.pushing;
+        clicked => { root.clicked(); }
+        Rectangle {
+            width: parent.width; height: parent.height;
+            border-radius: Rd.pill;
+            background: T.accent;
+            pill := HorizontalLayout {
+                x: Sp.md;
+                y: 7px;
+                spacing: 6px;
+                if SyncState.pushing: Spinner {
+                    y: (parent.height - self.height) / 2;
+                    diameter: 14px;
+                    spin-color: T.text-on-accent;
+                }
+                if !SyncState.pushing: Icon {
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.sm;
+                    source: Icons.icloud-and-arrow-up;
+                    tint: T.text-on-accent;
+                }
+                Text {
+                    vertical-alignment: center;
+                    text: SyncState.pushing ? SyncState.tr-pushing : SyncState.tr-push;
+                    color: T.text-on-accent;
+                    font-size: 13px; font-weight: 800;
+                }
+            }
+        }
+    }
+}
+
+// One outbox row: leading tone-tinted op tile, op label + error (or attempt
+// count), status chip, and a discard for dead commands.
+component OutboxRow {
+    in property <SyncOutboxData> item;
+    callback discard;
+
+    property <bool> dead: item.status == "dead";
+    // Outbox tones map to the shared ChipTone scale: failed → danger,
+    // everything else (queued / in-flight) → info. The tile tint reuses the
+    // same roles, so the leading icon and the status chip read as one tone.
+    property <color> tile-bg: dead ? T.danger-bg : T.navy-bg;
+    property <color> tile-fg: dead ? T.danger : T.navy;
+
+    preferred-height: Math.max(68px, orow.preferred-height + 2 * Sp.md);
+    min-height: self.preferred-height;
+
+    orow := HorizontalLayout {
+        // EdgeInsetsDirectional.only(start: lg, end: md, top/bottom: md).
+        padding-left: T.rtl ? Sp.md : Sp.lg;
+        padding-right: T.rtl ? Sp.lg : Sp.md;
+        padding-top: Sp.md; padding-bottom: Sp.md;
+        spacing: Sp.md;
+        Rectangle {
+            y: (parent.height - 40px) / 2;
+            width: 40px; height: 40px;
+            border-radius: Rd.sm;
+            background: root.tile-bg;
+            Icon {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: Ic.lg;
+                source: OpGlyph.glyph(root.item.op, root.item.status);
+                tint: root.tile-fg;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            spacing: 3px;
+            Text {
+                text: root.item.op-label;
+                color: T.text-primary;
+                font-size: 15px; font-weight: 600; // MadarType.title
+                overflow: elide;
+            }
+            // Error (2-line cap via clip — Slint Text has no maxLines) or
+            // the attempt count.
+            if root.item.error != "": Rectangle {
+                clip: true;
+                height: Math.min(err-txt.preferred-height, 40px); // ≈ 2 lines @12px
+                err-txt := Text {
+                    width: parent.width;
+                    text: root.item.error;
+                    color: T.text-muted;
+                    font-size: 12px; font-weight: 400; // label w400
+                    wrap: word-wrap;
+                }
+            }
+            if root.item.error == "" && root.item.attempts > 0: Text {
+                text: root.item.attempts + " " + SyncState.tr-attempts;
+                color: T.text-muted;
+                font-size: 12px; font-weight: 400;
+            }
+        }
+        Chip {
+            y: (parent.height - self.height) / 2;
+            label: SyncState.status-label(root.item.status);
+            tone: root.dead ? Tone.danger : Tone.info;
+        }
+        if root.dead: trash-press := Rectangle {
+            y: (parent.height - self.height) / 2;
+            width: Ic.md + 2 * Sp.xs;
+            preferred-height: Ic.md + 2 * Sp.xs;
+            min-height: self.preferred-height;
+            Press {
+                width: parent.width; height: parent.height;
+                clicked => { root.discard(); }
+                Icon {
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    width: Ic.md;
+                    source: Icons.trash;
+                    tint: T.danger;
+                }
+            }
+        }
+    }
+}
+
+// ── The outbox inspector. All state flows from SyncState; the header's
+// back pops it. ──────────────────────────────────────────────────────────────
+export component SyncScreen {
+    Rectangle { background: T.bg; }
+
+    VerticalLayout {
+        MadarHeader {
+            title: SyncState.tr-title;
+            has-back: true;
+            back => { SyncState.back(); }
+            // Retry requeues only the FAILED (dead) rows, so it only appears
+            // when there's something dead to resurrect.
+            if SyncState.has-failed: RetryAction {
+                y: (parent.height - self.height) / 2;
+                clicked => { SyncState.retry(); }
+            }
+            // "Sync now" force-pushes every QUEUED command — the manual
+            // escape hatch when the queue isn't draining on its own.
+            if SyncState.outbox.length > 0: SyncNowAction {
+                y: (parent.height - self.height) / 2;
+                clicked => { SyncState.sync-now(); }
+            }
+        }
+
+        // ── Empty state: nothing waiting to sync — a reassuring success mark.
+        if SyncState.outbox.length == 0: Rectangle {
+            vertical-stretch: 1;
+            VerticalLayout {
+                alignment: center;
+                spacing: Sp.md;
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 72px; height: 72px;
+                        border-radius: Rd.lg;
+                        background: T.success-bg;
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            width: 36px;
+                            source: Icons.checkmark-circle;
+                            tint: T.success;
+                        }
+                    }
+                }
+                Text {
+                    horizontal-alignment: center;
+                    text: SyncState.tr-empty;
+                    color: T.text-secondary;
+                    font-size: 17px; font-weight: 600; // MadarType.h3
+                }
+            }
+        }
+
+        // ── Outbox list: ONE surface card; rows separated by hairlines
+        // (matches the natives' grouped card — not per-row cards) — capped +
+        // centered on tablet (max 560).
+        if SyncState.outbox.length > 0: Flickable {
+            vertical-stretch: 1;
+            viewport-height: list-card.height + 2 * Sp.lg;
+            list-card := Rectangle {
+                y: Sp.lg;
+                width: Math.min(560px, parent.width - 2 * Sp.lg);
+                x: (parent.width - self.width) / 2;
+                height: list-col.preferred-height;
+                background: T.surface;
+                border-radius: Rd.md;
+                border-width: 1px;
+                border-color: T.border-light;
+                drop-shadow-color: T.shadow-card-color;
+                drop-shadow-blur: T.shadow-card-blur;
+                drop-shadow-offset-y: T.shadow-card-dy;
+                list-col := VerticalLayout {
+                    width: parent.width;
+                    for item[i] in SyncState.outbox: VerticalLayout {
+                        if i > 0: Hairline { }
+                        OutboxRow {
+                            item: item;
+                            discard => { SyncState.discard(item.id); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

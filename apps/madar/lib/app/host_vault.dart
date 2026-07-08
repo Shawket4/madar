@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app_core/app_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Host-side persistence — NON-SECRET UI prefs only (theme, locale, the
@@ -34,5 +35,15 @@ class HostVault {
   bool get landscapeRight => _prefs.getBool('madar.landscape_right') ?? true;
   set landscapeRight(bool value) {
     unawaited(_prefs.setBool('madar.landscape_right', value));
+  }
+
+  /// Tablet-vs-phone diagonal-inch cutoff for the orientation lock —
+  /// user-adjustable in Settings for devices whose reported density
+  /// misclassifies them (see [OrientationController]).
+  double get tabletThresholdInches =>
+      _prefs.getDouble('madar.tablet_threshold_inches') ??
+      OrientationController.defaultTabletThresholdInches;
+  set tabletThresholdInches(double value) {
+    unawaited(_prefs.setDouble('madar.tablet_threshold_inches', value));
   }
 }

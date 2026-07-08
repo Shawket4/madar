@@ -52,6 +52,8 @@ class SettingsState {
     this.diagnostics = const [],
     this.pending = 0,
     this.printState = PrintState.idle,
+    this.pairedDevices = const [],
+    this.scanningBt = false,
     this.error,
   });
 
@@ -79,6 +81,13 @@ class SettingsState {
   /// Test-print lifecycle.
   final PrintState printState;
 
+  /// Paired Bluetooth printers offered in the transport picker (populated by a
+  /// scan; empty until the user refreshes while on the Bluetooth transport).
+  final List<BtDevice> pairedDevices;
+
+  /// True while listing paired Bluetooth devices.
+  final bool scanningBt;
+
   /// Guard-failure banner text (open-shift sign-out/reconfigure).
   final String? error;
 
@@ -97,6 +106,8 @@ class SettingsState {
     List<DiagLogView>? diagnostics,
     int? pending,
     PrintState? printState,
+    List<BtDevice>? pairedDevices,
+    bool? scanningBt,
     String? error,
   }) {
     return SettingsState(
@@ -108,6 +119,8 @@ class SettingsState {
       diagnostics: diagnostics ?? this.diagnostics,
       pending: pending ?? this.pending,
       printState: printState ?? this.printState,
+      pairedDevices: pairedDevices ?? this.pairedDevices,
+      scanningBt: scanningBt ?? this.scanningBt,
       error: error ?? this.error,
     );
   }
@@ -189,6 +202,51 @@ class SettingsNotifier extends Notifier<SettingsState> {
     state = state.copyWith(config: _bridge.deviceConfig());
   }
 
+  /// Switch the printer transport — `"lan"` (raw-TCP) or `"bluetooth"`
+  /// (Classic SPP) — and re-mirror. Entering Bluetooth kicks off a paired-
+  /// device scan so the picker is ready.
+  Future<void> setTransport(String kind) async {
+    await _quiet(() => _bridge.setDevicePrinterTransport(kind: kind));
+    state = state.copyWith(config: _bridge.deviceConfig());
+    if (kind == 'bluetooth') await loadPairedDevices();
+  }
+
+  /// Pin the receipt paper width in dots — 384 (58 mm) or 576 (80 mm) — and
+  /// re-mirror so the picker highlights the choice. The core renders the raster
+  /// to this width on the next print.
+  Future<void> setPaperDots(int dots) async {
+    await _quiet(() => _bridge.setDevicePrinterPaper(dots: dots));
+    state = state.copyWith(config: _bridge.deviceConfig());
+  }
+
+  /// List the OS's paired Bluetooth printers into [SettingsState.pairedDevices]
+  /// (requests the runtime permission first). Best-effort: empty on denial or
+  /// Bluetooth off.
+  Future<void> loadPairedDevices() async {
+    state = state.copyWith(scanningBt: true);
+    final devices = await _quiet(
+      () => ref.read(printerServiceProvider).listPairedDevices(),
+    );
+    state = state.copyWith(
+      pairedDevices: devices ?? const <BtDevice>[],
+      scanningBt: false,
+    );
+  }
+
+  /// Bind the chosen paired Bluetooth printer (MAC + name) and re-mirror. Drops
+  /// any open link so the next print reconnects to this device.
+  Future<void> selectBtDevice(BtDevice device) async {
+    await _quiet(() async {
+      await ref.read(printerServiceProvider).disconnectBluetooth();
+      await _bridge.setDevicePrinterBt(
+        address: device.address,
+        name: device.name,
+      );
+      return true;
+    });
+    state = state.copyWith(config: _bridge.deviceConfig());
+  }
+
   /// Persist a manual LAN hub address; empty clears it. The core registers
   /// it live if the relay is already running.
   Future<void> setLanHub(String value) async {
@@ -216,13 +274,13 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// Render a tiny TEST receipt in the core and stream it to the
   /// configured printer — proves host/port/brand end-to-end.
   Future<void> testPrint() async {
-    final config = _bridge.deviceConfig();
-    final host = config.printerHost?.trim() ?? '';
-    if (host.isEmpty) {
+    final tx = ref.read(printerServiceProvider).activeTransport();
+    if (tx == null) {
       state = state.copyWith(printState: PrintState.noPrinter);
       return;
     }
     state = state.copyWith(printState: PrintState.printing);
+    final config = _bridge.deviceConfig();
     final session = ref.read(shellProvider).session;
     try {
       final bytes = await _bridge.renderReceipt(
@@ -232,11 +290,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
         width: kReceiptChars,
         brand: _brandOf(config.printerBrand),
       );
-      await _bridge.sendToPrinter(
-        host: host,
-        port: config.printerPort ?? _jetDirectPort,
-        bytes: bytes,
-      );
+      await tx.send(bytes);
       state = state.copyWith(printState: PrintState.printed);
     } on Exception {
       state = state.copyWith(printState: PrintState.failed);

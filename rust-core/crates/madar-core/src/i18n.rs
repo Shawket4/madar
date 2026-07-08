@@ -416,6 +416,7 @@ fn en(key: &str) -> Option<&'static str> {
         "settings.theme_system" => "System",
         "settings.orientation" => "Screen orientation",
         "settings.flip_screen" => "Flip screen",
+        "settings.tablet_threshold" => "Tablet size cutoff",
         "settings.language" => "Language",
         "settings.device" => "Device",
         "settings.reconfigure" => "Reconfigure device",
@@ -434,6 +435,18 @@ fn en(key: &str) -> Option<&'static str> {
         "settings.printer_hint" => "IP address (e.g. 192.168.1.50)",
         "settings.printer_epson" => "Epson",
         "settings.printer_star" => "Star",
+        "settings.printer_transport" => "Connection",
+        "settings.printer_lan" => "Wi‑Fi / LAN",
+        "settings.printer_bluetooth" => "Bluetooth",
+        "settings.printer_paper_58" => "58 mm",
+        "settings.printer_paper_80" => "80 mm",
+        "settings.printer_bt_scan" => "Refresh paired devices",
+        "settings.printer_bt_none" => {
+            "No paired printers. Pair the printer in Android Bluetooth settings first (SPP, PIN 0000 or 1234)."
+        }
+        "settings.printer_bt_permission" => "Bluetooth permission is required to list printers.",
+        "settings.printer_bt_connected" => "Connected",
+        "settings.printer_bt_disconnected" => "Not connected",
         "settings.device_code_hint" => "e.g. T1, W2, K1",
         "settings.device_code_caption" => "Names this till in every order reference.",
         "settings.lan" => "LAN relay",
@@ -833,6 +846,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "settings.theme_system" => "النظام",
         "settings.orientation" => "اتجاه الشاشة",
         "settings.flip_screen" => "قلب الشاشة",
+        "settings.tablet_threshold" => "حد حجم الجهاز اللوحي",
         "settings.language" => "اللغة",
         "settings.device" => "الجهاز",
         "settings.reconfigure" => "إعادة ضبط الجهاز",
@@ -851,6 +865,18 @@ fn ar(key: &str) -> Option<&'static str> {
         "settings.printer_hint" => "عنوان IP (مثال: 192.168.1.50)",
         "settings.printer_epson" => "إبسون",
         "settings.printer_star" => "ستار",
+        "settings.printer_transport" => "الاتصال",
+        "settings.printer_lan" => "واي فاي / الشبكة",
+        "settings.printer_bluetooth" => "بلوتوث",
+        "settings.printer_paper_58" => "٥٨ مم",
+        "settings.printer_paper_80" => "٨٠ مم",
+        "settings.printer_bt_scan" => "تحديث الأجهزة المقترنة",
+        "settings.printer_bt_none" => {
+            "لا توجد طابعات مقترنة. اقرن الطابعة من إعدادات بلوتوث في أندرويد أولًا (SPP، الرمز 0000 أو 1234)."
+        }
+        "settings.printer_bt_permission" => "إذن البلوتوث مطلوب لعرض الطابعات.",
+        "settings.printer_bt_connected" => "متصلة",
+        "settings.printer_bt_disconnected" => "غير متصلة",
         "settings.device_code_hint" => "مثال: T1، W2، K1",
         "settings.device_code_caption" => "يحدد اسم هذه الكاشة في كل مرجع طلب.",
         "settings.lan" => "الشبكة المحلية",
