@@ -1,0 +1,27 @@
+# flutter_rust_bridge wrapper over madar-core for the MANAGEMENT DASHBOARD app.
+# Binding code ONLY, no logic. A SEPARATE bindings binary from `madar-frb` (the
+# teller/POS bridge): the dashboard app links this crate and exposes only the
+# admin/analytics surface, so the teller binary never carries it and vice versa
+# (security + binary size). Both delegate 1:1 to the SAME shared madar-core.
+[package]
+# Underscore on purpose: Cargokit derives artifact names (libmadar_frb_dashboard.a)
+# from the PACKAGE name verbatim — a hyphen breaks its artifact lookup.
+name = "madar_frb_dashboard"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib → Android .so / desktop dylib; staticlib → iOS; lib → tests + codegen.
+crate-type = ["lib", "cdylib", "staticlib"]
+name = "madar_frb_dashboard"
+
+[dependencies]
+madar-core = { path = "../madar-core" }
+# Exact pin: the cargo crate, Dart package, and codegen CLI must share one version.
+flutter_rust_bridge = "=2.12.0"
+thiserror = "2"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

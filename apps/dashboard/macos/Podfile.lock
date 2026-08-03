@@ -1,0 +1,22 @@
+PODS:
+  - FlutterMacOS (1.0.0)
+  - rust_bridge_dashboard (0.1.0):
+    - FlutterMacOS
+
+DEPENDENCIES:
+  - FlutterMacOS (from `Flutter/ephemeral`)
+  - rust_bridge_dashboard (from `Flutter/ephemeral/.symlinks/plugins/rust_bridge_dashboard/macos`)
+
+EXTERNAL SOURCES:
+  FlutterMacOS:
+    :path: Flutter/ephemeral
+  rust_bridge_dashboard:
+    :path: Flutter/ephemeral/.symlinks/plugins/rust_bridge_dashboard/macos
+
+SPEC CHECKSUMS:
+  FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  rust_bridge_dashboard: 63a4302c7590b389b121f2930e5d84d16c5f95de
+
+PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
+
+COCOAPODS: 1.16.2

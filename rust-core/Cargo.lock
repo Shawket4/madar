@@ -1731,6 +1731,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "madar_frb_dashboard"
+version = "0.1.0"
+dependencies = [
+ "flutter_rust_bridge",
+ "madar-core",
+ "thiserror",
+]
+
+[[package]]
 name = "md-5"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

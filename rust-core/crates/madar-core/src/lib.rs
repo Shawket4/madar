@@ -49,6 +49,8 @@ pub mod menu;
 pub mod net;
 /// Order history reads — synced + still-queued orders for the shift.
 pub mod orders;
+/// Dashboard analytics reads — projected KPI DTOs for the management app.
+pub mod reports;
 /// Client of the unified realtime bus — ONE SSE connection per device, hand-rolled
 /// over `bytes_stream()`, dispatched to the host through one callback listener.
 pub mod realtime;
@@ -171,6 +173,18 @@ struct CatalogSnapshot {
     unified: Option<menu::UnifiedDoc>,
 }
 
+/// kv key persisting the dashboard's active org/branch scope override.
+const K_DASHBOARD_SCOPE: &str = "dashboard:active_scope";
+
+/// The dashboard's runtime-selected org/branch scope. A `None` field means
+/// "fall back to the session-derived value" (see `MadarCore::effective_scope`).
+/// Dashboard-only; the POS never sets it.
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct ActiveScopeView {
+    pub org_id: Option<String>,
+    pub branch_id: Option<String>,
+}
+
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Object))]
 pub struct MadarCore {
     config: MadarConfig,
@@ -240,6 +254,10 @@ pub struct MadarCore {
     /// The running LAN relay (`None` = not started). The second delivery path beside
     /// the cloud bus; outbox stays the source of truth. Phase E.
     lan: Mutex<Option<Arc<lan::LanRelay>>>,
+    /// Dashboard-only: the runtime-selected org/branch scope override. `None`
+    /// (or a `None` field) falls back to the session-derived scope. Persisted to
+    /// kv (`dashboard:active_scope`) so the app reopens on the last branch.
+    active_scope: RwLock<Option<ActiveScopeView>>,
 }
 
 /// One diagnostic log line.
@@ -279,6 +297,13 @@ impl MadarCore {
         let api = net::ApiClient::new(config.base_url.clone(), clock_skew_secs.clone())?;
         let images = images::ImageStore::new(&config.db_path);
         let locale = Arc::new(RwLock::new(config.locale.clone()));
+        // Dashboard scope override, restored across restarts (dashboard app only;
+        // absent for the POS, which never writes this key).
+        let active_scope = store
+            .kv_get(K_DASHBOARD_SCOPE)
+            .ok()
+            .flatten()
+            .and_then(|s| serde_json::from_str::<ActiveScopeView>(&s).ok());
         Ok(Arc::new(Self {
             config,
             store,
@@ -296,6 +321,7 @@ impl MadarCore {
             realtime: Mutex::new(None),
             unified_listener: Arc::new(Mutex::new(None)),
             lan: Mutex::new(None),
+            active_scope: RwLock::new(active_scope),
         }))
     }
 
@@ -2852,6 +2878,184 @@ impl MadarCore {
     /// (synced + queued), voided excluded. Pure — no extra network.
     pub fn shift_stats(&self, orders: Vec<orders::OrderSummaryView>) -> orders::ShiftStatsView {
         orders::shift_stats(&orders)
+    }
+}
+
+// ── Dashboard (management app) surface ───────────────────────────────────────
+// Plain, NON-uniffi-exported methods consumed ONLY by the dashboard FRB crate
+// (`madar-frb-dashboard`). Kept off the uniffi surface so the POS natives never
+// carry them, and off `madar-frb` so the teller binary doesn't either.
+impl MadarCore {
+    /// Dashboard email/password sign-in (org_admin / super_admin / branch_manager).
+    /// Reuses the online-login core WITHOUT the POS device/shift assumptions: no
+    /// device-branch pin, no open-shift ownership gate, no offline-auth bundle,
+    /// outbox drain, shift refresh, or numbering cache. Online-only — an email
+    /// login has no cached offline verifier to fall back to.
+    pub async fn dashboard_sign_in(
+        &self,
+        email: String,
+        password: String,
+        org_id: Option<String>,
+    ) -> Result<session::SessionSnapshot, CoreError> {
+        use madar_api::apis::auth_api;
+        use std::sync::atomic::Ordering::Relaxed;
+
+        let wire = session::wire_login_request(&session::LoginRequest {
+            mode: session::LoginMode::Email,
+            name: None,
+            pin: None,
+            branch_id: None,
+            email: Some(email),
+            password: Some(password),
+            org_id,
+        })?;
+
+        // Raw POST — the dashboard carries no POS `X-Madar-Closing-Shifts` header.
+        let body = self.api.post_json("/auth/login", &wire).await?;
+        let resp: madar_api::models::LoginResponse =
+            serde_json::from_str(&body).map_err(|e| CoreError::Internal {
+                detail: format!("decode: {e}"),
+            })?;
+
+        self.api.set_bearer(Some(resp.token.clone()));
+        self.auth_paused.store(false, Relaxed);
+        self.borrowed_token.store(false, Relaxed);
+
+        // Org-level session — no branch pin (the scope bar selects the branch).
+        let mut snapshot = session::snapshot_from_login(&resp, None);
+        // Admin permissions are authoritative — mirror them (best-effort: a perms
+        // blip must not void an otherwise good login).
+        let permissions = match auth_api::get_my_permissions(&self.api.config()).await {
+            Ok(p) => {
+                snapshot.permissions_loaded = true;
+                session::permissions_from(&p)
+            }
+            Err(_) => Vec::new(),
+        };
+        self.persist_and_set(session::SessionState {
+            snapshot: snapshot.clone(),
+            permissions,
+            token: Some(resp.token),
+        });
+        Ok(snapshot)
+    }
+
+    /// The dashboard's current explicit scope override (may be empty / partial).
+    pub fn active_scope(&self) -> Option<ActiveScopeView> {
+        self.active_scope
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// Set the dashboard's active org/branch scope and persist it. A `None`
+    /// field clears that dimension (falls back to the session value on reads).
+    pub fn set_active_scope(&self, org_id: Option<String>, branch_id: Option<String>) {
+        let scope = ActiveScopeView { org_id, branch_id };
+        if let Ok(json) = serde_json::to_string(&scope) {
+            let _ = self.store.kv_put(K_DASHBOARD_SCOPE, &json);
+        }
+        *self.active_scope.write().unwrap_or_else(|e| e.into_inner()) = Some(scope);
+    }
+
+    /// Resolve the effective `(org_id, branch_id)` for a dashboard read: the
+    /// explicit scope override layered over the session-derived scope. Errors if
+    /// signed out, or if neither the override nor the session supplies an org (a
+    /// super_admin must pick an org before scoped reads work).
+    fn effective_scope(&self) -> Result<(String, Option<String>), CoreError> {
+        let (sess_org, sess_branch) = {
+            let g = self.session.read().unwrap_or_else(|e| e.into_inner());
+            let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
+                detail: "not signed in".into(),
+            })?;
+            (s.snapshot.org_id.clone(), s.snapshot.branch_id.clone())
+        };
+        let ov = self.active_scope();
+        let org = ov
+            .as_ref()
+            .and_then(|s| s.org_id.clone())
+            .or(sess_org)
+            .ok_or_else(|| CoreError::Validation {
+                field: "org_id".into(),
+                detail: "no organization selected".into(),
+            })?;
+        let branch = ov.and_then(|s| s.branch_id).or(sess_branch);
+        Ok((org, branch))
+    }
+
+    /// Dashboard home KPI summary for the active scope over `[from, to]`
+    /// (RFC3339 strings). A specific branch uses `branch_sales`; "all branches"
+    /// (no branch selected) aggregates `org_branch_comparison` — same source the
+    /// web dashboard uses. Online-only.
+    pub async fn dashboard_summary(
+        &self,
+        from: Option<String>,
+        to: Option<String>,
+    ) -> Result<reports::DashboardSummaryView, CoreError> {
+        use madar_api::apis::reports_api;
+        let (org_id, branch) = self.effective_scope()?;
+        let date = |s: Option<String>| {
+            s.filter(|x| !x.is_empty())
+                .and_then(|x| chrono::DateTime::parse_from_rfc3339(&x).ok())
+        };
+        let currency = self
+            .current_session()
+            .map(|s| s.currency_code)
+            .unwrap_or_default();
+        match branch {
+            Some(branch_id) => {
+                let params = reports_api::BranchSalesParams {
+                    branch_id,
+                    from: date(from),
+                    to: date(to),
+                    limit: Some(10),
+                };
+                let rep = reports_api::branch_sales(&self.api.config(), params)
+                    .await
+                    .map_err(net::map_api_error)?;
+                Ok(reports::from_report(rep, currency, &self.current_locale()))
+            }
+            None => {
+                let params = reports_api::OrgBranchComparisonParams {
+                    org_id,
+                    from: date(from),
+                    to: date(to),
+                    limit: None,
+                };
+                let rep = reports_api::org_branch_comparison(&self.api.config(), params)
+                    .await
+                    .map_err(net::map_api_error)?;
+                Ok(reports::from_comparison(rep, currency))
+            }
+        }
+    }
+
+    /// Revenue trend for the active scope over `[from, to]` at `granularity`
+    /// ("hourly"/"daily"/…; defaults to "daily"). All-branches uses the nil-uuid
+    /// sentinel, which the timeseries endpoint rolls up. Online-only.
+    pub async fn dashboard_timeseries(
+        &self,
+        from: Option<String>,
+        to: Option<String>,
+        granularity: Option<String>,
+    ) -> Result<Vec<reports::DashboardTimePointView>, CoreError> {
+        use madar_api::apis::reports_api;
+        let (_, branch) = self.effective_scope()?;
+        let branch_id = branch.unwrap_or_else(|| reports::ALL_BRANCHES_ID.to_string());
+        let date = |s: Option<String>| {
+            s.filter(|x| !x.is_empty())
+                .and_then(|x| chrono::DateTime::parse_from_rfc3339(&x).ok())
+        };
+        let params = reports_api::BranchSalesTimeseriesParams {
+            branch_id,
+            from: date(from),
+            to: date(to),
+            granularity: Some(granularity.unwrap_or_else(|| "daily".into())),
+        };
+        let points = reports_api::branch_sales_timeseries(&self.api.config(), params)
+            .await
+            .map_err(net::map_api_error)?;
+        Ok(reports::timepoints_from(points))
     }
 }
 

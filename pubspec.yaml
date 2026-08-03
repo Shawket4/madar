@@ -7,9 +7,11 @@ environment:
 
 workspace:
   - apps/madar
+  - apps/dashboard
   - packages/app_core
   - packages/design_system
   - packages/rust_bridge
+  - packages/rust_bridge_dashboard
   - packages/features/auth
   - packages/features/checkout
   - packages/features/floor
@@ -42,3 +44,6 @@ melos:
     bridge:
       run: tool/gen-bindings.sh
       description: Regenerate flutter_rust_bridge bindings from madar-frb (M1+).
+    bridge_dashboard:
+      run: tool/gen-bindings-dashboard.sh
+      description: Regenerate FRB bindings from madar-frb-dashboard (management dashboard app).

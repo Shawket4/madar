@@ -1,0 +1,37 @@
+Pod::Spec.new do |s|
+  s.name             = 'rust_bridge_dashboard'
+  s.version          = '0.1.0'
+  s.summary          = 'Madar dashboard Rust core FFI (madar-frb-dashboard) built via Cargokit.'
+  s.description      = <<-DESC
+Builds the madar-frb-dashboard Rust crate (flutter_rust_bridge wrapper over
+madar-core, dashboard surface only) and links it into the app.
+                       DESC
+  s.homepage         = 'https://madar.example'
+  s.license          = { :type => 'UNLICENSED' }
+  s.author           = { 'Madar' => 'dev@madar.example' }
+
+  s.source           = { :path => '.' }
+  s.source_files     = 'Classes/**/*'
+  s.dependency 'FlutterMacOS'
+
+  s.platform = :osx, '10.14'
+  s.swift_version = '5.0'
+
+  s.script_phase = {
+    :name => 'Build Rust library',
+    :script => 'sh "$PODS_TARGET_SRCROOT/../cargokit/build_pod.sh" ../../../rust-core/crates/madar-frb-dashboard madar_frb_dashboard',
+    :execution_position => :before_compile,
+    :input_files => ['${BUILT_PRODUCTS_DIR}/cargokit_phony'],
+    :output_files => ["${BUILT_PRODUCTS_DIR}/libmadar_frb_dashboard.a"],
+  }
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libmadar_frb_dashboard.a',
+    # force_load pins EVERY object from the staticlib and a dylib exports all
+    # public symbols by default — so nothing is dead-strippable. Exporting
+    # ONLY the flutter_rust_bridge surface turns the rest into dead-strip
+    # fodder (matches the Android cdylib link, several MB smaller).
+    'EXPORTED_SYMBOLS_FILE' => '${PODS_TARGET_SRCROOT}/exports_apple.txt',
+    'DEAD_CODE_STRIPPING' => 'YES',
+  }
+end

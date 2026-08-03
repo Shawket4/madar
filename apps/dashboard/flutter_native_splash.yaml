@@ -1,0 +1,16 @@
+# Native launch splash (Android + iOS): the reversed Madar mark on brand teal,
+# ink in dark mode. Regenerate: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#0D6273"
+  image: "assets/branding/splash-logo.png"
+  color_dark: "#14181E"
+  image_dark: "assets/branding/splash-logo.png"
+  android: true
+  ios: true
+  web: false
+  fullscreen: true
+  android_12:
+    image: "assets/branding/splash-logo.png"
+    color: "#0D6273"
+    image_dark: "assets/branding/splash-logo.png"
+    color_dark: "#14181E"
