@@ -19,6 +19,29 @@ const CartTotals _emptyTotals = CartTotals(
   totalMinor: 0,
 );
 
+/// A table left needing a bus by a checkout, waiting on the teller's answer.
+///
+/// The pair is carried (not just the id) so the prompt can name the table even
+/// after the floor mirror reloads without it — the question is about a table
+/// the teller was JUST standing at, and "clear table 12?" is answerable where
+/// "clear this table?" is not.
+@immutable
+class PendingTableClear {
+  const PendingTableClear(this.tableId, this.label);
+
+  final String tableId;
+  final String? label;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PendingTableClear &&
+      other.tableId == tableId &&
+      other.label == label;
+
+  @override
+  int get hashCode => Object.hash(tableId, label);
+}
+
 /// Immutable snapshot of the natives' AppModel slice the order surface
 /// consumes: catalog, cart (+ start timestamp), drafts, open tickets,
 /// connectivity chrome, shift stats, and the toast/error slots. All business
@@ -39,8 +62,13 @@ class OrderState {
     this.cartStartedAtIso,
     this.cartName,
     this.cartDraftId,
+    this.cartTableId,
+    this.cartTableLabel,
     this.drafts = const [],
     this.openTickets = const [],
+    this.floorLayout,
+    this.transferQueue = const [],
+    this.pendingTableClear,
     this.activeTicketId,
     this.isOnline = true,
     this.pendingCount = 0,
@@ -89,9 +117,32 @@ class OrderState {
   /// manual drag order, keyed by id, holds).
   final String? cartDraftId;
 
+  /// The floor table picked for the LIVE order (applied when it parks) —
+  /// set from the edit sheet or a canvas tap. Null = no table.
+  final String? cartTableId;
+  final String? cartTableLabel;
+
   // ── drafts + waiter tickets ──────────────────────────────────────────────
   final List<DraftView> drafts;
   final List<TicketView> openTickets;
+
+  // ── floor (offline mirror) ───────────────────────────────────────────────
+  /// The branch layout + occupancy. EMPTY sections+tables = the branch has
+  /// no floor configured → every table affordance stays hidden (the gate).
+  final FloorLayoutView? floorLayout;
+  final List<TransferQueueView> transferQueue;
+
+  /// A table whose party just CHECKED OUT and that is now waiting to be
+  /// cleared. Set the moment the sale lands; the surface that sees it asks the
+  /// teller once ("clear it now?") and then drops it. Declining is not a
+  /// failure — the table simply stays `dirty` on the canvas with a one-tap
+  /// clear, so bussing is never silently assumed to have happened.
+  final PendingTableClear? pendingTableClear;
+
+  /// The feature gate: true only when a layout exists for this branch.
+  bool get hasFloor =>
+      floorLayout != null &&
+      (floorLayout!.sections.isNotEmpty || floorLayout!.tables.isNotEmpty);
 
   /// The waiter's selected round target (null = firing a NEW ticket).
   final String? activeTicketId;
@@ -145,8 +196,13 @@ class OrderState {
     Object? cartStartedAtIso = _unset,
     Object? cartName = _unset,
     Object? cartDraftId = _unset,
+    Object? cartTableId = _unset,
+    Object? cartTableLabel = _unset,
     List<DraftView>? drafts,
     List<TicketView>? openTickets,
+    Object? floorLayout = _unset,
+    List<TransferQueueView>? transferQueue,
+    Object? pendingTableClear = _unset,
     Object? activeTicketId = _unset,
     bool? isOnline,
     int? pendingCount,
@@ -176,8 +232,21 @@ class OrderState {
     cartDraftId: identical(cartDraftId, _unset)
         ? this.cartDraftId
         : cartDraftId as String?,
+    cartTableId: identical(cartTableId, _unset)
+        ? this.cartTableId
+        : cartTableId as String?,
+    cartTableLabel: identical(cartTableLabel, _unset)
+        ? this.cartTableLabel
+        : cartTableLabel as String?,
     drafts: drafts ?? this.drafts,
     openTickets: openTickets ?? this.openTickets,
+    floorLayout: identical(floorLayout, _unset)
+        ? this.floorLayout
+        : floorLayout as FloorLayoutView?,
+    transferQueue: transferQueue ?? this.transferQueue,
+    pendingTableClear: identical(pendingTableClear, _unset)
+        ? this.pendingTableClear
+        : pendingTableClear as PendingTableClear?,
     activeTicketId: identical(activeTicketId, _unset)
         ? this.activeTicketId
         : activeTicketId as String?,
@@ -282,8 +351,11 @@ class OrderNotifier extends Notifier<OrderState> {
       await Future.wait([reconcileShift(), loadCatalog(), loadShiftStats()]);
     }
     await _fetchCatalogIfEmpty();
-    await Future.wait([loadCart(), loadDrafts()]);
+    await Future.wait([loadCart(), loadDrafts(), loadFloor()]);
     await refreshConnectivity();
+    // Pull the floor after connectivity is known: a layout the dashboard
+    // changed while this till was closed lands without a manual data sync.
+    unawaited(syncFloor());
   }
 
   /// Fresh device: the local mirror is EMPTY until the first server pull —
@@ -394,6 +466,9 @@ class OrderNotifier extends Notifier<OrderState> {
     try {
       await _bridge.refreshCatalog();
       await loadCatalog();
+      // The catalog pull also refreshed the floor/held mirrors — re-project.
+      // (refreshCatalog pulls the floor itself, so no second fetch here.)
+      await Future.wait([loadDrafts(), loadFloor()]);
       showToast(
         _tr('chrome.sync_done'),
         tone: ChipTone.success,
@@ -446,9 +521,11 @@ class OrderNotifier extends Notifier<OrderState> {
         cartLines: lines,
         cartStartedAtIso: startedAt,
         // The order is gone once the cart empties (placed/cleared) — its
-        // name and draft identity go with it.
+        // name, draft identity, and table pick go with it.
         cartName: lines.isEmpty ? null : state.cartName,
         cartDraftId: lines.isEmpty ? null : state.cartDraftId,
+        cartTableId: lines.isEmpty ? null : state.cartTableId,
+        cartTableLabel: lines.isEmpty ? null : state.cartTableLabel,
         cartTotals: totals,
       );
     } on MadarError catch (e) {
@@ -508,6 +585,8 @@ class OrderNotifier extends Notifier<OrderState> {
       cartStartedAtIso: null,
       cartName: null,
       cartDraftId: null,
+      cartTableId: null,
+      cartTableLabel: null,
       cartTotals: totals,
     );
   }
@@ -612,36 +691,46 @@ class OrderNotifier extends Notifier<OrderState> {
     state = state.copyWith(drafts: drafts ?? state.drafts);
   }
 
-  /// Park the current cart as a held order, named by the wall-clock "HH:MM"
-  /// it's parked at. The core stamps createdAt (the strip's sort key).
+  /// Park the current cart as a held order — onto its picked table, if any.
+  /// A lost table race still parks (the core drops the table + returns true);
+  /// the teller gets a toast instead of a failure.
   Future<void> holdCart() async {
-    await _quiet(() async {
-      // The draft keeps the ORDER's identity: its free-text name (may be
-      // empty → the chip shows the time), the id it was restored from (a
-      // re-park is the SAME draft), and its first-item timestamp — so chips
-      // never reshuffle or re-stamp across hold/restore cycles.
-      await _bridge.holdCart(
+    final conflict = await _quiet(
+      () => _bridge.holdCartOnTable(
+        // The draft keeps the ORDER's identity: its free-text name (may be
+        // empty → the chip shows the time), the id it was restored from (a
+        // re-park is the SAME draft), and its first-item timestamp — so chips
+        // never reshuffle or re-stamp across hold/restore cycles.
         name: state.cartName ?? '',
         draftId: state.cartDraftId,
         startedAt: state.cartStartedAtIso,
-      );
-      return true;
-    });
+        tableId: state.cartTableId,
+      ),
+    );
+    if (conflict ?? false) {
+      showToast(_tr('tables.taken'), tone: ChipTone.warning, icon: 'table');
+    }
     state = state.copyWith(
       cartStartedAtIso: null,
       cartName: null,
       cartDraftId: null,
+      cartTableId: null,
+      cartTableLabel: null,
     );
     await loadCart();
-    await loadDrafts();
+    await Future.wait([loadDrafts(), loadFloor()]);
   }
 
   /// Restore a held order into the cart (replacing the current one),
   /// adopting the draft's FULL identity: its createdAt as the immutable
-  /// start timestamp, its free-text name, and its id (passed back on the
-  /// next hold so the draft never changes identity).
+  /// start timestamp, its free-text name, its table, and its id (passed back
+  /// on the next hold so the draft never changes identity).
   Future<void> restoreDraft(String id) async {
     final draft = state.drafts.where((d) => d.id == id).firstOrNull;
+    if (draft?.lockedByOther ?? false) {
+      showToast(_tr('tables.locked'), tone: ChipTone.warning, icon: 'lock');
+      return;
+    }
     try {
       final lines = await _bridge.restoreDraft(id: id);
       state = state.copyWith(cartLines: lines);
@@ -656,9 +745,11 @@ class OrderNotifier extends Notifier<OrderState> {
       // treat those as unnamed so the chip falls back to the live time.
       cartName: name.isEmpty || _looksLikeTimeLabel(name) ? null : name,
       cartDraftId: draft?.id,
+      cartTableId: draft?.tableId,
+      cartTableLabel: draft?.tableLabel,
       cartTotals: totals,
     );
-    await loadDrafts();
+    await Future.wait([loadDrafts(), loadFloor()]);
     _refreshShell();
   }
 
@@ -673,24 +764,42 @@ class OrderNotifier extends Notifier<OrderState> {
     state = state.copyWith(cartName: trimmed.isEmpty ? null : trimmed);
   }
 
+  /// Pick (or clear) the LIVE order's table — applied when it parks.
+  void setCartTable(String? tableId, String? tableLabel) =>
+      state = state.copyWith(cartTableId: tableId, cartTableLabel: tableLabel);
+
   Future<void> discardDraft(String id) async {
-    await _quiet(() async {
+    try {
       await _bridge.discardDraft(id: id);
-      return true;
-    });
-    await loadDrafts();
+    } on MadarError catch (e) {
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+    }
+    await Future.wait([loadDrafts(), loadFloor()]);
   }
 
   /// Tab-style switch to a held order: park the current cart first (if any)
   /// so nothing is lost, then load the target under its own createdAt.
   Future<void> switchToHeldOrder(String id) async {
+    // Check the lock BEFORE parking the current cart, so a blocked switch
+    // leaves the live order exactly where it was.
+    final target = state.drafts.where((d) => d.id == id).firstOrNull;
+    if (target?.lockedByOther ?? false) {
+      showToast(_tr('tables.locked'), tone: ChipTone.warning, icon: 'lock');
+      return;
+    }
     if (state.cartLines.isNotEmpty) {
       await _quiet(() async {
-        // Park the CURRENT order under its own identity (see holdCart).
-        await _bridge.holdCart(
+        // Park the CURRENT order under its own identity (see holdCart) —
+        // table included.
+        await _bridge.holdCartOnTable(
           name: state.cartName ?? '',
           draftId: state.cartDraftId,
           startedAt: state.cartStartedAtIso,
+          tableId: state.cartTableId,
         );
         return true;
       });
@@ -699,8 +808,270 @@ class OrderNotifier extends Notifier<OrderState> {
       cartStartedAtIso: null,
       cartName: null,
       cartDraftId: null,
+      cartTableId: null,
+      cartTableLabel: null,
     );
     await restoreDraft(id);
+  }
+
+  /// A resumed draft's cart just CHECKED OUT — close the loop: the held
+  /// order completes (its table lands `dirty`, its waitlist wish cancels)
+  /// right behind the order in the outbox.
+  Future<void> onOrderSettled(String? draftId) async {
+    // Captured before the reloads drop it: the table the sale just vacated.
+    final table = state.cartTableId;
+    final label = state.cartTableLabel;
+    if (draftId != null) {
+      await _quiet(() async {
+        await _bridge.completeDraft(id: draftId);
+        return true;
+      });
+    }
+    // A table the LIVE cart claimed without ever parking still has to be
+    // handed on — otherwise it reads taken until the next pull.
+    if (table != null) await _busTableLocally(table);
+    if (table != null) _askToClear(table, label);
+    await Future.wait([
+      loadCart(),
+      loadShiftStats(),
+      loadDrafts(),
+      loadFloor(),
+    ]);
+  }
+
+  /// Mark a table as needing a bus after its party checked out. The server
+  /// does the same walk on settle/complete; this keeps the LOCAL mirror in
+  /// step so the canvas is right the instant the sale lands (and offline).
+  Future<void> _busTableLocally(String tableId) async {
+    await _quiet(() async {
+      await _bridge.setTableState(
+        tableId: tableId,
+        status: 'dirty',
+        clearSection: false,
+      );
+      return true;
+    });
+  }
+
+  /// Hand a table straight back to the room — no bussing step. Used when no
+  /// party vacated it (a void, a move, an unassign).
+  Future<void> _freeTableLocally(String tableId) async {
+    await _quiet(() async {
+      await _bridge.setTableState(
+        tableId: tableId,
+        status: 'free',
+        clearSection: false,
+      );
+      return true;
+    });
+  }
+
+  /// Queue the "clear it now?" question for the surface that can ask it.
+  /// Never asks about a table that is not on this branch's floor (a cart can
+  /// carry a stale table id), so the teller is never prompted about a table
+  /// they cannot see.
+  void _askToClear(String tableId, String? label) {
+    final known = state.floorLayout?.tables
+        .where((t) => t.id == tableId)
+        .firstOrNull;
+    if (state.floorLayout != null && known == null) return;
+    state = state.copyWith(
+      pendingTableClear: PendingTableClear(tableId, label ?? known?.label),
+    );
+  }
+
+  /// The teller answered "clear it" — the table goes back to the room.
+  Future<void> clearPendingTable() async {
+    final pending = state.pendingTableClear;
+    state = state.copyWith(pendingTableClear: null);
+    if (pending == null) return;
+    await clearTable(pending.tableId);
+  }
+
+  /// Bus a table clean: it has been cleared for real, so it goes back to the
+  /// room. The teller's one-tap answer on the tables screen, and the same walk
+  /// the post-checkout prompt takes when they say "clear it now".
+  Future<void> clearTable(String tableId) async {
+    await setTableState(tableId, status: 'free');
+    showToast(
+      _tr('tables.cleared'),
+      tone: ChipTone.success,
+      icon: 'checkmark.circle',
+    );
+  }
+
+  /// The teller answered "not yet" — the table STAYS `dirty`, visible on the
+  /// canvas with a one-tap clear. Dismissing the question is a decision, not
+  /// a no-op, so nothing about the table changes here.
+  void dismissPendingTableClear() =>
+      state = state.copyWith(pendingTableClear: null);
+
+  // ── floor canvas + transfer waitlist ───────────────────────────────────────
+  /// Re-project the floor from the local mirrors (instant, offline-safe).
+  Future<void> loadFloor() async {
+    final layout = await _quiet(_bridge.floorLayout);
+    final queue = await _quiet(_bridge.listTransferQueue);
+    state = state.copyWith(
+      floorLayout: layout ?? state.floorLayout,
+      transferQueue: queue ?? state.transferQueue,
+    );
+  }
+
+  /// PULL the floor from the server, then re-project. This is what makes a
+  /// dashboard layout edit show up: the mirror only changes when something
+  /// fetches. Called on opening a floor surface, on a `floor.*` realtime
+  /// event, and by the safety poll while realtime is down. Best-effort —
+  /// offline just re-projects what's already mirrored.
+  Future<void> syncFloor() async {
+    await _quiet(() async {
+      await _bridge.refreshFloor();
+      return true;
+    });
+    await loadFloor();
+  }
+
+  /// Operational table-state edit: bus a dirty table clean, hold/free it, or
+  /// move the PHYSICAL table to another zone. Offline-safe (queued, LWW).
+  Future<void> setTableState(
+    String tableId, {
+    String? status,
+    String? sectionId,
+    bool clearSection = false,
+  }) async {
+    try {
+      await _bridge.setTableState(
+        tableId: tableId,
+        status: status,
+        sectionId: sectionId,
+        clearSection: clearSection,
+      );
+    } on MadarError catch (e) {
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+    }
+    await loadFloor();
+  }
+
+  /// Turn a table back over: release whatever the POS may release, then mark
+  /// it available. The teller's counterpart to seating.
+  ///
+  /// A live WAITER TICKET is never silently orphaned — its bill still has to
+  /// be settled or moved, so the action refuses and says so. A parked held
+  /// order simply DETACHES (the order survives, table-less, in the strip).
+  Future<bool> makeTableAvailable(
+    FloorTableStateView table, {
+    TicketView? ticket,
+  }) async {
+    if (ticket != null) {
+      showToast(
+        _tr('tables.settle_first'),
+        tone: ChipTone.warning,
+        icon: 'fork.knife',
+      );
+      return false;
+    }
+    if (table.heldOrderId != null) {
+      if (table.heldLockedByOther) {
+        showToast(_tr('tables.locked'), tone: ChipTone.warning, icon: 'lock');
+        return false;
+      }
+      // Detach first: the server buses the freed table, and the status op
+      // queued right behind it lands the table on `free`.
+      if (!await assignDraftTable(table.heldOrderId!, null)) return false;
+    }
+    await setTableState(table.id, status: 'free');
+    showToast(
+      _tr('tables.freed'),
+      tone: ChipTone.success,
+      icon: 'checkmark.circle',
+    );
+    return true;
+  }
+
+  /// Assign / move / unassign a PARKED draft's table (loud on conflicts).
+  Future<bool> assignDraftTable(String draftId, String? tableId) async {
+    try {
+      await _bridge.assignDraftTable(id: draftId, tableId: tableId);
+    } on MadarError catch (e) {
+      showToast(_bridge.humanMessage(e), tone: ChipTone.warning, icon: 'table');
+      return false;
+    }
+    await Future.wait([loadDrafts(), loadFloor()]);
+    return true;
+  }
+
+  /// Swap whatever sits on two tables (held orders and/or waiter tickets).
+  Future<void> swapTables(String tableA, String tableB) async {
+    try {
+      await _bridge.swapFloorTables(tableA: tableA, tableB: tableB);
+      showToast(
+        _tr('tables.moved'),
+        tone: ChipTone.success,
+        icon: 'checkmark.circle',
+      );
+    } on MadarError catch (e) {
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+    }
+    await Future.wait([
+      loadDrafts(),
+      loadFloor(),
+      if (state.isWaiter) loadOpenTickets(),
+    ]);
+  }
+
+  /// Queue a party for a move (a section, or one specific table).
+  Future<void> createTransfer({
+    required String occupantKind,
+    required String occupantId,
+    String? targetSectionId,
+    String? targetTableId,
+    String? note,
+  }) async {
+    try {
+      await _bridge.createTransfer(
+        occupantKind: occupantKind,
+        occupantId: occupantId,
+        targetSectionId: targetSectionId,
+        targetTableId: targetTableId,
+        note: note,
+      );
+      showToast(_tr('tables.queued'), tone: ChipTone.success, icon: 'clock');
+    } on MadarError catch (e) {
+      showToast(_bridge.humanMessage(e), tone: ChipTone.warning, icon: 'clock');
+    }
+    await loadFloor();
+  }
+
+  Future<void> cancelTransfer(String id) async {
+    await _quiet(() async {
+      await _bridge.cancelTransfer(id: id);
+      return true;
+    });
+    await loadFloor();
+  }
+
+  /// Seat a waiting party on [tableId] (must satisfy its wish).
+  Future<bool> fulfillTransfer(String id, String tableId) async {
+    try {
+      await _bridge.fulfillTransfer(id: id, tableId: tableId);
+      showToast(
+        _tr('tables.moved'),
+        tone: ChipTone.success,
+        icon: 'checkmark.circle',
+      );
+    } on MadarError catch (e) {
+      showToast(_bridge.humanMessage(e), tone: ChipTone.warning, icon: 'table');
+      return false;
+    }
+    await Future.wait([loadDrafts(), loadFloor()]);
+    return true;
   }
 
   // ── waiter (dine-in tickets) ───────────────────────────────────────────────
@@ -815,6 +1186,15 @@ class OrderNotifier extends Notifier<OrderState> {
     }
     state = state.copyWith(isBusy: true, error: null);
     try {
+      // The ticket's table, captured before the board reloads without it.
+      final table = state.openTickets
+          .where((t) => t.id == ticketId)
+          .firstOrNull
+          ?.tableId;
+      final label = state.floorLayout?.tables
+          .where((t) => t.id == table)
+          .firstOrNull
+          ?.label;
       await _bridge.settleTicket(
         ticketId: ticketId,
         shiftId: shiftId,
@@ -823,7 +1203,12 @@ class OrderNotifier extends Notifier<OrderState> {
         tipMinor: tipMinor,
         tipPaymentMethodId: tipPaymentMethodId,
       );
+      // The party paid and left their plates: the table needs a bus, and the
+      // teller — not the app — decides when it is ready for the next party.
+      if (table != null) await _busTableLocally(table);
       await loadOpenTickets();
+      await loadFloor();
+      if (table != null) _askToClear(table, label);
       showToast(_tr('waiter.settled'), tone: ChipTone.success);
       _refreshShell();
       return true;
@@ -837,8 +1222,14 @@ class OrderNotifier extends Notifier<OrderState> {
 
   Future<void> voidTicket(String ticketId, String? reason) async {
     try {
+      final table = state.openTickets
+          .where((t) => t.id == ticketId)
+          .firstOrNull
+          ?.tableId;
       await _bridge.voidTicket(ticketId: ticketId, reason: reason);
+      if (table != null) await _freeTableLocally(table);
       await loadOpenTickets();
+      await loadFloor();
     } on MadarError catch (e) {
       showToast(
         _bridge.humanMessage(e),

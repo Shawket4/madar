@@ -9,6 +9,8 @@ import 'package:feature_order/src/cart_panel.dart';
 import 'package:feature_order/src/catalog_column.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/order_providers.dart';
+import 'package:feature_order/src/table_clear_prompt.dart';
+import 'package:feature_order/src/tables_screen.dart';
 import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:feature_settings/feature_settings.dart';
@@ -116,6 +118,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
   Future<void> _checkout() async {
     final state = ref.read(orderProvider);
     if (!state.isWaiter) {
+      // Captured BEFORE the sheet: settling clears the cart (and with it the
+      // draft identity) — this is the held order the sale completes.
+      final settledDraftId = state.cartDraftId;
       await showMadarSheet<ReceiptView>(
         context,
         size: SheetSize.large,
@@ -123,8 +128,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
         // offline) — visible behind the confirmation, not after dismissal.
         builder: (_) => TenderSheet(
           onSettled: () {
-            unawaited(_notifier.loadCart());
-            unawaited(_notifier.loadShiftStats());
+            // Completes the resumed held order (frees its table, cancels its
+            // waitlist wish) right behind the order in the outbox — then the
+            // usual reloads.
+            unawaited(_notifier.onOrderSettled(settledDraftId));
           },
         ),
       );
@@ -207,6 +214,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    // A sale just vacated a table: ask the teller, once, whether it is
+    // cleared. Declining leaves it visibly needing a bus on the floor.
+    listenForTableClear(context, ref);
     ref
       // A ticket moved somewhere (fired / settled / voided on another
       // device) — refresh the waiter's held-ticket strip immediately (the
@@ -422,6 +432,9 @@ class _OrderTopBar extends ConsumerWidget {
                   ],
                 ],
                 const Spacer(),
+                // Tables canvas — only when the branch has a floor layout
+                // (the feature gate: no layout, no button, nothing changes).
+                const _TablesButton(),
                 _SyncChip(onTap: onOpenSync),
                 const SizedBox(width: Space.sm),
                 const _SyncDataButton(),
@@ -447,6 +460,63 @@ class _OrderTopBar extends ConsumerWidget {
           ),
           Container(height: 1, color: colors.border),
         ],
+      ),
+    );
+  }
+}
+
+/// The tables-canvas entry — rendered ONLY when the branch has a floor
+/// layout in the offline mirror; a badge dot shows waiting transfers.
+class _TablesButton extends ConsumerWidget {
+  const _TablesButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final hasFloor = ref.watch(orderProvider.select((s) => s.hasFloor));
+    final waiting = ref.watch(
+      orderProvider.select((s) => s.transferQueue.length),
+    );
+    if (!hasFloor) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: Space.sm),
+      child: TactileScale(
+        onTap: () => unawaited(
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const TablesScreen()),
+          ),
+        ),
+        child: Tooltip(
+          message: bridge.tr(key: 'tables.title'),
+          child: Padding(
+            padding: const EdgeInsets.all(Space.xs),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                MadarIcon(
+                  'square.grid.2x2',
+                  tint: colors.textSecondary,
+                  size: IconSize.lg,
+                ),
+                if (waiting > 0)
+                  PositionedDirectional(
+                    end: -2,
+                    top: -2,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: colors.warning,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: colors.surface, width: 1.5),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -178,6 +178,15 @@ class RealtimeArmer {
             eventType.startsWith('order.')) {
           _ref.read(deliveryTickProvider.notifier).bump();
         }
+        // The floor moved: a manager re-arranged the room in the dashboard
+        // (`floor.layout_changed`), a table changed state, or another till
+        // parked/seated a party. The order surface re-pulls the mirrors.
+        if (eventType.startsWith('floor.') ||
+            eventType.startsWith('table.') ||
+            eventType.startsWith('held_order.') ||
+            eventType.startsWith('transfer.')) {
+          _ref.read(floorTickProvider.notifier).bump();
+        }
       case RealtimeMessage_ConnectionChanged(:final connected):
         _ref.read(realtimeConnectedProvider.notifier).update(connected);
     }

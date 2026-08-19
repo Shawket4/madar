@@ -195,18 +195,34 @@ class _DraftCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: 3,
                 children: [
-                  Text(
-                    draft.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.body.copyWith(
-                      fontSize: _nameSize,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
-                    ),
+                  Row(
+                    spacing: Space.xs,
+                    children: [
+                      if (draft.lockedByOther)
+                        MadarIcon(
+                          'lock',
+                          tint: colors.textMuted,
+                          size: IconSize.sm,
+                        ),
+                      Flexible(
+                        child: Text(
+                          draft.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: MadarType.body.copyWith(
+                            fontSize: _nameSize,
+                            fontWeight: FontWeight.w700,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   Text(
-                    '${draft.itemCount} ${bridge.tr(key: 'chrome.orders')}',
+                    // "3 items · T5" once the order owns a floor table.
+                    draft.tableLabel?.isNotEmpty ?? false
+                        ? '${draft.itemCount} ${bridge.tr(key: 'chrome.orders')} · ${draft.tableLabel}'
+                        : '${draft.itemCount} ${bridge.tr(key: 'chrome.orders')}',
                     style: MadarType.label.copyWith(
                       fontSize: _countSize,
                       fontWeight: FontWeight.w500,

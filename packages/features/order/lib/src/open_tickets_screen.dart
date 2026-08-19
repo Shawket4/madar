@@ -13,6 +13,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_order/src/cart_panel.dart' show OrderLinesCard;
 import 'package:feature_order/src/order_providers.dart';
+import 'package:feature_order/src/table_clear_prompt.dart';
 import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
@@ -185,6 +186,9 @@ class _OpenTicketsScreenState extends ConsumerState<OpenTicketsScreen> {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
+    // A settled ticket leaves its table needing a bus — ask once, here, while
+    // the teller is still holding the bill.
+    listenForTableClear(context, ref);
     // Realtime ticket tick — each bump reloads the open board (the natives'
     // `LaunchedEffect(model.ticketTick)`).
     ref.listen(ticketTickProvider, (_, _) {
@@ -598,15 +602,26 @@ class _TicketDetailsSheet extends ConsumerWidget {
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final waiter = ticket.waiterName;
     final customer = ticket.customerName;
+    // Resolve the table id → its floor label (branches with a layout); a
+    // legacy free-text "table" survives as-is.
     final table = ticket.tableId;
+    final tableLabel = table == null
+        ? null
+        : ref
+                  .watch(orderProvider.select((s) => s.floorLayout))
+                  ?.tables
+                  .where((t) => t.id == table)
+                  .firstOrNull
+                  ?.label ??
+              table;
     final covers = ticket.guestCount;
     final context_ = <(String, String)>[
       // Who took the table — the waiter who opened the ticket.
       if (waiter != null && waiter.isNotEmpty)
         ('fork.knife', '${bridge.tr(key: 'order.waiter')}: $waiter'),
       if (customer != null && customer.isNotEmpty) ('person.fill', customer),
-      if (table != null && table.isNotEmpty)
-        ('square.grid.2x2', '${bridge.tr(key: 'order.table')} $table'),
+      if (tableLabel != null && tableLabel.isNotEmpty)
+        ('square.grid.2x2', '${bridge.tr(key: 'order.table')} $tableLabel'),
       if (covers != null && covers > 0)
         ('person.2.fill', '$covers ${bridge.tr(key: 'waiter.covers')}'),
     ];

@@ -80,6 +80,13 @@ class ActionButton extends StatelessWidget {
       ),
     };
 
+    final text = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: MadarType.body.copyWith(fontWeight: FontWeight.w700, color: fg),
+    );
+
     Widget button = Container(
       height: kActionButtonHeight,
       decoration: BoxDecoration(
@@ -87,29 +94,30 @@ class ActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(Radii.sm),
         border: border,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (loading)
-            SizedBox.square(
-              dimension: IconSize.md,
-              child: CircularProgressIndicator(color: fg, strokeWidth: 2),
-            )
-          else if (icon != null)
-            MadarIcon(icon, tint: fg, size: IconSize.lg),
-          if (loading || icon != null) const SizedBox(width: Space.sm),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: MadarType.body.copyWith(
-                fontWeight: FontWeight.w700,
-                color: fg,
-              ),
-            ),
-          ),
-        ],
+      // A flex child (Flexible/Expanded) is ILLEGAL under unbounded width, and
+      // the assertion doesn't just break the button — it fails the whole
+      // subtree's layout, blanking the screen that hosts it. So adapt: fill +
+      // ellipsize when the parent bounds us (a Column/stretch, the common
+      // case), shrink-wrap when it doesn't (a bare child of a Row).
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final bounded = constraints.hasBoundedWidth;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              if (loading)
+                SizedBox.square(
+                  dimension: IconSize.md,
+                  child: CircularProgressIndicator(color: fg, strokeWidth: 2),
+                )
+              else if (icon != null)
+                MadarIcon(icon, tint: fg, size: IconSize.lg),
+              if (loading || icon != null) const SizedBox(width: Space.sm),
+              if (bounded) Flexible(child: text) else text,
+            ],
+          );
+        },
       ),
     );
 

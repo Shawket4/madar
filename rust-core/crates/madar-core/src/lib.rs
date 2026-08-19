@@ -36,6 +36,9 @@ pub mod device;
 /// The coarse FFI error model the host reacts to (PLAN §7.6).
 pub mod error;
 /// Static UI-string localization — one source of truth for both hosts.
+/// Server-backed held orders (parked carts that own floor tables), the
+/// floor-layout mirror, and the transfer waitlist — all offline-first.
+pub mod held;
 pub mod i18n;
 mod images;
 /// Kitchen Display System — station feed + per-line bump (kitchen topic consumer).
@@ -1157,6 +1160,96 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": op, "teller_id": teller_id, "item_id": cmd.item_id }),
+                    Idem::Yes,
+                )
+            }
+            // ── Held orders + floor ops ───────────────────────────────────────
+            // Park/claim conflicts are REAL cross-till races (another till owns
+            // the cart) → dead-letter so the sync center surfaces them. The
+            // rest self-heal: a 409 means the floor moved on — ack it and let
+            // the post-drain pull reconcile the mirror.
+            "park_held_order" => {
+                let cmd: held::ParkCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "park_held_order", "teller_id": teller_id, "request": cmd.request }),
+                    Idem::No,
+                )
+            }
+            "claim_held_order" => {
+                let cmd: held::HeldOpCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "claim_held_order", "teller_id": teller_id, "held_order_id": cmd.held_order_id, "request": cmd.request }),
+                    Idem::No,
+                )
+            }
+            "release_held_order" | "discard_held_order" | "complete_held_order" => {
+                let cmd: held::HeldOpCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                let op = match item.op_type.as_str() {
+                    "release_held_order" => "release_held_order",
+                    "discard_held_order" => "discard_held_order",
+                    _ => "complete_held_order",
+                };
+                (
+                    serde_json::json!({ "op": op, "teller_id": teller_id, "held_order_id": cmd.held_order_id, "request": cmd.request }),
+                    Idem::Yes,
+                )
+            }
+            "swap_tables" => {
+                let cmd: held::SwapCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "swap_tables", "teller_id": teller_id, "request": cmd.request }),
+                    Idem::Yes,
+                )
+            }
+            "create_table_transfer" => {
+                let cmd: held::CreateTransferCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "create_table_transfer", "teller_id": teller_id, "request": cmd.request }),
+                    Idem::Yes,
+                )
+            }
+            "cancel_table_transfer" => {
+                let cmd: held::TransferOpCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "cancel_table_transfer", "teller_id": teller_id, "transfer_id": cmd.transfer_id }),
+                    Idem::Yes,
+                )
+            }
+            "fulfill_table_transfer" => {
+                let cmd: held::TransferOpCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "fulfill_table_transfer", "teller_id": teller_id, "transfer_id": cmd.transfer_id, "request": cmd.request }),
+                    Idem::Yes,
+                )
+            }
+            "update_table_state" => {
+                let cmd: held::TableStateCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "update_table_state", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
                     Idem::Yes,
                 )
             }
@@ -2678,36 +2771,387 @@ impl MadarCore {
     pub fn cart_clear(&self) -> Result<(), CoreError> {
         cart::clear(&self.store)
     }
-    /// Park the current cart as a named draft (held order) and empty the cart.
-    /// Park the current cart as a draft. `draft_id`/`started_at` let the
-    /// host RE-park a previously restored draft under its ORIGINAL identity
-    /// and creation stamp — so a held order keeps its place (oldest→newest)
-    /// and its name across switch cycles instead of minting a new one.
+    // ── held orders (server-backed parked carts, branch-shared) ───────────
+    //
+    // The old device-local drafts became first-class backend entities that own
+    // floor tables. Every mutation is optimistic-local (the `held` mirror) plus
+    // a queued `/sync/replay` op — same offline-first walk as orders/tickets.
+
+    /// Park the current cart as a held order (no table). `draft_id`/`started_at`
+    /// keep a re-parked (previously restored) draft's identity + strip position.
     pub fn hold_cart(
         &self,
         name: String,
         draft_id: Option<String>,
         started_at: Option<String>,
     ) -> Result<(), CoreError> {
+        self.hold_cart_on_table(name, draft_id, started_at, None)
+            .map(|_| ())
+    }
+
+    /// Park the current cart, optionally onto a floor table. Returns `true`
+    /// when the requested table was DROPPED because it's taken per the local
+    /// mirror (the park itself always succeeds — data beats position; the host
+    /// shows a "table was taken" toast). The queued op re-arbitrates on sync.
+    pub fn hold_cart_on_table(
+        &self,
+        name: String,
+        draft_id: Option<String>,
+        started_at: Option<String>,
+        table_id: Option<String>,
+    ) -> Result<bool, CoreError> {
+        let branch = self.session_branch_id()?;
+        let payload = cart::cart_payload(&self.store)?;
+        if payload
+            .get("lines")
+            .and_then(|l| l.as_array())
+            .map(|a| a.is_empty())
+            .unwrap_or(true)
+        {
+            return Err(CoreError::Validation {
+                field: "cart".into(),
+                detail: "cart is empty".into(),
+            });
+        }
         let id = draft_id
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        let now = started_at
+        let created = started_at
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
-        cart::hold(&self.store, id, name, now)
+            .unwrap_or_else(|| self.corrected_now().to_rfc3339());
+        let device = self.lan_device_id();
+        let (entry, conflict) = held::park_local(
+            &self.store,
+            &id,
+            &branch,
+            &name,
+            payload.clone(),
+            table_id.clone(),
+            &device,
+            &created,
+        )?;
+        // The op carries the REQUESTED table — the server is the arbiter; a
+        // race the stale mirror lost may still be won there (next pull syncs).
+        let cmd = held::ParkCommand {
+            held_order_id: entry.id.clone(),
+            request: serde_json::json!({
+                "id": entry.id, "branch_id": branch, "name": name, "cart": payload,
+                "table_id": table_id, "device_id": device, "created_at": entry.created_at,
+            }),
+        };
+        self.enqueue_held_op(
+            "park_held_order",
+            format!("park:{}:{}", entry.id, uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )?;
+        cart::clear(&self.store)?;
+        Ok(conflict)
     }
-    /// The parked drafts (held orders), newest first.
+
+    /// The branch's parked orders (every till's), newest first. Orders being
+    /// edited on another till come back `locked_by_other`. Also lifts any
+    /// pre-upgrade device-local drafts into the shared model (once).
     pub fn list_drafts(&self) -> Result<Vec<cart::DraftView>, CoreError> {
-        cart::drafts(&self.store)
+        self.migrate_legacy_drafts();
+        held::drafts(&self.store, &self.lan_device_id())
     }
-    /// Restore a draft into the cart (replaces current lines) and drop it.
+
+    /// Restore a held order into the cart (claims it for this till so no other
+    /// till edits it concurrently). Errors when another till holds the claim.
     pub fn restore_draft(&self, id: String) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::restore_draft(&self.store, &id)
+        let device = self.lan_device_id();
+        let now = self.corrected_now().to_rfc3339();
+        let payload = held::claim_local(&self.store, &id, &device, &now)?;
+        let lines = cart::set_cart_payload(&self.store, &payload)?;
+        let cmd = held::HeldOpCommand {
+            held_order_id: id.clone(),
+            request: serde_json::json!({ "device_id": device, "force": false }),
+        };
+        self.enqueue_held_op(
+            "claim_held_order",
+            format!("claim:{id}:{}", uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )?;
+        Ok(lines)
     }
-    /// Discard a parked draft.
+
+    /// Give a restored draft's claim back WITHOUT re-parking (the cart wasn't
+    /// changed) — e.g. the teller switches away right after resuming.
+    pub fn release_draft(&self, id: String) -> Result<(), CoreError> {
+        let device = self.lan_device_id();
+        let now = self.corrected_now().to_rfc3339();
+        held::release_local(&self.store, &id, &device, &now)?;
+        let cmd = held::HeldOpCommand {
+            held_order_id: id.clone(),
+            request: serde_json::json!({ "device_id": device }),
+        };
+        self.enqueue_held_op(
+            "release_held_order",
+            format!("release:{id}:{}", uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// Discard a parked draft (tombstone; frees its table + waitlist wish).
     pub fn discard_draft(&self, id: String) -> Result<(), CoreError> {
-        cart::discard_draft(&self.store, &id)
+        let device = self.lan_device_id();
+        let now = self.corrected_now().to_rfc3339();
+        held::terminate_local(&self.store, &id, "discarded", Some(&device), &now)?;
+        let cmd = held::HeldOpCommand {
+            held_order_id: id.clone(),
+            request: serde_json::json!({ "device_id": device, "force": false }),
+        };
+        self.enqueue_held_op(
+            "discard_held_order",
+            format!("discard:{id}:{}", uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// Mark a restored draft COMPLETED after its cart checked out (the host
+    /// calls this right after a successful ring-up of a resumed draft). Frees
+    /// the table; the queued op drains AFTER the order create (FIFO).
+    pub fn complete_draft(&self, id: String, order_id: Option<String>) -> Result<(), CoreError> {
+        let now = self.corrected_now().to_rfc3339();
+        held::terminate_local(&self.store, &id, "completed", None, &now)?;
+        let cmd = held::HeldOpCommand {
+            held_order_id: id.clone(),
+            request: serde_json::json!({ "order_id": order_id }),
+        };
+        self.enqueue_held_op(
+            "complete_held_order",
+            format!("complete:{id}:{}", uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// Assign / move / unassign a parked draft's table (interactive — loud
+    /// error when the table is taken per the local mirror). Syncs as a re-park.
+    pub fn assign_draft_table(
+        &self,
+        id: String,
+        table_id: Option<String>,
+    ) -> Result<(), CoreError> {
+        let branch = self.session_branch_id()?;
+        let now = self.corrected_now().to_rfc3339();
+        let entry = held::assign_table_local(&self.store, &id, table_id.clone(), &now)?;
+        let device = self.lan_device_id();
+        let cmd = held::ParkCommand {
+            held_order_id: entry.id.clone(),
+            request: serde_json::json!({
+                "id": entry.id, "branch_id": branch, "name": entry.name, "cart": entry.cart,
+                "table_id": table_id, "device_id": device, "created_at": entry.created_at,
+            }),
+        };
+        self.enqueue_held_op(
+            "park_held_order",
+            format!("park:{}:{}", entry.id, uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// Swap whatever sits on two tables (held orders and/or waiter tickets) —
+    /// one empty side = a move. Optimistic for held occupants; the queued op is
+    /// the arbiter and the next pull reconciles.
+    pub fn swap_tables(&self, table_a: String, table_b: String) -> Result<(), CoreError> {
+        let branch = self.session_branch_id()?;
+        let now = self.corrected_now().to_rfc3339();
+        held::swap_local(&self.store, &table_a, &table_b, &now)?;
+        let cmd = held::SwapCommand {
+            request: serde_json::json!({
+                "branch_id": branch, "table_a": table_a, "table_b": table_b
+            }),
+        };
+        self.enqueue_held_op(
+            "swap_tables",
+            format!("swap:{}", uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// The branch floor: sections + tables + held-order occupancy, fully
+    /// offline. EMPTY when the branch has no layout — the host's feature gate.
+    pub fn floor_layout(&self) -> Result<held::FloorLayoutView, CoreError> {
+        held::layout(&self.store, &self.lan_device_id())
+    }
+
+    /// The transfer waitlist (waiting entries, FIFO, display-ready).
+    pub fn list_transfer_queue(&self) -> Result<Vec<held::TransferQueueView>, CoreError> {
+        held::transfer_queue(&self.store)
+    }
+
+    /// Queue a party (held order or open ticket) to move to a section or a
+    /// specific table. An outside/no-table order queues too.
+    pub fn create_transfer(
+        &self,
+        occupant_kind: String,
+        occupant_id: String,
+        target_section_id: Option<String>,
+        target_table_id: Option<String>,
+        note: Option<String>,
+    ) -> Result<(), CoreError> {
+        if target_section_id.is_none() && target_table_id.is_none() {
+            return Err(CoreError::Validation {
+                field: "target".into(),
+                detail: "a transfer needs a target section or table".into(),
+            });
+        }
+        let branch = self.session_branch_id()?;
+        let now = self.corrected_now().to_rfc3339();
+        let id = uuid::Uuid::new_v4().to_string();
+        let from_table = if occupant_kind == "held_order" {
+            held::get(&self.store, &occupant_id)?.and_then(|h| h.table_id)
+        } else {
+            None // a ticket's table is resolved server-side at create
+        };
+        held::create_transfer_local(
+            &self.store,
+            held::TransferWire {
+                id: id.clone(),
+                branch_id: branch.clone(),
+                occupant_kind: occupant_kind.clone(),
+                occupant_id: occupant_id.clone(),
+                occupant_label: None,
+                from_table_id: from_table,
+                target_section_id: target_section_id.clone(),
+                target_table_id: target_table_id.clone(),
+                note: note.clone(),
+                status: "waiting".into(),
+                created_at: now.clone(),
+                updated_at: now,
+            },
+        )?;
+        let cmd = held::CreateTransferCommand {
+            transfer_id: id.clone(),
+            request: serde_json::json!({
+                "id": id, "branch_id": branch, "occupant_kind": occupant_kind,
+                "occupant_id": occupant_id, "target_section_id": target_section_id,
+                "target_table_id": target_table_id, "note": note,
+            }),
+        };
+        self.enqueue_held_op(
+            "create_table_transfer",
+            format!("transfer:{id}"),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// Withdraw a waiting transfer wish.
+    pub fn cancel_transfer(&self, id: String) -> Result<(), CoreError> {
+        let now = self.corrected_now().to_rfc3339();
+        held::cancel_transfer_local(&self.store, &id, &now)?;
+        let cmd = held::TransferOpCommand {
+            transfer_id: id.clone(),
+            request: serde_json::json!({}),
+        };
+        self.enqueue_held_op(
+            "cancel_table_transfer",
+            format!("transfer-cancel:{id}:{}", uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// Seat a waiting party on `table_id` (must satisfy its wish; loud error on
+    /// a locally-occupied table).
+    pub fn fulfill_transfer(&self, id: String, table_id: String) -> Result<(), CoreError> {
+        let now = self.corrected_now().to_rfc3339();
+        held::fulfill_transfer_local(&self.store, &id, &table_id, &now)?;
+        let cmd = held::TransferOpCommand {
+            transfer_id: id.clone(),
+            request: serde_json::json!({ "table_id": table_id }),
+        };
+        self.enqueue_held_op(
+            "fulfill_table_transfer",
+            format!("transfer-fulfill:{id}:{}", uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// Operational table-state edit from the floor staff: a status walk
+    /// (bussing a dirty table clean) and/or a zone move (the PHYSICAL table
+    /// was carried to another section). Layout geometry stays dashboard-owned;
+    /// this is the POS's half. Optimistic-local + queued (LWW, self-healing).
+    pub fn set_table_state(
+        &self,
+        table_id: String,
+        status: Option<String>,
+        section_id: Option<String>,
+        clear_section: bool,
+    ) -> Result<(), CoreError> {
+        if let Some(s) = status.as_deref() {
+            if !matches!(s, "free" | "held" | "seated" | "dirty") {
+                return Err(CoreError::Validation {
+                    field: "status".into(),
+                    detail: "status must be free, held, seated or dirty".into(),
+                });
+            }
+        }
+        held::set_table_state_local(
+            &self.store,
+            &table_id,
+            status.as_deref(),
+            section_id.as_deref(),
+            clear_section,
+        )?;
+        let cmd = held::TableStateCommand {
+            table_id: table_id.clone(),
+            request: serde_json::json!({
+                "status": status, "section_id": section_id, "clear_section": clear_section,
+            }),
+        };
+        self.enqueue_held_op(
+            "update_table_state",
+            format!("table-state:{table_id}:{}", uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// Enqueue one held-order/floor op (no shift gating — parked carts float
+    /// free of tills, like waiter tickets).
+    fn enqueue_held_op(&self, op_type: &str, op_id: String, payload: &str) -> Result<(), CoreError> {
+        let (user_id, clock_offset_ms) = self.outbox_meta();
+        self.store.enqueue(&store::NewOutboxOp {
+            id: op_id.clone(),
+            op_type: op_type.into(),
+            idempotency_key: op_id,
+            payload: payload.to_string(),
+            event_at: self.corrected_now().to_rfc3339(),
+            depends_on_seq: None,
+            user_id,
+            clock_offset_ms,
+            shift_id: None,
+        })?;
+        Ok(())
+    }
+
+    /// One-time lift of pre-upgrade device-local drafts into the shared model.
+    /// Needs a signed-in branch; silently skipped otherwise (runs again on the
+    /// next `list_drafts`). Best-effort by design.
+    fn migrate_legacy_drafts(&self) {
+        let Ok(branch) = self.session_branch_id() else {
+            return;
+        };
+        let device = self.lan_device_id();
+        let Ok(lifted) = held::migrate_legacy(&self.store, &branch, &device) else {
+            return;
+        };
+        for e in lifted {
+            let cmd = held::ParkCommand {
+                held_order_id: e.id.clone(),
+                request: serde_json::json!({
+                    "id": e.id, "branch_id": branch, "name": e.name, "cart": e.cart,
+                    "table_id": serde_json::Value::Null, "device_id": device,
+                    "created_at": e.created_at,
+                }),
+            };
+            if let Ok(payload) = serde_json::to_string(&cmd) {
+                let _ = self.enqueue_held_op(
+                    "park_held_order",
+                    format!("park:{}:migrate", e.id),
+                    &payload,
+                );
+            }
+        }
     }
     /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
     pub fn cart_set_discount(&self, discount_id: String) -> Result<(), CoreError> {
@@ -3436,6 +3880,11 @@ impl MadarCore {
         // never fails the catalog commit above.
         let _ = self.cache_numbering_context().await;
 
+        // Floor layout + held orders + transfer waitlist — best-effort, like
+        // payment methods: a 403/404 (older backend, no grant) leaves the
+        // mirrors untouched and the feature simply stays hidden.
+        self.refresh_floor_and_held().await;
+
         // Image phase — AFTER the data commit, best-effort, time-budgeted.
         // Downloads whatever the fresh catalog references that isn't on disk
         // yet and evicts orphans; a flaky CDN can never fail the catalog.
@@ -3444,6 +3893,100 @@ impl MadarCore {
         // drop the parsed snapshot so the next read re-projects.
         self.invalidate_catalog_cache();
         Ok(())
+    }
+
+    /// Best-effort pull of the floor layout + held orders + transfer waitlist
+    /// into their kv mirrors. Never fails the caller: a signed-out session, an
+    /// older backend (404), or a missing grant (403) just leaves the mirrors as
+    /// they are. Entries with a STILL-PENDING local op keep their optimistic
+    /// state (the op is the truth until it drains).
+    async fn refresh_floor_and_held(&self) {
+        let Ok(branch) = self.session_branch_id() else {
+            return;
+        };
+        let q = [("branch_id", branch.clone())];
+        if let (Ok(sections), Ok(tables)) = (
+            self.api.get_text("/floor/sections", &q).await,
+            self.api.get_text("/floor/tables", &q).await,
+        ) {
+            if held::save_floor(&self.store, &sections, &tables).is_ok() {
+                // Re-apply QUEUED local table-state edits on top of the fresh
+                // pull, so a pending bussing/zone-move isn't visually reverted
+                // between this pull and its drain.
+                if let Ok(items) = self.store.pending() {
+                    for i in items.iter().filter(|i| i.op_type == "update_table_state") {
+                        if let Ok(cmd) =
+                            serde_json::from_str::<held::TableStateCommand>(&i.payload)
+                        {
+                            let _ = held::set_table_state_local(
+                                &self.store,
+                                &cmd.table_id,
+                                cmd.request.get("status").and_then(|v| v.as_str()),
+                                cmd.request.get("section_id").and_then(|v| v.as_str()),
+                                cmd.request
+                                    .get("clear_section")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        let protect = self.pending_held_ids();
+        let cursor = self.store.kv_get(held::K_HELD_CURSOR).ok().flatten();
+        let mut hq: Vec<(&str, String)> = vec![("branch_id", branch.clone())];
+        if let Some(c) = &cursor {
+            hq.push(("since", c.clone()));
+        }
+        if let Ok(body) = self.api.get_text("/held-orders", &hq).await {
+            let _ = held::merge_held(&self.store, &body, cursor.is_none(), &protect);
+        }
+
+        let tcursor = self.store.kv_get(held::K_TRANSFERS_CURSOR).ok().flatten();
+        let mut tq: Vec<(&str, String)> = vec![("branch_id", branch)];
+        if let Some(c) = &tcursor {
+            tq.push(("since", c.clone()));
+        }
+        if let Ok(body) = self.api.get_text("/floor/transfers", &tq).await {
+            let _ = held::merge_transfers(&self.store, &body, tcursor.is_none(), &protect);
+        }
+    }
+
+    /// Re-pull the floor layout + held orders + transfer waitlist NOW. The
+    /// host calls this when it opens a floor surface or when a `floor.*`
+    /// realtime event lands (a manager re-arranged the room in the dashboard,
+    /// another till seated a party). Best-effort: offline leaves the mirrors
+    /// untouched and the canvas keeps rendering what it has.
+    pub async fn refresh_floor(&self) -> Result<(), CoreError> {
+        self.refresh_floor_and_held().await;
+        Ok(())
+    }
+
+    /// Ids (held orders + transfers) with a queued-but-unacked local op — their
+    /// mirror entries must not be clobbered by a pull until the op lands.
+    fn pending_held_ids(&self) -> Vec<String> {
+        let Ok(items) = self.store.pending() else {
+            return Vec::new();
+        };
+        items
+            .iter()
+            .filter_map(|i| match i.op_type.as_str() {
+                "park_held_order" | "claim_held_order" | "release_held_order"
+                | "discard_held_order" | "complete_held_order" => {
+                    serde_json::from_str::<held::HeldOpCommand>(&i.payload)
+                        .ok()
+                        .map(|c| c.held_order_id)
+                }
+                "create_table_transfer" | "cancel_table_transfer" | "fulfill_table_transfer" => {
+                    serde_json::from_str::<held::TransferOpCommand>(&i.payload)
+                        .ok()
+                        .map(|c| c.transfer_id)
+                }
+                _ => None,
+            })
+            .collect()
     }
 
     /// The org's logo URL for the current branch, from the durable kv mirror
@@ -4008,7 +4551,11 @@ impl MadarCore {
         // An explicit sync clears the offline (no-count) backoff so a backlog built
         // during an outage flushes NOW, not after the ~15s network-retry window.
         let _ = self.store.clear_network_backoff();
-        self.drain_outbox().await
+        let drained = self.drain_outbox().await;
+        // Pull AFTER push so the floor/held mirrors reflect what just acked
+        // (and pick up other tills' parks/moves). Best-effort.
+        self.refresh_floor_and_held().await;
+        drained
     }
 
     /// Requeue every dead command (clearing its error) and try to send now.

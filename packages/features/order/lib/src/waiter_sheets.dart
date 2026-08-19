@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/order_providers.dart';
+import 'package:feature_order/src/tables_screen.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -46,6 +47,12 @@ class _FireDetailsSheetState extends ConsumerState<FireDetailsSheet> {
   final _table = TextEditingController();
   final _notes = TextEditingController();
 
+  /// The picked floor table (branches WITH a layout replace the free-text
+  /// field with the picker; the table stays optional either way — outside
+  /// orders are a normal daily case).
+  String? _tableId;
+  String? _tableLabel;
+
   /// Identity key for this presentation's covers state.
   final Object _coversKey = Object();
 
@@ -64,13 +71,22 @@ class _FireDetailsSheetState extends ConsumerState<FireDetailsSheet> {
         .read(orderProvider.notifier)
         .fireOrAddRound(
           customerName: blank(_customer.text),
-          tableId: blank(_table.text),
+          tableId: _tableId ?? blank(_table.text),
           notes: blank(_notes.text),
           guestCount: covers > 0 ? covers : null,
         );
     if (ok && mounted) {
       await Navigator.of(context).maybePop();
     }
+  }
+
+  Future<void> _pickTable() async {
+    final pick = await showTablePickerSheet(context, ref);
+    if (pick == null || !mounted) return;
+    setState(() {
+      _tableId = pick.tableId;
+      _tableLabel = pick.label;
+    });
   }
 
   @override
@@ -97,11 +113,23 @@ class _FireDetailsSheetState extends ConsumerState<FireDetailsSheet> {
             icon: 'person',
           ),
           const SizedBox(height: Space.md),
-          OrderTextField(
-            controller: _table,
-            placeholder: bridge.tr(key: 'waiter.table'),
-            icon: 'square.grid.2x2',
-          ),
+          // With a floor layout: the real table picker. Without one: the old
+          // free-text field (nothing blocks a branch that never drew a floor).
+          if (ref.watch(orderProvider.select((s) => s.hasFloor)))
+            ActionButton(
+              label: _tableLabel == null
+                  ? bridge.tr(key: 'tables.pick')
+                  : '${bridge.tr(key: 'order.table')} · $_tableLabel',
+              icon: 'square.grid.2x2',
+              variant: ActionVariant.outline,
+              onTap: () => unawaited(_pickTable()),
+            )
+          else
+            OrderTextField(
+              controller: _table,
+              placeholder: bridge.tr(key: 'waiter.table'),
+              icon: 'square.grid.2x2',
+            ),
           const SizedBox(height: Space.md),
           Row(
             children: [
