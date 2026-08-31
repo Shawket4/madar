@@ -22,6 +22,7 @@ import 'package:flutter/material.dart'
         Scaffold,
         TextField,
         Theme;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -155,6 +156,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           _LanCard(controller: _lanHub),
                           const _DeviceCard(),
                           const _DiagnosticsCard(),
+                          const _LegalCard(),
                           _Cta(
                             label: bridge.tr(key: 'settings.sign_out'),
                             icon: 'rectangle.portrait.and.arrow.right',
@@ -1293,6 +1295,78 @@ class _SettingsTextFieldState extends State<_SettingsTextField> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Legal: the public privacy policy and terms.
+///
+/// The documents are hosted as a static site independent of this app and of the
+/// API, so the URLs stay valid even offline — which matters here, because a POS
+/// terminal frequently has no browser and no reliable connection. The address is
+/// therefore SHOWN in full rather than hidden behind a link, and tapping copies
+/// it (via `Clipboard`, so no url_launcher dependency is introduced for a screen
+/// that mostly cannot open a browser anyway).
+class _LegalCard extends ConsumerWidget {
+  const _LegalCard();
+
+  static const _base = 'https://legal.madar-pos.cloud';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+
+    Widget row(String labelKey, String url, {bool divider = false}) {
+      return Semantics(
+        button: true,
+        child: TactileScale(
+          onTap: () => unawaited(
+            Clipboard.setData(ClipboardData(text: url)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.only(top: divider ? Space.md : 0),
+            child: Row(
+              spacing: Space.lg,
+              children: [
+                MadarIcon(
+                  'doc.text',
+                  tint: colors.textSecondary,
+                  size: IconSize.xl,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bridge.tr(key: labelKey),
+                        style: MadarType.title.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        url.replaceFirst('https://', ''),
+                        style: MadarType.labelSm.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                MadarIcon('link', tint: colors.textMuted),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return _SettingsCard(
+      title: bridge.tr(key: 'settings.legal'),
+      children: [
+        row('settings.legal_privacy', '$_base/privacy-policy.html'),
+        row('settings.legal_terms', '$_base/terms-of-service.html', divider: true),
+      ],
     );
   }
 }
