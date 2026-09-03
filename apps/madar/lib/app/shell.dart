@@ -7,6 +7,7 @@ import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:madar/app/chrome.dart';
+import 'package:madar/app/observability.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// The route-driven shell. The core's `app_route()` is the single source of
@@ -38,6 +39,11 @@ class _RouteHost extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final rtl = ref.watch(localeProvider.select((s) => s.rtl));
     final route = ref.watch(shellProvider.select((s) => s.route));
+    // Name the Sentry transaction after the route PATTERN. This app has no
+    // Navigator routes for `SentryNavigatorObserver` to observe, and the type
+    // name is a pattern by construction — it can never carry an order id, so it
+    // cannot produce one transaction group per record.
+    setRouteTransaction(route.runtimeType.toString());
     return Directionality(
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       child: AnimatedSwitcher(
