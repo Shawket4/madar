@@ -42,6 +42,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The screen to show. Re-read at deliberate transitions only.
   AppRoute appRoute();
 
+  /// Assign / move / unassign a parked draft's table. Errors loudly when the
+  /// table is taken (interactive path — the teller picks another).
+  Future<void> assignDraftTable({required String id, String? tableId});
+
   /// Bundles orderable right now — status active and within their date/time
   /// window at `now` (branch-local). The host passes its local time so the
   /// window is evaluated in the till's timezone (Flutter parity).
@@ -53,6 +57,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The branch's IANA timezone name (cached at login, or the Cairo fallback) —
   /// for any host that needs the raw zone (e.g. a platform date picker).
   String branchTimezone();
+
+  /// Withdraw a waiting transfer wish.
+  Future<void> cancelTransfer({required String id});
 
   /// Add one unit of a menu item (merges into the matching line). The host
   /// passes the resolved display name + unit price so the cart is self-contained.
@@ -148,6 +155,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? cashNote,
   });
 
+  /// Mark a restored draft COMPLETED after its cart checked out — the host
+  /// calls this right after a successful ring-up of a resumed draft.
+  Future<void> completeDraft({required String id, String? orderId});
+
   /// Live recipe preview for the current selection (size + addons + optionals).
   /// Pure projection over the mirrored catalog, so the customization sheet can
   /// recompute on every toggle, online or offline.
@@ -156,6 +167,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? sizeLabel,
     required List<AddonSelection> addons,
     required List<String> optionalFieldIds,
+  });
+
+  /// Queue a party — a held order (`occupant_kind: "held_order"`) or an open
+  /// ticket (`"open_ticket"`) — to move to a section or a specific table.
+  Future<void> createTransfer({
+    required String occupantKind,
+    required String occupantId,
+    String? targetSectionId,
+    String? targetTableId,
+    String? note,
   });
 
   SessionSnapshot? currentSession();
@@ -221,7 +242,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The device's current binding (for device-setup / Settings + screen chrome).
   DeviceConfigView deviceConfig();
 
-  /// Discard a parked draft.
+  /// Discard a parked draft (frees its table + any waitlist wish).
   Future<void> discardDraft({required String id});
 
   /// Discard a single DEAD command (the teller gives up on it). Returns true
@@ -243,10 +264,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
     int? guestCount,
   });
 
+  /// The branch floor (sections + tables + held-order occupancy) from the
+  /// offline mirror. EMPTY sections+tables ⇒ the branch has no layout ⇒ hide
+  /// every table affordance (the feature gate).
+  Future<FloorLayoutView> floorLayout();
+
   /// Format a stored RFC3339 timestamp for DISPLAY in the BRANCH's timezone
   /// (not the device's) — the single source of truth so every host renders
   /// order/shift/cash/receipt times identically.
   String formatTime({required String rfc3339, required TimeStyle style});
+
+  /// Seat a waiting party on `table_id` (must satisfy its wish and be free).
+  Future<void> fulfillTransfer({required String id, required String tableId});
 
   /// One open ticket by server id (the detail screen). Online; a queued (unsynced)
   /// ticket has no server id yet — read it from `list_open_tickets` instead.
@@ -263,6 +292,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String name,
     String? draftId,
     String? startedAt,
+  });
+
+  /// Park the current cart onto a floor table (or none). Returns `true` when
+  /// the requested table was DROPPED because it's taken — the park itself
+  /// still succeeded; the host toasts "table was taken, parked without it".
+  Future<bool> holdCartOnTable({
+    required String name,
+    String? draftId,
+    String? startedAt,
+    String? tableId,
   });
 
   bool isAuthenticated();
@@ -322,7 +361,8 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   Future<List<DiscountView>> listDiscounts();
 
-  /// The parked drafts (held orders), newest first.
+  /// The branch's parked drafts (every till's), newest first. Drafts being
+  /// edited on another till come back `locked_by_other` (not restorable).
   Future<List<DraftView>> listDrafts();
 
   /// Floor sections for the signed-in branch (dashboard-authored geometry).
@@ -373,6 +413,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The branch's active tills (the device-setup / Settings till picker). Write-
   /// through cached so the picker still works offline. Default till first.
   Future<List<TillView>> listTills();
+
+  /// The transfer waitlist (waiting entries, FIFO, labels resolved).
+  Future<List<TransferQueueView>> listTransferQueue();
 
   String locale();
 
@@ -456,10 +499,20 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Ping /health; updates the online flag. True when reachable.
   Future<bool> refreshConnectivity();
 
+  /// Re-pull the layout + held orders + waitlist from the server NOW. Call
+  /// on opening a floor surface and on a `floor.*` realtime event (a manager
+  /// re-arranged the room in the dashboard, another till seated a party).
+  /// Best-effort: offline leaves the mirrors as they are.
+  Future<void> refreshFloor();
+
   /// Reconcile the device's shift with the server (online). Caches the server's
   /// open shift, or CLEARS the local cache when the server reports none — call
   /// this on login and on app resume.
   Future<ShiftView?> refreshShift();
+
+  /// Give a restored draft's claim back without changes (the "never mind"
+  /// path out of a resume).
+  Future<void> releaseDraft({required String id});
 
   /// Re-render a synced order as a receipt for reprint — same ESC/POS path as
   /// a fresh receipt. Offline-durable for any order seen online (cached).
@@ -495,7 +548,8 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<OrderSummaryView> orders,
   });
 
-  /// Restore a draft into the cart (replaces current lines) and drop it.
+  /// Restore a draft into the cart (replaces current lines) and CLAIM it for
+  /// this till. Errors when another till is editing it.
   Future<List<CartLineView>> restoreDraft({required String id});
 
   /// Restore a HOST-supplied session blob (the one-time legacy keychain
@@ -581,6 +635,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   void setLocale({required String locale});
 
+  /// Operational table-state edit: status walk (bus a dirty table clean)
+  /// and/or a zone move (the physical table changed sections). The layout
+  /// geometry stays dashboard-authored; this is the POS's half. Offline-safe.
+  Future<void> setTableState({
+    required String tableId,
+    String? status,
+    String? sectionId,
+    required bool clearSection,
+  });
+
   /// SETTLE an open ticket into a paid order in the cashier's shift (a till
   /// action). Offline-first: the order is materialized server-side at replay,
   /// deduped on the ticket id. Returns true when still queued (offline). The
@@ -630,6 +694,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Suggested opening cash for the next shift (minor units) — the previous
   /// shift's declared closing, for cash continuity. 0 when none is known.
   Future<PlatformInt64> suggestedOpeningCashMinor();
+
+  /// Swap whatever sits on two tables (held orders and/or waiter tickets);
+  /// one empty side = a move. Offline-safe (queued; the server arbitrates).
+  Future<void> swapFloorTables({
+    required String tableA,
+    required String tableB,
+  });
 
   /// Force a sync now — drains the outbox. Cancellable/idempotent.
   Future<void> syncNow();

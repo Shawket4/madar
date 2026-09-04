@@ -902,7 +902,62 @@ pub(crate) fn clear(store: &Store) -> CoreResult<()> {
     save(store, &[])
 }
 
+// ── cart payload (the wire shape a held order carries) ───────────────────────
+//
+// A server-backed held order stores the WHOLE working cart as one opaque JSON
+// payload: the raw `StoredLine`s plus the selected discount. The backend never
+// interprets it — these functions are the only (de)serialization boundary, so
+// a payload written by any till restores bit-identically on any other.
+
+/// Snapshot the current cart (lines + discount) as the held-order payload.
+pub(crate) fn cart_payload(store: &Store) -> CoreResult<serde_json::Value> {
+    let lines = load(store)?;
+    Ok(serde_json::json!({
+        "lines": serde_json::to_value(&lines)?,
+        "discount_id": discount_id(store)?,
+    }))
+}
+
+/// Replace the cart with a held-order payload (lines + discount). Malformed
+/// lines are dropped defensively — a corrupt payload must not wedge the till.
+/// Returns the restored cart view.
+pub(crate) fn set_cart_payload(
+    store: &Store,
+    payload: &serde_json::Value,
+) -> CoreResult<Vec<CartLineView>> {
+    let lines: Vec<StoredLine> = payload
+        .get("lines")
+        .cloned()
+        .map(|v| serde_json::from_value(v).unwrap_or_default())
+        .unwrap_or_default();
+    match payload.get("discount_id").and_then(|v| v.as_str()) {
+        Some(d) if !d.is_empty() => set_discount(store, d)?,
+        _ => clear_discount(store)?,
+    }
+    store.kv_put(K_LAST_REMOVED, "[]")?; // a stale undo must not leak across orders
+    save(store, &lines)?;
+    Ok(view(&lines))
+}
+
+/// `(item_count, total_minor)` of a held-order payload — the strip/list badges,
+/// computed without touching the live cart.
+pub(crate) fn payload_counts(payload: &serde_json::Value) -> (i64, i64) {
+    let lines: Vec<StoredLine> = payload
+        .get("lines")
+        .cloned()
+        .map(|v| serde_json::from_value(v).unwrap_or_default())
+        .unwrap_or_default();
+    (
+        lines.iter().map(|l| l.qty).sum(),
+        lines.iter().map(line_total).sum(),
+    )
+}
+
 // ── drafts (parked / held carts) ─────────────────────────────────────────────
+//
+// LEGACY device-local drafts. Superseded by the server-backed `held` module
+// (branch-shared, table-owning); these remain only so `held::migrate_legacy`
+// can lift pre-existing parked carts off a device into the new model.
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct StoredDraft {
@@ -912,7 +967,9 @@ struct StoredDraft {
     lines: Vec<StoredLine>,
 }
 
-/// A parked cart, summarized for the drafts list.
+/// A parked cart, summarized for the drafts list. `table_*`/`locked_by_other`
+/// come from the server-backed held-order model (always unset on the legacy
+/// local path).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DraftView {
@@ -921,6 +978,12 @@ pub struct DraftView {
     pub item_count: i64,
     pub total_minor: i64,
     pub created_at: String,
+    /// The floor table this held order owns, if any.
+    pub table_id: Option<String>,
+    pub table_label: Option<String>,
+    /// True when ANOTHER till is editing this order right now (resume claim
+    /// held elsewhere) — the chip renders locked and cannot be restored.
+    pub locked_by_other: bool,
 }
 
 fn load_drafts(store: &Store) -> CoreResult<Vec<StoredDraft>> {
@@ -935,6 +998,7 @@ fn save_drafts(store: &Store, drafts: &[StoredDraft]) -> CoreResult<()> {
 
 /// Park the current cart as a named draft and empty the cart. `id`/`now` are
 /// host-supplied (the core stays free of clock/uuid). Errors if the cart is empty.
+#[cfg_attr(not(test), allow(dead_code))] // legacy path: exercised by tests + kept for reference
 pub(crate) fn hold(store: &Store, id: String, name: String, now: String) -> CoreResult<()> {
     let lines = load(store)?;
     if lines.is_empty() {
@@ -955,6 +1019,7 @@ pub(crate) fn hold(store: &Store, id: String, name: String, now: String) -> Core
 }
 
 /// The parked drafts, newest first.
+#[cfg_attr(not(test), allow(dead_code))] // legacy path: exercised by tests + kept for reference
 pub(crate) fn drafts(store: &Store) -> CoreResult<Vec<DraftView>> {
     let mut out: Vec<DraftView> = load_drafts(store)?
         .iter()
@@ -964,14 +1029,46 @@ pub(crate) fn drafts(store: &Store) -> CoreResult<Vec<DraftView>> {
             item_count: d.lines.iter().map(|l| l.qty).sum(),
             total_minor: d.lines.iter().map(line_total).sum(),
             created_at: d.created_at.clone(),
+            table_id: None,
+            table_label: None,
+            locked_by_other: false,
         })
         .collect();
     out.reverse();
     Ok(out)
 }
 
+/// Drain the LEGACY local drafts for migration into the server-backed held
+/// model: returns `(id, name, created_at, payload)` per draft and clears the
+/// legacy key, so the lift happens exactly once.
+pub(crate) fn take_legacy_drafts(
+    store: &Store,
+) -> CoreResult<Vec<(String, String, String, serde_json::Value)>> {
+    let drafts = load_drafts(store)?;
+    if drafts.is_empty() {
+        return Ok(Vec::new());
+    }
+    let out = drafts
+        .iter()
+        .map(|d| {
+            Ok((
+                d.id.clone(),
+                d.name.clone(),
+                d.created_at.clone(),
+                serde_json::json!({
+                    "lines": serde_json::to_value(&d.lines)?,
+                    "discount_id": serde_json::Value::Null,
+                }),
+            ))
+        })
+        .collect::<CoreResult<Vec<_>>>()?;
+    save_drafts(store, &[])?;
+    Ok(out)
+}
+
 /// Restore a draft into the cart (replacing any current lines) and drop it from
 /// the drafts list. Returns the new cart view.
+#[cfg_attr(not(test), allow(dead_code))] // legacy path: exercised by tests + kept for reference
 pub(crate) fn restore_draft(store: &Store, id: &str) -> CoreResult<Vec<CartLineView>> {
     let mut drafts = load_drafts(store)?;
     let Some(pos) = drafts.iter().position(|d| d.id == id) else {
@@ -985,6 +1082,7 @@ pub(crate) fn restore_draft(store: &Store, id: &str) -> CoreResult<Vec<CartLineV
 }
 
 /// Discard a parked draft without restoring it.
+#[cfg_attr(not(test), allow(dead_code))] // legacy path: exercised by tests + kept for reference
 pub(crate) fn discard_draft(store: &Store, id: &str) -> CoreResult<()> {
     let mut drafts = load_drafts(store)?;
     drafts.retain(|d| d.id != id);

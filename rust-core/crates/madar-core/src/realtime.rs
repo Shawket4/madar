@@ -68,13 +68,17 @@ pub trait RealtimePlayer: Send + Sync {
 pub fn topics_for_role(role: &str) -> Vec<String> {
     match role {
         "kitchen" => vec!["kitchen".into()],
-        "waiter" => vec!["tickets".into(), "kitchen".into()],
+        // A waiter works the floor too: `floor` carries table/held-order/
+        // layout changes (a manager re-arranging the room in the dashboard,
+        // another till seating a party) so the canvas is never stale.
+        "waiter" => vec!["tickets".into(), "kitchen".into(), "floor".into()],
         // teller / till (and any other operating role): the full set.
         _ => vec![
             "delivery".into(),
             "kitchen".into(),
             "tickets".into(),
             "orders".into(),
+            "floor".into(),
         ],
     }
 }
@@ -695,11 +699,18 @@ mod tests {
 
     #[test]
     fn topics_are_role_scoped() {
+        // A KDS stays kitchen-only — it has no floor surface.
         assert_eq!(topics_for_role("kitchen"), ["kitchen"]);
-        assert_eq!(topics_for_role("waiter"), ["tickets", "kitchen"]);
+        // Anyone who works the floor also gets `floor` (table state, held
+        // orders, and dashboard layout edits), so canvases never go stale.
+        assert_eq!(topics_for_role("waiter"), ["tickets", "kitchen", "floor"]);
         // teller / unknown → the full operating set.
-        assert!(topics_for_role("teller").contains(&"delivery".to_string()));
-        assert!(topics_for_role("teller").contains(&"kitchen".to_string()));
+        for topic in ["delivery", "kitchen", "tickets", "orders", "floor"] {
+            assert!(
+                topics_for_role("teller").contains(&topic.to_string()),
+                "teller must subscribe to {topic}"
+            );
+        }
     }
 
     #[test]

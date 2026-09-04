@@ -307,7 +307,8 @@ class ComputedRecipeLineView {
           isBase == other.isBase;
 }
 
-/// A parked cart, summarized for the drafts list.
+/// A parked cart, summarized for the drafts list. Now server-backed: shared
+/// across the branch's tills, optionally owning a floor table.
 class DraftView {
   final String id;
   final String name;
@@ -315,12 +316,23 @@ class DraftView {
   final PlatformInt64 totalMinor;
   final String createdAt;
 
+  /// The floor table this held order owns, if any.
+  final String? tableId;
+  final String? tableLabel;
+
+  /// True when ANOTHER till is editing this order right now — the chip
+  /// renders locked and cannot be restored.
+  final bool lockedByOther;
+
   const DraftView({
     required this.id,
     required this.name,
     required this.itemCount,
     required this.totalMinor,
     required this.createdAt,
+    this.tableId,
+    this.tableLabel,
+    required this.lockedByOther,
   });
 
   @override
@@ -329,7 +341,10 @@ class DraftView {
       name.hashCode ^
       itemCount.hashCode ^
       totalMinor.hashCode ^
-      createdAt.hashCode;
+      createdAt.hashCode ^
+      tableId.hashCode ^
+      tableLabel.hashCode ^
+      lockedByOther.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -340,7 +355,10 @@ class DraftView {
           name == other.name &&
           itemCount == other.itemCount &&
           totalMinor == other.totalMinor &&
-          createdAt == other.createdAt;
+          createdAt == other.createdAt &&
+          tableId == other.tableId &&
+          tableLabel == other.tableLabel &&
+          lockedByOther == other.lockedByOther;
 }
 
 /// A group whose constraints the current selection breaks (too few / too many).

@@ -92,12 +92,8 @@ const List<NavGroup> kNav = [
         fallback: 'Orders',
         icon: 'receipt',
       ),
-      NavLeaf(
-        path: '/reservations',
-        labelKey: 'nav.reservations',
-        fallback: 'Reservations',
-        icon: 'person',
-      ),
+      // '/reservations' removed: the booking flow is deprecated (backend
+      // routes unmounted) — being rebuilt on the floor/held-order layer.
       NavLeaf(
         path: '/shifts',
         labelKey: 'nav.shifts',

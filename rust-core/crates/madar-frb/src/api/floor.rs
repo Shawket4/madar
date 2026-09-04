@@ -4,6 +4,9 @@
 //! `reservations.rs` live here.
 use flutter_rust_bridge::frb;
 
+pub use madar_core::held::{
+    FloorLayoutView, FloorSectionInfo, FloorTableStateView, TransferQueueView,
+};
 pub use madar_core::reservations::{FloorSectionView, FloorTableView, ReservationView};
 
 use crate::api::bridge::MadarBridge;
@@ -130,4 +133,146 @@ impl MadarBridge {
             .await
             .map_err(MadarError::from)
     }
+
+    // ── OFFLINE floor canvas + held-order occupancy + transfer waitlist ───
+    // Everything below reads/writes the kv mirrors and the outbox — it works
+    // with no network, unlike the live host operations above.
+
+    /// The branch floor (sections + tables + held-order occupancy) from the
+    /// offline mirror. EMPTY sections+tables ⇒ the branch has no layout ⇒ hide
+    /// every table affordance (the feature gate).
+    pub fn floor_layout(&self) -> Result<FloorLayoutView, MadarError> {
+        self.inner.floor_layout().map_err(MadarError::from)
+    }
+
+    /// Re-pull the layout + held orders + waitlist from the server NOW. Call
+    /// on opening a floor surface and on a `floor.*` realtime event (a manager
+    /// re-arranged the room in the dashboard, another till seated a party).
+    /// Best-effort: offline leaves the mirrors as they are.
+    pub async fn refresh_floor(&self) -> Result<(), MadarError> {
+        self.inner.refresh_floor().await.map_err(MadarError::from)
+    }
+
+    /// Swap whatever sits on two tables (held orders and/or waiter tickets);
+    /// one empty side = a move. Offline-safe (queued; the server arbitrates).
+    pub fn swap_floor_tables(&self, table_a: String, table_b: String) -> Result<(), MadarError> {
+        self.inner
+            .swap_tables(table_a, table_b)
+            .map_err(MadarError::from)
+    }
+
+    /// The transfer waitlist (waiting entries, FIFO, labels resolved).
+    pub fn list_transfer_queue(&self) -> Result<Vec<TransferQueueView>, MadarError> {
+        self.inner.list_transfer_queue().map_err(MadarError::from)
+    }
+
+    /// Queue a party — a held order (`occupant_kind: "held_order"`) or an open
+    /// ticket (`"open_ticket"`) — to move to a section or a specific table.
+    pub fn create_transfer(
+        &self,
+        occupant_kind: String,
+        occupant_id: String,
+        target_section_id: Option<String>,
+        target_table_id: Option<String>,
+        note: Option<String>,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .create_transfer(
+                occupant_kind,
+                occupant_id,
+                target_section_id,
+                target_table_id,
+                note,
+            )
+            .map_err(MadarError::from)
+    }
+
+    /// Withdraw a waiting transfer wish.
+    pub fn cancel_transfer(&self, id: String) -> Result<(), MadarError> {
+        self.inner.cancel_transfer(id).map_err(MadarError::from)
+    }
+
+    /// Seat a waiting party on `table_id` (must satisfy its wish and be free).
+    pub fn fulfill_transfer(&self, id: String, table_id: String) -> Result<(), MadarError> {
+        self.inner
+            .fulfill_transfer(id, table_id)
+            .map_err(MadarError::from)
+    }
+
+    /// Operational table-state edit: status walk (bus a dirty table clean)
+    /// and/or a zone move (the physical table changed sections). The layout
+    /// geometry stays dashboard-authored; this is the POS's half. Offline-safe.
+    pub fn set_table_state(
+        &self,
+        table_id: String,
+        status: Option<String>,
+        section_id: Option<String>,
+        clear_section: bool,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .set_table_state(table_id, status, section_id, clear_section)
+            .map_err(MadarError::from)
+    }
+}
+
+/// A floor area (level/zone) for the offline canvas.
+#[frb(mirror(FloorSectionInfo))]
+pub struct _FloorSectionInfo {
+    pub id: String,
+    pub name: String,
+    pub ordering: i32,
+    pub canvas_w: i32,
+    pub canvas_h: i32,
+}
+
+/// A table on the offline canvas: geometry + last-known status + the held
+/// order sitting on it. Open-ticket occupancy is joined by the host (the
+/// waiter screen already holds the ticket list).
+#[frb(mirror(FloorTableStateView))]
+pub struct _FloorTableStateView {
+    pub id: String,
+    pub section_id: Option<String>,
+    pub label: String,
+    pub seats: i32,
+    /// `rect` | `circle`.
+    pub shape: String,
+    /// Last-known `free` | `held` | `seated` | `dirty`.
+    pub status: String,
+    pub pos_x: f64,
+    pub pos_y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub rotation: f64,
+    pub held_order_id: Option<String>,
+    pub held_order_name: Option<String>,
+    /// RFC3339 stamp of when the order started — rendered as time-on-table.
+    pub held_since: Option<String>,
+    pub held_locked_by_other: bool,
+}
+
+/// The whole branch layout + occupancy, offline.
+#[frb(mirror(FloorLayoutView))]
+pub struct _FloorLayoutView {
+    pub sections: Vec<FloorSectionInfo>,
+    pub tables: Vec<FloorTableStateView>,
+}
+
+/// One entry of the transfer waitlist, display-ready.
+#[frb(mirror(TransferQueueView))]
+pub struct _TransferQueueView {
+    pub id: String,
+    /// `held_order` | `open_ticket`.
+    pub occupant_kind: String,
+    pub occupant_id: String,
+    pub occupant_label: Option<String>,
+    pub from_table_id: Option<String>,
+    pub from_table_label: Option<String>,
+    pub target_section_id: Option<String>,
+    pub target_section_name: Option<String>,
+    pub target_table_id: Option<String>,
+    pub target_table_label: Option<String>,
+    pub note: Option<String>,
+    /// `waiting` | `fulfilled` | `cancelled`.
+    pub status: String,
+    pub created_at: String,
 }

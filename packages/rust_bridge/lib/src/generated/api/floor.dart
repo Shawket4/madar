@@ -6,6 +6,64 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// The whole branch layout + occupancy, offline.
+class FloorLayoutView {
+  final List<FloorSectionInfo> sections;
+  final List<FloorTableStateView> tables;
+
+  const FloorLayoutView({
+    required this.sections,
+    required this.tables,
+  });
+
+  @override
+  int get hashCode => sections.hashCode ^ tables.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FloorLayoutView &&
+          runtimeType == other.runtimeType &&
+          sections == other.sections &&
+          tables == other.tables;
+}
+
+/// A floor area (level/zone) for the offline canvas.
+class FloorSectionInfo {
+  final String id;
+  final String name;
+  final int ordering;
+  final int canvasW;
+  final int canvasH;
+
+  const FloorSectionInfo({
+    required this.id,
+    required this.name,
+    required this.ordering,
+    required this.canvasW,
+    required this.canvasH,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      ordering.hashCode ^
+      canvasW.hashCode ^
+      canvasH.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FloorSectionInfo &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          ordering == other.ordering &&
+          canvasW == other.canvasW &&
+          canvasH == other.canvasH;
+}
+
 /// A floor area (e.g. Patio, Indoor) with its canvas extent for to-scale render.
 class FloorSectionView {
   final String id;
@@ -40,6 +98,90 @@ class FloorSectionView {
           ordering == other.ordering &&
           canvasW == other.canvasW &&
           canvasH == other.canvasH;
+}
+
+/// A table on the offline canvas: geometry + last-known status + the held
+/// order sitting on it. Open-ticket occupancy is joined by the host (the
+/// waiter screen already holds the ticket list).
+class FloorTableStateView {
+  final String id;
+  final String? sectionId;
+  final String label;
+  final int seats;
+
+  /// `rect` | `circle`.
+  final String shape;
+
+  /// Last-known `free` | `held` | `seated` | `dirty`.
+  final String status;
+  final double posX;
+  final double posY;
+  final double width;
+  final double height;
+  final double rotation;
+  final String? heldOrderId;
+  final String? heldOrderName;
+
+  /// RFC3339 stamp of when the order started — rendered as time-on-table.
+  final String? heldSince;
+  final bool heldLockedByOther;
+
+  const FloorTableStateView({
+    required this.id,
+    this.sectionId,
+    required this.label,
+    required this.seats,
+    required this.shape,
+    required this.status,
+    required this.posX,
+    required this.posY,
+    required this.width,
+    required this.height,
+    required this.rotation,
+    this.heldOrderId,
+    this.heldOrderName,
+    this.heldSince,
+    required this.heldLockedByOther,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      sectionId.hashCode ^
+      label.hashCode ^
+      seats.hashCode ^
+      shape.hashCode ^
+      status.hashCode ^
+      posX.hashCode ^
+      posY.hashCode ^
+      width.hashCode ^
+      height.hashCode ^
+      rotation.hashCode ^
+      heldOrderId.hashCode ^
+      heldOrderName.hashCode ^
+      heldSince.hashCode ^
+      heldLockedByOther.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FloorTableStateView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          sectionId == other.sectionId &&
+          label == other.label &&
+          seats == other.seats &&
+          shape == other.shape &&
+          status == other.status &&
+          posX == other.posX &&
+          posY == other.posY &&
+          width == other.width &&
+          height == other.height &&
+          rotation == other.rotation &&
+          heldOrderId == other.heldOrderId &&
+          heldOrderName == other.heldOrderName &&
+          heldSince == other.heldSince &&
+          heldLockedByOther == other.heldLockedByOther;
 }
 
 /// A table's geometry + live status, ready to draw on the floor canvas.
@@ -174,4 +316,76 @@ class ReservationView {
           customerLat == other.customerLat &&
           customerLng == other.customerLng &&
           notes == other.notes;
+}
+
+/// One entry of the transfer waitlist, display-ready.
+class TransferQueueView {
+  final String id;
+
+  /// `held_order` | `open_ticket`.
+  final String occupantKind;
+  final String occupantId;
+  final String? occupantLabel;
+  final String? fromTableId;
+  final String? fromTableLabel;
+  final String? targetSectionId;
+  final String? targetSectionName;
+  final String? targetTableId;
+  final String? targetTableLabel;
+  final String? note;
+
+  /// `waiting` | `fulfilled` | `cancelled`.
+  final String status;
+  final String createdAt;
+
+  const TransferQueueView({
+    required this.id,
+    required this.occupantKind,
+    required this.occupantId,
+    this.occupantLabel,
+    this.fromTableId,
+    this.fromTableLabel,
+    this.targetSectionId,
+    this.targetSectionName,
+    this.targetTableId,
+    this.targetTableLabel,
+    this.note,
+    required this.status,
+    required this.createdAt,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      occupantKind.hashCode ^
+      occupantId.hashCode ^
+      occupantLabel.hashCode ^
+      fromTableId.hashCode ^
+      fromTableLabel.hashCode ^
+      targetSectionId.hashCode ^
+      targetSectionName.hashCode ^
+      targetTableId.hashCode ^
+      targetTableLabel.hashCode ^
+      note.hashCode ^
+      status.hashCode ^
+      createdAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TransferQueueView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          occupantKind == other.occupantKind &&
+          occupantId == other.occupantId &&
+          occupantLabel == other.occupantLabel &&
+          fromTableId == other.fromTableId &&
+          fromTableLabel == other.fromTableLabel &&
+          targetSectionId == other.targetSectionId &&
+          targetSectionName == other.targetSectionName &&
+          targetTableId == other.targetTableId &&
+          targetTableLabel == other.targetTableLabel &&
+          note == other.note &&
+          status == other.status &&
+          createdAt == other.createdAt;
 }

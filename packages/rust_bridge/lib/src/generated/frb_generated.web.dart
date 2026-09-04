@@ -200,7 +200,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   double dco_decode_f_64(dynamic raw);
 
   @protected
+  FloorLayoutView dco_decode_floor_layout_view(dynamic raw);
+
+  @protected
+  FloorSectionInfo dco_decode_floor_section_info(dynamic raw);
+
+  @protected
   FloorSectionView dco_decode_floor_section_view(dynamic raw);
+
+  @protected
+  FloorTableStateView dco_decode_floor_table_state_view(dynamic raw);
 
   @protected
   FloorTableView dco_decode_floor_table_view(dynamic raw);
@@ -299,7 +308,13 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<DraftView> dco_decode_list_draft_view(dynamic raw);
 
   @protected
+  List<FloorSectionInfo> dco_decode_list_floor_section_info(dynamic raw);
+
+  @protected
   List<FloorSectionView> dco_decode_list_floor_section_view(dynamic raw);
+
+  @protected
+  List<FloorTableStateView> dco_decode_list_floor_table_state_view(dynamic raw);
 
   @protected
   List<FloorTableView> dco_decode_list_floor_table_view(dynamic raw);
@@ -388,6 +403,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<TillView> dco_decode_list_till_view(dynamic raw);
+
+  @protected
+  List<TransferQueueView> dco_decode_list_transfer_queue_view(dynamic raw);
 
   @protected
   LoginMode dco_decode_login_mode(dynamic raw);
@@ -520,6 +538,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   TimeStyle dco_decode_time_style(dynamic raw);
+
+  @protected
+  TransferQueueView dco_decode_transfer_queue_view(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -721,7 +742,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
+  FloorLayoutView sse_decode_floor_layout_view(SseDeserializer deserializer);
+
+  @protected
+  FloorSectionInfo sse_decode_floor_section_info(SseDeserializer deserializer);
+
+  @protected
   FloorSectionView sse_decode_floor_section_view(SseDeserializer deserializer);
+
+  @protected
+  FloorTableStateView sse_decode_floor_table_state_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   FloorTableView sse_decode_floor_table_view(SseDeserializer deserializer);
@@ -848,7 +880,17 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<DraftView> sse_decode_list_draft_view(SseDeserializer deserializer);
 
   @protected
+  List<FloorSectionInfo> sse_decode_list_floor_section_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<FloorSectionView> sse_decode_list_floor_section_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<FloorTableStateView> sse_decode_list_floor_table_state_view(
     SseDeserializer deserializer,
   );
 
@@ -981,6 +1023,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<TillView> sse_decode_list_till_view(SseDeserializer deserializer);
+
+  @protected
+  List<TransferQueueView> sse_decode_list_transfer_queue_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   LoginMode sse_decode_login_mode(SseDeserializer deserializer);
@@ -1137,6 +1184,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   TimeStyle sse_decode_time_style(SseDeserializer deserializer);
+
+  @protected
+  TransferQueueView sse_decode_transfer_queue_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -1382,8 +1434,26 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_floor_layout_view(
+    FloorLayoutView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_floor_section_info(
+    FloorSectionInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_floor_section_view(
     FloorSectionView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_floor_table_state_view(
+    FloorTableStateView self,
     SseSerializer serializer,
   );
 
@@ -1547,8 +1617,20 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_floor_section_info(
+    List<FloorSectionInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_floor_section_view(
     List<FloorSectionView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_floor_table_state_view(
+    List<FloorTableStateView> self,
     SseSerializer serializer,
   );
 
@@ -1713,6 +1795,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_list_till_view(List<TillView> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_transfer_queue_view(
+    List<TransferQueueView> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_login_mode(LoginMode self, SseSerializer serializer);
@@ -1929,6 +2017,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_time_style(TimeStyle self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_transfer_queue_view(
+    TransferQueueView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);

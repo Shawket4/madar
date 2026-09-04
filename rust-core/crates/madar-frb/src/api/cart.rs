@@ -142,7 +142,8 @@ pub struct _BundleComponentSelection {
     pub optional_field_ids: Vec<String>,
 }
 
-/// A parked cart, summarized for the drafts list.
+/// A parked cart, summarized for the drafts list. Now server-backed: shared
+/// across the branch's tills, optionally owning a floor table.
 #[frb(mirror(DraftView))]
 pub struct _DraftView {
     pub id: String,
@@ -150,6 +151,12 @@ pub struct _DraftView {
     pub item_count: i64,
     pub total_minor: i64,
     pub created_at: String,
+    /// The floor table this held order owns, if any.
+    pub table_id: Option<String>,
+    pub table_label: Option<String>,
+    /// True when ANOTHER till is editing this order right now — the chip
+    /// renders locked and cannot be restored.
+    pub locked_by_other: bool,
 }
 
 /// One effective ingredient line, tagged by origin so the sheet can chip it.
@@ -303,19 +310,62 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
-    /// The parked drafts (held orders), newest first.
+    /// Park the current cart onto a floor table (or none). Returns `true` when
+    /// the requested table was DROPPED because it's taken — the park itself
+    /// still succeeded; the host toasts "table was taken, parked without it".
+    pub fn hold_cart_on_table(
+        &self,
+        name: String,
+        draft_id: Option<String>,
+        started_at: Option<String>,
+        table_id: Option<String>,
+    ) -> Result<bool, MadarError> {
+        self.inner
+            .hold_cart_on_table(name, draft_id, started_at, table_id)
+            .map_err(MadarError::from)
+    }
+
+    /// The branch's parked drafts (every till's), newest first. Drafts being
+    /// edited on another till come back `locked_by_other` (not restorable).
     pub fn list_drafts(&self) -> Result<Vec<DraftView>, MadarError> {
         self.inner.list_drafts().map_err(MadarError::from)
     }
 
-    /// Restore a draft into the cart (replaces current lines) and drop it.
+    /// Restore a draft into the cart (replaces current lines) and CLAIM it for
+    /// this till. Errors when another till is editing it.
     pub fn restore_draft(&self, id: String) -> Result<Vec<CartLineView>, MadarError> {
         self.inner.restore_draft(id).map_err(MadarError::from)
     }
 
-    /// Discard a parked draft.
+    /// Give a restored draft's claim back without changes (the "never mind"
+    /// path out of a resume).
+    pub fn release_draft(&self, id: String) -> Result<(), MadarError> {
+        self.inner.release_draft(id).map_err(MadarError::from)
+    }
+
+    /// Discard a parked draft (frees its table + any waitlist wish).
     pub fn discard_draft(&self, id: String) -> Result<(), MadarError> {
         self.inner.discard_draft(id).map_err(MadarError::from)
+    }
+
+    /// Mark a restored draft COMPLETED after its cart checked out — the host
+    /// calls this right after a successful ring-up of a resumed draft.
+    pub fn complete_draft(&self, id: String, order_id: Option<String>) -> Result<(), MadarError> {
+        self.inner
+            .complete_draft(id, order_id)
+            .map_err(MadarError::from)
+    }
+
+    /// Assign / move / unassign a parked draft's table. Errors loudly when the
+    /// table is taken (interactive path — the teller picks another).
+    pub fn assign_draft_table(
+        &self,
+        id: String,
+        table_id: Option<String>,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .assign_draft_table(id, table_id)
+            .map_err(MadarError::from)
     }
 
     /// Apply a discount (by id) to the cart — reflected in `cart_totals`.

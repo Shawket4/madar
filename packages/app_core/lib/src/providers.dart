@@ -133,6 +133,13 @@ final deliveryTickProvider = NotifierProvider<TickNotifier, int>(
   TickNotifier.new,
 );
 
+/// Bumped on every `floor.*` / `table.*` / `held_order.*` / `transfer.*`
+/// event — the dashboard re-arranged the room, a table changed state, or
+/// another till parked/seated a party. The order surface re-pulls the floor.
+final floorTickProvider = NotifierProvider<TickNotifier, int>(
+  TickNotifier.new,
+);
+
 /// SSE connection state — the KDS header dot / reconnecting banner.
 class ConnectedNotifier extends Notifier<bool> {
   @override

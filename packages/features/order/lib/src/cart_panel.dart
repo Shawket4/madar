@@ -5,6 +5,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/held_orders_strip.dart';
 import 'package:feature_order/src/order_providers.dart';
+import 'package:feature_order/src/tables_screen.dart';
 import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
@@ -391,21 +392,27 @@ class _TellerHeldStrip extends ConsumerWidget {
           HeldOrderTab(
             key: draft.id,
             sortKey: draft.createdAt,
-            title: _customName(draft.name),
+            title: _chipTitle(_customName(draft.name), draft.tableLabel),
+            glyph: draft.lockedByOther ? 'lock' : null,
             count: draft.itemCount,
             selected: false,
             onTap: () => unawaited(notifier.switchToHeldOrder(draft.id)),
-            onClose: () => unawaited(notifier.discardDraft(draft.id)),
+            onClose: draft.lockedByOther
+                ? null
+                : () => unawaited(notifier.discardDraft(draft.id)),
           ),
         if (hasLines)
           HeldOrderTab(
             key: liveKey,
             sortKey: cartStartedAtIso ?? nowIso(),
-            title: cartName,
+            title: _chipTitle(
+              cartName,
+              ref.watch(orderProvider.select((s) => s.cartTableLabel)),
+            ),
             count: itemCount,
             selected: true,
             onTap: () {},
-            onRename: () => unawaited(_renameLiveOrder(context, ref)),
+            onRename: () => unawaited(_editLiveOrder(context, ref)),
           ),
       ],
     );
@@ -420,13 +427,23 @@ class _TellerHeldStrip extends ConsumerWidget {
     return trimmed;
   }
 
-  /// Free-text rename for the live order — persists across holds via the
-  /// draft's name; empty clears back to the time label.
-  Future<void> _renameLiveOrder(BuildContext context, WidgetRef ref) async {
+  /// Chip title = "name · T5" / name / table label alone — whatever exists.
+  static String? _chipTitle(String? name, String? tableLabel) {
+    if (tableLabel == null || tableLabel.isEmpty) return name;
+    return name == null ? tableLabel : '$name · $tableLabel';
+  }
+
+  /// The live order's edit sheet: free-text rename (persists across holds via
+  /// the draft's name; empty clears back to the time label) + the table pick
+  /// (applied when the order parks). The table row only renders when the
+  /// branch has a floor layout — no layout, no table anything.
+  Future<void> _editLiveOrder(BuildContext context, WidgetRef ref) async {
     final bridge = ref.read(bridgeProvider);
+    final notifier = ref.read(orderProvider.notifier);
     final controller = TextEditingController(
       text: ref.read(orderProvider).cartName ?? '',
     );
+    final hasFloor = ref.read(orderProvider).hasFloor;
     final saved = await showMadarSheet<String>(
       context,
       size: SheetSize.hug,
@@ -447,6 +464,35 @@ class _TellerHeldStrip extends ConsumerWidget {
               placeholder: bridge.tr(key: 'order.rename_hint'),
               icon: 'pencil',
             ),
+            if (hasFloor) ...[
+              const SizedBox(height: Space.md),
+              Consumer(
+                builder: (context, sheetRef, _) {
+                  final label = sheetRef.watch(
+                    orderProvider.select((s) => s.cartTableLabel),
+                  );
+                  return ActionButton(
+                    label: label == null
+                        ? bridge.tr(key: 'tables.assign')
+                        : '${bridge.tr(key: 'order.table')} · $label',
+                    icon: 'square.grid.2x2',
+                    variant: ActionVariant.outline,
+                    onTap: () => unawaited(() async {
+                      final pick = await showTablePickerSheet(
+                        sheetContext,
+                        sheetRef,
+                        currentTableId: sheetRef
+                            .read(orderProvider)
+                            .cartTableId,
+                      );
+                      if (pick != null) {
+                        notifier.setCartTable(pick.tableId, pick.label);
+                      }
+                    }()),
+                  );
+                },
+              ),
+            ],
             const SizedBox(height: Space.xl),
             ActionButton(
               label: bridge.tr(key: 'common.done'),
