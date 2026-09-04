@@ -36,3 +36,16 @@ flutter:
           weight: 700
         - asset: assets/fonts/Cairo-ExtraBold.ttf
           weight: 800
+    # Numbers — times, durations, currency, IDs. A monospace face keeps a
+    # column of figures aligned and, more importantly, makes 09:04 read as a
+    # CLOCK rather than as prose.
+    - family: IBMPlexMono
+      fonts:
+        - asset: assets/fonts/IBMPlexMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/IBMPlexMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexMono-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/IBMPlexMono-Bold.ttf
+          weight: 700

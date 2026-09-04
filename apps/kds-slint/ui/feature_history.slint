@@ -1344,7 +1344,6 @@ component ReceiptPaper {
     // Paper card metrics (natives: 360.dp cap, 10.dp corners, 18.dp padding,
     // 6.dp hrow gap).
     preferred-width: 360px;
-    width: Math.min(360px, parent.width);
     preferred-height: paper-col.preferred-height + 36px + 2px;
     min-height: paper-col.preferred-height + 36px + 2px;
 
@@ -1707,7 +1706,9 @@ export component HistoryScreen {
                     padding: Sp.lg;
                     HorizontalLayout {
                         alignment: center;
-                        ReceiptPaper { }
+                        ReceiptPaper {
+                            width: Math.min(360px, parent.width);
+                        }
                     }
                 }
             }

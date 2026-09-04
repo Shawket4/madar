@@ -85,10 +85,11 @@ impl DeviceConfig {
     /// otherwise defaults by transport — a Bluetooth printer is assumed to be a
     /// 58 mm portable (384 dots), LAN a 72 mm desktop head (576 dots).
     pub fn paper_dots(&self) -> u32 {
-        self.printer_paper_dots.unwrap_or(match self.printer_transport.as_deref() {
-            Some("bluetooth") => BT_PAPER_DOTS,
-            _ => LAN_PAPER_DOTS,
-        })
+        self.printer_paper_dots
+            .unwrap_or(match self.printer_transport.as_deref() {
+                Some("bluetooth") => BT_PAPER_DOTS,
+                _ => LAN_PAPER_DOTS,
+            })
     }
 
     /// Whether the active printer has an auto-cutter. Desktop (LAN) heads do;

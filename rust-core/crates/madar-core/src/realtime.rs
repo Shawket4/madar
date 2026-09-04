@@ -369,6 +369,14 @@ async fn run_supervisor(
             // a fresh login + re-subscribe revives the stream.
             Err(CoreError::Unauthenticated { .. }) => {
                 listener.on_connection_changed(false);
+                // TERMINAL: this task will never run again for this session. The
+                // device silently stops receiving delivery/kitchen/ticket events
+                // and nothing above the FFI is told why — the host just sees a
+                // board that stopped updating. Always worth a report.
+                crate::obs::capture_bg_warning(
+                    "realtime.stream_stopped",
+                    "sse supervisor stopped: 401 (token gone)",
+                );
                 return;
             }
             // A permanent authz failure (branch access revoked, no readable topics)
@@ -377,11 +385,32 @@ async fn run_supervisor(
             // app resume, or re-login) revives it, exactly like the 401 path.
             Err(CoreError::Forbidden { .. }) => {
                 listener.on_connection_changed(false);
+                // TERMINAL, same as the 401 above, but a misconfiguration rather
+                // than an expiry: branch access revoked or no readable topics for
+                // this role. This one usually means someone's permissions are
+                // wrong, which is precisely the thing nobody can diagnose remotely.
+                crate::obs::capture_bg_warning(
+                    "realtime.stream_stopped",
+                    "sse supervisor stopped: 403 (branch/topic access denied)",
+                );
                 return;
             }
             // Offline / 5xx / portal — back off and retry.
-            Err(_) => {
+            Err(e) => {
                 listener.on_connection_changed(false);
+                // Being offline is NORMAL for a POS, so a failed connect is not by
+                // itself news — reporting every attempt would drown the project in
+                // noise from tills parked overnight. Only once the backoff has
+                // saturated (attempt >= STREAM_ALERT_AFTER, ~10+ min of continuous
+                // failure) does this stop looking like connectivity and start
+                // looking like a broken endpoint. `obs`'s per-site cooldown keeps
+                // even that to one report per window.
+                if attempt >= STREAM_ALERT_AFTER {
+                    crate::obs::capture_bg_error(
+                        "realtime.reconnect_stuck",
+                        format!("sse reconnect failing since attempt {attempt}: {e}"),
+                    );
+                }
             }
         }
         attempt += 1;
@@ -419,6 +448,12 @@ async fn drain_stream(
         }
     }
 }
+
+/// Consecutive failed reconnects before the SSE supervisor reports itself as
+/// stuck. With the backoff below saturating at 30s, this is roughly ten minutes
+/// of uninterrupted failure — long past a passing radio glitch or a nightly
+/// close, and short enough to still be actionable.
+const STREAM_ALERT_AFTER: i64 = 20;
 
 /// Stream-reconnect backoff: BASE·2^(n-1) capped, + deterministic jitter. Kept
 /// local (not reusing the outbox constants) so the two subsystems tune apart; the

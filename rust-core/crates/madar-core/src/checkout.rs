@@ -687,10 +687,7 @@ fn order_cash_in_drawer(
 /// retained to exercise the shared [`order_cash_in_drawer`] aggregation.
 #[cfg(test)]
 pub(crate) fn queued_cash_total(store: &Store) -> CoreResult<i64> {
-    let raw: Vec<models::OrgPaymentMethod> = match store.kv_get(menu::K_PAYMENT_METHODS)? {
-        Some(j) => serde_json::from_str(&j).unwrap_or_default(),
-        None => Vec::new(),
-    };
+    let raw = menu::cached_payment_methods(store)?;
     let cash_names: std::collections::HashSet<String> = raw
         .iter()
         .filter(|p| p.is_cash)
@@ -730,10 +727,7 @@ pub(crate) fn queued_cash_total(store: &Store) -> CoreResult<i64> {
 /// OFFLINE shift's Z-report (the drawer holds that shift's queued cash sales +
 /// movements). Matches the outbox row's `shift_id`.
 pub(crate) fn queued_cash_total_for(store: &Store, shift_id: &str) -> CoreResult<i64> {
-    let raw: Vec<models::OrgPaymentMethod> = match store.kv_get(menu::K_PAYMENT_METHODS)? {
-        Some(j) => serde_json::from_str(&j).unwrap_or_default(),
-        None => Vec::new(),
-    };
+    let raw = menu::cached_payment_methods(store)?;
     let cash_names: std::collections::HashSet<String> = raw
         .iter()
         .filter(|p| p.is_cash)
@@ -772,11 +766,8 @@ pub(crate) fn queued_cash_total_for(store: &Store, shift_id: &str) -> CoreResult
 pub(crate) fn raw_payment_method(
     store: &Store,
     id: &str,
-) -> CoreResult<Option<models::OrgPaymentMethod>> {
-    let list: Vec<models::OrgPaymentMethod> = match store.kv_get(menu::K_PAYMENT_METHODS)? {
-        Some(j) => serde_json::from_str(&j).unwrap_or_default(),
-        None => Vec::new(),
-    };
+) -> CoreResult<Option<menu::CachedPaymentMethod>> {
+    let list = menu::cached_payment_methods(store)?;
     Ok(list.into_iter().find(|p| p.id.to_string() == id))
 }
 

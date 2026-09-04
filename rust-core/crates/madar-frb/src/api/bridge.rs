@@ -56,8 +56,6 @@ impl MadarBridge {
 
     // ── host callbacks (attach BEFORE restore_session / login) ────────────
 
-
-
     // ── session ───────────────────────────────────────────────────────────
 
     /// Restore a HOST-supplied session blob (the one-time legacy keychain

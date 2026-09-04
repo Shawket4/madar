@@ -8,10 +8,12 @@ environment:
 workspace:
   - apps/madar
   - apps/dashboard
+  - apps/staff
   - packages/app_core
   - packages/design_system
   - packages/rust_bridge
   - packages/rust_bridge_dashboard
+  - packages/rust_bridge_staff
   - packages/features/auth
   - packages/features/checkout
   - packages/features/floor
@@ -47,3 +49,6 @@ melos:
     bridge_dashboard:
       run: tool/gen-bindings-dashboard.sh
       description: Regenerate FRB bindings from madar-frb-dashboard (management dashboard app).
+    bridge_staff:
+      run: tool/gen-bindings-staff.sh
+      description: Regenerate FRB bindings from madar-frb-staff (employee staff app).

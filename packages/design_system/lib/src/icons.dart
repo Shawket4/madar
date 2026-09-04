@@ -95,6 +95,16 @@ const Map<String, IconData> madarIconCatalog = <String, IconData>{
   'clock.badge.exclamationmark': LucideIcons.clock,
   'clock.arrow.circlepath': LucideIcons.history,
   'history': LucideIcons.history,
+  'calendar': LucideIcons.calendar,
+  'calendar.days': LucideIcons.calendarDays,
+  'timer': LucideIcons.timer,
+  'hourglass': LucideIcons.hourglass,
+  // Attendance & staffing.
+  'house': LucideIcons.house,
+  'sun.max': LucideIcons.sun,
+  'person.2': LucideIcons.users,
+  'briefcase': LucideIcons.briefcase,
+  'umbrella': LucideIcons.umbrella,
   // Files & documents.
   'note.text': LucideIcons.fileText,
   'doc.text': LucideIcons.fileText,

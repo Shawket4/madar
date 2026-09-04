@@ -1947,19 +1947,19 @@ component HistoryOrderLine {
 // A past shift's orders, row by row under its shift row — loaded lazily on
 // first expand (skeletons while in flight, a muted line when none).
 component ShiftOrdersPanel {
-    in property <ShiftRowData> row;
+    in property <ShiftRowData> shift-row;
     preferred-height: wrap.preferred-height;
     min-height: wrap.preferred-height;
 
     wrap := VerticalLayout {
-        if !root.row.orders-loaded: VerticalLayout {
+        if !root.shift-row.orders-loaded: VerticalLayout {
             padding: Sp.lg;
             spacing: Sp.sm;
             SkeletonRow { }
             SkeletonRow { }
             SkeletonRow { }
         }
-        if root.row.orders-loaded && root.row.orders.length == 0: VerticalLayout {
+        if root.shift-row.orders-loaded && root.shift-row.orders.length == 0: VerticalLayout {
             padding: Sp.lg;
             Text {
                 text: ShiftState.tr-no-orders;
@@ -1967,13 +1967,13 @@ component ShiftOrdersPanel {
                 font-size: 13px; font-weight: 400;
             }
         }
-        if root.row.orders-loaded && root.row.orders.length > 0: Rectangle {
+        if root.shift-row.orders-loaded && root.shift-row.orders.length > 0: Rectangle {
             background: T.surface-alt.with-alpha(0.5);
             preferred-height: panel-col.preferred-height;
             min-height: panel-col.preferred-height;
             panel-col := VerticalLayout {
                 width: parent.width;
-                for order in root.row.orders: HistoryOrderLine {
+                for order in root.shift-row.orders: HistoryOrderLine {
                     order: order;
                     voided-label: ShiftState.tr-voided;
                 }
@@ -2040,7 +2040,7 @@ component HistoryColumnHeader {
 // A single table row, 56-tall, zebra fill on odd rows —
 // `[status dot][Teller][Opened][Closed][Declared][orders toggle][chevron]`.
 component WideShiftRow {
-    in property <ShiftRowData> row;
+    in property <ShiftRowData> shift-row;
     in property <bool> odd;
     preferred-height: 56px; // Metrics.tableRowHeight
     min-height: 56px;
@@ -2048,7 +2048,7 @@ component WideShiftRow {
     Rectangle {
         background: root.odd ? T.surface-alt : transparent;
         TouchArea {
-            clicked => { ShiftState.history-row-tapped(root.row.id); }
+            clicked => { ShiftState.history-row-tapped(root.shift-row.id); }
         }
         HorizontalLayout {
             height: 56px;
@@ -2060,15 +2060,15 @@ component WideShiftRow {
                     x: (parent.width - self.width) / 2;
                     y: (parent.height - self.height) / 2;
                     width: 8px; height: 8px; border-radius: 4px; // status dot
-                    background: root.row.status-kind == 0 ? T.success
-                        : root.row.status-kind == 1 ? T.danger
+                    background: root.shift-row.status-kind == 0 ? T.success
+                        : root.shift-row.status-kind == 1 ? T.danger
                         : T.text-muted;
                 }
             }
             Text {
                 vertical-alignment: center;
                 horizontal-stretch: 1;
-                text: root.row.teller;
+                text: root.shift-row.teller;
                 color: T.text-primary;
                 font-size: 15px; font-weight: 600;
                 overflow: elide;
@@ -2076,7 +2076,7 @@ component WideShiftRow {
             Text {
                 vertical-alignment: center;
                 horizontal-stretch: 1;
-                text: root.row.opened-text;
+                text: root.shift-row.opened-text;
                 color: T.text-secondary;
                 font-size: 13px; font-weight: 400;
                 overflow: elide;
@@ -2084,31 +2084,31 @@ component WideShiftRow {
             Text {
                 vertical-alignment: center;
                 horizontal-stretch: 1;
-                text: root.row.closed-text;
-                color: root.row.closed-missing ? T.text-muted : T.text-secondary;
+                text: root.shift-row.closed-text;
+                color: root.shift-row.closed-missing ? T.text-muted : T.text-secondary;
                 font-size: 13px; font-weight: 400;
                 overflow: elide;
             }
             Text {
                 vertical-alignment: center;
                 width: 110px; // declared column
-                text: root.row.declared-text;
-                color: root.row.declared-missing ? T.text-muted : T.text-primary;
+                text: root.shift-row.declared-text;
+                color: root.shift-row.declared-missing ? T.text-muted : T.text-primary;
                 font-size: 14px; font-weight: 700;
                 overflow: elide;
                 horizontal-alignment: T.rtl ? left : right;
             }
             // Inline orders expander — row by row, printable.
             OrdersToggle {
-                expanded: root.row.expanded;
-                tapped => { ShiftState.history-toggle-orders(root.row.id); }
+                expanded: root.shift-row.expanded;
+                tapped => { ShiftState.history-toggle-orders(root.shift-row.id); }
             }
             Rectangle {
                 width: 44px; // chevron column
                 RowDisclosure {
                     x: (parent.width - self.width) / 2;
                     height: parent.height;
-                    loading: root.row.loading-report;
+                    loading: root.shift-row.loading-report;
                 }
             }
         }
@@ -2118,7 +2118,7 @@ component WideShiftRow {
 // Narrow row card: opened date + status chip up top, then the opening /
 // declared / discrepancy metric rows.
 component NarrowShiftCard {
-    in property <ShiftRowData> row;
+    in property <ShiftRowData> shift-row;
     preferred-height: box.preferred-height;
     min-height: box.preferred-height;
 
@@ -2129,7 +2129,7 @@ component NarrowShiftCard {
         border-color: T.border-light;
         preferred-height: col.preferred-height + 2 * Sp.lg;
         TouchArea {
-            clicked => { ShiftState.history-row-tapped(root.row.id); }
+            clicked => { ShiftState.history-row-tapped(root.shift-row.id); }
         }
         col := VerticalLayout {
             x: Sp.lg; y: Sp.lg;
@@ -2139,28 +2139,28 @@ component NarrowShiftCard {
                 Text {
                     vertical-alignment: center;
                     horizontal-stretch: 1;
-                    text: root.row.opened-short-text;
+                    text: root.shift-row.opened-short-text;
                     color: T.text-primary;
                     font-size: 15px; font-weight: 600;
                     overflow: elide;
                 }
                 Chip {
                     y: (parent.height - self.height) / 2;
-                    label: root.row.is-open ? ShiftState.tr-shifts-open-now : ShiftState.tr-shifts-closed;
-                    tone: root.row.is-open ? Tone.success : Tone.neutral;
+                    label: root.shift-row.is-open ? ShiftState.tr-shifts-open-now : ShiftState.tr-shifts-closed;
+                    tone: root.shift-row.is-open ? Tone.success : Tone.neutral;
                 }
                 OrdersToggle {
-                    expanded: root.row.expanded;
-                    tapped => { ShiftState.history-toggle-orders(root.row.id); }
+                    expanded: root.shift-row.expanded;
+                    tapped => { ShiftState.history-toggle-orders(root.shift-row.id); }
                 }
-                RowDisclosure { loading: root.row.loading-report; }
+                RowDisclosure { loading: root.shift-row.loading-report; }
             }
-            MetricRow { label: ShiftState.tr-shifts-opening; value: root.row.opening-text; }
-            if !root.row.declared-missing: MetricRow {
-                label: ShiftState.tr-shifts-declared; value: root.row.declared-text;
+            MetricRow { label: ShiftState.tr-shifts-opening; value: root.shift-row.opening-text; }
+            if !root.shift-row.declared-missing: MetricRow {
+                label: ShiftState.tr-shifts-declared; value: root.shift-row.declared-text;
             }
-            if root.row.discrepancy-text != "": MetricRow {
-                label: ShiftState.tr-shifts-discrepancy; value: root.row.discrepancy-text;
+            if root.shift-row.discrepancy-text != "": MetricRow {
+                label: ShiftState.tr-shifts-discrepancy; value: root.shift-row.discrepancy-text;
                 danger: true;
             }
         }
@@ -2206,8 +2206,8 @@ export component ShiftHistoryScreen {
                     ShiftFlushCard {
                         HistoryColumnHeader { }
                         for row in ShiftState.history-rows: VerticalLayout {
-                            WideShiftRow { row: row; odd: false; }
-                            if row.expanded: ShiftOrdersPanel { row: row; }
+                            WideShiftRow { shift-row: row; odd: false; }
+                            if row.expanded: ShiftOrdersPanel { shift-row: row; }
                             ShiftHairline { }
                         }
                     }
@@ -2224,8 +2224,8 @@ export component ShiftHistoryScreen {
                     height: self.preferred-height;
                     spacing: Sp.sm;
                     for row in ShiftState.history-rows: VerticalLayout {
-                        NarrowShiftCard { row: row; }
-                        if row.expanded: ShiftOrdersPanel { row: row; }
+                        NarrowShiftCard { shift-row: row; }
+                        if row.expanded: ShiftOrdersPanel { shift-row: row; }
                     }
                 }
             }

@@ -25,8 +25,14 @@ dependencies:
     sdk: flutter
   flutter_local_notifications: ^22.0.1
   flutter_riverpod: ^3.3.2
+  # Direct (not just transitive via rust_bridge) so observability.dart may
+  # name the FRB exception types it tags Rust-core failures by.
+  flutter_rust_bridge: 2.12.0
   path_provider: ^2.1.5
   rust_bridge: ^0.1.0
+  # Crash/error reporting to the SELF-HOSTED Sentry at sentry.madar-pos.cloud.
+  # Init lives in main.dart; it is inert when SENTRY_DSN is empty.
+  sentry_flutter: ^9.28.0
   shared_preferences: ^2.5.3
 
 # Launcher icons are copied directly from the native apps' sources (pixel parity)

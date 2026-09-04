@@ -1770,14 +1770,20 @@ mod tests {
             i += 1;
         }
         assert_eq!(headers, 2, "130 rows should split into 2 bands");
-        assert_eq!(declared_rows, rows, "every row must be shipped exactly once");
+        assert_eq!(
+            declared_rows, rows,
+            "every row must be shipped exactly once"
+        );
     }
 
     #[test]
     fn raster_for_dispatches_by_brand() {
         let b = tiny_bitmap();
         assert_eq!(raster_for(PrinterBrand::Star, &b, true), star_raster(&b));
-        assert_eq!(raster_for(PrinterBrand::Epson, &b, true), escpos_raster(&b, true));
+        assert_eq!(
+            raster_for(PrinterBrand::Epson, &b, true),
+            escpos_raster(&b, true)
+        );
         assert_ne!(
             raster_for(PrinterBrand::Star, &b, true),
             raster_for(PrinterBrand::Epson, &b, true)

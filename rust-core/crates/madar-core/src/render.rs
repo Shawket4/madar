@@ -260,8 +260,8 @@ impl Renderer {
         let right_buf = self.shape(right, size, weight, self.content_w());
         let (rw, rh) = Self::measure(&right_buf);
         // Keep the label clear of the value.
-        let left_max = (self.content_w() as f32 - rw - self.sx(12) as f32).max(self.sx(40) as f32)
-            as i32;
+        let left_max =
+            (self.content_w() as f32 - rw - self.sx(12) as f32).max(self.sx(40) as f32) as i32;
         let left_buf = self.shape(left, size, weight, left_max);
         let (_, lh) = Self::measure(&left_buf);
         let oy = self.y;
@@ -889,7 +889,10 @@ mod tests {
         let wide = render_receipt(&receipt(), &ctx(), None, PRINT_WIDTH);
         assert_eq!(narrow.width, 384);
         assert_eq!(narrow.row_bytes(), 48); // 384 / 8
-        assert_eq!(narrow.bytes.len(), narrow.row_bytes() * narrow.rows as usize);
+        assert_eq!(
+            narrow.bytes.len(),
+            narrow.row_bytes() * narrow.rows as usize
+        );
         assert!(
             narrow.bytes.iter().any(|&b| b != 0),
             "narrow bitmap is entirely blank"
@@ -996,8 +999,14 @@ mod tests {
 
     #[test]
     fn renders_shift_report_bitmap() {
-        let bmp =
-            render_shift_report(&shift_report(), "Cafe Madar", "EGP", &shift_labels(), &[], PRINT_WIDTH);
+        let bmp = render_shift_report(
+            &shift_report(),
+            "Cafe Madar",
+            "EGP",
+            &shift_labels(),
+            &[],
+            PRINT_WIDTH,
+        );
         assert_eq!(bmp.width, PRINT_WIDTH);
         assert!(bmp.rows > 150);
         assert!(
@@ -1029,7 +1038,14 @@ mod tests {
             "/tmp/receipt.png",
         );
         save_png(
-            &render_shift_report(&shift_report(), "Cafe Madar", "EGP", &shift_labels(), &[], PRINT_WIDTH),
+            &render_shift_report(
+                &shift_report(),
+                "Cafe Madar",
+                "EGP",
+                &shift_labels(),
+                &[],
+                PRINT_WIDTH,
+            ),
             "/tmp/shift_report.png",
         );
         // Synthetic 4:1 wordmark (border + diagonal) to check logo sizing.

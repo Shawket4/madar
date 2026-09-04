@@ -3,7 +3,8 @@
 //!   - `kv`          : read-through mirror (canonical wire JSON per key),
 //!   - `outbox`      : the durable, append-only command queue (global FIFO `seq`),
 //!   - `id_map`      : the client-temp-id ↔ server-id bridge for reconciliation,
-//!   - `sync_cursors`: per-stream high-water mark for days-offline catch-up.
+//!   - `sync_cursors`: per-stream high-water mark for days-offline catch-up,
+//!   - `sentry_outbox`: the durable crash/error-report queue (see `crate::obs`).
 //!
 //! A single writer behind a `Mutex` (FFI calls serialize here); WAL gives
 //! snapshot-consistent reads. `db_path == ""` opens in-memory (tests / first boot).
@@ -62,6 +63,22 @@ CREATE TABLE IF NOT EXISTS outbox (
   shift_id        TEXT                                -- the shift this op belongs to (close-last gating)
 );
 CREATE INDEX IF NOT EXISTS outbox_status_seq ON outbox(status, seq);
+
+-- The Sentry envelope queue. A POS terminal's NORMAL state is offline, and
+-- sentry-rust has no persistence of its own: an in-memory transport would lose
+-- every crash report a terminal produced between one uplink and the next (i.e.
+-- exactly the reports we care about). So error reports get the same treatment as
+-- money: written to disk first, drained later. Deliberately a SEPARATE table from
+-- `outbox` — telemetry must never share a FIFO, a retry budget or a dependency
+-- gate with sales commands, and must never be able to block them.
+CREATE TABLE IF NOT EXISTS sentry_outbox (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,  -- FIFO (oldest = smallest)
+  envelope        BLOB NOT NULL,                      -- the serialized Sentry envelope
+  created_at      INTEGER NOT NULL,                   -- epoch ms (age cap)
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at INTEGER NOT NULL DEFAULT 0          -- epoch ms backoff gate
+);
+CREATE INDEX IF NOT EXISTS sentry_outbox_due ON sentry_outbox(next_attempt_at, id);
 "#;
 
 /// Idempotent column adds for stores created before the offline-orchestration
@@ -113,6 +130,16 @@ pub struct OutboxItem {
     pub user_id: Option<String>,
     pub clock_offset_ms: Option<i64>,
     pub shift_id: Option<String>,
+}
+
+/// One queued Sentry envelope awaiting upload (see `crate::obs`).
+#[derive(Debug, Clone)]
+pub struct SentryEnvelopeRow {
+    pub id: i64,
+    /// Failed upload attempts so far — the exponent of the retry backoff.
+    pub attempts: i64,
+    /// The serialized envelope, uploaded verbatim.
+    pub envelope: Vec<u8>,
 }
 
 pub struct Store {
@@ -629,6 +656,101 @@ impl Store {
     pub fn wipe_outbox(&self) -> CoreResult<()> {
         self.lock().execute("DELETE FROM outbox", [])?;
         Ok(())
+    }
+
+    // ── durable Sentry envelope queue (crate::obs) ──────────────
+    //
+    // Same shape as the command outbox above (FIFO id, attempts, `next_attempt_at`
+    // backoff gate), deliberately in its own table. Telemetry is strictly
+    // second-class: it is capped by BOTH count and age so a terminal that stays
+    // offline for a week cannot grow the DB unbounded, and every method here is
+    // fallible-but-ignorable — a failure to record an error report must never
+    // surface to a teller or abort a sale.
+
+    /// Persist one serialized envelope. Ready to send immediately.
+    pub fn sentry_enqueue(&self, envelope: &[u8], now_ms: i64) -> CoreResult<i64> {
+        let conn = self.lock();
+        conn.execute(
+            "INSERT INTO sentry_outbox(envelope, created_at) VALUES(?1, ?2)",
+            params![envelope, now_ms],
+        )?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    /// Envelopes ready to send NOW (past their backoff gate), oldest first, as
+    /// `(id, attempts, envelope)` — `attempts` drives the per-row exponential
+    /// backoff, exactly like the command outbox's.
+    pub fn sentry_due(&self, now_ms: i64, limit: u32) -> CoreResult<Vec<SentryEnvelopeRow>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, attempts, envelope FROM sentry_outbox WHERE next_attempt_at <= ?1 \
+             ORDER BY id ASC LIMIT ?2",
+        )?;
+        let rows = stmt
+            .query_map(params![now_ms, limit], |r| {
+                Ok(SentryEnvelopeRow {
+                    id: r.get(0)?,
+                    attempts: r.get(1)?,
+                    envelope: r.get(2)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// Delete one envelope — it was accepted, or permanently rejected (a 4xx
+    /// that will never succeed; retrying it forever would just burn battery).
+    pub fn sentry_drop(&self, id: i64) -> CoreResult<()> {
+        self.lock()
+            .execute("DELETE FROM sentry_outbox WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    /// Re-gate one envelope for a later attempt (network down, 5xx, rate limit).
+    pub fn sentry_defer(&self, id: i64, next_attempt_at: i64) -> CoreResult<()> {
+        self.lock().execute(
+            "UPDATE sentry_outbox SET attempts = attempts + 1, next_attempt_at = ?2 \
+             WHERE id = ?1",
+            params![id, next_attempt_at],
+        )?;
+        Ok(())
+    }
+
+    /// Re-gate EVERY queued envelope (a 429 with a `Retry-After` applies to the
+    /// whole project, not one report).
+    pub fn sentry_defer_all(&self, next_attempt_at: i64) -> CoreResult<()> {
+        self.lock().execute(
+            "UPDATE sentry_outbox SET next_attempt_at = ?1 WHERE next_attempt_at < ?1",
+            params![next_attempt_at],
+        )?;
+        Ok(())
+    }
+
+    /// Enforce the queue caps: drop anything older than `cutoff_ms`, then trim to
+    /// the newest `max_rows`. Returns how many rows were discarded. This is the
+    /// unbounded-growth guard — a terminal offline for days keeps only the most
+    /// recent slice of its error history, which is the useful part anyway.
+    pub fn sentry_prune(&self, cutoff_ms: i64, max_rows: u32) -> CoreResult<u32> {
+        let conn = self.lock();
+        let mut n = conn.execute(
+            "DELETE FROM sentry_outbox WHERE created_at < ?1",
+            params![cutoff_ms],
+        )?;
+        n += conn.execute(
+            "DELETE FROM sentry_outbox WHERE id NOT IN \
+             (SELECT id FROM sentry_outbox ORDER BY id DESC LIMIT ?1)",
+            params![max_rows],
+        )?;
+        Ok(n as u32)
+    }
+
+    /// How many envelopes are still waiting to reach Sentry (drives `flush`).
+    pub fn sentry_pending_count(&self) -> CoreResult<u32> {
+        Ok(self
+            .lock()
+            .query_row("SELECT COUNT(*) FROM sentry_outbox", [], |r| {
+                r.get::<_, i64>(0)
+            })? as u32)
     }
 }
 

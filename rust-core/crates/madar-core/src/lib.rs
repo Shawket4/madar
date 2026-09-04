@@ -47,10 +47,13 @@ pub mod lan;
 pub mod menu;
 /// HTTP layer — drives the generated `madar-api` reqwest client (PLAN §R4 net/).
 pub mod net;
+/// Crash + background-error reporting (Sentry) with a disk-backed offline
+/// transport. Errors raised inside the core's 8 background tasks never cross the
+/// FFI, so this is the ONLY way they become visible. No DSN configured => fully
+/// disabled and the core behaves exactly as it did before.
+pub mod obs;
 /// Order history reads — synced + still-queued orders for the shift.
 pub mod orders;
-/// Dashboard analytics reads — projected KPI DTOs for the management app.
-pub mod reports;
 /// Client of the unified realtime bus — ONE SSE connection per device, hand-rolled
 /// over `bytes_stream()`, dispatched to the host through one callback listener.
 pub mod realtime;
@@ -62,12 +65,16 @@ pub mod recipe;
 /// Receipt → 1-bit raster bitmap (logo + Arabic via the embedded Cairo font),
 /// for the raster-only TSP143III. Mirrors the on-screen ReceiptPaper preview.
 pub mod render;
+/// Dashboard analytics reads — projected KPI DTOs for the management app.
+pub mod reports;
 /// Reservations & floor-plan view types (host operations exported from `lib.rs`).
 pub mod reservations;
 /// Session & auth — online login, offline unlock, token custody (PLAN §7.2).
 pub mod session;
 /// Shift lifecycle — open/current via the outbox (PLAN §7.4).
 pub mod shift;
+/// Employee self-service reads/writes for the staff app (`/staff/me/*`).
+pub mod staff;
 /// Local store — SQLite mirror + durable outbox + id_map + sync cursors (PLAN §8).
 pub mod store;
 /// Waiter open tickets — fire-now-pay-later dine-in tickets via the outbox.
@@ -284,6 +291,14 @@ impl MadarCore {
     #[cfg_attr(feature = "uniffi-ffi", uniffi::constructor)]
     pub fn new(config: MadarConfig) -> Result<Arc<Self>, error::CoreError> {
         let store = Arc::new(store::Store::open(&config.db_path)?);
+        // Bring crash reporting up as early as the store allows (its queue lives
+        // in that SQLite file). Deliberately AFTER `Store::open` and BEFORE
+        // anything else: a store that won't open is a hard boot failure the host
+        // already surfaces, whereas everything past this line can panic inside a
+        // background task where only Sentry would ever see it. `init` is
+        // idempotent, non-blocking and infallible — with no DSN it is a no-op, so
+        // this line changes nothing about how the core boots today.
+        obs::init(store.clone(), &config.environment, &config.db_path);
         // Restore the last-known server skew so even a cold OFFLINE boot (no ping
         // yet) stamps queued ops with corrected, non-future times. SHARED with the
         // ApiClient so every response's Date header keeps it fresh.
@@ -1755,7 +1770,11 @@ impl MadarCore {
     /// (defaults to `"lan"`, raw-TCP). Only the active transport's binding is used
     /// at print time; the other's address is kept so switching back is lossless.
     pub fn set_device_printer_transport(&self, kind: String) -> Result<(), CoreError> {
-        let kind = if kind == "bluetooth" { "bluetooth" } else { "lan" };
+        let kind = if kind == "bluetooth" {
+            "bluetooth"
+        } else {
+            "lan"
+        };
         device::update(&self.store, |c| {
             c.printer_transport = Some(kind.to_string());
         })?;
@@ -2138,6 +2157,12 @@ impl MadarCore {
             tcp_port: lan::DEFAULT_TCP_PORT,
             beacon_port: lan::DEFAULT_BEACON_PORT,
         };
+        // Tag every subsequent crash report with the device's OPERATING identity —
+        // the install uuid, the branch and the role. Non-identifying by design (see
+        // `obs::set_device_scope`), and this is the earliest point where all three
+        // are known, so a report from a terminal in another city can be traced to a
+        // station without naming a person.
+        crate::obs::set_device_scope(Some(&cfg.device_id), Some(&cfg.branch_id), Some(&cfg.role));
         let bridge = Arc::new(LanBridge {
             listener: self.unified_listener.clone(),
             store: self.store.clone(), // the SAME store instance, shared via Arc
@@ -2430,20 +2455,14 @@ impl MadarCore {
             items,
             bundles,
         });
-        *self
-            .catalog_cache
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = Some(snapshot.clone());
+        *self.catalog_cache.lock().unwrap_or_else(|e| e.into_inner()) = Some(snapshot.clone());
         Ok(snapshot)
     }
 
     /// Drop the parsed snapshot — called after anything that rewrites the kv
     /// catalog mirrors or the on-disk image cache. The next read re-projects.
     fn invalidate_catalog_cache(&self) {
-        *self
-            .catalog_cache
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = None;
+        *self.catalog_cache.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 
     pub fn list_menu_items(&self) -> Result<Vec<menu::MenuItemView>, CoreError> {
@@ -3009,6 +3028,9 @@ impl MadarCore {
                     from: date(from),
                     to: date(to),
                     limit: Some(10),
+                    // The dashboard reports on everything sold; the exclusion
+                    // list is a web-only "hide these SKUs" affordance.
+                    exclude_items: None,
                 };
                 let rep = reports_api::branch_sales(&self.api.config(), params)
                     .await
@@ -4161,6 +4183,7 @@ impl MadarCore {
                 from: None,
                 to: None,
                 order_type: None,
+                exclude_items: None,
                 channel: None,
                 include_items: Some(true),
             };
@@ -4271,6 +4294,7 @@ impl MadarCore {
                 from: None,
                 to: None,
                 order_type: None,
+                exclude_items: None,
                 channel: None,
                 include_items: Some(true),
             };
@@ -4354,6 +4378,7 @@ impl MadarCore {
             from: f_from,
             to: f_to,
             order_type: None,
+            exclude_items: None,
             channel: None,
             include_items: Some(false),
         };
@@ -7149,4 +7174,653 @@ impl MadarCore {
             detail: "no branch selected in this session".into(),
         })
     }
+}
+
+// ── Staff (employee self-service) surface ────────────────────────────────────
+// Plain, NON-uniffi-exported methods consumed ONLY by the staff FRB crate
+// (`madar-frb-staff`). Kept off the uniffi surface and off `madar-frb` so
+// neither the POS natives nor the teller binary carry an HR surface.
+//
+// Every method here is ONLINE-ONLY and deliberately so. Clocking in is a claim
+// about where and when someone was; letting it queue in the outbox would mean
+// accepting a timestamp and a location the device chose, which is exactly what
+// the geofence exists to prevent. A failed check-in must be visibly failed.
+impl MadarCore {
+    /// Employee sign-in. Same email/password path as the dashboard: no device
+    /// pin, no shift, no offline bundle.
+    pub async fn staff_sign_in(
+        &self,
+        email: String,
+        password: String,
+    ) -> Result<session::SessionSnapshot, CoreError> {
+        self.dashboard_sign_in(email, password, None).await
+    }
+
+    /// The home screen: today's business date, the open record, what is rostered,
+    /// and whether the buttons should be live.
+    pub async fn staff_today(&self) -> Result<staff::TodayView, CoreError> {
+        use madar_api::apis::staff_api;
+        let t = staff_api::my_today(&self.api.config())
+            .await
+            .map_err(net::map_api_error)?;
+        Ok(staff::today_view(t))
+    }
+
+    /// Clock in at `branch_id` from the device's current position.
+    ///
+    /// The coordinates are EVIDENCE, not a decision: the server measures the
+    /// distance itself and refuses the punch when it falls outside the branch's
+    /// fence. A refusal surfaces as a `CoreError` carrying the server's own
+    /// wording (which includes the measured distance), so the host can show it
+    /// verbatim rather than inventing a message.
+    pub async fn staff_check_in(
+        &self,
+        branch_id: String,
+        latitude: Option<f64>,
+        longitude: Option<f64>,
+    ) -> Result<staff::AttendanceRecordView, CoreError> {
+        use madar_api::apis::staff_api;
+        let branch = uuid::Uuid::parse_str(&branch_id).map_err(|_| CoreError::Validation {
+            field: "branch_id".into(),
+            detail: "not a valid id".into(),
+        })?;
+        let mut body = madar_api::models::CheckInRequest::new(branch);
+        body.latitude = latitude.map(Some);
+        body.longitude = longitude.map(Some);
+        let rec = staff_api::check_in(
+            &self.api.config(),
+            staff_api::CheckInParams {
+                check_in_request: body,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(staff::record_view(rec))
+    }
+
+    /// Clock out of whichever record is currently open. The server picks it —
+    /// the app never names a record, so it cannot close the wrong one.
+    pub async fn staff_check_out(
+        &self,
+        latitude: Option<f64>,
+        longitude: Option<f64>,
+    ) -> Result<staff::AttendanceRecordView, CoreError> {
+        use madar_api::apis::staff_api;
+        let mut body = madar_api::models::CheckOutRequest::new();
+        body.latitude = latitude.map(Some);
+        body.longitude = longitude.map(Some);
+        let rec = staff_api::check_out(
+            &self.api.config(),
+            staff_api::CheckOutParams {
+                check_out_request: body,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(staff::record_view(rec))
+    }
+
+    /// The employee's own attendance over `[from, to]` (ISO `yyyy-mm-dd`).
+    pub async fn staff_attendance(
+        &self,
+        from: String,
+        to: String,
+    ) -> Result<Vec<staff::AttendanceRecordView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let parse = |s: &str, field: &str| {
+            chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| CoreError::Validation {
+                field: field.to_string(),
+                detail: "expected yyyy-mm-dd".into(),
+            })
+        };
+        let rows = staff_api::my_attendance(
+            &self.api.config(),
+            staff_api::MyAttendanceParams {
+                from: parse(&from, "from")?,
+                to: parse(&to, "to")?,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::record_view).collect())
+    }
+
+    /// Own requests of every kind, newest first.
+    pub async fn staff_requests(&self) -> Result<Vec<staff::StaffRequestView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let rows = staff_api::my_requests(&self.api.config())
+            .await
+            .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::request_view).collect())
+    }
+
+    /// File a request of any kind. It lands as `pending`; a manager decides.
+    ///
+    /// The server validates the SHAPE per kind (a late arrival needs a time, a
+    /// permission needs both ends, and so on) and returns a message naming what
+    /// is missing — so the app does not carry a second copy of those rules.
+    /// `from_time` / `to_time` are `HH:MM` in the branch's local clock.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn staff_create_request(
+        &self,
+        kind: String,
+        on_date: String,
+        end_date: Option<String>,
+        from_time: Option<String>,
+        to_time: Option<String>,
+        leave_type_id: Option<String>,
+        is_half_day: bool,
+        title: Option<String>,
+        reason: Option<String>,
+        // `correction` only — the record whose punch is wrong.
+        attendance_record_id: Option<String>,
+    ) -> Result<staff::StaffRequestView, CoreError> {
+        use madar_api::apis::staff_api;
+        let parse_date = |s: &str, field: &str| {
+            chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| CoreError::Validation {
+                field: field.to_string(),
+                detail: "expected yyyy-mm-dd".into(),
+            })
+        };
+        // The wire wants `HH:MM:SS`; the UI works in minutes.
+        let with_seconds = |t: String| if t.len() == 5 { format!("{t}:00") } else { t };
+
+        let mut body =
+            madar_api::models::CreateStaffRequest::new(kind, parse_date(&on_date, "on_date")?);
+        body.end_date = end_date
+            .map(|d| parse_date(&d, "end_date"))
+            .transpose()?
+            .map(Some);
+        body.from_time = from_time.map(with_seconds).map(Some);
+        body.to_time = to_time.map(with_seconds).map(Some);
+        body.leave_type_id = leave_type_id
+            .map(|id| {
+                uuid::Uuid::parse_str(&id).map_err(|_| CoreError::Validation {
+                    field: "leave_type_id".into(),
+                    detail: "not a valid id".into(),
+                })
+            })
+            .transpose()?
+            .map(Some);
+        body.is_half_day = Some(Some(is_half_day));
+        body.title = title.map(Some);
+        body.reason = reason.map(Some);
+        body.attendance_record_id = attendance_record_id
+            .map(|id| {
+                uuid::Uuid::parse_str(&id).map_err(|_| CoreError::Validation {
+                    field: "attendance_record_id".into(),
+                    detail: "not a valid id".into(),
+                })
+            })
+            .transpose()?
+            .map(Some);
+
+        let row = staff_api::create_my_request(
+            &self.api.config(),
+            staff_api::CreateMyRequestParams {
+                create_staff_request: body,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(staff::request_view(row))
+    }
+
+    /// Remaining entitlement per leave type for `year` (defaults to the current
+    /// calendar year server-side when `None`).
+    pub async fn staff_leave_balances(
+        &self,
+        year: Option<i64>,
+    ) -> Result<Vec<staff::LeaveBalanceView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let rows = staff_api::my_leave_balances(
+            &self.api.config(),
+            staff_api::MyLeaveBalancesParams {
+                user_id: None,
+                year: year.map(|y| y as i32),
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::leave_balance_view).collect())
+    }
+
+    /// The employee's own payslips. Only finalised periods are returned, so a
+    /// half-finished regeneration never flashes numbers at them.
+    pub async fn staff_payslips(&self) -> Result<Vec<staff::PayslipView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let rows = staff_api::my_payslips(&self.api.config())
+            .await
+            .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::payslip_view).collect())
+    }
+
+    /// The employee's own salary advances and what is still owed.
+    pub async fn staff_advances(&self) -> Result<Vec<staff::SalaryAdvanceView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let rows = staff_api::my_advances(&self.api.config())
+            .await
+            .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::advance_view).collect())
+    }
+
+    /// Request a salary advance, repaid over `installments` months. Lands as
+    /// `pending` until someone with payroll access approves it.
+    pub async fn staff_request_advance(
+        &self,
+        amount_minor: i64,
+        installments: i64,
+        reason: Option<String>,
+    ) -> Result<staff::SalaryAdvanceView, CoreError> {
+        use madar_api::apis::staff_api;
+        if amount_minor <= 0 {
+            return Err(CoreError::Validation {
+                field: "amount".into(),
+                detail: "must be greater than zero".into(),
+            });
+        }
+        let mut body = madar_api::models::CreateAdvanceRequest::new(amount_minor);
+        body.installments = Some(Some(installments.max(1) as i32));
+        body.reason = reason.map(Some);
+        let row = staff_api::create_my_advance(
+            &self.api.config(),
+            staff_api::CreateMyAdvanceParams {
+                create_advance_request: body,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(staff::advance_view(row))
+    }
+
+    // ── Manager surface ──────────────────────────────────────────
+    //
+    // Every one of these is permission-checked SERVER-SIDE. The app hides the
+    // tabs when `has_permission` says no, but that is a courtesy: a forged
+    // client reaching these endpoints still gets a 403.
+
+    /// The employee's own roster for a date range — the Shifts tab.
+    pub async fn staff_schedule(
+        &self,
+        from: String,
+        to: String,
+    ) -> Result<Vec<staff::ScheduledDayView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let rows = staff_api::my_schedule(
+            &self.api.config(),
+            staff_api::MyScheduleParams {
+                from: parse_ymd(&from, "from")?,
+                to: parse_ymd(&to, "to")?,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::scheduled_day_view).collect())
+    }
+
+    /// Who is in, late, absent or on leave right now.
+    pub async fn manager_team_presence(
+        &self,
+        branch_id: Option<String>,
+    ) -> Result<staff::TeamPresenceView, CoreError> {
+        use madar_api::apis::staff_api;
+        let row = staff_api::team_presence(
+            &self.api.config(),
+            staff_api::TeamPresenceParams { branch_id },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(staff::team_presence_view(row))
+    }
+
+    /// The approvals queue, or any slice of it.
+    pub async fn manager_requests(
+        &self,
+        status: Option<String>,
+        kind: Option<String>,
+    ) -> Result<Vec<staff::StaffRequestView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let rows = staff_api::list_requests(
+            &self.api.config(),
+            staff_api::ListRequestsParams {
+                user_id: None,
+                kind,
+                status,
+                from: None,
+                to: None,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::request_view).collect())
+    }
+
+    /// Approve or reject a request. `is_paid` only bites on `excuse` and
+    /// `early_departure`; the server resolves it from the org default otherwise.
+    pub async fn manager_decide_request(
+        &self,
+        request_id: String,
+        approve: bool,
+        note: Option<String>,
+        is_paid: Option<bool>,
+    ) -> Result<staff::StaffRequestView, CoreError> {
+        use madar_api::apis::staff_api;
+        let mut body = madar_api::models::RequestDecision::new(
+            if approve { "approved" } else { "rejected" }.to_string(),
+        );
+        body.note = note.map(Some);
+        body.is_paid = is_paid.map(Some);
+        let row = staff_api::decide_request(
+            &self.api.config(),
+            staff_api::DecideRequestParams {
+                id: request_id,
+                request_decision: body,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(staff::request_view(row))
+    }
+
+    /// The roster, optionally filtered by a search string.
+    pub async fn manager_employees(
+        &self,
+        search: Option<String>,
+    ) -> Result<Vec<staff::EmployeeView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let rows = staff_api::list_employees(
+            &self.api.config(),
+            staff_api::ListEmployeesParams {
+                department_id: None,
+                employment_status: None,
+                search,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::employee_view).collect())
+    }
+
+    /// Payroll periods, newest first.
+    pub async fn manager_payroll_periods(
+        &self,
+    ) -> Result<Vec<staff::PayrollPeriodView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let rows = staff_api::list_periods(&self.api.config())
+            .await
+            .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::period_view).collect())
+    }
+
+    /// What generating this period WOULD pay — the run screen's table.
+    ///
+    /// Read-only: this is the same computation the generator runs, so the
+    /// figures a manager approves are the figures that get written.
+    pub async fn manager_payroll_preview(
+        &self,
+        period_id: String,
+    ) -> Result<Vec<staff::PayrollLineView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let rows = staff_api::preview_period(
+            &self.api.config(),
+            staff_api::PreviewPeriodParams { id: period_id },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::payroll_line_view).collect())
+    }
+
+    /// Approve the run: generate the payslips and freeze the figures.
+    pub async fn manager_payroll_generate(&self, period_id: String) -> Result<i64, CoreError> {
+        use madar_api::apis::staff_api;
+        let slips = staff_api::generate_period(
+            &self.api.config(),
+            staff_api::GeneratePeriodParams { id: period_id },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(slips.len() as i64)
+    }
+
+    /// Move a generated period to `paid` (or `closed`).
+    pub async fn manager_payroll_set_status(
+        &self,
+        period_id: String,
+        status: String,
+    ) -> Result<staff::PayrollPeriodView, CoreError> {
+        use madar_api::apis::staff_api;
+        let row = staff_api::set_period_status(
+            &self.api.config(),
+            staff_api::SetPeriodStatusParams {
+                id: period_id,
+                period_status_request: madar_api::models::PeriodStatusRequest::new(status),
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(staff::period_view(row))
+    }
+
+    // ── Payroll adjustments ──────────────────────────────────────
+
+    /// Bonuses or deductions over a window, newest first.
+    ///
+    /// `base_salary_minor` resolves percent-of-base rows into piastres — pass
+    /// the employee's base when listing one person, 0 when listing everyone
+    /// (a percentage row then reads as 0 rather than as a wrong number).
+    pub async fn manager_adjustments(
+        &self,
+        deductions: bool,
+        user_id: Option<String>,
+        from: Option<String>,
+        to: Option<String>,
+        base_salary_minor: i64,
+    ) -> Result<Vec<staff::AdjustmentView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let from = from.map(|d| parse_ymd(&d, "from")).transpose()?;
+        let to = to.map(|d| parse_ymd(&d, "to")).transpose()?;
+        // `map_err` inside each arm: the generated client gives every operation
+        // its own error enum, so the two branches have no common type until
+        // they are both mapped to `CoreError`.
+        let rows = if deductions {
+            staff_api::list_deductions(
+                &self.api.config(),
+                staff_api::ListDeductionsParams { user_id, from, to },
+            )
+            .await
+            .map_err(net::map_api_error)?
+        } else {
+            staff_api::list_bonuses(
+                &self.api.config(),
+                staff_api::ListBonusesParams { user_id, from, to },
+            )
+            .await
+            .map_err(net::map_api_error)?
+        };
+        Ok(rows
+            .into_iter()
+            .map(|r| staff::adjustment_view(r, base_salary_minor))
+            .collect())
+    }
+
+    /// Add a bonus or a manual deduction.
+    pub async fn manager_create_adjustment(
+        &self,
+        deductions: bool,
+        user_id: String,
+        amount_minor: i64,
+        reason: String,
+        effective_date: String,
+    ) -> Result<staff::AdjustmentView, CoreError> {
+        use madar_api::apis::staff_api;
+        if amount_minor <= 0 {
+            return Err(CoreError::Validation {
+                field: "amount".into(),
+                detail: "must be greater than zero".into(),
+            });
+        }
+        if reason.trim().is_empty() {
+            return Err(CoreError::Validation {
+                field: "reason".into(),
+                detail: "required".into(),
+            });
+        }
+        let user = uuid::Uuid::parse_str(&user_id).map_err(|_| CoreError::Validation {
+            field: "user_id".into(),
+            detail: "not a valid id".into(),
+        })?;
+        let mut body = madar_api::models::CreateAdjustmentRequest::new(
+            parse_ymd(&effective_date, "effective_date")?,
+            reason,
+            user,
+        );
+        body.amount_piastres = Some(Some(amount_minor));
+
+        let row = if deductions {
+            staff_api::create_deduction(
+                &self.api.config(),
+                staff_api::CreateDeductionParams {
+                    create_adjustment_request: body,
+                },
+            )
+            .await
+            .map_err(net::map_api_error)?
+        } else {
+            staff_api::create_bonus(
+                &self.api.config(),
+                staff_api::CreateBonusParams {
+                    create_adjustment_request: body,
+                },
+            )
+            .await
+            .map_err(net::map_api_error)?
+        };
+        Ok(staff::adjustment_view(row, 0))
+    }
+
+    /// Delete a hand-entered adjustment. The server refuses on rule-generated
+    /// rows — those are waived or overridden, never erased.
+    pub async fn manager_delete_adjustment(
+        &self,
+        deductions: bool,
+        id: String,
+    ) -> Result<(), CoreError> {
+        use madar_api::apis::staff_api;
+        if deductions {
+            staff_api::delete_deduction(
+                &self.api.config(),
+                staff_api::DeleteDeductionParams { id },
+            )
+            .await
+            .map_err(net::map_api_error)?;
+        } else {
+            staff_api::delete_bonus(&self.api.config(), staff_api::DeleteBonusParams { id })
+                .await
+                .map_err(net::map_api_error)?;
+        }
+        Ok(())
+    }
+
+    /// Charge a different figure than the rule computed. The original is kept.
+    pub async fn manager_override_deduction(
+        &self,
+        id: String,
+        amount_minor: i64,
+        reason: String,
+    ) -> Result<staff::AdjustmentView, CoreError> {
+        use madar_api::apis::staff_api;
+        if reason.trim().is_empty() {
+            return Err(CoreError::Validation {
+                field: "reason".into(),
+                detail: "required — an override with no reason is indistinguishable from a mistake"
+                    .into(),
+            });
+        }
+        let row = staff_api::override_deduction(
+            &self.api.config(),
+            staff_api::OverrideDeductionParams {
+                id,
+                override_deduction_request: madar_api::models::OverrideDeductionRequest::new(
+                    amount_minor,
+                    reason,
+                ),
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(staff::adjustment_view(row, 0))
+    }
+
+    /// Cancel a deduction without erasing it — it stays visible, payroll skips it.
+    pub async fn manager_waive_deduction(
+        &self,
+        id: String,
+        reason: String,
+    ) -> Result<staff::AdjustmentView, CoreError> {
+        use madar_api::apis::staff_api;
+        if reason.trim().is_empty() {
+            return Err(CoreError::Validation {
+                field: "reason".into(),
+                detail: "required".into(),
+            });
+        }
+        let row = staff_api::waive_deduction(
+            &self.api.config(),
+            staff_api::WaiveDeductionParams {
+                id,
+                waive_deduction_request: madar_api::models::WaiveDeductionRequest::new(reason),
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(staff::adjustment_view(row, 0))
+    }
+
+    /// Every salary advance in the org.
+    pub async fn manager_advances(&self) -> Result<Vec<staff::SalaryAdvanceView>, CoreError> {
+        use madar_api::apis::staff_api;
+        let rows = staff_api::list_advances(
+            &self.api.config(),
+            staff_api::ListAdvancesParams {
+                user_id: None,
+                from: None,
+                to: None,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(rows.into_iter().map(staff::advance_view).collect())
+    }
+
+    /// Approve or reject an advance request.
+    pub async fn manager_decide_advance(
+        &self,
+        advance_id: String,
+        approve: bool,
+        note: Option<String>,
+    ) -> Result<staff::SalaryAdvanceView, CoreError> {
+        use madar_api::apis::staff_api;
+        let mut body = madar_api::models::AdvanceDecision::new(
+            if approve { "approved" } else { "rejected" }.to_string(),
+        );
+        body.note = note.map(Some);
+        let row = staff_api::decide_advance(
+            &self.api.config(),
+            staff_api::DecideAdvanceParams {
+                id: advance_id,
+                advance_decision: body,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(staff::advance_view(row))
+    }
+}
+
+/// `yyyy-mm-dd` → a date, with a field-named error the UI can show.
+fn parse_ymd(value: &str, field: &str) -> Result<chrono::NaiveDate, CoreError> {
+    chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| CoreError::Validation {
+        field: field.to_string(),
+        detail: "expected yyyy-mm-dd".into(),
+    })
 }

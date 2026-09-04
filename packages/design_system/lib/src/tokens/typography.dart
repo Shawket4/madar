@@ -78,4 +78,37 @@ abstract final class MadarType {
 
   /// Uppercase label letter-spacing.
   static const double tracking = 0.6;
+
+  // ── Numbers ────────────────────────────────────────────────
+  //
+  // Times, durations, currency, employee IDs and phone numbers are set in IBM
+  // Plex Mono rather than Cairo. Two reasons: a column of figures only aligns
+  // if the digits are the same width, and a monospace face makes `09:04` read
+  // as a reading off a clock instead of as a word in a sentence. Latin digits
+  // in BOTH languages — Arabic-Indic numerals in a timesheet are a legibility
+  // regression for the people who actually read these screens.
+
+  static const String monoFamily = 'IBMPlexMono';
+
+  static TextStyle _mono(double size, FontWeight weight) => TextStyle(
+    fontFamily: monoFamily,
+    package: fontPackage,
+    fontSize: size,
+    fontWeight: weight,
+  );
+
+  /// Inline figures inside a row of text (a shift window, a duration).
+  static final TextStyle num = _mono(13, FontWeight.w600);
+
+  /// Emphasised figures — a day's hours, a stat card's value.
+  static final TextStyle numMd = _mono(15, FontWeight.w700);
+
+  /// Stat-card headline numbers.
+  static final TextStyle numLg = _mono(20, FontWeight.w700);
+
+  /// Net pay on a payslip hero.
+  static final TextStyle numXl = _mono(30, FontWeight.w700);
+
+  /// The live clock on the home screen.
+  static final TextStyle numDisplay = _mono(46, FontWeight.w700);
 }

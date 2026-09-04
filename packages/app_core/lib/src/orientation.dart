@@ -131,13 +131,22 @@ class OrientationController extends ChangeNotifier {
 
   void _apply() {
     _applied = true;
+    // Tablets stay landscape but accept either side, so the device can be
+    // rotated end-for-end without fighting the lock. The persisted flip only
+    // decides which side is listed first (the preferred one at apply time).
     final orientations = <DeviceOrientation>[
       if (!_isTablet)
         DeviceOrientation.portraitUp
-      else if (_landscapeRight)
-        DeviceOrientation.landscapeRight
-      else
-        DeviceOrientation.landscapeLeft,
+      else ...[
+        if (_landscapeRight)
+          DeviceOrientation.landscapeRight
+        else
+          DeviceOrientation.landscapeLeft,
+        if (_landscapeRight)
+          DeviceOrientation.landscapeLeft
+        else
+          DeviceOrientation.landscapeRight,
+      ],
     ];
     unawaited(SystemChrome.setPreferredOrientations(orientations));
   }

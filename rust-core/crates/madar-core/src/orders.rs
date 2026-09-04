@@ -770,6 +770,7 @@ mod tests {
             uid(31),
             42, // order_number
             "dine_in".into(),
+            vec![], // payment_legs — split payments aren't what these tests cover
             "Cash".into(),
             uid(32),
             "completed".into(),
@@ -794,6 +795,7 @@ mod tests {
             uid(41),
             7,
             "dine_in".into(),
+            vec![], // payment_legs
             "Card".into(),
             uid(42),
             status.into(),

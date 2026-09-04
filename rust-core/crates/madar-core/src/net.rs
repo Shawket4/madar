@@ -27,7 +27,9 @@ use crate::error::{CoreError, CoreResult};
 /// `rustls-no-provider` and hand reqwest a fully-built config here instead. Result:
 /// pure-Rust, cross-compiles clean to Android/iOS, same trust anchors everywhere —
 /// no OpenSSL and no platform cert-store wiring.
-fn default_tls_config() -> rustls::ClientConfig {
+/// (`pub(crate)` so `crate::obs`'s envelope uploader rides the exact same trust
+/// anchors as the API client — one TLS story for the whole core.)
+pub(crate) fn default_tls_config() -> rustls::ClientConfig {
     let mut roots = rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     rustls::ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))

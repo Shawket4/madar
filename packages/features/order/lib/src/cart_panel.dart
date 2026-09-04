@@ -284,6 +284,7 @@ class _TicketHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(orderProvider.select((s) => s.currency));
     return Row(
       children: [
         Flexible(
@@ -299,6 +300,27 @@ class _TicketHeader extends ConsumerWidget {
         ),
         const SizedBox(width: Space.sm),
         StatusChip(label: '${ticket.lines.length}'),
+        const SizedBox(width: Space.sm),
+        // What's already fired on this ticket — the waiter's running total,
+        // separate from the new round's figures down in the footer.
+        Container(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Space.sm,
+            vertical: 4,
+          ),
+          decoration: BoxDecoration(
+            color: colors.accentBg,
+            borderRadius: BorderRadius.circular(Radii.sm),
+          ),
+          child: MoneyText(
+            ticket.subtotalMinor,
+            currency: currency,
+            style: MadarType.money.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
         const Spacer(),
         TactileScale(
           onTap: () {

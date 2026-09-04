@@ -50,6 +50,23 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 # zero platform cert-store wiring. See net.rs::default_tls_config.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-roots = "1"
+# ── Crash / error reporting (src/obs.rs) ──────────────────────────────────────
+# `default-features = false` is load-bearing, not tidiness: sentry's default
+# `transport` feature is `["reqwest", "native-tls"]` → openssl-sys, which does not
+# cross-compile to Android, and its `rustls` feature would pull reqwest's stock
+# rustls (aws-lc-rs, needs cmake) instead of the ring stack net.rs is built on.
+# We need NEITHER, because madar-core ships its OWN transport: sentry-rust has no
+# on-disk persistence, and a POS terminal is offline as its normal state, so
+# `obs::SqliteTransport` queues envelopes in SQLite and drains them over the same
+# ring-backed reqwest/rustls client the rest of the core uses. That leaves only
+# the pure-Rust event-shaping features:
+#   backtrace — symbolicated stack traces + `attach_stacktrace`,
+#   contexts  — os / device / rust runtime context on every event,
+#   panic     — installs the panic hook, so a panic inside one of the 8 background
+#               tasks (7 in lan.rs, 1 in realtime.rs) is reported instead of being
+#               swallowed by tokio's catch_unwind and never crossing the FFI.
+sentry = { version = "0.49", default-features = false, features = ["backtrace", "contexts", "panic"] }
+
 # Offline-PIN verifier — argon2id, byte-compatible with the backend's
 # `auth::offline::hash_offline_pin` (verifies any PHC string it ships in the bundle).
 argon2 = "0.5"

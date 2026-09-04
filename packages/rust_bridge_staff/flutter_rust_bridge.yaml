@@ -1,0 +1,9 @@
+# flutter_rust_bridge_codegen config for the STAFF bridge — run via
+# tool/gen-bindings-staff.sh (or `dart run melos run bridge_staff`).
+# Keep the codegen CLI, this Dart package, and the madar-frb-staff cargo dep
+# on the SAME version (currently 2.12.0).
+rust_input: crate::api
+rust_root: ../../rust-core/crates/madar-frb-staff
+dart_output: lib/src/generated
+dart_entrypoint_class_name: StaffBridge
+enable_lifetime: false

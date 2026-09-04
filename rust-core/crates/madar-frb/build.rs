@@ -12,7 +12,9 @@ fn main() {
             println!("cargo:rustc-link-arg-cdylib=-Wl,--gc-sections");
         }
         "macos" => {
-            println!("cargo:rustc-link-arg-cdylib=-Wl,-exported_symbols_list,{dir}/exports_apple.txt");
+            println!(
+                "cargo:rustc-link-arg-cdylib=-Wl,-exported_symbols_list,{dir}/exports_apple.txt"
+            );
             println!("cargo:rustc-link-arg-cdylib=-Wl,-dead_strip");
         }
         // iOS links a STATICLIB into the app; export control happens at the

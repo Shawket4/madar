@@ -20,3 +20,8 @@ build/
 
 # OS
 .DS_Store
+
+# Local tooling artefacts, matching MadarRust: Claude settings are per-machine,
+# and .ua/ is a regenerable knowledge-graph dump (~5 MB).
+.claude/
+.ua/

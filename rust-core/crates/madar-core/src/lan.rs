@@ -449,13 +449,32 @@ impl LanRelay {
                         let s = shared.clone();
                         tokio::spawn(async move { handle_conn(s, stream).await });
                     }
-                    Err(_) => tokio::time::sleep(Duration::from_millis(50)).await,
+                    Err(e) => {
+                        // A failing accept is NOT routine: it means fd exhaustion
+                        // or the socket going away, i.e. this till has silently
+                        // stopped receiving every peer's relay traffic. Nothing
+                        // above returns from this loop, so without a report the
+                        // failure is invisible until someone notices missing
+                        // kitchen chits. (Rate-limited per site by `obs`.)
+                        crate::obs::capture_bg_error("lan.accept", format!("tcp accept: {e}"));
+                        tokio::time::sleep(Duration::from_millis(50)).await
+                    }
                 }
             }
         }));
 
-        // 2. UDP beacon (send + receive). Best-effort.
-        if let Ok(sock) = bind_beacon(self.shared.cfg.beacon_port).await {
+        // 2. UDP beacon (send + receive). Best-effort — but "best-effort" has
+        //    meant "fails in total silence": without the beacon this device is
+        //    invisible to its peers AND can't see their open-shift adverts, which
+        //    degrades the LAN shift-open gate. Report the bind failure.
+        let beacon = bind_beacon(self.shared.cfg.beacon_port).await;
+        if let Err(ref e) = beacon {
+            crate::obs::capture_bg_warning(
+                "lan.beacon_bind",
+                format!("udp beacon bind on {}: {e}", self.shared.cfg.beacon_port),
+            );
+        }
+        if let Ok(sock) = beacon {
             let sock = Arc::new(sock);
             let send_shared = self.shared.clone();
             let send_sock = sock.clone();
@@ -533,7 +552,10 @@ impl LanRelay {
     fn start_mdns(&self) {
         let daemon = match mdns_sd::ServiceDaemon::new() {
             Ok(d) => d,
-            Err(_) => return,
+            Err(e) => {
+                crate::obs::capture_bg_warning("lan.mdns_daemon", format!("mdns daemon: {e}"));
+                return;
+            }
         };
         let port = self.tcp_port();
         let props: HashMap<String, String> = [
@@ -556,15 +578,28 @@ impl LanRelay {
         {
             let _ = daemon.register(info);
         }
-        if let Ok(rx) = daemon.browse(SERVICE_TYPE) {
-            let shared = self.shared.clone();
-            self.spawn(tokio::spawn(async move {
-                while let Ok(event) = rx.recv_async().await {
-                    if let mdns_sd::ServiceEvent::ServiceResolved(info) = event {
-                        ingest_mdns(&shared, &info);
+        match daemon.browse(SERVICE_TYPE) {
+            Ok(rx) => {
+                let shared = self.shared.clone();
+                self.spawn(tokio::spawn(async move {
+                    while let Ok(event) = rx.recv_async().await {
+                        if let mdns_sd::ServiceEvent::ServiceResolved(info) = event {
+                            ingest_mdns(&shared, &info);
+                        }
                     }
-                }
-            }));
+                    // Falling out of the loop means the daemon channel closed:
+                    // mDNS discovery is dead for the rest of this process and will
+                    // never recover on its own. The relay keeps limping on the UDP
+                    // beacon + manual hub, so the degradation is invisible locally.
+                    crate::obs::capture_bg_warning(
+                        "lan.mdns_browse",
+                        "mdns browse channel closed — discovery is down for this session",
+                    );
+                }));
+            }
+            Err(e) => {
+                crate::obs::capture_bg_warning("lan.mdns_browse", format!("mdns browse: {e}"))
+            }
         }
         *self.mdns.lock().unwrap() = Some(daemon);
     }
@@ -633,9 +668,23 @@ async fn handle_conn(shared: Arc<RelayShared>, mut stream: TcpStream) {
 /// Verify, branch-gate, dedup, forward to the host, then gossip one hop further.
 async fn handle_msg(shared: &Arc<RelayShared>, payload: &str) {
     let Ok(frame) = serde_json::from_str::<SignedFrame>(payload) else {
+        // Something on this LAN is speaking our protocol badly. Either a version
+        // skew between devices (real bug, real lost kitchen events) or a probe.
+        // The payload itself is NEVER attached — it can contain order contents.
+        crate::obs::capture_bg_warning(
+            "lan.frame_malformed",
+            format!("undecodable relay frame ({} bytes)", payload.len()),
+        );
         return;
     };
     let Some(msg) = verify_frame(&shared.cfg.key, &frame) else {
+        // HMAC mismatch: a device holding a STALE branch key (its bundle wasn't
+        // refreshed — its events are being dropped branch-wide and it has no way
+        // to find out), or an unprovisioned device pushing at us. Worth seeing.
+        crate::obs::capture_bg_warning(
+            "lan.frame_unsigned",
+            "relay frame failed HMAC verification",
+        );
         return;
     };
     // Branch isolation + ignore our own gossip echo.
@@ -703,9 +752,16 @@ async fn beacon_send_loop(shared: Arc<RelayShared>, sock: Arc<UdpSocket>) {
         if let Ok(body) = serde_json::to_string(&beacon) {
             let frame = sign_str(&shared.cfg.key, body);
             if let Ok(json) = serde_json::to_string(&frame) {
-                let _ = sock
+                // A broadcast that keeps failing (a network that blocks
+                // 255.255.255.255, a socket that died) means this till stops
+                // advertising forever — peers TTL it out and the shift gate
+                // stops seeing it. Previously `let _ =`: nobody ever knew.
+                if let Err(e) = sock
                     .send_to(json.as_bytes(), ("255.255.255.255", shared.cfg.beacon_port))
-                    .await;
+                    .await
+                {
+                    crate::obs::capture_bg_error("lan.beacon_send", format!("udp broadcast: {e}"));
+                }
             }
         }
         tokio::time::sleep(BEACON_EVERY).await;
@@ -717,9 +773,15 @@ async fn beacon_send_loop(shared: Arc<RelayShared>, sock: Arc<UdpSocket>) {
 async fn beacon_recv_loop(shared: Arc<RelayShared>, sock: Arc<UdpSocket>) {
     let mut buf = vec![0u8; 8192];
     loop {
-        let Ok((n, src)) = sock.recv_from(&mut buf).await else {
-            tokio::time::sleep(Duration::from_millis(200)).await;
-            continue;
+        let (n, src) = match sock.recv_from(&mut buf).await {
+            Ok(v) => v,
+            Err(e) => {
+                // The loop retries forever, so a permanently broken socket burns
+                // CPU in silence and this device never discovers another peer again.
+                crate::obs::capture_bg_error("lan.beacon_recv", format!("udp recv: {e}"));
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                continue;
+            }
         };
         let Ok(text) = std::str::from_utf8(&buf[..n]) else {
             continue;

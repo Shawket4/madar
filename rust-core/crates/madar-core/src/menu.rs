@@ -564,8 +564,47 @@ fn parse_hm(s: &str) -> Option<i32> {
     Some(h * 60 + m)
 }
 
+/// The payment-method catalog AS CACHED ON DISK.
+///
+/// Deliberately a core-local shape rather than `madar_api::models::OrgPaymentMethod`.
+/// The cache is written by whatever build was installed yesterday and read by the
+/// one installed today, so a field the backend adds — which the generator then
+/// marks REQUIRED — makes every existing device's cached catalog fail to decode.
+/// That is not hypothetical: `visible_in_integrations` did exactly this. And the
+/// failure is silent and expensive, because the read sites fall back to an empty
+/// list: checkout stops recognising any payment method, and the offline Z-report
+/// counts no cash at all. Every field here is therefore optional-with-default, so
+/// both an older and a newer payload still yield a usable row.
+#[derive(Clone, Debug, serde::Deserialize)]
+pub(crate) struct CachedPaymentMethod {
+    pub id: uuid::Uuid,
+    pub name: String,
+    #[serde(default)]
+    pub is_cash: bool,
+    /// A method present in the catalog is presumed usable when the payload
+    /// predates the flag — defaulting to false would hide every method.
+    #[serde(default = "cached_method_active_default")]
+    pub is_active: bool,
+    #[serde(default)]
+    pub icon: String,
+    #[serde(default)]
+    pub color: String,
+    #[serde(default)]
+    pub label_translations: Option<Value>,
+}
+
+fn cached_method_active_default() -> bool {
+    true
+}
+
+/// Read the cached payment-method catalog. One place, so no caller reintroduces
+/// a strict decode against the generated model.
+pub(crate) fn cached_payment_methods(store: &Store) -> CoreResult<Vec<CachedPaymentMethod>> {
+    parse_kv_lenient(store, K_PAYMENT_METHODS)
+}
+
 pub(crate) fn payment_methods(store: &Store, locale: &str) -> CoreResult<Vec<PaymentMethodView>> {
-    let items: Vec<models::OrgPaymentMethod> = parse_kv(store, K_PAYMENT_METHODS)?;
+    let items = cached_payment_methods(store)?;
     Ok(items
         .into_iter()
         .filter(|p| p.is_active)
@@ -1213,6 +1252,52 @@ mod tests {
     }
 
     // ── payment methods & discounts ─────────────────────────────────────────
+
+    #[test]
+    fn a_payment_method_cache_written_by_an_older_build_still_decodes() {
+        // The exact regression `visible_in_integrations` caused: the backend adds
+        // a field, the generator marks it required, and every device's existing
+        // cache stops decoding. An empty catalog means checkout cannot take cash
+        // and the offline Z-report counts none of it, so this must keep working
+        // for BOTH a payload missing tomorrow's fields and one carrying fields
+        // this build has never heard of.
+        let store = Store::open("").unwrap();
+        seed(
+            &store,
+            K_PAYMENT_METHODS,
+            r##"[{"id":"00000000-0000-0000-0000-0000000000e1","name":"Cash","is_cash":true,
+                  "is_active":true,"icon":"cash","color":"#000","label_translations":null},
+                 {"id":"00000000-0000-0000-0000-0000000000e2","name":"Wallet","is_cash":false,
+                  "is_active":true,"icon":"wallet","color":"#222","label_translations":null,
+                  "some_future_flag":true,"another_one":{"nested":1}}]"##,
+        );
+        let pm = payment_methods(&store, "en").unwrap();
+        assert_eq!(
+            pm.len(),
+            2,
+            "neither an old nor a new payload may be dropped"
+        );
+        assert!(
+            pm[0].is_cash,
+            "the cash flag must survive — the drawer depends on it"
+        );
+        assert_eq!(pm[1].name, "Wallet");
+    }
+
+    #[test]
+    fn a_cached_method_missing_is_active_is_treated_as_usable() {
+        // Defaulting to false would hide every method from a pre-flag payload,
+        // which is the same outage as failing to decode it.
+        let store = Store::open("").unwrap();
+        seed(
+            &store,
+            K_PAYMENT_METHODS,
+            r##"[{"id":"00000000-0000-0000-0000-0000000000e1","name":"Cash","is_cash":true}]"##,
+        );
+        let pm = payment_methods(&store, "en").unwrap();
+        assert_eq!(pm.len(), 1);
+        assert_eq!(pm[0].name, "Cash");
+    }
 
     #[test]
     fn payment_methods_resolve_label_translations_when_present() {

@@ -253,6 +253,8 @@ mod tests {
             avg_order_value: if orders > 0 { rev / orders } else { 0 },
             branch_id: uuid::Uuid::nil(),
             branch_name: name.into(),
+            cash_tips: None,
+            total_tips: None,
             revenue_by_method: Some(serde_json::json!({ "cash": rev })),
             total_orders: orders,
             total_revenue: rev,
@@ -273,6 +275,9 @@ mod tests {
         assert!(v.top_items.is_empty());
         assert_eq!(v.payment_mix.len(), 1);
         assert_eq!(v.payment_mix[0].revenue_minor, 10000);
-        assert_eq!(v.branch_ranking.first().map(|b| b.branch_name.as_str()), Some("B"));
+        assert_eq!(
+            v.branch_ranking.first().map(|b| b.branch_name.as_str()),
+            Some("B")
+        );
     }
 }

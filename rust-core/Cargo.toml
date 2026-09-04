@@ -11,7 +11,13 @@
 # admin/analytics surface (security + binary size), also delegating to madar-core.
 [workspace]
 resolver = "2"
-members = ["crates/madar-core", "crates/madar-api", "crates/madar-frb", "crates/madar-frb-dashboard"]
+members = [
+    "crates/madar-core",
+    "crates/madar-api",
+    "crates/madar-frb",
+    "crates/madar-frb-dashboard",
+    "crates/madar-frb-staff",
+]
 
 [workspace.package]
 edition = "2021"

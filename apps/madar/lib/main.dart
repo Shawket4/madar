@@ -1,12 +1,23 @@
+import 'dart:async';
+
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:madar/app/boot.dart';
 import 'package:madar/app/connectivity.dart';
+import 'package:madar/app/observability.dart';
 import 'package:madar/app/shell.dart';
 
 void main() {
+  // Crash reporting wraps the WHOLE bootstrap so errors thrown while the
+  // core is starting are reported too. When no SENTRY_DSN was baked in,
+  // this is a straight pass-through — an unreported build is a supported
+  // configuration, and an unreachable Sentry never blocks the till.
+  unawaited(initObservability(_bootstrap));
+}
+
+void _bootstrap() {
   WidgetsFlutterBinding.ensureInitialized();
   // A POS shows a BOUNDED menu, not an endless feed — Flutter's default
   // 100 MB decoded-image cache is sized for the latter. 32 MB comfortably
