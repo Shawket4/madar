@@ -19,6 +19,9 @@ pub struct ShiftSummary {
     pub branch_name: String,
     #[serde(rename = "cash_discrepancy", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub cash_discrepancy: Option<Option<i64>>,
+    /// The cash slice of `total_tips`.
+    #[serde(rename = "cash_tips", skip_serializing_if = "Option::is_none")]
+    pub cash_tips: Option<i64>,
     #[serde(rename = "closed_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub closed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "closing_cash_declared", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -47,6 +50,9 @@ pub struct ShiftSummary {
     pub total_revenue: i64,
     #[serde(rename = "total_tax")]
     pub total_tax: i64,
+    /// Tips, standalone — matches `total_tips` on `GET /shifts/{id}/report`.
+    #[serde(rename = "total_tips", skip_serializing_if = "Option::is_none")]
+    pub total_tips: Option<i64>,
     #[serde(rename = "voided_orders")]
     pub voided_orders: i64,
 }
@@ -57,6 +63,7 @@ impl ShiftSummary {
             branch_id,
             branch_name,
             cash_discrepancy: None,
+            cash_tips: None,
             closed_at: None,
             closing_cash_declared: None,
             closing_cash_system: None,
@@ -71,6 +78,7 @@ impl ShiftSummary {
             total_orders,
             total_revenue,
             total_tax,
+            total_tips: None,
             voided_orders,
         }
     }

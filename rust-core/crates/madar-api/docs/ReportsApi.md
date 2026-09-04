@@ -11,13 +11,13 @@ Method | HTTP request | Description
 [**branch_delivery_sales**](ReportsApi.md#branch_delivery_sales) | **GET** /reports/branches/{branch_id}/delivery-sales | 
 [**branch_inventory_valuation**](ReportsApi.md#branch_inventory_valuation) | **GET** /reports/branches/{branch_id}/inventory-valuation | 
 [**branch_low_stock**](ReportsApi.md#branch_low_stock) | **GET** /reports/branches/{branch_id}/low-stock | 
-[**branch_menu_engineering**](ReportsApi.md#branch_menu_engineering) | **GET** /reports/branches/{branch_id}/menu-engineering | 
 [**branch_sales**](ReportsApi.md#branch_sales) | **GET** /reports/branches/{branch_id}/sales | 
 [**branch_sales_peak_hours**](ReportsApi.md#branch_sales_peak_hours) | **GET** /reports/branches/{branch_id}/sales/peak-hours | 
 [**branch_sales_timeseries**](ReportsApi.md#branch_sales_timeseries) | **GET** /reports/branches/{branch_id}/sales/timeseries | 
 [**branch_shrinkage**](ReportsApi.md#branch_shrinkage) | **GET** /reports/branches/{branch_id}/shrinkage | 
 [**branch_stock**](ReportsApi.md#branch_stock) | **GET** /reports/branches/{branch_id}/stock | 
 [**branch_teller_stats**](ReportsApi.md#branch_teller_stats) | **GET** /reports/branches/{branch_id}/tellers | 
+[**branch_waiter_stats**](ReportsApi.md#branch_waiter_stats) | **GET** /reports/branches/{branch_id}/waiters | 
 [**branch_waste_report**](ReportsApi.md#branch_waste_report) | **GET** /reports/branches/{branch_id}/waste-report | 
 [**org_branch_comparison**](ReportsApi.md#org_branch_comparison) | **GET** /reports/orgs/{org_id}/comparison | 
 [**org_consumption**](ReportsApi.md#org_consumption) | **GET** /reports/orgs/{org_id}/consumption | 
@@ -241,41 +241,9 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
-## branch_menu_engineering
-
-> models::MenuEngineeringReport branch_menu_engineering(branch_id, from, to, limit, cost_basis)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**branch_id** | **uuid::Uuid** |  | [required] |
-**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
-**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
-**limit** | Option<**i64**> |  |  |
-**cost_basis** | Option<**String**> | `snapshot` (default) — COGS from sale-time order snapshots. `current` — COGS from today's recipe rollups. |  |
-
-### Return type
-
-[**models::MenuEngineeringReport**](MenuEngineeringReport.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
 ## branch_sales
 
-> models::BranchSalesReport branch_sales(branch_id, from, to, limit)
+> models::BranchSalesReport branch_sales(branch_id, from, to, limit, exclude_items)
 
 
 ### Parameters
@@ -287,6 +255,7 @@ Name | Type | Description  | Required | Notes
 **from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
 **to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
 **limit** | Option<**i64**> |  |  |
+**exclude_items** | Option<**String**> | Comma-separated menu_item/bundle UUIDs left out of `total_line_items` (units sold) ONLY — revenue, top items, and categories are untouched. |  |
 
 ### Return type
 
@@ -443,6 +412,37 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::TellerStats>**](TellerStats.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## branch_waiter_stats
+
+> models::WaiterStatsReport branch_waiter_stats(branch_id, from, to, limit)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**branch_id** | **uuid::Uuid** |  | [required] |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
+**limit** | Option<**i64**> |  |  |
+
+### Return type
+
+[**models::WaiterStatsReport**](WaiterStatsReport.md)
 
 ### Authorization
 

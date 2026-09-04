@@ -19,12 +19,18 @@ pub struct BranchComparison {
     pub branch_id: uuid::Uuid,
     #[serde(rename = "branch_name")]
     pub branch_name: String,
+    /// The cash slice of `total_tips`.
+    #[serde(rename = "cash_tips", skip_serializing_if = "Option::is_none")]
+    pub cash_tips: Option<i64>,
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
     pub revenue_by_method: Option<serde_json::Value>,
     #[serde(rename = "total_orders")]
     pub total_orders: i64,
     #[serde(rename = "total_revenue")]
     pub total_revenue: i64,
+    /// Tips, standalone — same definition as on the branch sales + shift reports.
+    #[serde(rename = "total_tips", skip_serializing_if = "Option::is_none")]
+    pub total_tips: Option<i64>,
     #[serde(rename = "void_rate_pct")]
     pub void_rate_pct: f64,
     #[serde(rename = "voided_orders")]
@@ -37,9 +43,11 @@ impl BranchComparison {
             avg_order_value,
             branch_id,
             branch_name,
+            cash_tips: None,
             revenue_by_method,
             total_orders,
             total_revenue,
+            total_tips: None,
             void_rate_pct,
             voided_orders,
         }

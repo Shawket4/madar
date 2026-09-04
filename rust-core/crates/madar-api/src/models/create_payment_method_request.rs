@@ -25,6 +25,9 @@ pub struct CreatePaymentMethodRequest {
     pub label_translations: std::collections::HashMap<String, String>,
     #[serde(rename = "name")]
     pub name: String,
+    /// Defaults to true — see [`OrgPaymentMethod::visible_in_integrations`].
+    #[serde(rename = "visible_in_integrations", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub visible_in_integrations: Option<Option<bool>>,
 }
 
 impl CreatePaymentMethodRequest {
@@ -36,6 +39,7 @@ impl CreatePaymentMethodRequest {
             is_cash,
             label_translations,
             name,
+            visible_in_integrations: None,
         }
     }
 }

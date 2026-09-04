@@ -12,6 +12,7 @@ Name | Type | Description | Notes
 **in_mall_fees** | Option<**i64**> |  | [optional]
 **in_mall_orders** | Option<**i64**> | In-mall channel: order count / gross revenue / delivery fees. | [optional]
 **in_mall_revenue** | Option<**i64**> |  | [optional]
+**line_items** | Option<**i64**> | Units sold (SUM of order_items.quantity) across completed orders in scope. Counts units, not distinct lines, matching the item-sales reports (\"3× burger\" contributes 3). | [optional]
 **outside_fees** | Option<**i64**> |  | [optional]
 **outside_orders** | Option<**i64**> | Outside channel: order count / gross revenue / delivery fees. | [optional]
 **outside_revenue** | Option<**i64**> |  | [optional]

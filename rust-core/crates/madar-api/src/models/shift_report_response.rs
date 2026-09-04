@@ -22,11 +22,18 @@ pub struct ShiftReportResponse {
     pub cash_movements_net: i64,
     #[serde(rename = "cash_movements_out")]
     pub cash_movements_out: i64,
+    /// The cash slice of `total_tips` (snapshotted `tip_is_cash`). This IS in the drawer, so it is counted by `expected_cash` even though it is not part of `net_payments`.
+    #[serde(rename = "cash_tips")]
+    pub cash_tips: i64,
     /// Authoritative system (expected) cash in the drawer. For a closed shift this is the snapshot taken at close (`closing_cash_system`); for an open shift it is computed live via the same formula. Clients should display this directly instead of re-deriving it from the payment breakdown.
     #[serde(rename = "expected_cash")]
     pub expected_cash: i64,
     #[serde(rename = "net_payments")]
     pub net_payments: i64,
+    /// `total_tips - cash_tips` — tips added onto a card/wallet tender.
+    #[serde(rename = "non_cash_tips")]
+    pub non_cash_tips: i64,
+    /// Money COLLECTED FOR GOODS, bucketed by the method actually tendered (`order_payments`, so a split order contributes to each leg it really used). Tips are NOT in here — see `total_tips`.
     #[serde(rename = "payment_summary")]
     pub payment_summary: Vec<models::PaymentSummaryRow>,
     #[serde(rename = "printed_at")]
@@ -35,23 +42,29 @@ pub struct ShiftReportResponse {
     pub shift: Box<models::Shift>,
     #[serde(rename = "total_payments")]
     pub total_payments: i64,
+    /// Tips, as a standalone figure — never folded into a method bucket, and never part of `total_payments`/`net_payments`. Mirrors `total_tips` on the sales reports so the two screens agree on what \"revenue\" means.
+    #[serde(rename = "total_tips")]
+    pub total_tips: i64,
     #[serde(rename = "voided_amount")]
     pub voided_amount: i64,
 }
 
 impl ShiftReportResponse {
-    pub fn new(cash_movements: Vec<models::CashMovementSummaryRow>, cash_movements_in: i64, cash_movements_net: i64, cash_movements_out: i64, expected_cash: i64, net_payments: i64, payment_summary: Vec<models::PaymentSummaryRow>, printed_at: chrono::DateTime<chrono::FixedOffset>, shift: models::Shift, total_payments: i64, voided_amount: i64) -> ShiftReportResponse {
+    pub fn new(cash_movements: Vec<models::CashMovementSummaryRow>, cash_movements_in: i64, cash_movements_net: i64, cash_movements_out: i64, cash_tips: i64, expected_cash: i64, net_payments: i64, non_cash_tips: i64, payment_summary: Vec<models::PaymentSummaryRow>, printed_at: chrono::DateTime<chrono::FixedOffset>, shift: models::Shift, total_payments: i64, total_tips: i64, voided_amount: i64) -> ShiftReportResponse {
         ShiftReportResponse {
             cash_movements,
             cash_movements_in,
             cash_movements_net,
             cash_movements_out,
+            cash_tips,
             expected_cash,
             net_payments,
+            non_cash_tips,
             payment_summary,
             printed_at,
             shift: Box::new(shift),
             total_payments,
+            total_tips,
             voided_amount,
         }
     }

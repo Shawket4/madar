@@ -57,6 +57,10 @@ pub struct OrderFull {
     /// Order origin: \"dine_in\" (POS sale) or \"delivery\" (finalized delivery order). Defaults to \"dine_in\" for every POS sale.
     #[serde(rename = "order_type")]
     pub order_type: String,
+    /// What was ACTUALLY tendered, one entry per `order_payments` row — the same rows every money report buckets by. A single-tender order has one leg; a split order has one per leg (e.g. card 285.00 + cash 255.00). Empty on the response to order creation, where the legs are written just after the row this statement returns; every read hydrates it.
+    #[serde(rename = "payment_legs")]
+    pub payment_legs: Vec<models::PaymentLeg>,
+    /// The order's NOMINAL payment label. For a split order this is the literal `'mixed'` — a label that exists in no money report, because reports bucket by what was actually tendered. Use [`Order::payment_legs`] for the real methods; treat this as a display badge only.
     #[serde(rename = "payment_method")]
     pub payment_method: String,
     #[serde(rename = "shift_id")]
@@ -101,7 +105,7 @@ pub struct OrderFull {
 }
 
 impl OrderFull {
-    pub fn new(branch_id: uuid::Uuid, created_at: chrono::DateTime<chrono::FixedOffset>, delivery_fee: i32, discount_amount: i32, discount_value: i32, id: uuid::Uuid, order_number: i32, order_type: String, payment_method: String, shift_id: uuid::Uuid, status: String, subtotal: i32, tax_amount: i32, teller_id: uuid::Uuid, teller_name: String, total_amount: i32, items: Vec<models::OrderItemFull>) -> OrderFull {
+    pub fn new(branch_id: uuid::Uuid, created_at: chrono::DateTime<chrono::FixedOffset>, delivery_fee: i32, discount_amount: i32, discount_value: i32, id: uuid::Uuid, order_number: i32, order_type: String, payment_legs: Vec<models::PaymentLeg>, payment_method: String, shift_id: uuid::Uuid, status: String, subtotal: i32, tax_amount: i32, teller_id: uuid::Uuid, teller_name: String, total_amount: i32, items: Vec<models::OrderItemFull>) -> OrderFull {
         OrderFull {
             amount_tendered: None,
             branch_id,
@@ -122,6 +126,7 @@ impl OrderFull {
             order_number,
             order_ref: None,
             order_type,
+            payment_legs,
             payment_method,
             shift_id,
             status,

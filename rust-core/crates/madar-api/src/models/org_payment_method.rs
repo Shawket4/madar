@@ -33,10 +33,13 @@ pub struct OrgPaymentMethod {
     pub org_id: uuid::Uuid,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
+    /// When false, orders tendered with this method are excluded entirely from the partner analytics API (`/integrations/analytics/orders`) — rows and aggregates alike. Defaults to true.
+    #[serde(rename = "visible_in_integrations")]
+    pub visible_in_integrations: bool,
 }
 
 impl OrgPaymentMethod {
-    pub fn new(color: String, created_at: chrono::DateTime<chrono::FixedOffset>, icon: String, id: uuid::Uuid, is_active: bool, is_cash: bool, label_translations: Option<serde_json::Value>, name: String, org_id: uuid::Uuid, updated_at: chrono::DateTime<chrono::FixedOffset>) -> OrgPaymentMethod {
+    pub fn new(color: String, created_at: chrono::DateTime<chrono::FixedOffset>, icon: String, id: uuid::Uuid, is_active: bool, is_cash: bool, label_translations: Option<serde_json::Value>, name: String, org_id: uuid::Uuid, updated_at: chrono::DateTime<chrono::FixedOffset>, visible_in_integrations: bool) -> OrgPaymentMethod {
         OrgPaymentMethod {
             color,
             created_at,
@@ -48,6 +51,7 @@ impl OrgPaymentMethod {
             name,
             org_id,
             updated_at,
+            visible_in_integrations,
         }
     }
 }

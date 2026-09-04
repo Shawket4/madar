@@ -14,6 +14,7 @@ Name | Type | Description | Notes
 **name** | **String** |  | 
 **org_id** | **uuid::Uuid** |  | 
 **updated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
+**visible_in_integrations** | **bool** | When false, orders tendered with this method are excluded entirely from the partner analytics API (`/integrations/analytics/orders`) — rows and aggregates alike. Defaults to true. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

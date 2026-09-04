@@ -61,7 +61,9 @@ pub struct ListOrdersParams {
     /// Filter delivery orders by channel: \"in_mall\" or \"outside\".
     pub channel: Option<String>,
     /// When true, each order in `data` embeds its full line items (addons/optionals/bundle components) — the response shape becomes [PaginatedOrdersFull]. Lets offline-first clients cache complete orders in one round trip instead of fetching each order separately.
-    pub include_items: Option<bool>
+    pub include_items: Option<bool>,
+    /// Comma-separated menu_item/bundle UUIDs left out of the summary's `line_items` count (units sold) — e.g. water bottles or service pseudo-items that inflate it. Affects ONLY that KPI: revenue, order counts, and the order rows themselves are untouched.
+    pub exclude_items: Option<String>
 }
 
 /// struct for passing parameters to the method [`preview_recipe`]
@@ -340,6 +342,9 @@ pub async fn list_orders(configuration: &configuration::Configuration, params: L
     }
     if let Some(ref param_value) = params.include_items {
         req_builder = req_builder.query(&[("include_items", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.exclude_items {
+        req_builder = req_builder.query(&[("exclude_items", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());

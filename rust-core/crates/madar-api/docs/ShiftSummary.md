@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **branch_id** | **uuid::Uuid** |  | 
 **branch_name** | **String** |  | 
 **cash_discrepancy** | Option<**i64**> |  | [optional]
+**cash_tips** | Option<**i64**> | The cash slice of `total_tips`. | [optional]
 **closed_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **closing_cash_declared** | Option<**i64**> |  | [optional]
 **closing_cash_system** | Option<**i64**> |  | [optional]
@@ -21,6 +22,7 @@ Name | Type | Description | Notes
 **total_orders** | **i64** |  | 
 **total_revenue** | **i64** |  | 
 **total_tax** | **i64** |  | 
+**total_tips** | Option<**i64**> | Tips, standalone — matches `total_tips` on `GET /shifts/{id}/report`. | [optional]
 **voided_orders** | **i64** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

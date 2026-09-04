@@ -19,6 +19,9 @@ pub struct BranchSalesReport {
     pub branch_name: String,
     #[serde(rename = "by_category")]
     pub by_category: Vec<models::CategorySales>,
+    /// The cash slice of `total_tips` (snapshotted `tip_is_cash`).
+    #[serde(rename = "cash_tips", skip_serializing_if = "Option::is_none")]
+    pub cash_tips: Option<i64>,
     #[serde(rename = "from", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub from: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
@@ -31,12 +34,18 @@ pub struct BranchSalesReport {
     pub top_items: Vec<models::ItemSales>,
     #[serde(rename = "total_discount")]
     pub total_discount: i64,
+    /// Units sold (SUM of order_items.quantity) across non-voided orders in range. Counts units, not distinct lines (\"3× burger\" contributes 3), matching quantity_sold in the item/category breakdowns.
+    #[serde(rename = "total_line_items", skip_serializing_if = "Option::is_none")]
+    pub total_line_items: Option<i64>,
     #[serde(rename = "total_orders")]
     pub total_orders: i64,
     #[serde(rename = "total_revenue")]
     pub total_revenue: i64,
     #[serde(rename = "total_tax")]
     pub total_tax: i64,
+    /// Tips, standalone — never folded into a method bucket and never part of `total_revenue`. Same definition as `total_tips` on the shift report, so the two screens can be reconciled line for line.
+    #[serde(rename = "total_tips", skip_serializing_if = "Option::is_none")]
+    pub total_tips: Option<i64>,
     #[serde(rename = "voided_orders")]
     pub voided_orders: i64,
 }
@@ -47,15 +56,18 @@ impl BranchSalesReport {
             branch_id,
             branch_name,
             by_category,
+            cash_tips: None,
             from: None,
             revenue_by_method,
             subtotal,
             to: None,
             top_items,
             total_discount,
+            total_line_items: None,
             total_orders,
             total_revenue,
             total_tax,
+            total_tips: None,
             voided_orders,
         }
     }

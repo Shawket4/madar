@@ -33,6 +33,9 @@ pub struct OrderSummary {
     pub in_mall_orders: Option<i64>,
     #[serde(rename = "in_mall_revenue", skip_serializing_if = "Option::is_none")]
     pub in_mall_revenue: Option<i64>,
+    /// Units sold (SUM of order_items.quantity) across completed orders in scope. Counts units, not distinct lines, matching the item-sales reports (\"3× burger\" contributes 3).
+    #[serde(rename = "line_items", skip_serializing_if = "Option::is_none")]
+    pub line_items: Option<i64>,
     #[serde(rename = "outside_fees", skip_serializing_if = "Option::is_none")]
     pub outside_fees: Option<i64>,
     /// Outside channel: order count / gross revenue / delivery fees.
@@ -59,6 +62,7 @@ impl OrderSummary {
             in_mall_fees: None,
             in_mall_orders: None,
             in_mall_revenue: None,
+            line_items: None,
             outside_fees: None,
             outside_orders: None,
             outside_revenue: None,

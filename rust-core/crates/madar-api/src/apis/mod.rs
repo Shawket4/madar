@@ -111,6 +111,7 @@ impl From<&str> for ContentType {
     }
 }
 
+pub mod ai_api;
 pub mod auth_api;
 pub mod branches_api;
 pub mod bundles_api;
@@ -118,10 +119,11 @@ pub mod costing_api;
 pub mod delivery_api;
 pub mod delivery_public_api;
 pub mod discounts_api;
+pub mod insights_api;
+pub mod integrations_api;
 pub mod inventory_api;
 pub mod kitchen_api;
 pub mod menu_api;
-pub mod menu_advisor_api;
 pub mod open_tickets_api;
 pub mod orders_api;
 pub mod orgs_api;
@@ -134,6 +136,7 @@ pub mod recipes_api;
 pub mod reports_api;
 pub mod reservations_api;
 pub mod shifts_api;
+pub mod staff_api;
 pub mod stocktakes_api;
 pub mod tills_api;
 pub mod uploads_api;

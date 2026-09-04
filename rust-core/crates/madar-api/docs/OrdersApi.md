@@ -106,7 +106,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_orders
 
-> models::PaginatedOrders list_orders(branch_id, shift_id, updated_after, page, per_page, teller_name, waiter_name, payment_method, status, from, to, order_type, channel, include_items)
+> models::PaginatedOrders list_orders(branch_id, shift_id, updated_after, page, per_page, teller_name, waiter_name, payment_method, status, from, to, order_type, channel, include_items, exclude_items)
 
 
 ### Parameters
@@ -128,6 +128,7 @@ Name | Type | Description  | Required | Notes
 **order_type** | Option<**String**> | Filter by order origin: \"dine_in\" or \"delivery\". |  |
 **channel** | Option<**String**> | Filter delivery orders by channel: \"in_mall\" or \"outside\". |  |
 **include_items** | Option<**bool**> | When true, each order in `data` embeds its full line items (addons/optionals/bundle components) — the response shape becomes [PaginatedOrdersFull]. Lets offline-first clients cache complete orders in one round trip instead of fetching each order separately. |  |
+**exclude_items** | Option<**String**> | Comma-separated menu_item/bundle UUIDs left out of the summary's `line_items` count (units sold) — e.g. water bottles or service pseudo-items that inflate it. Affects ONLY that KPI: revenue, order counts, and the order rows themselves are untouched. |  |
 
 ### Return type
 
