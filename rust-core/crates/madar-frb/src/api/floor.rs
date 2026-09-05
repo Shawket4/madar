@@ -61,82 +61,20 @@ pub struct _ReservationView {
 }
 
 impl MadarBridge {
-    /// Floor sections for the signed-in branch (dashboard-authored geometry).
-    pub async fn list_floor_sections(&self) -> Result<Vec<FloorSectionView>, MadarError> {
-        self.inner
-            .list_floor_sections()
-            .await
-            .map_err(MadarError::from)
-    }
 
-    /// Tables (geometry + live status) for the signed-in branch.
-    pub async fn list_floor_tables(&self) -> Result<Vec<FloorTableView>, MadarError> {
-        self.inner
-            .list_floor_tables()
-            .await
-            .map_err(MadarError::from)
-    }
 
-    /// Active bookings (reservations + waitlist) for the signed-in branch.
-    pub async fn list_reservations(&self) -> Result<Vec<ReservationView>, MadarError> {
-        self.inner
-            .list_reservations()
-            .await
-            .map_err(MadarError::from)
-    }
 
-    /// Seat a party onto one or more tables (multiple ⇒ merged tables). The
-    /// backend opens a dine-in ticket on the primary table.
-    pub async fn seat_reservation(
-        &self,
-        booking_id: String,
-        table_ids: Vec<String>,
-    ) -> Result<ReservationView, MadarError> {
-        self.inner
-            .seat_reservation(booking_id, table_ids)
-            .await
-            .map_err(MadarError::from)
-    }
 
-    /// Set a table's live status (`free` | `held` | `seated` | `dirty`).
-    pub async fn set_floor_table_status(
-        &self,
-        table_id: String,
-        status: String,
-    ) -> Result<FloorTableView, MadarError> {
-        self.inner
-            .set_floor_table_status(table_id, status)
-            .await
-            .map_err(MadarError::from)
-    }
 
-    /// Send the booking's nudge (reservation departure / waitlist ready).
-    pub async fn notify_reservation(
-        &self,
-        booking_id: String,
-    ) -> Result<ReservationView, MadarError> {
-        self.inner
-            .notify_reservation(booking_id)
-            .await
-            .map_err(MadarError::from)
-    }
 
-    /// Move an open ticket to another table (the "switch table" action). Frees the
-    /// old table, occupies the new one, and keeps the booking assignment in sync.
-    pub async fn move_ticket_to_table(
-        &self,
-        ticket_id: String,
-        table_id: String,
-    ) -> Result<(), MadarError> {
-        self.inner
-            .move_ticket_to_table(ticket_id, table_id)
-            .await
-            .map_err(MadarError::from)
-    }
 
-    // ── OFFLINE floor canvas + held-order occupancy + transfer waitlist ───
-    // Everything below reads/writes the kv mirrors and the outbox — it works
-    // with no network, unlike the live host operations above.
+    // ── The floor: offline canvas, occupancy, transfer waitlist ──────────
+    //
+    // Everything here reads and writes the kv mirrors and the outbox, so it
+    // works with no network. There used to be a second, older set of
+    // network-BLOCKING calls above doing the same jobs -- read the floor, set a
+    // table's status, move a ticket -- with opposite offline semantics. They
+    // are gone, along with the booking flow they were built for.
 
     /// The branch floor (sections + tables + held-order occupancy) from the
     /// offline mirror. EMPTY sections+tables ⇒ the branch has no layout ⇒ hide
@@ -199,19 +137,19 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
-    /// Operational table-state edit: status walk (bus a dirty table clean)
-    /// and/or a zone move (the physical table changed sections). The layout
-    /// geometry stays dashboard-authored; this is the POS's half. Offline-safe.
-    pub fn set_table_state(
-        &self,
-        table_id: String,
-        status: Option<String>,
-        section_id: Option<String>,
-        clear_section: bool,
-    ) -> Result<(), MadarError> {
+    /// Reflect a status the server will derive anyway (dirty after checkout,
+    /// free after a void or move) in the local canvas. Queues nothing.
+    pub fn mirror_table_status(&self, table_id: String, status: String) -> Result<(), MadarError> {
         self.inner
-            .set_table_state(table_id, status, section_id, clear_section)
+            .mirror_table_status(table_id, status)
             .map_err(MadarError::from)
+    }
+
+    /// Clear a bussed table — the one human act a table's status cannot
+    /// derive. Everything else follows from the ticket sitting on it.
+    /// Offline-safe: optimistic locally, queued for the server.
+    pub fn clear_table(&self, table_id: String) -> Result<(), MadarError> {
+        self.inner.clear_table(table_id).map_err(MadarError::from)
     }
 }
 

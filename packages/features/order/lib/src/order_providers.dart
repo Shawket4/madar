@@ -844,11 +844,7 @@ class OrderNotifier extends Notifier<OrderState> {
   /// step so the canvas is right the instant the sale lands (and offline).
   Future<void> _busTableLocally(String tableId) async {
     await _quiet(() async {
-      await _bridge.setTableState(
-        tableId: tableId,
-        status: 'dirty',
-        clearSection: false,
-      );
+      await _bridge.mirrorTableStatus(tableId: tableId, status: 'dirty');
       return true;
     });
   }
@@ -857,11 +853,7 @@ class OrderNotifier extends Notifier<OrderState> {
   /// party vacated it (a void, a move, an unassign).
   Future<void> _freeTableLocally(String tableId) async {
     await _quiet(() async {
-      await _bridge.setTableState(
-        tableId: tableId,
-        status: 'free',
-        clearSection: false,
-      );
+      await _bridge.mirrorTableStatus(tableId: tableId, status: 'free');
       return true;
     });
   }
@@ -892,7 +884,7 @@ class OrderNotifier extends Notifier<OrderState> {
   /// room. The teller's one-tap answer on the tables screen, and the same walk
   /// the post-checkout prompt takes when they say "clear it now".
   Future<void> clearTable(String tableId) async {
-    await setTableState(tableId, status: 'free');
+    await _clearTableOnServer(tableId);
     showToast(
       _tr('tables.cleared'),
       tone: ChipTone.success,
@@ -930,21 +922,12 @@ class OrderNotifier extends Notifier<OrderState> {
     await loadFloor();
   }
 
-  /// Operational table-state edit: bus a dirty table clean, hold/free it, or
-  /// move the PHYSICAL table to another zone. Offline-safe (queued, LWW).
-  Future<void> setTableState(
-    String tableId, {
-    String? status,
-    String? sectionId,
-    bool clearSection = false,
-  }) async {
+  /// Clear a bussed table: the one human act the server cannot derive. The
+  /// teller's one-tap answer on the tables screen, and the same walk the
+  /// post-checkout prompt takes when they say "clear it now". Offline-safe.
+  Future<void> _clearTableOnServer(String tableId) async {
     try {
-      await _bridge.setTableState(
-        tableId: tableId,
-        status: status,
-        sectionId: sectionId,
-        clearSection: clearSection,
-      );
+      await _bridge.clearTable(tableId: tableId);
     } on MadarError catch (e) {
       showToast(
         _bridge.humanMessage(e),
@@ -982,7 +965,7 @@ class OrderNotifier extends Notifier<OrderState> {
       // queued right behind it lands the table on `free`.
       if (!await assignDraftTable(table.heldOrderId!, null)) return false;
     }
-    await setTableState(table.id, status: 'free');
+    await _clearTableOnServer(table.id);
     showToast(
       _tr('tables.freed'),
       tone: ChipTone.success,

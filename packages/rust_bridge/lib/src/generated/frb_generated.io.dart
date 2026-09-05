@@ -204,13 +204,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   FloorSectionInfo dco_decode_floor_section_info(dynamic raw);
 
   @protected
-  FloorSectionView dco_decode_floor_section_view(dynamic raw);
-
-  @protected
   FloorTableStateView dco_decode_floor_table_state_view(dynamic raw);
-
-  @protected
-  FloorTableView dco_decode_floor_table_view(dynamic raw);
 
   @protected
   GroupViolationView dco_decode_group_violation_view(dynamic raw);
@@ -309,13 +303,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<FloorSectionInfo> dco_decode_list_floor_section_info(dynamic raw);
 
   @protected
-  List<FloorSectionView> dco_decode_list_floor_section_view(dynamic raw);
-
-  @protected
   List<FloorTableStateView> dco_decode_list_floor_table_state_view(dynamic raw);
-
-  @protected
-  List<FloorTableView> dco_decode_list_floor_table_view(dynamic raw);
 
   @protected
   List<GroupViolationView> dco_decode_list_group_violation_view(dynamic raw);
@@ -378,9 +366,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<RecipeLineView> dco_decode_list_recipe_line_view(dynamic raw);
-
-  @protected
-  List<ReservationView> dco_decode_list_reservation_view(dynamic raw);
 
   @protected
   List<ShiftReportCashLine> dco_decode_list_shift_report_cash_line(dynamic raw);
@@ -494,9 +479,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RecipeLineView dco_decode_recipe_line_view(dynamic raw);
-
-  @protected
-  ReservationView dco_decode_reservation_view(dynamic raw);
 
   @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
@@ -746,15 +728,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   FloorSectionInfo sse_decode_floor_section_info(SseDeserializer deserializer);
 
   @protected
-  FloorSectionView sse_decode_floor_section_view(SseDeserializer deserializer);
-
-  @protected
   FloorTableStateView sse_decode_floor_table_state_view(
     SseDeserializer deserializer,
   );
-
-  @protected
-  FloorTableView sse_decode_floor_table_view(SseDeserializer deserializer);
 
   @protected
   GroupViolationView sse_decode_group_violation_view(
@@ -883,17 +859,7 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  List<FloorSectionView> sse_decode_list_floor_section_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   List<FloorTableStateView> sse_decode_list_floor_table_state_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<FloorTableView> sse_decode_list_floor_table_view(
     SseDeserializer deserializer,
   );
 
@@ -988,11 +954,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<RecipeLineView> sse_decode_list_recipe_line_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<ReservationView> sse_decode_list_reservation_view(
     SseDeserializer deserializer,
   );
 
@@ -1136,9 +1097,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RecipeLineView sse_decode_recipe_line_view(SseDeserializer deserializer);
-
-  @protected
-  ReservationView sse_decode_reservation_view(SseDeserializer deserializer);
 
   @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
@@ -1444,20 +1402,8 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  void sse_encode_floor_section_view(
-    FloorSectionView self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_floor_table_state_view(
     FloorTableStateView self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_floor_table_view(
-    FloorTableView self,
     SseSerializer serializer,
   );
 
@@ -1621,20 +1567,8 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  void sse_encode_list_floor_section_view(
-    List<FloorSectionView> self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_list_floor_table_state_view(
     List<FloorTableStateView> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_floor_table_view(
-    List<FloorTableView> self,
     SseSerializer serializer,
   );
 
@@ -1752,12 +1686,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_recipe_line_view(
     List<RecipeLineView> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_reservation_view(
-    List<ReservationView> self,
     SseSerializer serializer,
   );
 
@@ -1941,12 +1869,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_recipe_line_view(
     RecipeLineView self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_reservation_view(
-    ReservationView self,
     SseSerializer serializer,
   );
 

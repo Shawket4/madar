@@ -142,6 +142,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Clear the diagnostics feed.
   Future<void> clearLogs();
 
+  /// Clear a bussed table — the one human act a table's status cannot
+  /// derive. Everything else follows from the ticket sitting on it.
+  /// Offline-safe: optimistic locally, queued for the server.
+  Future<void> clearTable({required String tableId});
+
   /// Server-vs-device clock skew in MINUTES (server minus device, refreshed by
   /// `refresh_connectivity`). The host shows a banner past a threshold so the
   /// teller fixes the clock before offline work is mis-timestamped.
@@ -365,12 +370,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// edited on another till come back `locked_by_other` (not restorable).
   Future<List<DraftView>> listDrafts();
 
-  /// Floor sections for the signed-in branch (dashboard-authored geometry).
-  Future<List<FloorSectionView>> listFloorSections();
-
-  /// Tables (geometry + live status) for the signed-in branch.
-  Future<List<FloorTableView>> listFloorTables();
-
   /// Active addons offered for an item, with their CHARGED price resolved (swap
   /// delta / full) — the customization sheet groups these by `addon_type`.
   Future<List<ItemAddonView>> listItemAddons({required String itemId});
@@ -399,9 +398,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   Future<List<PaymentMethodView>> listPaymentMethods();
 
-  /// Active bookings (reservations + waitlist) for the signed-in branch.
-  Future<List<ReservationView>> listReservations();
-
   /// The current shift's orders — still-queued sales (offline-safe) plus
   /// the server's synced orders when online (best-effort).
   Future<List<OrderSummaryView>> listShiftOrders();
@@ -424,11 +420,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   Future<void> logout({required bool wipeOutbox});
 
-  /// Move an open ticket to another table (the "switch table" action). Frees the
-  /// old table, occupies the new one, and keeps the booking assignment in sync.
-  Future<void> moveTicketToTable({
-    required String ticketId,
+  /// Reflect a status the server will derive anyway (dirty after checkout,
+  /// free after a void or move) in the local canvas. Queues nothing.
+  Future<void> mirrorTableStatus({
     required String tableId,
+    required String status,
   });
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
@@ -436,9 +432,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// nothing — session restore is a separate explicit step.
   static Future<MadarBridge> newInstance({required MadarConfig config}) =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeNew(config: config);
-
-  /// Send the booking's nudge (reservation departure / waitlist ready).
-  Future<ReservationView> notifyReservation({required String bookingId});
 
   /// Outbox-first: enqueues the open, drains, returns the local view.
   Future<ShiftView> openShift({
@@ -576,13 +569,6 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required int page,
   });
 
-  /// Seat a party onto one or more tables (multiple ⇒ merged tables). The
-  /// backend opens a dine-in ticket on the primary table.
-  Future<ReservationView> seatReservation({
-    required String bookingId,
-    required List<String> tableIds,
-  });
-
   /// Best-effort raw-TCP send of pre-rendered ESC/POS bytes to a network
   /// (JetDirect / port 9100) thermal printer.
   Future<void> sendToPrinter({
@@ -627,23 +613,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Bind the device's till (POS drawer). `None` = use the branch default till.
   Future<void> setDeviceTill({String? tillId});
 
-  /// Set a table's live status (`free` | `held` | `seated` | `dirty`).
-  Future<FloorTableView> setFloorTableStatus({
-    required String tableId,
-    required String status,
-  });
-
   void setLocale({required String locale});
-
-  /// Operational table-state edit: status walk (bus a dirty table clean)
-  /// and/or a zone move (the physical table changed sections). The layout
-  /// geometry stays dashboard-authored; this is the POS's half. Offline-safe.
-  Future<void> setTableState({
-    required String tableId,
-    String? status,
-    String? sectionId,
-    required bool clearSection,
-  });
 
   /// SETTLE an open ticket into a paid order in the cashier's shift (a till
   /// action). Offline-first: the order is materialized server-side at replay,

@@ -993,7 +993,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
           'hand.raised',
           bridge.tr(key: 'tables.held_res'),
           () async {
-            await _notifier.setTableState(t.id, status: 'held');
+            // removed: status is derived; sections are dashboard-authored
           },
         ),
       // Zone move — every OTHER section, plus "no section".
@@ -1003,7 +1003,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
             'square.grid.2x2',
             '${bridge.tr(key: 'tables.section')} · ${s.name}',
             () async {
-              await _notifier.setTableState(t.id, sectionId: s.id);
+            // removed: status is derived; sections are dashboard-authored
             },
           ),
       if (t.sectionId != null)
@@ -1011,7 +1011,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
           'xmark.circle',
           bridge.tr(key: 'tables.no_section'),
           () async {
-            await _notifier.setTableState(t.id, clearSection: true);
+            // removed: status is derived; sections are dashboard-authored
           },
         ),
     ]);

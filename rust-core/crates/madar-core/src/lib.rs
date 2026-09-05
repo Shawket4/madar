@@ -1178,46 +1178,12 @@ impl MadarCore {
                     Idem::Yes,
                 )
             }
-            // ── Held orders + floor ops ───────────────────────────────────────
-            // Park/claim conflicts are REAL cross-till races (another till owns
-            // the cart) → dead-letter so the sync center surfaces them. The
-            // rest self-heal: a 409 means the floor moved on — ack it and let
-            // the post-drain pull reconcile the mirror.
-            "park_held_order" => {
-                let cmd: held::ParkCommand = match serde_json::from_str(&item.payload) {
-                    Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
-                };
-                (
-                    serde_json::json!({ "op": "park_held_order", "teller_id": teller_id, "request": cmd.request }),
-                    Idem::No,
-                )
-            }
-            "claim_held_order" => {
-                let cmd: held::HeldOpCommand = match serde_json::from_str(&item.payload) {
-                    Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
-                };
-                (
-                    serde_json::json!({ "op": "claim_held_order", "teller_id": teller_id, "held_order_id": cmd.held_order_id, "request": cmd.request }),
-                    Idem::No,
-                )
-            }
-            "release_held_order" | "discard_held_order" | "complete_held_order" => {
-                let cmd: held::HeldOpCommand = match serde_json::from_str(&item.payload) {
-                    Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
-                };
-                let op = match item.op_type.as_str() {
-                    "release_held_order" => "release_held_order",
-                    "discard_held_order" => "discard_held_order",
-                    _ => "complete_held_order",
-                };
-                (
-                    serde_json::json!({ "op": op, "teller_id": teller_id, "held_order_id": cmd.held_order_id, "request": cmd.request }),
-                    Idem::Yes,
-                )
-            }
+            // ── Floor ops ─────────────────────────────────────────────────────
+            // Parked orders are NOT here: they are this terminal's own drafts,
+            // so they never reach the outbox. What remains is the genuinely
+            // shared state -- swaps, the transfer queue, and clearing a bussed
+            // table. A 409 means the floor moved on: ack it and let the
+            // post-drain pull reconcile the mirror.
             "swap_tables" => {
                 let cmd: held::SwapCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
@@ -1258,13 +1224,13 @@ impl MadarCore {
                     Idem::Yes,
                 )
             }
-            "update_table_state" => {
+            "clear_table" => {
                 let cmd: held::TableStateCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
                 (
-                    serde_json::json!({ "op": "update_table_state", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
+                    serde_json::json!({ "op": "clear_table", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
                     Idem::Yes,
                 )
             }
@@ -3086,47 +3052,52 @@ impl MadarCore {
         )
     }
 
-    /// Operational table-state edit from the floor staff: a status walk
-    /// (bussing a dirty table clean) and/or a zone move (the PHYSICAL table
-    /// was carried to another section). Layout geometry stays dashboard-owned;
-    /// this is the POS's half. Optimistic-local + queued (LWW, self-healing).
-    pub fn set_table_state(
-        &self,
-        table_id: String,
-        status: Option<String>,
-        section_id: Option<String>,
-        clear_section: bool,
-    ) -> Result<(), CoreError> {
-        if let Some(s) = status.as_deref() {
-            if !matches!(s, "free" | "held" | "seated" | "dirty") {
-                return Err(CoreError::Validation {
-                    field: "status".into(),
-                    detail: "status must be free, held, seated or dirty".into(),
-                });
-            }
+    /// Keep the LOCAL canvas in step with a status the server is about to
+    /// derive anyway — dirty after a checkout, free after a void or a move.
+    ///
+    /// Deliberately local-only: it queues nothing. The server reaches the same
+    /// conclusion from the ticket's lifecycle, so sending it would be a second
+    /// writer of a derived value, and the two would eventually disagree. This
+    /// exists purely so the canvas is right the instant the sale lands, and
+    /// while offline.
+    pub fn mirror_table_status(&self, table_id: String, status: String) -> Result<(), CoreError> {
+        if !matches!(status.as_str(), "free" | "held" | "seated" | "dirty") {
+            return Err(CoreError::Validation {
+                field: "status".into(),
+                detail: "unknown table status".into(),
+            });
         }
-        held::set_table_state_local(
-            &self.store,
-            &table_id,
-            status.as_deref(),
-            section_id.as_deref(),
-            clear_section,
-        )?;
+        held::set_table_state_local(&self.store, &table_id, Some(&status), None, false)
+    }
+
+    /// Clear a bussed table: the one human act a table's status cannot derive.
+    ///
+    /// Everything else about the status follows from the ticket on the table --
+    /// seated when one lands, free when nobody vacated, dirty after a checkout.
+    /// But no server can see that the plates are gone, so the teller says so,
+    /// from the prompt right after the sale or the tables screen afterwards.
+    ///
+    /// This replaced a general "set any status, and optionally move the table
+    /// to another section" call. That let a terminal assert a table was free
+    /// while a ticket was open on it, and its server counterpart wrote the
+    /// status with no lock and no occupancy check.
+    ///
+    /// Optimistic-local + queued, like every other floor op.
+    pub fn clear_table(&self, table_id: String) -> Result<(), CoreError> {
+        held::set_table_state_local(&self.store, &table_id, Some("free"), None, false)?;
         let cmd = held::TableStateCommand {
             table_id: table_id.clone(),
-            request: serde_json::json!({
-                "status": status, "section_id": section_id, "clear_section": clear_section,
-            }),
+            request: serde_json::json!({}),
         };
         self.enqueue_held_op(
-            "update_table_state",
-            format!("table-state:{table_id}:{}", uuid::Uuid::new_v4()),
+            "clear_table",
+            format!("table-clear:{table_id}:{}", uuid::Uuid::new_v4()),
             &serde_json::to_string(&cmd)?,
         )
     }
 
-    /// Enqueue one held-order/floor op (no shift gating — parked carts float
-    /// free of tills, like waiter tickets).
+    /// Enqueue one floor op (no shift gating — floor state floats free of
+    /// tills, like waiter tickets).
     fn enqueue_held_op(&self, op_type: &str, op_id: String, payload: &str) -> Result<(), CoreError> {
         let (user_id, clock_offset_ms) = self.outbox_meta();
         self.store.enqueue(&store::NewOutboxOp {
@@ -3932,23 +3903,20 @@ impl MadarCore {
             self.api.get_text("/floor/tables", &q).await,
         ) {
             if held::save_floor(&self.store, &sections, &tables).is_ok() {
-                // Re-apply QUEUED local table-state edits on top of the fresh
-                // pull, so a pending bussing/zone-move isn't visually reverted
+                // Re-apply a QUEUED local clear on top of the fresh pull, so a
+                // table the teller just bussed does not flicker back to dirty
                 // between this pull and its drain.
                 if let Ok(items) = self.store.pending() {
-                    for i in items.iter().filter(|i| i.op_type == "update_table_state") {
+                    for i in items.iter().filter(|i| i.op_type == "clear_table") {
                         if let Ok(cmd) =
                             serde_json::from_str::<held::TableStateCommand>(&i.payload)
                         {
                             let _ = held::set_table_state_local(
                                 &self.store,
                                 &cmd.table_id,
-                                cmd.request.get("status").and_then(|v| v.as_str()),
-                                cmd.request.get("section_id").and_then(|v| v.as_str()),
-                                cmd.request
-                                    .get("clear_section")
-                                    .and_then(|v| v.as_bool())
-                                    .unwrap_or(false),
+                                Some("free"),
+                                None,
+                                false,
                             );
                         }
                     }
@@ -3956,16 +3924,10 @@ impl MadarCore {
             }
         }
 
-        let protect = self.pending_held_ids();
-        let cursor = self.store.kv_get(held::K_HELD_CURSOR).ok().flatten();
-        let mut hq: Vec<(&str, String)> = vec![("branch_id", branch.clone())];
-        if let Some(c) = &cursor {
-            hq.push(("since", c.clone()));
-        }
-        if let Ok(body) = self.api.get_text("/held-orders", &hq).await {
-            let _ = held::merge_held(&self.store, &body, cursor.is_none(), &protect);
-        }
-
+        // Held orders are NOT pulled. A parked order is this terminal's own
+        // draft -- it has no server copy to reconcile with, and asking for one
+        // was the whole reason parking needed a network at all.
+        let protect: Vec<String> = Vec::new();
         let tcursor = self.store.kv_get(held::K_TRANSFERS_CURSOR).ok().flatten();
         let mut tq: Vec<(&str, String)> = vec![("branch_id", branch)];
         if let Some(c) = &tcursor {

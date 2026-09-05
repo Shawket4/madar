@@ -16,7 +16,6 @@ workspace:
   - packages/rust_bridge_staff
   - packages/features/auth
   - packages/features/checkout
-  - packages/features/floor
   - packages/features/history
   - packages/features/incoming
   - packages/features/kds

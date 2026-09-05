@@ -14,7 +14,6 @@ dependencies:
   design_system: ^0.1.0
   feature_auth: ^0.1.0
   feature_checkout: ^0.1.0
-  feature_floor: ^0.1.0
   feature_history: ^0.1.0
   feature_incoming: ^0.1.0
   feature_kds: ^0.1.0

@@ -7,7 +7,6 @@
 
 slint::include_modules!();
 
-mod feature_floor;
 mod feature_checkout;
 mod feature_incoming;
 mod feature_settings;
