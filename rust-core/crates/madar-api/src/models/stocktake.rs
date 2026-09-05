@@ -15,9 +15,12 @@ use serde::{Deserialize, Serialize};
 pub struct Stocktake {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
-    /// Branch label — only populated by the stocktakes list (so the \"All branches\" view can show which branch each stocktake belongs to). Other stocktake endpoints leave it `null`.
+    /// Branch label — only populated by the stocktakes list (so the \"All branches\" view can show which branch each stocktake belongs to).
     #[serde(rename = "branch_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub branch_name: Option<Option<String>>,
+    /// Items counted / items in scope; populated by the list endpoint only.
+    #[serde(rename = "counted_items", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub counted_items: Option<Option<i64>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "finalized_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -30,6 +33,9 @@ pub struct Stocktake {
     pub note: Option<Option<String>>,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// `{\"kind\":\"full\"}`, `{\"kind\":\"category\",\"category_id\":…}` or `{\"kind\":\"items\",\"org_ingredient_ids\":[…]}`.
+    #[serde(rename = "scope")]
+    pub scope: serde_json::Value,
     #[serde(rename = "started_at")]
     pub started_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "started_by")]
@@ -38,23 +44,28 @@ pub struct Stocktake {
     pub started_by_name: Option<Option<String>>,
     #[serde(rename = "status")]
     pub status: String,
+    #[serde(rename = "total_items", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub total_items: Option<Option<i64>>,
 }
 
 impl Stocktake {
-    pub fn new(branch_id: uuid::Uuid, created_at: chrono::DateTime<chrono::FixedOffset>, id: uuid::Uuid, org_id: uuid::Uuid, started_at: chrono::DateTime<chrono::FixedOffset>, started_by: uuid::Uuid, status: String) -> Stocktake {
+    pub fn new(branch_id: uuid::Uuid, created_at: chrono::DateTime<chrono::FixedOffset>, id: uuid::Uuid, org_id: uuid::Uuid, scope: serde_json::Value, started_at: chrono::DateTime<chrono::FixedOffset>, started_by: uuid::Uuid, status: String) -> Stocktake {
         Stocktake {
             branch_id,
             branch_name: None,
+            counted_items: None,
             created_at,
             finalized_at: None,
             finalized_by: None,
             id,
             note: None,
             org_id,
+            scope,
             started_at,
             started_by,
             started_by_name: None,
             status,
+            total_items: None,
         }
     }
 }

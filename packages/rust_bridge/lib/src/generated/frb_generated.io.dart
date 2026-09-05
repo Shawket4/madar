@@ -3,6 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/bookings.dart';
 import 'api/bridge.dart';
 import 'api/cart.dart';
 import 'api/catalog.dart';
@@ -88,6 +89,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   AppRoute dco_decode_app_route(dynamic raw);
+
+  @protected
+  BookingView dco_decode_booking_view(dynamic raw);
 
   @protected
   bool dco_decode_bool(dynamic raw);
@@ -244,6 +248,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<AddonSlotView> dco_decode_list_addon_slot_view(dynamic raw);
+
+  @protected
+  List<BookingView> dco_decode_list_booking_view(dynamic raw);
 
   @protected
   List<BranchView> dco_decode_list_branch_view(dynamic raw);
@@ -592,6 +599,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   AppRoute sse_decode_app_route(SseDeserializer deserializer);
 
   @protected
+  BookingView sse_decode_booking_view(SseDeserializer deserializer);
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
@@ -780,6 +790,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<AddonSlotView> sse_decode_list_addon_slot_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<BookingView> sse_decode_list_booking_view(SseDeserializer deserializer);
 
   @protected
   List<BranchView> sse_decode_list_branch_view(SseDeserializer deserializer);
@@ -1228,6 +1241,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_app_route(AppRoute self, SseSerializer serializer);
 
   @protected
+  void sse_encode_booking_view(BookingView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
@@ -1461,6 +1477,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_addon_slot_view(
     List<AddonSlotView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_booking_view(
+    List<BookingView> self,
     SseSerializer serializer,
   );
 

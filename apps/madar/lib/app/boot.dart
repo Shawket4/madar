@@ -183,9 +183,23 @@ class RealtimeArmer {
         // parked/seated a party. The order surface re-pulls the mirrors.
         if (eventType.startsWith('floor.') ||
             eventType.startsWith('table.') ||
-            eventType.startsWith('held_order.') ||
             eventType.startsWith('transfer.')) {
           _ref.read(floorTickProvider.notifier).bump();
+        }
+        // A booking changed: the canvas (reserved tables) and the arrivals
+        // list both re-pull. Rides the same connection as everything else.
+        if (eventType.startsWith('booking.')) {
+          _ref.read(floorTickProvider.notifier).bump();
+          _ref.read(bookingTickProvider.notifier).bump();
+        }
+        // The server could not replay our gap (buffer evicted / restart):
+        // every board re-seeds, exactly as it does on reconnect.
+        if (eventType == 'resync') {
+          _ref.read(kitchenTickProvider.notifier).bump();
+          _ref.read(ticketTickProvider.notifier).bump();
+          _ref.read(deliveryTickProvider.notifier).bump();
+          _ref.read(floorTickProvider.notifier).bump();
+          _ref.read(bookingTickProvider.notifier).bump();
         }
       case RealtimeMessage_ConnectionChanged(:final connected):
         _ref.read(realtimeConnectedProvider.notifier).update(connected);

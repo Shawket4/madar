@@ -13,30 +13,40 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateBookingRequest {
-    #[serde(rename = "customer_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub customer_name: Option<Option<String>>,
+    #[serde(rename = "duration_minutes", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub duration_minutes: Option<Option<i32>>,
+    /// Keep the booking when no table fits after a move (default true).
+    #[serde(rename = "force", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub force: Option<Option<bool>>,
+    #[serde(rename = "guest_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub guest_name: Option<Option<String>>,
+    #[serde(rename = "guest_phone", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub guest_phone: Option<Option<String>>,
     #[serde(rename = "notes", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub notes: Option<Option<String>>,
     #[serde(rename = "party_size", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub party_size: Option<Option<i32>>,
-    #[serde(rename = "quoted_ready_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub quoted_ready_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    #[serde(rename = "reserved_for", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub reserved_for: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    /// Drive the status machine: confirmed / notified / arrived / seated / completed / no_show / cancelled. The matching timestamp is stamped and, for terminals, assigned tables are freed.
-    #[serde(rename = "status", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub status: Option<Option<String>>,
+    #[serde(rename = "section_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub section_id: Option<Option<uuid::Uuid>>,
+    #[serde(rename = "starts_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub starts_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Present = reassign to exactly these tables (empty = unassign).
+    #[serde(rename = "table_ids", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub table_ids: Option<Option<Vec<uuid::Uuid>>>,
 }
 
 impl UpdateBookingRequest {
     pub fn new() -> UpdateBookingRequest {
         UpdateBookingRequest {
-            customer_name: None,
+            duration_minutes: None,
+            force: None,
+            guest_name: None,
+            guest_phone: None,
             notes: None,
             party_size: None,
-            quoted_ready_at: None,
-            reserved_for: None,
-            status: None,
+            section_id: None,
+            starts_at: None,
+            table_ids: None,
         }
     }
 }

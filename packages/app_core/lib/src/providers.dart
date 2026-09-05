@@ -140,6 +140,12 @@ final floorTickProvider = NotifierProvider<TickNotifier, int>(
   TickNotifier.new,
 );
 
+/// Bumped on every `booking.*` event — a table got reserved, a booked party
+/// is due, a booking moved or was cancelled. The arrivals list re-pulls.
+final bookingTickProvider = NotifierProvider<TickNotifier, int>(
+  TickNotifier.new,
+);
+
 /// SSE connection state — the KDS header dot / reconnecting banner.
 class ConnectedNotifier extends Notifier<bool> {
   @override

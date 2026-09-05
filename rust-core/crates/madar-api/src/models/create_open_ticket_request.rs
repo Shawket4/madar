@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateOpenTicketRequest {
+    /// The booking this party arrived under: the ticket links to it and the booking moves to `seated` in the same transaction.
+    #[serde(rename = "booking_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub booking_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
     #[serde(rename = "customer_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -44,6 +47,7 @@ pub struct CreateOpenTicketRequest {
 impl CreateOpenTicketRequest {
     pub fn new(branch_id: uuid::Uuid, items: Vec<models::OrderItemInput>) -> CreateOpenTicketRequest {
         CreateOpenTicketRequest {
+            booking_id: None,
             branch_id,
             customer_name: None,
             discount_id: None,

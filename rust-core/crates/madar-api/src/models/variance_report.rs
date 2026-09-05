@@ -29,7 +29,6 @@ pub struct VarianceReport {
     /// Count of counted rows whose cost was unknown (excluded from totals).
     #[serde(rename = "unknown_cost_count")]
     pub unknown_cost_count: i64,
-    /// Org tolerance used to compute `is_flagged`.
     #[serde(rename = "variance_threshold_pct")]
     pub variance_threshold_pct: f64,
 }

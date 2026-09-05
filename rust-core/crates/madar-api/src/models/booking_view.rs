@@ -13,86 +13,98 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BookingView {
-    #[serde(rename = "arrived_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub arrived_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
+    #[serde(rename = "cancel_reason", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub cancel_reason: Option<Option<String>>,
     #[serde(rename = "cancelled_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub cancelled_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(rename = "cancelled_by", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub cancelled_by: Option<Option<String>>,
     #[serde(rename = "completed_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "created_by", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub created_by: Option<Option<uuid::Uuid>>,
-    #[serde(rename = "customer_lat", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub customer_lat: Option<Option<f64>>,
-    #[serde(rename = "customer_lng", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub customer_lng: Option<Option<f64>>,
-    #[serde(rename = "customer_name")]
-    pub customer_name: String,
-    #[serde(rename = "customer_phone")]
-    pub customer_phone: String,
+    #[serde(rename = "ends_at")]
+    pub ends_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(rename = "guest_name")]
+    pub guest_name: String,
+    #[serde(rename = "guest_phone")]
+    pub guest_phone: String,
+    /// The floor shows the claimed tables as held from here (branch `hold_minutes` before the start). Clients compare with their clock.
+    #[serde(rename = "held_from")]
+    pub held_from: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
-    #[serde(rename = "kind")]
-    pub kind: String,
+    #[serde(rename = "locale")]
+    pub locale: String,
+    /// Active but holding no table: the host must assign one.
+    #[serde(rename = "needs_table")]
+    pub needs_table: bool,
     #[serde(rename = "no_show_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub no_show_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "notes", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub notes: Option<Option<String>>,
-    #[serde(rename = "notified_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub notified_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    #[serde(rename = "org_id")]
-    pub org_id: uuid::Uuid,
-    #[serde(rename = "otp_verified")]
-    pub otp_verified: bool,
+    #[serde(rename = "open_ticket_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub open_ticket_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "party_size")]
     pub party_size: i32,
-    #[serde(rename = "quoted_ready_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub quoted_ready_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    #[serde(rename = "reserved_for", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub reserved_for: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(rename = "phone_verified")]
+    pub phone_verified: bool,
+    #[serde(rename = "reminder_sent_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub reminder_sent_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "seated_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub seated_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(rename = "section_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub section_id: Option<Option<uuid::Uuid>>,
+    /// `public` | `host`.
     #[serde(rename = "source")]
     pub source: String,
+    #[serde(rename = "starts_at")]
+    pub starts_at: chrono::DateTime<chrono::FixedOffset>,
+    /// `confirmed` | `seated` | `completed` | `no_show` | `cancelled`.
     #[serde(rename = "status")]
     pub status: String,
-    /// Assigned table ids (multiple ⇒ merged tables).
     #[serde(rename = "table_ids")]
     pub table_ids: Vec<uuid::Uuid>,
+    #[serde(rename = "table_labels")]
+    pub table_labels: Vec<String>,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
 }
 
 impl BookingView {
-    pub fn new(branch_id: uuid::Uuid, created_at: chrono::DateTime<chrono::FixedOffset>, customer_name: String, customer_phone: String, id: uuid::Uuid, kind: String, org_id: uuid::Uuid, otp_verified: bool, party_size: i32, source: String, status: String, table_ids: Vec<uuid::Uuid>, updated_at: chrono::DateTime<chrono::FixedOffset>) -> BookingView {
+    pub fn new(branch_id: uuid::Uuid, created_at: chrono::DateTime<chrono::FixedOffset>, ends_at: chrono::DateTime<chrono::FixedOffset>, guest_name: String, guest_phone: String, held_from: chrono::DateTime<chrono::FixedOffset>, id: uuid::Uuid, locale: String, needs_table: bool, party_size: i32, phone_verified: bool, source: String, starts_at: chrono::DateTime<chrono::FixedOffset>, status: String, table_ids: Vec<uuid::Uuid>, table_labels: Vec<String>, updated_at: chrono::DateTime<chrono::FixedOffset>) -> BookingView {
         BookingView {
-            arrived_at: None,
             branch_id,
+            cancel_reason: None,
             cancelled_at: None,
+            cancelled_by: None,
             completed_at: None,
             created_at,
             created_by: None,
-            customer_lat: None,
-            customer_lng: None,
-            customer_name,
-            customer_phone,
+            ends_at,
+            guest_name,
+            guest_phone,
+            held_from,
             id,
-            kind,
+            locale,
+            needs_table,
             no_show_at: None,
             notes: None,
-            notified_at: None,
-            org_id,
-            otp_verified,
+            open_ticket_id: None,
             party_size,
-            quoted_ready_at: None,
-            reserved_for: None,
+            phone_verified,
+            reminder_sent_at: None,
             seated_at: None,
+            section_id: None,
             source,
+            starts_at,
             status,
             table_ids,
+            table_labels,
             updated_at,
         }
     }

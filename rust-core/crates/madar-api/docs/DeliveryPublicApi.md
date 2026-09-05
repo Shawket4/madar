@@ -5,17 +5,14 @@ All URIs are relative to *http://localhost:8080*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**create_delivery_order**](DeliveryPublicApi.md#create_delivery_order) | **POST** /public/delivery-orders | 
-[**create_public_booking**](DeliveryPublicApi.md#create_public_booking) | **POST** /public/reservations | 
 [**delivery_quote**](DeliveryPublicApi.md#delivery_quote) | **GET** /public/branches/{id}/delivery-quote | 
 [**guest_order_history**](DeliveryPublicApi.md#guest_order_history) | **GET** /public/delivery-orders/history | 
 [**guest_past_locations**](DeliveryPublicApi.md#guest_past_locations) | **GET** /public/delivery-orders/past-locations | 
-[**list_reservation_public_branches**](DeliveryPublicApi.md#list_reservation_public_branches) | **GET** /public/reservations/branches | 
 [**otp_request**](DeliveryPublicApi.md#otp_request) | **POST** /public/otp/request | 
 [**otp_verify**](DeliveryPublicApi.md#otp_verify) | **POST** /public/otp/verify | 
 [**public_branches**](DeliveryPublicApi.md#public_branches) | **GET** /public/branches | 
 [**public_menu**](DeliveryPublicApi.md#public_menu) | **GET** /public/branches/{id}/menu | 
 [**track_delivery_order**](DeliveryPublicApi.md#track_delivery_order) | **GET** /public/delivery-orders/{id}/track | 
-[**track_public_booking**](DeliveryPublicApi.md#track_public_booking) | **GET** /public/reservations/{id} | 
 
 
 
@@ -34,34 +31,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::DeliveryOrder**](DeliveryOrder.md)
-
-### Authorization
-
-No authorization required
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## create_public_booking
-
-> models::PublicBooking create_public_booking(public_create_booking_request)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**public_create_booking_request** | [**PublicCreateBookingRequest**](PublicCreateBookingRequest.md) |  | [required] |
-
-### Return type
-
-[**models::PublicBooking**](PublicBooking.md)
 
 ### Authorization
 
@@ -154,34 +123,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::GuestSavedLocation>**](GuestSavedLocation.md)
-
-### Authorization
-
-No authorization required
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## list_reservation_public_branches
-
-> Vec<models::PublicBranch> list_reservation_public_branches(org_id)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**org_id** | **uuid::Uuid** |  | [required] |
-
-### Return type
-
-[**Vec<models::PublicBranch>**](PublicBranch.md)
 
 ### Authorization
 
@@ -324,34 +265,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::DeliveryTracking**](DeliveryTracking.md)
-
-### Authorization
-
-No authorization required
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## track_public_booking
-
-> models::PublicBooking track_public_booking(id)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**id** | **uuid::Uuid** | Booking ID | [required] |
-
-### Return type
-
-[**models::PublicBooking**](PublicBooking.md)
 
 ### Authorization
 

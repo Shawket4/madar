@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**booking_id** | Option<**uuid::Uuid**> | The booking this party arrived under: the ticket links to it and the booking moves to `seated` in the same transaction. | [optional]
 **branch_id** | **uuid::Uuid** |  | 
 **customer_name** | Option<**String**> |  | [optional]
 **discount_id** | Option<**uuid::Uuid**> | Optional discount the waiter applied at order time (overridable at settle). | [optional]

@@ -124,12 +124,6 @@ pub struct SetStatusParams {
     pub status_input: models::StatusInput
 }
 
-/// struct for passing parameters to the method [`stream_delivery_orders`]
-#[derive(Clone, Debug)]
-pub struct StreamDeliveryOrdersParams {
-    pub branch_id: String
-}
-
 /// struct for passing parameters to the method [`update_zone`]
 #[derive(Clone, Debug)]
 pub struct UpdateZoneParams {
@@ -349,19 +343,6 @@ pub enum SetPrepTimeError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SetStatusError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`stream_delivery_orders`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum StreamDeliveryOrdersError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -993,33 +974,6 @@ pub async fn set_status(configuration: &configuration::Configuration, params: Se
     } else {
         let content = resp.text().await?;
         let entity: Option<SetStatusError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent { status, content, entity }))
-    }
-}
-
-pub async fn stream_delivery_orders(configuration: &configuration::Configuration, params: StreamDeliveryOrdersParams) -> Result<(), Error<StreamDeliveryOrdersError>> {
-
-    let uri_str = format!("{}/delivery-orders/stream", configuration.base_path);
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    req_builder = req_builder.query(&[("branch_id", &params.branch_id.to_string())]);
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<StreamDeliveryOrdersError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }

@@ -6,11 +6,12 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **branch_id** | **uuid::Uuid** |  | 
 **branch_name** | **String** |  | 
-**current_stock** | **f64** |  | 
-**deficit** | **f64** | reorder_threshold − current_stock: how much to order to reach par. | 
 **ingredient_name** | **String** |  | 
+**on_hand** | **f64** |  | 
 **org_ingredient_id** | **uuid::Uuid** |  | 
-**reorder_threshold** | **f64** |  | 
+**par_max** | Option<**f64**> | Order-up-to level; `null` when only a reorder point is set. | [optional]
+**par_min** | **f64** | Reorder point the item is at or below. | 
+**suggested_qty** | **f64** | Quantity to bring stock back to par_max (or par_min when no max is set). | 
 **supplier_id** | Option<**uuid::Uuid**> | Default supplier for this ingredient (for one-click \"create PO\"); may be null. | [optional]
 **supplier_name** | Option<**String**> |  | [optional]
 **unit** | **String** |  | 

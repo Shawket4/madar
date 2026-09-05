@@ -514,8 +514,37 @@ impl LanRelay {
         replay_op: Option<String>,
         sent_at_ms: i64,
     ) {
+        self.publish_with_id(
+            uuid::Uuid::new_v4().to_string(),
+            topic,
+            event_type,
+            data,
+            replay_op,
+            sent_at_ms,
+        )
+        .await;
+    }
+
+    /// Publish with a CALLER-CHOSEN `msg_id`. Used to rebroadcast a cloud-only
+    /// event (an online order, a booking) onto the LAN: every till that holds a
+    /// cloud connection re-publishes it under the SAME deterministic id
+    /// (`cloud:<branch>:<event id>`), so a waiter tablet without internet hears
+    /// it exactly once no matter how many tills relayed it. A `msg_id` this
+    /// device already saw (a peer beat us to it) is not re-sent.
+    pub async fn publish_with_id(
+        &self,
+        msg_id: String,
+        topic: &str,
+        event_type: &str,
+        data: String,
+        replay_op: Option<String>,
+        sent_at_ms: i64,
+    ) {
+        if !self.shared.seen.lock().unwrap().insert(&msg_id) {
+            return;
+        }
         let msg = LanMessage {
-            msg_id: uuid::Uuid::new_v4().to_string(),
+            msg_id,
             branch_id: self.shared.cfg.branch_id.clone(),
             topic: topic.to_string(),
             event_type: event_type.to_string(),
@@ -525,7 +554,6 @@ impl LanRelay {
             sent_at_ms,
             replay_op,
         };
-        self.shared.seen.lock().unwrap().insert(&msg.msg_id);
         let frame = sign_frame(&self.shared.cfg.key, &msg);
         if let Ok(json) = serde_json::to_string(&frame) {
             fanout(&self.shared, format!("MSG {json}")).await;
@@ -1090,6 +1118,41 @@ mod tests {
             rec_b.0.lock().unwrap().is_empty(),
             "foreign-key frame is rejected, not delivered"
         );
+    }
+
+    /// Two tills that both heard a cloud event re-publish it under the SAME
+    /// deterministic id; the LAN-only peer hears it once.
+    #[tokio::test]
+    async fn cloud_rebroadcast_with_one_id_reaches_a_peer_once() {
+        let key = branch_key("aabbccdd", "b1");
+        let rec_b = rec();
+        let a = LanRelay::new(lan_cfg("A", key.clone()), rec());
+        let c = LanRelay::new(lan_cfg("C", key.clone()), rec());
+        let b = LanRelay::new(lan_cfg("B", key.clone()), rec_b.clone());
+        a.start().await.unwrap();
+        b.start().await.unwrap();
+        c.start().await.unwrap();
+        a.add_peer(loopback_peer("B", b.tcp_port()));
+        c.add_peer(loopback_peer("B", b.tcp_port()));
+        for relay in [&a, &c] {
+            relay
+                .publish_with_id(
+                    "cloud:b1:42".into(),
+                    "bookings",
+                    "booking.created",
+                    r#"{"id":"bk1"}"#.into(),
+                    None,
+                    now_ms(),
+                )
+                .await;
+        }
+        wait_until(|| !rec_b.0.lock().unwrap().is_empty()).await;
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        let got = rec_b.0.lock().unwrap();
+        assert_eq!(got.len(), 1, "B heard the cloud event exactly once");
+        assert_eq!(got[0].msg_id, "cloud:b1:42");
+        assert_eq!(got[0].event_type, "booking.created");
+        assert!(got[0].replay_op.is_none(), "display-only: the write lives in the cloud");
     }
 
     #[tokio::test]

@@ -14,10 +14,10 @@ use serde::{Deserialize, Serialize};
 /// ReorderLine : One ingredient to reorder, with the quantity needed to reach its order-up-to level (par_max, else the reorder point).
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReorderLine {
-    #[serde(rename = "current_stock")]
-    pub current_stock: f64,
     #[serde(rename = "ingredient_name")]
     pub ingredient_name: String,
+    #[serde(rename = "on_hand")]
+    pub on_hand: f64,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
     /// Quantity (in base units) to bring stock up to the order-up-to level.
@@ -29,10 +29,10 @@ pub struct ReorderLine {
 
 impl ReorderLine {
     /// One ingredient to reorder, with the quantity needed to reach its order-up-to level (par_max, else the reorder point).
-    pub fn new(current_stock: f64, ingredient_name: String, org_ingredient_id: uuid::Uuid, suggested_qty: f64, unit: String) -> ReorderLine {
+    pub fn new(ingredient_name: String, on_hand: f64, org_ingredient_id: uuid::Uuid, suggested_qty: f64, unit: String) -> ReorderLine {
         ReorderLine {
-            current_stock,
             ingredient_name,
+            on_hand,
             org_ingredient_id,
             suggested_qty,
             unit,

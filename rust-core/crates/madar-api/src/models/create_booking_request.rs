@@ -15,34 +15,51 @@ use serde::{Deserialize, Serialize};
 pub struct CreateBookingRequest {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
-    #[serde(rename = "customer_name")]
-    pub customer_name: String,
-    #[serde(rename = "customer_phone")]
-    pub customer_phone: String,
-    /// `reservation` or `walk_in`. Defaults from whether `reserved_for` is set.
-    #[serde(rename = "kind", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub kind: Option<Option<String>>,
+    /// Defaults to the branch's `default_duration_minutes`.
+    #[serde(rename = "duration_minutes", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub duration_minutes: Option<Option<i32>>,
+    /// Create even when no table fits (the booking shows as \"needs a table\").
+    #[serde(rename = "force", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub force: Option<Option<bool>>,
+    #[serde(rename = "guest_name")]
+    pub guest_name: String,
+    #[serde(rename = "guest_phone")]
+    pub guest_phone: String,
+    /// `en` | `ar` for the guest's messages.
+    #[serde(rename = "locale", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub locale: Option<Option<String>>,
     #[serde(rename = "notes", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub notes: Option<Option<String>>,
-    #[serde(rename = "party_size", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub party_size: Option<Option<i32>>,
-    #[serde(rename = "quoted_ready_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub quoted_ready_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    #[serde(rename = "reserved_for", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub reserved_for: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    #[serde(rename = "party_size")]
+    pub party_size: i32,
+    /// Seating preference for the auto-assigner.
+    #[serde(rename = "section_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub section_id: Option<Option<uuid::Uuid>>,
+    /// Send the WhatsApp confirmation (default true).
+    #[serde(rename = "send_confirmation", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub send_confirmation: Option<Option<bool>>,
+    #[serde(rename = "starts_at")]
+    pub starts_at: chrono::DateTime<chrono::FixedOffset>,
+    /// Explicit tables (skips auto-assignment). Empty = deliberately none.
+    #[serde(rename = "table_ids", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub table_ids: Option<Option<Vec<uuid::Uuid>>>,
 }
 
 impl CreateBookingRequest {
-    pub fn new(branch_id: uuid::Uuid, customer_name: String, customer_phone: String) -> CreateBookingRequest {
+    pub fn new(branch_id: uuid::Uuid, guest_name: String, guest_phone: String, party_size: i32, starts_at: chrono::DateTime<chrono::FixedOffset>) -> CreateBookingRequest {
         CreateBookingRequest {
             branch_id,
-            customer_name,
-            customer_phone,
-            kind: None,
+            duration_minutes: None,
+            force: None,
+            guest_name,
+            guest_phone,
+            locale: None,
             notes: None,
-            party_size: None,
-            quoted_ready_at: None,
-            reserved_for: None,
+            party_size,
+            section_id: None,
+            send_confirmation: None,
+            starts_at,
+            table_ids: None,
         }
     }
 }

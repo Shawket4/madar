@@ -11,19 +11,21 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// Column : One output column: its SQL alias (also the JSON key) and how to render it.
+/// Column : One output column: the SQL alias (also the JSON key on every row) plus how to render it.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Column {
+    /// SQL alias / JSON key.
     #[serde(rename = "key")]
     pub key: String,
     #[serde(rename = "kind")]
     pub kind: models::ColumnKind,
+    /// Human label for a header or legend.
     #[serde(rename = "label")]
     pub label: String,
 }
 
 impl Column {
-    /// One output column: its SQL alias (also the JSON key) and how to render it.
+    /// One output column: the SQL alias (also the JSON key on every row) plus how to render it.
     pub fn new(key: String, kind: models::ColumnKind, label: String) -> Column {
         Column {
             key,

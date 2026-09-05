@@ -137,7 +137,7 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**branch_id** | **uuid::Uuid** | Branch ID | [required] |
+**branch_id** | **uuid::Uuid** | Branch ID, or the all-zeros UUID for every branch in the org | [required] |
 
 ### Return type
 

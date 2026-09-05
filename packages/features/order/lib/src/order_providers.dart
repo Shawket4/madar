@@ -64,8 +64,10 @@ class OrderState {
     this.cartDraftId,
     this.cartTableId,
     this.cartTableLabel,
+    this.cartBookingId,
     this.drafts = const [],
     this.openTickets = const [],
+    this.arrivals = const [],
     this.floorLayout,
     this.transferQueue = const [],
     this.pendingTableClear,
@@ -122,9 +124,16 @@ class OrderState {
   final String? cartTableId;
   final String? cartTableLabel;
 
+  /// The booking this order seats (set by "Seat this party"); the fired
+  /// ticket carries it so the server links the two. Cleared on fire/park.
+  final String? cartBookingId;
+
   // ── drafts + waiter tickets ──────────────────────────────────────────────
   final List<DraftView> drafts;
   final List<TicketView> openTickets;
+
+  /// Today's active bookings (the arrivals list), from the offline cache.
+  final List<BookingView> arrivals;
 
   // ── floor (offline mirror) ───────────────────────────────────────────────
   /// The branch layout + occupancy. EMPTY sections+tables = the branch has
@@ -198,8 +207,10 @@ class OrderState {
     Object? cartDraftId = _unset,
     Object? cartTableId = _unset,
     Object? cartTableLabel = _unset,
+    Object? cartBookingId = _unset,
     List<DraftView>? drafts,
     List<TicketView>? openTickets,
+    List<BookingView>? arrivals,
     Object? floorLayout = _unset,
     List<TransferQueueView>? transferQueue,
     Object? pendingTableClear = _unset,
@@ -238,8 +249,12 @@ class OrderState {
     cartTableLabel: identical(cartTableLabel, _unset)
         ? this.cartTableLabel
         : cartTableLabel as String?,
+    cartBookingId: identical(cartBookingId, _unset)
+        ? this.cartBookingId
+        : cartBookingId as String?,
     drafts: drafts ?? this.drafts,
     openTickets: openTickets ?? this.openTickets,
+    arrivals: arrivals ?? this.arrivals,
     floorLayout: identical(floorLayout, _unset)
         ? this.floorLayout
         : floorLayout as FloorLayoutView?,
@@ -526,6 +541,7 @@ class OrderNotifier extends Notifier<OrderState> {
         cartDraftId: lines.isEmpty ? null : state.cartDraftId,
         cartTableId: lines.isEmpty ? null : state.cartTableId,
         cartTableLabel: lines.isEmpty ? null : state.cartTableLabel,
+        cartBookingId: lines.isEmpty ? null : state.cartBookingId,
         cartTotals: totals,
       );
     } on MadarError catch (e) {
@@ -587,6 +603,7 @@ class OrderNotifier extends Notifier<OrderState> {
       cartDraftId: null,
       cartTableId: null,
       cartTableLabel: null,
+      cartBookingId: null,
       cartTotals: totals,
     );
   }
@@ -716,6 +733,7 @@ class OrderNotifier extends Notifier<OrderState> {
       cartDraftId: null,
       cartTableId: null,
       cartTableLabel: null,
+      cartBookingId: null,
     );
     await loadCart();
     await Future.wait([loadDrafts(), loadFloor()]);
@@ -810,6 +828,7 @@ class OrderNotifier extends Notifier<OrderState> {
       cartDraftId: null,
       cartTableId: null,
       cartTableLabel: null,
+      cartBookingId: null,
     );
     await restoreDraft(id);
   }
@@ -903,10 +922,94 @@ class OrderNotifier extends Notifier<OrderState> {
   Future<void> loadFloor() async {
     final layout = await _quiet(_bridge.floorLayout);
     final queue = await _quiet(_bridge.listTransferQueue);
+    final arrivals = await _quiet(_bridge.listArrivals);
     state = state.copyWith(
       floorLayout: layout ?? state.floorLayout,
       transferQueue: queue ?? state.transferQueue,
+      arrivals: arrivals ?? state.arrivals,
     );
+  }
+
+  /// A booked party arrived at their table: mark the booking seated
+  /// (optimistic + queued) and point the LIVE order at that table under the
+  /// guest's name, so the fire that follows links back to the booking.
+  Future<void> seatBooking(FloorTableStateView t) async {
+    final id = t.bookingId;
+    if (id == null) return;
+    await _seatBooking(
+      id,
+      tableId: t.id,
+      tableLabel: t.label,
+      guest: t.bookingGuest,
+    );
+  }
+
+  /// Seat from the arrivals list (the booking's own table, if it has one).
+  Future<void> seatArrival(BookingView b) async {
+    final tableId = b.tableIds.isEmpty ? null : b.tableIds.first;
+    final label = b.tableLabels.isEmpty ? null : b.tableLabels.first;
+    await _seatBooking(
+      b.id,
+      tableId: tableId,
+      tableLabel: label,
+      guest: b.guestName,
+    );
+  }
+
+  Future<void> _seatBooking(
+    String bookingId, {
+    required String? tableId,
+    required String? tableLabel,
+    required String? guest,
+  }) async {
+    try {
+      await _bridge.seatBooking(bookingId: bookingId, tableId: tableId);
+    } on MadarError catch (e) {
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+      return;
+    }
+    state = state.copyWith(
+      cartTableId: tableId ?? state.cartTableId,
+      cartTableLabel: tableLabel ?? state.cartTableLabel,
+      cartBookingId: bookingId,
+      cartName: (guest?.trim().isNotEmpty ?? false)
+          ? guest!.trim()
+          : state.cartName,
+    );
+    showToast(
+      _tr('tables.booking_seated'),
+      tone: ChipTone.success,
+      icon: 'checkmark.circle',
+    );
+    await loadFloor();
+    _refreshShell();
+  }
+
+  /// The party never came: release their table (optimistic + queued).
+  Future<void> noShowBooking(String bookingId) async {
+    try {
+      await _bridge.noShowBooking(bookingId: bookingId);
+    } on MadarError catch (e) {
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+      return;
+    }
+    if (state.cartBookingId == bookingId) {
+      state = state.copyWith(cartBookingId: null);
+    }
+    showToast(
+      _tr('tables.booking_no_show'),
+      tone: ChipTone.warning,
+      icon: 'xmark.circle',
+    );
+    await loadFloor();
   }
 
   /// PULL the floor from the server, then re-project. This is what makes a
@@ -1092,7 +1195,7 @@ class OrderNotifier extends Notifier<OrderState> {
             guestCount: guestCount,
           );
     if (ok) {
-      state = state.copyWith(activeTicketId: null);
+      state = state.copyWith(activeTicketId: null, cartBookingId: null);
       _refreshShell();
     }
     return ok;
@@ -1111,6 +1214,8 @@ class OrderNotifier extends Notifier<OrderState> {
         customerName: customerName,
         notes: notes,
         guestCount: guestCount,
+        // The booking this order seats, if the waiter tapped "Seat this party".
+        bookingId: state.cartBookingId,
       );
       await loadCart();
       await loadOpenTickets();

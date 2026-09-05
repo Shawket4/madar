@@ -11,23 +11,26 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// HistoryTurn : One earlier exchange in the same conversation, in COMPACT form: the question and which report answered it. This is all the model needs to resolve a follow-up (\"and last month?\", \"what about Sidi Henish?\") — never the full result tables — so per-message cost stays constant with the sliding window.
+/// HistoryTurn : One earlier exchange, in compact form.  Result *tables* are never replayed — they are large, and the model does not need last week's rows to answer this week's question. What it does need is the **query** that answered before, which is why `spec` is here: a follow-up like \"and last month?\" or \"same thing for Marina\" is that spec with one field changed. Prose alone forces the model to re-derive the whole query from its own summary, which is exactly where a follow-up silently drifts into answering a different question.  Clients get the spec back on every result block (`results[].spec`) and should echo it here.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HistoryTurn {
-    /// The earlier user question.
+    /// What the assistant replied. Optional so a client can send a partial log.
+    #[serde(rename = "answer", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub answer: Option<Option<String>>,
     #[serde(rename = "question")]
     pub question: String,
-    /// The report id that answered it, if known.
-    #[serde(rename = "report_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub report_id: Option<Option<String>>,
+    /// The query that produced that answer, from `results[].spec`. Optional so an older client, or a turn that ran no query, still works.
+    #[serde(rename = "spec", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub spec: Option<Option<Box<models::QuerySpec>>>,
 }
 
 impl HistoryTurn {
-    /// One earlier exchange in the same conversation, in COMPACT form: the question and which report answered it. This is all the model needs to resolve a follow-up (\"and last month?\", \"what about Sidi Henish?\") — never the full result tables — so per-message cost stays constant with the sliding window.
+    /// One earlier exchange, in compact form.  Result *tables* are never replayed — they are large, and the model does not need last week's rows to answer this week's question. What it does need is the **query** that answered before, which is why `spec` is here: a follow-up like \"and last month?\" or \"same thing for Marina\" is that spec with one field changed. Prose alone forces the model to re-derive the whole query from its own summary, which is exactly where a follow-up silently drifts into answering a different question.  Clients get the spec back on every result block (`results[].spec`) and should echo it here.
     pub fn new(question: String) -> HistoryTurn {
         HistoryTurn {
+            answer: None,
             question,
-            report_id: None,
+            spec: None,
         }
     }
 }

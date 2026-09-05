@@ -13,24 +13,30 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct VarianceRow {
+    /// Book stock the difference is measured against (at finalize).
+    #[serde(rename = "book_qty")]
+    pub book_qty: f64,
+    #[serde(rename = "category_name")]
+    pub category_name: String,
     #[serde(rename = "counted_qty", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub counted_qty: Option<Option<f64>>,
-    #[serde(rename = "expected_qty")]
-    pub expected_qty: f64,
     #[serde(rename = "ingredient_name")]
     pub ingredient_name: String,
     /// True when |difference| exceeds the org threshold (or appears/vanishes from zero).
     #[serde(rename = "is_flagged")]
     pub is_flagged: bool,
+    /// Book stock when the count opened.
+    #[serde(rename = "opening_qty")]
+    pub opening_qty: f64,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
     #[serde(rename = "unit")]
     pub unit: String,
     #[serde(rename = "unit_cost", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub unit_cost: Option<Option<i64>>,
+    /// counted − book.
     #[serde(rename = "variance", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub variance: Option<Option<f64>>,
-    /// theft | spoilage | breakage | miscount | supplier_short | transfer_error | other.
     #[serde(rename = "variance_reason", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub variance_reason: Option<Option<String>>,
     /// variance × unit_cost in piastres; `null` when cost unknown.
@@ -39,12 +45,14 @@ pub struct VarianceRow {
 }
 
 impl VarianceRow {
-    pub fn new(expected_qty: f64, ingredient_name: String, is_flagged: bool, org_ingredient_id: uuid::Uuid, unit: String) -> VarianceRow {
+    pub fn new(book_qty: f64, category_name: String, ingredient_name: String, is_flagged: bool, opening_qty: f64, org_ingredient_id: uuid::Uuid, unit: String) -> VarianceRow {
         VarianceRow {
+            book_qty,
+            category_name,
             counted_qty: None,
-            expected_qty,
             ingredient_name,
             is_flagged,
+            opening_qty,
             org_ingredient_id,
             unit,
             unit_cost: None,

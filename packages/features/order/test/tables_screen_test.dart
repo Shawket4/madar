@@ -50,6 +50,8 @@ class _FakeBridge implements MadarBridge {
     if (name == #listTransferQueue) {
       return Future<List<TransferQueueView>>.value(const []);
     }
+    if (name == #listArrivals) return Future<List<BookingView>>.value(const []);
+    if (name == #refreshArrivals) return Future<void>.value();
     if (name == #listDrafts) return Future<List<DraftView>>.value(const []);
     if (name == #cartLines) return Future<List<CartLineView>>.value(const []);
     if (name == #currentSession) return null;

@@ -71,7 +71,14 @@ pub fn topics_for_role(role: &str) -> Vec<String> {
         // A waiter works the floor too: `floor` carries table/held-order/
         // layout changes (a manager re-arranging the room in the dashboard,
         // another till seating a party) so the canvas is never stale.
-        "waiter" => vec!["tickets".into(), "kitchen".into(), "floor".into()],
+        // `bookings` rides the SAME connection: a reserved table and its
+        // "party due" ping reach the floor without a second stream.
+        "waiter" => vec![
+            "tickets".into(),
+            "kitchen".into(),
+            "floor".into(),
+            "bookings".into(),
+        ],
         // teller / till (and any other operating role): the full set.
         _ => vec![
             "delivery".into(),
@@ -79,6 +86,7 @@ pub fn topics_for_role(role: &str) -> Vec<String> {
             "tickets".into(),
             "orders".into(),
             "floor".into(),
+            "bookings".into(),
         ],
     }
 }
@@ -95,13 +103,16 @@ struct Alert {
 /// localized title/body. Only NEW-work events alert — a fire/round/new-delivery/
 /// ready; bumps, settles, voids and plain updates refresh the board silently.
 /// Pure + unit-tested. Returns `None` for non-alert events or undecodable data.
-fn alert_for(event_type: &str, data: &str, locale: &str) -> Option<Alert> {
+fn alert_for(event_type: &str, data: &str, locale: &str, tz: &str) -> Option<Alert> {
     let key = match event_type {
         "delivery.created" => "notif.new_delivery",
         "ticket.fired" => "notif.new_ticket",
         "ticket.round_added" => "notif.new_round",
         "kitchen.fired" => "notif.new_kitchen",
         "kitchen.ticket_ready" | "ticket.ready" => "notif.ready",
+        // A table got reserved / a booked party is due: the floor's new work.
+        "booking.created" => "notif.new_booking",
+        "booking.arriving" => "notif.booking_arriving",
         _ => return None,
     };
     let v: serde_json::Value = serde_json::from_str(data).ok()?;
@@ -111,6 +122,33 @@ fn alert_for(event_type: &str, data: &str, locale: &str) -> Option<Alert> {
             .map(|s| s.to_string())
             .filter(|s| !s.is_empty())
     };
+    if event_type.starts_with("booking.") {
+        // "Ahmed · 4 · 19:30 · T12" — who, how many, when (branch zone), where.
+        let id = pick(&["id"]).unwrap_or_default();
+        let guest = pick(&["guest_name"]);
+        let party = v.get("party_size").and_then(|x| x.as_i64()).map(|n| n.to_string());
+        let when = pick(&["starts_at"]).and_then(|s| local_hhmm(&s, tz));
+        let tables = v
+            .get("table_labels")
+            .and_then(|x| x.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str())
+                    .collect::<Vec<_>>()
+                    .join("+")
+            })
+            .filter(|s| !s.is_empty());
+        let body = [guest, party, when, tables]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" · ");
+        return Some(Alert {
+            title: crate::i18n::tr(locale, key),
+            body,
+            tag: format!("{event_type}:{id}"),
+        });
+    }
     let id = pick(&["id", "order_id", "open_ticket_id", "msg_id"]).unwrap_or_default();
     let reff = pick(&[
         "delivery_ref",
@@ -132,6 +170,13 @@ fn alert_for(event_type: &str, data: &str, locale: &str) -> Option<Alert> {
     })
 }
 
+/// `HH:MM` of an RFC3339 instant in the branch zone (`None` when unparsable).
+fn local_hhmm(rfc3339: &str, tz: &str) -> Option<String> {
+    let at = chrono::DateTime::parse_from_rfc3339(rfc3339).ok()?;
+    let zone: chrono_tz::Tz = tz.parse().unwrap_or(chrono_tz::Africa::Cairo);
+    Some(at.with_timezone(&zone).format("%H:%M").to_string())
+}
+
 /// Per-role alert relevance: a device pings/notifies only for events that are
 /// INCOMING work for its role, never the work it produces itself. A waiter FIRES
 /// tickets (and the kitchen tickets behind them), so a fire is not "new work" to
@@ -144,7 +189,9 @@ fn role_wants_alert(event_type: &str, role: &str) -> bool {
         // The backend ALSO emits `kitchen.ticket_ready` on the kitchen topic for the
         // SAME ready open ticket, and the waiter subscribes to both topics — alerting
         // on both double-pinged the waiter (two notifications) for one order.
-        "waiter" => event_type == "ticket.ready",
+        // A waiter also hears the floor's bookings: a new reservation and a
+        // party that is due are their work (walk over, greet, seat).
+        "waiter" => event_type == "ticket.ready" || event_type.starts_with("booking."),
         "kitchen" => event_type == "kitchen.fired",
         // Teller / cashier / manager: incoming work to settle / handle — but NOT
         // `kitchen.fired`. That's the kitchen device's new-work signal; one waiter
@@ -195,6 +242,8 @@ pub(crate) struct AlertingListener {
     locale: Arc<RwLock<String>>,
     /// The signed-in role — gates which events are "incoming work" worth a ping.
     role: String,
+    /// The branch's IANA zone, for times in alert bodies ("19:30").
+    tz: String,
     dedup: std::sync::Mutex<AlertDedup>,
 }
 
@@ -204,12 +253,14 @@ impl AlertingListener {
         player: Arc<dyn RealtimePlayer>,
         locale: Arc<RwLock<String>>,
         role: String,
+        tz: String,
     ) -> Self {
         Self {
             inner,
             player,
             locale,
             role,
+            tz,
             dedup: std::sync::Mutex::new(AlertDedup::new()),
         }
     }
@@ -225,7 +276,7 @@ impl EventListener for AlertingListener {
             return;
         }
         let locale = self.locale.read().map(|g| g.clone()).unwrap_or_default();
-        if let Some(alert) = alert_for(&event.event_type, &event.data, &locale) {
+        if let Some(alert) = alert_for(&event.event_type, &event.data, &locale, &self.tz) {
             let fresh = self
                 .dedup
                 .lock()
@@ -326,6 +377,19 @@ impl Drop for StreamHandle {
     }
 }
 
+/// Where a cloud-only event goes AFTER the host heard it: onto the LAN, so a
+/// peer with no internet hears it too. Online orders and bookings are minted
+/// in the cloud — nothing on the LAN would otherwise carry them. Implemented
+/// by `MadarCore` over its LAN relay; `None` when the device has none.
+pub(crate) trait CloudRelay: Send + Sync {
+    fn relay(&self, event_id: &str, event: &RealtimeEvent);
+}
+
+/// Topics that only ever originate in the cloud (see [`CloudRelay`]).
+pub(crate) fn is_cloud_only(event_type: &str) -> bool {
+    event_type.starts_with("delivery.") || event_type.starts_with("booking.")
+}
+
 /// Spawn the supervisor task for one subscription and return its stop handle. The
 /// task reconnects forever (jittered backoff) until aborted or a 401 ends it.
 pub(crate) fn spawn_supervisor(
@@ -333,6 +397,7 @@ pub(crate) fn spawn_supervisor(
     branch_id: String,
     topics: Vec<String>,
     listener: std::sync::Arc<dyn EventListener>,
+    relay: Option<std::sync::Arc<dyn CloudRelay>>,
 ) -> StreamHandle {
     let topics_csv = topics.join(",");
     // Deterministic per-subscription jitter seed (no RNG dep): hash the branch.
@@ -340,7 +405,7 @@ pub(crate) fn spawn_supervisor(
         .bytes()
         .fold(0i64, |a, b| a.wrapping_mul(31).wrapping_add(b as i64));
     let handle = tokio::spawn(async move {
-        run_supervisor(client, branch_id, topics_csv, listener, seed).await;
+        run_supervisor(client, branch_id, topics_csv, listener, relay, seed).await;
     });
     StreamHandle {
         abort: handle.abort_handle(),
@@ -354,6 +419,7 @@ async fn run_supervisor(
     branch_id: String,
     topics_csv: String,
     listener: std::sync::Arc<dyn EventListener>,
+    relay: Option<std::sync::Arc<dyn CloudRelay>>,
     seed: i64,
 ) {
     let mut attempt: i64 = 0;
@@ -366,7 +432,7 @@ async fn run_supervisor(
             Ok(resp) => {
                 attempt = 0;
                 listener.on_connection_changed(true);
-                drain_stream(resp, listener.as_ref(), &mut last_event_id).await;
+                drain_stream(resp, listener.as_ref(), relay.as_deref(), &mut last_event_id).await;
                 listener.on_connection_changed(false);
             }
             // The token is gone — stop. Do NOT touch the outbox's `auth_paused`;
@@ -429,6 +495,7 @@ async fn run_supervisor(
 async fn drain_stream(
     resp: reqwest::Response,
     listener: &dyn EventListener,
+    relay: Option<&dyn CloudRelay>,
     last_event_id: &mut Option<String>,
 ) {
     let mut stream = resp.bytes_stream();
@@ -439,15 +506,26 @@ async fn drain_stream(
             Err(_) => break, // read timeout / reset → reconnect
         };
         for frame in parser.push(&bytes) {
+            // `resync` says the server could not replay our gap: the host
+            // re-seeds every board (it is forwarded like any event), and the
+            // cursor keeps tracking from here.
+            let frame_id = frame.id.clone();
             if let Some(id) = frame.id {
                 *last_event_id = Some(id);
             }
             // A comment-only keepalive (`: ping`) yields no data → skip.
             if !frame.data.is_empty() {
-                listener.on_event(RealtimeEvent {
+                let event = RealtimeEvent {
                     event_type: frame.event_type,
                     data: frame.data,
-                });
+                };
+                listener.on_event(event.clone());
+                // Cloud-only news reaches LAN-only peers through us.
+                if let (Some(r), Some(id)) = (relay, frame_id.as_deref()) {
+                    if is_cloud_only(&event.event_type) {
+                        r.relay(id, &event);
+                    }
+                }
             }
         }
     }
@@ -689,6 +767,30 @@ mod tests {
     }
 
     #[test]
+    fn booking_events_alert_with_who_when_where() {
+        // 16:30Z is 19:30 in Cairo (summer time) — the body speaks branch time.
+        let a = alert_for(
+            "booking.created",
+            r#"{"id":"b1","guest_name":"Ahmed","party_size":4,"starts_at":"2026-09-10T16:30:00Z","table_labels":["T12"]}"#,
+            "en",
+            "Africa/Cairo",
+        )
+        .unwrap();
+        assert_eq!(a.tag, "booking.created:b1");
+        assert_eq!(a.body, "Ahmed · 4 · 19:30 · T12");
+        assert!(alert_for("booking.arriving", r#"{"id":"b1","guest_name":"A"}"#, "ar", "Africa/Cairo").is_some());
+        // A plain change (edit / cancel / seated) refreshes the board silently.
+        assert!(alert_for("booking.changed", r#"{"id":"b1"}"#, "en", "Africa/Cairo").is_none());
+        // Waiters hear bookings; the kitchen never does.
+        assert!(role_wants_alert("booking.created", "waiter"));
+        assert!(role_wants_alert("booking.arriving", "teller"));
+        assert!(!role_wants_alert("booking.created", "kitchen"));
+        // Cloud-only topics are what the LAN rebroadcast carries.
+        assert!(is_cloud_only("booking.created") && is_cloud_only("delivery.created"));
+        assert!(!is_cloud_only("ticket.fired") && !is_cloud_only("kitchen.fired"));
+    }
+
+    #[test]
     fn backoff_grows_and_caps() {
         assert!(compute_stream_backoff_ms(1, 7) >= 1_000);
         assert!(compute_stream_backoff_ms(1, 7) < 2_100);
@@ -703,9 +805,9 @@ mod tests {
         assert_eq!(topics_for_role("kitchen"), ["kitchen"]);
         // Anyone who works the floor also gets `floor` (table state, held
         // orders, and dashboard layout edits), so canvases never go stale.
-        assert_eq!(topics_for_role("waiter"), ["tickets", "kitchen", "floor"]);
+        assert_eq!(topics_for_role("waiter"), ["tickets", "kitchen", "floor", "bookings"]);
         // teller / unknown → the full operating set.
-        for topic in ["delivery", "kitchen", "tickets", "orders", "floor"] {
+        for topic in ["delivery", "kitchen", "tickets", "orders", "floor", "bookings"] {
             assert!(
                 topics_for_role("teller").contains(&topic.to_string()),
                 "teller must subscribe to {topic}"
@@ -720,16 +822,17 @@ mod tests {
             "delivery.created",
             r#"{"id":"o1","delivery_ref":"D-9","customer_name":"Sam"}"#,
             "en",
+            "Africa/Cairo",
         )
         .unwrap();
         assert_eq!(a.tag, "delivery.created:o1");
         assert!(a.body.contains("D-9") && a.body.contains("Sam"));
-        assert!(alert_for("ticket.fired", r#"{"id":"t1","ticket_ref":"T-3"}"#, "en").is_some());
-        assert!(alert_for("kitchen.fired", r#"{"id":"k1"}"#, "en").is_some());
+        assert!(alert_for("ticket.fired", r#"{"id":"t1","ticket_ref":"T-3"}"#, "en", "Africa/Cairo").is_some());
+        assert!(alert_for("kitchen.fired", r#"{"id":"k1"}"#, "en", "Africa/Cairo").is_some());
         // Silent events → None.
-        assert!(alert_for("kitchen.item_bumped", r#"{"id":"k1"}"#, "en").is_none());
-        assert!(alert_for("ticket.settled", r#"{"id":"t1"}"#, "en").is_none());
-        assert!(alert_for("delivery.updated", r#"{"id":"o1"}"#, "en").is_none());
+        assert!(alert_for("kitchen.item_bumped", r#"{"id":"k1"}"#, "en", "Africa/Cairo").is_none());
+        assert!(alert_for("ticket.settled", r#"{"id":"t1"}"#, "en", "Africa/Cairo").is_none());
+        assert!(alert_for("delivery.updated", r#"{"id":"o1"}"#, "en", "Africa/Cairo").is_none());
     }
 
     #[test]

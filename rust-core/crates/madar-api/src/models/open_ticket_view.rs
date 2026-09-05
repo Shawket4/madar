@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OpenTicketView {
+    /// The booking this ticket seated, if the party had one.
+    #[serde(rename = "booking_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub booking_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
     #[serde(rename = "customer_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -50,6 +53,7 @@ pub struct OpenTicketView {
 impl OpenTicketView {
     pub fn new(branch_id: uuid::Uuid, id: uuid::Uuid, items: Vec<models::OpenTicketItemView>, opened_at: chrono::DateTime<chrono::FixedOffset>, opened_by: uuid::Uuid, status: String, subtotal: i32) -> OpenTicketView {
         OpenTicketView {
+            booking_id: None,
             branch_id,
             customer_name: None,
             guest_count: None,

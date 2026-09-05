@@ -10,6 +10,7 @@ Name | Type | Description | Notes
 **id** | **uuid::Uuid** |  | 
 **is_active** | **bool** |  | 
 **label** | **String** |  | 
+**next_booking** | Option<[**models::TableBookingHint**](TableBookingHint.md)> | The next active booking claiming this table (today's service, or the one in progress). The floor renders \"held\" from `held_from` by its own clock; nothing here is written to `status`. Only the list endpoint fills it — single-row writes return `null`. | [optional]
 **org_id** | **uuid::Uuid** |  | 
 **pos_x** | **f64** |  | 
 **pos_y** | **f64** |  | 

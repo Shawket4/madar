@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `FloorSectionView`, `FloorTableView`, `ReservationView`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `FloorSectionView`, `FloorTableView`
 
 /// The whole branch layout + occupancy, offline.
 class FloorLayoutView {
@@ -92,6 +92,14 @@ class FloorTableStateView {
   final String? heldSince;
   final bool heldLockedByOther;
 
+  /// The next booking claiming this table today (see `madar_core::held`).
+  final String? bookingId;
+  final String? bookingGuest;
+  final int? bookingParty;
+  final String? bookingStartsAt;
+  final String? bookingHeldFrom;
+  final String? bookingStatus;
+
   const FloorTableStateView({
     required this.id,
     this.sectionId,
@@ -108,6 +116,12 @@ class FloorTableStateView {
     this.heldOrderName,
     this.heldSince,
     required this.heldLockedByOther,
+    this.bookingId,
+    this.bookingGuest,
+    this.bookingParty,
+    this.bookingStartsAt,
+    this.bookingHeldFrom,
+    this.bookingStatus,
   });
 
   @override
@@ -126,7 +140,13 @@ class FloorTableStateView {
       heldOrderId.hashCode ^
       heldOrderName.hashCode ^
       heldSince.hashCode ^
-      heldLockedByOther.hashCode;
+      heldLockedByOther.hashCode ^
+      bookingId.hashCode ^
+      bookingGuest.hashCode ^
+      bookingParty.hashCode ^
+      bookingStartsAt.hashCode ^
+      bookingHeldFrom.hashCode ^
+      bookingStatus.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -147,7 +167,13 @@ class FloorTableStateView {
           heldOrderId == other.heldOrderId &&
           heldOrderName == other.heldOrderName &&
           heldSince == other.heldSince &&
-          heldLockedByOther == other.heldLockedByOther;
+          heldLockedByOther == other.heldLockedByOther &&
+          bookingId == other.bookingId &&
+          bookingGuest == other.bookingGuest &&
+          bookingParty == other.bookingParty &&
+          bookingStartsAt == other.bookingStartsAt &&
+          bookingHeldFrom == other.bookingHeldFrom &&
+          bookingStatus == other.bookingStatus;
 }
 
 /// One entry of the transfer waitlist, display-ready.

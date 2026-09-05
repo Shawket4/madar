@@ -4,12 +4,15 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**customer_name** | Option<**String**> |  | [optional]
+**duration_minutes** | Option<**i32**> |  | [optional]
+**force** | Option<**bool**> | Keep the booking when no table fits after a move (default true). | [optional]
+**guest_name** | Option<**String**> |  | [optional]
+**guest_phone** | Option<**String**> |  | [optional]
 **notes** | Option<**String**> |  | [optional]
 **party_size** | Option<**i32**> |  | [optional]
-**quoted_ready_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
-**reserved_for** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
-**status** | Option<**String**> | Drive the status machine: confirmed / notified / arrived / seated / completed / no_show / cancelled. The matching timestamp is stamped and, for terminals, assigned tables are freed. | [optional]
+**section_id** | Option<**uuid::Uuid**> |  | [optional]
+**starts_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
+**table_ids** | Option<**Vec<uuid::Uuid>**> | Present = reassign to exactly these tables (empty = unassign). | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

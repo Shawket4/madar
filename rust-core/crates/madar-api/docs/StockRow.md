@@ -4,12 +4,12 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**below_reorder** | **bool** |  | 
-**branch_inventory_id** | **uuid::Uuid** |  | 
+**below_par** | **bool** |  | 
 **cost_per_unit** | Option<**f64**> | Piastres per unit; `null` ⟺ cost never entered. | [optional]
-**current_stock** | **f64** |  | 
 **ingredient_name** | **String** |  | 
-**reorder_threshold** | **f64** |  | 
+**on_hand** | **f64** |  | 
+**org_ingredient_id** | **uuid::Uuid** |  | 
+**par_min** | Option<**f64**> | Reorder point; `null` = not set at this branch. | [optional]
 **unit** | **String** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

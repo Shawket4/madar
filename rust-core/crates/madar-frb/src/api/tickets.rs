@@ -65,9 +65,10 @@ impl MadarBridge {
         customer_name: Option<String>,
         notes: Option<String>,
         guest_count: Option<i32>,
+        booking_id: Option<String>,
     ) -> Result<TicketFiredView, MadarError> {
         self.inner
-            .fire_ticket(table_id, customer_name, notes, guest_count)
+            .fire_ticket(table_id, customer_name, notes, guest_count, booking_id)
             .await
             .map_err(MadarError::from)
     }

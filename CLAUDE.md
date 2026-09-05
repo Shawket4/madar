@@ -121,6 +121,23 @@ the SSE stream is down. Both exist on purpose — don't remove the poll.
   (core) and `bus_table` (backend).
 - State never rests on colour alone: every tone has a glyph, needs-clearing is hatched.
 
+## Bookings — the floor's future (shared with the dashboard + backend)
+A booking claims tables for a window (backend `src/bookings`); the floor mirror carries
+each table's `next_booking` (`held.rs` → `FloorTableStateView.booking_*`). The tables
+screen derives **reserved** by the clock (`tableIsReserved`, from `booking_held_from`),
+shows the guest on the pill, and offers *Seat this party* / *No-show* — both
+optimistic-local + queued (`seat_booking` / `no_show_booking` replay ops). Seating
+points the live order at the table under the guest's name; the ticket fired next
+carries `booking_id` and the server links the two. The arrivals sheet lists today's
+active bookings from `cache:bookings:arrivals` (refreshed with the floor).
+
+Realtime: bookings ride the device's ONE SSE connection (`bookings` topic, waiters and
+tellers); `booking.created` / `booking.arriving` ping through the same alert path as
+tickets. Cloud-only events (delivery, bookings) are re-published on the LAN by any till
+that heard them, under a deterministic id (`cloud:<branch>:<event id>`), so a LAN-only
+tablet hears them once (`LanCloudRelay`, `LanRelay::publish_with_id`). A `resync` frame
+from the server re-seeds every board.
+
 ## Conventions
 1. **No business logic in Dart.** Sequence bridge calls; compute nothing.
 2. **Design system only.** `MadarType`, `Space`, `Radii`, `context.madarColors`,

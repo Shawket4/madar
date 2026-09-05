@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateCatalogItemRequest {
-    #[serde(rename = "category", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub category: Option<Option<String>>,
+    #[serde(rename = "category_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub category_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "cost_per_unit", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub cost_per_unit: Option<Option<f64>>,
     #[serde(rename = "density_g_per_ml", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -29,7 +29,7 @@ pub struct UpdateCatalogItemRequest {
     pub pack_size: Option<Option<f64>>,
     #[serde(rename = "pack_unit", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub pack_unit: Option<Option<String>>,
-    /// Set/replace the default supplier. (Omitted = unchanged; clearing to none is not supported via this field.)
+    /// Set/replace the default supplier (omitted = unchanged).
     #[serde(rename = "supplier_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub supplier_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "unit", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -41,7 +41,7 @@ pub struct UpdateCatalogItemRequest {
 impl UpdateCatalogItemRequest {
     pub fn new() -> UpdateCatalogItemRequest {
         UpdateCatalogItemRequest {
-            category: None,
+            category_id: None,
             cost_per_unit: None,
             density_g_per_ml: None,
             description: None,
