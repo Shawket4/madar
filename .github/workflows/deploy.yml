@@ -127,8 +127,23 @@ jobs:
               exit 1
             fi
           done
+          # The bundle is v1 (JAR) signed — Play re-signs it — so jarsigner is
+          # the right tool, but NOT with `-strict`: every Gradle-produced bundle
+          # trips "signed in JarFile but is not signed in JarInputStream" for
+          # each META-INF entry, and `-strict` turns those benign notices into a
+          # non-zero exit. Assert what this step exists to catch instead: that
+          # the bundle IS signed, and not by the debug key.
           echo "── app-release.aab"
-          jarsigner -verify -strict build/app/outputs/bundle/release/app-release.aab
+          jarsigner -verify -verbose:summary -certs \
+            build/app/outputs/bundle/release/app-release.aab > /tmp/aab.txt 2>&1 || true
+          if ! grep -q "jar verified" /tmp/aab.txt; then
+            echo "::error::app-release.aab is not signed"; tail -25 /tmp/aab.txt; exit 1
+          fi
+          if grep -qi "CN=Android Debug" /tmp/aab.txt; then
+            echo "::error::app-release.aab is DEBUG-signed — the release keystore was not picked up."
+            exit 1
+          fi
+          echo "app-release.aab is signed with a non-debug key"
 
       # Diawi OTA link — a shareable install page even while the repo is
       # private. Never fails the release; skipped when DIAWI_TOKEN is unset.
