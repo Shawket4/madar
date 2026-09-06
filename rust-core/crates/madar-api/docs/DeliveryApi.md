@@ -20,7 +20,6 @@ Method | HTTP request | Description
 [**set_accepting**](DeliveryApi.md#set_accepting) | **POST** /delivery/accepting | 
 [**set_prep_time**](DeliveryApi.md#set_prep_time) | **POST** /delivery-orders/{id}/prep-time | 
 [**set_status**](DeliveryApi.md#set_status) | **POST** /delivery-orders/{id}/status | 
-[**stream_delivery_orders**](DeliveryApi.md#stream_delivery_orders) | **GET** /delivery-orders/stream | Server-Sent Events stream of delivery-order changes for one branch. Auth is the same Bearer + `delivery_orders:read` + branch-access trio as the list endpoint, enforced before the stream opens. The stream is **updates-only**: the client should `GET /delivery-orders` first to seed the list, then connect. On any error/disconnect the client re-GETs and reconnects.
 [**update_zone**](DeliveryApi.md#update_zone) | **PATCH** /delivery/zones/{id} | 
 [**upsert_channel_addon_override**](DeliveryApi.md#upsert_channel_addon_override) | **PUT** /delivery/channel-addon-overrides | 
 [**upsert_channel_override**](DeliveryApi.md#upsert_channel_override) | **PUT** /delivery/channel-overrides | 
@@ -484,34 +483,6 @@ Name | Type | Description  | Required | Notes
 
 - **Content-Type**: application/json
 - **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## stream_delivery_orders
-
-> stream_delivery_orders(branch_id)
-Server-Sent Events stream of delivery-order changes for one branch. Auth is the same Bearer + `delivery_orders:read` + branch-access trio as the list endpoint, enforced before the stream opens. The stream is **updates-only**: the client should `GET /delivery-orders` first to seed the list, then connect. On any error/disconnect the client re-GETs and reconnects.
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**branch_id** | **uuid::Uuid** |  | [required] |
-
-### Return type
-
- (empty response body)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: text/event-stream, application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

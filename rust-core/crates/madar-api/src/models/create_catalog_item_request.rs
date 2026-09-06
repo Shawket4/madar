@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateCatalogItemRequest {
-    #[serde(rename = "category")]
-    pub category: String,
+    /// Omitted ⟹ the org's `general` category.
+    #[serde(rename = "category_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub category_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "cost_per_unit", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub cost_per_unit: Option<Option<f64>>,
     #[serde(rename = "density_g_per_ml", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -25,10 +26,8 @@ pub struct CreateCatalogItemRequest {
     pub name: String,
     #[serde(rename = "pack_size", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub pack_size: Option<Option<f64>>,
-    /// Optional named purchase pack and its base-unit size.
     #[serde(rename = "pack_unit", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub pack_unit: Option<Option<String>>,
-    /// Optional default supplier for reordering.
     #[serde(rename = "supplier_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub supplier_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "unit")]
@@ -38,9 +37,9 @@ pub struct CreateCatalogItemRequest {
 }
 
 impl CreateCatalogItemRequest {
-    pub fn new(category: String, name: String, unit: String) -> CreateCatalogItemRequest {
+    pub fn new(name: String, unit: String) -> CreateCatalogItemRequest {
         CreateCatalogItemRequest {
-            category,
+            category_id: None,
             cost_per_unit: None,
             density_g_per_ml: None,
             description: None,

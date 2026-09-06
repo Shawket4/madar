@@ -17,17 +17,21 @@ pub struct LowStockRow {
     pub branch_id: uuid::Uuid,
     #[serde(rename = "branch_name")]
     pub branch_name: String,
-    #[serde(rename = "current_stock")]
-    pub current_stock: f64,
-    /// reorder_threshold − current_stock: how much to order to reach par.
-    #[serde(rename = "deficit")]
-    pub deficit: f64,
     #[serde(rename = "ingredient_name")]
     pub ingredient_name: String,
+    #[serde(rename = "on_hand")]
+    pub on_hand: f64,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
-    #[serde(rename = "reorder_threshold")]
-    pub reorder_threshold: f64,
+    /// Order-up-to level; `null` when only a reorder point is set.
+    #[serde(rename = "par_max", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub par_max: Option<Option<f64>>,
+    /// Reorder point the item is at or below.
+    #[serde(rename = "par_min")]
+    pub par_min: f64,
+    /// Quantity to bring stock back to par_max (or par_min when no max is set).
+    #[serde(rename = "suggested_qty")]
+    pub suggested_qty: f64,
     /// Default supplier for this ingredient (for one-click \"create PO\"); may be null.
     #[serde(rename = "supplier_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub supplier_id: Option<Option<uuid::Uuid>>,
@@ -38,15 +42,16 @@ pub struct LowStockRow {
 }
 
 impl LowStockRow {
-    pub fn new(branch_id: uuid::Uuid, branch_name: String, current_stock: f64, deficit: f64, ingredient_name: String, org_ingredient_id: uuid::Uuid, reorder_threshold: f64, unit: String) -> LowStockRow {
+    pub fn new(branch_id: uuid::Uuid, branch_name: String, ingredient_name: String, on_hand: f64, org_ingredient_id: uuid::Uuid, par_min: f64, suggested_qty: f64, unit: String) -> LowStockRow {
         LowStockRow {
             branch_id,
             branch_name,
-            current_stock,
-            deficit,
             ingredient_name,
+            on_hand,
             org_ingredient_id,
-            reorder_threshold,
+            par_max: None,
+            par_min,
+            suggested_qty,
             supplier_id: None,
             supplier_name: None,
             unit,

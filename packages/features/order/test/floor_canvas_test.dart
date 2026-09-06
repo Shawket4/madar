@@ -57,9 +57,86 @@ const _words = TableStatusWords(
   held: 'Held',
   seated: 'Seated',
   needsClearing: 'Needs clearing',
+  reserved: 'Reserved',
 );
 
 void main() {
+  group('reserved tables', () {
+    FloorTableStateView t({
+      String? bookingStatus,
+      String? heldFrom,
+      String status = 'free',
+    }) => FloorTableStateView(
+      id: 't1',
+      label: 'T1',
+      seats: 4,
+      shape: 'rect',
+      status: status,
+      posX: 0,
+      posY: 0,
+      width: 80,
+      height: 80,
+      rotation: 0,
+      heldLockedByOther: false,
+      bookingId: bookingStatus == null ? null : 'bk1',
+      bookingGuest: bookingStatus == null ? null : 'Ahmed',
+      bookingParty: 4,
+      bookingStartsAt: '2026-09-10T16:30:00Z',
+      bookingHeldFrom: heldFrom,
+      bookingStatus: bookingStatus,
+    );
+    final now = DateTime.parse('2026-09-10T16:20:00Z');
+
+    test('a confirmed booking reserves the table once its hold begins', () {
+      expect(
+        tableIsReserved(
+          t(bookingStatus: 'confirmed', heldFrom: '2026-09-10T16:15:00Z'),
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        tableIsReserved(
+          t(bookingStatus: 'confirmed', heldFrom: '2026-09-10T16:25:00Z'),
+          now: now,
+        ),
+        isFalse,
+        reason: 'not yet in the hold window',
+      );
+      expect(tableIsReserved(t(), now: now), isFalse);
+    });
+
+    test('a seated booking reads as taken; the words follow', () {
+      final seated = t(
+        bookingStatus: 'seated',
+        heldFrom: '2026-09-10T16:15:00Z',
+      );
+      expect(tableBookingSeated(seated), isTrue);
+      expect(tableIsReserved(seated, now: now), isFalse);
+      expect(_words.wordFor(seated, occupied: false), 'Seated');
+      expect(tableStatusIcon(seated, occupied: false), 'person.2');
+      // The icon has no injected clock: a hold that began long ago is live.
+      final reserved = t(
+        bookingStatus: 'confirmed',
+        heldFrom: '2000-01-01T00:00:00Z',
+      );
+      expect(tableStatusIcon(reserved, occupied: false), 'calendar.days');
+      expect(_words.wordFor(reserved, occupied: false), 'Reserved');
+      // A dirty table owes a bus first, whatever is booked on it.
+      expect(
+        tableStatusIcon(
+          t(
+            bookingStatus: 'confirmed',
+            heldFrom: '2000-01-01T00:00:00Z',
+            status: 'dirty',
+          ),
+          occupied: false,
+        ),
+        'sparkles',
+      );
+    });
+  });
+
   group('elapsedLabel', () {
     final now = DateTime.utc(2026, 8, 17, 12, 0);
     String? at(Duration ago) =>

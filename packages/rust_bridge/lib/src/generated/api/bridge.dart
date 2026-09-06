@@ -4,6 +4,7 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'bookings.dart';
 import 'cart.dart';
 import 'catalog.dart';
 import 'delivery.dart';
@@ -267,6 +268,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? customerName,
     String? notes,
     int? guestCount,
+    String? bookingId,
   });
 
   /// The branch floor (sections + tables + held-order occupancy) from the
@@ -349,6 +351,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   Future<void> lanStop();
 
   Future<List<AddonItemView>> listAddonCatalog();
+
+  /// Today's active bookings from the cache, earliest first.
+  Future<List<BookingView>> listArrivals();
 
   /// List the org's active branches — for the device-setup picker. Requires a
   /// live (manager) session; online-only.
@@ -433,6 +438,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   static Future<MadarBridge> newInstance({required MadarConfig config}) =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeNew(config: config);
 
+  /// The party never came: release the table. Optimistic-local + queued.
+  Future<void> noShowBooking({required String bookingId});
+
   /// Outbox-first: enqueues the open, drains, returns the local view.
   Future<ShiftView> openShift({
     required PlatformInt64 openingCashMinor,
@@ -481,6 +489,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// dead `open_shift` onto the CURRENT open shift and sync. Returns the number
   /// of outbox rows recovered.
   Future<int> recoverOrphanedOrders();
+
+  /// Pull today's active bookings into the offline cache (best-effort; a
+  /// `refresh_floor` does this too).
+  Future<void> refreshArrivals();
 
   /// Pull the branch-effective catalog (items + categories + addons + bundles +
   /// payment methods + discounts) and mirror the canonical JSON into the local
@@ -568,6 +580,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? to,
     required int page,
   });
+
+  /// The party arrived: mark the booking seated (optionally on another
+  /// table). Optimistic-local + queued. Fire their ticket with `booking_id`
+  /// to link it.
+  Future<void> seatBooking({required String bookingId, String? tableId});
 
   /// Best-effort raw-TCP send of pre-rendered ESC/POS bytes to a network
   /// (JetDirect / port 9100) thermal printer.

@@ -28,10 +28,34 @@ All URIs are relative to *http://localhost:8080*
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
 *AiApi* | [**chat**](docs/AiApi.md#chat) | **POST** /ai/chat | 
+*AiApi* | [**chat_stream**](docs/AiApi.md#chat_stream) | **POST** /ai/chat/stream | 
+*AiApi* | [**delete_conversation**](docs/AiApi.md#delete_conversation) | **DELETE** /ai/conversations/{id} | 
+*AiApi* | [**get_conversation**](docs/AiApi.md#get_conversation) | **GET** /ai/conversations/{id} | 
+*AiApi* | [**list_conversations**](docs/AiApi.md#list_conversations) | **GET** /ai/conversations | 
+*AiApi* | [**rename_conversation**](docs/AiApi.md#rename_conversation) | **PATCH** /ai/conversations/{id} | 
 *AuthApi* | [**get_my_permissions**](docs/AuthApi.md#get_my_permissions) | **GET** /auth/permissions | 
 *AuthApi* | [**login**](docs/AuthApi.md#login) | **POST** /auth/login | 
 *AuthApi* | [**me**](docs/AuthApi.md#me) | **GET** /auth/me | 
 *AuthApi* | [**resolve_branch**](docs/AuthApi.md#resolve_branch) | **POST** /auth/resolve-branch | 
+*BookingsApi* | [**booking_availability**](docs/BookingsApi.md#booking_availability) | **GET** /bookings/availability | 
+*BookingsApi* | [**booking_stats**](docs/BookingsApi.md#booking_stats) | **GET** /bookings/stats | 
+*BookingsApi* | [**cancel_booking**](docs/BookingsApi.md#cancel_booking) | **POST** /bookings/{id}/cancel | 
+*BookingsApi* | [**complete_booking**](docs/BookingsApi.md#complete_booking) | **POST** /bookings/{id}/complete | 
+*BookingsApi* | [**create_booking**](docs/BookingsApi.md#create_booking) | **POST** /bookings | 
+*BookingsApi* | [**get_booking**](docs/BookingsApi.md#get_booking) | **GET** /bookings/{id} | 
+*BookingsApi* | [**get_booking_settings**](docs/BookingsApi.md#get_booking_settings) | **GET** /bookings/settings | 
+*BookingsApi* | [**list_bookings**](docs/BookingsApi.md#list_bookings) | **GET** /bookings | 
+*BookingsApi* | [**no_show_booking**](docs/BookingsApi.md#no_show_booking) | **POST** /bookings/{id}/no-show | 
+*BookingsApi* | [**put_booking_settings**](docs/BookingsApi.md#put_booking_settings) | **PUT** /bookings/settings | 
+*BookingsApi* | [**seat_booking**](docs/BookingsApi.md#seat_booking) | **POST** /bookings/{id}/seat | 
+*BookingsApi* | [**update_booking**](docs/BookingsApi.md#update_booking) | **PATCH** /bookings/{id} | 
+*BookingsPublicApi* | [**booking_branches**](docs/BookingsPublicApi.md#booking_branches) | **GET** /public/booking-branches | 
+*BookingsPublicApi* | [**booking_info**](docs/BookingsPublicApi.md#booking_info) | **GET** /public/branches/{id}/booking-info | 
+*BookingsPublicApi* | [**booking_slots**](docs/BookingsPublicApi.md#booking_slots) | **GET** /public/branches/{id}/booking-slots | 
+*BookingsPublicApi* | [**cancel_public_booking**](docs/BookingsPublicApi.md#cancel_public_booking) | **POST** /public/bookings/{token}/cancel | 
+*BookingsPublicApi* | [**create_public_booking**](docs/BookingsPublicApi.md#create_public_booking) | **POST** /public/bookings | 
+*BookingsPublicApi* | [**get_public_booking**](docs/BookingsPublicApi.md#get_public_booking) | **GET** /public/bookings/{token} | 
+*BookingsPublicApi* | [**update_public_booking**](docs/BookingsPublicApi.md#update_public_booking) | **PATCH** /public/bookings/{token} | 
 *BranchesApi* | [**create_branch**](docs/BranchesApi.md#create_branch) | **POST** /branches | 
 *BranchesApi* | [**delete_branch**](docs/BranchesApi.md#delete_branch) | **DELETE** /branches/{id} | 
 *BranchesApi* | [**get_branch**](docs/BranchesApi.md#get_branch) | **GET** /branches/{id} | 
@@ -65,26 +89,28 @@ Class | Method | HTTP request | Description
 *DeliveryApi* | [**set_accepting**](docs/DeliveryApi.md#set_accepting) | **POST** /delivery/accepting | 
 *DeliveryApi* | [**set_prep_time**](docs/DeliveryApi.md#set_prep_time) | **POST** /delivery-orders/{id}/prep-time | 
 *DeliveryApi* | [**set_status**](docs/DeliveryApi.md#set_status) | **POST** /delivery-orders/{id}/status | 
-*DeliveryApi* | [**stream_delivery_orders**](docs/DeliveryApi.md#stream_delivery_orders) | **GET** /delivery-orders/stream | Server-Sent Events stream of delivery-order changes for one branch. Auth is the same Bearer + `delivery_orders:read` + branch-access trio as the list endpoint, enforced before the stream opens. The stream is **updates-only**: the client should `GET /delivery-orders` first to seed the list, then connect. On any error/disconnect the client re-GETs and reconnects.
 *DeliveryApi* | [**update_zone**](docs/DeliveryApi.md#update_zone) | **PATCH** /delivery/zones/{id} | 
 *DeliveryApi* | [**upsert_channel_addon_override**](docs/DeliveryApi.md#upsert_channel_addon_override) | **PUT** /delivery/channel-addon-overrides | 
 *DeliveryApi* | [**upsert_channel_override**](docs/DeliveryApi.md#upsert_channel_override) | **PUT** /delivery/channel-overrides | 
 *DeliveryPublicApi* | [**create_delivery_order**](docs/DeliveryPublicApi.md#create_delivery_order) | **POST** /public/delivery-orders | 
-*DeliveryPublicApi* | [**create_public_booking**](docs/DeliveryPublicApi.md#create_public_booking) | **POST** /public/reservations | 
 *DeliveryPublicApi* | [**delivery_quote**](docs/DeliveryPublicApi.md#delivery_quote) | **GET** /public/branches/{id}/delivery-quote | 
 *DeliveryPublicApi* | [**guest_order_history**](docs/DeliveryPublicApi.md#guest_order_history) | **GET** /public/delivery-orders/history | 
 *DeliveryPublicApi* | [**guest_past_locations**](docs/DeliveryPublicApi.md#guest_past_locations) | **GET** /public/delivery-orders/past-locations | 
-*DeliveryPublicApi* | [**list_reservation_public_branches**](docs/DeliveryPublicApi.md#list_reservation_public_branches) | **GET** /public/reservations/branches | 
 *DeliveryPublicApi* | [**otp_request**](docs/DeliveryPublicApi.md#otp_request) | **POST** /public/otp/request | 
 *DeliveryPublicApi* | [**otp_verify**](docs/DeliveryPublicApi.md#otp_verify) | **POST** /public/otp/verify | 
 *DeliveryPublicApi* | [**public_branches**](docs/DeliveryPublicApi.md#public_branches) | **GET** /public/branches | 
 *DeliveryPublicApi* | [**public_menu**](docs/DeliveryPublicApi.md#public_menu) | **GET** /public/branches/{id}/menu | 
 *DeliveryPublicApi* | [**track_delivery_order**](docs/DeliveryPublicApi.md#track_delivery_order) | **GET** /public/delivery-orders/{id}/track | 
-*DeliveryPublicApi* | [**track_public_booking**](docs/DeliveryPublicApi.md#track_public_booking) | **GET** /public/reservations/{id} | 
 *DiscountsApi* | [**create_discount**](docs/DiscountsApi.md#create_discount) | **POST** /discounts | 
 *DiscountsApi* | [**delete_discount**](docs/DiscountsApi.md#delete_discount) | **DELETE** /discounts/{id} | 
 *DiscountsApi* | [**list_discounts**](docs/DiscountsApi.md#list_discounts) | **GET** /discounts | 
 *DiscountsApi* | [**update_discount**](docs/DiscountsApi.md#update_discount) | **PATCH** /discounts/{id} | 
+*FloorApi* | [**clear_table**](docs/FloorApi.md#clear_table) | **POST** /floor/tables/{id}/clear | Mark a bussed table ready for the next party.
+*FloorApi* | [**swap_tables**](docs/FloorApi.md#swap_tables) | **POST** /floor/tables/swap | 
+*FloorTransfersApi* | [**cancel_transfer**](docs/FloorTransfersApi.md#cancel_transfer) | **POST** /floor/transfers/{id}/cancel | 
+*FloorTransfersApi* | [**create_floor_transfer**](docs/FloorTransfersApi.md#create_floor_transfer) | **POST** /floor/transfers | 
+*FloorTransfersApi* | [**fulfill_transfer**](docs/FloorTransfersApi.md#fulfill_transfer) | **POST** /floor/transfers/{id}/fulfill | 
+*FloorTransfersApi* | [**list_floor_transfers**](docs/FloorTransfersApi.md#list_floor_transfers) | **GET** /floor/transfers | 
 *InsightsApi* | [**create_decision**](docs/InsightsApi.md#create_decision) | **POST** /insights/decisions | 
 *InsightsApi* | [**get_margin_targets**](docs/InsightsApi.md#get_margin_targets) | **GET** /insights/margin-target | 
 *InsightsApi* | [**list_decisions**](docs/InsightsApi.md#list_decisions) | **GET** /insights/decisions | 
@@ -97,21 +123,23 @@ Class | Method | HTTP request | Description
 *IntegrationsApi* | [**list_credentials**](docs/IntegrationsApi.md#list_credentials) | **GET** /integrations/credentials | 
 *IntegrationsApi* | [**revoke_credential**](docs/IntegrationsApi.md#revoke_credential) | **DELETE** /integrations/credentials/{id} | 
 *IntegrationsApi* | [**rotate_credential**](docs/IntegrationsApi.md#rotate_credential) | **POST** /integrations/credentials/{id}/rotate | 
-*InventoryApi* | [**add_to_branch_stock**](docs/InventoryApi.md#add_to_branch_stock) | **POST** /inventory/branches/{branch_id}/stock | 
 *InventoryApi* | [**create_catalog_item**](docs/InventoryApi.md#create_catalog_item) | **POST** /inventory/orgs/{org_id}/catalog | 
+*InventoryApi* | [**create_ingredient_category**](docs/InventoryApi.md#create_ingredient_category) | **POST** /inventory/orgs/{org_id}/categories | 
 *InventoryApi* | [**create_transfer**](docs/InventoryApi.md#create_transfer) | **POST** /inventory/transfers | 
 *InventoryApi* | [**create_waste**](docs/InventoryApi.md#create_waste) | **POST** /inventory/branches/{branch_id}/waste | 
 *InventoryApi* | [**delete_catalog_item**](docs/InventoryApi.md#delete_catalog_item) | **DELETE** /inventory/orgs/{org_id}/catalog/{id} | 
+*InventoryApi* | [**delete_ingredient_category**](docs/InventoryApi.md#delete_ingredient_category) | **DELETE** /inventory/orgs/{org_id}/categories/{id} | 
 *InventoryApi* | [**delete_transfer**](docs/InventoryApi.md#delete_transfer) | **DELETE** /inventory/transfers/{id} | 
 *InventoryApi* | [**get_inventory_settings**](docs/InventoryApi.md#get_inventory_settings) | **GET** /inventory/orgs/{org_id}/settings | 
 *InventoryApi* | [**list_branch_stock**](docs/InventoryApi.md#list_branch_stock) | **GET** /inventory/branches/{branch_id}/stock | 
 *InventoryApi* | [**list_catalog**](docs/InventoryApi.md#list_catalog) | **GET** /inventory/orgs/{org_id}/catalog | 
+*InventoryApi* | [**list_ingredient_categories**](docs/InventoryApi.md#list_ingredient_categories) | **GET** /inventory/orgs/{org_id}/categories | 
 *InventoryApi* | [**list_movements**](docs/InventoryApi.md#list_movements) | **GET** /inventory/branches/{branch_id}/movements | 
 *InventoryApi* | [**list_transfers**](docs/InventoryApi.md#list_transfers) | **GET** /inventory/branches/{branch_id}/transfers | 
 *InventoryApi* | [**list_waste**](docs/InventoryApi.md#list_waste) | **GET** /inventory/branches/{branch_id}/waste | 
-*InventoryApi* | [**remove_from_branch_stock**](docs/InventoryApi.md#remove_from_branch_stock) | **DELETE** /inventory/branches/{branch_id}/stock/{id} | 
-*InventoryApi* | [**update_branch_stock**](docs/InventoryApi.md#update_branch_stock) | **PATCH** /inventory/branches/{branch_id}/stock/{id} | 
+*InventoryApi* | [**set_par_levels**](docs/InventoryApi.md#set_par_levels) | **PUT** /inventory/branches/{branch_id}/stock/{org_ingredient_id}/par | 
 *InventoryApi* | [**update_catalog_item**](docs/InventoryApi.md#update_catalog_item) | **PATCH** /inventory/orgs/{org_id}/catalog/{id} | 
+*InventoryApi* | [**update_ingredient_category**](docs/InventoryApi.md#update_ingredient_category) | **PATCH** /inventory/orgs/{org_id}/categories/{id} | 
 *InventoryApi* | [**update_inventory_settings**](docs/InventoryApi.md#update_inventory_settings) | **PUT** /inventory/orgs/{org_id}/settings | 
 *InventoryApi* | [**update_transfer**](docs/InventoryApi.md#update_transfer) | **PATCH** /inventory/transfers/{id} | 
 *KitchenApi* | [**bump**](docs/KitchenApi.md#bump) | **POST** /kitchen/items/{item_id}/bump | 
@@ -181,6 +209,8 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**upsert_branch_addon_override**](docs/MenuApi.md#upsert_branch_addon_override) | **PUT** /branch-addon-overrides | 
 *MenuApi* | [**upsert_branch_menu_override**](docs/MenuApi.md#upsert_branch_menu_override) | **PUT** /branch-menu-overrides | 
 *MenuApi* | [**upsert_size**](docs/MenuApi.md#upsert_size) | **POST** /menu-items/{id}/sizes | 
+*MetricsApi* | [**run_metrics_query**](docs/MetricsApi.md#run_metrics_query) | **POST** /metrics/query | 
+*MetricsApi* | [**schema**](docs/MetricsApi.md#schema) | **GET** /metrics/schema | 
 *OpenTicketsApi* | [**add_round**](docs/OpenTicketsApi.md#add_round) | **POST** /open-tickets/{id}/rounds | 
 *OpenTicketsApi* | [**create_open_ticket**](docs/OpenTicketsApi.md#create_open_ticket) | **POST** /open-tickets | 
 *OpenTicketsApi* | [**get_open_ticket**](docs/OpenTicketsApi.md#get_open_ticket) | **GET** /open-tickets/{id} | 
@@ -268,21 +298,13 @@ Class | Method | HTTP request | Description
 *ReportsApi* | [**org_waste_report**](docs/ReportsApi.md#org_waste_report) | **GET** /reports/orgs/{org_id}/waste-report | 
 *ReportsApi* | [**shift_deductions**](docs/ReportsApi.md#shift_deductions) | **GET** /reports/shifts/{shift_id}/deductions | 
 *ReportsApi* | [**shift_summary**](docs/ReportsApi.md#shift_summary) | **GET** /reports/shifts/{shift_id}/summary | 
-*ReservationsApi* | [**assign_tables**](docs/ReservationsApi.md#assign_tables) | **POST** /reservations/{id}/assign | 
-*ReservationsApi* | [**create_booking**](docs/ReservationsApi.md#create_booking) | **POST** /reservations | 
 *ReservationsApi* | [**create_floor_table**](docs/ReservationsApi.md#create_floor_table) | **POST** /floor/tables | 
 *ReservationsApi* | [**create_section**](docs/ReservationsApi.md#create_section) | **POST** /floor/sections | 
 *ReservationsApi* | [**delete_floor_table**](docs/ReservationsApi.md#delete_floor_table) | **DELETE** /floor/tables/{id} | 
 *ReservationsApi* | [**delete_section**](docs/ReservationsApi.md#delete_section) | **DELETE** /floor/sections/{id} | 
-*ReservationsApi* | [**get_reservation_settings**](docs/ReservationsApi.md#get_reservation_settings) | **GET** /floor/reservation-settings | 
-*ReservationsApi* | [**list_bookings**](docs/ReservationsApi.md#list_bookings) | **GET** /reservations | 
 *ReservationsApi* | [**list_floor_tables**](docs/ReservationsApi.md#list_floor_tables) | **GET** /floor/tables | 
 *ReservationsApi* | [**list_sections**](docs/ReservationsApi.md#list_sections) | **GET** /floor/sections | 
-*ReservationsApi* | [**notify_booking**](docs/ReservationsApi.md#notify_booking) | **POST** /reservations/{id}/notify | 
-*ReservationsApi* | [**put_reservation_settings**](docs/ReservationsApi.md#put_reservation_settings) | **PUT** /floor/reservation-settings | 
 *ReservationsApi* | [**save_layout**](docs/ReservationsApi.md#save_layout) | **PUT** /floor/layout | 
-*ReservationsApi* | [**set_table_status**](docs/ReservationsApi.md#set_table_status) | **PATCH** /floor/tables/{id}/status | 
-*ReservationsApi* | [**update_booking**](docs/ReservationsApi.md#update_booking) | **PATCH** /reservations/{id} | 
 *ReservationsApi* | [**update_floor_table**](docs/ReservationsApi.md#update_floor_table) | **PATCH** /floor/tables/{id} | 
 *ReservationsApi* | [**update_section**](docs/ReservationsApi.md#update_section) | **PATCH** /floor/sections/{id} | 
 *ShiftsApi* | [**add_cash_movement**](docs/ShiftsApi.md#add_cash_movement) | **POST** /shifts/{shift_id}/cash-movements | 
@@ -393,7 +415,6 @@ Class | Method | HTTP request | Description
 
  - [AcceptingInput](docs/AcceptingInput.md)
  - [AddRoundRequest](docs/AddRoundRequest.md)
- - [AddToStockRequest](docs/AddToStockRequest.md)
  - [AddonCost](docs/AddonCost.md)
  - [AddonIngredient](docs/AddonIngredient.md)
  - [AddonInput](docs/AddonInput.md)
@@ -403,18 +424,25 @@ Class | Method | HTTP request | Description
  - [AddonSalesRow](docs/AddonSalesRow.md)
  - [AddonSlot](docs/AddonSlot.md)
  - [AdvanceDecision](docs/AdvanceDecision.md)
+ - [AiChatKind](docs/AiChatKind.md)
+ - [AiChatKindOneOf](docs/AiChatKindOneOf.md)
+ - [AiChatKindOneOf1](docs/AiChatKindOneOf1.md)
+ - [AiChatKindOneOf2](docs/AiChatKindOneOf2.md)
  - [AiChatRequest](docs/AiChatRequest.md)
  - [AiChatResponse](docs/AiChatResponse.md)
  - [AnalyticsOrder](docs/AnalyticsOrder.md)
  - [AnalyticsResponse](docs/AnalyticsResponse.md)
  - [AssignBranchRequest](docs/AssignBranchRequest.md)
- - [AssignTablesRequest](docs/AssignTablesRequest.md)
  - [AttendanceRecord](docs/AttendanceRecord.md)
  - [AttendanceSettings](docs/AttendanceSettings.md)
  - [AttendanceStatus](docs/AttendanceStatus.md)
  - [AttendanceSummary](docs/AttendanceSummary.md)
  - [AuthPermissionsResponse](docs/AuthPermissionsResponse.md)
  - [AvailabilityOut](docs/AvailabilityOut.md)
+ - [AvailabilityResponse](docs/AvailabilityResponse.md)
+ - [BoardInfo](docs/BoardInfo.md)
+ - [BookingSettings](docs/BookingSettings.md)
+ - [BookingStats](docs/BookingStats.md)
  - [BookingView](docs/BookingView.md)
  - [Branch](docs/Branch.md)
  - [BranchAddonOverride](docs/BranchAddonOverride.md)
@@ -422,9 +450,6 @@ Class | Method | HTTP request | Description
  - [BranchAvailabilityOut](docs/BranchAvailabilityOut.md)
  - [BranchComparison](docs/BranchComparison.md)
  - [BranchDeliverySettings](docs/BranchDeliverySettings.md)
- - [BranchInventoryItem](docs/BranchInventoryItem.md)
- - [BranchInventoryMovement](docs/BranchInventoryMovement.md)
- - [BranchInventoryTransfer](docs/BranchInventoryTransfer.md)
  - [BranchMenuOverride](docs/BranchMenuOverride.md)
  - [BranchMenuOverrideInput](docs/BranchMenuOverrideInput.md)
  - [BranchSalesReport](docs/BranchSalesReport.md)
@@ -432,6 +457,7 @@ Class | Method | HTTP request | Description
  - [BranchSizeOverride](docs/BranchSizeOverride.md)
  - [BranchSizeOverrideInput](docs/BranchSizeOverrideInput.md)
  - [BranchStockReport](docs/BranchStockReport.md)
+ - [BranchStockRow](docs/BranchStockRow.md)
  - [BranchTable](docs/BranchTable.md)
  - [BranchTarget](docs/BranchTarget.md)
  - [Bundle](docs/Bundle.md)
@@ -441,6 +467,7 @@ Class | Method | HTTP request | Description
  - [BundleSalesRow](docs/BundleSalesRow.md)
  - [BundleStatus](docs/BundleStatus.md)
  - [BundleWithComponents](docs/BundleWithComponents.md)
+ - [CancelBookingRequest](docs/CancelBookingRequest.md)
  - [CancelInput](docs/CancelInput.md)
  - [CartLineInput](docs/CartLineInput.md)
  - [CashMovement](docs/CashMovement.md)
@@ -456,17 +483,28 @@ Class | Method | HTTP request | Description
  - [ChannelMenuOverride](docs/ChannelMenuOverride.md)
  - [ChannelOverrideInput](docs/ChannelOverrideInput.md)
  - [ChannelOverrideOut](docs/ChannelOverrideOut.md)
- - [ChartHint](docs/ChartHint.md)
+ - [ChatFrame](docs/ChatFrame.md)
+ - [ChatFrameOneOf](docs/ChatFrameOneOf.md)
+ - [ChatFrameOneOf1](docs/ChatFrameOneOf1.md)
+ - [ChatFrameOneOf2](docs/ChatFrameOneOf2.md)
+ - [ChatFrameOneOf3](docs/ChatFrameOneOf3.md)
+ - [ChatFrameOneOf4](docs/ChatFrameOneOf4.md)
+ - [ChatFrameOneOf5](docs/ChatFrameOneOf5.md)
  - [CheckInRequest](docs/CheckInRequest.md)
  - [CheckOutRequest](docs/CheckOutRequest.md)
+ - [ClearTableRequest](docs/ClearTableRequest.md)
  - [CloseShiftRequest](docs/CloseShiftRequest.md)
  - [CloseShiftResponse](docs/CloseShiftResponse.md)
  - [Column](docs/Column.md)
  - [ColumnKind](docs/ColumnKind.md)
  - [CombinedItemSalesRow](docs/CombinedItemSalesRow.md)
+ - [Compare](docs/Compare.md)
  - [ComponentPopularity](docs/ComponentPopularity.md)
  - [ComputedPayslip](docs/ComputedPayslip.md)
  - [ConsumptionRow](docs/ConsumptionRow.md)
+ - [ConversationDetail](docs/ConversationDetail.md)
+ - [ConversationList](docs/ConversationList.md)
+ - [ConversationSummary](docs/ConversationSummary.md)
  - [CorrectRecordRequest](docs/CorrectRecordRequest.md)
  - [CreateAddonItemRequest](docs/CreateAddonItemRequest.md)
  - [CreateAddonSlotRequest](docs/CreateAddonSlotRequest.md)
@@ -484,7 +522,9 @@ Class | Method | HTTP request | Description
  - [CreateDiscountRequest](docs/CreateDiscountRequest.md)
  - [CreateDocumentRequest](docs/CreateDocumentRequest.md)
  - [CreateFloorTableRequest](docs/CreateFloorTableRequest.md)
+ - [CreateFloorTransferRequest](docs/CreateFloorTransferRequest.md)
  - [CreateGroupRequest](docs/CreateGroupRequest.md)
+ - [CreateIngredientCategoryRequest](docs/CreateIngredientCategoryRequest.md)
  - [CreateMarketingLinkRequest](docs/CreateMarketingLinkRequest.md)
  - [CreateMenuItemRequest](docs/CreateMenuItemRequest.md)
  - [CreateOpenTicketRequest](docs/CreateOpenTicketRequest.md)
@@ -508,6 +548,7 @@ Class | Method | HTTP request | Description
  - [CreateWasteRequest](docs/CreateWasteRequest.md)
  - [CredentialSummary](docs/CredentialSummary.md)
  - [CredentialWithSecret](docs/CredentialWithSecret.md)
+ - [DatasetInfo](docs/DatasetInfo.md)
  - [DecisionOut](docs/DecisionOut.md)
  - [DeductionLogRow](docs/DeductionLogRow.md)
  - [DeliveryAddonOption](docs/DeliveryAddonOption.md)
@@ -526,23 +567,30 @@ Class | Method | HTTP request | Description
  - [DeliveryTracking](docs/DeliveryTracking.md)
  - [DeliveryZone](docs/DeliveryZone.md)
  - [Department](docs/Department.md)
+ - [Dir](docs/Dir.md)
  - [Discount](docs/Discount.md)
  - [DrinkRecipe](docs/DrinkRecipe.md)
  - [Employee](docs/Employee.md)
  - [ErrorBody](docs/ErrorBody.md)
  - [ExportResponse](docs/ExportResponse.md)
+ - [FieldInfo](docs/FieldInfo.md)
+ - [FilterInfo](docs/FilterInfo.md)
  - [FinalizeInput](docs/FinalizeInput.md)
  - [FinalizeResponse](docs/FinalizeResponse.md)
  - [FloorSection](docs/FloorSection.md)
  - [FloorTable](docs/FloorTable.md)
  - [ForceCloseRequest](docs/ForceCloseRequest.md)
+ - [FulfillTransferRequest](docs/FulfillTransferRequest.md)
  - [GoodsReceipt](docs/GoodsReceipt.md)
  - [GoodsReceiptLine](docs/GoodsReceiptLine.md)
+ - [Grain](docs/Grain.md)
  - [GroupAttachInput](docs/GroupAttachInput.md)
  - [GroupOptionOut](docs/GroupOptionOut.md)
  - [GroupOut](docs/GroupOut.md)
  - [GuestSavedLocation](docs/GuestSavedLocation.md)
  - [HistoryTurn](docs/HistoryTurn.md)
+ - [HoursEntry](docs/HoursEntry.md)
+ - [IngredientCategory](docs/IngredientCategory.md)
  - [InventoryValuationReport](docs/InventoryValuationReport.md)
  - [ItemCountInput](docs/ItemCountInput.md)
  - [ItemOptionInput](docs/ItemOptionInput.md)
@@ -574,6 +622,9 @@ Class | Method | HTTP request | Description
  - [MenuItemFull](docs/MenuItemFull.md)
  - [MenuItemRecipe](docs/MenuItemRecipe.md)
  - [MenuItemWithCosts](docs/MenuItemWithCosts.md)
+ - [MetricResult](docs/MetricResult.md)
+ - [MetricsQueryRequest](docs/MetricsQueryRequest.md)
+ - [MetricsQueryResponse](docs/MetricsQueryResponse.md)
  - [ModifierGroupOut](docs/ModifierGroupOut.md)
  - [ModifierOptionOut](docs/ModifierOptionOut.md)
  - [MoveTicketTableRequest](docs/MoveTicketTableRequest.md)
@@ -628,22 +679,31 @@ Class | Method | HTTP request | Description
  - [PayrollPeriod](docs/PayrollPeriod.md)
  - [Payslip](docs/Payslip.md)
  - [PeakHourPoint](docs/PeakHourPoint.md)
+ - [Period](docs/Period.md)
+ - [PeriodInfo](docs/PeriodInfo.md)
+ - [PeriodPreset](docs/PeriodPreset.md)
  - [PeriodStatusRequest](docs/PeriodStatusRequest.md)
  - [Permission](docs/Permission.md)
  - [PermissionMatrix](docs/PermissionMatrix.md)
  - [PoLineInput](docs/PoLineInput.md)
  - [PrepTimeInput](docs/PrepTimeInput.md)
  - [PresenceRow](docs/PresenceRow.md)
+ - [PresetInfo](docs/PresetInfo.md)
  - [PreviewAddonInput](docs/PreviewAddonInput.md)
  - [PreviewIngredient](docs/PreviewIngredient.md)
  - [PreviewRecipeRequest](docs/PreviewRecipeRequest.md)
  - [PriceOverrideOut](docs/PriceOverrideOut.md)
  - [PriceOverrideRequest](docs/PriceOverrideRequest.md)
  - [PrinterBrand](docs/PrinterBrand.md)
- - [PublicBooking](docs/PublicBooking.md)
+ - [PublicBookingBranch](docs/PublicBookingBranch.md)
+ - [PublicBookingChange](docs/PublicBookingChange.md)
+ - [PublicBookingInfo](docs/PublicBookingInfo.md)
+ - [PublicBookingInput](docs/PublicBookingInput.md)
+ - [PublicBookingView](docs/PublicBookingView.md)
  - [PublicBranch](docs/PublicBranch.md)
- - [PublicCreateBookingRequest](docs/PublicCreateBookingRequest.md)
  - [PublicOrg](docs/PublicOrg.md)
+ - [PublicSlot](docs/PublicSlot.md)
+ - [PublicSlots](docs/PublicSlots.md)
  - [PurchaseOrder](docs/PurchaseOrder.md)
  - [PurchaseOrderFull](docs/PurchaseOrderFull.md)
  - [PurchaseOrderLine](docs/PurchaseOrderLine.md)
@@ -658,21 +718,24 @@ Class | Method | HTTP request | Description
  - [PutSizesRequest](docs/PutSizesRequest.md)
  - [PutTargetRequest](docs/PutTargetRequest.md)
  - [QrResponse](docs/QrResponse.md)
+ - [QuerySpec](docs/QuerySpec.md)
  - [QuoteResponse](docs/QuoteResponse.md)
  - [ReceiveLineInput](docs/ReceiveLineInput.md)
  - [ReceivePurchaseOrderRequest](docs/ReceivePurchaseOrderRequest.md)
  - [RecipeCostResult](docs/RecipeCostResult.md)
  - [RecipeLineInput](docs/RecipeLineInput.md)
  - [RecipeLineOut](docs/RecipeLineOut.md)
+ - [RegistryInfo](docs/RegistryInfo.md)
+ - [RenameConversationRequest](docs/RenameConversationRequest.md)
  - [ReorderLine](docs/ReorderLine.md)
  - [ReorderSuggestion](docs/ReorderSuggestion.md)
  - [RepricingReport](docs/RepricingReport.md)
  - [RepricingSuggestion](docs/RepricingSuggestion.md)
  - [RequestDecision](docs/RequestDecision.md)
- - [ReservationSettings](docs/ReservationSettings.md)
  - [ResolveBranchRequest](docs/ResolveBranchRequest.md)
  - [ResolveBranchResponse](docs/ResolveBranchResponse.md)
  - [ResolvedShift](docs/ResolvedShift.md)
+ - [ResultBlock](docs/ResultBlock.md)
  - [ReturnLineInput](docs/ReturnLineInput.md)
  - [RolePermission](docs/RolePermission.md)
  - [RoutingModeResponse](docs/RoutingModeResponse.md)
@@ -682,8 +745,9 @@ Class | Method | HTTP request | Description
  - [ScheduleOverride](docs/ScheduleOverride.md)
  - [ScheduledDay](docs/ScheduledDay.md)
  - [ScopeInfo](docs/ScopeInfo.md)
+ - [SeatBookingRequest](docs/SeatBookingRequest.md)
+ - [SetParRequest](docs/SetParRequest.md)
  - [SetRoutingModeRequest](docs/SetRoutingModeRequest.md)
- - [SetTableStatusRequest](docs/SetTableStatusRequest.md)
  - [SettleOpenTicketRequest](docs/SettleOpenTicketRequest.md)
  - [Shift](docs/Shift.md)
  - [ShiftPreFill](docs/ShiftPreFill.md)
@@ -696,27 +760,38 @@ Class | Method | HTTP request | Description
  - [SizeOut](docs/SizeOut.md)
  - [SizeOverrideOut](docs/SizeOverrideOut.md)
  - [SkuCost](docs/SkuCost.md)
+ - [SlotAvailability](docs/SlotAvailability.md)
+ - [Sort](docs/Sort.md)
  - [StaffDocument](docs/StaffDocument.md)
  - [StaffRequest](docs/StaffRequest.md)
  - [StationRoutes](docs/StationRoutes.md)
  - [StatusInput](docs/StatusInput.md)
+ - [StockMovement](docs/StockMovement.md)
  - [StockRow](docs/StockRow.md)
+ - [StockTransfer](docs/StockTransfer.md)
  - [Stocktake](docs/Stocktake.md)
  - [StocktakeFull](docs/StocktakeFull.md)
  - [StocktakeItem](docs/StocktakeItem.md)
+ - [StoredTurn](docs/StoredTurn.md)
  - [StudioAggregate](docs/StudioAggregate.md)
  - [Supplier](docs/Supplier.md)
+ - [SwapTablesRequest](docs/SwapTablesRequest.md)
  - [SyncIngredient](docs/SyncIngredient.md)
  - [SyncItem](docs/SyncItem.md)
  - [SyncModifierGroup](docs/SyncModifierGroup.md)
  - [SyncOption](docs/SyncOption.md)
  - [SyncRecipeLine](docs/SyncRecipeLine.md)
  - [SyncSize](docs/SyncSize.md)
+ - [TableBookingHint](docs/TableBookingHint.md)
  - [TablePosition](docs/TablePosition.md)
  - [TeamPresence](docs/TeamPresence.md)
  - [TellerStats](docs/TellerStats.md)
  - [Till](docs/Till.md)
  - [TimeseriesPoint](docs/TimeseriesPoint.md)
+ - [TopPer](docs/TopPer.md)
+ - [TransferView](docs/TransferView.md)
+ - [TransfersSyncResponse](docs/TransfersSyncResponse.md)
+ - [Transform](docs/Transform.md)
  - [UpdateAddonItemRequest](docs/UpdateAddonItemRequest.md)
  - [UpdateAddonSlotRequest](docs/UpdateAddonSlotRequest.md)
  - [UpdateBookingRequest](docs/UpdateBookingRequest.md)
@@ -726,15 +801,14 @@ Class | Method | HTTP request | Description
  - [UpdateCategoryRequest](docs/UpdateCategoryRequest.md)
  - [UpdateDiscountRequest](docs/UpdateDiscountRequest.md)
  - [UpdateFloorTableRequest](docs/UpdateFloorTableRequest.md)
+ - [UpdateIngredientCategoryRequest](docs/UpdateIngredientCategoryRequest.md)
  - [UpdateInventorySettingsRequest](docs/UpdateInventorySettingsRequest.md)
  - [UpdateMenuItemRequest](docs/UpdateMenuItemRequest.md)
  - [UpdateOptionalFieldRequest](docs/UpdateOptionalFieldRequest.md)
  - [UpdateOrgRequest](docs/UpdateOrgRequest.md)
  - [UpdatePaymentMethodRequest](docs/UpdatePaymentMethodRequest.md)
  - [UpdateSectionRequest](docs/UpdateSectionRequest.md)
- - [UpdateSettingsRequest](docs/UpdateSettingsRequest.md)
  - [UpdateStationRequest](docs/UpdateStationRequest.md)
- - [UpdateStockRequest](docs/UpdateStockRequest.md)
  - [UpdateSupplierRequest](docs/UpdateSupplierRequest.md)
  - [UpdateTillRequest](docs/UpdateTillRequest.md)
  - [UpdateTransferRequest](docs/UpdateTransferRequest.md)
@@ -758,6 +832,7 @@ Class | Method | HTTP request | Description
  - [ValuationRow](docs/ValuationRow.md)
  - [VarianceReport](docs/VarianceReport.md)
  - [VarianceRow](docs/VarianceRow.md)
+ - [Viz](docs/Viz.md)
  - [VoidOpenTicketRequest](docs/VoidOpenTicketRequest.md)
  - [VoidOrderRequest](docs/VoidOrderRequest.md)
  - [WaiterStats](docs/WaiterStats.md)
@@ -765,6 +840,10 @@ Class | Method | HTTP request | Description
  - [WaiveDeductionRequest](docs/WaiveDeductionRequest.md)
  - [WasteReportRow](docs/WasteReportRow.md)
  - [WhatsappStatus](docs/WhatsappStatus.md)
+ - [WidgetOutcome](docs/WidgetOutcome.md)
+ - [WidgetOutcomeOneOf](docs/WidgetOutcomeOneOf.md)
+ - [WidgetOutcomeOneOf1](docs/WidgetOutcomeOneOf1.md)
+ - [WidgetRequest](docs/WidgetRequest.md)
  - [WorkShift](docs/WorkShift.md)
  - [ZoneInput](docs/ZoneInput.md)
 

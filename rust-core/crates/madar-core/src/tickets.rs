@@ -112,11 +112,14 @@ pub(crate) fn build_fire_request(
     customer_name: Option<String>,
     notes: Option<String>,
     guest_count: Option<i32>,
+    booking_id: Option<uuid::Uuid>,
 ) -> models::CreateOpenTicketRequest {
     let mut r = models::CreateOpenTicketRequest::new(branch_id, items);
     r.idempotency_key = Some(Some(ticket_id));
     r.round_idempotency_key = Some(Some(round_id));
     r.table_id = table_id.map(Some);
+    // The party arrived under a booking: the server links the ticket and seats it.
+    r.booking_id = booking_id.map(Some);
     r.customer_name = customer_name.filter(|s| !s.trim().is_empty()).map(Some);
     r.notes = notes.filter(|s| !s.trim().is_empty()).map(Some);
     r.guest_count = guest_count.map(Some);
@@ -209,8 +212,10 @@ mod tests {
             Some("  ".into()), // whitespace-only customer → dropped
             Some("extra hot".into()),
             Some(4),
+            Some(tid),
         );
         assert_eq!(r.branch_id, bid);
+        assert_eq!(r.booking_id, Some(Some(tid)), "booking id rides on the fire");
         assert_eq!(r.idempotency_key, Some(Some(tid)));
         assert_eq!(r.round_idempotency_key, Some(Some(rid)));
         assert_eq!(r.customer_name, None, "blank customer name dropped");
@@ -246,6 +251,7 @@ mod tests {
         let v = models::OpenTicketView {
             id: uuid::Uuid::new_v4(),
             branch_id: uuid::Uuid::new_v4(),
+            booking_id: None,
             table_id: None,
             ticket_ref: Some(Some("T-BR-260625-0001".into())),
             status: "open".into(),

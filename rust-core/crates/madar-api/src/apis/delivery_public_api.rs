@@ -20,12 +20,6 @@ pub struct CreateDeliveryOrderParams {
     pub delivery_order_input: models::DeliveryOrderInput
 }
 
-/// struct for passing parameters to the method [`create_public_booking`]
-#[derive(Clone, Debug)]
-pub struct CreatePublicBookingParams {
-    pub public_create_booking_request: models::PublicCreateBookingRequest
-}
-
 /// struct for passing parameters to the method [`delivery_quote`]
 #[derive(Clone, Debug)]
 pub struct DeliveryQuoteParams {
@@ -50,12 +44,6 @@ pub struct GuestPastLocationsParams {
     pub org_id: String,
     pub branch_id: Option<String>,
     pub device_token: Option<String>
-}
-
-/// struct for passing parameters to the method [`list_reservation_public_branches`]
-#[derive(Clone, Debug)]
-pub struct ListReservationPublicBranchesParams {
-    pub org_id: String
 }
 
 /// struct for passing parameters to the method [`otp_request`]
@@ -91,31 +79,11 @@ pub struct TrackDeliveryOrderParams {
     pub id: String
 }
 
-/// struct for passing parameters to the method [`track_public_booking`]
-#[derive(Clone, Debug)]
-pub struct TrackPublicBookingParams {
-    /// Booking ID
-    pub id: String
-}
-
 
 /// struct for typed errors of method [`create_delivery_order`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateDeliveryOrderError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`create_public_booking`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CreatePublicBookingError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -155,19 +123,6 @@ pub enum GuestOrderHistoryError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GuestPastLocationsError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`list_reservation_public_branches`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ListReservationPublicBranchesError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -242,19 +197,6 @@ pub enum TrackDeliveryOrderError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`track_public_booking`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum TrackPublicBookingError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
 
 pub async fn create_delivery_order(configuration: &configuration::Configuration, params: CreateDeliveryOrderParams) -> Result<models::DeliveryOrder, Error<CreateDeliveryOrderError>> {
 
@@ -287,41 +229,6 @@ pub async fn create_delivery_order(configuration: &configuration::Configuration,
     } else {
         let content = resp.text().await?;
         let entity: Option<CreateDeliveryOrderError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent { status, content, entity }))
-    }
-}
-
-pub async fn create_public_booking(configuration: &configuration::Configuration, params: CreatePublicBookingParams) -> Result<models::PublicBooking, Error<CreatePublicBookingError>> {
-
-    let uri_str = format!("{}/public/reservations", configuration.base_path);
-    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    req_builder = req_builder.json(&params.public_create_booking_request);
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PublicBooking`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PublicBooking`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<CreatePublicBookingError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
@@ -440,41 +347,6 @@ pub async fn guest_past_locations(configuration: &configuration::Configuration, 
     } else {
         let content = resp.text().await?;
         let entity: Option<GuestPastLocationsError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent { status, content, entity }))
-    }
-}
-
-pub async fn list_reservation_public_branches(configuration: &configuration::Configuration, params: ListReservationPublicBranchesParams) -> Result<Vec<models::PublicBranch>, Error<ListReservationPublicBranchesError>> {
-
-    let uri_str = format!("{}/public/reservations/branches", configuration.base_path);
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    req_builder = req_builder.query(&[("org_id", &params.org_id.to_string())]);
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::PublicBranch&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::PublicBranch&gt;`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<ListReservationPublicBranchesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
@@ -652,40 +524,6 @@ pub async fn track_delivery_order(configuration: &configuration::Configuration, 
     } else {
         let content = resp.text().await?;
         let entity: Option<TrackDeliveryOrderError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent { status, content, entity }))
-    }
-}
-
-pub async fn track_public_booking(configuration: &configuration::Configuration, params: TrackPublicBookingParams) -> Result<models::PublicBooking, Error<TrackPublicBookingError>> {
-
-    let uri_str = format!("{}/public/reservations/{id}", configuration.base_path, id=crate::apis::urlencode(params.id));
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PublicBooking`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PublicBooking`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<TrackPublicBookingError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }

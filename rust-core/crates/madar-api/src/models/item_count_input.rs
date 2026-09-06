@@ -19,7 +19,7 @@ pub struct ItemCountInput {
     pub note: Option<Option<String>>,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
-    /// Why the count differs from expected. One of: theft | spoilage | breakage | miscount | supplier_short | transfer_error | other. Required at finalize for rows whose difference exceeds the org's variance threshold.
+    /// Why the count differs from book stock. One of: theft | spoilage | breakage | miscount | supplier_short | transfer_error | other. Required at finalize for rows whose difference exceeds the org's threshold.
     #[serde(rename = "variance_reason", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub variance_reason: Option<Option<String>>,
 }

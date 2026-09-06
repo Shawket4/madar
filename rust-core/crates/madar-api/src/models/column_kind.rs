@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ColumnKind : The renderable kind of an output column (money vs count vs label vs a time axis) so the frontend can format it and pick a chart.
-/// The renderable kind of an output column (money vs count vs label vs a time axis) so the frontend can format it and pick a chart.
+/// ColumnKind : The renderable kind of an output column, so a client can format it and pick a sensible chart without knowing anything about the underlying SQL.
+/// The renderable kind of an output column, so a client can format it and pick a sensible chart without knowing anything about the underlying SQL.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum ColumnKind {
     #[serde(rename = "money")]
@@ -25,6 +25,8 @@ pub enum ColumnKind {
     Date,
     #[serde(rename = "number")]
     Number,
+    #[serde(rename = "minutes")]
+    Minutes,
 
 }
 
@@ -36,6 +38,7 @@ impl std::fmt::Display for ColumnKind {
             Self::Label => write!(f, "label"),
             Self::Date => write!(f, "date"),
             Self::Number => write!(f, "number"),
+            Self::Minutes => write!(f, "minutes"),
         }
     }
 }

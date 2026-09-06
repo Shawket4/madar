@@ -13,12 +13,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateStocktakeRequest {
-    /// Cycle-count scope: snapshot only ingredients in this catalog category. Omit (with org_ingredient_ids) for a full-branch count.
-    #[serde(rename = "category", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub category: Option<Option<String>>,
+    /// Cycle-count scope: only ingredients in this category.
+    #[serde(rename = "category_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub category_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "note", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub note: Option<Option<String>>,
-    /// Cycle-count scope: snapshot only these specific ingredients.
+    /// Cycle-count scope: only these ingredients.
     #[serde(rename = "org_ingredient_ids", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub org_ingredient_ids: Option<Option<Vec<uuid::Uuid>>>,
 }
@@ -26,7 +26,7 @@ pub struct CreateStocktakeRequest {
 impl CreateStocktakeRequest {
     pub fn new() -> CreateStocktakeRequest {
         CreateStocktakeRequest {
-            category: None,
+            category_id: None,
             note: None,
             org_ingredient_ids: None,
         }

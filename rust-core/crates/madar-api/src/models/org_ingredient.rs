@@ -13,9 +13,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OrgIngredient {
-    #[serde(rename = "category")]
-    pub category: String,
-    /// Piastres per unit. `null` ⟺ never entered (unknown, NOT free) — recipes using this ingredient are cost-missing everywhere.
+    #[serde(rename = "category_id")]
+    pub category_id: uuid::Uuid,
+    #[serde(rename = "category_name")]
+    pub category_name: String,
+    #[serde(rename = "category_slug")]
+    pub category_slug: String,
+    /// Standard (org default) cost, piastres per unit. `null` ⟺ never entered (unknown, NOT free) — recipes using this ingredient are cost-missing.
     #[serde(rename = "cost_per_unit", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub cost_per_unit: Option<Option<f64>>,
     #[serde(rename = "created_at")]
@@ -48,15 +52,17 @@ pub struct OrgIngredient {
     pub unit: String,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
-    /// Usable % after trim/cook loss (e.g. 70 = 70%); `null` = 100%. Recipe quantities are grossed up by this at save time.
+    /// Usable % after trim/cook loss (e.g. 70 = 70%); `null` = 100%.
     #[serde(rename = "yield_pct", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub yield_pct: Option<Option<f64>>,
 }
 
 impl OrgIngredient {
-    pub fn new(category: String, created_at: chrono::DateTime<chrono::FixedOffset>, id: uuid::Uuid, is_active: bool, name: String, org_id: uuid::Uuid, unit: String, updated_at: chrono::DateTime<chrono::FixedOffset>) -> OrgIngredient {
+    pub fn new(category_id: uuid::Uuid, category_name: String, category_slug: String, created_at: chrono::DateTime<chrono::FixedOffset>, id: uuid::Uuid, is_active: bool, name: String, org_id: uuid::Uuid, unit: String, updated_at: chrono::DateTime<chrono::FixedOffset>) -> OrgIngredient {
         OrgIngredient {
-            category,
+            category_id,
+            category_name,
+            category_slug,
             cost_per_unit: None,
             created_at,
             density_g_per_ml: None,

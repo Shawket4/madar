@@ -16,25 +16,25 @@ pub struct ValuationRow {
     /// Piastres per unit; `null` ⟺ unknown.
     #[serde(rename = "cost_per_unit", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub cost_per_unit: Option<Option<i64>>,
-    #[serde(rename = "current_stock")]
-    pub current_stock: f64,
     #[serde(rename = "ingredient_name")]
     pub ingredient_name: String,
+    #[serde(rename = "on_hand")]
+    pub on_hand: f64,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
     #[serde(rename = "unit")]
     pub unit: String,
-    /// current_stock × cost_per_unit in piastres; `null` when cost unknown.
+    /// on_hand × cost_per_unit in piastres; `null` when cost unknown.
     #[serde(rename = "value", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub value: Option<Option<i64>>,
 }
 
 impl ValuationRow {
-    pub fn new(current_stock: f64, ingredient_name: String, org_ingredient_id: uuid::Uuid, unit: String) -> ValuationRow {
+    pub fn new(ingredient_name: String, on_hand: f64, org_ingredient_id: uuid::Uuid, unit: String) -> ValuationRow {
         ValuationRow {
             cost_per_unit: None,
-            current_stock,
             ingredient_name,
+            on_hand,
             org_ingredient_id,
             unit,
             value: None,

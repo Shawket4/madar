@@ -13,22 +13,31 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StocktakeItem {
-    #[serde(rename = "branch_inventory_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub branch_inventory_id: Option<Option<uuid::Uuid>>,
+    /// The baseline the difference is measured against: live book stock while the count is open, frozen at finalize.
+    #[serde(rename = "book_qty")]
+    pub book_qty: f64,
+    #[serde(rename = "category_id")]
+    pub category_id: uuid::Uuid,
+    #[serde(rename = "category_name")]
+    pub category_name: String,
     #[serde(rename = "counted_by", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub counted_by: Option<Option<uuid::Uuid>>,
     #[serde(rename = "counted_qty", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub counted_qty: Option<Option<f64>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "expected_qty")]
-    pub expected_qty: f64,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "ingredient_name")]
     pub ingredient_name: String,
+    /// True when the branch had no stock activity for this ingredient when the count opened — counting it is what starts tracking it here.
+    #[serde(rename = "is_new")]
+    pub is_new: bool,
     #[serde(rename = "note", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub note: Option<Option<String>>,
+    /// Book stock when the count was opened (reference only).
+    #[serde(rename = "opening_qty")]
+    pub opening_qty: f64,
     #[serde(rename = "org_ingredient_id")]
     pub org_ingredient_id: uuid::Uuid,
     #[serde(rename = "stocktake_id")]
@@ -38,6 +47,7 @@ pub struct StocktakeItem {
     /// Piastres per unit snapshot; `null` ⟺ unknown.
     #[serde(rename = "unit_cost", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub unit_cost: Option<Option<i64>>,
+    /// counted − book; `null` until counted.
     #[serde(rename = "variance", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub variance: Option<Option<f64>>,
     /// theft | spoilage | breakage | miscount | supplier_short | transfer_error | other.
@@ -46,16 +56,19 @@ pub struct StocktakeItem {
 }
 
 impl StocktakeItem {
-    pub fn new(created_at: chrono::DateTime<chrono::FixedOffset>, expected_qty: f64, id: uuid::Uuid, ingredient_name: String, org_ingredient_id: uuid::Uuid, stocktake_id: uuid::Uuid, unit: String) -> StocktakeItem {
+    pub fn new(book_qty: f64, category_id: uuid::Uuid, category_name: String, created_at: chrono::DateTime<chrono::FixedOffset>, id: uuid::Uuid, ingredient_name: String, is_new: bool, opening_qty: f64, org_ingredient_id: uuid::Uuid, stocktake_id: uuid::Uuid, unit: String) -> StocktakeItem {
         StocktakeItem {
-            branch_inventory_id: None,
+            book_qty,
+            category_id,
+            category_name,
             counted_by: None,
             counted_qty: None,
             created_at,
-            expected_qty,
             id,
             ingredient_name,
+            is_new,
             note: None,
+            opening_qty,
             org_ingredient_id,
             stocktake_id,
             unit,

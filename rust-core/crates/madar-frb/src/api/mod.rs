@@ -1,3 +1,4 @@
+pub mod bookings;
 pub mod bridge;
 pub mod cart;
 pub mod catalog;

@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 /// TablePosition : One table's geometry in a bulk drag-save. `section_id` lets a drag move a table between sections in the same save.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TablePosition {
+    /// Optimistic-concurrency token: the `updated_at` the client last saw for this table.  The dashboard autosaves every gesture, so two managers arranging the same room no longer collide rarely and visibly -- they collide often and silently, each overwriting the other's last drag. When this is sent, the write only lands if the row has not moved since; otherwise the whole request is rejected and the caller is told exactly which tables changed.  Optional so existing clients (and the POS) keep working unchanged: absent means \"no guard\", which is the previous last-write-wins behaviour.
+    #[serde(rename = "expected_updated_at", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub expected_updated_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "height")]
     pub height: f64,
     #[serde(rename = "id")]
@@ -34,6 +37,7 @@ impl TablePosition {
     /// One table's geometry in a bulk drag-save. `section_id` lets a drag move a table between sections in the same save.
     pub fn new(height: f64, id: uuid::Uuid, pos_x: f64, pos_y: f64, rotation: f64, width: f64) -> TablePosition {
         TablePosition {
+            expected_updated_at: None,
             height,
             id,
             pos_x,

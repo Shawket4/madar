@@ -13,13 +13,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AiChatRequest {
-    /// Recent prior turns in this conversation (oldest → newest), so follow-ups like \"and last month?\" resolve. Send only the last few; the server caps the window regardless.
+    /// Continue a stored conversation. When set, history is loaded from the server and `history` below is ignored — this is the path that gives resumable chats and unlimited, compacted context.  Omit it to start a new conversation; the response says which one was created.
+    #[serde(rename = "conversation_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<Option<uuid::Uuid>>,
+    /// Recent prior turns, oldest first. The stateless fallback, kept for clients that manage their own window and for one-off questions. Ignored when `conversation_id` is set. The server caps it regardless.
     #[serde(rename = "history", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub history: Option<Option<Vec<models::HistoryTurn>>>,
-    /// When true, also return a one-sentence natural-language summary of the result (a second, small model call, answered in `locale`). Default false.
-    #[serde(rename = "include_summary", skip_serializing_if = "Option::is_none")]
-    pub include_summary: Option<bool>,
-    /// Answer language — \"en\" or \"ar\" (default \"en\"). Drives translated labels and the summary language. Usually the dashboard's active language.
+    /// Answer language — \"en\" or \"ar\" (default \"en\"). Drives translated labels and the reply language.
     #[serde(rename = "locale", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub locale: Option<Option<String>>,
     /// The merchant's plain-language question, e.g. \"top 5 products last month\" or \"أعلى ٥ منتجات الشهر الماضي\".
@@ -30,8 +30,8 @@ pub struct AiChatRequest {
 impl AiChatRequest {
     pub fn new(question: String) -> AiChatRequest {
         AiChatRequest {
+            conversation_id: None,
             history: None,
-            include_summary: None,
             locale: None,
             question,
         }

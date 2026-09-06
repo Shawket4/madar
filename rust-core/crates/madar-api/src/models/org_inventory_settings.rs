@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OrgInventorySettings {
-    /// Stock-count variance tolerance (percent). A counted row whose |difference| is at least this percent of expected is flagged and needs a reason.
+    /// Stock-count variance tolerance (percent). A counted row whose |difference| is at least this percent of book stock is flagged and needs a reason.
     #[serde(rename = "stocktake_variance_threshold_pct")]
     pub stocktake_variance_threshold_pct: f64,
 }

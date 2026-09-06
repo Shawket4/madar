@@ -13,54 +13,48 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AiChatResponse {
-    /// Suggested visualization for the result.
-    #[serde(rename = "chart")]
-    pub chart: models::ChartHint,
-    /// Column metadata for rendering the table/chart.
-    #[serde(rename = "columns")]
-    pub columns: Vec<models::Column>,
-    /// When set, the client renders one section (chart + table) per distinct value of this column key — e.g. one table per branch (\"faceting\").
-    #[serde(rename = "facet_by", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub facet_by: Option<Option<String>>,
-    /// Which model answered (e.g. \"gemini-2.5-flash\").
+    #[serde(rename = "kind")]
+    pub kind: Kind,
+    #[serde(rename = "results")]
+    pub results: Vec<models::ResultBlock>,
+    #[serde(rename = "text")]
+    pub text: String,
+    #[serde(rename = "question")]
+    pub question: String,
+    /// The conversation this turn belongs to. Present whenever the turn was stored — send it back on the next message to continue.
+    #[serde(rename = "conversation_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<Option<uuid::Uuid>>,
+    /// Which model answered.
     #[serde(rename = "provider")]
     pub provider: String,
-    /// The report the assistant chose.
-    #[serde(rename = "report_id")]
-    pub report_id: String,
-    #[serde(rename = "row_count")]
-    pub row_count: u32,
-    /// Result rows, each an object keyed by column key.
-    #[serde(rename = "rows")]
-    pub rows: Vec<std::collections::HashMap<String, serde_json::Value>>,
-    /// Which branches this answer covers.
-    #[serde(rename = "scope")]
-    pub scope: Box<models::ScopeInfo>,
-    /// Optional one-sentence summary (only when `include_summary` was set and the model produced one), in the requested locale.
-    #[serde(rename = "summary", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub summary: Option<Option<String>>,
-    #[serde(rename = "title")]
-    pub title: String,
-    /// True when the result was capped.
-    #[serde(rename = "truncated")]
-    pub truncated: bool,
+    /// The timezone every date in the answer is expressed in.
+    #[serde(rename = "timezone")]
+    pub timezone: String,
 }
 
 impl AiChatResponse {
-    pub fn new(chart: models::ChartHint, columns: Vec<models::Column>, provider: String, report_id: String, row_count: u32, rows: Vec<std::collections::HashMap<String, serde_json::Value>>, scope: models::ScopeInfo, title: String, truncated: bool) -> AiChatResponse {
+    pub fn new(kind: Kind, results: Vec<models::ResultBlock>, text: String, question: String, provider: String, timezone: String) -> AiChatResponse {
         AiChatResponse {
-            chart,
-            columns,
-            facet_by: None,
+            kind,
+            results,
+            text,
+            question,
+            conversation_id: None,
             provider,
-            report_id,
-            row_count,
-            rows,
-            scope: Box::new(scope),
-            summary: None,
-            title,
-            truncated,
+            timezone,
         }
+    }
+}
+/// 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub enum Kind {
+    #[serde(rename = "incomplete")]
+    Incomplete,
+}
+
+impl Default for Kind {
+    fn default() -> Kind {
+        Self::Incomplete
     }
 }
 

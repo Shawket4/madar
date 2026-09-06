@@ -103,10 +103,33 @@ pub(crate) struct TableWire {
     pub rotation: f64,
     #[serde(default = "default_true")]
     pub is_active: bool,
+    /// The next active booking claiming this table (server-derived; see the
+    /// backend's `TableBookingHint`). `None` for a free evening.
+    #[serde(default)]
+    pub next_booking: Option<BookingHintWire>,
 }
 
 fn default_true() -> bool {
     true
+}
+
+/// The slice of a booking the floor needs: who, how many, when, and from when
+/// the table reads as reserved.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub(crate) struct BookingHintWire {
+    pub booking_id: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub guest_name: String,
+    #[serde(default)]
+    pub party_size: i32,
+    #[serde(default)]
+    pub starts_at: String,
+    #[serde(default)]
+    pub ends_at: String,
+    #[serde(default)]
+    pub held_from: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -211,6 +234,17 @@ pub struct FloorTableStateView {
     pub held_since: Option<String>,
     /// True when that held order is being edited on ANOTHER till right now.
     pub held_locked_by_other: bool,
+    /// The next booking claiming this table (today's service). The host reads
+    /// the table as RESERVED once `booking_held_from` has passed and nobody
+    /// sits there yet; a `seated` booking with no ticket yet reads as taken.
+    pub booking_id: Option<String>,
+    pub booking_guest: Option<String>,
+    pub booking_party: Option<i32>,
+    /// RFC3339 instants — rendered in the branch zone by the host.
+    pub booking_starts_at: Option<String>,
+    pub booking_held_from: Option<String>,
+    /// `confirmed` | `seated`.
+    pub booking_status: Option<String>,
 }
 
 /// The whole branch layout + occupancy, offline. EMPTY sections+tables ⇒ the
@@ -825,6 +859,12 @@ pub(crate) fn layout(store: &Store, my_device: &str) -> CoreResult<FloorLayoutVi
                         h.status == "resumed" && h.claimed_by_device.as_deref() != Some(my_device)
                     })
                     .unwrap_or(false),
+                booking_id: t.next_booking.as_ref().map(|b| b.booking_id.clone()),
+                booking_guest: t.next_booking.as_ref().map(|b| b.guest_name.clone()),
+                booking_party: t.next_booking.as_ref().map(|b| b.party_size),
+                booking_starts_at: t.next_booking.as_ref().map(|b| b.starts_at.clone()),
+                booking_held_from: t.next_booking.as_ref().map(|b| b.held_from.clone()),
+                booking_status: t.next_booking.as_ref().map(|b| b.status.clone()),
             }
         })
         .collect();
@@ -893,6 +933,26 @@ pub(crate) fn save_floor(store: &Store, sections_json: &str, tables_json: &str) 
         serde_json::from_str(sections_json).map_err(CoreError::from)?;
     let tables: Vec<TableWire> = serde_json::from_str(tables_json).map_err(CoreError::from)?;
     store.kv_put(K_FLOOR_SECTIONS, &serde_json::to_string(&sections)?)?;
+    store.kv_put(K_FLOOR_TABLES, &serde_json::to_string(&tables)?)?;
+    Ok(())
+}
+
+/// Flip the status of the booking claiming any table in the mirror (seated /
+/// no-show / cancelled) so the canvas reacts before the next pull. A terminal
+/// status drops the hint — the table is simply free again.
+pub(crate) fn set_booking_status_local(store: &Store, booking_id: &str, status: &str) -> CoreResult<()> {
+    let mut tables = load_tables(store)?;
+    for t in tables.iter_mut() {
+        if t.next_booking.as_ref().is_some_and(|b| b.booking_id == booking_id) {
+            if matches!(status, "confirmed" | "seated") {
+                if let Some(b) = t.next_booking.as_mut() {
+                    b.status = status.to_string();
+                }
+            } else {
+                t.next_booking = None;
+            }
+        }
+    }
     store.kv_put(K_FLOOR_TABLES, &serde_json::to_string(&tables)?)?;
     Ok(())
 }

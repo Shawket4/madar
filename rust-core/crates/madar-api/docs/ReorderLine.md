@@ -4,8 +4,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**current_stock** | **f64** |  | 
 **ingredient_name** | **String** |  | 
+**on_hand** | **f64** |  | 
 **org_ingredient_id** | **uuid::Uuid** |  | 
 **suggested_qty** | **f64** | Quantity (in base units) to bring stock up to the order-up-to level. | 
 **unit** | **String** |  | 

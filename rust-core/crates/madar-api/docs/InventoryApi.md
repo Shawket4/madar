@@ -4,53 +4,26 @@ All URIs are relative to *http://localhost:8080*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**add_to_branch_stock**](InventoryApi.md#add_to_branch_stock) | **POST** /inventory/branches/{branch_id}/stock | 
 [**create_catalog_item**](InventoryApi.md#create_catalog_item) | **POST** /inventory/orgs/{org_id}/catalog | 
+[**create_ingredient_category**](InventoryApi.md#create_ingredient_category) | **POST** /inventory/orgs/{org_id}/categories | 
 [**create_transfer**](InventoryApi.md#create_transfer) | **POST** /inventory/transfers | 
 [**create_waste**](InventoryApi.md#create_waste) | **POST** /inventory/branches/{branch_id}/waste | 
 [**delete_catalog_item**](InventoryApi.md#delete_catalog_item) | **DELETE** /inventory/orgs/{org_id}/catalog/{id} | 
+[**delete_ingredient_category**](InventoryApi.md#delete_ingredient_category) | **DELETE** /inventory/orgs/{org_id}/categories/{id} | 
 [**delete_transfer**](InventoryApi.md#delete_transfer) | **DELETE** /inventory/transfers/{id} | 
 [**get_inventory_settings**](InventoryApi.md#get_inventory_settings) | **GET** /inventory/orgs/{org_id}/settings | 
 [**list_branch_stock**](InventoryApi.md#list_branch_stock) | **GET** /inventory/branches/{branch_id}/stock | 
 [**list_catalog**](InventoryApi.md#list_catalog) | **GET** /inventory/orgs/{org_id}/catalog | 
+[**list_ingredient_categories**](InventoryApi.md#list_ingredient_categories) | **GET** /inventory/orgs/{org_id}/categories | 
 [**list_movements**](InventoryApi.md#list_movements) | **GET** /inventory/branches/{branch_id}/movements | 
 [**list_transfers**](InventoryApi.md#list_transfers) | **GET** /inventory/branches/{branch_id}/transfers | 
 [**list_waste**](InventoryApi.md#list_waste) | **GET** /inventory/branches/{branch_id}/waste | 
-[**remove_from_branch_stock**](InventoryApi.md#remove_from_branch_stock) | **DELETE** /inventory/branches/{branch_id}/stock/{id} | 
-[**update_branch_stock**](InventoryApi.md#update_branch_stock) | **PATCH** /inventory/branches/{branch_id}/stock/{id} | 
+[**set_par_levels**](InventoryApi.md#set_par_levels) | **PUT** /inventory/branches/{branch_id}/stock/{org_ingredient_id}/par | 
 [**update_catalog_item**](InventoryApi.md#update_catalog_item) | **PATCH** /inventory/orgs/{org_id}/catalog/{id} | 
+[**update_ingredient_category**](InventoryApi.md#update_ingredient_category) | **PATCH** /inventory/orgs/{org_id}/categories/{id} | 
 [**update_inventory_settings**](InventoryApi.md#update_inventory_settings) | **PUT** /inventory/orgs/{org_id}/settings | 
 [**update_transfer**](InventoryApi.md#update_transfer) | **PATCH** /inventory/transfers/{id} | 
 
-
-
-## add_to_branch_stock
-
-> models::BranchInventoryItem add_to_branch_stock(branch_id, add_to_stock_request)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**branch_id** | **uuid::Uuid** | Branch ID | [required] |
-**add_to_stock_request** | [**AddToStockRequest**](AddToStockRequest.md) |  | [required] |
-
-### Return type
-
-[**models::BranchInventoryItem**](BranchInventoryItem.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## create_catalog_item
@@ -82,9 +55,38 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## create_ingredient_category
+
+> models::IngredientCategory create_ingredient_category(org_id, create_ingredient_category_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** | Organization ID | [required] |
+**create_ingredient_category_request** | [**CreateIngredientCategoryRequest**](CreateIngredientCategoryRequest.md) |  | [required] |
+
+### Return type
+
+[**models::IngredientCategory**](IngredientCategory.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## create_transfer
 
-> models::BranchInventoryTransfer create_transfer(create_transfer_request)
+> models::StockTransfer create_transfer(create_transfer_request)
 
 
 ### Parameters
@@ -96,7 +98,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::BranchInventoryTransfer**](BranchInventoryTransfer.md)
+[**models::StockTransfer**](StockTransfer.md)
 
 ### Authorization
 
@@ -112,7 +114,7 @@ Name | Type | Description  | Required | Notes
 
 ## create_waste
 
-> models::BranchInventoryMovement create_waste(branch_id, create_waste_request)
+> models::StockMovement create_waste(branch_id, create_waste_request)
 
 
 ### Parameters
@@ -125,7 +127,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::BranchInventoryMovement**](BranchInventoryMovement.md)
+[**models::StockMovement**](StockMovement.md)
 
 ### Authorization
 
@@ -151,6 +153,36 @@ Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **org_id** | **uuid::Uuid** | Organization ID | [required] |
 **id** | **uuid::Uuid** | Ingredient ID | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## delete_ingredient_category
+
+> delete_ingredient_category(org_id, id, reassign_to)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** | Organization ID | [required] |
+**id** | **uuid::Uuid** | Category ID | [required] |
+**reassign_to** | Option<**uuid::Uuid**> | Category that ingredients in the deleted one move to. Required when the category still has ingredients. |  |
 
 ### Return type
 
@@ -226,7 +258,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_branch_stock
 
-> Vec<models::BranchInventoryItem> list_branch_stock(branch_id)
+> Vec<models::BranchStockRow> list_branch_stock(branch_id)
 
 
 ### Parameters
@@ -238,7 +270,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**Vec<models::BranchInventoryItem>**](BranchInventoryItem.md)
+[**Vec<models::BranchStockRow>**](BranchStockRow.md)
 
 ### Authorization
 
@@ -280,9 +312,37 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## list_ingredient_categories
+
+> Vec<models::IngredientCategory> list_ingredient_categories(org_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** | Organization ID | [required] |
+
+### Return type
+
+[**Vec<models::IngredientCategory>**](IngredientCategory.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## list_movements
 
-> Vec<models::BranchInventoryMovement> list_movements(branch_id, org_ingredient_id, r#type, from, to, page, per_page)
+> Vec<models::StockMovement> list_movements(branch_id, org_ingredient_id, r#type, from, to, page, per_page)
 
 
 ### Parameters
@@ -300,7 +360,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**Vec<models::BranchInventoryMovement>**](BranchInventoryMovement.md)
+[**Vec<models::StockMovement>**](StockMovement.md)
 
 ### Authorization
 
@@ -316,7 +376,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_transfers
 
-> Vec<models::BranchInventoryTransfer> list_transfers(branch_id, direction, limit, offset)
+> Vec<models::StockTransfer> list_transfers(branch_id, direction, limit, offset)
 
 
 ### Parameters
@@ -324,14 +384,14 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**branch_id** | **uuid::Uuid** |  | [required] |
+**branch_id** | **uuid::Uuid** | Branch ID | [required] |
 **direction** | Option<**String**> |  |  |
 **limit** | Option<**i64**> |  |  |
 **offset** | Option<**i64**> |  |  |
 
 ### Return type
 
-[**Vec<models::BranchInventoryTransfer>**](BranchInventoryTransfer.md)
+[**Vec<models::StockTransfer>**](StockTransfer.md)
 
 ### Authorization
 
@@ -347,7 +407,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_waste
 
-> Vec<models::BranchInventoryMovement> list_waste(branch_id)
+> Vec<models::StockMovement> list_waste(branch_id, limit, offset)
 
 
 ### Parameters
@@ -356,10 +416,12 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **branch_id** | **uuid::Uuid** | Branch ID | [required] |
+**limit** | Option<**i64**> |  |  |
+**offset** | Option<**i64**> |  |  |
 
 ### Return type
 
-[**Vec<models::BranchInventoryMovement>**](BranchInventoryMovement.md)
+[**Vec<models::StockMovement>**](StockMovement.md)
 
 ### Authorization
 
@@ -373,38 +435,9 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
-## remove_from_branch_stock
+## set_par_levels
 
-> remove_from_branch_stock(branch_id, id)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**branch_id** | **uuid::Uuid** | Branch ID | [required] |
-**id** | **uuid::Uuid** | Stock ID | [required] |
-
-### Return type
-
- (empty response body)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## update_branch_stock
-
-> models::BranchInventoryItem update_branch_stock(branch_id, id, update_stock_request)
+> models::BranchStockRow set_par_levels(branch_id, org_ingredient_id, set_par_request)
 
 
 ### Parameters
@@ -413,12 +446,12 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **branch_id** | **uuid::Uuid** | Branch ID | [required] |
-**id** | **uuid::Uuid** | Stock ID | [required] |
-**update_stock_request** | [**UpdateStockRequest**](UpdateStockRequest.md) |  | [required] |
+**org_ingredient_id** | **uuid::Uuid** | Ingredient ID | [required] |
+**set_par_request** | [**SetParRequest**](SetParRequest.md) |  | [required] |
 
 ### Return type
 
-[**models::BranchInventoryItem**](BranchInventoryItem.md)
+[**models::BranchStockRow**](BranchStockRow.md)
 
 ### Authorization
 
@@ -449,6 +482,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::OrgIngredient**](OrgIngredient.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## update_ingredient_category
+
+> models::IngredientCategory update_ingredient_category(org_id, id, update_ingredient_category_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** | Organization ID | [required] |
+**id** | **uuid::Uuid** | Category ID | [required] |
+**update_ingredient_category_request** | [**UpdateIngredientCategoryRequest**](UpdateIngredientCategoryRequest.md) |  | [required] |
+
+### Return type
+
+[**models::IngredientCategory**](IngredientCategory.md)
 
 ### Authorization
 
@@ -493,7 +556,7 @@ Name | Type | Description  | Required | Notes
 
 ## update_transfer
 
-> models::BranchInventoryTransfer update_transfer(id, update_transfer_request)
+> models::StockTransfer update_transfer(id, update_transfer_request)
 
 
 ### Parameters
@@ -506,7 +569,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::BranchInventoryTransfer**](BranchInventoryTransfer.md)
+[**models::StockTransfer**](StockTransfer.md)
 
 ### Authorization
 

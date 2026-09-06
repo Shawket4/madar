@@ -23,6 +23,7 @@ pub use config::MadarConfig;
 pub mod pricing;
 
 /// Cart — client-only in-progress order state, priced via `pricing`.
+pub mod bookings;
 pub mod cart;
 /// Category styling (icon + gradient palette) — port of Flutter's `CatStyle`.
 pub mod catstyle;
@@ -263,7 +264,7 @@ pub struct MadarCore {
     unified_listener: Arc<Mutex<Option<Arc<dyn realtime::EventListener>>>>,
     /// The running LAN relay (`None` = not started). The second delivery path beside
     /// the cloud bus; outbox stays the source of truth. Phase E.
-    lan: Mutex<Option<Arc<lan::LanRelay>>>,
+    lan: Arc<Mutex<Option<Arc<lan::LanRelay>>>>,
     /// Dashboard-only: the runtime-selected org/branch scope override. `None`
     /// (or a `None` field) falls back to the session-derived scope. Persisted to
     /// kv (`dashboard:active_scope`) so the app reopens on the last branch.
@@ -338,7 +339,7 @@ impl MadarCore {
             drain_lock: tokio::sync::Mutex::new(()),
             realtime: Mutex::new(None),
             unified_listener: Arc::new(Mutex::new(None)),
-            lan: Mutex::new(None),
+            lan: Arc::new(Mutex::new(None)),
             active_scope: RwLock::new(active_scope),
         }))
     }
@@ -1234,6 +1235,26 @@ impl MadarCore {
                     Idem::Yes,
                 )
             }
+            "seat_booking" => {
+                let cmd: bookings::SeatBookingCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "seat_booking", "teller_id": teller_id, "booking_id": cmd.booking_id, "request": cmd.request }),
+                    Idem::Yes,
+                )
+            }
+            "no_show_booking" => {
+                let cmd: bookings::NoShowBookingCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "no_show_booking", "teller_id": teller_id, "booking_id": cmd.booking_id }),
+                    Idem::Yes,
+                )
+            }
             // A LAN mirror-relay backup: the payload IS the `/sync/replay` envelope
             // (verbatim from the originating device, with the ORIGINAL teller_id), so
             // it posts as-is and dedups server-side against the originator's own copy.
@@ -1904,7 +1925,7 @@ impl MadarCore {
             .lock()
             .unwrap_or_else(|e| e.into_inner()) = Some(listener.clone());
         let client = self.api.realtime_client();
-        let handle = realtime::spawn_supervisor(client, branch_id, topics, listener);
+        let handle = realtime::spawn_supervisor(client, branch_id, topics, listener, None);
         let mut slot = self.realtime.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(old) = slot.take() {
             old.stop();
@@ -1955,13 +1976,21 @@ impl MadarCore {
             Arc::from(player),
             self.locale.clone(),
             session.role.clone(),
+            self.branch_timezone(),
         ));
         *self
             .unified_listener
             .lock()
             .unwrap_or_else(|e| e.into_inner()) = Some(alerting.clone());
         let client = self.api.realtime_client();
-        let handle = realtime::spawn_supervisor(client, branch_id, topics, alerting);
+        // Cloud-only events (online orders, bookings) get re-published on the LAN
+        // by every device that heard them, under one deterministic id, so a
+        // peer with no internet still hears each once. See `LanCloudRelay`.
+        let relay: Arc<dyn realtime::CloudRelay> = Arc::new(LanCloudRelay {
+            lan: self.lan.clone(),
+            branch_id: branch_id.clone(),
+        });
+        let handle = realtime::spawn_supervisor(client, branch_id, topics, alerting, Some(relay));
         let mut slot = self.realtime.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(old) = slot.take() {
             old.stop();
@@ -1972,6 +2001,38 @@ impl MadarCore {
 }
 
 // ── LAN offline relay (Phase E) ───────────────────────────────────────────────
+
+/// The cloud→LAN bridge: a cloud-only event this device just heard over SSE is
+/// re-published on the LAN as a DISPLAY event (no replay op — the write already
+/// happened in the cloud). The `msg_id` is derived from the branch + the SSE
+/// event id, so every till that relays the same event sends the same id and
+/// the LAN dedup delivers it once per peer. No-op without a running relay.
+struct LanCloudRelay {
+    lan: Arc<Mutex<Option<Arc<lan::LanRelay>>>>,
+    branch_id: String,
+}
+
+impl realtime::CloudRelay for LanCloudRelay {
+    fn relay(&self, event_id: &str, event: &realtime::RealtimeEvent) {
+        let relay = self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let Some(relay) = relay else { return };
+        let msg_id = format!("cloud:{}:{}", self.branch_id, event_id);
+        let topic = event
+            .event_type
+            .split('.')
+            .next()
+            .map(|t| if t == "booking" { "bookings" } else { t })
+            .unwrap_or("orders")
+            .to_string();
+        let event = event.clone();
+        let at = chrono::Utc::now().timestamp_millis();
+        tokio::spawn(async move {
+            relay
+                .publish_with_id(msg_id, &topic, &event.event_type, event.data, None, at)
+                .await;
+        });
+    }
+}
 
 /// The relay's inbound sink: forward a verified LAN event to the unified listener
 /// (so the board refreshes just like a cloud event) and — for a write carrying a
@@ -3903,6 +3964,9 @@ impl MadarCore {
             self.api.get_text("/floor/tables", &q).await,
         ) {
             if held::save_floor(&self.store, &sections, &tables).is_ok() {
+                // A queued seat / no-show keeps its optimistic state on the
+                // canvas until it drains.
+                self.reapply_pending_booking_ops();
                 // Re-apply a QUEUED local clear on top of the fresh pull, so a
                 // table the teller just bussed does not flicker back to dirty
                 // between this pull and its drain.
@@ -3945,7 +4009,34 @@ impl MadarCore {
     /// untouched and the canvas keeps rendering what it has.
     pub async fn refresh_floor(&self) -> Result<(), CoreError> {
         self.refresh_floor_and_held().await;
+        // The arrivals list rides along: a `booking.*` event triggers the
+        // same floor refresh the host already does.
+        let _ = self.refresh_arrivals().await;
         Ok(())
+    }
+
+    /// Re-apply queued booking ops (seat / no-show) on top of a fresh pull, so
+    /// the arrivals list and the canvas keep the teller's answer until the
+    /// cloud confirms it.
+    fn reapply_pending_booking_ops(&self) {
+        let Ok(items) = self.store.pending() else {
+            return;
+        };
+        for i in &items {
+            let (id, status) = match i.op_type.as_str() {
+                "seat_booking" => match serde_json::from_str::<bookings::SeatBookingCommand>(&i.payload) {
+                    Ok(c) => (c.booking_id, "seated"),
+                    Err(_) => continue,
+                },
+                "no_show_booking" => match serde_json::from_str::<bookings::NoShowBookingCommand>(&i.payload) {
+                    Ok(c) => (c.booking_id, "no_show"),
+                    Err(_) => continue,
+                },
+                _ => continue,
+            };
+            let _ = bookings::set_status_local(&self.store, &id, status);
+            let _ = held::set_booking_status_local(&self.store, &id, status);
+        }
     }
 
     /// Ids (held orders + transfers) with a queued-but-unacked local op — their
@@ -5322,6 +5413,7 @@ impl MadarCore {
         customer_name: Option<String>,
         notes: Option<String>,
         guest_count: Option<i32>,
+        booking_id: Option<String>,
     ) -> Result<tickets::TicketFiredView, CoreError> {
         let branch_id = self.session_branch_id()?;
         let branch_uuid = uuid::Uuid::parse_str(&branch_id).map_err(|_| CoreError::Validation {
@@ -5341,6 +5433,9 @@ impl MadarCore {
         let table_uuid = table_id
             .as_deref()
             .and_then(|s| uuid::Uuid::parse_str(s).ok());
+        let booking_uuid = booking_id
+            .as_deref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok());
         let request = tickets::build_fire_request(
             branch_uuid,
             items,
@@ -5350,7 +5445,13 @@ impl MadarCore {
             customer_name,
             notes,
             guest_count,
+            booking_uuid,
         );
+        // The booked party sat down: reflect it locally before the server does.
+        if let Some(bid) = booking_id.as_deref() {
+            let _ = bookings::set_status_local(&self.store, bid, "seated");
+            let _ = held::set_booking_status_local(&self.store, bid, "seated");
+        }
         let cmd = tickets::FireTicketCommand {
             ticket_id: ticket_id.to_string(),
             request,
@@ -7580,78 +7681,6 @@ impl MadarCore {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    /// Active bookings (reservations + waitlist) for the signed-in branch.
-    pub async fn list_reservations(&self) -> Result<Vec<reservations::ReservationView>, CoreError> {
-        use madar_api::apis::reservations_api;
-        let branch_id = self.reservations_branch()?;
-        let rows = reservations_api::list_bookings(
-            &self.api.config(),
-            reservations_api::ListBookingsParams {
-                branch_id,
-                status: None,
-                date: None,
-            },
-        )
-        .await
-        .map_err(net::map_api_error)?;
-        Ok(rows.into_iter().map(Into::into).collect())
-    }
-
-    /// Seat a party onto one or more tables (multiple ⇒ merged tables). The
-    /// backend opens a dine-in ticket on the primary table.
-    pub async fn seat_reservation(
-        &self,
-        booking_id: String,
-        table_ids: Vec<String>,
-    ) -> Result<reservations::ReservationView, CoreError> {
-        use madar_api::apis::reservations_api;
-        let ids = reservations::parse_uuids("table_ids", &table_ids)?;
-        let view = reservations_api::assign_tables(
-            &self.api.config(),
-            reservations_api::AssignTablesParams {
-                id: booking_id,
-                assign_tables_request: madar_api::models::AssignTablesRequest::new(ids),
-            },
-        )
-        .await
-        .map_err(net::map_api_error)?;
-        Ok(view.into())
-    }
-
-    /// Set a table's live status (`free` | `held` | `seated` | `dirty`).
-    pub async fn set_floor_table_status(
-        &self,
-        table_id: String,
-        status: String,
-    ) -> Result<reservations::FloorTableView, CoreError> {
-        use madar_api::apis::reservations_api;
-        let view = reservations_api::set_table_status(
-            &self.api.config(),
-            reservations_api::SetTableStatusParams {
-                id: table_id,
-                set_table_status_request: madar_api::models::SetTableStatusRequest::new(status),
-            },
-        )
-        .await
-        .map_err(net::map_api_error)?;
-        Ok(view.into())
-    }
-
-    /// Send the booking's nudge (reservation departure / waitlist ready).
-    pub async fn notify_reservation(
-        &self,
-        booking_id: String,
-    ) -> Result<reservations::ReservationView, CoreError> {
-        use madar_api::apis::reservations_api;
-        let view = reservations_api::notify_booking(
-            &self.api.config(),
-            reservations_api::NotifyBookingParams { id: booking_id },
-        )
-        .await
-        .map_err(net::map_api_error)?;
-        Ok(view.into())
-    }
-
     /// Move an open ticket to another table (the "switch table" action). Frees the
     /// old table, occupies the new one, and keeps the booking assignment in sync.
     pub async fn move_ticket_to_table(
@@ -7671,6 +7700,97 @@ impl MadarCore {
         .await
         .map_err(net::map_api_error)?;
         Ok(())
+    }
+}
+
+// ── Bookings at service time ─────────────────────────────────────────────────
+#[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
+impl MadarCore {
+    /// Pull today's active bookings (the arrivals list) into the offline cache.
+    /// Best-effort like `refresh_floor`: offline / 403 leaves the cache as is.
+    /// Queued seat / no-show answers stay applied on top.
+    pub async fn refresh_arrivals(&self) -> Result<(), CoreError> {
+        use madar_api::apis::bookings_api;
+        let Ok(branch_id) = self.session_branch_id() else {
+            return Ok(());
+        };
+        let date = self.service_date_today();
+        let rows = match bookings_api::list_bookings(
+            &self.api.config(),
+            bookings_api::ListBookingsParams {
+                branch_id,
+                date: Some(date),
+                from: None,
+                to: None,
+                active: Some(true),
+                status: None,
+            },
+        )
+        .await
+        {
+            Ok(rows) => rows,
+            Err(_) => return Ok(()),
+        };
+        let list: Vec<bookings::BookingView> = rows.into_iter().map(Into::into).collect();
+        bookings::save_arrivals(&self.store, &list)?;
+        self.reapply_pending_booking_ops();
+        Ok(())
+    }
+
+    /// Today's active bookings from the cache, earliest first.
+    pub fn list_arrivals(&self) -> Result<Vec<bookings::BookingView>, CoreError> {
+        let mut list = bookings::load_arrivals(&self.store)?;
+        list.sort_by(|a, b| a.starts_at.cmp(&b.starts_at));
+        Ok(list)
+    }
+
+    /// The party arrived: mark the booking seated (optionally on another
+    /// table). Optimistic-local + queued; the ticket the waiter fires next
+    /// carries the booking id and links itself server-side.
+    pub fn seat_booking(&self, booking_id: String, table_id: Option<String>) -> Result<(), CoreError> {
+        bookings::set_status_local(&self.store, &booking_id, "seated")?;
+        held::set_booking_status_local(&self.store, &booking_id, "seated")?;
+        let request = match table_id {
+            Some(t) => serde_json::json!({ "table_ids": [t] }),
+            None => serde_json::json!({}),
+        };
+        let cmd = bookings::SeatBookingCommand {
+            booking_id: booking_id.clone(),
+            request,
+        };
+        self.enqueue_held_op(
+            "seat_booking",
+            format!("booking-seat:{booking_id}"),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// The party never came: release the table. Optimistic-local + queued.
+    pub fn no_show_booking(&self, booking_id: String) -> Result<(), CoreError> {
+        bookings::set_status_local(&self.store, &booking_id, "no_show")?;
+        held::set_booking_status_local(&self.store, &booking_id, "no_show")?;
+        let cmd = bookings::NoShowBookingCommand {
+            booking_id: booking_id.clone(),
+        };
+        self.enqueue_held_op(
+            "no_show_booking",
+            format!("booking-no-show:{booking_id}"),
+            &serde_json::to_string(&cmd)?,
+        )
+    }
+
+    /// Today's service date (`YYYY-MM-DD`) in the branch zone, 05:00 → 05:00
+    /// like the backend, so a 00:30 booking still belongs to tonight.
+    fn service_date_today(&self) -> String {
+        use chrono::Timelike;
+        let tz = timefmt::branch_tz(&self.store);
+        let now = self.corrected_now().with_timezone(&tz);
+        let date = if now.hour() < 5 {
+            now.date_naive() - chrono::Duration::days(1)
+        } else {
+            now.date_naive()
+        };
+        date.format("%Y-%m-%d").to_string()
     }
 }
 

@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**booking_id** | Option<**uuid::Uuid**> | The booking this ticket seated, if the party had one. | [optional]
 **branch_id** | **uuid::Uuid** |  | 
 **customer_name** | Option<**String**> |  | [optional]
 **guest_count** | Option<**i32**> |  | [optional]

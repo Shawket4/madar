@@ -7,7 +7,7 @@ use flutter_rust_bridge::frb;
 pub use madar_core::held::{
     FloorLayoutView, FloorSectionInfo, FloorTableStateView, TransferQueueView,
 };
-pub use madar_core::reservations::{FloorSectionView, FloorTableView, ReservationView};
+pub use madar_core::reservations::{FloorSectionView, FloorTableView};
 
 use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
@@ -40,25 +40,6 @@ pub struct _FloorTableView {
     pub rotation: f64,
 }
 
-/// A booking — reservation (`reserved_for` set) or waitlist entry (none).
-#[frb(mirror(ReservationView))]
-pub struct _ReservationView {
-    pub id: String,
-    pub branch_id: String,
-    /// `reservation` | `walk_in`.
-    pub kind: String,
-    pub customer_name: String,
-    pub customer_phone: String,
-    pub party_size: i32,
-    /// RFC-3339 instant, or `None` for a waitlist entry.
-    pub reserved_for: Option<String>,
-    pub status: String,
-    /// Assigned table ids (multiple ⇒ merged tables).
-    pub table_ids: Vec<String>,
-    pub customer_lat: Option<f64>,
-    pub customer_lng: Option<f64>,
-    pub notes: Option<String>,
-}
 
 impl MadarBridge {
 
@@ -186,6 +167,13 @@ pub struct _FloorTableStateView {
     /// RFC3339 stamp of when the order started — rendered as time-on-table.
     pub held_since: Option<String>,
     pub held_locked_by_other: bool,
+    /// The next booking claiming this table today (see `madar_core::held`).
+    pub booking_id: Option<String>,
+    pub booking_guest: Option<String>,
+    pub booking_party: Option<i32>,
+    pub booking_starts_at: Option<String>,
+    pub booking_held_from: Option<String>,
+    pub booking_status: Option<String>,
 }
 
 /// The whole branch layout + occupancy, offline.

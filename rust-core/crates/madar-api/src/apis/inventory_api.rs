@@ -14,20 +14,20 @@ use serde::{Deserialize, Serialize, de::Error as _};
 use crate::{apis::ResponseContent, models};
 use super::{Error, configuration, ContentType};
 
-/// struct for passing parameters to the method [`add_to_branch_stock`]
-#[derive(Clone, Debug)]
-pub struct AddToBranchStockParams {
-    /// Branch ID
-    pub branch_id: String,
-    pub add_to_stock_request: models::AddToStockRequest
-}
-
 /// struct for passing parameters to the method [`create_catalog_item`]
 #[derive(Clone, Debug)]
 pub struct CreateCatalogItemParams {
     /// Organization ID
     pub org_id: String,
     pub create_catalog_item_request: models::CreateCatalogItemRequest
+}
+
+/// struct for passing parameters to the method [`create_ingredient_category`]
+#[derive(Clone, Debug)]
+pub struct CreateIngredientCategoryParams {
+    /// Organization ID
+    pub org_id: String,
+    pub create_ingredient_category_request: models::CreateIngredientCategoryRequest
 }
 
 /// struct for passing parameters to the method [`create_transfer`]
@@ -51,6 +51,17 @@ pub struct DeleteCatalogItemParams {
     pub org_id: String,
     /// Ingredient ID
     pub id: String
+}
+
+/// struct for passing parameters to the method [`delete_ingredient_category`]
+#[derive(Clone, Debug)]
+pub struct DeleteIngredientCategoryParams {
+    /// Organization ID
+    pub org_id: String,
+    /// Category ID
+    pub id: String,
+    /// Category that ingredients in the deleted one move to. Required when the category still has ingredients.
+    pub reassign_to: Option<String>
 }
 
 /// struct for passing parameters to the method [`delete_transfer`]
@@ -81,6 +92,13 @@ pub struct ListCatalogParams {
     pub org_id: String
 }
 
+/// struct for passing parameters to the method [`list_ingredient_categories`]
+#[derive(Clone, Debug)]
+pub struct ListIngredientCategoriesParams {
+    /// Organization ID
+    pub org_id: String
+}
+
 /// struct for passing parameters to the method [`list_movements`]
 #[derive(Clone, Debug)]
 pub struct ListMovementsParams {
@@ -97,6 +115,7 @@ pub struct ListMovementsParams {
 /// struct for passing parameters to the method [`list_transfers`]
 #[derive(Clone, Debug)]
 pub struct ListTransfersParams {
+    /// Branch ID
     pub branch_id: String,
     pub direction: Option<String>,
     pub limit: Option<i64>,
@@ -107,26 +126,19 @@ pub struct ListTransfersParams {
 #[derive(Clone, Debug)]
 pub struct ListWasteParams {
     /// Branch ID
-    pub branch_id: String
+    pub branch_id: String,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>
 }
 
-/// struct for passing parameters to the method [`remove_from_branch_stock`]
+/// struct for passing parameters to the method [`set_par_levels`]
 #[derive(Clone, Debug)]
-pub struct RemoveFromBranchStockParams {
+pub struct SetParLevelsParams {
     /// Branch ID
     pub branch_id: String,
-    /// Stock ID
-    pub id: String
-}
-
-/// struct for passing parameters to the method [`update_branch_stock`]
-#[derive(Clone, Debug)]
-pub struct UpdateBranchStockParams {
-    /// Branch ID
-    pub branch_id: String,
-    /// Stock ID
-    pub id: String,
-    pub update_stock_request: models::UpdateStockRequest
+    /// Ingredient ID
+    pub org_ingredient_id: String,
+    pub set_par_request: models::SetParRequest
 }
 
 /// struct for passing parameters to the method [`update_catalog_item`]
@@ -137,6 +149,16 @@ pub struct UpdateCatalogItemParams {
     /// Ingredient ID
     pub id: String,
     pub update_catalog_item_request: models::UpdateCatalogItemRequest
+}
+
+/// struct for passing parameters to the method [`update_ingredient_category`]
+#[derive(Clone, Debug)]
+pub struct UpdateIngredientCategoryParams {
+    /// Organization ID
+    pub org_id: String,
+    /// Category ID
+    pub id: String,
+    pub update_ingredient_category_request: models::UpdateIngredientCategoryRequest
 }
 
 /// struct for passing parameters to the method [`update_inventory_settings`]
@@ -156,10 +178,10 @@ pub struct UpdateTransferParams {
 }
 
 
-/// struct for typed errors of method [`add_to_branch_stock`]
+/// struct for typed errors of method [`create_catalog_item`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum AddToBranchStockError {
+pub enum CreateCatalogItemError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -169,10 +191,10 @@ pub enum AddToBranchStockError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`create_catalog_item`]
+/// struct for typed errors of method [`create_ingredient_category`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum CreateCatalogItemError {
+pub enum CreateIngredientCategoryError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -212,6 +234,19 @@ pub enum CreateWasteError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteCatalogItemError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`delete_ingredient_category`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteIngredientCategoryError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -273,6 +308,19 @@ pub enum ListCatalogError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`list_ingredient_categories`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListIngredientCategoriesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`list_movements`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -312,23 +360,10 @@ pub enum ListWasteError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`remove_from_branch_stock`]
+/// struct for typed errors of method [`set_par_levels`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum RemoveFromBranchStockError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`update_branch_stock`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum UpdateBranchStockError {
+pub enum SetParLevelsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -342,6 +377,19 @@ pub enum UpdateBranchStockError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UpdateCatalogItemError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`update_ingredient_category`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UpdateIngredientCategoryError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -377,44 +425,6 @@ pub enum UpdateTransferError {
     UnknownValue(serde_json::Value),
 }
 
-
-pub async fn add_to_branch_stock(configuration: &configuration::Configuration, params: AddToBranchStockParams) -> Result<models::BranchInventoryItem, Error<AddToBranchStockError>> {
-
-    let uri_str = format!("{}/inventory/branches/{branch_id}/stock", configuration.base_path, branch_id=crate::apis::urlencode(params.branch_id));
-    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-    req_builder = req_builder.json(&params.add_to_stock_request);
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BranchInventoryItem`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BranchInventoryItem`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<AddToBranchStockError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent { status, content, entity }))
-    }
-}
 
 pub async fn create_catalog_item(configuration: &configuration::Configuration, params: CreateCatalogItemParams) -> Result<models::OrgIngredient, Error<CreateCatalogItemError>> {
 
@@ -454,7 +464,45 @@ pub async fn create_catalog_item(configuration: &configuration::Configuration, p
     }
 }
 
-pub async fn create_transfer(configuration: &configuration::Configuration, params: CreateTransferParams) -> Result<models::BranchInventoryTransfer, Error<CreateTransferError>> {
+pub async fn create_ingredient_category(configuration: &configuration::Configuration, params: CreateIngredientCategoryParams) -> Result<models::IngredientCategory, Error<CreateIngredientCategoryError>> {
+
+    let uri_str = format!("{}/inventory/orgs/{org_id}/categories", configuration.base_path, org_id=crate::apis::urlencode(params.org_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.create_ingredient_category_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::IngredientCategory`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::IngredientCategory`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CreateIngredientCategoryError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
+pub async fn create_transfer(configuration: &configuration::Configuration, params: CreateTransferParams) -> Result<models::StockTransfer, Error<CreateTransferError>> {
 
     let uri_str = format!("{}/inventory/transfers", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
@@ -482,8 +530,8 @@ pub async fn create_transfer(configuration: &configuration::Configuration, param
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BranchInventoryTransfer`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BranchInventoryTransfer`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StockTransfer`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StockTransfer`")))),
         }
     } else {
         let content = resp.text().await?;
@@ -492,7 +540,7 @@ pub async fn create_transfer(configuration: &configuration::Configuration, param
     }
 }
 
-pub async fn create_waste(configuration: &configuration::Configuration, params: CreateWasteParams) -> Result<models::BranchInventoryMovement, Error<CreateWasteError>> {
+pub async fn create_waste(configuration: &configuration::Configuration, params: CreateWasteParams) -> Result<models::StockMovement, Error<CreateWasteError>> {
 
     let uri_str = format!("{}/inventory/branches/{branch_id}/waste", configuration.base_path, branch_id=crate::apis::urlencode(params.branch_id));
     let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
@@ -520,8 +568,8 @@ pub async fn create_waste(configuration: &configuration::Configuration, params: 
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BranchInventoryMovement`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BranchInventoryMovement`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StockMovement`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StockMovement`")))),
         }
     } else {
         let content = resp.text().await?;
@@ -552,6 +600,35 @@ pub async fn delete_catalog_item(configuration: &configuration::Configuration, p
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteCatalogItemError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
+pub async fn delete_ingredient_category(configuration: &configuration::Configuration, params: DeleteIngredientCategoryParams) -> Result<(), Error<DeleteIngredientCategoryError>> {
+
+    let uri_str = format!("{}/inventory/orgs/{org_id}/categories/{id}", configuration.base_path, org_id=crate::apis::urlencode(params.org_id), id=crate::apis::urlencode(params.id));
+    let mut req_builder = configuration.client.request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref param_value) = params.reassign_to {
+        req_builder = req_builder.query(&[("reassign_to", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteIngredientCategoryError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
@@ -619,7 +696,7 @@ pub async fn get_inventory_settings(configuration: &configuration::Configuration
     }
 }
 
-pub async fn list_branch_stock(configuration: &configuration::Configuration, params: ListBranchStockParams) -> Result<Vec<models::BranchInventoryItem>, Error<ListBranchStockError>> {
+pub async fn list_branch_stock(configuration: &configuration::Configuration, params: ListBranchStockParams) -> Result<Vec<models::BranchStockRow>, Error<ListBranchStockError>> {
 
     let uri_str = format!("{}/inventory/branches/{branch_id}/stock", configuration.base_path, branch_id=crate::apis::urlencode(params.branch_id));
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
@@ -646,8 +723,8 @@ pub async fn list_branch_stock(configuration: &configuration::Configuration, par
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::BranchInventoryItem&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::BranchInventoryItem&gt;`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::BranchStockRow&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::BranchStockRow&gt;`")))),
         }
     } else {
         let content = resp.text().await?;
@@ -693,7 +770,44 @@ pub async fn list_catalog(configuration: &configuration::Configuration, params: 
     }
 }
 
-pub async fn list_movements(configuration: &configuration::Configuration, params: ListMovementsParams) -> Result<Vec<models::BranchInventoryMovement>, Error<ListMovementsError>> {
+pub async fn list_ingredient_categories(configuration: &configuration::Configuration, params: ListIngredientCategoriesParams) -> Result<Vec<models::IngredientCategory>, Error<ListIngredientCategoriesError>> {
+
+    let uri_str = format!("{}/inventory/orgs/{org_id}/categories", configuration.base_path, org_id=crate::apis::urlencode(params.org_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::IngredientCategory&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::IngredientCategory&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListIngredientCategoriesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
+pub async fn list_movements(configuration: &configuration::Configuration, params: ListMovementsParams) -> Result<Vec<models::StockMovement>, Error<ListMovementsError>> {
 
     let uri_str = format!("{}/inventory/branches/{branch_id}/movements", configuration.base_path, branch_id=crate::apis::urlencode(params.branch_id));
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
@@ -738,8 +852,8 @@ pub async fn list_movements(configuration: &configuration::Configuration, params
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::BranchInventoryMovement&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::BranchInventoryMovement&gt;`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::StockMovement&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::StockMovement&gt;`")))),
         }
     } else {
         let content = resp.text().await?;
@@ -748,7 +862,7 @@ pub async fn list_movements(configuration: &configuration::Configuration, params
     }
 }
 
-pub async fn list_transfers(configuration: &configuration::Configuration, params: ListTransfersParams) -> Result<Vec<models::BranchInventoryTransfer>, Error<ListTransfersError>> {
+pub async fn list_transfers(configuration: &configuration::Configuration, params: ListTransfersParams) -> Result<Vec<models::StockTransfer>, Error<ListTransfersError>> {
 
     let uri_str = format!("{}/inventory/branches/{branch_id}/transfers", configuration.base_path, branch_id=crate::apis::urlencode(params.branch_id));
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
@@ -784,8 +898,8 @@ pub async fn list_transfers(configuration: &configuration::Configuration, params
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::BranchInventoryTransfer&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::BranchInventoryTransfer&gt;`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::StockTransfer&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::StockTransfer&gt;`")))),
         }
     } else {
         let content = resp.text().await?;
@@ -794,11 +908,17 @@ pub async fn list_transfers(configuration: &configuration::Configuration, params
     }
 }
 
-pub async fn list_waste(configuration: &configuration::Configuration, params: ListWasteParams) -> Result<Vec<models::BranchInventoryMovement>, Error<ListWasteError>> {
+pub async fn list_waste(configuration: &configuration::Configuration, params: ListWasteParams) -> Result<Vec<models::StockMovement>, Error<ListWasteError>> {
 
     let uri_str = format!("{}/inventory/branches/{branch_id}/waste", configuration.base_path, branch_id=crate::apis::urlencode(params.branch_id));
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
+    if let Some(ref param_value) = params.limit {
+        req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.offset {
+        req_builder = req_builder.query(&[("offset", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -821,8 +941,8 @@ pub async fn list_waste(configuration: &configuration::Configuration, params: Li
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::BranchInventoryMovement&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::BranchInventoryMovement&gt;`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::StockMovement&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::StockMovement&gt;`")))),
         }
     } else {
         let content = resp.text().await?;
@@ -831,36 +951,10 @@ pub async fn list_waste(configuration: &configuration::Configuration, params: Li
     }
 }
 
-pub async fn remove_from_branch_stock(configuration: &configuration::Configuration, params: RemoveFromBranchStockParams) -> Result<(), Error<RemoveFromBranchStockError>> {
+pub async fn set_par_levels(configuration: &configuration::Configuration, params: SetParLevelsParams) -> Result<models::BranchStockRow, Error<SetParLevelsError>> {
 
-    let uri_str = format!("{}/inventory/branches/{branch_id}/stock/{id}", configuration.base_path, branch_id=crate::apis::urlencode(params.branch_id), id=crate::apis::urlencode(params.id));
-    let mut req_builder = configuration.client.request(reqwest::Method::DELETE, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<RemoveFromBranchStockError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent { status, content, entity }))
-    }
-}
-
-pub async fn update_branch_stock(configuration: &configuration::Configuration, params: UpdateBranchStockParams) -> Result<models::BranchInventoryItem, Error<UpdateBranchStockError>> {
-
-    let uri_str = format!("{}/inventory/branches/{branch_id}/stock/{id}", configuration.base_path, branch_id=crate::apis::urlencode(params.branch_id), id=crate::apis::urlencode(params.id));
-    let mut req_builder = configuration.client.request(reqwest::Method::PATCH, &uri_str);
+    let uri_str = format!("{}/inventory/branches/{branch_id}/stock/{org_ingredient_id}/par", configuration.base_path, branch_id=crate::apis::urlencode(params.branch_id), org_ingredient_id=crate::apis::urlencode(params.org_ingredient_id));
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -868,7 +962,7 @@ pub async fn update_branch_stock(configuration: &configuration::Configuration, p
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.update_stock_request);
+    req_builder = req_builder.json(&params.set_par_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -885,12 +979,12 @@ pub async fn update_branch_stock(configuration: &configuration::Configuration, p
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BranchInventoryItem`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BranchInventoryItem`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BranchStockRow`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BranchStockRow`")))),
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<UpdateBranchStockError> = serde_json::from_str(&content).ok();
+        let entity: Option<SetParLevelsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }
@@ -933,6 +1027,44 @@ pub async fn update_catalog_item(configuration: &configuration::Configuration, p
     }
 }
 
+pub async fn update_ingredient_category(configuration: &configuration::Configuration, params: UpdateIngredientCategoryParams) -> Result<models::IngredientCategory, Error<UpdateIngredientCategoryError>> {
+
+    let uri_str = format!("{}/inventory/orgs/{org_id}/categories/{id}", configuration.base_path, org_id=crate::apis::urlencode(params.org_id), id=crate::apis::urlencode(params.id));
+    let mut req_builder = configuration.client.request(reqwest::Method::PATCH, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.update_ingredient_category_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::IngredientCategory`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::IngredientCategory`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<UpdateIngredientCategoryError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
 pub async fn update_inventory_settings(configuration: &configuration::Configuration, params: UpdateInventorySettingsParams) -> Result<models::OrgInventorySettings, Error<UpdateInventorySettingsError>> {
 
     let uri_str = format!("{}/inventory/orgs/{org_id}/settings", configuration.base_path, org_id=crate::apis::urlencode(params.org_id));
@@ -971,7 +1103,7 @@ pub async fn update_inventory_settings(configuration: &configuration::Configurat
     }
 }
 
-pub async fn update_transfer(configuration: &configuration::Configuration, params: UpdateTransferParams) -> Result<models::BranchInventoryTransfer, Error<UpdateTransferError>> {
+pub async fn update_transfer(configuration: &configuration::Configuration, params: UpdateTransferParams) -> Result<models::StockTransfer, Error<UpdateTransferError>> {
 
     let uri_str = format!("{}/inventory/transfers/{id}", configuration.base_path, id=crate::apis::urlencode(params.id));
     let mut req_builder = configuration.client.request(reqwest::Method::PATCH, &uri_str);
@@ -999,8 +1131,8 @@ pub async fn update_transfer(configuration: &configuration::Configuration, param
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BranchInventoryTransfer`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BranchInventoryTransfer`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StockTransfer`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StockTransfer`")))),
         }
     } else {
         let content = resp.text().await?;

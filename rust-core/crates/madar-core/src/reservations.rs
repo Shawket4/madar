@@ -72,45 +72,6 @@ impl From<models::FloorTable> for FloorTableView {
     }
 }
 
-/// A booking — reservation (`reserved_for` set) or waitlist entry (none).
-#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
-pub struct ReservationView {
-    pub id: String,
-    pub branch_id: String,
-    /// `reservation` | `walk_in`.
-    pub kind: String,
-    pub customer_name: String,
-    pub customer_phone: String,
-    pub party_size: i32,
-    /// RFC-3339 instant, or `None` for a waitlist entry.
-    pub reserved_for: Option<String>,
-    pub status: String,
-    /// Assigned table ids (multiple ⇒ merged tables).
-    pub table_ids: Vec<String>,
-    pub customer_lat: Option<f64>,
-    pub customer_lng: Option<f64>,
-    pub notes: Option<String>,
-}
-
-impl From<models::BookingView> for ReservationView {
-    fn from(b: models::BookingView) -> Self {
-        Self {
-            id: b.id.to_string(),
-            branch_id: b.branch_id.to_string(),
-            kind: b.kind,
-            customer_name: b.customer_name,
-            customer_phone: b.customer_phone,
-            party_size: b.party_size,
-            reserved_for: b.reserved_for.flatten().map(|d| d.to_rfc3339()),
-            status: b.status,
-            table_ids: b.table_ids.into_iter().map(|u| u.to_string()).collect(),
-            customer_lat: b.customer_lat.flatten(),
-            customer_lng: b.customer_lng.flatten(),
-            notes: b.notes.flatten(),
-        }
-    }
-}
 
 /// Parse a host-supplied UUID string, surfacing a clean `Validation` error
 /// rather than letting a malformed id reach the wire.
@@ -121,10 +82,6 @@ pub(crate) fn parse_uuid(field: &str, s: &str) -> Result<uuid::Uuid, CoreError> 
     })
 }
 
-/// Parse a list of UUID strings (e.g. merged-table assignment).
-pub(crate) fn parse_uuids(field: &str, ids: &[String]) -> Result<Vec<uuid::Uuid>, CoreError> {
-    ids.iter().map(|s| parse_uuid(field, s)).collect()
-}
 
 #[cfg(test)]
 mod tests {
@@ -136,20 +93,6 @@ mod tests {
         assert!(parse_uuid("table_id", "11111111-1111-1111-1111-111111111111").is_ok());
     }
 
-    #[test]
-    fn parse_uuids_collects_or_fails_fast() {
-        let good = vec![
-            "11111111-1111-1111-1111-111111111111".to_string(),
-            "22222222-2222-2222-2222-222222222222".to_string(),
-        ];
-        assert_eq!(parse_uuids("table_ids", &good).unwrap().len(), 2);
-
-        let bad = vec![
-            "11111111-1111-1111-1111-111111111111".to_string(),
-            "nope".to_string(),
-        ];
-        assert!(parse_uuids("table_ids", &bad).is_err());
-    }
 
     #[test]
     fn table_view_flattens_optional_section() {
@@ -157,6 +100,7 @@ mod tests {
         let id = uuid::Uuid::nil();
         let now = chrono::DateTime::parse_from_rfc3339("2026-06-30T12:00:00Z").unwrap();
         let model = models::FloorTable {
+            next_booking: None,
             id,
             org_id: id,
             branch_id: id,

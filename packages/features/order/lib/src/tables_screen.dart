@@ -223,6 +223,8 @@ class TableStatusWords {
     required this.held,
     required this.seated,
     required this.needsClearing,
+    this.reserved = '',
+    this.timeOf,
   });
 
   /// The vocabulary as the bridge translates it.
@@ -231,6 +233,8 @@ class TableStatusWords {
     held: bridge.tr(key: 'tables.held_res'),
     seated: bridge.tr(key: 'tables.seated'),
     needsClearing: bridge.tr(key: 'tables.needs_clearing'),
+    reserved: bridge.tr(key: 'tables.reserved'),
+    timeOf: (iso) => bridge.formatTime(rfc3339: iso, style: TimeStyle.time),
   );
 
   final String free;
@@ -238,13 +242,42 @@ class TableStatusWords {
   final String seated;
   final String needsClearing;
 
+  /// A booked party's hold has begun (the table is kept for them).
+  final String reserved;
+
+  /// Branch-zone clock label for an RFC3339 instant (the booking's time on
+  /// the pill). Null in tests → the pill shows the guest alone.
+  final String Function(String rfc3339)? timeOf;
+
   /// The word for one table's current state.
   String wordFor(FloorTableStateView t, {required bool occupied}) {
-    if (occupied || t.status == 'seated') return seated;
+    if (occupied || t.status == 'seated' || tableBookingSeated(t)) {
+      return seated;
+    }
     if (tableNeedsClearing(t)) return needsClearing;
+    if (tableIsReserved(t)) return reserved;
     return t.status == 'held' ? held : free;
   }
 }
+
+/// A confirmed booking's hold window has begun on this table: it is kept for
+/// that party until they arrive (or are marked a no-show). Derived from the
+/// booking's `held_from` by the clock — the server never writes it to status.
+bool tableIsReserved(FloorTableStateView t, {DateTime? now}) {
+  if (t.bookingId == null || t.bookingStatus != 'confirmed') return false;
+  final from = DateTime.tryParse(t.bookingHeldFrom ?? '');
+  if (from == null) return false;
+  return !from.isAfter(now ?? DateTime.now());
+}
+
+/// A booked party was seated (the POS said so) but no ticket sits on the
+/// table yet — the table reads as taken, not as free.
+bool tableBookingSeated(FloorTableStateView t) =>
+    t.bookingId != null && t.bookingStatus == 'seated';
+
+/// A booking claims this table later today (before or after its hold began).
+bool tableHasBooking(FloorTableStateView t) =>
+    t.bookingId != null && t.bookingStatus == 'confirmed';
 
 /// True when a table is paid-and-vacated but not yet bussed. A checkout no
 /// longer hands the table straight back to the room — only a human does — so
@@ -260,19 +293,27 @@ Color tableTone(
   FloorTableStateView t, {
   bool occupied = false,
 }) {
-  if (occupied || t.heldOrderId != null || t.status == 'seated') {
+  if (occupied ||
+      t.heldOrderId != null ||
+      t.status == 'seated' ||
+      tableBookingSeated(t)) {
     return colors.accent;
   }
   if (tableNeedsClearing(t)) return colors.danger;
-  return t.status == 'held' ? colors.warning : colors.success;
+  return t.status == 'held' || tableIsReserved(t)
+      ? colors.warning
+      : colors.success;
 }
 
 /// Corner status icon, so state never rests on colour alone: taken = people,
 /// held for a party = hand, needs clearing = sparkles, available = nothing
 /// (the quiet default, which also carries a seat count no other state shows).
 String? tableStatusIcon(FloorTableStateView t, {required bool occupied}) {
-  if (occupied || t.status == 'seated') return 'person.2';
+  if (occupied || t.status == 'seated' || tableBookingSeated(t)) {
+    return 'person.2';
+  }
   if (tableNeedsClearing(t)) return 'sparkles';
+  if (tableIsReserved(t)) return 'calendar.days';
   return t.status == 'held' ? 'hand.raised' : null;
 }
 
@@ -577,6 +618,10 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
   /// Swap/move mode: the FIRST table tapped, awaiting the second.
   String? _swapFrom;
 
+  /// A reserved table flips by the clock (`held_from`), not by an event — a
+  /// once-a-minute tick keeps the canvas and the counts honest between pulls.
+  Timer? _clock;
+
   OrderNotifier get _notifier => ref.read(orderProvider.notifier);
   String _tr(String key) => ref.read(bridgeProvider).tr(key: key);
 
@@ -586,6 +631,15 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     // The mirror is only as fresh as the last pull — fetch on entry so a
     // dashboard layout edit is on screen the moment the teller opens tables.
     unawaited(_notifier.syncFloor());
+    _clock = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _clock?.cancel();
+    super.dispose();
   }
 
   @override
@@ -615,9 +669,17 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     final seatedCount = allTables
         .where((t) => t.heldOrderId != null || t.status == 'seated')
         .length;
+    // Kept for a booked party (or a teller's hold): counted once, shown amber.
     final heldCount = allTables
-        .where((t) => t.heldOrderId == null && t.status == 'held')
+        .where(
+          (t) =>
+              t.heldOrderId == null &&
+              t.status != 'seated' &&
+              !tableBookingSeated(t) &&
+              (t.status == 'held' || tableIsReserved(t)),
+        )
         .length;
+    final arrivals = ref.watch(orderProvider.select((s) => s.arrivals));
     // The work the floor owes itself: paid tables still waiting on a bus.
     final dirtyTables = allTables
         .where(tableNeedsClearing)
@@ -722,6 +784,16 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                       ],
                     ),
                   ),
+                  // Today's bookings — badge shows how many parties are due.
+                  ActionButton(
+                    label: arrivals.isEmpty
+                        ? _tr('tables.arrivals')
+                        : '${_tr('tables.arrivals')} · ${arrivals.length}',
+                    icon: 'calendar.days',
+                    variant: ActionVariant.outline,
+                    onTap: () => unawaited(_openArrivals()),
+                  ),
+                  const SizedBox(width: Space.sm),
                   // The waitlist — badge shows how many parties wait.
                   ActionButton(
                     label: queue.isEmpty
@@ -904,7 +976,124 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       await _needsClearingSheet(t, isWaiter: isWaiter);
       return;
     }
+    // A table kept for a booked party: seat them, mark them a no-show, or
+    // knowingly seat a walk-in over the booking.
+    if (tableHasBooking(t)) {
+      await _reservedTableSheet(t, isWaiter: isWaiter);
+      return;
+    }
     await _freeTableSheet(t, isWaiter: isWaiter);
+  }
+
+  /// The booking's own sheet. Seating points the live order at this table
+  /// under the guest's name; the ticket fired next links to the booking.
+  Future<void> _reservedTableSheet(
+    FloorTableStateView t, {
+    required bool isWaiter,
+  }) async {
+    final bridge = ref.read(bridgeProvider);
+    final when = t.bookingStartsAt == null
+        ? ''
+        : ' · ${bridge.formatTime(rfc3339: t.bookingStartsAt!, style: TimeStyle.time)}';
+    final party = t.bookingParty == null
+        ? ''
+        : ' · ${t.bookingParty} ${_tr('tables.guests')}';
+    await _actionsSheet(
+      '${t.label} · ${_tr('tables.reserved_for')} ${t.bookingGuest ?? ''}$when$party',
+      [
+        _SheetAction('person.2', _tr('tables.seat_booking'), () async {
+          await _notifier.seatBooking(t);
+          if (mounted) await Navigator.of(context).maybePop();
+        }),
+        _SheetAction('xmark.circle', _tr('tables.no_show'), () async {
+          final id = t.bookingId;
+          if (id != null) await _notifier.noShowBooking(id);
+        }),
+        _SheetAction(
+          'tray.and.arrow.down',
+          _tr('tables.walk_in_anyway'),
+          () async {
+            await _freeTableSheet(t, isWaiter: isWaiter);
+          },
+        ),
+        _SheetAction(
+          'arrow.triangle.2.circlepath',
+          _tr('tables.swap'),
+          () async {
+            setState(() => _swapFrom = t.id);
+          },
+        ),
+      ],
+    );
+  }
+
+  /// Today's bookings, earliest first: seat or no-show from the list.
+  Future<void> _openArrivals() async {
+    final bridge = ref.read(bridgeProvider);
+    unawaited(_notifier.syncFloor());
+    await showMadarSheet<void>(
+      context,
+      size: SheetSize.hug,
+      builder: (sheetContext) => Consumer(
+        builder: (context, sheetRef, _) {
+          final list = sheetRef.watch(orderProvider.select((s) => s.arrivals));
+          final colors = context.madarColors;
+          return Padding(
+            padding: const EdgeInsetsDirectional.all(Space.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  bridge.tr(key: 'tables.arrivals'),
+                  style: MadarType.h3.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: Space.lg),
+                if (list.isEmpty)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.all(Space.xl),
+                    child: Text(
+                      bridge.tr(key: 'tables.arrivals_empty'),
+                      textAlign: TextAlign.center,
+                      style: MadarType.body.copyWith(color: colors.textMuted),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: list.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: Space.sm),
+                      itemBuilder: (context, i) => _ArrivalRow(
+                        booking: list[i],
+                        time: bridge.formatTime(
+                          rfc3339: list[i].startsAt,
+                          style: TimeStyle.time,
+                        ),
+                        guestsWord: bridge.tr(key: 'tables.guests'),
+                        seatedWord: bridge.tr(key: 'tables.seated'),
+                        seatLabel: bridge.tr(key: 'tables.seat_booking'),
+                        noShowLabel: bridge.tr(key: 'tables.no_show'),
+                        onSeat: () async {
+                          await Navigator.of(sheetContext).maybePop();
+                          if (!mounted) return;
+                          await _notifier.seatArrival(list[i]);
+                          if (mounted) {
+                            await Navigator.of(this.context).maybePop();
+                          }
+                        },
+                        onNoShow: () =>
+                            unawaited(_notifier.noShowBooking(list[i].id)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   /// A table whose party paid and left: the ONE thing it needs is clearing,
@@ -1003,7 +1192,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
             'square.grid.2x2',
             '${bridge.tr(key: 'tables.section')} · ${s.name}',
             () async {
-            // removed: status is derived; sections are dashboard-authored
+              // removed: status is derived; sections are dashboard-authored
             },
           ),
       if (t.sectionId != null)
@@ -1466,9 +1655,30 @@ class _TableCell extends StatelessWidget {
     // the two things floor staff scan for. A free table says how many it
     // seats, which is what you need when choosing one. A table waiting to be
     // bussed says so in words — it is a job, and jobs get named.
+    // A booked party shows on the pill too — "Ahmed · 19:30" while the table
+    // is kept for them, then just "Ahmed" once they are seated — so the floor
+    // knows whose table this is before a ticket exists.
+    final bookedGuest =
+        (table.bookingGuest?.trim().isNotEmpty ?? false) &&
+            (tableIsReserved(table) ||
+                tableBookingSeated(table) ||
+                tableHasBooking(table))
+        ? table.bookingGuest!.trim()
+        : null;
+    final bookedAt =
+        bookedGuest != null &&
+            !tableBookingSeated(table) &&
+            table.bookingStartsAt != null
+        ? words.timeOf?.call(table.bookingStartsAt!)
+        : null;
     final who = table.heldOrderName?.trim().isNotEmpty ?? false
         ? table.heldOrderName!.trim()
-        : ticket?.ticketRef;
+        : ticket?.ticketRef ??
+              (bookedGuest == null
+                  ? null
+                  : (bookedAt == null
+                        ? bookedGuest
+                        : '$bookedGuest · $bookedAt'));
     final howLong = elapsedLabel(table.heldSince);
     final statusWord = words.wordFor(table, occupied: occupied);
     final statusIcon = tableStatusIcon(table, occupied: occupied);
@@ -1852,6 +2062,87 @@ class _WaitlistRow extends StatelessWidget {
             onTap: onCancel,
             child: MadarIcon('xmark.circle', tint: colors.textMuted),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One booking in the arrivals sheet: when, who, how many, where — and the
+/// two answers the floor gives it.
+class _ArrivalRow extends StatelessWidget {
+  const _ArrivalRow({
+    required this.booking,
+    required this.time,
+    required this.guestsWord,
+    required this.seatedWord,
+    required this.seatLabel,
+    required this.noShowLabel,
+    required this.onSeat,
+    required this.onNoShow,
+  });
+
+  final BookingView booking;
+  final String time;
+  final String guestsWord;
+  final String seatedWord;
+  final String seatLabel;
+  final String noShowLabel;
+  final Future<void> Function() onSeat;
+  final VoidCallback onNoShow;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final seated = booking.status == 'seated';
+    final where = booking.tableLabels.join(' + ');
+    return Container(
+      padding: const EdgeInsetsDirectional.all(Space.md),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(Radii.sm),
+        border: Border.all(color: seated ? colors.accent : colors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$time · ${booking.guestName}',
+                  style: MadarType.label.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: Space.xs),
+                Text(
+                  [
+                    '${booking.partySize} $guestsWord',
+                    if (where.isNotEmpty) where,
+                    if (seated) seatedWord,
+                    if (booking.notes?.isNotEmpty ?? false) booking.notes!,
+                  ].join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: MadarType.labelSm.copyWith(color: colors.textMuted),
+                ),
+              ],
+            ),
+          ),
+          if (!seated) ...[
+            const SizedBox(width: Space.sm),
+            ActionButton(
+              label: noShowLabel,
+              icon: 'xmark.circle',
+              variant: ActionVariant.outline,
+              onTap: onNoShow,
+            ),
+            const SizedBox(width: Space.sm),
+            ActionButton(
+              label: seatLabel,
+              icon: 'person.2',
+              onTap: () => unawaited(onSeat()),
+            ),
+          ],
         ],
       ),
     );

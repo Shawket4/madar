@@ -46,7 +46,7 @@ pub struct GetStocktakeParams {
 /// struct for passing parameters to the method [`list_stocktakes`]
 #[derive(Clone, Debug)]
 pub struct ListStocktakesParams {
-    /// Branch ID
+    /// Branch ID, or the all-zeros UUID for every branch in the org
     pub branch_id: String
 }
 

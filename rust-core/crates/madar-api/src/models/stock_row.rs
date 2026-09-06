@@ -13,32 +13,33 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StockRow {
-    #[serde(rename = "below_reorder")]
-    pub below_reorder: bool,
-    #[serde(rename = "branch_inventory_id")]
-    pub branch_inventory_id: uuid::Uuid,
+    #[serde(rename = "below_par")]
+    pub below_par: bool,
     /// Piastres per unit; `null` ⟺ cost never entered.
     #[serde(rename = "cost_per_unit", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub cost_per_unit: Option<Option<f64>>,
-    #[serde(rename = "current_stock")]
-    pub current_stock: f64,
     #[serde(rename = "ingredient_name")]
     pub ingredient_name: String,
-    #[serde(rename = "reorder_threshold")]
-    pub reorder_threshold: f64,
+    #[serde(rename = "on_hand")]
+    pub on_hand: f64,
+    #[serde(rename = "org_ingredient_id")]
+    pub org_ingredient_id: uuid::Uuid,
+    /// Reorder point; `null` = not set at this branch.
+    #[serde(rename = "par_min", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub par_min: Option<Option<f64>>,
     #[serde(rename = "unit")]
     pub unit: String,
 }
 
 impl StockRow {
-    pub fn new(below_reorder: bool, branch_inventory_id: uuid::Uuid, current_stock: f64, ingredient_name: String, reorder_threshold: f64, unit: String) -> StockRow {
+    pub fn new(below_par: bool, ingredient_name: String, on_hand: f64, org_ingredient_id: uuid::Uuid, unit: String) -> StockRow {
         StockRow {
-            below_reorder,
-            branch_inventory_id,
+            below_par,
             cost_per_unit: None,
-            current_stock,
             ingredient_name,
-            reorder_threshold,
+            on_hand,
+            org_ingredient_id,
+            par_min: None,
             unit,
         }
     }

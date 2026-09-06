@@ -25,6 +25,9 @@ pub struct FloorTable {
     pub is_active: bool,
     #[serde(rename = "label")]
     pub label: String,
+    /// The next active booking claiming this table (today's service, or the one in progress). The floor renders \"held\" from `held_from` by its own clock; nothing here is written to `status`. Only the list endpoint fills it — single-row writes return `null`.
+    #[serde(rename = "next_booking", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub next_booking: Option<Option<Box<models::TableBookingHint>>>,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
     #[serde(rename = "pos_x")]
@@ -56,6 +59,7 @@ impl FloorTable {
             id,
             is_active,
             label,
+            next_booking: None,
             org_id,
             pos_x,
             pos_y,
