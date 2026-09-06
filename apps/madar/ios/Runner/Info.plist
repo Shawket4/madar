@@ -26,8 +26,25 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Store requirements. Keep the usage strings honest and specific: App
+	     Review reads them against what the app actually does. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>ar</string>
+	</array>
+	<!-- HTTPS to our own API only (no proprietary encryption) — exempt, so
+	     every TestFlight build skips the export-compliance questionnaire. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- Local-network access: waiter tablets and the kitchen display find each
+	     other over Bonjour (`_madar._tcp`) and relay orders without internet. -->
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>For LAN Waiter and KDS</string>
+	<string>Madar finds other Madar tills, waiter tablets and kitchen displays on this Wi-Fi so orders reach the kitchen even when the internet is down.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_madar._tcp</string>
+	</array>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Madar connects to a paired Bluetooth thermal printer to print receipts.</string>
 	<key>UIApplicationSceneManifest</key>

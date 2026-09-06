@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launcher label. Localized (values-ar) so the home screen reads
+         right in Arabic; the Play listing title is set in the console. -->
+    <string name="app_name">Madar Cashier</string>
+</resources>

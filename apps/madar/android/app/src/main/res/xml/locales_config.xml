@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13+ per-app language: the two languages the app ships. Play uses
+     this to show the supported languages on the listing. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en"/>
+    <locale android:name="ar"/>
+</locale-config>

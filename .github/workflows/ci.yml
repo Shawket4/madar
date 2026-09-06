@@ -5,59 +5,78 @@ on:
     branches: [main]
   pull_request:
 
-# The app builds against the madar-pos repo's Rust core (public), expected
-# as a SIBLING checkout — rust_bridge references ../madar-pos/rust-core.
+# The Rust core lives IN THIS REPO at rust-core/ — every Flutter package
+# points at it (packages/rust_bridge/flutter_rust_bridge.yaml: rust_root
+# ../../rust-core/crates/madar-frb; the android/ios/macos build files use the
+# same relative path). It used to live in the separate madar-pos repo, which
+# is why this workflow checked out a sibling copy; that copy is stale and no
+# longer compiles, so the build is now entirely in-tree.
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   checks:
     name: Analyze + host tests
-    # macOS runner: the host test suite loads the cargo-built .dylib.
+    # macOS runner: the host test suite dlopen()s the cargo-built .dylib.
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: madar
 
-      # Public repo — no token needed.
-      - uses: actions/checkout@v4
-        with:
-          repository: Shawket4/madar-pos
-          ref: ui-rework-bold-refresh
-          path: madar-pos
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      # rust-toolchain.toml pins 1.96.1 and every cross-compile target, so
+      # rustup provisions exactly what the app ships with — no drift from
+      # whatever "stable" happens to be on the runner today.
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: madar-pos/rust-core
+          workspaces: rust-core
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.44.4"
+          flutter-version: "3.47.2"
           channel: stable
           cache: true
 
-      - name: Build host dylib (release — matches the test suite's path)
-        working-directory: madar-pos/rust-core
+      # Release, not debug: the test suite loads target/release explicitly
+      # (a debug rust target dir is several GB).
+      - name: Build host dylib
+        working-directory: rust-core
         run: cargo build -p madar_frb --release
 
+      # The suite calls markTestSkipped() when the dylib is missing, so a
+      # wrong path makes "host tests" pass green while testing nothing.
+      # Fail loudly here instead — this is the whole reason for the macOS runner.
+      - name: Assert the dylib is where the tests look for it
+        run: |
+          DYLIB=rust-core/target/release/libmadar_frb.dylib
+          if [ ! -f "$DYLIB" ]; then
+            echo "::error::$DYLIB is missing — the host suite would silently skip."
+            exit 1
+          fi
+          echo "Found $DYLIB ($(du -h "$DYLIB" | cut -f1))"
+
       - name: Pub get
-        working-directory: madar
         run: dart pub get
 
       - name: Analyze
-        working-directory: madar
         run: flutter analyze .
 
+      # Not `dart format .` — that walks into the vendored cargokit package,
+      # which carries its own analysis_options and is not ours to restyle.
+      # git ls-files also keeps build outputs and untracked files out.
       - name: Format check
-        working-directory: madar
-        run: dart format --set-exit-if-changed .
+        run: git ls-files '*.dart' | grep -v '/cargokit/' | xargs dart format --set-exit-if-changed --output=none
 
       # 9 bridge smoke tests against the release dylib. The QA-tagged E2E
       # suite self-skips without MADAR_QA_API (needs a live backend).
       - name: Host tests
-        working-directory: madar/packages/rust_bridge
+        working-directory: packages/rust_bridge
         run: flutter test
