@@ -450,6 +450,7 @@ class OrderNotifier extends Notifier<OrderState> {
             addonSlots: m.addonSlots,
             optionalFields: m.optionalFields,
             recipes: m.recipes,
+            recipeSteps: m.recipeSteps,
           ),
   ];
 

@@ -53,6 +53,26 @@ pub struct MenuItemView {
     pub optional_fields: Vec<OptionalFieldView>,
     /// The item's recipe lines (per size) — shown in the customization sheet.
     pub recipes: Vec<RecipeLineView>,
+    /// How the item is made, in order — shown under the recipe.
+    pub recipe_steps: Vec<RecipeStepView>,
+}
+
+/// One preparation step, ready to draw: already localized, and pointing at the
+/// animation's CACHED file rather than a URL, so the sheet works offline.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecipeStepView {
+    /// The preset's name, or the typed name of a custom step.
+    pub name: String,
+    /// The preset's note, when it has one.
+    pub note: Option<String>,
+    /// On-disk path of the cached animation, resolved at projection time in
+    /// lib.rs. `None` for a custom step, and for a preset whose animation has
+    /// not been downloaded yet — the host shows the name alone.
+    pub local_animation_path: Option<String>,
+    /// The animation's address, relative to the API base. The core downloads
+    /// it during a manual sync; the host never fetches it.
+    pub animation_url: Option<String>,
 }
 
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -242,6 +262,22 @@ struct FullItem {
     optional_fields: Vec<FullOptional>,
     #[serde(default)]
     recipes: Vec<FullRecipe>,
+    #[serde(default)]
+    recipe_steps: Vec<FullStep>,
+}
+
+#[derive(Deserialize)]
+struct FullStep {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    name_ar: String,
+    #[serde(default)]
+    note: Option<String>,
+    #[serde(default)]
+    note_ar: Option<String>,
+    #[serde(default)]
+    animation_url: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -332,6 +368,19 @@ struct FullAddonIngredient {
     quantity_used: Value,
 }
 
+/// Pick the language for a value that ships as a plain pair rather than a
+/// translations map. An empty side falls back to the other, so a step typed in
+/// one language shows everywhere rather than rendering blank.
+fn pick_lang(base: &str, ar: &str, locale: &str) -> String {
+    let want_ar = locale.starts_with("ar");
+    let chosen = if want_ar && !ar.is_empty() { ar } else { base };
+    if chosen.is_empty() {
+        let other = if want_ar { base } else { ar };
+        return other.to_string();
+    }
+    chosen.to_string()
+}
+
 pub(crate) fn menu_items(store: &Store, locale: &str) -> CoreResult<Vec<MenuItemView>> {
     let items: Vec<FullItem> = parse_kv_lenient(store, K_MENU_ITEMS)?;
     Ok(items
@@ -361,6 +410,25 @@ pub(crate) fn menu_items(store: &Store, locale: &str) -> CoreResult<Vec<MenuItem
                     size_label: r.size_label.clone().filter(|s| !s.is_empty()),
                     category: r.category.clone(),
                     org_ingredient_id: r.org_ingredient_id.clone().filter(|s| !s.is_empty()),
+                })
+                .collect(),
+            recipe_steps: i
+                .recipe_steps
+                .iter()
+                .map(|s| RecipeStepView {
+                    // The step carries both languages; pick one here so the
+                    // host renders a string rather than choosing again.
+                    name: pick_lang(&s.name, &s.name_ar, locale),
+                    note: {
+                        let n = pick_lang(
+                            s.note.as_deref().unwrap_or_default(),
+                            s.note_ar.as_deref().unwrap_or_default(),
+                            locale,
+                        );
+                        Some(n).filter(|n| !n.is_empty())
+                    },
+                    local_animation_path: None,
+                    animation_url: s.animation_url.clone().filter(|u| !u.is_empty()),
                 })
                 .collect(),
             sizes: i
@@ -918,6 +986,13 @@ mod tests {
                   "category": "coffee", "ingredient_name": "Beans",
                   "ingredient_unit": "g", "quantity_used": "18.000", "size_label": "Large"
               }],
+              "recipe_steps": [
+                {"kind": "preset", "name": "Steam milk", "name_ar": "تبخير الحليب",
+                 "note": "60 °C with foam", "note_ar": "٦٠° مع رغوة",
+                 "animation_url": "/static/step-animations/steam_milk.json?v=abc123"},
+                {"kind": "custom", "name": "Serve with the branded straw",
+                 "name_ar": "Serve with the branded straw", "animation_url": null}
+              ],
               "sizes": []
             }]"#,
         );
@@ -946,6 +1021,30 @@ mod tests {
         assert_eq!(items[0].recipes[0].quantity, 18.0);
         assert_eq!(items[0].recipes[0].unit, "g");
         assert_eq!(items[0].recipes[0].size_label.as_deref(), Some("Large"));
+
+        // Steps arrive in order, localized, with the animation's address kept
+        // for the sync to fetch and the local path still unresolved here.
+        let steps = &items[0].recipe_steps;
+        assert_eq!(steps.len(), 2);
+        assert_eq!(steps[0].name, "Steam milk");
+        assert_eq!(steps[0].note.as_deref(), Some("60 °C with foam"));
+        assert!(steps[0]
+            .animation_url
+            .as_deref()
+            .is_some_and(|u| u.contains("steam_milk")));
+        assert_eq!(
+            steps[0].local_animation_path, None,
+            "resolved at projection, not parse"
+        );
+        // A written step has no animation at all.
+        assert_eq!(steps[1].name, "Serve with the branded straw");
+        assert_eq!(steps[1].animation_url, None);
+        assert_eq!(steps[1].note, None, "a blank note stays absent");
+
+        // Arabic picks the other side of each pair.
+        let ar = menu_items(&store, "ar").unwrap();
+        assert_eq!(ar[0].recipe_steps[0].name, "تبخير الحليب");
+        assert_eq!(ar[0].recipe_steps[0].note.as_deref(), Some("٦٠° مع رغوة"));
         assert_eq!(items[0].recipes[0].category, "coffee");
         // Per-item addon allowlist surfaces for the "show item's options" default.
         assert_eq!(

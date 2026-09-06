@@ -178,6 +178,12 @@ impl ApiClient {
     /// neither joins `base_url` nor attaches the bearer — the org logo lives at a
     /// full storage/CDN url. Best-effort: callers cache the bytes and ignore
     /// failures (a missing logo just prints the store name).
+    /// The API root this client talks to — used to turn a server-relative
+    /// address (a step animation's) into something fetchable.
+    pub(crate) fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     pub async fn get_url_bytes(&self, url: &str) -> CoreResult<Vec<u8>> {
         let resp = self
             .http

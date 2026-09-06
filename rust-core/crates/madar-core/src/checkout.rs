@@ -1626,6 +1626,7 @@ mod tests {
                 org_ingredient_id: None,
             }],
             recipes: vec![],
+            recipe_steps: vec![],
         }
     }
 

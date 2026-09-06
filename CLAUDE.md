@@ -138,6 +138,24 @@ that heard them, under a deterministic id (`cloud:<branch>:<event id>`), so a LA
 tablet hears them once (`LanCloudRelay`, `LanRelay::publish_with_id`). A `resync` frame
 from the server re-seeds every board.
 
+## Recipe steps and their animations
+An item's recipe carries an ordered list of steps (backend `src/recipes/steps.rs`). A step
+is a PRESET, named by the curated library that ships with the backend and drawn with its
+Lottie animation, or a line someone TYPED, which has no animation. Steps arrive inside the
+menu payload `refresh_catalog` already pulls, each preset step carrying its animation's
+address and a fingerprint of its bytes.
+
+The core caches the animations in `filestore.rs` — a second `FileStore` beside the image
+one, so evicting either's orphans never touches the other's files. `sync_step_animations`
+runs in the same phase as the image sync: only animations THIS menu references are
+downloaded, orphans are swept, failures are swallowed, and nothing fetches outside a
+manual sync. `local_animation_path` is resolved onto the projected step at snapshot time,
+like `local_image_path`, so the sheet plays from disk and never from the network.
+
+On the sheet, only the step being looked at animates. A six-step recipe rendered as six
+looping players is six render loops on a cheap tablet; the rest hold a still frame, and a
+step with no cached file shows its number and name instead.
+
 ## Conventions
 1. **No business logic in Dart.** Sequence bridge calls; compute nothing.
 2. **Design system only.** `MadarType`, `Space`, `Radii`, `context.madarColors`,

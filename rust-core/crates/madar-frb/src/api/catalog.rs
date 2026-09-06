@@ -12,7 +12,7 @@ pub use madar_core::catstyle::CatStyleView;
 pub use madar_core::menu::{
     AddonIngredientView, AddonItemView, AddonSlotView, BundleComponentView, BundleView,
     CategoryView, DiscountView, ItemSizeView, MenuItemView, OptionalFieldView, PaymentMethodView,
-    RecipeLineView,
+    RecipeLineView, RecipeStepView,
 };
 
 /// A resolved category style: an icon key + four hex colours (`#RRGGBB`).
@@ -50,6 +50,20 @@ pub struct _MenuItemView {
     pub optional_fields: Vec<OptionalFieldView>,
     /// The item's recipe lines (per size) — shown in the customization sheet.
     pub recipes: Vec<RecipeLineView>,
+    /// How the item is made, in order — shown under the recipe.
+    pub recipe_steps: Vec<RecipeStepView>,
+}
+
+/// One preparation step: localized, and pointing at the animation's CACHED
+/// file so the sheet plays it with no network.
+#[frb(mirror(RecipeStepView))]
+pub struct _RecipeStepView {
+    pub name: String,
+    pub note: Option<String>,
+    /// On-disk path of the cached animation — `None` for a written step, and
+    /// until the animation has been downloaded by a sync.
+    pub local_animation_path: Option<String>,
+    pub animation_url: Option<String>,
 }
 
 #[frb(mirror(ItemSizeView))]
