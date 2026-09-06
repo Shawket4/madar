@@ -34,7 +34,9 @@ melos:
       run: flutter analyze .
       description: Static analysis for the whole workspace.
     format:
-      run: dart format --set-exit-if-changed .
+      # Skips the vendored cargokit package (its own analysis_options, not our
+      # code to restyle) — must stay in step with .github/workflows/ci.yml.
+      run: git ls-files '*.dart' | grep -v '/cargokit/' | xargs dart format --set-exit-if-changed --output=none
       description: Verify formatting across the workspace.
     test:
       run: melos exec --dir-exists=test --fail-fast -- flutter test

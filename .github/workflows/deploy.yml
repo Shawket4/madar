@@ -5,29 +5,23 @@ on:
     tags:
       - "v*.*.*"
 
+# The Rust core lives IN THIS REPO at rust-core/ (see ci.yml) — Cargokit
+# cross-compiles it from the android/ios/macos build files' relative paths.
+#
 # Secrets:
 #   KEYSTORE_BASE64    — Android release keystore, base64-encoded
 #   KEYSTORE_PASSWORD / KEY_PASSWORD / KEY_ALIAS
 #   DIAWI_TOKEN        — optional; skipped gracefully when unset
 
 jobs:
-  # ── Android APK ────────────────────────────────────────────────────────────
+  # ── Android APK + AAB ──────────────────────────────────────────────────────
   build-android:
-    name: Build Android APK
+    name: Build Android (APK + AAB)
     runs-on: ubuntu-latest
     outputs:
       diawi_url: ${{ steps.diawi.outputs.diawi_url }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: madar
-
-      # Public repo — no token needed.
-      - uses: actions/checkout@v4
-        with:
-          repository: Shawket4/madar-pos
-          ref: ui-rework-bold-refresh
-          path: madar-pos
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -35,46 +29,106 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Rust (Android targets)
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android,armv7-linux-androideabi
+      # rust-toolchain.toml pins 1.96.1 and the Android targets.
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: madar-pos/rust-core
+          workspaces: rust-core
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.44.4"
+          flutter-version: "3.47.2"
           channel: stable
           cache: true
 
+      # Fail here, not 20 minutes later inside Gradle. Without the keystore
+      # build.gradle.kts silently falls back to the DEBUG key, which would
+      # produce an unshippable "release" that Play rejects on upload.
       - name: Decode keystore
-        working-directory: madar/apps/madar
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        working-directory: apps/madar
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
+          set -euo pipefail
+          missing=""
+          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_PASSWORD KEY_ALIAS; do
+            [ -z "${!v:-}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing release signing secret(s):$missing — a tagged release must be signed with the release key, not the debug key."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+          if [ ! -s android/app/release.keystore ]; then
+            echo "::error::KEYSTORE_BASE64 decoded to an empty file — re-encode with 'base64 -w0 release.keystore'."
+            exit 1
+          fi
+          # Prove the passwords and alias match the keystore before Gradle runs.
+          if ! keytool -list -keystore android/app/release.keystore \
+                -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null 2>&1; then
+            echo "::error::Cannot open the keystore with KEYSTORE_PASSWORD / KEY_ALIAS ('$KEY_ALIAS'). Check the secrets."
+            exit 1
+          fi
+          echo "Keystore OK — alias '$KEY_ALIAS' found."
 
       - name: Create key.properties
-        working-directory: madar/apps/madar
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        working-directory: apps/madar
         run: |
           cat > android/key.properties <<EOF
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
           storeFile=app/release.keystore
           EOF
 
       - name: Pub get
-        working-directory: madar
         run: dart pub get
 
-      # Cargokit cross-compiles the Rust core per ABI inside this step.
+      # Both artifacts share one build number so the APK you test and the AAB
+      # you upload are the same versionCode. Play refuses a reused one.
       - name: Build APKs (one per ABI — ~half the size each)
-        working-directory: madar/apps/madar
-        run: flutter build apk --release --split-per-abi --target-platform android-arm64,android-arm
+        working-directory: apps/madar
+        run: |
+          flutter build apk --release --split-per-abi \
+            --target-platform android-arm64,android-arm \
+            --build-number=${{ github.run_number }}
+
+      # Play accepts only an App Bundle. Built from the same signed config;
+      # never published from CI — a human uploads it to the Play Console.
+      - name: Build App Bundle (Play upload)
+        working-directory: apps/madar
+        run: flutter build appbundle --release --build-number=${{ github.run_number }}
+
+      # Catch a debug-signed "release" before it reaches a store or a customer.
+      - name: Verify release signing
+        working-directory: apps/madar
+        run: |
+          set -euo pipefail
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
+            echo "── $apk"
+            "$APKSIGNER" verify --print-certs "$apk" | tee /tmp/certs.txt
+            if grep -qi "CN=Android Debug" /tmp/certs.txt; then
+              echo "::error::$apk is DEBUG-signed — the release keystore was not picked up."
+              exit 1
+            fi
+          done
+          echo "── app-release.aab"
+          jarsigner -verify -strict build/app/outputs/bundle/release/app-release.aab
 
       # Diawi OTA link — a shareable install page even while the repo is
       # private. Never fails the release; skipped when DIAWI_TOKEN is unset.
@@ -83,7 +137,7 @@ jobs:
         continue-on-error: true
         env:
           DIAWI_TOKEN: ${{ secrets.DIAWI_TOKEN }}
-        working-directory: madar/apps/madar
+        working-directory: apps/madar
         run: |
           set +e
           APK=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
@@ -118,19 +172,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: madar/apps/madar/build/app/outputs/flutter-apk/app-*-release.apk
-
-      # Play accepts only an App Bundle. Built from the same signed config;
-      # never published from CI — a human uploads it to the Play Console.
-      - name: Build App Bundle (Play upload)
-        working-directory: madar/apps/madar
-        run: flutter build appbundle --release --build-number=${{ github.run_number }}
+          path: apps/madar/build/app/outputs/flutter-apk/app-*-release.apk
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-aab
-          path: madar/apps/madar/build/app/outputs/bundle/release/app-release.aab
+          path: apps/madar/build/app/outputs/bundle/release/app-release.aab
+
+      # The decoded key must never outlive the job, even in a cache layer.
+      - name: Shred signing material
+        if: always()
+        working-directory: apps/madar
+        run: shred -u android/app/release.keystore android/key.properties 2>/dev/null || true
 
   # ── macOS ──────────────────────────────────────────────────────────────────
   build-macos:
@@ -138,52 +192,45 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: madar
 
-      # Public repo — no token needed.
-      - uses: actions/checkout@v4
-        with:
-          repository: Shawket4/madar-pos
-          ref: ui-rework-bold-refresh
-          path: madar-pos
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: madar-pos/rust-core
+          workspaces: rust-core
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.44.4"
+          flutter-version: "3.47.2"
           channel: stable
           cache: true
 
       - name: Pub get
-        working-directory: madar
         run: dart pub get
 
-      # CI has no signing certs: strip the entitlement that forces a
+      # CI has no Apple signing certs: strip the entitlement that forces a
       # provisioning profile and ad-hoc sign. This artifact is for direct
       # download/dev distribution — store/notarized builds are signed
       # locally in Xcode (team 6HNBMW6X75 is configured in the project).
       - name: Ad-hoc signing for CI
-        working-directory: madar/apps/madar/macos
+        working-directory: apps/madar/macos
         run: |
           plutil -remove "keychain-access-groups" Runner/Release.entitlements || true
           sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Runner.xcodeproj/project.pbxproj
           sed -i '' 's/DEVELOPMENT_TEAM = 6HNBMW6X75;//g' Runner.xcodeproj/project.pbxproj
 
       - name: Build macOS
-        working-directory: madar/apps/madar
-        run: flutter build macos --release
+        working-directory: apps/madar
+        run: flutter build macos --release --build-number=${{ github.run_number }}
 
       - name: Zip macOS build
-        working-directory: madar/apps/madar/build/macos/Build/Products/Release
+        working-directory: apps/madar/build/macos/Build/Products/Release
         run: zip -r "$GITHUB_WORKSPACE/MadarPOS-macOS.zip" *.app
 
       - name: Upload macOS artifact
@@ -219,6 +266,10 @@ jobs:
             echo "## 💻 macOS"
             echo ""
             echo "Download **MadarPOS-macOS.zip** below (ad-hoc signed — right-click → Open on first launch)."
+            echo ""
+            echo "## 🏪 Google Play"
+            echo ""
+            echo "**app-release.aab** below is the Play upload (release-signed, versionCode ${{ github.run_number }}) — upload it from the Play Console."
           } > notes.md
 
       - name: Create Release
@@ -231,4 +282,5 @@ jobs:
           files: |
             artifacts/android-apk/app-arm64-v8a-release.apk
             artifacts/android-apk/app-armeabi-v7a-release.apk
+            artifacts/android-aab/app-release.aab
             artifacts/macos-build/MadarPOS-macOS.zip

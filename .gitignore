@@ -17,6 +17,12 @@ build/
 **/android/.gradle/
 **/android/local.properties
 **/android/key.properties
+# Release signing material: CI decodes these from secrets at build time and
+# shreds them after. A committed keystore is a compromised keystore.
+**/android/app/*.keystore
+**/android/app/*.jks
+*.p12
+*.mobileprovision
 
 # OS
 .DS_Store
