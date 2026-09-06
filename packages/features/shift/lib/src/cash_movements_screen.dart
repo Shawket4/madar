@@ -438,10 +438,7 @@ class _MovementRow extends StatelessWidget {
     final title = m.note.isEmpty
         ? bridge.tr(key: positive ? 'cash.in' : 'cash.out')
         : m.note;
-    final time = bridge.formatTime(
-      rfc3339: m.createdAt,
-      style: TimeStyle.time,
-    );
+    final time = bridge.formatTime(rfc3339: m.createdAt, style: TimeStyle.time);
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Space.lg,
@@ -480,9 +477,7 @@ class _MovementRow extends StatelessWidget {
                   '${m.movedByName} · $time',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: MadarType.bodySm.copyWith(
-                    color: colors.textSecondary,
-                  ),
+                  style: MadarType.bodySm.copyWith(color: colors.textSecondary),
                 ),
               ],
             ),

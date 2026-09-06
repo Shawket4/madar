@@ -1036,7 +1036,7 @@ class _SheetHeader extends StatelessWidget {
                 ],
                 const SizedBox(width: Space.sm),
                 TactileScale(
-                  onTap: () => unawaited(Navigator.of(context).maybePop()),
+                  onTap: () => Navigator.of(context).maybePop(),
                   child: Container(
                     width: Metrics.closeButton,
                     height: Metrics.closeButton,
@@ -1642,11 +1642,7 @@ class _ChipStep extends StatelessWidget {
         width: 24,
         height: Metrics.stepper,
         child: Center(
-          child: MadarIcon(
-            glyph,
-            tint: colors.textOnAccent,
-            size: IconSize.sm,
-          ),
+          child: MadarIcon(glyph, tint: colors.textOnAccent, size: IconSize.sm),
         ),
       ),
     );

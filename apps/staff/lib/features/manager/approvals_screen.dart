@@ -56,7 +56,6 @@ class _ApprovalsScreenState extends ConsumerState<ApprovalsScreen> {
       await core.bridge.managerDecideRequest(
         requestId: request.id,
         approve: approve,
-        note: null,
         isPaid: isPaid,
       );
       ref

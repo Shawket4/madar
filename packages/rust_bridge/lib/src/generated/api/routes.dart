@@ -27,9 +27,8 @@ sealed class AppRoute with _$AppRoute {
   const factory AppRoute.order() = AppRoute_Order;
 
   /// Device run as a kitchen display → the KDS for `station_id` (no shift needed).
-  const factory AppRoute.kitchenDisplay({
-    required String stationId,
-  }) = AppRoute_KitchenDisplay;
+  const factory AppRoute.kitchenDisplay({required String stationId}) =
+      AppRoute_KitchenDisplay;
 
   /// A signed-in WAITER (holds no shift) → the open-tickets / take-order screen.
   const factory AppRoute.waiterTickets() = AppRoute_WaiterTickets;

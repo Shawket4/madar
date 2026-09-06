@@ -26,7 +26,7 @@ workspace:
 dev_dependencies:
   melos: ^8.0.0
   # 10.3.x needs Dart >=3.12; this resolves to the newest release our SDK supports.
-  very_good_analysis: ^10.0.0
+  very_good_analysis: ^11.0.0
 
 melos:
   scripts:

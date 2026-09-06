@@ -28,9 +28,9 @@ Future<T?> showMadarDrawer<T>(
   required WidgetBuilder builder,
   double width = _drawerWidth,
 }) {
-  return Navigator.of(context).push(
-    MadarDrawerRoute<T>(builder: builder, width: width),
-  );
+  return Navigator.of(
+    context,
+  ).push(MadarDrawerRoute<T>(builder: builder, width: width));
 }
 
 /// Default panel width — the natives' phone drawer.
@@ -132,8 +132,8 @@ class _MadarDrawerPageState<T> extends State<_MadarDrawerPage<T>>
       curve: MotionSpec.standardCurve,
       reverseCurve: MotionSpec.standardCurve,
     );
-    unawaited(_slide.animateWith(SpringSimulation(MotionSpec.sheet, 1, 0, 0)));
-    unawaited(_scrim.forward());
+    _slide.animateWith(SpringSimulation(MotionSpec.sheet, 1, 0, 0));
+    _scrim.forward();
   }
 
   @override
@@ -149,12 +149,10 @@ class _MadarDrawerPageState<T> extends State<_MadarDrawerPage<T>>
   void _dismiss({T? result, double velocity = 0}) {
     if (_dismissing) return;
     _dismissing = true;
-    unawaited(
-      _slide.animateWith(
-        SpringSimulation(MotionSpec.sheet, _slide.value, 1, velocity),
-      ),
+    _slide.animateWith(
+      SpringSimulation(MotionSpec.sheet, _slide.value, 1, velocity),
     );
-    unawaited(_scrim.reverse());
+    _scrim.reverse();
     _popTimer = Timer(MotionSpec.sheetDismissDelay, () {
       if (!mounted) return;
       Navigator.of(context).pop(result);
@@ -180,19 +178,15 @@ class _MadarDrawerPageState<T> extends State<_MadarDrawerPage<T>>
     if (_drag.value > widget.route.width * _dragDismissFraction) {
       _dismiss(velocity: velocity / _hiddenExtent);
     } else {
-      unawaited(
-        _drag.animateWith(
-          SpringSimulation(MotionSpec.sheet, _drag.value, 0, velocity),
-        ),
+      _drag.animateWith(
+        SpringSimulation(MotionSpec.sheet, _drag.value, 0, velocity),
       );
     }
   }
 
   void _handleDragCancel() {
     if (_dismissing) return;
-    unawaited(
-      _drag.animateWith(SpringSimulation(MotionSpec.sheet, _drag.value, 0, 0)),
-    );
+    _drag.animateWith(SpringSimulation(MotionSpec.sheet, _drag.value, 0, 0));
   }
 
   @override

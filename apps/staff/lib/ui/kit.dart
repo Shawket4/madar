@@ -169,11 +169,7 @@ class StatCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 2),
-          Num(
-            value,
-            style: valueStyle ?? MadarType.numLg,
-            color: valueColor,
-          ),
+          Num(value, style: valueStyle ?? MadarType.numLg, color: valueColor),
         ],
       ),
     );
@@ -191,8 +187,7 @@ class LiveDot extends StatefulWidget {
   State<LiveDot> createState() => _LiveDotState();
 }
 
-class _LiveDotState extends State<LiveDot>
-    with SingleTickerProviderStateMixin {
+class _LiveDotState extends State<LiveDot> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 2),
@@ -242,8 +237,7 @@ class Segmented<T> extends StatelessWidget {
     final row = Row(
       mainAxisSize: scrollable ? MainAxisSize.min : MainAxisSize.max,
       children: [
-        for (final segment in segments)
-          _buildSegment(context, colors, segment),
+        for (final segment in segments) _buildSegment(context, colors, segment),
       ],
     );
 
@@ -274,9 +268,7 @@ class Segmented<T> extends StatelessWidget {
       decoration: BoxDecoration(
         color: selected ? colors.surface : Colors.transparent,
         borderRadius: BorderRadius.circular(Radii.xs + 1),
-        boxShadow: selected
-            ? shadowsOf(context, MadarElevation.card)
-            : null,
+        boxShadow: selected ? shadowsOf(context, MadarElevation.card) : null,
       ),
       child: Text(
         segment.label,

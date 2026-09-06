@@ -432,24 +432,25 @@ class OrderNotifier extends Notifier<OrderState> {
   static List<MenuItemView> _synthesize(List<MenuItemView> items) => [
     for (var i = 0; i < _synthCatalog; i++)
       for (final m in items)
-        i == 0
-            ? m
-            : MenuItemView(
-                id: '${m.id}-synth$i',
-                name: '${m.name} $i',
-                description: m.description,
-                categoryId: m.categoryId,
-                basePriceMinor: m.basePriceMinor,
-                imageUrl: m.imageUrl,
-                localImagePath: m.localImagePath,
-                isActive: m.isActive,
-                defaultMilkAddonId: m.defaultMilkAddonId,
-                allowedAddonIds: m.allowedAddonIds,
-                sizes: m.sizes,
-                addonSlots: m.addonSlots,
-                optionalFields: m.optionalFields,
-                recipes: m.recipes,
-              ),
+        if (i == 0)
+          m
+        else
+          MenuItemView(
+            id: '${m.id}-synth$i',
+            name: '${m.name} $i',
+            description: m.description,
+            categoryId: m.categoryId,
+            basePriceMinor: m.basePriceMinor,
+            imageUrl: m.imageUrl,
+            localImagePath: m.localImagePath,
+            isActive: m.isActive,
+            defaultMilkAddonId: m.defaultMilkAddonId,
+            allowedAddonIds: m.allowedAddonIds,
+            sizes: m.sizes,
+            addonSlots: m.addonSlots,
+            optionalFields: m.optionalFields,
+            recipes: m.recipes,
+          ),
   ];
 
   Future<void> loadCatalog() async {

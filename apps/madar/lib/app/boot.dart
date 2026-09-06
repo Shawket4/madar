@@ -15,10 +15,7 @@ const _apiBase = String.fromEnvironment(
   'MADAR_API',
   defaultValue: 'https://api.madar-pos.cloud',
 );
-const _environment = String.fromEnvironment(
-  'MADAR_ENV',
-  defaultValue: 'prod',
-);
+const _environment = String.fromEnvironment('MADAR_ENV', defaultValue: 'prod');
 
 /// What a successful boot yields: the live core handle + the host vault.
 class BootData {

@@ -60,7 +60,7 @@ class _TicketsSettleBodyState extends ConsumerState<TicketsSettleBody> {
         footer: IncomingButton(
           label: bridge.tr(key: 'waiter.settle'),
           icon: 'checkmark.circle',
-          onTap: () => unawaited(Navigator.of(sheetContext).maybePop(true)),
+          onTap: () => Navigator.of(sheetContext).maybePop(true),
         ),
       ),
     );
@@ -95,10 +95,7 @@ class _TicketsSettleBodyState extends ConsumerState<TicketsSettleBody> {
               horizontal: Space.lg,
               vertical: Space.sm,
             ),
-            child: NoticeBanner(
-              text: error,
-              icon: 'exclamationmark.circle',
-            ),
+            child: NoticeBanner(text: error, icon: 'exclamationmark.circle'),
           ),
         Expanded(
           child: settleable.isEmpty
@@ -395,7 +392,7 @@ class _TicketSettleSheetState extends ConsumerState<_TicketSettleSheet> {
       terminalLabel: label,
       terminalIcon: 'checkmark.circle',
       placing: placing,
-      onClose: () => unawaited(Navigator.of(context).maybePop()),
+      onClose: () => Navigator.of(context).maybePop(),
       headerContent: _SettleHeader(ticket: ticket),
       onTerminal: (result) => unawaited(_settle(result)),
     );

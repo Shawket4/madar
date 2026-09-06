@@ -52,10 +52,7 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
     unawaited(
       ref
           .read(authProvider.notifier)
-          .authenticateManager(
-            email: _email.text,
-            password: _password.text,
-          ),
+          .authenticateManager(email: _email.text, password: _password.text),
     );
   }
 
@@ -108,9 +105,8 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
           for (final branch in branches)
             _BranchRow(
               branch: branch,
-              onTap: () => unawaited(
-                ref.read(authProvider.notifier).bindBranch(branch),
-              ),
+              onTap: () =>
+                  unawaited(ref.read(authProvider.notifier).bindBranch(branch)),
             )
         else ...[
           MadarTextField(
@@ -145,9 +141,8 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
         if (picking || isBranchConfigured)
           MadarButton(
             label: t('setup.cancel'),
-            onPressed: () => unawaited(
-              ref.read(authProvider.notifier).cancelReconfigure(),
-            ),
+            onPressed: () =>
+                unawaited(ref.read(authProvider.notifier).cancelReconfigure()),
             variant: AuthButtonVariant.ghost,
           ),
       ],

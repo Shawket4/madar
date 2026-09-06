@@ -97,7 +97,7 @@ class DashboardSkeleton extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: Space.lg),
-                    const SkeletonChartCard(height: 180),
+                    const SkeletonChartCard(),
                     const SizedBox(height: Space.lg),
                     if (wide)
                       const Row(

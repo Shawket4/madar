@@ -416,10 +416,6 @@ class _NextShiftStrip extends ConsumerWidget {
 
     return MadarCard(
       radius: Radii.sm + 2,
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.md,
-        vertical: Space.md,
-      ),
       child: Row(
         children: [
           MadarIcon('calendar.days', tint: colors.accent, size: IconSize.lg),
@@ -449,11 +445,7 @@ class _NextShiftStrip extends ConsumerWidget {
               ],
             ),
           ),
-          MadarIcon(
-            'chevron.forward',
-            tint: colors.textMuted,
-            size: IconSize.md,
-          ),
+          MadarIcon('chevron.forward', tint: colors.textMuted),
         ],
       ),
     );

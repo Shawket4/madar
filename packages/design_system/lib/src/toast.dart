@@ -152,13 +152,13 @@ class _ToastHostState extends State<ToastHost>
       }
     } else if (oldWidget.toast != null) {
       _timer?.cancel();
-      unawaited(_controller.reverse());
+      _controller.reverse();
     }
   }
 
   void _present(ToastData toast) {
     _shown = toast;
-    unawaited(_controller.forward());
+    _controller.forward();
     _timer?.cancel();
     if (toast.sticky) return;
     _timer = Timer(

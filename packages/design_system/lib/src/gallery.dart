@@ -187,11 +187,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
         spacing: Space.xl,
         runSpacing: Space.lg,
         crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          MadarLockup(),
-          MadarLockup(arabic: true),
-          MadarSymbol(),
-        ],
+        children: [MadarLockup(), MadarLockup(arabic: true), MadarSymbol()],
       ),
     );
   }
@@ -541,25 +537,13 @@ class _GalleryScreenState extends State<GalleryScreen> {
         children: [
           const MoneyText(1250, currency: 'egp'),
           const SizedBox(height: Space.sm),
-          MoneyText(
-            -50000,
-            currency: 'egp',
-            color: colors.danger,
-          ),
+          MoneyText(-50000, currency: 'egp', color: colors.danger),
           const SizedBox(height: Space.sm),
           const MoneyText(98765432, currency: 'egp'),
           const SizedBox(height: Space.sm),
-          MoneyText(
-            123456789,
-            currency: 'egp',
-            style: MadarType.moneyLg,
-          ),
+          MoneyText(123456789, currency: 'egp', style: MadarType.moneyLg),
           const SizedBox(height: Space.sm),
-          MoneyText(
-            123456789,
-            currency: 'egp',
-            style: MadarType.moneyDisplay,
-          ),
+          MoneyText(123456789, currency: 'egp', style: MadarType.moneyDisplay),
         ],
       ),
     );
@@ -663,9 +647,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
-                    style: MadarType.labelSm.copyWith(
-                      color: colors.textMuted,
-                    ),
+                    style: MadarType.labelSm.copyWith(color: colors.textMuted),
                   ),
                 ],
               ),
@@ -730,9 +712,7 @@ class _GalleryButton extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: Metrics.inputHeight,
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Space.lg,
-          ),
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.lg),
           decoration: BoxDecoration(
             color: filled ? colors.accent : colors.surface,
             borderRadius: BorderRadius.circular(Radii.md),
@@ -784,7 +764,7 @@ class _GallerySheetContent extends StatelessWidget {
           _GalleryButton(
             label: 'Close',
             icon: 'xmark',
-            onTap: () => unawaited(Navigator.of(context).maybePop()),
+            onTap: () => Navigator.of(context).maybePop(),
           ),
         ],
       ),

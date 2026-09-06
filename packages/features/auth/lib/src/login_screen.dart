@@ -100,13 +100,11 @@ class _TellerFormState extends ConsumerState<_TellerForm>
 
   void _fail() {
     MadarHaptics.warning();
-    unawaited(_shake.forward(from: 0));
+    _shake.forward(from: 0);
   }
 
   void _submit() {
-    unawaited(
-      ref.read(authProvider.notifier).signInTeller(name: _name.text),
-    );
+    unawaited(ref.read(authProvider.notifier).signInTeller(name: _name.text));
   }
 
   void _digit(String digit) {

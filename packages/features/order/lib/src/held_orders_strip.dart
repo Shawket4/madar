@@ -110,11 +110,7 @@ class HeldOrdersStrip extends ConsumerWidget {
   final String newLabel;
 
   /// Lift the dragged chip: scale ~1.05 + a raised shadow above its siblings.
-  Widget _proxyDecorator(
-    Widget child,
-    int index,
-    Animation<double> animation,
-  ) {
+  Widget _proxyDecorator(Widget child, int index, Animation<double> animation) {
     return AnimatedBuilder(
       animation: animation,
       builder: (context, _) {

@@ -9,7 +9,4 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// Which thermal-printer command dialect to emit. Epson (ESC/POS) and Star
 /// (Star Line Mode) are NOT byte-compatible — different alignment, character
 /// size, cut and drawer-kick commands. The host picks this in Settings.
-enum PrinterBrand {
-  epson,
-  star,
-}
+enum PrinterBrand { epson, star }

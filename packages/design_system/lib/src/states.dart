@@ -216,10 +216,7 @@ class _CenteredStateColumn extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: Responsive.formMaxWidth),
           child: Padding(
             padding: const EdgeInsetsDirectional.all(Space.xl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: children,
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: children),
           ),
         ),
       ),

@@ -36,9 +36,7 @@ class StatusChip extends ConsumerWidget {
       ),
       child: Text(
         t('$prefix.$status'),
-        style: Theme.of(
-          context,
-        ).textTheme.labelSmall?.copyWith(color: color),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
       ),
     );
   }

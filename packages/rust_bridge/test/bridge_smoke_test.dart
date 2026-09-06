@@ -87,10 +87,7 @@ void main() {
   });
 
   test('realtime is gated on auth', () async {
-    expect(
-      core.startRealtime,
-      throwsA(isA<MadarError_Unauthenticated>()),
-    );
+    expect(core.startRealtime, throwsA(isA<MadarError_Unauthenticated>()));
   });
 
   test('cached session restore is empty on a fresh store', () {

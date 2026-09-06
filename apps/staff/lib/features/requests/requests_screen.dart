@@ -460,11 +460,7 @@ class _KindChip extends StatelessWidget {
 
 /// A tappable read-only field — the handoff's 44px date/time input.
 class _Field extends StatelessWidget {
-  const _Field({
-    required this.label,
-    required this.value,
-    required this.onTap,
-  });
+  const _Field({required this.label, required this.value, required this.onTap});
 
   final String label;
   final String value;

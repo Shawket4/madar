@@ -37,7 +37,7 @@ class _AdjustmentsScreenState extends ConsumerState<AdjustmentsScreen> {
     final now = DateTime.now();
     return (
       deductions: _tab == _Tab.deductions,
-      from: isoDate(DateTime(now.year, now.month, 1)),
+      from: isoDate(DateTime(now.year, now.month)),
       to: isoDate(DateTime(now.year, now.month + 1, 0)),
     );
   }
@@ -110,25 +110,21 @@ class _AdjustmentsScreenState extends ConsumerState<AdjustmentsScreen> {
 
   // ── Actions ─────────────────────────────────────────────────
 
-  Future<void> _decideAdvance(SalaryAdvanceView advance, bool approve) =>
-      _run(
-        advance.id,
-        () => ref
-            .read(coreProvider)
-            .bridge
-            .managerDecideAdvance(
-              advanceId: advance.id,
-              approve: approve,
-              note: null,
-            ),
-      );
+  Future<void> _decideAdvance(SalaryAdvanceView advance, bool approve) => _run(
+    advance.id,
+    () => ref
+        .read(coreProvider)
+        .bridge
+        .managerDecideAdvance(advanceId: advance.id, approve: approve),
+  );
 
   Future<void> _openAddSheet({required bool deductions}) async {
     final t = ref.read(tProvider);
-    final result = await showMadarSheet<({String userId, int minor, String reason})>(
-      context,
-      builder: (sheetContext) => _AddSheet(deductions: deductions),
-    );
+    final result =
+        await showMadarSheet<({String userId, int minor, String reason})>(
+          context,
+          builder: (sheetContext) => _AddSheet(deductions: deductions),
+        );
     if (result == null) return;
     final now = DateTime.now();
     await _run(
@@ -180,7 +176,7 @@ class _AdjustmentsScreenState extends ConsumerState<AdjustmentsScreen> {
   Future<void> _openWaiveSheet(AdjustmentView row) async {
     final result = await showMadarSheet<({int minor, String reason})>(
       context,
-      builder: (_) => _ReasonSheet(
+      builder: (_) => const _ReasonSheet(
         titleKey: 'adj.waiveTitle',
         hintKey: 'adj.waiveHint',
         withAmount: false,
@@ -650,7 +646,8 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
     final currency = ref.watch(sessionProvider)?.currencyCode ?? '';
 
     final major = double.tryParse(_amount.text.trim()) ?? 0;
-    final valid = _userId != null && major > 0 && _reason.text.trim().isNotEmpty;
+    final valid =
+        _userId != null && major > 0 && _reason.text.trim().isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(

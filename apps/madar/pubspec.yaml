@@ -30,7 +30,7 @@ dependencies:
   flutter_riverpod: ^3.3.2
   # Direct (not just transitive via rust_bridge) so observability.dart may
   # name the FRB exception types it tags Rust-core failures by.
-  flutter_rust_bridge: 2.12.0
+  flutter_rust_bridge: 2.13.0
   path_provider: ^2.1.5
   rust_bridge: ^0.1.0
   # Crash/error reporting to the SELF-HOSTED Sentry at sentry.madar-pos.cloud.

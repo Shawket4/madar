@@ -10,10 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 const _screen = Size(800, 600);
 const _panelWidth = 320.0;
 
-Finder get _panel => find.ancestor(
-      of: find.text('CONTENT'),
-      matching: find.byType(ClipRRect),
-    );
+Finder get _panel =>
+    find.ancestor(of: find.text('CONTENT'), matching: find.byType(ClipRRect));
 
 Future<GlobalKey<NavigatorState>> _pumpHost(
   WidgetTester tester, {
@@ -51,8 +49,7 @@ Future<void> _present(
 }
 
 void main() {
-  testWidgets('anchors to the leading edge at its width (LTR)',
-      (tester) async {
+  testWidgets('anchors to the leading edge at its width (LTR)', (tester) async {
     final navKey = await _pumpHost(tester);
     await _present(tester, navKey);
     final rect = tester.getRect(_panel);
@@ -76,8 +73,9 @@ void main() {
     await _present(tester, navKey);
 
     // Drag 60px toward the edge (< 28% of 320) and release.
-    final gesture =
-        await tester.startGesture(tester.getCenter(find.text('CONTENT')));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('CONTENT')),
+    );
     for (var i = 0; i < 6; i++) {
       await gesture.moveBy(const Offset(-10, 0));
       await tester.pump();
@@ -102,8 +100,9 @@ void main() {
     final navKey = await _pumpHost(tester);
     await _present(tester, navKey);
 
-    final gesture =
-        await tester.startGesture(tester.getCenter(find.text('CONTENT')));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('CONTENT')),
+    );
     for (var i = 0; i < 8; i++) {
       await gesture.moveBy(const Offset(-20, 0)); // 160px > 28% of 320
       await tester.pump();
@@ -128,7 +127,7 @@ void main() {
   testWidgets('system back dismisses (PopScope routing)', (tester) async {
     final navKey = await _pumpHost(tester);
     await _present(tester, navKey);
-    unawaited(navKey.currentState!.maybePop());
+    navKey.currentState!.maybePop();
     for (var i = 0; i < 90; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }

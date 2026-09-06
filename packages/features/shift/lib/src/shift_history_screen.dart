@@ -414,9 +414,7 @@ class _WideShiftRow extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: Metrics.tableRowHeight,
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Space.lg,
-          ),
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.lg),
           child: Row(
             spacing: Space.md,
             children: [
@@ -449,9 +447,7 @@ class _WideShiftRow extends StatelessWidget {
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: MadarType.bodySm.copyWith(
-                    color: colors.textSecondary,
-                  ),
+                  style: MadarType.bodySm.copyWith(color: colors.textSecondary),
                 ),
               ),
               Expanded(
@@ -496,9 +492,7 @@ class _WideShiftRow extends StatelessWidget {
               _OrdersToggle(expanded: ordersExpanded, onTap: onToggleOrders),
               SizedBox(
                 width: _chevronColWidth,
-                child: Center(
-                  child: _RowDisclosure(loading: loadingReport),
-                ),
+                child: Center(child: _RowDisclosure(loading: loadingReport)),
               ),
             ],
           ),

@@ -69,9 +69,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
     if (_reauthShowing || !mounted) return;
     if (!ref.read(orderProvider).isOnline) return;
     _reauthShowing = true;
-    unawaited(
-      _handleAuthPaused().whenComplete(() => _reauthShowing = false),
-    );
+    unawaited(_handleAuthPaused().whenComplete(() => _reauthShowing = false));
   }
 
   // ── sheet launchers ────────────────────────────────────────────────────────
@@ -155,17 +153,17 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
   /// Close shift — pushed over the order surface like the natives' overlay;
   /// on success the shell's route machine takes over.
   Future<void> _closeShift() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const CloseShiftScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const CloseShiftScreen()));
   }
 
   /// The sync center (outbox) — opened from the top-bar sync status chip
   /// like the natives' SyncChip.
   Future<void> _openSync() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const SyncScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SyncScreen()));
   }
 
   /// Sync parked on a 401 → the auth-paused banner opens the re-auth sheet:
@@ -194,11 +192,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
       context,
       builder: (sheetContext) => CartPanel(
         onCheckout: () {
-          unawaited(Navigator.of(sheetContext).maybePop());
+          Navigator.of(sheetContext).maybePop();
           unawaited(_checkout());
         },
         onEditLine: (line) => unawaited(_editCartLine(line)),
-        onClose: () => unawaited(Navigator.of(sheetContext).maybePop()),
+        onClose: () => Navigator.of(sheetContext).maybePop(),
       ),
     );
   }
@@ -309,9 +307,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
                                           child: CartPanel(
                                             onCheckout: () =>
                                                 unawaited(_checkout()),
-                                            onEditLine: (line) => unawaited(
-                                              _editCartLine(line),
-                                            ),
+                                            onEditLine: (line) =>
+                                                unawaited(_editCartLine(line)),
                                           ),
                                         ),
                                       ],
@@ -482,11 +479,9 @@ class _TablesButton extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: Space.sm),
       child: TactileScale(
-        onTap: () => unawaited(
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const TablesScreen()),
-          ),
-        ),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const TablesScreen())),
         child: Tooltip(
           message: bridge.tr(key: 'tables.title'),
           child: Padding(
@@ -559,10 +554,7 @@ class _ShiftStatsPill extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: Space.xs),
-          Text(
-            '·',
-            style: MadarType.labelSm.copyWith(color: colors.textMuted),
-          ),
+          Text('·', style: MadarType.labelSm.copyWith(color: colors.textMuted)),
           const SizedBox(width: Space.xs),
           Text(
             '$orderCount ${bridge.tr(key: 'chrome.orders')}',

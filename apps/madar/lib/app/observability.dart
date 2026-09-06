@@ -111,33 +111,36 @@ Future<void> initObservability(FutureOr<void> Function() runner) async {
 ///
 /// The port is intentionally never closed — it lives as long as the process.
 void _listenForIsolateErrors() {
-  final port = RawReceivePort((dynamic pair) {
-    // The payload is always `[error, stackTrace]`, both already stringified by
-    // the isolate boundary.
-    if (pair is! List || pair.length < 2) return;
-    final error = pair.first;
-    final stack = pair.last;
-    // Fire-and-forget by construction: an isolate error report must never be
-    // awaited on a code path that is already unwinding.
-    unawaited(
-      Sentry.captureException(
-        error,
-        stackTrace: stack is String ? StackTrace.fromString(stack) : stack,
-        withScope: (scope) {
-          scope
-            // A fingerprint that does not include the message, so a hundred
-            // variations of one failure stay one issue.
-            ..fingerprint = ['isolate', '$error'.split('\n').first]
-            // `setTag` returns `FutureOr<void>`; inside a synchronous scope
-            // callback there is nothing to await it on.
-            // ignore: discarded_futures
-            ..setTag('source', 'isolate');
-        },
-      ),
-    );
-  })
-    // The port is deliberately never closed: it lives as long as the process.
-    ..keepIsolateAlive = false;
+  final port =
+      RawReceivePort((dynamic pair) {
+          // The payload is always `[error, stackTrace]`, both already stringified by
+          // the isolate boundary.
+          if (pair is! List || pair.length < 2) return;
+          final error = pair.first;
+          final stack = pair.last;
+          // Fire-and-forget by construction: an isolate error report must never be
+          // awaited on a code path that is already unwinding.
+          unawaited(
+            Sentry.captureException(
+              error,
+              stackTrace: stack is String
+                  ? StackTrace.fromString(stack)
+                  : stack,
+              withScope: (scope) {
+                scope
+                  // A fingerprint that does not include the message, so a hundred
+                  // variations of one failure stay one issue.
+                  ..fingerprint = ['isolate', '$error'.split('\n').first]
+                  // `setTag` returns `FutureOr<void>`; inside a synchronous scope
+                  // callback there is nothing to await it on.
+                  // ignore: discarded_futures
+                  ..setTag('source', 'isolate');
+              },
+            ),
+          );
+        })
+        // The port is deliberately never closed: it lives as long as the process.
+        ..keepIsolateAlive = false;
   Isolate.current.addErrorListener(port.sendPort);
 }
 
@@ -448,7 +451,10 @@ const piiKeyAllowlist = <String>[
   'device.model',
 ];
 
-final String _piiKeyFragmentsAlt = [...piiKeyDenylist, ...piiKeyExact].join('|');
+final String _piiKeyFragmentsAlt = [
+  ...piiKeyDenylist,
+  ...piiKeyExact,
+].join('|');
 
 /// True when a key must be redacted, given the key of the object containing it.
 bool isPiiPath(String? parent, String key) {
@@ -548,7 +554,8 @@ String scrubText(String input) {
         final value = match.group(4)!;
         // Idempotent: the hook can run over already-scrubbed text, and a second
         // pass must not corrupt the marker into `[redacted]]`.
-        if (value.startsWith(_redacted) || !isPiiKey(key)) return match.group(0)!;
+        if (value.startsWith(_redacted) || !isPiiKey(key))
+          return match.group(0)!;
         return '$prefix$_redacted';
       })
       .replaceAllMapped(

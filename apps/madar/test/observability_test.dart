@@ -14,7 +14,8 @@ const redacted = '[redacted]';
 /// than calling a private copy of it. Going through [configureSentryOptions] is
 /// what makes this test able to fail when the wiring is reverted.
 SentryEvent? throughBeforeSend(SentryEvent event) {
-  final options = SentryFlutterOptions()..dsn = 'https://public@example.invalid/2';
+  final options = SentryFlutterOptions()
+    ..dsn = 'https://public@example.invalid/2';
   configureSentryOptions(options);
   final hook = options.beforeSend;
   expect(hook, isNotNull, reason: 'beforeSend must be installed');
@@ -44,7 +45,16 @@ void main() {
 
     test('matches short forms exactly and only exactly', () {
       // A teller login carries `pin=`, a delivery verification carries `otp=`.
-      for (final key in ['pass', 'PIN', 'otp', 'lat', 'lng', 'user', 'owner', 'key']) {
+      for (final key in [
+        'pass',
+        'PIN',
+        'otp',
+        'lat',
+        'lng',
+        'user',
+        'owner',
+        'key',
+      ]) {
         expect(isPiiKey(key), isTrue, reason: 'short form $key must be denied');
       }
       // ...and as substrings each of these would be a disaster.
@@ -120,8 +130,14 @@ void main() {
         scrubText('rejected Bearer eyJhbGciOiJIUzI1NiJ9.abc.def'),
         'rejected Bearer $redacted',
       );
-      expect(scrubText('could not notify ali@example.com'), 'could not notify $redacted');
-      expect(scrubText('rang 01000000000 twice'), isNot(contains('01000000000')));
+      expect(
+        scrubText('could not notify ali@example.com'),
+        'could not notify $redacted',
+      );
+      expect(
+        scrubText('rang 01000000000 twice'),
+        isNot(contains('01000000000')),
+      );
     });
 
     test('leaves ordinary diagnostics unchanged', () {
@@ -134,7 +150,11 @@ void main() {
         'total_amount 16300 exceeds limit 1000000',
         'RangeError (index): Invalid value: Not in inclusive range 0..4: 7',
       ]) {
-        expect(scrubText(message), message, reason: 'an ordinary diagnostic was mangled');
+        expect(
+          scrubText(message),
+          message,
+          reason: 'an ordinary diagnostic was mangled',
+        );
       }
     });
 
@@ -146,28 +166,29 @@ void main() {
 
   group('the captured event', () {
     SentryEvent buildEvent() => SentryEvent(
-          message: SentryMessage('failed for customer_phone=+201000000000'),
-          user: SentryUser(id: 'u1', email: 'a@b.c', username: 'ali'),
-          serverName: 'alis-till',
-          request: SentryRequest(
-            url: 'https://api.madar-pos.cloud/orders?customer_phone=%2B201000000000',
-            method: 'POST',
-            headers: const {'authorization': 'Bearer secret-token'},
-          ),
-          tags: const {'address_line': '12 Main St', 'branch_id': '7'},
-          breadcrumbs: [
-            Breadcrumb(
-              message: 'looking up phone=+201000000000',
-              data: const {'national_id': '123', 'status': 500},
-            ),
-          ],
-          exceptions: [
-            SentryException(
-              type: 'AnyhowException',
-              value: 'no customer for phone=+201000000000',
-            ),
-          ],
-        );
+      message: SentryMessage('failed for customer_phone=+201000000000'),
+      user: SentryUser(id: 'u1', email: 'a@b.c', username: 'ali'),
+      serverName: 'alis-till',
+      request: SentryRequest(
+        url:
+            'https://api.madar-pos.cloud/orders?customer_phone=%2B201000000000',
+        method: 'POST',
+        headers: const {'authorization': 'Bearer secret-token'},
+      ),
+      tags: const {'address_line': '12 Main St', 'branch_id': '7'},
+      breadcrumbs: [
+        Breadcrumb(
+          message: 'looking up phone=+201000000000',
+          data: const {'national_id': '123', 'status': 500},
+        ),
+      ],
+      exceptions: [
+        SentryException(
+          type: 'AnyhowException',
+          value: 'no customer for phone=+201000000000',
+        ),
+      ],
+    );
 
     test('clears identity outright and strips the request payload', () {
       final event = throughBeforeSend(buildEvent())!;
@@ -183,7 +204,12 @@ void main() {
       // Asserted over the whole serialized form, because inspecting one field
       // at a time is how a leak in the field you did not check survives.
       final wire = throughBeforeSend(buildEvent())!.toJson().toString();
-      for (final leak in ['201000000000', '12 Main St', 'secret-token', 'a@b.c']) {
+      for (final leak in [
+        '201000000000',
+        '12 Main St',
+        'secret-token',
+        'a@b.c',
+      ]) {
         expect(wire, isNot(contains(leak)), reason: 'event leaked $leak');
       }
     });
@@ -201,7 +227,8 @@ void main() {
     late SentryFlutterOptions options;
 
     setUp(() {
-      options = SentryFlutterOptions()..dsn = 'https://public@example.invalid/2';
+      options = SentryFlutterOptions()
+        ..dsn = 'https://public@example.invalid/2';
       configureSentryOptions(options);
     });
 
@@ -254,7 +281,11 @@ void main() {
       expect(piiKeyAllowlist, isNot(contains('device.name')));
       // Every entry is lowercase, or the case-insensitive comparisons silently
       // stop matching.
-      for (final entry in [...piiKeyDenylist, ...piiKeyExact, ...piiKeyAllowlist]) {
+      for (final entry in [
+        ...piiKeyDenylist,
+        ...piiKeyExact,
+        ...piiKeyAllowlist,
+      ]) {
         expect(entry, entry.toLowerCase());
       }
     });

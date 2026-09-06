@@ -440,10 +440,7 @@ class _SkeletonCard extends StatelessWidget {
             padding: EdgeInsetsDirectional.all(Space.md),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                SkeletonBlock(width: 84),
-                SkeletonBlock(width: 44),
-              ],
+              children: [SkeletonBlock(width: 84), SkeletonBlock(width: 44)],
             ),
           ),
         ],

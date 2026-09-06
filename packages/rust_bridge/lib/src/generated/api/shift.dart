@@ -229,10 +229,7 @@ class ShiftStatsView {
   final PlatformInt64 salesMinor;
   final PlatformInt64 orderCount;
 
-  const ShiftStatsView({
-    required this.salesMinor,
-    required this.orderCount,
-  });
+  const ShiftStatsView({required this.salesMinor, required this.orderCount});
 
   @override
   int get hashCode => salesMinor.hashCode ^ orderCount.hashCode;

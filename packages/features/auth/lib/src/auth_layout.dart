@@ -66,10 +66,7 @@ class AuthSplitScaffold extends StatelessWidget {
           }
           return Row(
             children: [
-              Expanded(
-                flex: brandFlex,
-                child: const BrandPanel(),
-              ),
+              Expanded(flex: brandFlex, child: const BrandPanel()),
               Expanded(
                 flex: 100 - brandFlex,
                 child: _formColumn(context, showLogo: false),

@@ -152,11 +152,7 @@ class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
             color: colors.accentBg,
           ),
           alignment: Alignment.center,
-          child: MadarIcon(
-            'fork.knife',
-            tint: colors.accent,
-            size: _heroGlyph,
-          ),
+          child: MadarIcon('fork.knife', tint: colors.accent, size: _heroGlyph),
         ),
         Text(
           t('setup.choose_station'),

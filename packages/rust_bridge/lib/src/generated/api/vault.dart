@@ -16,9 +16,8 @@ sealed class VaultCommand with _$VaultCommand {
   const VaultCommand._();
 
   /// Persist this opaque session blob (Keychain/Keystore equivalent).
-  const factory VaultCommand.save({
-    required Uint8List blob,
-  }) = VaultCommand_Save;
+  const factory VaultCommand.save({required Uint8List blob}) =
+      VaultCommand_Save;
 
   /// Wipe the persisted blob (logout / hard expiry).
   const factory VaultCommand.clear() = VaultCommand_Clear;

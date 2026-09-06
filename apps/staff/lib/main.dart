@@ -41,7 +41,6 @@ class _App extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: MadarTheme.light(),
       darkTheme: MadarTheme.dark(),
-      themeMode: ThemeMode.system,
       locale: Locale(locale),
       supportedLocales: const [Locale('en'), Locale('ar')],
       localizationsDelegates: const [

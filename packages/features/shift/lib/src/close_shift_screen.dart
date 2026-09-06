@@ -350,9 +350,7 @@ class _ExpectedCashBlock extends StatelessWidget {
             MoneyText(
               expectedMinor,
               currency: currency,
-              style: MadarType.moneyLg.copyWith(
-                fontSize: _expectedMoneySize,
-              ),
+              style: MadarType.moneyLg.copyWith(fontSize: _expectedMoneySize),
             ),
           ],
         ),
@@ -405,9 +403,7 @@ class _DiscrepancyBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(Radii.sm),
-        border: Border.all(
-          color: fg.withValues(alpha: Opacities.border),
-        ),
+        border: Border.all(color: fg.withValues(alpha: Opacities.border)),
       ),
       child: Padding(
         padding: const EdgeInsetsDirectional.symmetric(

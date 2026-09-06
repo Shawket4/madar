@@ -53,7 +53,7 @@ class PrinterService {
     if (!await ensureBluetoothPermission()) return const [];
     final backend = btPrinterBackend();
     if (!await backend.isEnabled()) return const [];
-    return backend.listPairedPrinters();
+    return await backend.listPairedPrinters();
   }
 
   /// Whether an SPP link is currently open (the Settings status row).

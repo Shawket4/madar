@@ -175,9 +175,7 @@ class _SpikeScreenState extends State<SpikeScreen> {
             tooltip: 'Design gallery',
             icon: const Icon(Icons.palette_outlined),
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const GalleryScreen(),
-              ),
+              MaterialPageRoute<void>(builder: (_) => const GalleryScreen()),
             ),
           ),
         ],

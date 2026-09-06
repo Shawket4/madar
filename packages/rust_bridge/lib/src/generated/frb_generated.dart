@@ -52,12 +52,8 @@ class RustBridge
 
   /// Initialize flutter_rust_bridge in mock mode.
   /// No libraries for FFI are loaded.
-  static void initMock({
-    required RustBridgeApi api,
-  }) {
-    instance.initMockImpl(
-      api: api,
-    );
+  static void initMock({required RustBridgeApi api}) {
+    instance.initMockImpl(api: api);
   }
 
   /// Dispose flutter_rust_bridge
@@ -2075,10 +2071,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeDbPathConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_db_path",
-        argNames: ["that"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_db_path", argNames: ["that"]);
 
   @override
   Future<DeliveryOrderView> crateApiBridgeMadarBridgeDeliveryAdvanceStatus({
@@ -2968,10 +2961,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeIsRtlConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_is_rtl",
-        argNames: ["that"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_is_rtl", argNames: ["that"]);
 
   @override
   Future<void> crateApiBridgeMadarBridgeKdsBump({
@@ -3997,10 +3987,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeLocaleConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_locale",
-        argNames: ["that"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_locale", argNames: ["that"]);
 
   @override
   Future<SessionSnapshot> crateApiBridgeMadarBridgeLogin({
@@ -4147,10 +4134,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeNewConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_new",
-        argNames: ["config"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_new", argNames: ["config"]);
 
   @override
   Future<void> crateApiBridgeMadarBridgeNoShowBooking({
@@ -6245,10 +6229,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeVersionConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_version",
-        argNames: ["that"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_version", argNames: ["that"]);
 
   @override
   Future<void> crateApiBridgeMadarBridgeVoidOrder({
@@ -6357,10 +6338,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeCoreVersionConstMeta => const TaskConstMeta(
-    debugName: "core_version",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiBridgeCoreVersionConstMeta =>
+      const TaskConstMeta(debugName: "core_version", argNames: []);
 
   @override
   int crateApiBridgeFfiSurfaceVersion() {
@@ -6386,10 +6365,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeFfiSurfaceVersionConstMeta =>
-      const TaskConstMeta(
-        debugName: "ffi_surface_version",
-        argNames: [],
-      );
+      const TaskConstMeta(debugName: "ffi_surface_version", argNames: []);
 
   @override
   String crateApiBridgeGreet({required String name}) {
@@ -6415,10 +6391,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeGreetConstMeta => const TaskConstMeta(
-    debugName: "greet",
-    argNames: ["name"],
-  );
+  TaskConstMeta get kCrateApiBridgeGreetConstMeta =>
+      const TaskConstMeta(debugName: "greet", argNames: ["name"]);
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_MadarBridge => wire
@@ -6573,9 +6547,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       case 3:
         return AppRoute_Order();
       case 4:
-        return AppRoute_KitchenDisplay(
-          stationId: dco_decode_String(raw[1]),
-        );
+        return AppRoute_KitchenDisplay(stationId: dco_decode_String(raw[1]));
       case 5:
         return AppRoute_WaiterTickets();
       default:
@@ -7601,13 +7573,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return MadarError_Offline(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Offline(detail: dco_decode_String(raw[1]));
       case 1:
-        return MadarError_Unauthenticated(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Unauthenticated(detail: dco_decode_String(raw[1]));
       case 2:
         return MadarError_Forbidden(
           resource: dco_decode_String(raw[1]),
@@ -7625,13 +7593,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           detail: dco_decode_String(raw[3]),
         );
       case 5:
-        return MadarError_Transient(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Transient(detail: dco_decode_String(raw[1]));
       case 6:
-        return MadarError_Internal(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Internal(detail: dco_decode_String(raw[1]));
       default:
         throw Exception("unreachable");
     }
@@ -12835,9 +12799,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// The screen to show. Re-read at deliberate transitions only.
   AppRoute appRoute() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeAppRoute(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeAppRoute(that: this);
 
   /// Assign / move / unassign a parked draft's table. Errors loudly when the
   /// table is taken (interactive path — the teller picks another).
@@ -12858,16 +12820,13 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       );
 
   /// API base URL the core will talk to (from `.env`).
-  String baseUrl() => RustBridge.instance.api.crateApiBridgeMadarBridgeBaseUrl(
-    that: this,
-  );
+  String baseUrl() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeBaseUrl(that: this);
 
   /// The branch's IANA timezone name (cached at login, or the Cairo fallback) —
   /// for any host that needs the raw zone (e.g. a platform date picker).
-  String branchTimezone() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeBranchTimezone(
-        that: this,
-      );
+  String branchTimezone() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeBranchTimezone(that: this);
 
   /// Withdraw a waiting transfer wish.
   Future<void> cancelTransfer({required String id}) => RustBridge.instance.api
@@ -12921,27 +12880,19 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// Empty the cart.
   Future<void> cartClear() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeCartClear(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeCartClear(that: this);
 
   /// Remove the cart discount.
-  Future<void> cartClearDiscount() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeCartClearDiscount(
-        that: this,
-      );
+  Future<void> cartClearDiscount() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeCartClearDiscount(that: this);
 
   /// The selected discount id (for the tender UI), or `None`.
-  Future<String?> cartDiscountId() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeCartDiscountId(
-        that: this,
-      );
+  Future<String?> cartDiscountId() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeCartDiscountId(that: this);
 
   /// The current cart lines (empty when none).
   Future<List<CartLineView>> cartLines() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeCartLines(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeCartLines(that: this);
 
   /// Remove a line entirely (stashed for undo — see `cart_restore_removed`).
   Future<List<CartLineView>> cartRemove({required String itemId}) => RustBridge
@@ -12951,10 +12902,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
   /// nothing was removed (or it was already restored / the cart was cleared).
-  Future<List<CartLineView>> cartRestoreRemoved() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeCartRestoreRemoved(
-        that: this,
-      );
+  Future<List<CartLineView>> cartRestoreRemoved() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeCartRestoreRemoved(that: this);
 
   /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
   Future<void> cartSetDiscount({required String discountId}) =>
@@ -12976,9 +12925,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// Priced cart summary at the session's org tax rate (0 when signed out),
   /// computed through the pricing engine.
   Future<CartTotals> cartTotals() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeCartTotals(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeCartTotals(that: this);
 
   /// Cash-drawer kick bytes for the chosen printer dialect — send via
   /// `send_to_printer` right after a CASH sale's receipt so the till pops.
@@ -13008,15 +12955,11 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// Wipe the device binding entirely (factory reset of the device config).
   Future<void> clearDevice() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeClearDevice(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeClearDevice(that: this);
 
   /// Clear the diagnostics feed.
   Future<void> clearLogs() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeClearLogs(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeClearLogs(that: this);
 
   /// Clear a bussed table — the one human act a table's status cannot
   /// derive. Everything else follows from the ticket sitting on it.
@@ -13027,10 +12970,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// Server-vs-device clock skew in MINUTES (server minus device, refreshed by
   /// `refresh_connectivity`). The host shows a banner past a threshold so the
   /// teller fixes the clock before offline work is mis-timestamped.
-  int clockSkewMinutes() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeClockSkewMinutes(
-        that: this,
-      );
+  int clockSkewMinutes() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeClockSkewMinutes(that: this);
 
   /// Close the current open shift: count the closing drawer cash + an optional
   /// note. Marks the shift closed locally and queues an idempotent
@@ -13086,20 +13027,15 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     note: note,
   );
 
-  SessionSnapshot? currentSession() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeCurrentSession(
-        that: this,
-      );
+  SessionSnapshot? currentSession() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeCurrentSession(that: this);
 
   Future<ShiftView?> currentShift() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeCurrentShift(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeCurrentShift(that: this);
 
   /// SQLite path the host handed us (empty => in-memory).
-  String dbPath() => RustBridge.instance.api.crateApiBridgeMadarBridgeDbPath(
-    that: this,
-  );
+  String dbPath() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeDbPath(that: this);
 
   /// Advance one step in the lifecycle from `current` (received→confirmed→…→
   /// delivered). Errors if there's no further forward step.
@@ -13176,24 +13112,18 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   );
 
   /// The branch's delivery settings + accepting overrides.
-  Future<DeliverySettingsView> deliverySettings() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeDeliverySettings(
-        that: this,
-      );
+  Future<DeliverySettingsView> deliverySettings() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeDeliverySettings(that: this);
 
   /// This device's managed code — the `<DEVICE>` segment of every order_ref.
   /// Auto-assigned (stable random) on first use; the manager renames it in
   /// Settings (e.g. `T1`/`W2`/`K1`) so a branch's devices are distinct.
   String deviceCode() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeDeviceCode(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeDeviceCode(that: this);
 
   /// The device's current binding (for device-setup / Settings + screen chrome).
   DeviceConfigView deviceConfig() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeDeviceConfig(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeDeviceConfig(that: this);
 
   /// Discard a parked draft (frees its table + any waitlist wish).
   Future<void> discardDraft({required String id}) => RustBridge.instance.api
@@ -13208,9 +13138,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// Environment name (`prod` | `staging` | `dev`).
   String environment() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeEnvironment(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeEnvironment(that: this);
 
   /// FIRE the current cart as a new dine-in open ticket (round 1). Prices the
   /// cart client-authoritatively (same engine as checkout), enqueues the durable
@@ -13236,9 +13164,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// offline mirror. EMPTY sections+tables ⇒ the branch has no layout ⇒ hide
   /// every table affordance (the feature gate).
   Future<FloorLayoutView> floorLayout() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeFloorLayout(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeFloorLayout(that: this);
 
   /// Format a stored RFC3339 timestamp for DISPLAY in the BRANCH's timezone
   /// (not the device's) — the single source of truth so every host renders
@@ -13304,19 +13230,14 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     tableId: tableId,
   );
 
-  bool isAuthenticated() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeIsAuthenticated(
-        that: this,
-      );
+  bool isAuthenticated() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeIsAuthenticated(that: this);
 
-  bool isRealtimeSubscribed() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeIsRealtimeSubscribed(
-        that: this,
-      );
+  bool isRealtimeSubscribed() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeIsRealtimeSubscribed(that: this);
 
-  bool isRtl() => RustBridge.instance.api.crateApiBridgeMadarBridgeIsRtl(
-    that: this,
-  );
+  bool isRtl() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeIsRtl(that: this);
 
   /// Bump a kitchen line (mark it done at its station). Outbox-first.
   Future<void> kdsBump({required String itemId}) => RustBridge.instance.api
@@ -13330,10 +13251,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       .crateApiBridgeMadarBridgeKdsList(that: this, stationId: stationId);
 
   /// The branch's kitchen stations (the KDS device-setup / chit-routing picker).
-  Future<List<KdsStationView>> kdsListStations() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeKdsListStations(
-        that: this,
-      );
+  Future<List<KdsStationView>> kdsListStations() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeKdsListStations(that: this);
 
   /// Un-bump a kitchen line (undo a mistaken bump). Same outbox-first path.
   Future<void> kdsUnbump({required String itemId}) => RustBridge.instance.api
@@ -13341,68 +13260,48 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// Whether the LAN relay is currently running.
   bool lanActive() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeLanActive(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeLanActive(that: this);
 
   /// The LAN shift-open gate: is a till at this branch advertising a FRESH open
   /// shift right now? The freshest "is the branch operating" signal (it beats the
   /// backend, which may not yet know a till opened/closed). `false` if not running.
-  bool lanBranchHasOpenTill() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeLanBranchHasOpenTill(
-        that: this,
-      );
+  bool lanBranchHasOpenTill() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeLanBranchHasOpenTill(that: this);
 
   /// Live discovered peers + manual hubs (a "LAN: N devices" diagnostics chip).
   int lanPeerCount() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeLanPeerCount(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeLanPeerCount(that: this);
 
   /// Start the LAN relay for the signed-in branch (idempotent). Needs a session +
   /// the cached bundle's LAN secret; binds the embedded server, begins discovery
   /// (mDNS + UDP beacon), advertises this till's open shift, and wires any manual
   /// hub. Safe to call after every login — a no-op if already running.
   Future<void> lanStart() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeLanStart(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeLanStart(that: this);
 
   /// Stop + tear down the LAN relay (idempotent). Call on logout / branch switch.
   Future<void> lanStop() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeLanStop(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeLanStop(that: this);
 
-  Future<List<AddonItemView>> listAddonCatalog() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListAddonCatalog(
-        that: this,
-      );
+  Future<List<AddonItemView>> listAddonCatalog() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListAddonCatalog(that: this);
 
   /// Today's active bookings from the cache, earliest first.
   Future<List<BookingView>> listArrivals() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListArrivals(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeListArrivals(that: this);
 
   /// List the org's active branches — for the device-setup picker. Requires a
   /// live (manager) session; online-only.
   Future<List<BranchView>> listBranches() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListBranches(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeListBranches(that: this);
 
   /// Cash movements for the open shift — server rows merged with still-queued
   /// (offline) ones, so the drawer view is complete with or without a connection.
-  Future<List<CashMovementView>> listCashMovements() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListCashMovements(
-        that: this,
-      );
+  Future<List<CashMovementView>> listCashMovements() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListCashMovements(that: this);
 
-  Future<List<CategoryView>> listCategories() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListCategories(
-        that: this,
-      );
+  Future<List<CategoryView>> listCategories() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListCategories(that: this);
 
   /// The branch's delivery queue (newest first). `status` is a comma-separated
   /// wire filter (e.g. "received,confirmed"); `None` = all. Online-only.
@@ -13412,17 +13311,13 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         status: status,
       );
 
-  Future<List<DiscountView>> listDiscounts() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListDiscounts(
-        that: this,
-      );
+  Future<List<DiscountView>> listDiscounts() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListDiscounts(that: this);
 
   /// The branch's parked drafts (every till's), newest first. Drafts being
   /// edited on another till come back `locked_by_other` (not restorable).
   Future<List<DraftView>> listDrafts() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListDrafts(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeListDrafts(that: this);
 
   /// Active addons offered for an item, with their CHARGED price resolved (swap
   /// delta / full) — the customization sheet groups these by `addon_type`.
@@ -13442,18 +13337,14 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     itemId: itemId,
   );
 
-  Future<List<MenuItemView>> listMenuItems() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListMenuItems(
-        that: this,
-      );
+  Future<List<MenuItemView>> listMenuItems() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListMenuItems(that: this);
 
   /// The branch's OPEN/READY open tickets (newest first). Server list (write-through
   /// cached, so it survives offline) PLUS any still-queued local fires overlaid as
   /// `status = "queued"` — offline-first visibility before the fire syncs.
-  Future<List<TicketView>> listOpenTickets() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListOpenTickets(
-        that: this,
-      );
+  Future<List<TicketView>> listOpenTickets() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListOpenTickets(that: this);
 
   /// A PAST shift's synced orders (history-screen expansion). Live when
   /// online, else the last-synced snapshot.
@@ -13467,45 +13358,34 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// Queued + failed commands for the sync center (acked rows hidden), oldest
   /// first. Always succeeds offline.
   Future<List<OutboxItemView>> listOutbox() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListOutbox(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeListOutbox(that: this);
 
-  Future<List<PaymentMethodView>> listPaymentMethods() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListPaymentMethods(
-        that: this,
-      );
+  Future<List<PaymentMethodView>> listPaymentMethods() => RustBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeListPaymentMethods(that: this);
 
   /// The current shift's orders — still-queued sales (offline-safe) plus
   /// the server's synced orders when online (best-effort).
-  Future<List<OrderSummaryView>> listShiftOrders() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListShiftOrders(
-        that: this,
-      );
+  Future<List<OrderSummaryView>> listShiftOrders() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListShiftOrders(that: this);
 
   /// Past shifts for this branch, newest first (the history screen). Live when
   /// online (cached write-through), else the last-synced snapshot.
   Future<List<ShiftSummaryView>> listShifts() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListShifts(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeListShifts(that: this);
 
   /// The branch's active tills (the device-setup / Settings till picker). Write-
   /// through cached so the picker still works offline. Default till first.
   Future<List<TillView>> listTills() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListTills(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeListTills(that: this);
 
   /// The transfer waitlist (waiting entries, FIFO, labels resolved).
-  Future<List<TransferQueueView>> listTransferQueue() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeListTransferQueue(
-        that: this,
-      );
+  Future<List<TransferQueueView>> listTransferQueue() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeListTransferQueue(that: this);
 
-  String locale() => RustBridge.instance.api.crateApiBridgeMadarBridgeLocale(
-    that: this,
-  );
+  String locale() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeLocale(that: this);
 
   /// Online login (PIN teller / email manager).
   Future<SessionSnapshot> login({required LoginRequest req}) => RustBridge
@@ -13560,10 +13440,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// Local file path of the core-cached org logo — `None` until the first
   /// successful catalog image sync. Render the receipt-preview logo from
   /// this (fully offline).
-  String? orgLogoLocalPath() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeOrgLogoLocalPath(
-        that: this,
-      );
+  String? orgLogoLocalPath() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeOrgLogoLocalPath(that: this);
 
   /// The org's logo URL for the current branch, from the durable kv mirror
   /// (`cache_numbering_context`/`refresh_catalog` persist it from `get_branch`).
@@ -13571,14 +13449,10 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// source of truth for the receipt logo, so it survives restarts + offline and
   /// refreshes on a manual data sync.
   Future<String?> orgLogoUrl() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeOrgLogoUrl(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeOrgLogoUrl(that: this);
 
-  Future<int> pendingOutboxCount() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgePendingOutboxCount(
-        that: this,
-      );
+  Future<int> pendingOutboxCount() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgePendingOutboxCount(that: this);
 
   /// Print pre-rendered ESC/POS bytes to the DEVICE's configured printer
   /// (from the core device config). Errors if no printer is bound.
@@ -13590,9 +13464,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// Recent diagnostic warnings (newest first) — the Settings → Diagnostics
   /// feed. Captures sync dead-letters, cascade failures, and auth parks.
   Future<List<DiagLogView>> recentLogs() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeRecentLogs(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeRecentLogs(that: this);
 
   /// Record a cash-drawer movement against the open shift — pay-IN when
   /// `amount_minor > 0`, pay-OUT when `< 0`. Offline-first and idempotent on a
@@ -13609,50 +13481,38 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// FALLBACK recovery for the sync center: re-point every order STRANDED by a
   /// dead `open_shift` onto the CURRENT open shift and sync. Returns the number
   /// of outbox rows recovered.
-  Future<int> recoverOrphanedOrders() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeRecoverOrphanedOrders(
-        that: this,
-      );
+  Future<int> recoverOrphanedOrders() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeRecoverOrphanedOrders(that: this);
 
   /// Pull today's active bookings into the offline cache (best-effort; a
   /// `refresh_floor` does this too).
-  Future<void> refreshArrivals() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeRefreshArrivals(
-        that: this,
-      );
+  Future<void> refreshArrivals() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeRefreshArrivals(that: this);
 
   /// Pull the branch-effective catalog (items + categories + addons + bundles +
   /// payment methods + discounts) and mirror the canonical JSON into the local
   /// store. Online-only; the offline reads (`list_*`) then serve this mirror.
   /// Atomic-ish: every stream is fetched before any is written, so a mid-pull
   /// failure leaves the previous mirror intact.
-  Future<void> refreshCatalog() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeRefreshCatalog(
-        that: this,
-      );
+  Future<void> refreshCatalog() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeRefreshCatalog(that: this);
 
   /// Ping /health; updates the online flag. True when reachable.
-  Future<bool> refreshConnectivity() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeRefreshConnectivity(
-        that: this,
-      );
+  Future<bool> refreshConnectivity() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeRefreshConnectivity(that: this);
 
   /// Re-pull the layout + held orders + waitlist from the server NOW. Call
   /// on opening a floor surface and on a `floor.*` realtime event (a manager
   /// re-arranged the room in the dashboard, another till seated a party).
   /// Best-effort: offline leaves the mirrors as they are.
   Future<void> refreshFloor() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeRefreshFloor(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeRefreshFloor(that: this);
 
   /// Reconcile the device's shift with the server (online). Caches the server's
   /// open shift, or CLEARS the local cache when the server reports none — call
   /// this on login and on app resume.
   Future<ShiftView?> refreshShift() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeRefreshShift(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeRefreshShift(that: this);
 
   /// Give a restored draft's claim back without changes (the "never mind"
   /// path out of a resume).
@@ -13732,17 +13592,13 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// Re-hydrate the persisted session from the core's OWN store — the
   /// normal cold boot. `None` = signed out / fresh install.
-  SessionSnapshot? restoreSessionCached() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeRestoreSessionCached(
-        that: this,
-      );
+  SessionSnapshot? restoreSessionCached() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeRestoreSessionCached(that: this);
 
   /// Requeue every dead command (clearing its error) and try to send now.
   /// Best-effort — offline just leaves them pending again.
   Future<void> retryOutbox() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeRetryOutbox(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeRetryOutbox(that: this);
 
   /// Search the branch's orders ACROSS shifts (history lookup) with optional
   /// filters (status / teller / payment method / from-to dates) + pagination
@@ -13889,9 +13745,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// discrepancy. Online: the server report plus still-queued cash sales.
   /// Offline / on error: opening cash + queued cash (`from_server = false`).
   Future<ShiftReportView> shiftReport() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeShiftReport(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeShiftReport(that: this);
 
   /// A PAST shift's Z-report (history-screen reprint). Live when online (cached
   /// write-through), else the cached report; a shift opened+closed entirely
@@ -13931,17 +13785,13 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// Re-enter device setup (keeps the binding but forces the setup screen until
   /// `set_device_branch` confirms a — possibly new — branch).
-  Future<void> startReconfigure() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeStartReconfigure(
-        that: this,
-      );
+  Future<void> startReconfigure() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeStartReconfigure(that: this);
 
   /// Suggested opening cash for the next shift (minor units) — the previous
   /// shift's declared closing, for cash continuity. 0 when none is known.
   Future<PlatformInt64> suggestedOpeningCashMinor() => RustBridge.instance.api
-      .crateApiBridgeMadarBridgeSuggestedOpeningCashMinor(
-        that: this,
-      );
+      .crateApiBridgeMadarBridgeSuggestedOpeningCashMinor(that: this);
 
   /// Swap whatever sits on two tables (held orders and/or waiter tickets);
   /// one empty side = a move. Offline-safe (queued; the server arbitrates).
@@ -13956,16 +13806,12 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// Force a sync now — drains the outbox. Cancellable/idempotent.
   Future<void> syncNow() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeSyncNow(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeSyncNow(that: this);
 
   /// Sync health for the action-bar chip + offline banner (counts + online),
   /// in one cheap local read. Always succeeds offline.
   Future<SyncStatusView> syncStatus() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeSyncStatus(
-        that: this,
-      );
+      RustBridge.instance.api.crateApiBridgeMadarBridgeSyncStatus(that: this);
 
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).
   String tr({required String key}) =>
@@ -13985,10 +13831,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// Tear down the subscription (idempotent). Call before re-attaching
   /// sinks — including on Flutter hot restart.
-  void unsubscribeRealtime() =>
-      RustBridge.instance.api.crateApiBridgeMadarBridgeUnsubscribeRealtime(
-        that: this,
-      );
+  void unsubscribeRealtime() => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeUnsubscribeRealtime(that: this);
 
   /// Check a selection against the item's group constraints (min/max/required).
   /// Empty result = valid; each entry is one violated group for inline display.
@@ -14005,9 +13849,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   );
 
   /// Core crate version.
-  String version() => RustBridge.instance.api.crateApiBridgeMadarBridgeVersion(
-    that: this,
-  );
+  String version() =>
+      RustBridge.instance.api.crateApiBridgeMadarBridgeVersion(that: this);
 
   /// Void a synced order (mistake/refund). Queues an idempotent `void_order`
   /// command and tries to send now; works offline. History reflects it

@@ -20,11 +20,7 @@ bool _isDark(BuildContext context) =>
 /// variant when the ambient [Theme] brightness is dark.
 class MadarLockup extends StatelessWidget {
   /// Creates a Madar logo lockup.
-  const MadarLockup({
-    super.key,
-    this.width = 220,
-    this.arabic = false,
-  });
+  const MadarLockup({super.key, this.width = 220, this.arabic = false});
 
   /// Rendered width in logical pixels; height follows the asset's
   /// aspect ratio.

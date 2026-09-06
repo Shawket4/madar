@@ -234,10 +234,10 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final methods =
         await _quiet(bridge.listPaymentMethods) ?? const <PaymentMethodView>[];
     _update(
-      (s) => _withSession(s, bridge).copyWith(
-        paymentMethods: methods,
-        summary: summary,
-      ),
+      (s) => _withSession(
+        s,
+        bridge,
+      ).copyWith(paymentMethods: methods, summary: summary),
     );
   }
 
@@ -256,9 +256,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   void toggleSplit() => _update((s) => s.copyWith(splitMode: !s.splitMode));
 
   void setSplitAmount(String id, int minor) {
-    _update(
-      (s) => s.copyWith(splitAmounts: {...s.splitAmounts, id: minor}),
-    );
+    _update((s) => s.copyWith(splitAmounts: {...s.splitAmounts, id: minor}));
   }
 
   /// Surface (or clear) a failure inside the drawer — settle flows push

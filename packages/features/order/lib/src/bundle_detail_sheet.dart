@@ -26,10 +26,7 @@ class BundleSheetArgs {
 /// that lists the same item twice), plus the add-to-cart in-flight latch.
 @immutable
 class BundleConfigState {
-  const BundleConfigState({
-    this.drafts = const {},
-    this.adding = false,
-  });
+  const BundleConfigState({this.drafts = const {}, this.adding = false});
 
   final Map<int, BundleComponentDraft> drafts;
 
@@ -333,7 +330,7 @@ class _BundleHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: Space.sm),
                 TactileScale(
-                  onTap: () => unawaited(Navigator.of(context).maybePop()),
+                  onTap: () => Navigator.of(context).maybePop(),
                   child: Container(
                     width: Metrics.closeButton,
                     height: Metrics.closeButton,
@@ -504,11 +501,7 @@ class _ComponentTile extends ConsumerWidget {
         colors.success,
         colors.successBg,
       ),
-      (true, false) => (
-        'slider.horizontal.3',
-        colors.accent,
-        colors.accentBg,
-      ),
+      (true, false) => ('slider.horizontal.3', colors.accent, colors.accentBg),
     };
 
     // Subtitle for configurable rows only: a "Configure" prompt, or the
@@ -519,10 +512,7 @@ class _ComponentTile extends ConsumerWidget {
         subtitle = bridge.tr(key: 'order.configure');
       } else {
         final extras = draft.addons.length + draft.optionalIds.length;
-        final parts = <String>[
-          ?draft.sizeLabel,
-          if (extras > 0) '+$extras',
-        ];
+        final parts = <String>[?draft.sizeLabel, if (extras > 0) '+$extras'];
         subtitle = parts.isEmpty
             ? bridge.tr(key: 'order.configure')
             : parts.join(' · ');
@@ -563,9 +553,7 @@ class _ComponentTile extends ConsumerWidget {
               children: [
                 Text(
                   '${comp.quantity}× ${comp.itemName}',
-                  style: MadarType.title.copyWith(
-                    color: colors.textPrimary,
-                  ),
+                  style: MadarType.title.copyWith(color: colors.textPrimary),
                 ),
                 if (subtitle != null)
                   Padding(

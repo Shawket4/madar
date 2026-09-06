@@ -79,7 +79,11 @@ class _PayslipsScreenState extends ConsumerState<PayslipsScreen> {
 
 /// Net pay on ink — the screen's headline.
 class _Hero extends ConsumerWidget {
-  const _Hero({required this.slip, required this.currency, this.compact = false});
+  const _Hero({
+    required this.slip,
+    required this.currency,
+    this.compact = false,
+  });
 
   final PayslipView slip;
   final String currency;
@@ -200,11 +204,7 @@ class _SlipRow extends ConsumerWidget {
             style: MadarType.num.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(width: Space.sm),
-          MadarIcon(
-            'chevron.forward',
-            tint: colors.textMuted,
-            size: IconSize.md,
-          ),
+          MadarIcon('chevron.forward', tint: colors.textMuted),
         ],
       ),
     );
@@ -227,14 +227,13 @@ class _Detail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final colors = context.madarColors;
-    final gross =
-        slip.baseMinor + slip.overtimeMinor + slip.bonusesMinor;
+    final gross = slip.baseMinor + slip.overtimeMinor + slip.bonusesMinor;
 
     return StaffPage(
       title: t('pay.slipOf', {'period': slip.periodName}),
       titleTrailing: TactileScale(
         onTap: onBack,
-        child: IconTile(icon: 'chevron.backward', size: 34),
+        child: const IconTile(icon: 'chevron.backward', size: 34),
       ),
       children: [
         _Hero(slip: slip, currency: currency, compact: true),

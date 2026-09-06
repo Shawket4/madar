@@ -20,9 +20,9 @@ jobs:
   checks:
     name: Analyze + host tests
     # macOS runner: the host test suite dlopen()s the cargo-built .dylib.
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # rust-toolchain.toml pins 1.96.1 and every cross-compile target, so
       # rustup provisions exactly what the app ships with — no drift from

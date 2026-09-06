@@ -40,7 +40,7 @@ Future<TablePick?> showTablePickerSheet(
   final bridge = ref.read(bridgeProvider);
   final layout = ref.read(orderProvider).floorLayout;
   if (layout == null) return null;
-  return showMadarSheet<TablePick>(
+  return await showMadarSheet<TablePick>(
     context,
     size: SheetSize.hug,
     builder: (sheetContext) => _TablePickerBody(
@@ -190,9 +190,7 @@ class _TablePickerBodyState extends State<_TablePickerBody> {
                 selectedId: widget.currentTableId,
                 onTap: (t) {
                   MadarHaptics.selection();
-                  unawaited(
-                    Navigator.of(context).maybePop(TablePick(t.id, t.label)),
-                  );
+                  Navigator.of(context).maybePop(TablePick(t.id, t.label));
                 },
               ),
             ),
@@ -202,9 +200,8 @@ class _TablePickerBodyState extends State<_TablePickerBody> {
             ActionButton(
               label: widget.clearLabel,
               variant: ActionVariant.outline,
-              onTap: () => unawaited(
-                Navigator.of(context).maybePop(const TablePick(null, null)),
-              ),
+              onTap: () =>
+                  Navigator.of(context).maybePop(const TablePick(null, null)),
             ),
           ],
         ],
@@ -507,7 +504,7 @@ class FloorCanvas extends StatelessWidget {
             // When the cap bites, the room is narrower than the viewport —
             // centre it rather than pinning it to the left edge.
             final dx = math.max(
-              0.0,
+              0,
               (constraints.maxWidth - bounds.width * scale) / 2,
             );
             final child = CustomPaint(
@@ -564,10 +561,7 @@ class FloorCanvas extends StatelessWidget {
               ),
             );
             if (!zoomable) return child;
-            return InteractiveViewer(
-              maxScale: 3,
-              child: child,
-            );
+            return InteractiveViewer(maxScale: 3, child: child);
           },
         ),
       ),
@@ -683,9 +677,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     // The work the floor owes itself: paid tables still waiting on a bus.
     final dirtyTables = allTables
         .where(tableNeedsClearing)
-        .toList(
-          growable: false,
-        );
+        .toList(growable: false);
     final sectionIds = {for (final s in sections) s.id};
     final orphans = allTables
         .where((t) => t.sectionId == null || !sectionIds.contains(t.sectionId))
@@ -898,9 +890,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       children: [
         MadarIcon('arrow.triangle.2.circlepath', tint: colors.accent),
         const SizedBox(width: Space.md),
-        Expanded(
-          child: Text(_tr('tables.swap_pick'), style: MadarType.label),
-        ),
+        Expanded(child: Text(_tr('tables.swap_pick'), style: MadarType.label)),
         GestureDetector(
           onTap: () => setState(() => _swapFrom = null),
           child: MadarIcon('xmark.circle', tint: colors.textMuted),
@@ -931,9 +921,8 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       words: TableStatusWords.of(ref.read(bridgeProvider)),
       zoomable: true,
       swapArmedId: _swapFrom,
-      onTap: (t) => unawaited(
-        _onTableTap(t, ticketOn(t.id), isWaiter: isWaiter),
-      ),
+      onTap: (t) =>
+          unawaited(_onTableTap(t, ticketOn(t.id), isWaiter: isWaiter)),
       // Status + zone are one long-press away — the POS owns table STATE.
       onLongPress: (t) => unawaited(_tableSettingsSheet(t)),
     );
@@ -1304,16 +1293,14 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                 child: ActionButton(
                   label: '${bridge.tr(key: 'tables.wish_any')} ${s.name}',
                   variant: ActionVariant.outline,
-                  onTap: () => unawaited(
-                    Navigator.of(sheetContext).maybePop((s.id, null)),
-                  ),
+                  onTap: () =>
+                      Navigator.of(sheetContext).maybePop((s.id, null)),
                 ),
               ),
             ActionButton(
               label: bridge.tr(key: 'tables.pick'),
               variant: ActionVariant.outline,
-              onTap: () =>
-                  unawaited(Navigator.of(sheetContext).maybePop((null, ''))),
+              onTap: () => Navigator.of(sheetContext).maybePop((null, '')),
             ),
           ],
         ),
@@ -1384,9 +1371,8 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                           if (!mounted) return;
                           await _fulfillFlow(queue[i]);
                         },
-                        onCancel: () => unawaited(
-                          _notifier.cancelTransfer(queue[i].id),
-                        ),
+                        onCancel: () =>
+                            unawaited(_notifier.cancelTransfer(queue[i].id)),
                       ),
                     ),
                   ),
@@ -1434,7 +1420,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                   icon: a.icon,
                   variant: ActionVariant.outline,
                   onTap: () {
-                    unawaited(Navigator.of(sheetContext).maybePop());
+                    Navigator.of(sheetContext).maybePop();
                     unawaited(a.run());
                   },
                 ),
@@ -1639,17 +1625,9 @@ class _TableCell extends StatelessWidget {
     // Chair geometry is computed in CANVAS units (so the clamps mean the same
     // thing the dashboard means by them) and only then scaled.
     final m = seatMetrics(table.width, table.height);
-    final slots =
-        seatSlots(
-              table.shape,
-              table.width,
-              table.height,
-              table.seats,
-            )
-            .map<SeatSlot>(
-              (s) => (x: s.x * scale, y: s.y * scale, angle: s.angle),
-            )
-            .toList(growable: false);
+    final slots = seatSlots(table.shape, table.width, table.height, table.seats)
+        .map<SeatSlot>((s) => (x: s.x * scale, y: s.y * scale, angle: s.angle))
+        .toList(growable: false);
 
     // What a taken table says: WHO is on it, and HOW LONG they've been there —
     // the two things floor staff scan for. A free table says how many it
@@ -1725,9 +1703,7 @@ class _TableCell extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: colors.textPrimary.withValues(
-              alpha: occupied ? 0.16 : 0.06,
-            ),
+            color: colors.textPrimary.withValues(alpha: occupied ? 0.16 : 0.06),
             blurRadius: (occupied ? 10 : 6) * scale.clamp(0.6, 1.4),
             offset: Offset(0, (occupied ? 3 : 1) * scale.clamp(0.6, 1.4)),
           ),

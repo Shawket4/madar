@@ -213,9 +213,7 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
         .where((e) => e.value > 0)
         .toList(growable: false);
     final splitLegs = positiveLegs
-        .map(
-          (e) => CheckoutSplit(paymentMethodId: e.key, amountMinor: e.value),
-        )
+        .map((e) => CheckoutSplit(paymentMethodId: e.key, amountMinor: e.value))
         .toList(growable: false);
     String? splitPrimary;
     var largest = 0;
@@ -620,9 +618,7 @@ class _PaymentSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(
-              child: SectionLabel(sectionLabel),
-            ),
+            Expanded(child: SectionLabel(sectionLabel)),
             if (methods.length > 1)
               TactileScale(
                 onTap: () {

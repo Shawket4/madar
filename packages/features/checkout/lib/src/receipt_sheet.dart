@@ -180,7 +180,7 @@ class ReceiptSheet extends ConsumerWidget {
                     ),
                   ),
                   TactileScale(
-                    onTap: () => unawaited(Navigator.of(context).maybePop()),
+                    onTap: () => Navigator.of(context).maybePop(),
                     child: Container(
                       width: Metrics.closeButton,
                       height: Metrics.closeButton,
@@ -213,9 +213,7 @@ class ReceiptSheet extends ConsumerWidget {
                         padding: const EdgeInsetsDirectional.only(
                           bottom: Space.lg,
                         ),
-                        child: SettleMark(
-                          label: tr('receipt.settled'),
-                        ),
+                        child: SettleMark(label: tr('receipt.settled')),
                       ),
                     Center(
                       child: ReceiptPaper(
@@ -257,8 +255,7 @@ class ReceiptSheet extends ConsumerWidget {
                           child: ActionButton(
                             label: tr('order.done'),
                             icon: 'checkmark',
-                            onTap: () =>
-                                unawaited(Navigator.of(context).maybePop()),
+                            onTap: () => Navigator.of(context).maybePop(),
                           ),
                         ),
                       ],

@@ -5,8 +5,6 @@
 /// here. NOT exported from the feature_auth barrel.
 library;
 
-import 'dart:async';
-
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -422,14 +420,12 @@ class _PinDotState extends State<_PinDot> with SingleTickerProviderStateMixin {
   void didUpdateWidget(_PinDot oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.filled == widget.filled) return;
-    unawaited(
-      _size.animateWith(
-        SpringSimulation(
-          MotionSpec.bouncy,
-          _size.value,
-          widget.filled ? _dotFilled : _dotEmpty,
-          _size.velocity,
-        ),
+    _size.animateWith(
+      SpringSimulation(
+        MotionSpec.bouncy,
+        _size.value,
+        widget.filled ? _dotFilled : _dotEmpty,
+        _size.velocity,
       ),
     );
   }

@@ -6,10 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-enum LoginMode {
-  pin,
-  email,
-}
+enum LoginMode { pin, email }
 
 class LoginRequest {
   final LoginMode mode;

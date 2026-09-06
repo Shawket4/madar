@@ -116,7 +116,7 @@ class _OpenTicketsScreenState extends ConsumerState<OpenTicketsScreen> {
       builder: (sheetContext) => _TicketDetailsSheet(
         ticket: ticket,
         // Settle CTA: dismiss the details, then open the settle drawer.
-        onSettle: () => unawaited(Navigator.of(sheetContext).maybePop(true)),
+        onSettle: () => Navigator.of(sheetContext).maybePop(true),
       ),
     );
     if ((settle ?? false) && mounted) await _settleTicket(ticket);
@@ -134,7 +134,7 @@ class _OpenTicketsScreenState extends ConsumerState<OpenTicketsScreen> {
       size: SheetSize.large,
       builder: (sheetContext) => _SettleDrawer(
         ticket: ticket,
-        onClose: () => unawaited(Navigator.of(sheetContext).maybePop()),
+        onClose: () => Navigator.of(sheetContext).maybePop(),
         onTerminal: (result) =>
             unawaited(_settle(sheetContext, ticket, result)),
       ),
@@ -648,9 +648,7 @@ class _TicketDetailsSheet extends ConsumerWidget {
                         ticket.ticketRef ?? bridge.tr(key: 'waiter.ticket'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: MadarType.h2.copyWith(
-                          color: colors.textPrimary,
-                        ),
+                        style: MadarType.h2.copyWith(color: colors.textPrimary),
                       ),
                     ),
                     _TicketStatusChip(status: ticket.status),

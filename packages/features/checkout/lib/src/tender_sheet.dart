@@ -73,7 +73,7 @@ class _TenderSheetState extends ConsumerState<TenderSheet> {
     if (receipt != null) {
       return _ReceiptConfirmation(
         receipt: receipt,
-        onDone: () => unawaited(Navigator.of(context).maybePop(receipt)),
+        onDone: () => Navigator.of(context).maybePop(receipt),
       );
     }
     // No `placing` override — the drawer watches the session's own
@@ -84,7 +84,7 @@ class _TenderSheetState extends ConsumerState<TenderSheet> {
       terminalIcon: 'checkmark',
       showDiscountPicker: true,
       showCustomerFields: true,
-      onClose: () => unawaited(Navigator.of(context).maybePop()),
+      onClose: () => Navigator.of(context).maybePop(),
       onTerminal: (result) =>
           unawaited(ref.read(checkoutProvider.notifier).placeOrder(result)),
     );
@@ -95,10 +95,7 @@ class _TenderSheetState extends ConsumerState<TenderSheet> {
 /// pinned footer — so the print controls + New Order stay reachable however
 /// long the receipt is. Mirrors the natives' ReceiptConfirmation.
 class _ReceiptConfirmation extends ConsumerWidget {
-  const _ReceiptConfirmation({
-    required this.receipt,
-    required this.onDone,
-  });
+  const _ReceiptConfirmation({required this.receipt, required this.onDone});
 
   final ReceiptView receipt;
   final VoidCallback onDone;
@@ -108,12 +105,8 @@ class _ReceiptConfirmation extends ConsumerWidget {
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     String tr(String key) => bridge.tr(key: key);
-    final printState = ref.watch(
-      checkoutProvider.select((s) => s.printState),
-    );
-    final branchName = ref.watch(
-      checkoutProvider.select((s) => s.branchName),
-    );
+    final printState = ref.watch(checkoutProvider.select((s) => s.printState));
+    final branchName = ref.watch(checkoutProvider.select((s) => s.branchName));
     final currency = ref.watch(checkoutProvider.select((s) => s.currency));
     final orgLogoPath = ref.watch(
       checkoutProvider.select((s) => s.orgLogoPath),

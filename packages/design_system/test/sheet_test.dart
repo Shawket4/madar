@@ -9,10 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 const _screen = Size(500, 900);
 
-Finder get _card => find.ancestor(
-      of: find.text('CONTENT'),
-      matching: find.byType(ClipRRect),
-    );
+Finder get _card =>
+    find.ancestor(of: find.text('CONTENT'), matching: find.byType(ClipRRect));
 
 /// Pump [frames] 16ms frames, asserting the card's top never rises above
 /// [restTop] (the clamp contract) whenever the card is on stage.
@@ -146,8 +144,9 @@ void main() {
     expect(find.text('CONTENT'), findsNothing);
   });
 
-  testWidgets('maybePop delivers the result after the slide-out',
-      (tester) async {
+  testWidgets('maybePop delivers the result after the slide-out', (
+    tester,
+  ) async {
     final navKey = await _pumpHost(tester);
     String? result;
     unawaited(
@@ -155,8 +154,7 @@ void main() {
         navKey.currentContext!,
         builder: (context) => Center(
           child: TextButton(
-            onPressed: () =>
-                unawaited(Navigator.of(context).maybePop('tender')),
+            onPressed: () => Navigator.of(context).maybePop('tender'),
             child: const Text('CONTENT'),
           ),
         ),

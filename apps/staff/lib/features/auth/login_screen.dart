@@ -64,7 +64,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(t('login.title'), style: theme.textTheme.headlineSmall),
+                    Text(
+                      t('login.title'),
+                      style: theme.textTheme.headlineSmall,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       t('login.subtitle'),
@@ -122,7 +125,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       onPressed: () =>
                           ref.read(localeProvider.notifier).toggle(),
                       child: Text(
-                        ref.watch(localeProvider) == 'ar' ? 'English' : 'العربية',
+                        ref.watch(localeProvider) == 'ar'
+                            ? 'English'
+                            : 'العربية',
                       ),
                     ),
                   ],

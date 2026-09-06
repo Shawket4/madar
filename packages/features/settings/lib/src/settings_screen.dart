@@ -123,7 +123,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           children: [
             MadarHeader(
               title: bridge.tr(key: 'settings.title'),
-              onBack: () => unawaited(Navigator.of(context).maybePop()),
+              onBack: () => Navigator.of(context).maybePop(),
             ),
             Expanded(
               child: SafeArea(
@@ -226,9 +226,7 @@ class _AccountCard extends ConsumerWidget {
                 children: [
                   Text(
                     teller ?? '—',
-                    style: MadarType.title.copyWith(
-                      color: colors.textPrimary,
-                    ),
+                    style: MadarType.title.copyWith(color: colors.textPrimary),
                   ),
                   if (branchName.isNotEmpty)
                     Row(
@@ -496,10 +494,7 @@ class _PrinterCard extends ConsumerWidget {
         bridge.tr(key: 'receipt.printing'),
         colors.textMuted,
       ),
-      PrintState.printed => (
-        bridge.tr(key: 'receipt.printed'),
-        colors.success,
-      ),
+      PrintState.printed => (bridge.tr(key: 'receipt.printed'), colors.success),
       PrintState.failed => (
         bridge.tr(key: 'receipt.print_failed'),
         colors.danger,
@@ -629,10 +624,7 @@ class _PrinterCard extends ConsumerWidget {
               unawaited(ref.read(settingsProvider.notifier).testPrint()),
         ),
         if (status != null)
-          Text(
-            status.$1,
-            style: MadarType.labelSm.copyWith(color: status.$2),
-          ),
+          Text(status.$1, style: MadarType.labelSm.copyWith(color: status.$2)),
       ],
     );
   }
@@ -840,9 +832,7 @@ class _DeviceCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     bridge.tr(key: 'settings.reconfigure'),
-                    style: MadarType.title.copyWith(
-                      color: colors.textPrimary,
-                    ),
+                    style: MadarType.title.copyWith(color: colors.textPrimary),
                   ),
                 ),
                 MadarIcon('chevron.forward', tint: colors.textMuted),
@@ -892,10 +882,7 @@ class _DiagnosticsCard extends ConsumerWidget {
               : bridge.tr(key: 'settings.realtime_off'),
         ),
         if (diagnostics.isNotEmpty) ...[
-          SizedBox(
-            height: 1,
-            child: ColoredBox(color: colors.borderLight),
-          ),
+          SizedBox(height: 1, child: ColoredBox(color: colors.borderLight)),
           Row(
             children: [
               Expanded(
@@ -1321,9 +1308,7 @@ class _LegalCard extends ConsumerWidget {
       return Semantics(
         button: true,
         child: TactileScale(
-          onTap: () => unawaited(
-            Clipboard.setData(ClipboardData(text: url)),
-          ),
+          onTap: () => unawaited(Clipboard.setData(ClipboardData(text: url))),
           child: Padding(
             padding: EdgeInsets.only(top: divider ? Space.md : 0),
             child: Row(
@@ -1365,7 +1350,11 @@ class _LegalCard extends ConsumerWidget {
       title: bridge.tr(key: 'settings.legal'),
       children: [
         row('settings.legal_privacy', '$_base/privacy-policy.html'),
-        row('settings.legal_terms', '$_base/terms-of-service.html', divider: true),
+        row(
+          'settings.legal_terms',
+          '$_base/terms-of-service.html',
+          divider: true,
+        ),
       ],
     );
   }

@@ -41,9 +41,7 @@ class MadarCore {
   /// that run against a `cargo build` dylib instead of the bundled binary.
   static Future<void> initForTest({required String dylibPath}) async {
     if (_runtimeReady) return;
-    await StaffBridge.init(
-      externalLibrary: ExternalLibrary.open(dylibPath),
-    );
+    await StaffBridge.init(externalLibrary: ExternalLibrary.open(dylibPath));
     _runtimeReady = true;
   }
 }

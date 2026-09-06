@@ -138,7 +138,7 @@ void main() {
   });
 
   group('elapsedLabel', () {
-    final now = DateTime.utc(2026, 8, 17, 12, 0);
+    final now = DateTime.utc(2026, 8, 17, 12);
     String? at(Duration ago) =>
         elapsedLabel(now.subtract(ago).toIso8601String(), now: now);
 
@@ -182,7 +182,7 @@ void main() {
                 child: FloorCanvas(
                   section: _section,
                   tables: [
-                    _table(id: 't1', sectionId: 'sec-in', label: 'LEFT', x: 0),
+                    _table(id: 't1', sectionId: 'sec-in', label: 'LEFT'),
                     _table(
                       id: 't2',
                       sectionId: 'sec-in',
@@ -263,20 +263,8 @@ void main() {
             child: FloorCanvas(
               section: _section,
               tables: [
-                _table(
-                  id: 't1',
-                  sectionId: 'sec-in',
-                  label: 'NEAR',
-                  x: 0,
-                  y: 0,
-                ),
-                _table(
-                  id: 't2',
-                  sectionId: 'sec-in',
-                  label: 'OUT',
-                  x: 4000,
-                  y: 0,
-                ),
+                _table(id: 't1', sectionId: 'sec-in', label: 'NEAR'),
+                _table(id: 't2', sectionId: 'sec-in', label: 'OUT', x: 4000),
               ],
               tickets: const [],
               seatsWord: 'seats',
@@ -323,7 +311,10 @@ void main() {
       final slots = seatSlots('rect', w, h, n);
       final m = seatMetrics(w, h);
       final off = m.gap + m.thick / 2;
-      var top = 0, bottom = 0, left = 0, right = 0;
+      var top = 0;
+      var bottom = 0;
+      var left = 0;
+      var right = 0;
       for (final s in slots) {
         if ((s.y + off).abs() < 0.01) {
           top++;
@@ -443,9 +434,7 @@ void main() {
         _host(
           FloorCanvas(
             section: _section,
-            tables: [
-              _table(id: 't1', sectionId: 'sec-in', status: 'dirty'),
-            ],
+            tables: [_table(id: 't1', sectionId: 'sec-in', status: 'dirty')],
             tickets: const [],
             seatsWord: 'seats',
             words: _words,
@@ -469,9 +458,7 @@ void main() {
         _host(
           FloorCanvas(
             section: _section,
-            tables: [
-              _table(id: 't1', sectionId: 'sec-in', status: 'dirty'),
-            ],
+            tables: [_table(id: 't1', sectionId: 'sec-in', status: 'dirty')],
             tickets: const [],
             seatsWord: 'seats',
             words: _words,
@@ -497,7 +484,7 @@ void main() {
         _host(
           FloorCanvas(
             section: _section,
-            tables: [
+            tables: const [
               FloorTableStateView(
                 id: 't1',
                 sectionId: 'sec-in',
@@ -646,7 +633,7 @@ void main() {
             section: null,
             tables: [
               _table(id: 't1', label: 'FREE'),
-              FloorTableStateView(
+              const FloorTableStateView(
                 id: 't2',
                 label: 'BUSY',
                 seats: 4,
@@ -681,10 +668,10 @@ void main() {
             )
             .first,
       );
-      return ((box.decoration! as BoxDecoration).color)!;
+      return (box.decoration! as BoxDecoration).color!;
     }
 
-    final colors = MadarColors.light;
+    const colors = MadarColors.light;
     // Both bodies carry the SAME tint strength — only the hue differs.
     expect(fillOf('BUSY'), colors.accent.withValues(alpha: kTableFillOpacity));
     expect(fillOf('FREE'), colors.success.withValues(alpha: kTableFillOpacity));

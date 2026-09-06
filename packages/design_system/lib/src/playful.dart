@@ -78,7 +78,7 @@ class _SyncGlyphState extends State<SyncGlyph> with TickerProviderStateMixin {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.state != widget.state) {
       _prev = oldWidget.state;
-      unawaited(_trans.forward(from: 0));
+      _trans.forward(from: 0);
       _syncLoops();
     }
   }
@@ -86,12 +86,12 @@ class _SyncGlyphState extends State<SyncGlyph> with TickerProviderStateMixin {
   /// Run only the loop the current state needs — an idle glyph must not tick.
   void _syncLoops() {
     if (widget.state == SyncGlyphState.syncing) {
-      unawaited(_spin.repeat());
+      _spin.repeat();
     } else {
       _spin.stop();
     }
     if (widget.state == SyncGlyphState.online) {
-      unawaited(_breathe.repeat(reverse: true));
+      _breathe.repeat(reverse: true);
     } else {
       _breathe.stop();
     }
@@ -524,7 +524,7 @@ class _SweepCheckState extends State<SweepCheck>
   @override
   void didUpdateWidget(SweepCheck oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.play > oldWidget.play) unawaited(_run.forward(from: 0));
+    if (widget.play > oldWidget.play) _run.forward(from: 0);
   }
 
   @override
@@ -631,13 +631,13 @@ class _BellShakeState extends State<BellShake>
     super.initState();
     // A non-zero trigger at mount means this instance was BORN of an alert
     // (a fresh toast) — ring immediately; didUpdateWidget never fires here.
-    if (widget.trigger > 0) unawaited(_ring.forward(from: 0));
+    if (widget.trigger > 0) _ring.forward(from: 0);
   }
 
   @override
   void didUpdateWidget(BellShake oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.trigger > oldWidget.trigger) unawaited(_ring.forward(from: 0));
+    if (widget.trigger > oldWidget.trigger) _ring.forward(from: 0);
   }
 
   @override
@@ -674,9 +674,7 @@ class _BellShakeState extends State<BellShake>
                   height: 44,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: colors.accent.withValues(
-                      alpha: 0.3 * (1 - haloT),
-                    ),
+                    color: colors.accent.withValues(alpha: 0.3 * (1 - haloT)),
                   ),
                 ),
               ),
@@ -735,7 +733,7 @@ class _NudgeState extends State<Nudge> with SingleTickerProviderStateMixin {
   @override
   void didUpdateWidget(Nudge oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.trigger > oldWidget.trigger) unawaited(_play.forward(from: 0));
+    if (widget.trigger > oldWidget.trigger) _play.forward(from: 0);
   }
 
   @override
@@ -750,9 +748,7 @@ class _NudgeState extends State<Nudge> with SingleTickerProviderStateMixin {
       animation: _play,
       builder: (context, child) {
         if (!_play.isAnimating) return child!;
-        final wave = math.sin(
-          math.pi * Curves.easeOut.transform(_play.value),
-        );
+        final wave = math.sin(math.pi * Curves.easeOut.transform(_play.value));
         return switch (widget.kind) {
           NudgeKind.pop => Transform.scale(
             scale: 1 + 0.22 * wave,
@@ -1068,11 +1064,7 @@ class _BrandMarkPainter extends CustomPainter {
     }
 
     // …and breathes.
-    canvas.drawCircle(
-      c,
-      16 * u * (1 + 0.1 * wave),
-      Paint()..color = accent,
-    );
+    canvas.drawCircle(c, 16 * u * (1 + 0.1 * wave), Paint()..color = accent);
   }
 
   @override

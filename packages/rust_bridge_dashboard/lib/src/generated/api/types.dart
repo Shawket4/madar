@@ -10,10 +10,7 @@ class ActiveScopeView {
   final String? orgId;
   final String? branchId;
 
-  const ActiveScopeView({
-    this.orgId,
-    this.branchId,
-  });
+  const ActiveScopeView({this.orgId, this.branchId});
 
   @override
   int get hashCode => orgId.hashCode ^ branchId.hashCode;

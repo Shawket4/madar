@@ -265,11 +265,7 @@ class _LineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final mods = <String>[
-      ?line.sizeLabel,
-      ...line.addons,
-      ...line.optionals,
-    ];
+    final mods = <String>[?line.sizeLabel, ...line.addons, ...line.optionals];
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: Space.sm,
@@ -378,9 +374,7 @@ class _TotalsBlock extends StatelessWidget {
                 MoneyText(
                   minor,
                   currency: currency,
-                  style: MadarType.bodySm.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: MadarType.bodySm.copyWith(fontWeight: FontWeight.w600),
                   color: negative ? colors.success : colors.textSecondary,
                 ),
               ],

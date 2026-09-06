@@ -216,9 +216,7 @@ class _IncomingTab extends StatelessWidget {
                 padding: _countPillPad,
                 decoration: BoxDecoration(
                   color: active
-                      ? colors.textOnAccent.withValues(
-                          alpha: Opacities.border,
-                        )
+                      ? colors.textOnAccent.withValues(alpha: Opacities.border)
                       : colors.surface,
                   // CircleShape over a wider-than-tall box = stadium pill.
                   borderRadius: BorderRadius.circular(Radii.pill),

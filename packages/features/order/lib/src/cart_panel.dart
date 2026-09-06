@@ -56,9 +56,7 @@ class CartPanel extends ConsumerWidget {
     final isWaiter = ref.watch(orderProvider.select((s) => s.isWaiter));
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final cartLines = ref.watch(orderProvider.select((s) => s.cartLines));
-    final activeTicket = ref.watch(
-      orderProvider.select((s) => s.activeTicket),
-    );
+    final activeTicket = ref.watch(orderProvider.select((s) => s.activeTicket));
     final hasDrafts = ref.watch(
       orderProvider.select((s) => s.drafts.isNotEmpty),
     );
@@ -496,9 +494,7 @@ class _TellerHeldStrip extends ConsumerWidget {
             const SizedBox(height: Space.xl),
             ActionButton(
               label: bridge.tr(key: 'common.done'),
-              onTap: () => unawaited(
-                Navigator.of(sheetContext).maybePop(controller.text),
-              ),
+              onTap: () => Navigator.of(sheetContext).maybePop(controller.text),
             ),
           ],
         ),
@@ -1153,10 +1149,7 @@ class CartBar extends ConsumerWidget {
                           // icon ONLY, so the dot lands in the cart.
                           KeyedSubtree(
                             key: cartBarAnchor,
-                            child: MadarIcon(
-                              'cart',
-                              tint: colors.textOnAccent,
-                            ),
+                            child: MadarIcon('cart', tint: colors.textOnAccent),
                           ),
                           const SizedBox(width: Space.xs),
                           Flexible(

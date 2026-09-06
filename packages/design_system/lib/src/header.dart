@@ -61,9 +61,7 @@ class MadarHeader extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: tinted ? colors.accentBg : colors.surface,
-        border: Border(
-          bottom: BorderSide(color: colors.borderLight),
-        ),
+        border: Border(bottom: BorderSide(color: colors.borderLight)),
       ),
       child: SizedBox(
         height: _headerHeight,

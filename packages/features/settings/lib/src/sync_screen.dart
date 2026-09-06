@@ -76,7 +76,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           children: [
             MadarHeader(
               title: bridge.tr(key: 'sync.title'),
-              onBack: () => unawaited(Navigator.of(context).maybePop()),
+              onBack: () => Navigator.of(context).maybePop(),
               actions: [
                 // Retry requeues only the FAILED (dead) rows, so it only
                 // appears when there's something dead to resurrect.
@@ -340,9 +340,7 @@ class _OutboxRow extends ConsumerWidget {
                     _opLabel(bridge, item.opType),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: MadarType.title.copyWith(
-                      color: colors.textPrimary,
-                    ),
+                    style: MadarType.title.copyWith(color: colors.textPrimary),
                   ),
                   if (error.isNotEmpty)
                     Text(

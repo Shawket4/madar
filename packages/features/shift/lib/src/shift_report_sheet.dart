@@ -665,7 +665,7 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
               ShiftButton(
                 label: t('common.done'),
                 variant: ShiftButtonVariant.ghost,
-                onTap: () => unawaited(Navigator.of(context).maybePop()),
+                onTap: () => Navigator.of(context).maybePop(),
               ),
             ],
           ),
@@ -802,10 +802,7 @@ class _ReportPaper extends StatelessWidget {
             ),
           ),
         ),
-        Text(
-          value,
-          style: MadarType.labelSm.copyWith(color: _ink),
-        ),
+        Text(value, style: MadarType.labelSm.copyWith(color: _ink)),
       ],
     );
   }

@@ -113,7 +113,7 @@ class _PagerButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(Radii.xs + 2),
         ),
         alignment: Alignment.center,
-        child: MadarIcon(icon, tint: colors.textSecondary, size: IconSize.md),
+        child: MadarIcon(icon, tint: colors.textSecondary),
       ),
     );
   }
@@ -244,7 +244,7 @@ class _DayCard extends ConsumerWidget {
           if (isToday)
             StatusChip(label: t('shifts.today'), tone: ChipTone.accent)
           else if (!rest)
-            StatusChip(label: shift!.name, tone: ChipTone.neutral),
+            StatusChip(label: shift!.name),
         ],
       ),
     );

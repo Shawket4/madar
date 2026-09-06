@@ -73,9 +73,7 @@ class BrandPanel extends ConsumerWidget {
                 ),
                 const SizedBox(height: Space.lg),
                 ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _taglineMaxWidth,
-                  ),
+                  constraints: const BoxConstraints(maxWidth: _taglineMaxWidth),
                   child: Text(
                     t('brand.tagline'),
                     style: MadarType.title.copyWith(

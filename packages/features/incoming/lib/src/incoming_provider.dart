@@ -142,10 +142,7 @@ class IncomingNotifier extends Notifier<IncomingState> {
       final orders = await _bridge.listDeliveryOrders(
         status: state.deliveryActiveOnly ? kActiveDeliveryStatuses : null,
       );
-      state = state.copyWith(
-        deliveryOrders: orders,
-        isLoadingDelivery: false,
-      );
+      state = state.copyWith(deliveryOrders: orders, isLoadingDelivery: false);
     } on MadarError catch (e) {
       state = state.copyWith(error: _fail(e), isLoadingDelivery: false);
     }

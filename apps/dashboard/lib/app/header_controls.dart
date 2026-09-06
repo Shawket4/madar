@@ -53,7 +53,7 @@ class HeaderPill extends StatelessWidget {
           ),
           if (chevron) ...[
             const SizedBox(width: Space.xs),
-            MadarIcon('chevron.down', tint: c.textMuted, size: IconSize.md),
+            MadarIcon('chevron.down', tint: c.textMuted),
           ],
         ],
       ),
@@ -103,7 +103,7 @@ class BranchSelector extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (active) MadarIcon('checkmark', tint: c.accent, size: IconSize.md),
+        if (active) MadarIcon('checkmark', tint: c.accent),
       ],
     );
 
@@ -337,7 +337,6 @@ class _PeriodPanelState extends State<_PeriodPanel> {
             rangeStartDay: _start,
             rangeEndDay: _end,
             rangeSelectionMode: RangeSelectionMode.toggledOn,
-            calendarFormat: CalendarFormat.month,
             availableCalendarFormats: const {CalendarFormat.month: ''},
             startingDayOfWeek: StartingDayOfWeek.monday,
             rowHeight: 40,

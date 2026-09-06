@@ -364,7 +364,6 @@ class _TrendLineState extends State<_TrendLine> {
           minY: 0,
           maxY: maxY,
           gridData: FlGridData(
-            show: true,
             drawVerticalLine: false,
             horizontalInterval: maxY / 3,
             getDrawingHorizontalLine: (_) =>
@@ -372,13 +371,8 @@ class _TrendLineState extends State<_TrendLine> {
           ),
           borderData: FlBorderData(show: false),
           titlesData: FlTitlesData(
-            show: true,
-            topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
+            topTitles: const AxisTitles(),
+            rightTitles: const AxisTitles(),
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,

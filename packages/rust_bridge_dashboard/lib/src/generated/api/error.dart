@@ -15,14 +15,12 @@ sealed class MadarError with _$MadarError implements FrbException {
   const MadarError._();
 
   /// An online-only op was attempted while disconnected.
-  const factory MadarError.offline({
-    required String detail,
-  }) = MadarError_Offline;
+  const factory MadarError.offline({required String detail}) =
+      MadarError_Offline;
 
   /// 401 + refresh failed → surface sign-in.
-  const factory MadarError.unauthenticated({
-    required String detail,
-  }) = MadarError_Unauthenticated;
+  const factory MadarError.unauthenticated({required String detail}) =
+      MadarError_Unauthenticated;
   const factory MadarError.forbidden({
     required String resource,
     required String action,
@@ -40,12 +38,10 @@ sealed class MadarError with _$MadarError implements FrbException {
   }) = MadarError_Server;
 
   /// 5xx / timeout — informational for the host.
-  const factory MadarError.transient({
-    required String detail,
-  }) = MadarError_Transient;
+  const factory MadarError.transient({required String detail}) =
+      MadarError_Transient;
 
   /// Store/migration/serde, or an FFI-version mismatch.
-  const factory MadarError.internal({
-    required String detail,
-  }) = MadarError_Internal;
+  const factory MadarError.internal({required String detail}) =
+      MadarError_Internal;
 }

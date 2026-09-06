@@ -130,11 +130,9 @@ class _KitchenDisplayScreenState extends ConsumerState<KitchenDisplayScreen>
   }
 
   void _openSettings() {
-    unawaited(
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen()));
   }
 
   @override

@@ -44,12 +44,8 @@ class DashboardBridge
 
   /// Initialize flutter_rust_bridge in mock mode.
   /// No libraries for FFI are loaded.
-  static void initMock({
-    required DashboardBridgeApi api,
-  }) {
-    instance.initMockImpl(
-      api: api,
-    );
+  static void initMock({required DashboardBridgeApi api}) {
+    instance.initMockImpl(api: api);
   }
 
   /// Dispose flutter_rust_bridge
@@ -465,10 +461,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeIsRtlConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_is_rtl",
-        argNames: ["that"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_is_rtl", argNames: ["that"]);
 
   @override
   Future<List<BranchView>> crateApiBridgeMadarBridgeListBranches({
@@ -530,10 +523,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeLocaleConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_locale",
-        argNames: ["that"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_locale", argNames: ["that"]);
 
   @override
   Future<void> crateApiBridgeMadarBridgeLogout({
@@ -602,10 +592,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeNewConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_new",
-        argNames: ["config"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_new", argNames: ["config"]);
 
   @override
   Future<bool> crateApiBridgeMadarBridgeRefreshConnectivity({
@@ -794,10 +781,8 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeCoreVersionConstMeta => const TaskConstMeta(
-    debugName: "core_version",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiBridgeCoreVersionConstMeta =>
+      const TaskConstMeta(debugName: "core_version", argNames: []);
 
   @override
   int crateApiBridgeFfiSurfaceVersion() {
@@ -819,10 +804,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeFfiSurfaceVersionConstMeta =>
-      const TaskConstMeta(
-        debugName: "ffi_surface_version",
-        argNames: [],
-      );
+      const TaskConstMeta(debugName: "ffi_surface_version", argNames: []);
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_MadarBridge => wire
@@ -1098,13 +1080,9 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return MadarError_Offline(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Offline(detail: dco_decode_String(raw[1]));
       case 1:
-        return MadarError_Unauthenticated(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Unauthenticated(detail: dco_decode_String(raw[1]));
       case 2:
         return MadarError_Forbidden(
           resource: dco_decode_String(raw[1]),
@@ -1122,13 +1100,9 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           detail: dco_decode_String(raw[3]),
         );
       case 5:
-        return MadarError_Transient(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Transient(detail: dco_decode_String(raw[1]));
       case 6:
-        return MadarError_Internal(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Internal(detail: dco_decode_String(raw[1]));
       default:
         throw Exception("unreachable");
     }
@@ -2089,15 +2063,11 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   );
 
   /// The current explicit scope override (may be empty / partial).
-  ActiveScopeView? activeScope() =>
-      DashboardBridge.instance.api.crateApiBridgeMadarBridgeActiveScope(
-        that: this,
-      );
+  ActiveScopeView? activeScope() => DashboardBridge.instance.api
+      .crateApiBridgeMadarBridgeActiveScope(that: this);
 
-  SessionSnapshot? currentSession() =>
-      DashboardBridge.instance.api.crateApiBridgeMadarBridgeCurrentSession(
-        that: this,
-      );
+  SessionSnapshot? currentSession() => DashboardBridge.instance.api
+      .crateApiBridgeMadarBridgeCurrentSession(that: this);
 
   /// Dashboard email/password sign-in (org_admin / super_admin / branch_manager).
   /// Online-only; no POS device/shift assumptions.
@@ -2143,25 +2113,18 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         action: action,
       );
 
-  bool isAuthenticated() =>
-      DashboardBridge.instance.api.crateApiBridgeMadarBridgeIsAuthenticated(
-        that: this,
-      );
+  bool isAuthenticated() => DashboardBridge.instance.api
+      .crateApiBridgeMadarBridgeIsAuthenticated(that: this);
 
-  bool isRtl() => DashboardBridge.instance.api.crateApiBridgeMadarBridgeIsRtl(
-    that: this,
-  );
+  bool isRtl() =>
+      DashboardBridge.instance.api.crateApiBridgeMadarBridgeIsRtl(that: this);
 
   /// The org's active branches (scope-bar picker). Online-only.
-  Future<List<BranchView>> listBranches() =>
-      DashboardBridge.instance.api.crateApiBridgeMadarBridgeListBranches(
-        that: this,
-      );
+  Future<List<BranchView>> listBranches() => DashboardBridge.instance.api
+      .crateApiBridgeMadarBridgeListBranches(that: this);
 
   String locale() =>
-      DashboardBridge.instance.api.crateApiBridgeMadarBridgeLocale(
-        that: this,
-      );
+      DashboardBridge.instance.api.crateApiBridgeMadarBridgeLocale(that: this);
 
   Future<void> logout({required bool wipeOutbox}) => DashboardBridge
       .instance
@@ -2169,17 +2132,13 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       .crateApiBridgeMadarBridgeLogout(that: this, wipeOutbox: wipeOutbox);
 
   /// Ping /health; updates the online flag. True when reachable.
-  Future<bool> refreshConnectivity() =>
-      DashboardBridge.instance.api.crateApiBridgeMadarBridgeRefreshConnectivity(
-        that: this,
-      );
+  Future<bool> refreshConnectivity() => DashboardBridge.instance.api
+      .crateApiBridgeMadarBridgeRefreshConnectivity(that: this);
 
   /// Re-hydrate the persisted session from the core's OWN store (cold boot).
   /// `None` = signed out / fresh install.
   SessionSnapshot? restoreSessionCached() => DashboardBridge.instance.api
-      .crateApiBridgeMadarBridgeRestoreSessionCached(
-        that: this,
-      );
+      .crateApiBridgeMadarBridgeRestoreSessionCached(that: this);
 
   /// Set + persist the active org/branch scope. A `None` field falls back to
   /// the session value on subsequent reads.

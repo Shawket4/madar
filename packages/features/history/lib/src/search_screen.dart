@@ -211,9 +211,8 @@ class _SearchFilters extends ConsumerWidget {
                   icon: 'magnifyingglass',
                   loading: searching,
                   expand: false,
-                  onTap: () => unawaited(
-                    notifier.run(reset: true, teller: teller.text),
-                  ),
+                  onTap: () =>
+                      unawaited(notifier.run(reset: true, teller: teller.text)),
                 ),
               ],
             ),
@@ -377,9 +376,7 @@ class _SearchResultRow extends StatelessWidget {
                     ),
                     Text(
                       timestamp,
-                      style: MadarType.bodySm.copyWith(
-                        color: colors.textMuted,
-                      ),
+                      style: MadarType.bodySm.copyWith(color: colors.textMuted),
                     ),
                   ],
                 ),

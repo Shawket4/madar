@@ -21,13 +21,13 @@ jobs:
     outputs:
       diawi_url: ${{ steps.diawi.outputs.diawi_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       # rust-toolchain.toml pins 1.96.1 and the Android targets.
       - name: Setup Rust (from rust-toolchain.toml)
@@ -169,13 +169,13 @@ jobs:
           echo "diawi timed out"; exit 1
 
       - name: Upload APK artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: apps/madar/build/app/outputs/flutter-apk/app-*-release.apk
 
       - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-aab
           path: apps/madar/build/app/outputs/bundle/release/app-release.aab
@@ -191,7 +191,7 @@ jobs:
     name: Build macOS
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Rust (from rust-toolchain.toml)
         working-directory: rust-core
@@ -234,7 +234,7 @@ jobs:
         run: zip -r "$GITHUB_WORKSPACE/MadarPOS-macOS.zip" *.app
 
       - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-build
           path: MadarPOS-macOS.zip
@@ -248,7 +248,7 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -273,7 +273,7 @@ jobs:
           } > notes.md
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Madar POS ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}

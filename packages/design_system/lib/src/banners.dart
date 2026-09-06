@@ -93,9 +93,7 @@ class NoticeBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: _toneBg(tone, colors),
         borderRadius: BorderRadius.circular(Radii.sm),
-        border: Border.all(
-          color: fg.withValues(alpha: Opacities.border),
-        ),
+        border: Border.all(color: fg.withValues(alpha: Opacities.border)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -233,9 +231,7 @@ class StatusChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(
-          color: fg.withValues(alpha: Opacities.border),
-        ),
+        border: Border.all(color: fg.withValues(alpha: Opacities.border)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(

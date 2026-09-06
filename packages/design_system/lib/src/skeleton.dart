@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:design_system/src/responsive.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/dimens.dart';
@@ -112,8 +110,7 @@ class _SkeletonBlockState extends State<SkeletonBlock>
       controller = AnimationController(
         vsync: this,
         duration: MotionSpec.skeletonPulse,
-      );
-      unawaited(controller.repeat(reverse: true));
+      )..repeat(reverse: true);
       _ownController = controller;
     }
     return _ownPulse ??= controller.drive(
@@ -208,9 +205,7 @@ class SkeletonList extends StatelessWidget {
           padding: const EdgeInsets.all(Space.lg),
           child: Column(
             spacing: Space.sm,
-            children: [
-              for (var i = 0; i < count; i++) const SkeletonRow(),
-            ],
+            children: [for (var i = 0; i < count; i++) const SkeletonRow()],
           ),
         ),
       ),

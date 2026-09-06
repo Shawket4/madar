@@ -15,7 +15,6 @@ import 'dart:typed_data';
 /// or images of their own (that would fight the core's output).
 // One method by design: this is the transport strategy seam (Bluetooth, TCP,
 // and future providers), not a candidate for a top-level function.
-// ignore: one_member_abstracts
 abstract interface class PrinterTransport {
   /// Transmit a complete ESC/POS buffer, connecting if needed. Throws on any
   /// failure (not connected, out of range, out of paper, write rejected) so the

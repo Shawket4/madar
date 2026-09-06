@@ -40,7 +40,6 @@ sealed class RealtimeMessage with _$RealtimeMessage {
   }) = RealtimeMessage_Event;
 
   /// The SSE connection came up / went down (supervisor keeps reconnecting).
-  const factory RealtimeMessage.connectionChanged({
-    required bool connected,
-  }) = RealtimeMessage_ConnectionChanged;
+  const factory RealtimeMessage.connectionChanged({required bool connected}) =
+      RealtimeMessage_ConnectionChanged;
 }

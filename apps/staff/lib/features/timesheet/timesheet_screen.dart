@@ -32,10 +32,13 @@ class _TimesheetScreenState extends ConsumerState<TimesheetScreen> {
       // Saturday-first, the Egyptian working week.
       final offset = (now.weekday + 1) % 7;
       final start = now.subtract(Duration(days: offset));
-      return (from: isoDate(start), to: isoDate(start.add(const Duration(days: 6))));
+      return (
+        from: isoDate(start),
+        to: isoDate(start.add(const Duration(days: 6))),
+      );
     }
     return (
-      from: isoDate(DateTime(now.year, now.month, 1)),
+      from: isoDate(DateTime(now.year, now.month)),
       to: isoDate(DateTime(now.year, now.month + 1, 0)),
     );
   }
@@ -104,7 +107,6 @@ class _Body extends ConsumerWidget {
       children: [
         if (missing.isNotEmpty) ...[
           NoticeBanner(
-            tone: ChipTone.warning,
             icon: 'exclamationmark.triangle',
             text: t('ts.missingBanner'),
           ),
@@ -296,7 +298,10 @@ class _DayRow extends ConsumerWidget {
                 if (record.overtimeMinutes > 0)
                   StatusChip(
                     label: t('ts.otBy', {
-                      'duration': formatHm(record.overtimeMinutes, signed: true),
+                      'duration': formatHm(
+                        record.overtimeMinutes,
+                        signed: true,
+                      ),
                     }),
                     tone: ChipTone.accent,
                   ),

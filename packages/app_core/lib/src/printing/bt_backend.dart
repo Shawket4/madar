@@ -50,8 +50,9 @@ abstract interface class BtPrinterBackend {
 /// The process-wide backend for this platform.
 BtPrinterBackend btPrinterBackend() => _backend;
 
-final BtPrinterBackend _backend =
-    Platform.isAndroid ? _AndroidBtBackend() : _PluginBtBackend();
+final BtPrinterBackend _backend = Platform.isAndroid
+    ? _AndroidBtBackend()
+    : _PluginBtBackend();
 
 /// Name substrings that mark a paired device as a printer when its Bluetooth
 /// Class-of-Device isn't available (the plugin path) — mirrors the native
@@ -77,7 +78,8 @@ class _AndroidBtBackend implements BtPrinterBackend {
 
   @override
   Future<List<BtDevice>> listPairedPrinters() async {
-    final raw = await _ch.invokeMethod<List<Object?>>('pairedPrinters') ??
+    final raw =
+        await _ch.invokeMethod<List<Object?>>('pairedPrinters') ??
         const <Object?>[];
     return raw
         .whereType<Map<Object?, Object?>>()
@@ -115,7 +117,7 @@ class _AndroidBtBackend implements BtPrinterBackend {
       false;
 
   @override
-  Future<void> disconnect() async => _ch.invokeMethod<void>('disconnect');
+  Future<void> disconnect() async => await _ch.invokeMethod<void>('disconnect');
 }
 
 /// `print_bluetooth_thermal` backend (non-Android — iOS BLE). Only its
@@ -129,8 +131,9 @@ class _PluginBtBackend implements BtPrinterBackend {
   @override
   Future<List<BtDevice>> listPairedPrinters() async {
     final paired = await PrintBluetoothThermal.pairedBluetooths;
-    final printers =
-        paired.where((d) => _nameLooksLikePrinter(d.name)).toList();
+    final printers = paired
+        .where((d) => _nameLooksLikePrinter(d.name))
+        .toList();
     // Don't hide everything when no name matches — show the full list instead.
     final chosen = printers.isNotEmpty ? printers : paired;
     return chosen
@@ -157,10 +160,12 @@ class _PluginBtBackend implements BtPrinterBackend {
     required int throttleMs,
   }) async {
     for (var offset = 0; offset < bytes.length; offset += chunkSize) {
-      final end =
-          (offset + chunkSize < bytes.length) ? offset + chunkSize : bytes.length;
-      final ok =
-          await PrintBluetoothThermal.writeBytes(bytes.sublist(offset, end));
+      final end = (offset + chunkSize < bytes.length)
+          ? offset + chunkSize
+          : bytes.length;
+      final ok = await PrintBluetoothThermal.writeBytes(
+        bytes.sublist(offset, end),
+      );
       if (!ok) return false;
       if (throttleMs > 0 && end < bytes.length) {
         await Future<void>.delayed(Duration(milliseconds: throttleMs));

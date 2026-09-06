@@ -13,10 +13,7 @@ class FloorLayoutView {
   final List<FloorSectionInfo> sections;
   final List<FloorTableStateView> tables;
 
-  const FloorLayoutView({
-    required this.sections,
-    required this.tables,
-  });
+  const FloorLayoutView({required this.sections, required this.tables});
 
   @override
   int get hashCode => sections.hashCode ^ tables.hashCode;

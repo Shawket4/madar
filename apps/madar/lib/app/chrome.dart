@@ -178,11 +178,9 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
   }
 
   void _push(Widget Function() build) {
-    unawaited(
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => build()),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => build()));
   }
 
   List<_RailSection> _sections({
@@ -313,7 +311,7 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
         }) {
           return TactileScale(
             onTap: () {
-              unawaited(Navigator.of(sheetContext).maybePop());
+              Navigator.of(sheetContext).maybePop();
               onTap();
             },
             child: Padding(
@@ -712,7 +710,7 @@ class _PulsingDotState extends State<_PulsingDot>
       duration: const Duration(milliseconds: 750),
       lowerBound: 0.25,
     );
-    unawaited(_pulse.repeat(reverse: true));
+    _pulse.repeat(reverse: true);
   }
 
   @override
@@ -728,10 +726,7 @@ class _PulsingDotState extends State<_PulsingDot>
       child: Container(
         width: 8,
         height: 8,
-        decoration: BoxDecoration(
-          color: widget.color,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
       ),
     );
   }

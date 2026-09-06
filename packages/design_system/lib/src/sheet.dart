@@ -62,9 +62,9 @@ Future<T?> showMadarSheet<T>(
   SheetSize size = SheetSize.auto,
   double maxWidth = Responsive.sheetMaxWidth,
 }) {
-  return Navigator.of(context).push(
-    MadarSheetRoute<T>(builder: builder, size: size, maxWidth: maxWidth),
-  );
+  return Navigator.of(
+    context,
+  ).push(MadarSheetRoute<T>(builder: builder, size: size, maxWidth: maxWidth));
 }
 
 /// The custom [ModalRoute] behind [showMadarSheet].
@@ -188,8 +188,8 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
       reverseCurve: MotionSpec.standardCurve,
     );
     // Slide in on the sheet spring, fade the scrim in alongside.
-    unawaited(_slide.animateWith(SpringSimulation(MotionSpec.sheet, 1, 0, 0)));
-    unawaited(_scrim.forward());
+    _slide.animateWith(SpringSimulation(MotionSpec.sheet, 1, 0, 0));
+    _scrim.forward();
   }
 
   @override
@@ -207,12 +207,10 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
   void _dismiss({T? result, double velocity = 0}) {
     if (_dismissing) return;
     _dismissing = true;
-    unawaited(
-      _slide.animateWith(
-        SpringSimulation(MotionSpec.sheet, _slide.value, 1, velocity),
-      ),
+    _slide.animateWith(
+      SpringSimulation(MotionSpec.sheet, _slide.value, 1, velocity),
     );
-    unawaited(_scrim.reverse());
+    _scrim.reverse();
     _popTimer = Timer(MotionSpec.sheetDismissDelay, () {
       if (!mounted) return;
       Navigator.of(context).pop(result);
@@ -232,19 +230,15 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
     if (_drag.value > _sheetHeight * _dragDismissFraction) {
       _dismiss(velocity: _hiddenExtent > 0 ? velocity / _hiddenExtent : 0);
     } else {
-      unawaited(
-        _drag.animateWith(
-          SpringSimulation(MotionSpec.sheet, _drag.value, 0, velocity),
-        ),
+      _drag.animateWith(
+        SpringSimulation(MotionSpec.sheet, _drag.value, 0, velocity),
       );
     }
   }
 
   void _handleDragCancel() {
     if (_dismissing) return;
-    unawaited(
-      _drag.animateWith(SpringSimulation(MotionSpec.sheet, _drag.value, 0, 0)),
-    );
+    _drag.animateWith(SpringSimulation(MotionSpec.sheet, _drag.value, 0, 0));
   }
 
   Widget _buildCard(BuildContext context, MadarColors colors) {

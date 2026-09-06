@@ -42,9 +42,7 @@ class _PayrollScreenState extends ConsumerState<PayrollScreen> {
         ..invalidate(payrollPeriodsProvider)
         ..invalidate(payrollPreviewProvider(period.id));
       messenger.showSnackBar(
-        SnackBar(
-          content: Text(t('pr.approved', {'period': period.name})),
-        ),
+        SnackBar(content: Text(t('pr.approved', {'period': period.name}))),
       );
     } on MadarError catch (e) {
       messenger.showSnackBar(
@@ -323,7 +321,7 @@ class _StepButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(Radii.xs + 2),
           ),
           alignment: Alignment.center,
-          child: MadarIcon(icon, tint: colors.textSecondary, size: IconSize.md),
+          child: MadarIcon(icon, tint: colors.textSecondary),
         ),
       ),
     );
@@ -346,14 +344,8 @@ class _TableHeader extends ConsumerWidget {
       child: Row(
         children: [
           Expanded(child: FieldLabel(t('pr.employee'))),
-          SizedBox(
-            width: 52,
-            child: Center(child: FieldLabel(t('pr.days'))),
-          ),
-          SizedBox(
-            width: 44,
-            child: Center(child: FieldLabel(t('pr.ot'))),
-          ),
+          SizedBox(width: 52, child: Center(child: FieldLabel(t('pr.days')))),
+          SizedBox(width: 44, child: Center(child: FieldLabel(t('pr.ot')))),
           SizedBox(
             width: 78,
             child: Align(
@@ -420,9 +412,7 @@ class _LineRow extends ConsumerWidget {
           ),
           SizedBox(
             width: 52,
-            child: Center(
-              child: Num(formatDays(line.workedCentidays)),
-            ),
+            child: Center(child: Num(formatDays(line.workedCentidays))),
           ),
           SizedBox(
             width: 44,

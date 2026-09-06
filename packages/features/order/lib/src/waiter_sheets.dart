@@ -136,16 +136,12 @@ class _FireDetailsSheetState extends ConsumerState<FireDetailsSheet> {
               Expanded(
                 child: Text(
                   bridge.tr(key: 'waiter.covers'),
-                  style: MadarType.title.copyWith(
-                    color: colors.textSecondary,
-                  ),
+                  style: MadarType.title.copyWith(color: colors.textSecondary),
                 ),
               ),
               _CoverStepBox(icon: 'minus', onTap: coversNotifier.dec),
               ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minWidth: 28 + Space.md * 2,
-                ),
+                constraints: const BoxConstraints(minWidth: 28 + Space.md * 2),
                 child: Text(
                   '$covers',
                   textAlign: TextAlign.center,
@@ -277,11 +273,9 @@ class _WaiterVoidSheetState extends ConsumerState<WaiterVoidSheet> {
         : ref.read(bridgeProvider).tr(key: reasonKey);
     final note = _note.text.trim().isEmpty ? null : _note.text.trim();
     final reason = [?picked, ?note].join(' — ');
-    unawaited(
-      Navigator.of(
-        context,
-      ).maybePop(VoidTicketResult(reason.isEmpty ? null : reason)),
-    );
+    Navigator.of(
+      context,
+    ).maybePop(VoidTicketResult(reason.isEmpty ? null : reason));
   }
 
   @override
@@ -308,7 +302,7 @@ class _WaiterVoidSheetState extends ConsumerState<WaiterVoidSheet> {
                 ),
               ),
               GestureDetector(
-                onTap: () => unawaited(Navigator.of(context).maybePop()),
+                onTap: () => Navigator.of(context).maybePop(),
                 behavior: HitTestBehavior.opaque,
                 child: MadarIcon('xmark', tint: colors.textMuted),
               ),
@@ -350,7 +344,7 @@ class _WaiterVoidSheetState extends ConsumerState<WaiterVoidSheet> {
                 child: ActionButton(
                   label: bridge.tr(key: 'void.cancel'),
                   variant: ActionVariant.outline,
-                  onTap: () => unawaited(Navigator.of(context).maybePop()),
+                  onTap: () => Navigator.of(context).maybePop(),
                 ),
               ),
               const SizedBox(width: Space.sm),

@@ -158,52 +158,47 @@ void main() {
     // route machine leaves the order surface.
     final report = await core.bridge.shiftReport();
     expect(report.isOpen, isTrue);
-    await core.bridge.closeShift(
-      closingCashMinor: report.expectedCashMinor,
-    );
+    await core.bridge.closeShift(closingCashMinor: report.expectedCashMinor);
     final after = await core.bridge.currentShift();
     expect(after?.isOpen ?? false, isFalse);
   });
 
-  test(
-    'session persists in the core store (restart restore)',
-    () async {
-      // Fresh sign-in cycle → the core persists session:blob in ITS store.
-      final branches = await core.bridge.listBranches();
-      await core.bridge.logout(wipeOutbox: false);
-      await core.bridge.login(
-        req: LoginRequest(
-          mode: LoginMode.pin,
-          name: 'Sara',
-          pin: '123456',
-          branchId: branches.first.id,
-        ),
-      );
+  test('session persists in the core store (restart restore)', () async {
+    // Fresh sign-in cycle → the core persists session:blob in ITS store.
+    final branches = await core.bridge.listBranches();
+    await core.bridge.logout(wipeOutbox: false);
+    await core.bridge.login(
+      req: LoginRequest(
+        mode: LoginMode.pin,
+        name: 'Sara',
+        pin: '123456',
+        branchId: branches.first.id,
+      ),
+    );
 
-      // A "restarted app": a second handle over the SAME sqlite restores the
-      // session from the core's own store — the shell's exact boot path.
-      final rebooted = await MadarCore.start(
-        config: MadarConfig(
-          baseUrl: api,
-          environment: 'dev',
-          dbPath: '${tmp.path}/qa.db',
-          locale: 'en',
-        ),
-      );
-      final restored = rebooted.bridge.restoreSessionCached();
-      expect(
-        restored,
-        isNotNull,
-        reason: 'login must persist the session into the core store',
-      );
-      expect(restored!.displayName, 'Sara');
-      final route = rebooted.bridge.appRoute();
-      expect(
-        route,
-        isNot(isA<AppRoute_Login>()),
-        reason: 'a restored session must land past the login screen',
-      );
-      expect(route, isNot(isA<AppRoute_DeviceSetup>()));
-    },
-  );
+    // A "restarted app": a second handle over the SAME sqlite restores the
+    // session from the core's own store — the shell's exact boot path.
+    final rebooted = await MadarCore.start(
+      config: MadarConfig(
+        baseUrl: api,
+        environment: 'dev',
+        dbPath: '${tmp.path}/qa.db',
+        locale: 'en',
+      ),
+    );
+    final restored = rebooted.bridge.restoreSessionCached();
+    expect(
+      restored,
+      isNotNull,
+      reason: 'login must persist the session into the core store',
+    );
+    expect(restored!.displayName, 'Sara');
+    final route = rebooted.bridge.appRoute();
+    expect(
+      route,
+      isNot(isA<AppRoute_Login>()),
+      reason: 'a restored session must land past the login screen',
+    );
+    expect(route, isNot(isA<AppRoute_DeviceSetup>()));
+  });
 }

@@ -136,9 +136,7 @@ final deliveryTickProvider = NotifierProvider<TickNotifier, int>(
 /// Bumped on every `floor.*` / `table.*` / `held_order.*` / `transfer.*`
 /// event — the dashboard re-arranged the room, a table changed state, or
 /// another till parked/seated a party. The order surface re-pulls the floor.
-final floorTickProvider = NotifierProvider<TickNotifier, int>(
-  TickNotifier.new,
-);
+final floorTickProvider = NotifierProvider<TickNotifier, int>(TickNotifier.new);
 
 /// Bumped on every `booking.*` event — a table got reserved, a booked party
 /// is due, a booking moved or was cancelled. The arrivals list re-pulls.

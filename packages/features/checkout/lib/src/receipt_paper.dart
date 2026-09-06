@@ -98,9 +98,7 @@ class ReceiptPaper extends ConsumerWidget {
               // on failure, so an offline reprint just shows the store name.
               if (logo != null && logo.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsetsDirectional.only(
-                    bottom: _paperGap,
-                  ),
+                  padding: const EdgeInsetsDirectional.only(bottom: _paperGap),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(
                       maxHeight: _logoMaxHeight,
@@ -177,10 +175,7 @@ class ReceiptPaper extends ConsumerWidget {
           ],
           for (final line in r.lines) _LineBlock(line: line, money: _money),
           const _Rule(),
-          _MoneyRow(
-            left: tr('order.subtotal'),
-            right: _money(r.subtotalMinor),
-          ),
+          _MoneyRow(left: tr('order.subtotal'), right: _money(r.subtotalMinor)),
           if (r.discountMinor > 0)
             _MoneyRow(
               left: tr('order.discount'),

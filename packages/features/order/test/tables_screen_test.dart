@@ -73,9 +73,7 @@ Future<void> _pump(WidgetTester tester, FloorLayoutView layout) async {
             body: Center(
               child: ElevatedButton(
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const TablesScreen(),
-                  ),
+                  MaterialPageRoute<void>(builder: (_) => const TablesScreen()),
                 ),
                 child: const Text('open'),
               ),
@@ -93,10 +91,7 @@ void main() {
   testWidgets('renders chrome and pops back when the floor is EMPTY', (
     tester,
   ) async {
-    await _pump(
-      tester,
-      const FloorLayoutView(sections: [], tables: []),
-    );
+    await _pump(tester, const FloorLayoutView(sections: [], tables: []));
     expect(tester.takeException(), isNull);
     // The screen is on stage with its title + empty state (not a blank page).
     expect(find.text('tables.title'), findsOneWidget);

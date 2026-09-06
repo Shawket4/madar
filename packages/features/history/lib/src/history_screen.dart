@@ -1372,11 +1372,7 @@ class _LineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final mods = <String>[
-      ?line.sizeLabel,
-      ...line.addons,
-      ...line.optionals,
-    ];
+    final mods = <String>[?line.sizeLabel, ...line.addons, ...line.optionals];
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: Space.sm,
@@ -1448,9 +1444,7 @@ class _ShowMoreFooter extends StatelessWidget {
               borderRadius: BorderRadius.circular(Radii.sm),
               border: Border.all(color: colors.border),
             ),
-            padding: const EdgeInsetsDirectional.symmetric(
-              vertical: Space.md,
-            ),
+            padding: const EdgeInsetsDirectional.symmetric(vertical: Space.md),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               spacing: 6,
@@ -1622,8 +1616,7 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
                       ),
                     ),
                     TactileScale(
-                      onTap: () =>
-                          unawaited(Navigator.of(context).maybePop(false)),
+                      onTap: () => Navigator.of(context).maybePop(false),
                       child: MadarIcon('xmark', tint: colors.textMuted),
                     ),
                   ],
@@ -1713,8 +1706,7 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
                       child: HistoryButton(
                         label: t('void.cancel'),
                         variant: HistoryButtonVariant.outline,
-                        onTap: () =>
-                            unawaited(Navigator.of(context).maybePop(false)),
+                        onTap: () => Navigator.of(context).maybePop(false),
                       ),
                     ),
                     Expanded(
@@ -1813,9 +1805,7 @@ class _RestockSwitch extends StatelessWidget {
           curve: MotionSpec.standardCurve,
           width: _switchTrack.width,
           height: _switchTrack.height,
-          padding: const EdgeInsetsDirectional.all(
-            (26 - _switchThumb) / 2,
-          ),
+          padding: const EdgeInsetsDirectional.all((26 - _switchThumb) / 2),
           decoration: BoxDecoration(
             color: value ? colors.accent : colors.surfaceAlt,
             borderRadius: BorderRadius.circular(Radii.pill),

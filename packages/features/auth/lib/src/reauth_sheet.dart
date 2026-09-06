@@ -112,7 +112,7 @@ class ReauthSheet extends ConsumerWidget {
         _ReauthHeader(
           title: t('chrome.reauth_title'),
           body: t('chrome.reauth_body'),
-          onClose: () => unawaited(Navigator.of(context).maybePop()),
+          onClose: () => Navigator.of(context).maybePop(),
         ),
         // Deliberate rhythm mirrors the Login PIN pad (not a flat stack):
         // the identity pill sits up top, then xxl of air above the pad (and
@@ -165,11 +165,9 @@ class ReauthSheet extends ConsumerWidget {
                 // teller to login.
                 _SwitchTellerLink(
                   label: t('chrome.reauth_switch'),
-                  onTap: () => unawaited(
-                    Navigator.of(
-                      context,
-                    ).maybePop(ReauthOutcome.switchTeller),
-                  ),
+                  onTap: () => Navigator.of(
+                    context,
+                  ).maybePop(ReauthOutcome.switchTeller),
                 ),
               ],
             ),

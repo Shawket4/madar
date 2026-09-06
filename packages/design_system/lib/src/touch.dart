@@ -79,14 +79,12 @@ class _TactileScaleState extends State<TactileScale>
   }
 
   void _springTo(double target) {
-    unawaited(
-      _controller.animateWith(
-        SpringSimulation(
-          MotionSpec.press,
-          _controller.value,
-          target,
-          _controller.velocity,
-        ),
+    _controller.animateWith(
+      SpringSimulation(
+        MotionSpec.press,
+        _controller.value,
+        target,
+        _controller.velocity,
       ),
     );
   }
@@ -107,10 +105,7 @@ class _TactileScaleState extends State<TactileScale>
       onPointerUp: _handleUp,
       onPointerCancel: _handleCancel,
       behavior: HitTestBehavior.translucent,
-      child: ScaleTransition(
-        scale: _controller,
-        child: widget.child,
-      ),
+      child: ScaleTransition(scale: _controller, child: widget.child),
     );
     final onTap = widget.onTap;
     if (onTap == null) return pressable;

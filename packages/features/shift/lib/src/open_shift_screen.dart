@@ -64,9 +64,7 @@ class _OpenShiftScreenState extends ConsumerState<OpenShiftScreen> {
     String t(String key) => bridge.tr(key: key);
     // Narrow slices: the heartbeat chrome repaints alone every 15s.
     final online = ref.watch(openShiftProvider.select((s) => s.online));
-    final authPaused = ref.watch(
-      openShiftProvider.select((s) => s.authPaused),
-    );
+    final authPaused = ref.watch(openShiftProvider.select((s) => s.authPaused));
     // Scaffold (not a bare ColoredBox): TextFields and text styling need a
     // Material ancestor — screens own their own Scaffold in this app.
     return Scaffold(

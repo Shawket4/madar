@@ -92,8 +92,7 @@ class _DeliveryBodyState extends ConsumerState<DeliveryBody>
             : IncomingButton(
                 label: bridge.tr(key: 'delivery.finalize'),
                 icon: 'checkmark.seal',
-                onTap: () =>
-                    unawaited(Navigator.of(sheetContext).maybePop(true)),
+                onTap: () => Navigator.of(sheetContext).maybePop(true),
               ),
       ),
     );
@@ -206,10 +205,7 @@ class _DeliveryBodyState extends ConsumerState<DeliveryBody>
         if (error != null)
           Padding(
             padding: const EdgeInsetsDirectional.all(Space.lg),
-            child: NoticeBanner(
-              text: error,
-              icon: 'exclamationmark.circle',
-            ),
+            child: NoticeBanner(text: error, icon: 'exclamationmark.circle'),
           ),
         Expanded(
           child: _DeliveryList(
@@ -242,17 +238,12 @@ class _DeliveryList extends ConsumerWidget {
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final notifier = ref.read(incomingProvider.notifier);
-    final orders = ref.watch(
-      incomingProvider.select((s) => s.deliveryOrders),
-    );
+    final orders = ref.watch(incomingProvider.select((s) => s.deliveryOrders));
     final loading = ref.watch(
       incomingProvider.select((s) => s.isLoadingDelivery),
     );
     if (loading && orders.isEmpty) {
-      return const Align(
-        alignment: Alignment.topCenter,
-        child: SkeletonList(),
-      );
+      return const Align(alignment: Alignment.topCenter, child: SkeletonList());
     }
     if (orders.isEmpty) {
       // The natives' bespoke empty column (bicycle glyph + quiet line).
@@ -691,10 +682,7 @@ class _OverflowMenu extends ConsumerWidget {
           icon,
           tint: danger ? colors.danger : colors.textSecondary,
         ),
-        child: Text(
-          label,
-          style: MadarType.body.copyWith(color: fg),
-        ),
+        child: Text(label, style: MadarType.body.copyWith(color: fg)),
       );
     }
 
@@ -712,11 +700,7 @@ class _OverflowMenu extends ConsumerWidget {
       menuChildren: [
         item('list.bullet', bridge.tr(key: 'order.view_order'), onView),
         item('clock', bridge.tr(key: 'delivery.add_prep'), onPrep),
-        item(
-          'checkmark.seal',
-          bridge.tr(key: 'delivery.finalize'),
-          onFinalize,
-        ),
+        item('checkmark.seal', bridge.tr(key: 'delivery.finalize'), onFinalize),
         // ONE terminal action: Cancel — the sheet carries the restock
         // toggle (restock = the old "reject", waste = food already made).
         item(
@@ -843,7 +827,7 @@ class _DeliveryFinalizeSheetState
       terminalLabel: label,
       terminalIcon: 'checkmark.seal',
       placing: placing,
-      onClose: () => unawaited(Navigator.of(context).maybePop()),
+      onClose: () => Navigator.of(context).maybePop(),
       headerContent: _FinalizeHeader(order: o),
       onTerminal: (result) => unawaited(_finalize(result)),
     );

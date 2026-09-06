@@ -291,7 +291,7 @@ class _DiscardDraftSheet extends ConsumerWidget {
                 ),
               ),
               GestureDetector(
-                onTap: () => unawaited(Navigator.of(context).maybePop()),
+                onTap: () => Navigator.of(context).maybePop(),
                 behavior: HitTestBehavior.opaque,
                 child: MadarIcon('xmark', tint: colors.textMuted),
               ),
@@ -310,7 +310,7 @@ class _DiscardDraftSheet extends ConsumerWidget {
                 child: ActionButton(
                   label: bridge.tr(key: 'common.cancel'),
                   variant: ActionVariant.outline,
-                  onTap: () => unawaited(Navigator.of(context).maybePop()),
+                  onTap: () => Navigator.of(context).maybePop(),
                 ),
               ),
               const SizedBox(width: Space.sm),
@@ -319,7 +319,7 @@ class _DiscardDraftSheet extends ConsumerWidget {
                   label: bridge.tr(key: 'sync.discard'),
                   variant: ActionVariant.danger,
                   icon: 'trash',
-                  onTap: () => unawaited(Navigator.of(context).maybePop(true)),
+                  onTap: () => Navigator.of(context).maybePop(true),
                 ),
               ),
             ],

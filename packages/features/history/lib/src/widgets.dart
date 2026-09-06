@@ -357,10 +357,7 @@ class HistoryFilterChip extends StatelessWidget {
               spacing: _chipGap,
               children: [
                 MadarIcon(glyph, tint: fg, size: IconSize.xs),
-                Text(
-                  label,
-                  style: MadarType.label.copyWith(color: fg),
-                ),
+                Text(label, style: MadarType.label.copyWith(color: fg)),
               ],
             ),
           ),

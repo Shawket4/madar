@@ -115,10 +115,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                     child: Column(
                       children: [
                         for (var i = 0; i < shown; i++)
-                          _PersonRow(
-                            row: data.rows[i],
-                            last: i == shown - 1,
-                          ),
+                          _PersonRow(row: data.rows[i], last: i == shown - 1),
                         if (!_expanded && data.rows.length > _visibleRows)
                           TactileScale(
                             onTap: () => setState(() => _expanded = true),

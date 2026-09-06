@@ -31,11 +31,7 @@ const double _totalSize = 20;
 /// Rendered as the body of a LARGE MadarSheet; an optional [footer] (e.g.
 /// the Settle CTA) pins under the scrolling details.
 class TicketDetailsSheet extends ConsumerWidget {
-  const TicketDetailsSheet({
-    required this.ticket,
-    this.footer,
-    super.key,
-  });
+  const TicketDetailsSheet({required this.ticket, this.footer, super.key});
 
   final TicketView ticket;
 
@@ -109,11 +105,7 @@ class TicketDetailsSheet extends ConsumerWidget {
 /// SAME card tickets use), and the full money breakdown. An optional
 /// [footer] (e.g. the Finalize CTA) pins under the scrolling details.
 class DeliveryDetailsSheet extends ConsumerWidget {
-  const DeliveryDetailsSheet({
-    required this.order,
-    this.footer,
-    super.key,
-  });
+  const DeliveryDetailsSheet({required this.order, this.footer, super.key});
 
   final DeliveryOrderView order;
 
@@ -144,10 +136,7 @@ class DeliveryDetailsSheet extends ConsumerWidget {
               label: tr('delivery.status.${o.status}'),
               tone: deliveryStatusTone(o.status),
             ),
-            StatusChip(
-              label: tr('delivery.${o.channel}'),
-              icon: 'bag.fill',
-            ),
+            StatusChip(label: tr('delivery.${o.channel}'), icon: 'bag.fill'),
           ],
         ),
         // Customer hero — leading tile + name/phone, the total as the hero
@@ -647,10 +636,7 @@ class _DetailRow extends StatelessWidget {
       spacing: Space.sm,
       children: [
         MadarIcon(icon, tint: colors.textMuted),
-        Text(
-          label,
-          style: MadarType.label.copyWith(color: colors.textMuted),
-        ),
+        Text(label, style: MadarType.label.copyWith(color: colors.textMuted)),
         Expanded(
           child: Text(
             value,

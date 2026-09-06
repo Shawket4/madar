@@ -56,11 +56,7 @@ class _RosterScreenState extends ConsumerState<RosterScreen> {
           ),
           child: Row(
             children: [
-              MadarIcon(
-                'magnifyingglass',
-                tint: colors.textMuted,
-                size: IconSize.md,
-              ),
+              MadarIcon('magnifyingglass', tint: colors.textMuted),
               const SizedBox(width: Space.sm),
               Expanded(
                 child: TextField(
@@ -171,11 +167,7 @@ class _RosterRow extends ConsumerWidget {
             if (employee.baseSalaryMinor > 0)
               Num(formatAmount(employee.baseSalaryMinor)),
             const SizedBox(width: Space.sm),
-            MadarIcon(
-              'chevron.forward',
-              tint: colors.textMuted,
-              size: IconSize.md,
-            ),
+            MadarIcon('chevron.forward', tint: colors.textMuted),
           ],
         ),
       ),
@@ -203,7 +195,7 @@ class _Profile extends ConsumerWidget {
       title: t('roster.profile'),
       titleTrailing: TactileScale(
         onTap: onBack,
-        child: IconTile(icon: 'chevron.backward', size: 34),
+        child: const IconTile(icon: 'chevron.backward', size: 34),
       ),
       children: [
         MadarCard(
@@ -302,7 +294,10 @@ class _DetailLine extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: FieldLabel(label)),
-          Num(value, style: MadarType.num.copyWith(fontWeight: FontWeight.w700)),
+          Num(
+            value,
+            style: MadarType.num.copyWith(fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );

@@ -132,12 +132,15 @@ final todayProvider = AsyncNotifierProvider<TodayNotifier, TodayView>(
 /// The employee's attendance over a window, keyed by `from|to` so switching
 /// months doesn't clobber the previous month's cache.
 final attendanceProvider =
-    FutureProvider.family<List<AttendanceRecordView>, ({String from, String to})>(
-  (ref, range) => ref
-      .read(coreProvider)
-      .bridge
-      .staffAttendance(from: range.from, to: range.to),
-);
+    FutureProvider.family<
+      List<AttendanceRecordView>,
+      ({String from, String to})
+    >(
+      (ref, range) => ref
+          .read(coreProvider)
+          .bridge
+          .staffAttendance(from: range.from, to: range.to),
+    );
 
 /// Every request the employee has filed, of any kind.
 final requestsProvider = FutureProvider<List<StaffRequestView>>(
@@ -210,19 +213,15 @@ final teamPresenceProvider = FutureProvider.family<TeamPresenceView, String?>(
 
 /// The approvals queue.
 final pendingRequestsProvider = FutureProvider<List<StaffRequestView>>(
-  (ref) => ref
-      .read(coreProvider)
-      .bridge
-      .managerRequests(status: 'pending', kind: null),
+  (ref) => ref.read(coreProvider).bridge.managerRequests(status: 'pending'),
 );
 
 /// Badge count for the approvals tab. Reads the queue rather than fetching its
 /// own count, so the number and the list can never disagree.
 final pendingApprovalsCountProvider = Provider<int>(
-  (ref) => ref.watch(pendingRequestsProvider).maybeWhen(
-    data: (rows) => rows.length,
-    orElse: () => 0,
-  ),
+  (ref) => ref
+      .watch(pendingRequestsProvider)
+      .maybeWhen(data: (rows) => rows.length, orElse: () => 0),
 );
 
 /// The roster, filtered by the search box.
@@ -240,8 +239,10 @@ final payrollPeriodsProvider = FutureProvider<List<PayrollPeriodView>>(
 /// What generating a period would pay — the run table.
 final payrollPreviewProvider =
     FutureProvider.family<List<PayrollLineView>, String>(
-      (ref, periodId) =>
-          ref.read(coreProvider).bridge.managerPayrollPreview(periodId: periodId),
+      (ref, periodId) => ref
+          .read(coreProvider)
+          .bridge
+          .managerPayrollPreview(periodId: periodId),
     );
 
 // ── Payroll adjustments ───────────────────────────────────────
@@ -259,7 +260,6 @@ final adjustmentsProvider =
           .bridge
           .managerAdjustments(
             deductions: q.deductions,
-            userId: null,
             from: q.from,
             to: q.to,
             // 0 = "listing everyone", so a percent-of-base row resolves to 0

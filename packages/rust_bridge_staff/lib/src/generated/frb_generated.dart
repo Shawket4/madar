@@ -40,12 +40,8 @@ class StaffBridge
 
   /// Initialize flutter_rust_bridge in mock mode.
   /// No libraries for FFI are loaded.
-  static void initMock({
-    required StaffBridgeApi api,
-  }) {
-    instance.initMockImpl(
-      api: api,
-    );
+  static void initMock({required StaffBridgeApi api}) {
+    instance.initMockImpl(api: api);
   }
 
   /// Dispose flutter_rust_bridge
@@ -433,10 +429,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeIsRtlConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_is_rtl",
-        argNames: ["that"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_is_rtl", argNames: ["that"]);
 
   @override
   String crateApiBridgeMadarBridgeLocale({required MadarBridge that}) {
@@ -462,10 +455,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeLocaleConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_locale",
-        argNames: ["that"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_locale", argNames: ["that"]);
 
   @override
   Future<void> crateApiBridgeMadarBridgeLogout({
@@ -1162,10 +1152,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeMadarBridgeNewConstMeta =>
-      const TaskConstMeta(
-        debugName: "MadarBridge_new",
-        argNames: ["config"],
-      );
+      const TaskConstMeta(debugName: "MadarBridge_new", argNames: ["config"]);
 
   @override
   Future<bool> crateApiBridgeMadarBridgeRefreshConnectivity({
@@ -1825,10 +1812,8 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
     );
   }
 
-  TaskConstMeta get kCrateApiBridgeCoreVersionConstMeta => const TaskConstMeta(
-    debugName: "core_version",
-    argNames: [],
-  );
+  TaskConstMeta get kCrateApiBridgeCoreVersionConstMeta =>
+      const TaskConstMeta(debugName: "core_version", argNames: []);
 
   @override
   int crateApiBridgeFfiSurfaceVersion() {
@@ -1850,10 +1835,7 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
   }
 
   TaskConstMeta get kCrateApiBridgeFfiSurfaceVersionConstMeta =>
-      const TaskConstMeta(
-        debugName: "ffi_surface_version",
-        argNames: [],
-      );
+      const TaskConstMeta(debugName: "ffi_surface_version", argNames: []);
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_MadarBridge => wire
@@ -2133,13 +2115,9 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return MadarError_Offline(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Offline(detail: dco_decode_String(raw[1]));
       case 1:
-        return MadarError_Unauthenticated(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Unauthenticated(detail: dco_decode_String(raw[1]));
       case 2:
         return MadarError_Forbidden(
           resource: dco_decode_String(raw[1]),
@@ -2157,13 +2135,9 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
           detail: dco_decode_String(raw[3]),
         );
       case 5:
-        return MadarError_Transient(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Transient(detail: dco_decode_String(raw[1]));
       case 6:
-        return MadarError_Internal(
-          detail: dco_decode_String(raw[1]),
-        );
+        return MadarError_Internal(detail: dco_decode_String(raw[1]));
       default:
         throw Exception("unreachable");
     }
@@ -3974,10 +3948,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         StaffBridge.instance.api.rust_arc_decrement_strong_count_MadarBridgePtr,
   );
 
-  SessionSnapshot? currentSession() =>
-      StaffBridge.instance.api.crateApiBridgeMadarBridgeCurrentSession(
-        that: this,
-      );
+  SessionSnapshot? currentSession() => StaffBridge.instance.api
+      .crateApiBridgeMadarBridgeCurrentSession(that: this);
 
   /// Whether the signed-in user holds a permission — what decides between the
   /// employee's five tabs and the manager's four.
@@ -3992,18 +3964,14 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         action: action,
       );
 
-  bool isAuthenticated() =>
-      StaffBridge.instance.api.crateApiBridgeMadarBridgeIsAuthenticated(
-        that: this,
-      );
+  bool isAuthenticated() => StaffBridge.instance.api
+      .crateApiBridgeMadarBridgeIsAuthenticated(that: this);
 
-  bool isRtl() => StaffBridge.instance.api.crateApiBridgeMadarBridgeIsRtl(
-    that: this,
-  );
+  bool isRtl() =>
+      StaffBridge.instance.api.crateApiBridgeMadarBridgeIsRtl(that: this);
 
-  String locale() => StaffBridge.instance.api.crateApiBridgeMadarBridgeLocale(
-    that: this,
-  );
+  String locale() =>
+      StaffBridge.instance.api.crateApiBridgeMadarBridgeLocale(that: this);
 
   Future<void> logout({required bool wipeOutbox}) => StaffBridge.instance.api
       .crateApiBridgeMadarBridgeLogout(that: this, wipeOutbox: wipeOutbox);
@@ -4025,10 +3993,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   );
 
   /// Every salary advance in the org.
-  Future<List<SalaryAdvanceView>> managerAdvances() =>
-      StaffBridge.instance.api.crateApiBridgeMadarBridgeManagerAdvances(
-        that: this,
-      );
+  Future<List<SalaryAdvanceView>> managerAdvances() => StaffBridge.instance.api
+      .crateApiBridgeMadarBridgeManagerAdvances(that: this);
 
   /// Add a bonus or a manual deduction.
   Future<AdjustmentView> managerCreateAdjustment({
@@ -4111,10 +4077,10 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       );
 
   /// Payroll periods, newest first.
-  Future<List<PayrollPeriodView>> managerPayrollPeriods() =>
-      StaffBridge.instance.api.crateApiBridgeMadarBridgeManagerPayrollPeriods(
-        that: this,
-      );
+  Future<List<PayrollPeriodView>> managerPayrollPeriods() => StaffBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeManagerPayrollPeriods(that: this);
 
   /// What generating this period would pay.
   Future<List<PayrollLineView>> managerPayrollPreview({
@@ -4167,26 +4133,20 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// The staff app leans on this more than the others: every action it offers
   /// is online-only, so it can tell the employee "you're offline" up front
   /// instead of letting a check-in fail at the moment it matters.
-  Future<bool> refreshConnectivity() =>
-      StaffBridge.instance.api.crateApiBridgeMadarBridgeRefreshConnectivity(
-        that: this,
-      );
+  Future<bool> refreshConnectivity() => StaffBridge.instance.api
+      .crateApiBridgeMadarBridgeRefreshConnectivity(that: this);
 
   /// Re-hydrate the persisted session from the core's OWN store (cold boot).
   /// `None` = signed out / fresh install.
-  SessionSnapshot? restoreSessionCached() =>
-      StaffBridge.instance.api.crateApiBridgeMadarBridgeRestoreSessionCached(
-        that: this,
-      );
+  SessionSnapshot? restoreSessionCached() => StaffBridge.instance.api
+      .crateApiBridgeMadarBridgeRestoreSessionCached(that: this);
 
   void setLocale({required String locale}) => StaffBridge.instance.api
       .crateApiBridgeMadarBridgeSetLocale(that: this, locale: locale);
 
   /// Own salary advances and what is still owed.
-  Future<List<SalaryAdvanceView>> staffAdvances() =>
-      StaffBridge.instance.api.crateApiBridgeMadarBridgeStaffAdvances(
-        that: this,
-      );
+  Future<List<SalaryAdvanceView>> staffAdvances() => StaffBridge.instance.api
+      .crateApiBridgeMadarBridgeStaffAdvances(that: this);
 
   /// Own attendance over `[from, to]`, ISO `yyyy-mm-dd`.
   Future<List<AttendanceRecordView>> staffAttendance({
@@ -4263,10 +4223,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       );
 
   /// Own payslips — finalised periods only.
-  Future<List<PayslipView>> staffPayslips() =>
-      StaffBridge.instance.api.crateApiBridgeMadarBridgeStaffPayslips(
-        that: this,
-      );
+  Future<List<PayslipView>> staffPayslips() => StaffBridge.instance.api
+      .crateApiBridgeMadarBridgeStaffPayslips(that: this);
 
   /// Request a salary advance repaid over `installments` months.
   Future<SalaryAdvanceView> staffRequestAdvance({
@@ -4281,10 +4239,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   );
 
   /// Own requests of every kind, newest first.
-  Future<List<StaffRequestView>> staffRequests() =>
-      StaffBridge.instance.api.crateApiBridgeMadarBridgeStaffRequests(
-        that: this,
-      );
+  Future<List<StaffRequestView>> staffRequests() => StaffBridge.instance.api
+      .crateApiBridgeMadarBridgeStaffRequests(that: this);
 
   /// The employee's own roster for a date range.
   Future<List<ScheduledDayView>> staffSchedule({
@@ -4309,9 +4265,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
 
   /// The home screen in one round trip.
   Future<TodayView> staffToday() =>
-      StaffBridge.instance.api.crateApiBridgeMadarBridgeStaffToday(
-        that: this,
-      );
+      StaffBridge.instance.api.crateApiBridgeMadarBridgeStaffToday(that: this);
 
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).
   String tr({required String key}) => StaffBridge.instance.api

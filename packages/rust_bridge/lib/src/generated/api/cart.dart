@@ -11,10 +11,7 @@ class AddonSelection {
   final String addonItemId;
   final PlatformInt64 qty;
 
-  const AddonSelection({
-    required this.addonItemId,
-    required this.qty,
-  });
+  const AddonSelection({required this.addonItemId, required this.qty});
 
   @override
   int get hashCode => addonItemId.hashCode ^ qty.hashCode;

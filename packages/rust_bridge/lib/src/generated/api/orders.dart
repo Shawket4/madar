@@ -387,10 +387,7 @@ class ReceiptModifierView {
   final String name;
   final PlatformInt64 priceMinor;
 
-  const ReceiptModifierView({
-    required this.name,
-    required this.priceMinor,
-  });
+  const ReceiptModifierView({required this.name, required this.priceMinor});
 
   @override
   int get hashCode => name.hashCode ^ priceMinor.hashCode;
