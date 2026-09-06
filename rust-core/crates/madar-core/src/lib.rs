@@ -3991,7 +3991,13 @@ impl MadarCore {
         // Held orders are NOT pulled. A parked order is this terminal's own
         // draft -- it has no server copy to reconcile with, and asking for one
         // was the whole reason parking needed a network at all.
-        let protect: Vec<String> = Vec::new();
+        //
+        // Transfers still ARE pulled, so they still need the pending-op guard.
+        // It must not be empty here: a FULL pull rebuilds the mirror from the
+        // server list alone, so a transfer this device created but has not yet
+        // drained (the server has never heard of it) would be dropped outright
+        // and disappear from the waitlist while its op sits in the outbox.
+        let protect = self.pending_held_ids();
         let tcursor = self.store.kv_get(held::K_TRANSFERS_CURSOR).ok().flatten();
         let mut tq: Vec<(&str, String)> = vec![("branch_id", branch)];
         if let Some(c) = &tcursor {
@@ -4293,6 +4299,14 @@ impl MadarCore {
             )
             .await;
             if let Ok(report) = res {
+                // Remember it: a later close that happens offline needs to know
+                // what this shift actually took, not just what we have queued.
+                // Same key the past-shift report path uses.
+                cache_views(
+                    &self.store,
+                    &shift::report_cache_key(&shift.id),
+                    std::slice::from_ref(&report),
+                );
                 return Ok(shift::report_view(&report, queued_cash));
             }
         }
@@ -4319,6 +4333,20 @@ impl MadarCore {
                     })
             })
             .collect();
+        // Prefer the last server report we cached for this shift. Rebuilding from
+        // the outbox alone only ever sees work THIS device has yet to drain, so a
+        // teller who joined a shift that already had sales — or whose sales have
+        // since drained — would otherwise count a full drawer against an expected
+        // cash of just the opening float.
+        if let Some(report) = cached_views::<madar_api::models::ShiftReportResponse>(
+            &self.store,
+            &shift::report_cache_key(&shift.id),
+        )
+        .into_iter()
+        .next()
+        {
+            return Ok(shift::cached_report_view(&report, queued_cash, movements));
+        }
         Ok(shift::offline_report_view(
             shift.opening_cash_minor,
             queued_cash,
@@ -5256,6 +5284,13 @@ impl MadarCore {
                     // Flush the re-pointed sales now (single-flight-guarded).
                     let _ = self.drain_outbox().await;
                 }
+                // Seed the offline close-report base WHILE WE STILL HAVE NETWORK.
+                // Adopting means this teller is joining a shift that may already
+                // hold sales none of which are in our outbox; if the network drops
+                // before they ever open the report screen, this snapshot is the
+                // only thing standing between them and a close that expects just
+                // the opening float. Best effort — never block sign-in on it.
+                self.cache_shift_report_snapshot(&server_id).await;
                 Ok(Some(shift::view_from(&server_shift)))
             }
             shift::ShiftReconcile::KeepLocal => shift::current(&self.store),
@@ -5263,6 +5298,27 @@ impl MadarCore {
                 shift::clear(&self.store)?;
                 Ok(None)
             }
+        }
+    }
+
+    /// Fetch and cache the server's report for `shift_id`, so an offline close
+    /// has real figures to work from. Best effort: a failure here just leaves the
+    /// previous snapshot (or none) in place, and the caller carries on.
+    async fn cache_shift_report_snapshot(&self, shift_id: &str) {
+        use madar_api::apis::shifts_api;
+        if let Ok(report) = shifts_api::get_shift_report(
+            &self.api.config(),
+            shifts_api::GetShiftReportParams {
+                shift_id: shift_id.to_string(),
+            },
+        )
+        .await
+        {
+            cache_views(
+                &self.store,
+                &shift::report_cache_key(shift_id),
+                std::slice::from_ref(&report),
+            );
         }
     }
 

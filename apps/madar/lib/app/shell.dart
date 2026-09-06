@@ -32,18 +32,38 @@ class MadarShell extends ConsumerWidget {
   }
 }
 
-class _RouteHost extends ConsumerWidget {
+class _RouteHost extends ConsumerStatefulWidget {
   const _RouteHost();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_RouteHost> createState() => _RouteHostState();
+}
+
+class _RouteHostState extends ConsumerState<_RouteHost> {
+  @override
+  void initState() {
+    super.initState();
+    // Seed the first transaction name; the listener in build covers the rest.
+    setRouteTransaction(ref.read(shellProvider).route.runtimeType.toString());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final rtl = ref.watch(localeProvider.select((s) => s.rtl));
     final route = ref.watch(shellProvider.select((s) => s.route));
     // Name the Sentry transaction after the route PATTERN. This app has no
     // Navigator routes for `SentryNavigatorObserver` to observe, and the type
     // name is a pattern by construction — it can never carry an order id, so it
     // cannot produce one transaction group per record.
-    setRouteTransaction(route.runtimeType.toString());
+    //
+    // On CHANGE, not on every build: this widget also rebuilds when the locale
+    // flips direction (and on any ancestor rebuild), and `configureScope` is a
+    // real SDK call — setRouteTransaction's own contract says "whenever the
+    // route changes".
+    ref.listen(
+      shellProvider.select((s) => s.route),
+      (_, next) => setRouteTransaction(next.runtimeType.toString()),
+    );
     return Directionality(
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       child: AnimatedSwitcher(

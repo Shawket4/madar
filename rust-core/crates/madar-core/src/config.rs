@@ -39,6 +39,12 @@ impl MadarConfig {
 /// Hand the host the baked-in `.env` defaults as a `MadarConfig` Record it can
 /// tweak (e.g. fill `db_path`) before passing to [`crate::MadarCore::new`].
 /// (Records can't carry exported methods, so this is a free function.)
+///
+/// Only the UniFFI hosts (the archived Swift/Kotlin apps) ever call this — the
+/// Flutter build reaches the core through `madar-frb`, which builds its own
+/// config. Compiled only where it is actually reachable, so the default build
+/// does not carry a function nothing can call.
+#[cfg(any(feature = "uniffi-ffi", test))]
 #[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 pub fn default_config() -> MadarConfig {
     MadarConfig::from_env()

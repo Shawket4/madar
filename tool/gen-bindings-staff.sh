@@ -12,7 +12,7 @@ if [ ! -f "$RUST_CORE/crates/madar-api/Cargo.toml" ]; then
   (cd "$RUST_CORE" && ./tool/generate_api.sh)
 fi
 
-WANT="2.12.0"
+WANT="2.13.0"
 GOT="$(flutter_rust_bridge_codegen --version | awk '{print $2}')"
 if [ "$GOT" != "$WANT" ]; then
   echo "flutter_rust_bridge_codegen $GOT != $WANT (pinned in madar-frb-staff/Cargo.toml + pubspec)." >&2

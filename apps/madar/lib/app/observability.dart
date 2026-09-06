@@ -554,8 +554,9 @@ String scrubText(String input) {
         final value = match.group(4)!;
         // Idempotent: the hook can run over already-scrubbed text, and a second
         // pass must not corrupt the marker into `[redacted]]`.
-        if (value.startsWith(_redacted) || !isPiiKey(key))
+        if (value.startsWith(_redacted) || !isPiiKey(key)) {
           return match.group(0)!;
+        }
         return '$prefix$_redacted';
       })
       .replaceAllMapped(

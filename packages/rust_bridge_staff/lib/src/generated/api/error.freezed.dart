@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'error.dart';
@@ -9,6 +9,7 @@ part of 'error.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -20,7 +21,7 @@ mixin _$MadarError {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError);
 }
 
 
@@ -29,7 +30,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MadarError()';
+    return 'MadarError()';
 }
 
 
@@ -220,16 +221,18 @@ $MadarError_OfflineCopyWith<MadarError_Offline> get copyWith => _$MadarError_Off
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Offline&&(identical(other.detail, detail) || other.detail == detail));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Offline&&(identical(other.detail, detail) || other.detail == detail));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,detail);
+int get hashCode {
+    return Object.hash(runtimeType,detail);
+}
 
 @override
 String toString() {
-  return 'MadarError.offline(detail: $detail)';
+    return 'MadarError.offline(detail: $detail)';
 }
 
 
@@ -286,16 +289,18 @@ $MadarError_UnauthenticatedCopyWith<MadarError_Unauthenticated> get copyWith => 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Unauthenticated&&(identical(other.detail, detail) || other.detail == detail));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Unauthenticated&&(identical(other.detail, detail) || other.detail == detail));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,detail);
+int get hashCode {
+    return Object.hash(runtimeType,detail);
+}
 
 @override
 String toString() {
-  return 'MadarError.unauthenticated(detail: $detail)';
+    return 'MadarError.unauthenticated(detail: $detail)';
 }
 
 
@@ -353,16 +358,18 @@ $MadarError_ForbiddenCopyWith<MadarError_Forbidden> get copyWith => _$MadarError
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Forbidden&&(identical(other.resource, resource) || other.resource == resource)&&(identical(other.action, action) || other.action == action));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Forbidden&&(identical(other.resource, resource) || other.resource == resource)&&(identical(other.action, action) || other.action == action));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,resource,action);
+int get hashCode {
+    return Object.hash(runtimeType,resource,action);
+}
 
 @override
 String toString() {
-  return 'MadarError.forbidden(resource: $resource, action: $action)';
+    return 'MadarError.forbidden(resource: $resource, action: $action)';
 }
 
 
@@ -421,16 +428,18 @@ $MadarError_ValidationCopyWith<MadarError_Validation> get copyWith => _$MadarErr
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Validation&&(identical(other.field, field) || other.field == field)&&(identical(other.detail, detail) || other.detail == detail));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Validation&&(identical(other.field, field) || other.field == field)&&(identical(other.detail, detail) || other.detail == detail));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field,detail);
+int get hashCode {
+    return Object.hash(runtimeType,field,detail);
+}
 
 @override
 String toString() {
-  return 'MadarError.validation(field: $field, detail: $detail)';
+    return 'MadarError.validation(field: $field, detail: $detail)';
 }
 
 
@@ -490,16 +499,18 @@ $MadarError_ServerCopyWith<MadarError_Server> get copyWith => _$MadarError_Serve
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Server&&(identical(other.status, status) || other.status == status)&&(identical(other.code, code) || other.code == code)&&(identical(other.detail, detail) || other.detail == detail));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Server&&(identical(other.status, status) || other.status == status)&&(identical(other.code, code) || other.code == code)&&(identical(other.detail, detail) || other.detail == detail));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,status,code,detail);
+int get hashCode {
+    return Object.hash(runtimeType,status,code,detail);
+}
 
 @override
 String toString() {
-  return 'MadarError.server(status: $status, code: $code, detail: $detail)';
+    return 'MadarError.server(status: $status, code: $code, detail: $detail)';
 }
 
 
@@ -558,16 +569,18 @@ $MadarError_TransientCopyWith<MadarError_Transient> get copyWith => _$MadarError
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Transient&&(identical(other.detail, detail) || other.detail == detail));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Transient&&(identical(other.detail, detail) || other.detail == detail));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,detail);
+int get hashCode {
+    return Object.hash(runtimeType,detail);
+}
 
 @override
 String toString() {
-  return 'MadarError.transient(detail: $detail)';
+    return 'MadarError.transient(detail: $detail)';
 }
 
 
@@ -624,16 +637,18 @@ $MadarError_InternalCopyWith<MadarError_Internal> get copyWith => _$MadarError_I
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Internal&&(identical(other.detail, detail) || other.detail == detail));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MadarError_Internal&&(identical(other.detail, detail) || other.detail == detail));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,detail);
+int get hashCode {
+    return Object.hash(runtimeType,detail);
+}
 
 @override
 String toString() {
-  return 'MadarError.internal(detail: $detail)';
+    return 'MadarError.internal(detail: $detail)';
 }
 
 

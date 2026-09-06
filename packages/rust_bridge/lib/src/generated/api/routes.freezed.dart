@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'routes.dart';
@@ -9,6 +9,7 @@ part of 'routes.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -20,7 +21,7 @@ mixin _$AppRoute {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute);
 }
 
 
@@ -29,7 +30,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'AppRoute()';
+    return 'AppRoute()';
 }
 
 
@@ -209,7 +210,7 @@ class AppRoute_DeviceSetup extends AppRoute {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_DeviceSetup);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_DeviceSetup);
 }
 
 
@@ -218,7 +219,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'AppRoute.deviceSetup()';
+    return 'AppRoute.deviceSetup()';
 }
 
 
@@ -241,7 +242,7 @@ class AppRoute_Login extends AppRoute {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_Login);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_Login);
 }
 
 
@@ -250,7 +251,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'AppRoute.login()';
+    return 'AppRoute.login()';
 }
 
 
@@ -273,7 +274,7 @@ class AppRoute_OpenShift extends AppRoute {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_OpenShift);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_OpenShift);
 }
 
 
@@ -282,7 +283,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'AppRoute.openShift()';
+    return 'AppRoute.openShift()';
 }
 
 
@@ -305,7 +306,7 @@ class AppRoute_Order extends AppRoute {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_Order);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_Order);
 }
 
 
@@ -314,7 +315,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'AppRoute.order()';
+    return 'AppRoute.order()';
 }
 
 
@@ -342,16 +343,18 @@ $AppRoute_KitchenDisplayCopyWith<AppRoute_KitchenDisplay> get copyWith => _$AppR
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_KitchenDisplay&&(identical(other.stationId, stationId) || other.stationId == stationId));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_KitchenDisplay&&(identical(other.stationId, stationId) || other.stationId == stationId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,stationId);
+int get hashCode {
+    return Object.hash(runtimeType,stationId);
+}
 
 @override
 String toString() {
-  return 'AppRoute.kitchenDisplay(stationId: $stationId)';
+    return 'AppRoute.kitchenDisplay(stationId: $stationId)';
 }
 
 
@@ -403,7 +406,7 @@ class AppRoute_WaiterTickets extends AppRoute {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_WaiterTickets);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AppRoute_WaiterTickets);
 }
 
 
@@ -412,7 +415,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'AppRoute.waiterTickets()';
+    return 'AppRoute.waiterTickets()';
 }
 
 

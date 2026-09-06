@@ -28,7 +28,6 @@ use crate::error::{CoreError, CoreResult};
 use crate::store::Store;
 
 pub(crate) const K_HELD_MIRROR: &str = "held:mirror"; // Vec<HeldWire>
-pub(crate) const K_HELD_CURSOR: &str = "held:cursor"; // RFC3339 server_time
 pub(crate) const K_FLOOR_SECTIONS: &str = "floor:sections"; // Vec<SectionWire>
 pub(crate) const K_FLOOR_TABLES: &str = "floor:tables"; // Vec<TableWire>
 pub(crate) const K_TRANSFERS: &str = "transfers:mirror"; // Vec<TransferWire>
@@ -957,52 +956,12 @@ pub(crate) fn set_booking_status_local(store: &Store, booking_id: &str, status: 
     Ok(())
 }
 
-/// Merge a `GET /held-orders` pull into the mirror. `full` (no cursor) replaces
-/// the mirror wholesale; a cursored pull upserts by id (terminal rows drop).
-/// Entries in `protect` (ids with still-pending local ops) keep their local
-/// optimistic state either way. Returns the next cursor (`server_time`).
-pub(crate) fn merge_held(
-    store: &Store,
-    body: &str,
-    full: bool,
-    protect: &[String],
-) -> CoreResult<Option<String>> {
-    #[derive(Deserialize)]
-    struct Pull {
-        server_time: String,
-        held_orders: Vec<HeldWire>,
-    }
-    let pull: Pull = serde_json::from_str(body).map_err(CoreError::from)?;
-    let local = load_held(store)?;
-    let mut next: Vec<HeldWire> = if full {
-        // Keep only protected local entries; the server list is the truth.
-        local
-            .iter()
-            .filter(|h| protect.contains(&h.id))
-            .cloned()
-            .collect()
-    } else {
-        local.clone()
-    };
-    for server in pull.held_orders {
-        if protect.contains(&server.id) {
-            continue; // local optimistic state wins until its op drains
-        }
-        next.retain(|h| h.id != server.id);
-        if server.is_live() || !full {
-            // Cursored pulls keep tombstones out of the mirror too — dropping
-            // the entry IS applying the tombstone.
-            if server.is_live() {
-                next.push(server);
-            }
-        }
-    }
-    save_held(store, &next)?;
-    store.kv_put(K_HELD_CURSOR, &pull.server_time)?;
-    Ok(Some(pull.server_time))
-}
-
-/// Merge a `GET /floor/transfers` pull (same rules as `merge_held`).
+/// Merge a `GET /floor/transfers` pull. A `full` pull (no cursor) rebuilds the
+/// mirror from the server list; a cursored one upserts by id and drops anything
+/// no longer `waiting`. Ids in `protect` — those with a queued-but-unacked local
+/// op — keep their local optimistic state either way, so a transfer this device
+/// created but has not drained yet survives a full pull the server knows nothing
+/// about.
 pub(crate) fn merge_transfers(
     store: &Store,
     body: &str,
@@ -1383,54 +1342,6 @@ mod tests {
         let t1 = v.tables.iter().find(|t| t.id == "t1").unwrap();
         assert_eq!(t1.held_order_name.as_deref(), Some("Sara"));
         assert!(t1.held_locked_by_other, "resumed on another till");
-    }
-
-    #[test]
-    fn merge_held_respects_protect_and_tombstones() {
-        let s = store();
-        seed_floor(&s);
-        park_local(&s, "h1", "b", "Old", payload(1), None, "d", "t0").unwrap();
-        park_local(&s, "h2", "b", "Pending", payload(1), None, "d", "t0").unwrap();
-
-        // Full pull: h1 replaced by the server copy, h2 protected (pending op),
-        // h3 arrives from another till, and a tombstoned h4 never lands.
-        let body = serde_json::json!({
-            "server_time": "2026-08-15T12:00:00Z",
-            "held_orders": [
-                { "id": "h1", "branch_id": "b", "name": "Server", "cart": payload(3),
-                  "status": "held", "revision": 5, "created_at": "t0", "updated_at": "t1" },
-                { "id": "h2", "branch_id": "b", "name": "Clobber", "cart": payload(9),
-                  "status": "held", "revision": 9, "created_at": "t0", "updated_at": "t1" },
-                { "id": "h3", "branch_id": "b", "name": "Other", "cart": payload(1),
-                  "status": "held", "revision": 1, "created_at": "t1", "updated_at": "t1" },
-                { "id": "h4", "branch_id": "b", "name": "Gone", "cart": payload(1),
-                  "status": "discarded", "revision": 2, "created_at": "t0", "updated_at": "t1" }
-            ]
-        })
-        .to_string();
-        merge_held(&s, &body, true, &["h2".to_string()]).unwrap();
-        let names: Vec<String> = load_held(&s).unwrap().into_iter().map(|h| h.name).collect();
-        assert!(names.contains(&"Server".to_string()));
-        assert!(names.contains(&"Pending".to_string()), "protected survives");
-        assert!(!names.contains(&"Clobber".to_string()));
-        assert!(names.contains(&"Other".to_string()));
-        assert!(!names.contains(&"Gone".to_string()));
-
-        // Cursored pull: a tombstone REMOVES the local copy.
-        let body = serde_json::json!({
-            "server_time": "2026-08-15T12:01:00Z",
-            "held_orders": [
-                { "id": "h3", "branch_id": "b", "name": "Other", "cart": payload(1),
-                  "status": "discarded", "revision": 2, "created_at": "t1", "updated_at": "t2" }
-            ]
-        })
-        .to_string();
-        merge_held(&s, &body, false, &[]).unwrap();
-        assert!(get(&s, "h3").unwrap().is_none());
-        assert_eq!(
-            s.kv_get(K_HELD_CURSOR).unwrap().as_deref(),
-            Some("2026-08-15T12:01:00Z")
-        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'vault.dart';
@@ -9,6 +9,7 @@ part of 'vault.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -20,7 +21,7 @@ mixin _$VaultCommand {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VaultCommand);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is VaultCommand);
 }
 
 
@@ -29,7 +30,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'VaultCommand()';
+    return 'VaultCommand()';
 }
 
 
@@ -190,16 +191,18 @@ $VaultCommand_SaveCopyWith<VaultCommand_Save> get copyWith => _$VaultCommand_Sav
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VaultCommand_Save&&const DeepCollectionEquality().equals(other.blob, blob));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is VaultCommand_Save&&const DeepCollectionEquality().equals(other.blob, blob));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(blob));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(blob));
+}
 
 @override
 String toString() {
-  return 'VaultCommand.save(blob: $blob)';
+    return 'VaultCommand.save(blob: $blob)';
 }
 
 
@@ -251,7 +254,7 @@ class VaultCommand_Clear extends VaultCommand {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VaultCommand_Clear);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is VaultCommand_Clear);
 }
 
 
@@ -260,7 +263,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'VaultCommand.clear()';
+    return 'VaultCommand.clear()';
 }
 
 

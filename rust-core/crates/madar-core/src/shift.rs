@@ -16,6 +16,19 @@ pub(crate) const CURRENT_SHIFT_KEY: &str = "current_shift";
 /// when online and from a local close when offline, so the open-shift screen can
 /// prefill it either way.
 pub(crate) const SUGGESTED_OPEN_CASH_KEY: &str = "shift:suggested_open_cash";
+/// kv key holding the last SERVER report seen for a shift id, so a close that
+/// happens offline still knows what the shift actually took. Shared with the
+/// past-shift report path (`shift_report_for`), which already wrote this key —
+/// the current-shift path now reads and writes the same one.
+///
+/// Without it the offline report is rebuilt from the outbox alone, which only
+/// ever holds work this device has NOT yet drained. A teller who signs into a
+/// shift that already had sales — or whose own sales have since drained — would
+/// count a full drawer against an expected cash of just the opening float, and
+/// every such close would report a large phantom discrepancy.
+pub(crate) fn report_cache_key(shift_id: &str) -> String {
+    format!("cache:shift_report:{shift_id}")
+}
 
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug)]
@@ -390,6 +403,43 @@ pub(crate) fn offline_report_view(
         cash_movements: movements,
         from_server: false,
     }
+}
+
+/// Offline close against a CACHED server report: the real figures the server
+/// last knew for this shift, plus the work this device has not drained yet.
+///
+/// This is the offline path whenever the shift has ever been reported on while
+/// online. `queued` holds only movements still in the outbox — the server's copy
+/// already carries every drained one, so the two lists are disjoint and appending
+/// cannot double count. `from_server` stays FALSE: the figures are real but they
+/// are a snapshot, and the teller is entitled to see that the device is offline.
+pub(crate) fn cached_report_view(
+    report: &models::ShiftReportResponse,
+    queued_cash: i64,
+    queued: Vec<ShiftReportCashLine>,
+) -> ShiftReportView {
+    let mut view = report_view(report, queued_cash);
+    view.from_server = false;
+    if queued.is_empty() {
+        return view;
+    }
+    view.cash_movements.extend(queued);
+    // Recompute the drawer split over the union rather than trusting the
+    // server's totals, which predate the queued movements.
+    view.cash_in_minor = view
+        .cash_movements
+        .iter()
+        .filter(|m| m.amount_minor > 0)
+        .map(|m| m.amount_minor)
+        .sum();
+    view.cash_out_minor = view
+        .cash_movements
+        .iter()
+        .filter(|m| m.amount_minor < 0)
+        .map(|m| -m.amount_minor)
+        .sum();
+    view.cash_movements_net_minor = view.cash_in_minor - view.cash_out_minor;
+    view
 }
 
 pub(crate) fn view_from(shift: &models::Shift) -> ShiftView {
@@ -830,6 +880,89 @@ mod tests {
         assert_eq!(v.payment_lines.len(), 1);
         assert_eq!(v.payment_lines[0].total_minor, 12000);
         assert!(v.from_server);
+    }
+
+    // ── cached_report_view: the offline close of a shift that already sold ────
+
+    /// The regression this exists for: a teller signs into a shift that ALREADY
+    /// has sales (opened on another device, or their own already-drained ones),
+    /// then loses the network and closes. The outbox holds none of those sales,
+    /// so rebuilding from local state alone expects only the opening float and
+    /// the drawer reads a huge phantom "over".
+    #[test]
+    fn cached_report_view_keeps_the_server_figures_a_drained_shift_already_had() {
+        let mut report = models::ShiftReportResponse::default();
+        report.expected_cash = 60000; // opening 50000 + 10000 already taken
+        report.shift = Box::new(models::Shift {
+            opening_cash: 50000,
+            ..Default::default()
+        });
+        report.total_payments = 10000;
+        report.payment_summary = vec![models::PaymentSummaryRow::new(
+            true,
+            4,
+            "Cash".into(),
+            10000,
+        )];
+
+        // Nothing of this is in the outbox — it all drained before we went offline.
+        let v = cached_report_view(&report, 0, vec![]);
+
+        // The old offline path returned opening cash (50000) and no payments.
+        assert_eq!(v.expected_cash_minor, 60000);
+        assert_eq!(v.total_payments_minor, 10000);
+        assert_eq!(v.payment_lines.len(), 1);
+        // Real figures, but a snapshot — the teller still sees "offline".
+        assert!(!v.from_server);
+    }
+
+    #[test]
+    fn cached_report_view_adds_queued_work_on_top_without_double_counting() {
+        let mut report = models::ShiftReportResponse::default();
+        report.expected_cash = 60000;
+        report.shift = Box::new(models::Shift {
+            opening_cash: 50000,
+            ..Default::default()
+        });
+        // The server already knows about this drained pay-in.
+        report.cash_movements = vec![models::CashMovementSummaryRow {
+            amount: 2000,
+            note: "float top-up".into(),
+            moved_by_name: "Mona".into(),
+            ..Default::default()
+        }];
+        report.cash_movements_in = 2000;
+        report.cash_movements_net = 2000;
+
+        // …and these two are still sitting in our outbox, undrained.
+        let queued = vec![
+            ShiftReportCashLine {
+                amount_minor: 1500,
+                note: "pay-in".into(),
+                moved_by_name: "Ali".into(),
+                created_at: "2026-09-06T10:00:00Z".into(),
+            },
+            ShiftReportCashLine {
+                amount_minor: -500,
+                note: "pay-out".into(),
+                moved_by_name: "Ali".into(),
+                created_at: "2026-09-06T11:00:00Z".into(),
+            },
+        ];
+        let v = cached_report_view(&report, 3000, queued);
+
+        assert_eq!(v.expected_cash_minor, 63000); // 60000 + 3000 queued cash sales
+        // The drained movement is listed once, alongside the two queued ones.
+        assert_eq!(v.cash_movements.len(), 3);
+        assert_eq!(v.cash_in_minor, 3500); // 2000 drained + 1500 queued
+        assert_eq!(v.cash_out_minor, 500);
+        assert_eq!(v.cash_movements_net_minor, 3000);
+        assert!(!v.from_server);
+    }
+
+    #[test]
+    fn report_cache_key_is_the_key_the_past_shift_path_already_writes() {
+        assert_eq!(report_cache_key("abc-123"), "cache:shift_report:abc-123");
     }
 
     // ── report_view: full field projection + movements + ordering ─────────────

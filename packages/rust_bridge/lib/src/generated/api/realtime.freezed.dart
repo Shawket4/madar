@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'realtime.dart';
@@ -9,6 +9,7 @@ part of 'realtime.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -20,7 +21,7 @@ mixin _$AlertCommand {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AlertCommand);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AlertCommand);
 }
 
 
@@ -29,7 +30,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'AlertCommand()';
+    return 'AlertCommand()';
 }
 
 
@@ -191,7 +192,7 @@ class AlertCommand_Ping extends AlertCommand {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AlertCommand_Ping);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AlertCommand_Ping);
 }
 
 
@@ -200,7 +201,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'AlertCommand.ping()';
+    return 'AlertCommand.ping()';
 }
 
 
@@ -230,16 +231,18 @@ $AlertCommand_NotifyCopyWith<AlertCommand_Notify> get copyWith => _$AlertCommand
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AlertCommand_Notify&&(identical(other.title, title) || other.title == title)&&(identical(other.body, body) || other.body == body)&&(identical(other.tag, tag) || other.tag == tag));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AlertCommand_Notify&&(identical(other.title, title) || other.title == title)&&(identical(other.body, body) || other.body == body)&&(identical(other.tag, tag) || other.tag == tag));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,title,body,tag);
+int get hashCode {
+    return Object.hash(runtimeType,title,body,tag);
+}
 
 @override
 String toString() {
-  return 'AlertCommand.notify(title: $title, body: $body, tag: $tag)';
+    return 'AlertCommand.notify(title: $title, body: $body, tag: $tag)';
 }
 
 
@@ -293,7 +296,7 @@ class AlertCommand_Haptic extends AlertCommand {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AlertCommand_Haptic);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AlertCommand_Haptic);
 }
 
 
@@ -302,7 +305,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'AlertCommand.haptic()';
+    return 'AlertCommand.haptic()';
 }
 
 
@@ -320,7 +323,7 @@ mixin _$RealtimeMessage {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RealtimeMessage);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is RealtimeMessage);
 }
 
 
@@ -329,7 +332,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'RealtimeMessage()';
+    return 'RealtimeMessage()';
 }
 
 
@@ -491,16 +494,18 @@ $RealtimeMessage_EventCopyWith<RealtimeMessage_Event> get copyWith => _$Realtime
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RealtimeMessage_Event&&(identical(other.eventType, eventType) || other.eventType == eventType)&&(identical(other.data, data) || other.data == data));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is RealtimeMessage_Event&&(identical(other.eventType, eventType) || other.eventType == eventType)&&(identical(other.data, data) || other.data == data));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,eventType,data);
+int get hashCode {
+    return Object.hash(runtimeType,eventType,data);
+}
 
 @override
 String toString() {
-  return 'RealtimeMessage.event(eventType: $eventType, data: $data)';
+    return 'RealtimeMessage.event(eventType: $eventType, data: $data)';
 }
 
 
@@ -558,16 +563,18 @@ $RealtimeMessage_ConnectionChangedCopyWith<RealtimeMessage_ConnectionChanged> ge
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RealtimeMessage_ConnectionChanged&&(identical(other.connected, connected) || other.connected == connected));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is RealtimeMessage_ConnectionChanged&&(identical(other.connected, connected) || other.connected == connected));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,connected);
+int get hashCode {
+    return Object.hash(runtimeType,connected);
+}
 
 @override
 String toString() {
-  return 'RealtimeMessage.connectionChanged(connected: $connected)';
+    return 'RealtimeMessage.connectionChanged(connected: $connected)';
 }
 
 
