@@ -243,6 +243,7 @@ mod tests {
             addon_slots: vec![],
             optional_fields: optionals,
             recipes,
+            recipe_steps: vec![],
         }
     }
 

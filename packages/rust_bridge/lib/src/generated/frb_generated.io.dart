@@ -375,6 +375,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<RecipeLineView> dco_decode_list_recipe_line_view(dynamic raw);
 
   @protected
+  List<RecipeStepView> dco_decode_list_recipe_step_view(dynamic raw);
+
+  @protected
   List<ShiftReportCashLine> dco_decode_list_shift_report_cash_line(dynamic raw);
 
   @protected
@@ -486,6 +489,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RecipeLineView dco_decode_recipe_line_view(dynamic raw);
+
+  @protected
+  RecipeStepView dco_decode_recipe_step_view(dynamic raw);
 
   @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
@@ -971,6 +977,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<RecipeStepView> sse_decode_list_recipe_step_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ShiftReportCashLine> sse_decode_list_shift_report_cash_line(
     SseDeserializer deserializer,
   );
@@ -1110,6 +1121,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RecipeLineView sse_decode_recipe_line_view(SseDeserializer deserializer);
+
+  @protected
+  RecipeStepView sse_decode_recipe_step_view(SseDeserializer deserializer);
 
   @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
@@ -1712,6 +1726,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_recipe_step_view(
+    List<RecipeStepView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_shift_report_cash_line(
     List<ShiftReportCashLine> self,
     SseSerializer serializer,
@@ -1891,6 +1911,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_recipe_line_view(
     RecipeLineView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_recipe_step_view(
+    RecipeStepView self,
     SseSerializer serializer,
   );
 

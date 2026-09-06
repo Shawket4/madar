@@ -7482,6 +7482,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  List<RecipeStepView> dco_decode_list_recipe_step_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_recipe_step_view).toList();
+  }
+
+  @protected
   List<ShiftReportCashLine> dco_decode_list_shift_report_cash_line(
     dynamic raw,
   ) {
@@ -7605,8 +7611,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   MenuItemView dco_decode_menu_item_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 14)
-      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
     return MenuItemView(
       id: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
@@ -7622,6 +7628,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       addonSlots: dco_decode_list_addon_slot_view(arr[11]),
       optionalFields: dco_decode_list_optional_field_view(arr[12]),
       recipes: dco_decode_list_recipe_line_view(arr[13]),
+      recipeSteps: dco_decode_list_recipe_step_view(arr[14]),
     );
   }
 
@@ -7950,6 +7957,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       sizeLabel: dco_decode_opt_String(arr[3]),
       category: dco_decode_String(arr[4]),
       orgIngredientId: dco_decode_opt_String(arr[5]),
+    );
+  }
+
+  @protected
+  RecipeStepView dco_decode_recipe_step_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return RecipeStepView(
+      name: dco_decode_String(arr[0]),
+      note: dco_decode_opt_String(arr[1]),
+      localAnimationPath: dco_decode_opt_String(arr[2]),
+      animationUrl: dco_decode_opt_String(arr[3]),
     );
   }
 
@@ -9767,6 +9788,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  List<RecipeStepView> sse_decode_list_recipe_step_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <RecipeStepView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_recipe_step_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<ShiftReportCashLine> sse_decode_list_shift_report_cash_line(
     SseDeserializer deserializer,
   ) {
@@ -9960,6 +9995,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_addonSlots = sse_decode_list_addon_slot_view(deserializer);
     var var_optionalFields = sse_decode_list_optional_field_view(deserializer);
     var var_recipes = sse_decode_list_recipe_line_view(deserializer);
+    var var_recipeSteps = sse_decode_list_recipe_step_view(deserializer);
     return MenuItemView(
       id: var_id,
       name: var_name,
@@ -9975,6 +10011,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       addonSlots: var_addonSlots,
       optionalFields: var_optionalFields,
       recipes: var_recipes,
+      recipeSteps: var_recipeSteps,
     );
   }
 
@@ -10430,6 +10467,21 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       sizeLabel: var_sizeLabel,
       category: var_category,
       orgIngredientId: var_orgIngredientId,
+    );
+  }
+
+  @protected
+  RecipeStepView sse_decode_recipe_step_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_name = sse_decode_String(deserializer);
+    var var_note = sse_decode_opt_String(deserializer);
+    var var_localAnimationPath = sse_decode_opt_String(deserializer);
+    var var_animationUrl = sse_decode_opt_String(deserializer);
+    return RecipeStepView(
+      name: var_name,
+      note: var_note,
+      localAnimationPath: var_localAnimationPath,
+      animationUrl: var_animationUrl,
     );
   }
 
@@ -12033,6 +12085,18 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_list_recipe_step_view(
+    List<RecipeStepView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_recipe_step_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_shift_report_cash_line(
     List<ShiftReportCashLine> self,
     SseSerializer serializer,
@@ -12196,6 +12260,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_list_addon_slot_view(self.addonSlots, serializer);
     sse_encode_list_optional_field_view(self.optionalFields, serializer);
     sse_encode_list_recipe_line_view(self.recipes, serializer);
+    sse_encode_list_recipe_step_view(self.recipeSteps, serializer);
   }
 
   @protected
@@ -12536,6 +12601,18 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.sizeLabel, serializer);
     sse_encode_String(self.category, serializer);
     sse_encode_opt_String(self.orgIngredientId, serializer);
+  }
+
+  @protected
+  void sse_encode_recipe_step_view(
+    RecipeStepView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.name, serializer);
+    sse_encode_opt_String(self.note, serializer);
+    sse_encode_opt_String(self.localAnimationPath, serializer);
+    sse_encode_opt_String(self.animationUrl, serializer);
   }
 
   @protected

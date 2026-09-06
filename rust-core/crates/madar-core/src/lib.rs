@@ -36,12 +36,12 @@ pub mod delivery;
 pub mod device;
 /// The coarse FFI error model the host reacts to (PLAN §7.6).
 pub mod error;
+mod filestore;
 /// Static UI-string localization — one source of truth for both hosts.
 /// Server-backed held orders (parked carts that own floor tables), the
 /// floor-layout mirror, and the transfer waitlist — all offline-first.
 pub mod held;
 pub mod i18n;
-mod images;
 /// Kitchen Display System — station feed + per-line bump (kitchen topic consumer).
 pub mod kds;
 /// LAN offline relay (Phase E) — signed message envelope, per-branch HMAC, peer
@@ -226,7 +226,10 @@ pub struct MadarCore {
     /// to 0 by any confirmed connectivity (a ping OK or an outbox ack).
     offline_probe_fails: std::sync::atomic::AtomicU32,
     /// Core-owned catalog image cache (menu/bundle photos + org logo).
-    images: images::ImageStore,
+    images: filestore::FileStore,
+    /// Recipe-step animations, in their own directory so evicting the orphans
+    /// of one cache never deletes the other's files.
+    animations: filestore::FileStore,
     /// Parsed-catalog cache (see [`CatalogSnapshot`]). Rebuilt lazily on read;
     /// keyed by locale (a switch re-projects on the next read) and dropped by
     /// `refresh_catalog` after the kv commit + image phase — the only
@@ -314,7 +317,8 @@ impl MadarCore {
             .unwrap_or(0);
         let clock_skew_secs = Arc::new(std::sync::atomic::AtomicI64::new(skew));
         let api = net::ApiClient::new(config.base_url.clone(), clock_skew_secs.clone())?;
-        let images = images::ImageStore::new(&config.db_path);
+        let images = filestore::FileStore::new(&config.db_path, "images");
+        let animations = filestore::FileStore::new(&config.db_path, "animations");
         let locale = Arc::new(RwLock::new(config.locale.clone()));
         // Dashboard scope override, restored across restarts (dashboard app only;
         // absent for the POS, which never writes this key).
@@ -331,6 +335,7 @@ impl MadarCore {
             session: RwLock::new(None),
             clock_skew_secs,
             images,
+            animations,
             catalog_cache: Mutex::new(None),
             offline_probe_fails: std::sync::atomic::AtomicU32::new(0),
             auth_paused: std::sync::atomic::AtomicBool::new(false),
@@ -772,6 +777,62 @@ impl MadarCore {
                     if let Ok(bytes) = self.api.get_url_bytes(url).await {
                         if !bytes.is_empty() {
                             let _ = self.images.store(url, &bytes);
+                        }
+                    }
+                });
+                futures_util::future::join_all(downloads).await;
+            }
+        })
+        .await;
+    }
+
+    /// A step's address is relative to the API base (so no extra configuration
+    /// has to agree with the deployment); the cache is keyed by the absolute
+    /// URL, whose `?v=` fingerprint makes a replaced animation a new file.
+    fn animation_absolute_url(&self, path: &str) -> String {
+        if path.starts_with("http://") || path.starts_with("https://") {
+            return path.to_string();
+        }
+        format!("{}{}", self.api.base_url().trim_end_matches('/'), path)
+    }
+
+    /// Every step animation the CURRENT menu references — never the library.
+    fn step_animation_urls(&self) -> std::collections::HashSet<String> {
+        let locale = self.current_locale();
+        let mut urls = std::collections::HashSet::new();
+        if let Ok(items) = menu::menu_items(&self.store, &locale) {
+            for item in items {
+                for step in item.recipe_steps {
+                    if let Some(u) = step.animation_url.filter(|u| !u.is_empty()) {
+                        urls.insert(self.animation_absolute_url(&u));
+                    }
+                }
+            }
+        }
+        urls
+    }
+
+    /// The animation phase of `refresh_catalog`, mirroring the image phase:
+    /// evict what this menu no longer references, then download what it does
+    /// and we lack. Bounded concurrency, a hard time budget, and every failure
+    /// swallowed — a step without its animation still shows its name.
+    async fn sync_step_animations(&self) {
+        let urls = self.step_animation_urls();
+        self.animations.evict_except(&urls);
+        let missing: Vec<String> = urls
+            .into_iter()
+            .filter(|u| !self.animations.is_cached(u))
+            .collect();
+        if missing.is_empty() {
+            return;
+        }
+        let budget = std::time::Duration::from_secs(15);
+        let _ = tokio::time::timeout(budget, async {
+            for chunk in missing.chunks(5) {
+                let downloads = chunk.iter().map(|url| async move {
+                    if let Ok(bytes) = self.api.get_url_bytes(url).await {
+                        if !bytes.is_empty() {
+                            let _ = self.animations.store(url, &bytes);
                         }
                     }
                 });
@@ -1251,7 +1312,8 @@ impl MadarCore {
                 )
             }
             "no_show_booking" => {
-                let cmd: bookings::NoShowBookingCommand = match serde_json::from_str(&item.payload) {
+                let cmd: bookings::NoShowBookingCommand = match serde_json::from_str(&item.payload)
+                {
                     Ok(c) => c,
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
@@ -2596,6 +2658,13 @@ impl MadarCore {
                 .as_deref()
                 .and_then(|u| self.images.path_if_cached(u));
         }
+        for step in items.iter_mut().flat_map(|i| i.recipe_steps.iter_mut()) {
+            step.local_animation_path = step
+                .animation_url
+                .as_deref()
+                .map(|u| self.animation_absolute_url(u))
+                .and_then(|u| self.animations.path_if_cached(&u));
+        }
         let mut bundles = menu::bundles(&self.store, &locale)?;
         for bundle in &mut bundles {
             bundle.local_image_path = bundle
@@ -3195,7 +3264,12 @@ impl MadarCore {
 
     /// Enqueue one floor op (no shift gating — floor state floats free of
     /// tills, like waiter tickets).
-    fn enqueue_held_op(&self, op_type: &str, op_id: String, payload: &str) -> Result<(), CoreError> {
+    fn enqueue_held_op(
+        &self,
+        op_type: &str,
+        op_id: String,
+        payload: &str,
+    ) -> Result<(), CoreError> {
         let (user_id, clock_offset_ms) = self.outbox_meta();
         self.store.enqueue(&store::NewOutboxOp {
             id: op_id.clone(),
@@ -3979,6 +4053,10 @@ impl MadarCore {
         // Downloads whatever the fresh catalog references that isn't on disk
         // yet and evicts orphans; a flaky CDN can never fail the catalog.
         self.sync_catalog_images().await;
+        // Step animations, same discipline: only what THIS menu references,
+        // orphans evicted, failures swallowed. Nothing outside a manual sync
+        // ever downloads one.
+        self.sync_step_animations().await;
         // The kv mirrors (and possibly the on-disk images) just changed —
         // drop the parsed snapshot so the next read re-projects.
         self.invalidate_catalog_cache();
@@ -4008,8 +4086,7 @@ impl MadarCore {
                 // between this pull and its drain.
                 if let Ok(items) = self.store.pending() {
                     for i in items.iter().filter(|i| i.op_type == "clear_table") {
-                        if let Ok(cmd) =
-                            serde_json::from_str::<held::TableStateCommand>(&i.payload)
+                        if let Ok(cmd) = serde_json::from_str::<held::TableStateCommand>(&i.payload)
                         {
                             let _ = held::set_table_state_local(
                                 &self.store,
@@ -4066,14 +4143,18 @@ impl MadarCore {
         };
         for i in &items {
             let (id, status) = match i.op_type.as_str() {
-                "seat_booking" => match serde_json::from_str::<bookings::SeatBookingCommand>(&i.payload) {
-                    Ok(c) => (c.booking_id, "seated"),
-                    Err(_) => continue,
-                },
-                "no_show_booking" => match serde_json::from_str::<bookings::NoShowBookingCommand>(&i.payload) {
-                    Ok(c) => (c.booking_id, "no_show"),
-                    Err(_) => continue,
-                },
+                "seat_booking" => {
+                    match serde_json::from_str::<bookings::SeatBookingCommand>(&i.payload) {
+                        Ok(c) => (c.booking_id, "seated"),
+                        Err(_) => continue,
+                    }
+                }
+                "no_show_booking" => {
+                    match serde_json::from_str::<bookings::NoShowBookingCommand>(&i.payload) {
+                        Ok(c) => (c.booking_id, "no_show"),
+                        Err(_) => continue,
+                    }
+                }
                 _ => continue,
             };
             let _ = bookings::set_status_local(&self.store, &id, status);
@@ -4090,12 +4171,13 @@ impl MadarCore {
         items
             .iter()
             .filter_map(|i| match i.op_type.as_str() {
-                "park_held_order" | "claim_held_order" | "release_held_order"
-                | "discard_held_order" | "complete_held_order" => {
-                    serde_json::from_str::<held::HeldOpCommand>(&i.payload)
-                        .ok()
-                        .map(|c| c.held_order_id)
-                }
+                "park_held_order"
+                | "claim_held_order"
+                | "release_held_order"
+                | "discard_held_order"
+                | "complete_held_order" => serde_json::from_str::<held::HeldOpCommand>(&i.payload)
+                    .ok()
+                    .map(|c| c.held_order_id),
                 "create_table_transfer" | "cancel_table_transfer" | "fulfill_table_transfer" => {
                     serde_json::from_str::<held::TransferOpCommand>(&i.payload)
                         .ok()
@@ -5349,8 +5431,8 @@ impl MadarCore {
     /// keeps its place and only genuinely untouched history ages out. Anything
     /// dropped is re-fetchable while online.
     pub fn prune_stale_caches(&self) -> Result<u32, CoreError> {
-        let cutoff = (chrono::Utc::now() - chrono::Duration::days(CACHE_RETENTION_DAYS))
-            .to_rfc3339();
+        let cutoff =
+            (chrono::Utc::now() - chrono::Duration::days(CACHE_RETENTION_DAYS)).to_rfc3339();
         let mut n = 0;
         for prefix in CACHE_HISTORY_PREFIXES {
             n += self.store.purge_cache_older_than(prefix, &cutoff)?;
@@ -6568,6 +6650,98 @@ mod tests {
         // return cleanly (it can never fail the catalog) with nothing cached.
         core.sync_catalog_images().await;
         assert_eq!(core.org_logo_local_path(), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn step_animations_download_only_what_the_menu_uses() {
+        let dir = std::env::temp_dir().join(format!("madar-anim-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let core = MadarCore::new(MadarConfig {
+            base_url: "http://127.0.0.1:1".into(), // nothing listening
+            environment: "dev".into(),
+            db_path: dir.join("madar.db").to_string_lossy().into_owned(),
+            locale: "en".into(),
+        })
+        .unwrap();
+        // One item using one preset step and one written step.
+        core.store
+            .kv_put(
+                menu::K_MENU_ITEMS,
+                r#"[{
+                  "id": "00000000-0000-0000-0000-0000000000a1",
+                  "org_id": "00000000-0000-0000-0000-000000000001",
+                  "name": "Latte", "name_translations": {}, "base_price": 5000,
+                  "is_active": true, "allowed_addon_ids": [],
+                  "recipe_steps": [
+                    {"kind": "preset", "name": "Steam milk", "name_ar": "",
+                     "animation_url": "/static/step-animations/steam_milk.json?v=abc"},
+                    {"kind": "custom", "name": "Serve", "name_ar": "", "animation_url": null}
+                  ]
+                }]"#,
+            )
+            .unwrap();
+
+        // The referenced animation, made absolute against the API base — and
+        // ONLY that one. The library the server holds is never enumerated here.
+        let urls = core.step_animation_urls();
+        assert_eq!(urls.len(), 1, "a written step pulls nothing");
+        assert!(urls.contains("http://127.0.0.1:1/static/step-animations/steam_milk.json?v=abc"));
+
+        // Every download fails (connect refused): the phase still returns
+        // cleanly and the step simply has no local file to draw.
+        core.sync_step_animations().await;
+        let items = core.list_menu_items().unwrap();
+        assert_eq!(items[0].recipe_steps[0].local_animation_path, None);
+
+        // A file that IS cached resolves onto the projected step, and the
+        // animation cache is separate from the image one, so evicting the
+        // orphans of either never deletes the other's files.
+        let url = "http://127.0.0.1:1/static/step-animations/steam_milk.json?v=abc";
+        core.animations
+            .store(url, br#"{"v":"5.7.4","layers":[]}"#)
+            .unwrap();
+        core.images
+            .store("http://127.0.0.1:1/x.png", b"photo")
+            .unwrap();
+        core.invalidate_catalog_cache();
+        let items = core.list_menu_items().unwrap();
+        assert!(
+            items[0].recipe_steps[0]
+                .local_animation_path
+                .as_deref()
+                .is_some_and(|p| p.ends_with(".json")),
+            "the cached animation resolves to a local path"
+        );
+        assert_eq!(items[0].recipe_steps[1].local_animation_path, None);
+
+        // Re-syncing with the SAME menu keeps it; the image store is untouched.
+        core.sync_step_animations().await;
+        assert!(core.animations.is_cached(url), "still referenced, so kept");
+        assert!(core.images.is_cached("http://127.0.0.1:1/x.png"));
+
+        // Drop the step from the menu: the next sync evicts its animation.
+        core.store
+            .kv_put(
+                menu::K_MENU_ITEMS,
+                r#"[{
+                  "id": "00000000-0000-0000-0000-0000000000a1",
+                  "org_id": "00000000-0000-0000-0000-000000000001",
+                  "name": "Latte", "name_translations": {}, "base_price": 5000,
+                  "is_active": true, "allowed_addon_ids": [], "recipe_steps": []
+                }]"#,
+            )
+            .unwrap();
+        core.invalidate_catalog_cache();
+        core.sync_step_animations().await;
+        assert!(
+            !core.animations.is_cached(url),
+            "unreferenced animations are swept"
+        );
+        assert!(
+            core.images.is_cached("http://127.0.0.1:1/x.png"),
+            "the image cache is its own"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -7869,7 +8043,11 @@ impl MadarCore {
     /// The party arrived: mark the booking seated (optionally on another
     /// table). Optimistic-local + queued; the ticket the waiter fires next
     /// carries the booking id and links itself server-side.
-    pub fn seat_booking(&self, booking_id: String, table_id: Option<String>) -> Result<(), CoreError> {
+    pub fn seat_booking(
+        &self,
+        booking_id: String,
+        table_id: Option<String>,
+    ) -> Result<(), CoreError> {
         bookings::set_status_local(&self.store, &booking_id, "seated")?;
         held::set_booking_status_local(&self.store, &booking_id, "seated")?;
         let request = match table_id {

@@ -18,6 +18,8 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.3.2
+  # Recipe-step animations play from the core\'s on-disk cache (Lottie.file).
+  lottie: ^3.3.2
   rust_bridge: ^0.1.0
 
 dev_dependencies:

@@ -383,6 +383,9 @@ class MenuItemView {
   /// The item's recipe lines (per size) — shown in the customization sheet.
   final List<RecipeLineView> recipes;
 
+  /// How the item is made, in order — shown under the recipe.
+  final List<RecipeStepView> recipeSteps;
+
   const MenuItemView({
     required this.id,
     required this.name,
@@ -398,6 +401,7 @@ class MenuItemView {
     required this.addonSlots,
     required this.optionalFields,
     required this.recipes,
+    required this.recipeSteps,
   });
 
   @override
@@ -415,7 +419,8 @@ class MenuItemView {
       sizes.hashCode ^
       addonSlots.hashCode ^
       optionalFields.hashCode ^
-      recipes.hashCode;
+      recipes.hashCode ^
+      recipeSteps.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -435,7 +440,8 @@ class MenuItemView {
           sizes == other.sizes &&
           addonSlots == other.addonSlots &&
           optionalFields == other.optionalFields &&
-          recipes == other.recipes;
+          recipes == other.recipes &&
+          recipeSteps == other.recipeSteps;
 }
 
 class OptionalFieldView {
@@ -571,4 +577,40 @@ class RecipeLineView {
           sizeLabel == other.sizeLabel &&
           category == other.category &&
           orgIngredientId == other.orgIngredientId;
+}
+
+/// One preparation step: localized, and pointing at the animation's CACHED
+/// file so the sheet plays it with no network.
+class RecipeStepView {
+  final String name;
+  final String? note;
+
+  /// On-disk path of the cached animation — `None` for a written step, and
+  /// until the animation has been downloaded by a sync.
+  final String? localAnimationPath;
+  final String? animationUrl;
+
+  const RecipeStepView({
+    required this.name,
+    this.note,
+    this.localAnimationPath,
+    this.animationUrl,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      note.hashCode ^
+      localAnimationPath.hashCode ^
+      animationUrl.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RecipeStepView &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          note == other.note &&
+          localAnimationPath == other.localAnimationPath &&
+          animationUrl == other.animationUrl;
 }

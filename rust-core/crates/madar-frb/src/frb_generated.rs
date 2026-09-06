@@ -8435,6 +8435,7 @@ const _: fn() = || {
         let _: Vec<crate::api::catalog::AddonSlotView> = MenuItemView.addon_slots;
         let _: Vec<crate::api::catalog::OptionalFieldView> = MenuItemView.optional_fields;
         let _: Vec<crate::api::catalog::RecipeLineView> = MenuItemView.recipes;
+        let _: Vec<crate::api::catalog::RecipeStepView> = MenuItemView.recipe_steps;
     }
     {
         let ModifierGroupView = None::<crate::api::cart::ModifierGroupView>.unwrap();
@@ -8587,6 +8588,13 @@ const _: fn() = || {
         let _: Option<String> = RecipeLineView.size_label;
         let _: String = RecipeLineView.category;
         let _: Option<String> = RecipeLineView.org_ingredient_id;
+    }
+    {
+        let RecipeStepView = None::<crate::api::catalog::RecipeStepView>.unwrap();
+        let _: String = RecipeStepView.name;
+        let _: Option<String> = RecipeStepView.note;
+        let _: Option<String> = RecipeStepView.local_animation_path;
+        let _: Option<String> = RecipeStepView.animation_url;
     }
     {
         let SessionSnapshot = None::<crate::api::types::SessionSnapshot>.unwrap();
@@ -10220,6 +10228,20 @@ impl SseDecode for Vec<crate::api::catalog::RecipeLineView> {
     }
 }
 
+impl SseDecode for Vec<crate::api::catalog::RecipeStepView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::catalog::RecipeStepView>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::shift::ShiftReportCashLine> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10437,6 +10459,8 @@ impl SseDecode for crate::api::catalog::MenuItemView {
         let mut var_optionalFields =
             <Vec<crate::api::catalog::OptionalFieldView>>::sse_decode(deserializer);
         let mut var_recipes = <Vec<crate::api::catalog::RecipeLineView>>::sse_decode(deserializer);
+        let mut var_recipeSteps =
+            <Vec<crate::api::catalog::RecipeStepView>>::sse_decode(deserializer);
         return crate::api::catalog::MenuItemView {
             id: var_id,
             name: var_name,
@@ -10452,6 +10476,7 @@ impl SseDecode for crate::api::catalog::MenuItemView {
             addon_slots: var_addonSlots,
             optional_fields: var_optionalFields,
             recipes: var_recipes,
+            recipe_steps: var_recipeSteps,
         };
     }
 }
@@ -10930,6 +10955,22 @@ impl SseDecode for crate::api::catalog::RecipeLineView {
             size_label: var_sizeLabel,
             category: var_category,
             org_ingredient_id: var_orgIngredientId,
+        };
+    }
+}
+
+impl SseDecode for crate::api::catalog::RecipeStepView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_note = <Option<String>>::sse_decode(deserializer);
+        let mut var_localAnimationPath = <Option<String>>::sse_decode(deserializer);
+        let mut var_animationUrl = <Option<String>>::sse_decode(deserializer);
+        return crate::api::catalog::RecipeStepView {
+            name: var_name,
+            note: var_note,
+            local_animation_path: var_localAnimationPath,
+            animation_url: var_animationUrl,
         };
     }
 }
@@ -13159,6 +13200,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::catalog::MenuItemV
             self.0.addon_slots.into_into_dart().into_dart(),
             self.0.optional_fields.into_into_dart().into_dart(),
             self.0.recipes.into_into_dart().into_dart(),
+            self.0.recipe_steps.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -13619,6 +13661,29 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::catalog::RecipeLin
     for crate::api::catalog::RecipeLineView
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::catalog::RecipeLineView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::catalog::RecipeStepView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.name.into_into_dart().into_dart(),
+            self.0.note.into_into_dart().into_dart(),
+            self.0.local_animation_path.into_into_dart().into_dart(),
+            self.0.animation_url.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::catalog::RecipeStepView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::catalog::RecipeStepView>>
+    for crate::api::catalog::RecipeStepView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::catalog::RecipeStepView> {
         self.into()
     }
 }
@@ -15017,6 +15082,16 @@ impl SseEncode for Vec<crate::api::catalog::RecipeLineView> {
     }
 }
 
+impl SseEncode for Vec<crate::api::catalog::RecipeStepView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::catalog::RecipeStepView>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::shift::ShiftReportCashLine> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15190,6 +15265,7 @@ impl SseEncode for crate::api::catalog::MenuItemView {
         <Vec<crate::api::catalog::AddonSlotView>>::sse_encode(self.addon_slots, serializer);
         <Vec<crate::api::catalog::OptionalFieldView>>::sse_encode(self.optional_fields, serializer);
         <Vec<crate::api::catalog::RecipeLineView>>::sse_encode(self.recipes, serializer);
+        <Vec<crate::api::catalog::RecipeStepView>>::sse_encode(self.recipe_steps, serializer);
     }
 }
 
@@ -15516,6 +15592,16 @@ impl SseEncode for crate::api::catalog::RecipeLineView {
         <Option<String>>::sse_encode(self.size_label, serializer);
         <String>::sse_encode(self.category, serializer);
         <Option<String>>::sse_encode(self.org_ingredient_id, serializer);
+    }
+}
+
+impl SseEncode for crate::api::catalog::RecipeStepView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.name, serializer);
+        <Option<String>>::sse_encode(self.note, serializer);
+        <Option<String>>::sse_encode(self.local_animation_path, serializer);
+        <Option<String>>::sse_encode(self.animation_url, serializer);
     }
 }
 

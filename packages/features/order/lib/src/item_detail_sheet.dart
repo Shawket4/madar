@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
@@ -10,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Family TYPE annotations moved to the misc library in Riverpod 3.
 import 'package:flutter_riverpod/misc.dart';
+import 'package:lottie/lottie.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// A host-only draft of one configured bundle component (what the
@@ -743,6 +745,15 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                               for (final line in config.recipeLines) ...[
                                 _RecipeRow(line: line),
                                 const SizedBox(height: Space.sm),
+                              ],
+                              // How it's made, under the amounts. The
+                              // animations were cached by the last sync, so
+                              // this draws with no network.
+                              if (_item.recipeSteps.isNotEmpty) ...[
+                                const SizedBox(height: Space.xs),
+                                SectionTitle(bridge.tr(key: 'order.steps')),
+                                const SizedBox(height: Space.sm),
+                                _StepList(steps: _item.recipeSteps),
                               ],
                               const SizedBox(height: Space.xs),
                             ],
@@ -1793,6 +1804,157 @@ class _SelectChip extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The preparation steps, numbered, with one animation playing at a time.
+///
+/// A POS runs on cheap tablets, and a six-step recipe rendered as six looping
+/// Lottie players is six render loops for a sheet the teller reads in a
+/// glance. Only the step being looked at animates; the rest hold their first
+/// frame, and tapping a row moves the spotlight. A step whose animation has
+/// not been downloaded yet — or a written one, which never has an animation —
+/// shows its name alone rather than a gap.
+class _StepList extends StatefulWidget {
+  const _StepList({required this.steps});
+
+  final List<RecipeStepView> steps;
+
+  @override
+  State<_StepList> createState() => _StepListState();
+}
+
+class _StepListState extends State<_StepList> {
+  /// The step currently animating. The first one with an animation, so the
+  /// section is alive on open without every row competing for the CPU.
+  int _playing = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _playing = widget.steps.indexWhere((s) => s.localAnimationPath != null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < widget.steps.length; i++) ...[
+          _StepRow(
+            step: widget.steps[i],
+            index: i + 1,
+            playing: i == _playing,
+            onTap: widget.steps[i].localAnimationPath == null
+                ? null
+                : () => setState(() => _playing = i),
+            colors: colors,
+          ),
+          if (i != widget.steps.length - 1) const SizedBox(height: Space.sm),
+        ],
+      ],
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  const _StepRow({
+    required this.step,
+    required this.index,
+    required this.playing,
+    required this.onTap,
+    required this.colors,
+  });
+
+  final RecipeStepView step;
+  final int index;
+  final bool playing;
+  final VoidCallback? onTap;
+  final MadarColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = step.localAnimationPath;
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    return Semantics(
+      button: onTap != null,
+      label: '$index. ${step.name}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsetsDirectional.all(Space.md),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(Radii.sm),
+            border: Border.all(color: playing ? colors.accent : colors.border),
+          ),
+          child: Row(
+            children: [
+              SizedBox.square(
+                dimension: Metrics.ingredientBox,
+                child: path == null
+                    // No animation: the number carries the order instead.
+                    ? Center(
+                        child: Text(
+                          '$index',
+                          style: MadarType.body.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: colors.textMuted,
+                          ),
+                        ),
+                      )
+                    : Lottie.file(
+                        File(path),
+                        // Only the spotlit row animates, and never when the
+                        // device asks for reduced motion.
+                        animate: playing && !reduceMotion,
+                        repeat: true,
+                        fit: BoxFit.contain,
+                        // A file that went missing between the sync and now
+                        // must not take the sheet down with it.
+                        errorBuilder: (_, _, _) => Center(
+                          child: Text(
+                            '$index',
+                            style: MadarType.body.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+              const SizedBox(width: Space.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      step.name,
+                      style: MadarType.label.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    if (step.note != null && step.note!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        step.note!,
+                        style: MadarType.labelSm.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

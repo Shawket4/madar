@@ -1,37 +1,41 @@
-//! Core-owned catalog image cache — menu/bundle photos + the org logo.
+//! Core-owned caches of catalog files: menu/bundle photos and the org logo in
+//! one store, recipe-step animations in another.
 //!
-//! The core downloads every catalog image during `refresh_catalog` (after the
-//! data mirror commits) and stores the bytes on disk under a directory derived
-//! from the db path (`<db_dir>/images/`). The host then renders from LOCAL
-//! paths surfaced on the existing views — so every photo is available offline
-//! from the first refresh, including items the teller never scrolled to while
-//! online, and the Dart side needs no network image stack at all.
+//! The core downloads what the catalog references during `refresh_catalog`
+//! (after the data mirror commits) and stores the bytes on disk under a
+//! directory derived from the db path (`<db_dir>/<kind>/`). The host then
+//! renders from LOCAL paths surfaced on the existing views — so everything is
+//! available offline from the first refresh, including items the teller never
+//! scrolled to while online, and the Dart side needs no network stack for
+//! either photos or animations.
 //!
 //! The FILENAME is the index: a hash of the source URL plus a sensible
-//! extension. Existence on disk == cached; there is no DB table.
-//! LIMITATION (accepted for V1): the same URL with changed bytes behind it is
-//! never re-fetched — dashboards upload new images under new storage URLs in
-//! practice, and a changed URL is a different file here.
+//! extension. Existence on disk == cached; there is no DB table. The same URL
+//! with changed bytes behind it is therefore never re-fetched, which is why a
+//! step animation's address carries a fingerprint of its contents: replacing
+//! one is a new URL here, and the old file is evicted as an orphan.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
-/// Disk store for catalog images. `root == None` (in-memory db) disables it —
-/// every operation becomes a cheap no-op and paths resolve to `None`.
-pub(crate) struct ImageStore {
+/// Disk store for one kind of catalog file. `root == None` (in-memory db)
+/// disables it — every operation becomes a cheap no-op and paths resolve to
+/// `None`. Each kind gets its own directory so evicting the orphans of one
+/// can never delete the other's files.
+pub(crate) struct FileStore {
     root: Option<PathBuf>,
 }
 
-impl ImageStore {
-    /// Derive the store root from the sqlite path (`<db_dir>/images/`).
+impl FileStore {
+    /// Derive the store root from the sqlite path (`<db_dir>/<kind>/`).
     /// An empty `db_path` (in-memory store) disables the cache entirely.
-    pub(crate) fn new(db_path: &str) -> Self {
+    pub(crate) fn new(db_path: &str, kind: &str) -> Self {
         let root = if db_path.is_empty() {
             None
         } else {
-            Path::new(db_path).parent().map(|d| d.join("images"))
+            Path::new(db_path).parent().map(|d| d.join(kind))
         };
         Self { root }
     }
@@ -50,7 +54,7 @@ impl ImageStore {
             .extension()
             .and_then(|e| e.to_str())
             .map(str::to_ascii_lowercase)
-            .filter(|e| matches!(e.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif"))
+            .filter(|e| matches!(e.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif" | "json"))
             .unwrap_or_else(|| "img".into());
         format!("{hex}.{ext}")
     }
@@ -110,31 +114,51 @@ impl ImageStore {
 mod tests {
     use super::*;
 
-    fn temp_store() -> (ImageStore, PathBuf) {
+    fn temp_store() -> (FileStore, PathBuf) {
         let dir = std::env::temp_dir().join(format!("madar-img-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let db = dir.join("madar.db");
-        (ImageStore::new(&db.to_string_lossy()), dir)
+        (FileStore::new(&db.to_string_lossy(), "images"), dir)
+    }
+
+    #[test]
+    fn two_kinds_never_share_a_directory() {
+        let dir = std::env::temp_dir().join(format!("madar-kinds-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("madar.db");
+        let db = db.to_string_lossy().to_string();
+        let images = FileStore::new(&db, "images");
+        let animations = FileStore::new(&db, "animations");
+        images.store("https://cdn.x/a.png", b"photo").unwrap();
+        animations.store("https://api.x/a.json?v=1", b"{}").unwrap();
+        // Evicting one store's orphans cannot reach into the other's files.
+        images.evict_except(&HashSet::new());
+        assert!(
+            animations.is_cached("https://api.x/a.json?v=1"),
+            "the other kind survives"
+        );
+        assert!(!images.is_cached("https://cdn.x/a.png"));
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn file_name_is_stable_and_keeps_image_extensions() {
-        let a = ImageStore::file_name("https://cdn.x/menu/latte.PNG?sig=abc");
-        let b = ImageStore::file_name("https://cdn.x/menu/latte.PNG?sig=abc");
+        let a = FileStore::file_name("https://cdn.x/menu/latte.PNG?sig=abc");
+        let b = FileStore::file_name("https://cdn.x/menu/latte.PNG?sig=abc");
         assert_eq!(a, b, "same URL must always map to the same file");
         assert!(a.ends_with(".png"), "extension survives (lowercased): {a}");
         assert_ne!(
             a,
-            ImageStore::file_name("https://cdn.x/menu/latte.PNG?sig=def"),
+            FileStore::file_name("https://cdn.x/menu/latte.PNG?sig=def"),
             "the query string is part of the identity (signed URLs differ)"
         );
-        let odd = ImageStore::file_name("https://cdn.x/blob/8f3a");
+        let odd = FileStore::file_name("https://cdn.x/blob/8f3a");
         assert!(odd.ends_with(".img"), "no recognizable extension → .img");
     }
 
     #[test]
     fn in_memory_store_is_fully_disabled() {
-        let store = ImageStore::new("");
+        let store = FileStore::new("", "images");
         assert!(store.store("https://x/a.png", b"bytes").is_ok());
         assert_eq!(store.path_if_cached("https://x/a.png"), None);
         store.evict_except(&HashSet::new()); // must not panic
