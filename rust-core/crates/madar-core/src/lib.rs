@@ -795,6 +795,11 @@ impl MadarCore {
         let _ = self
             .store
             .purge_acked_older_than(now_ms() - K_ACKED_RETENTION_MS);
+        // Swap out cached shift/order history past the retention window. Rides
+        // the drain rather than a timer of its own: a till that never drains is
+        // offline, and dropping history it cannot re-fetch is the one moment
+        // this must not happen.
+        let _ = self.prune_stale_caches();
         // Auto-heal: re-point any orders stranded by a DEAD open_shift onto the
         // teller's current open shift so the orphan state never persists. Best-effort
         // — when no shift is open to heal onto, the surfaced sync_status.blocked count
@@ -1619,6 +1624,21 @@ fn cached_views<T: serde::de::DeserializeOwned>(store: &store::Store, key: &str)
         .and_then(|s| serde_json::from_str::<Vec<T>>(&s).ok())
         .unwrap_or_default()
 }
+
+// ── cached history retention ─────────────────────────────────────────────────
+/// How long a closed shift and its orders stay fully readable offline before
+/// they are swapped out. See [`MadarCore::prune_stale_caches`].
+pub(crate) const CACHE_RETENTION_DAYS: i64 = 30;
+
+/// The per-shift / per-order cache prefixes the retention sweep covers. These
+/// grow one row per shift or order forever; everything else under `cache:` is a
+/// fixed set of live mirrors replaced wholesale on each pull.
+pub(crate) const CACHE_HISTORY_PREFIXES: &[&str] = &[
+    "cache:shift_report:", // the Z-report behind a past shift
+    "cache:shift_orders:", // that shift's order list
+    "cache:cash:",         // its drawer movements
+    "cache:order:",        // individual orders kept for offline reprint
+];
 
 // ── outbox backoff (mirrors offline_queue.dart constants) ────────────────────
 const K_MAX_RETRIES: i64 = 8;
@@ -5299,6 +5319,29 @@ impl MadarCore {
                 Ok(None)
             }
         }
+    }
+
+    /// Evict cached shift history older than [`CACHE_RETENTION_DAYS`].
+    ///
+    /// A closed shift, its orders, its drawer movements and its Z-report stay
+    /// fully readable offline for the retention window and are then dropped, so
+    /// a till that runs for a year does not carry a year of history in its
+    /// SQLite file. Only per-shift and per-order history is swept — the live
+    /// mirrors (open tickets, KDS, floor, tills) are current state, not history,
+    /// and are replaced wholesale on every pull.
+    ///
+    /// Eviction is by LAST READ-THROUGH, not by the shift's own date: every
+    /// cache write re-stamps `updated_at`, so a shift someone actually opens
+    /// keeps its place and only genuinely untouched history ages out. Anything
+    /// dropped is re-fetchable while online.
+    pub fn prune_stale_caches(&self) -> Result<u32, CoreError> {
+        let cutoff = (chrono::Utc::now() - chrono::Duration::days(CACHE_RETENTION_DAYS))
+            .to_rfc3339();
+        let mut n = 0;
+        for prefix in CACHE_HISTORY_PREFIXES {
+            n += self.store.purge_cache_older_than(prefix, &cutoff)?;
+        }
+        Ok(n)
     }
 
     /// Fetch and cache the server's report for `shift_id`, so an offline close

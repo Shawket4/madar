@@ -651,6 +651,21 @@ impl Store {
         Ok(n as u32)
     }
 
+    /// Drop cached `kv` rows whose key starts with `prefix` and whose last write
+    /// is older than `cutoff` (RFC3339, the format `kv_put` stamps). Returns how
+    /// many rows went.
+    ///
+    /// Prefix matching is `substr`, not `LIKE`: every cache prefix here contains
+    /// an underscore (`cache:shift_orders:`), and `LIKE` would read that as a
+    /// single-character wildcard.
+    pub fn purge_cache_older_than(&self, prefix: &str, cutoff: &str) -> CoreResult<u32> {
+        let n = self.lock().execute(
+            "DELETE FROM kv WHERE substr(k, 1, length(?1)) = ?1 AND updated_at < ?2",
+            params![prefix, cutoff],
+        )?;
+        Ok(n as u32)
+    }
+
     /// Drop every queued command. Only for an explicit destructive sign-out —
     /// offline shifts are real sales, so the default logout preserves them.
     pub fn wipe_outbox(&self) -> CoreResult<()> {
@@ -1240,6 +1255,57 @@ mod tests {
             .unwrap());
         // Acked op is no longer a live dependency target.
         assert_eq!(s.live_seq_of("o1").unwrap(), None);
+    }
+
+    #[test]
+    fn purge_cache_older_than_drops_only_stale_rows_under_the_prefix() {
+        let s = Store::open("").unwrap();
+        s.kv_put("cache:shift_orders:old", "[]").unwrap();
+        s.kv_put("cache:shift_orders:fresh", "[]").unwrap();
+        s.kv_put("cache:open_tickets", "[]").unwrap(); // live mirror, never swept
+        s.kv_put("current_shift", "{}").unwrap(); // not a cache at all
+
+        // Age one row past the window by rewriting its stamp directly.
+        s.lock()
+            .execute(
+                "UPDATE kv SET updated_at = '2020-01-01T00:00:00+00:00' WHERE k = ?1",
+                params!["cache:shift_orders:old"],
+            )
+            .unwrap();
+
+        let cutoff = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
+        assert_eq!(
+            s.purge_cache_older_than("cache:shift_orders:", &cutoff)
+                .unwrap(),
+            1,
+            "only the aged row goes"
+        );
+        assert!(s.kv_get("cache:shift_orders:old").unwrap().is_none());
+        assert!(s.kv_get("cache:shift_orders:fresh").unwrap().is_some());
+        assert!(s.kv_get("cache:open_tickets").unwrap().is_some());
+        assert!(s.kv_get("current_shift").unwrap().is_some());
+    }
+
+    /// `LIKE` would read the `_` in `cache:shift_orders:` as a wildcard and let
+    /// the sweep reach keys it was never scoped to; the prefix match must be literal.
+    #[test]
+    fn purge_cache_older_than_treats_underscore_literally() {
+        let s = Store::open("").unwrap();
+        s.kv_put("cache:shiftXorders:decoy", "[]").unwrap();
+        s.lock()
+            .execute(
+                "UPDATE kv SET updated_at = '2020-01-01T00:00:00+00:00'",
+                [],
+            )
+            .unwrap();
+        let cutoff = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
+        assert_eq!(
+            s.purge_cache_older_than("cache:shift_orders:", &cutoff)
+                .unwrap(),
+            0,
+            "the underscore must not match an arbitrary character"
+        );
+        assert!(s.kv_get("cache:shiftXorders:decoy").unwrap().is_some());
     }
 
     #[test]
