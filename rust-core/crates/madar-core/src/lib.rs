@@ -1640,6 +1640,22 @@ pub(crate) const CACHE_HISTORY_PREFIXES: &[&str] = &[
     "cache:order:",        // individual orders kept for offline reprint
 ];
 
+/// Ceilings on how MANY rows each history prefix may hold, applied after the age
+/// sweep. The window bounds how old cached history gets; it does not bound how
+/// much of it there is, and `cache:order:` grows by one full order record for
+/// every order anyone opens — hundreds a day in a busy branch, all of them well
+/// inside 30 days.
+///
+/// The shift-scoped caches get a smaller ceiling simply because they are
+/// one-per-shift: 400 is already far more shifts than 30 days can produce, so it
+/// only ever catches a clock that jumped.
+pub(crate) const CACHE_ROW_CAPS: &[(&str, u32)] = &[
+    ("cache:order:", 2_000),
+    ("cache:shift_report:", 400),
+    ("cache:shift_orders:", 400),
+    ("cache:cash:", 400),
+];
+
 // ── outbox backoff (mirrors offline_queue.dart constants) ────────────────────
 const K_MAX_RETRIES: i64 = 8;
 const K_BASE_BACKOFF_MS: i64 = 2_000; // 2s
@@ -4337,11 +4353,9 @@ impl MadarCore {
             .unwrap_or_default();
         let movements: Vec<shift::ShiftReportCashLine> = self
             .store
-            .list_active()?
+            .list_active_of_types(&["cash_movement"])?
             .into_iter()
-            .filter(|i| {
-                i.op_type == "cash_movement" && i.shift_id.as_deref() == Some(shift.id.as_str())
-            })
+            .filter(|i| i.shift_id.as_deref() == Some(shift.id.as_str()))
             .filter_map(|i| {
                 serde_json::from_str::<shift::CashMovementCommand>(&i.payload)
                     .ok()
@@ -5133,9 +5147,9 @@ impl MadarCore {
         let queued_cash = checkout::queued_cash_total_for(&self.store, shift_id)?;
         let movements: Vec<shift::ShiftReportCashLine> = self
             .store
-            .list_active()?
+            .list_active_of_types(&["cash_movement"])?
             .into_iter()
-            .filter(|i| i.op_type == "cash_movement" && i.shift_id.as_deref() == Some(shift_id))
+            .filter(|i| i.shift_id.as_deref() == Some(shift_id))
             .filter_map(|i| {
                 serde_json::from_str::<shift::CashMovementCommand>(&i.payload)
                     .ok()
@@ -5340,6 +5354,15 @@ impl MadarCore {
         let mut n = 0;
         for prefix in CACHE_HISTORY_PREFIXES {
             n += self.store.purge_cache_older_than(prefix, &cutoff)?;
+        }
+        // Then the count ceiling: the window bounds age, not volume.
+        for (prefix, cap) in CACHE_ROW_CAPS {
+            n += self.store.purge_cache_keep_newest(prefix, *cap)?;
+        }
+        // Deleting rows only frees pages inside the file; hand them back to the
+        // device, or the retention window buys space nobody can use.
+        if n > 0 {
+            let _ = self.store.reclaim_free_pages();
         }
         Ok(n)
     }

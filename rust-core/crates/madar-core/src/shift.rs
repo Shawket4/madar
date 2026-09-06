@@ -153,10 +153,10 @@ pub(crate) fn queued_close_overlay(
     store: &Store,
 ) -> std::collections::HashMap<String, (Option<String>, i64)> {
     let mut out = std::collections::HashMap::new();
-    for item in store.list_active().unwrap_or_default() {
-        if item.op_type != "close_shift" {
-            continue;
-        }
+    for item in store
+        .list_active_of_types(&["close_shift"])
+        .unwrap_or_default()
+    {
         if let Ok(cmd) = serde_json::from_str::<CloseShiftCommand>(&item.payload) {
             let closed_at = cmd.request.closed_at.flatten().map(|d| d.to_rfc3339());
             out.insert(
@@ -200,10 +200,10 @@ pub(crate) fn local_shifts(store: &Store) -> Vec<ShiftSummaryView> {
     let closes = queued_close_overlay(store);
     let names = teller_names(store);
     let mut out = Vec::new();
-    for item in store.list_active().unwrap_or_default() {
-        if item.op_type != "open_shift" {
-            continue;
-        }
+    for item in store
+        .list_active_of_types(&["open_shift"])
+        .unwrap_or_default()
+    {
         let cmd: OpenShiftCommand = match serde_json::from_str(&item.payload) {
             Ok(c) => c,
             Err(_) => continue,

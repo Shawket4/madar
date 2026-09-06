@@ -694,7 +694,7 @@ pub(crate) fn queued_cash_total(store: &Store) -> CoreResult<i64> {
         .map(|p| p.name.clone())
         .collect();
     let mut total = 0i64;
-    for item in store.list_active()? {
+    for item in store.list_active_of_types(&["create_order", "cash_movement"])? {
         // `inflight` = already sent to the server, so a freshly-fetched shift report
         // already reflects it. Counting it here too would DOUBLE it in the drawer
         // during the lost-response window. `pending`/`dead` cash is in the drawer
@@ -734,7 +734,7 @@ pub(crate) fn queued_cash_total_for(store: &Store, shift_id: &str) -> CoreResult
         .map(|p| p.name.clone())
         .collect();
     let mut total = 0i64;
-    for item in store.list_active()? {
+    for item in store.list_active_of_types(&["create_order", "cash_movement"])? {
         if item.shift_id.as_deref() != Some(shift_id) {
             continue;
         }

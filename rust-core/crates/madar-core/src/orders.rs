@@ -23,10 +23,7 @@ pub(crate) struct VoidOrderCommand {
 /// optimistic "voided" status on the synced orders before the void syncs.
 pub(crate) fn pending_void_ids(store: &Store) -> CoreResult<HashSet<String>> {
     let mut ids = HashSet::new();
-    for item in store.list_active()? {
-        if item.op_type != "void_order" {
-            continue;
-        }
+    for item in store.list_active_of_types(&["void_order"])? {
         if let Ok(cmd) = serde_json::from_str::<VoidOrderCommand>(&item.payload) {
             ids.insert(cmd.order_id);
         }
@@ -383,10 +380,7 @@ pub(crate) fn from_server(o: &models::Order) -> OrderSummaryView {
 /// `create_order` commands for `shift_id`. A dead command shows as `failed`.
 pub(crate) fn queued(store: &Store, shift_id: &str) -> CoreResult<Vec<OrderSummaryView>> {
     let mut out = Vec::new();
-    for item in store.list_active()? {
-        if item.op_type != "create_order" {
-            continue;
-        }
+    for item in store.list_active_of_types(&["create_order"])? {
         let cmd: crate::checkout::CheckoutCommand = match serde_json::from_str(&item.payload) {
             Ok(c) => c,
             Err(_) => continue,
@@ -435,10 +429,7 @@ pub(crate) fn queued(store: &Store, shift_id: &str) -> CoreResult<Vec<OrderSumma
 /// results. Mirrors `queued` but unscoped to a shift.
 pub(crate) fn queued_all(store: &Store) -> CoreResult<Vec<OrderSummaryView>> {
     let mut out = Vec::new();
-    for item in store.list_active()? {
-        if item.op_type != "create_order" {
-            continue;
-        }
+    for item in store.list_active_of_types(&["create_order"])? {
         let cmd: crate::checkout::CheckoutCommand = match serde_json::from_str(&item.payload) {
             Ok(c) => c,
             Err(_) => continue,

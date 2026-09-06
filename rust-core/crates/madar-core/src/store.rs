@@ -158,6 +158,20 @@ impl Store {
         let _ = conn.pragma_update(None, "journal_mode", "WAL");
         let _ = conn.pragma_update(None, "synchronous", "NORMAL");
         let _ = conn.pragma_update(None, "foreign_keys", "ON");
+        // Give freed pages back to the filesystem instead of holding the file at
+        // its high-water mark forever. Without this, deleting a year of cached
+        // shift history (or draining a huge offline backlog) frees space INSIDE
+        // the file and the device never sees a byte of it back. INCREMENTAL
+        // rather than FULL so the reclaim is a bounded step we run after the
+        // retention sweep, not a stall on every commit.
+        //
+        // On a database that already has tables this pragma only takes effect
+        // after a VACUUM, which `reclaim_free_pages` performs once.
+        let _ = conn.pragma_update(None, "auto_vacuum", "INCREMENTAL");
+        // Cap the WAL. It is truncated back to this on checkpoint, so one large
+        // burst (a day of offline sales draining at once) cannot leave a
+        // permanently inflated -wal sidecar next to the database.
+        let _ = conn.pragma_update(None, "journal_size_limit", 4 * 1024 * 1024);
         conn.busy_timeout(Duration::from_secs(5))?;
         conn.execute_batch(SCHEMA)?;
         // Bring older stores up to the current outbox shape (no-op on fresh DBs).
@@ -404,6 +418,32 @@ impl Store {
             &format!("SELECT {COLS} FROM outbox WHERE status IN ('pending','inflight','dead') ORDER BY seq ASC"))?;
         let rows: Vec<OutboxItem> = stmt
             .query_map([], map_item)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// The same rows [`list_active`](Self::list_active) returns, narrowed to the
+    /// given op types by SQL rather than by the caller.
+    ///
+    /// Every caller of `list_active` immediately discards all but one or two op
+    /// types — but `payload` holds an entire cart for every queued sale, so on a
+    /// till carrying a day of offline orders, looking for the handful of
+    /// `cash_movement` or `void_order` rows was materializing every one of those
+    /// carts into Rust strings and dropping them again. Pushing the predicate
+    /// down means only the rows actually wanted are ever built.
+    pub fn list_active_of_types(&self, op_types: &[&str]) -> CoreResult<Vec<OutboxItem>> {
+        if op_types.is_empty() {
+            return Ok(Vec::new());
+        }
+        let conn = self.lock();
+        let placeholders = vec!["?"; op_types.len()].join(",");
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {COLS} FROM outbox \
+             WHERE status IN ('pending','inflight','dead') AND op_type IN ({placeholders}) \
+             ORDER BY seq ASC"
+        ))?;
+        let rows: Vec<OutboxItem> = stmt
+            .query_map(rusqlite::params_from_iter(op_types.iter()), map_item)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     }
@@ -664,6 +704,57 @@ impl Store {
             params![prefix, cutoff],
         )?;
         Ok(n as u32)
+    }
+
+    /// Keep only the `max_rows` most-recently-written cache rows under `prefix`.
+    ///
+    /// The companion to [`purge_cache_older_than`](Self::purge_cache_older_than):
+    /// an age window alone bounds how OLD cached history gets, not how MUCH of it
+    /// there is. A branch running hundreds of orders a day accumulates hundreds
+    /// of full order records a day, all of them inside the window, so the count
+    /// needs its own ceiling.
+    pub fn purge_cache_keep_newest(&self, prefix: &str, max_rows: u32) -> CoreResult<u32> {
+        let n = self.lock().execute(
+            "DELETE FROM kv WHERE substr(k, 1, length(?1)) = ?1 AND k NOT IN \
+             (SELECT k FROM kv WHERE substr(k, 1, length(?1)) = ?1 \
+              ORDER BY updated_at DESC LIMIT ?2)",
+            params![prefix, max_rows],
+        )?;
+        Ok(n as u32)
+    }
+
+    /// Return free pages to the filesystem after a delete-heavy pass.
+    ///
+    /// Deleting rows only frees pages INSIDE the database file; the file itself
+    /// never shrinks on its own. This runs a bounded `incremental_vacuum`, and
+    /// on a store created before `auto_vacuum` was set it first performs the
+    /// one-time full `VACUUM` that switches the mode on (recorded in `kv`, so it
+    /// happens once per device rather than on every launch).
+    ///
+    /// Best effort throughout: a busy database just keeps its free pages until
+    /// the next sweep.
+    pub fn reclaim_free_pages(&self) -> CoreResult<()> {
+        const MIGRATED_KEY: &str = "store:auto_vacuum_migrated";
+        let already = self.kv_get(MIGRATED_KEY)?.is_some();
+        {
+            let conn = self.lock();
+            let mode: i64 = conn
+                .pragma_query_value(None, "auto_vacuum", |r| r.get(0))
+                .unwrap_or(0);
+            // 0 = NONE: an existing file created before the pragma. VACUUM is the
+            // only way to switch it, and it rewrites the whole database — so do
+            // it once, ever.
+            if mode == 0 && !already {
+                let _ = conn.execute_batch("PRAGMA auto_vacuum=INCREMENTAL; VACUUM;");
+            }
+            // Bounded: reclaim up to 256 pages (~1 MB at the 4 KiB default) per
+            // sweep so this never becomes a long stall on the drain path.
+            let _ = conn.execute_batch("PRAGMA incremental_vacuum(256);");
+        }
+        if !already {
+            self.kv_put(MIGRATED_KEY, "1")?;
+        }
+        Ok(())
     }
 
     /// Drop every queued command. Only for an explicit destructive sign-out —
@@ -1258,6 +1349,48 @@ mod tests {
     }
 
     #[test]
+    fn list_active_of_types_matches_list_active_then_filter() {
+        let s = Store::open("").unwrap();
+        for (id, ty) in [
+            ("o1", "create_order"),
+            ("m1", "cash_movement"),
+            ("o2", "create_order"),
+            ("v1", "void_order"),
+        ] {
+            let mut it = op(id);
+            it.op_type = ty.into();
+            s.enqueue(&it).unwrap();
+        }
+        // A discarded/acked row must stay out of both, exactly as before.
+        let seq = s.due_for_sync(now_ms() + 1, None).unwrap()[0].seq;
+        s.mark_acked(seq, Some("srv")).unwrap();
+
+        for types in [
+            vec!["create_order"],
+            vec!["cash_movement"],
+            vec!["create_order", "cash_movement"],
+            vec!["void_order"],
+        ] {
+            let narrowed: Vec<String> = s
+                .list_active_of_types(&types)
+                .unwrap()
+                .into_iter()
+                .map(|i| i.id)
+                .collect();
+            let by_hand: Vec<String> = s
+                .list_active()
+                .unwrap()
+                .into_iter()
+                .filter(|i| types.contains(&i.op_type.as_str()))
+                .map(|i| i.id)
+                .collect();
+            assert_eq!(narrowed, by_hand, "types {types:?}");
+        }
+        // Empty selection asks for nothing rather than degenerating to "everything".
+        assert!(s.list_active_of_types(&[]).unwrap().is_empty());
+    }
+
+    #[test]
     fn purge_cache_older_than_drops_only_stale_rows_under_the_prefix() {
         let s = Store::open("").unwrap();
         s.kv_put("cache:shift_orders:old", "[]").unwrap();
@@ -1288,6 +1421,49 @@ mod tests {
 
     /// `LIKE` would read the `_` in `cache:shift_orders:` as a wildcard and let
     /// the sweep reach keys it was never scoped to; the prefix match must be literal.
+    #[test]
+    fn reclaim_free_pages_is_idempotent_and_records_its_one_time_migration() {
+        let s = Store::open("").unwrap();
+        s.kv_put("cache:order:1", "{}").unwrap();
+        s.reclaim_free_pages().unwrap();
+        // The one-time auto_vacuum migration is recorded, so it never re-VACUUMs.
+        assert_eq!(
+            s.kv_get("store:auto_vacuum_migrated").unwrap().as_deref(),
+            Some("1")
+        );
+        // Safe to run again, and it leaves real data alone.
+        s.reclaim_free_pages().unwrap();
+        assert!(s.kv_get("cache:order:1").unwrap().is_some());
+    }
+
+    #[test]
+    fn purge_cache_keep_newest_bounds_volume_and_keeps_the_recent_ones() {
+        let s = Store::open("").unwrap();
+        for i in 0..10 {
+            s.kv_put(&format!("cache:order:{i}"), "{}").unwrap();
+            // Distinct stamps so "newest" is well defined.
+            s.lock()
+                .execute(
+                    "UPDATE kv SET updated_at = ?2 WHERE k = ?1",
+                    params![format!("cache:order:{i}"), format!("2026-09-0{i}T00:00:00+00:00")],
+                )
+                .unwrap();
+        }
+        s.kv_put("cache:open_tickets", "[]").unwrap(); // other prefix, untouched
+
+        assert_eq!(s.purge_cache_keep_newest("cache:order:", 3).unwrap(), 7);
+        // The three newest stamps (7, 8, 9) survive; the older seven are gone.
+        for i in 0..7 {
+            assert!(s.kv_get(&format!("cache:order:{i}")).unwrap().is_none(), "{i}");
+        }
+        for i in 7..10 {
+            assert!(s.kv_get(&format!("cache:order:{i}")).unwrap().is_some(), "{i}");
+        }
+        assert!(s.kv_get("cache:open_tickets").unwrap().is_some());
+        // Already under the cap → nothing to do.
+        assert_eq!(s.purge_cache_keep_newest("cache:order:", 10).unwrap(), 0);
+    }
+
     #[test]
     fn purge_cache_older_than_treats_underscore_literally() {
         let s = Store::open("").unwrap();
