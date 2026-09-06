@@ -4,7 +4,7 @@ description: Madar Cashier — a thin, high-performance Flutter UI over the shar
 # versionName); `+1` is the build number (CFBundleVersion / versionCode). Bump
 # the build number on EVERY upload to TestFlight / Play — both stores refuse a
 # reused one. CI may override with `--build-number=$GITHUB_RUN_NUMBER`.
-version: 1.0.0+1
+version: 0.2.0+1
 publish_to: none
 resolution: workspace
 

@@ -10,7 +10,7 @@ separate task; this document is the requirements list that task works from.
 |---|---|---|
 | Id | `com.madar.pos` (debug: `.dev` suffix) | `com.madar.pos` (team `6HNBMW6X75`) |
 | Display name | `@string/app_name` — "Madar Cashier" / «كاشير مدار» | "Madar Cashier" |
-| Version | `pubspec.yaml` `1.0.0+1` → `versionName` / `versionCode` | → `CFBundleShortVersionString` / `CFBundleVersion` |
+| Version | `pubspec.yaml` `0.2.0+1` → `versionName` / `versionCode` | → `CFBundleShortVersionString` / `CFBundleVersion` |
 | Min / target | `flutter.minSdkVersion` (24) / `flutter.targetSdkVersion` (Flutter 3.47 → 36; Play requires ≥ 35 from Aug 2026) | iOS 15.0 |
 
 Bump the **build number** (`+N`) on every upload; both stores refuse a reused one. CI can pass
