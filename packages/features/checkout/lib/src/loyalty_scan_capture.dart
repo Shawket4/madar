@@ -141,7 +141,9 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
           ),
           const SizedBox(height: 12),
           FilledButton(
-            onPressed: widget.busy ? null : () => unawaited(_offer(_phone.text)),
+            onPressed: widget.busy
+                ? null
+                : () => unawaited(_offer(_phone.text)),
             child: const Text('Look up'),
           ),
         ] else ...[
@@ -226,7 +228,9 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
             if (!_phoneMode) _wedgeFocus.requestFocus();
           },
           child: Text(
-            _phoneMode ? 'Scan a card instead' : 'No card? Use their phone number',
+            _phoneMode
+                ? 'Scan a card instead'
+                : 'No card? Use their phone number',
           ),
         ),
       ],

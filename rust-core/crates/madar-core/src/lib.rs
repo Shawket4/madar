@@ -317,6 +317,11 @@ impl MadarCore {
             .and_then(|s| s.parse::<i64>().ok())
             .unwrap_or(0);
         let clock_skew_secs = Arc::new(std::sync::atomic::AtomicI64::new(skew));
+        // One-time sweep of the stuck rows v0.2.0 left behind. Cheap (an
+        // indexed delete over a handful of rows), idempotent, and it runs here
+        // rather than on first sync so the sync screen is already honest the
+        // first time anyone opens it.
+        let _ = store.purge_dead_held_ops();
         let api = net::ApiClient::new(config.base_url.clone(), clock_skew_secs.clone())?;
         let images = filestore::FileStore::new(&config.db_path, "images");
         let animations = filestore::FileStore::new(&config.db_path, "animations");
@@ -2987,7 +2992,7 @@ impl MadarCore {
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| self.corrected_now().to_rfc3339());
         let device = self.lan_device_id();
-        let (entry, conflict) = held::park_local(
+        let (_entry, conflict) = held::park_local(
             &self.store,
             &id,
             &branch,
@@ -2997,20 +3002,11 @@ impl MadarCore {
             &device,
             &created,
         )?;
-        // The op carries the REQUESTED table — the server is the arbiter; a
-        // race the stale mirror lost may still be won there (next pull syncs).
-        let cmd = held::ParkCommand {
-            held_order_id: entry.id.clone(),
-            request: serde_json::json!({
-                "id": entry.id, "branch_id": branch, "name": name, "cart": payload,
-                "table_id": table_id, "device_id": device, "created_at": entry.created_at,
-            }),
-        };
-        self.enqueue_held_op(
-            "park_held_order",
-            format!("park:{}:{}", entry.id, uuid::Uuid::new_v4()),
-            &serde_json::to_string(&cmd)?,
-        )?;
+        // NOT queued. Parked drafts are device-local by design (the 5 Sep
+        // refactor) and the backend has no held-order endpoints at all any
+        // more, so an op for one could only ever dead-letter — which is
+        // exactly what it did: every park wrote a permanent stuck row into
+        // the sync screen's list.
         cart::clear(&self.store)?;
         Ok(conflict)
     }
@@ -3030,15 +3026,7 @@ impl MadarCore {
         let now = self.corrected_now().to_rfc3339();
         let payload = held::claim_local(&self.store, &id, &device, &now)?;
         let lines = cart::set_cart_payload(&self.store, &payload)?;
-        let cmd = held::HeldOpCommand {
-            held_order_id: id.clone(),
-            request: serde_json::json!({ "device_id": device, "force": false }),
-        };
-        self.enqueue_held_op(
-            "claim_held_order",
-            format!("claim:{id}:{}", uuid::Uuid::new_v4()),
-            &serde_json::to_string(&cmd)?,
-        )?;
+        // Device-local: nothing to queue (see `hold_cart_on_table`).
         Ok(lines)
     }
 
@@ -3047,49 +3035,25 @@ impl MadarCore {
     pub fn release_draft(&self, id: String) -> Result<(), CoreError> {
         let device = self.lan_device_id();
         let now = self.corrected_now().to_rfc3339();
-        held::release_local(&self.store, &id, &device, &now)?;
-        let cmd = held::HeldOpCommand {
-            held_order_id: id.clone(),
-            request: serde_json::json!({ "device_id": device }),
-        };
-        self.enqueue_held_op(
-            "release_held_order",
-            format!("release:{id}:{}", uuid::Uuid::new_v4()),
-            &serde_json::to_string(&cmd)?,
-        )
+        // Device-local: nothing to queue (see `hold_cart_on_table`).
+        held::release_local(&self.store, &id, &device, &now)
     }
 
     /// Discard a parked draft (tombstone; frees its table + waitlist wish).
     pub fn discard_draft(&self, id: String) -> Result<(), CoreError> {
         let device = self.lan_device_id();
         let now = self.corrected_now().to_rfc3339();
-        held::terminate_local(&self.store, &id, "discarded", Some(&device), &now)?;
-        let cmd = held::HeldOpCommand {
-            held_order_id: id.clone(),
-            request: serde_json::json!({ "device_id": device, "force": false }),
-        };
-        self.enqueue_held_op(
-            "discard_held_order",
-            format!("discard:{id}:{}", uuid::Uuid::new_v4()),
-            &serde_json::to_string(&cmd)?,
-        )
+        // Device-local: nothing to queue (see `hold_cart_on_table`).
+        held::terminate_local(&self.store, &id, "discarded", Some(&device), &now)
     }
 
     /// Mark a restored draft COMPLETED after its cart checked out (the host
     /// calls this right after a successful ring-up of a resumed draft). Frees
     /// the table; the queued op drains AFTER the order create (FIFO).
-    pub fn complete_draft(&self, id: String, order_id: Option<String>) -> Result<(), CoreError> {
+    pub fn complete_draft(&self, id: String, _order_id: Option<String>) -> Result<(), CoreError> {
         let now = self.corrected_now().to_rfc3339();
-        held::terminate_local(&self.store, &id, "completed", None, &now)?;
-        let cmd = held::HeldOpCommand {
-            held_order_id: id.clone(),
-            request: serde_json::json!({ "order_id": order_id }),
-        };
-        self.enqueue_held_op(
-            "complete_held_order",
-            format!("complete:{id}:{}", uuid::Uuid::new_v4()),
-            &serde_json::to_string(&cmd)?,
-        )
+        // Device-local: nothing to queue (see `hold_cart_on_table`).
+        held::terminate_local(&self.store, &id, "completed", None, &now)
     }
 
     /// Assign / move / unassign a parked draft's table (interactive — loud
@@ -3099,22 +3063,9 @@ impl MadarCore {
         id: String,
         table_id: Option<String>,
     ) -> Result<(), CoreError> {
-        let branch = self.session_branch_id()?;
         let now = self.corrected_now().to_rfc3339();
-        let entry = held::assign_table_local(&self.store, &id, table_id.clone(), &now)?;
-        let device = self.lan_device_id();
-        let cmd = held::ParkCommand {
-            held_order_id: entry.id.clone(),
-            request: serde_json::json!({
-                "id": entry.id, "branch_id": branch, "name": entry.name, "cart": entry.cart,
-                "table_id": table_id, "device_id": device, "created_at": entry.created_at,
-            }),
-        };
-        self.enqueue_held_op(
-            "park_held_order",
-            format!("park:{}:{}", entry.id, uuid::Uuid::new_v4()),
-            &serde_json::to_string(&cmd)?,
-        )
+        // Device-local: nothing to queue (see `hold_cart_on_table`).
+        held::assign_table_local(&self.store, &id, table_id, &now).map(|_| ())
     }
 
     /// Swap whatever sits on two tables (held orders and/or waiter tickets) —
@@ -3312,23 +3263,9 @@ impl MadarCore {
         let Ok(lifted) = held::migrate_legacy(&self.store, &branch, &device) else {
             return;
         };
-        for e in lifted {
-            let cmd = held::ParkCommand {
-                held_order_id: e.id.clone(),
-                request: serde_json::json!({
-                    "id": e.id, "branch_id": branch, "name": e.name, "cart": e.cart,
-                    "table_id": serde_json::Value::Null, "device_id": device,
-                    "created_at": e.created_at,
-                }),
-            };
-            if let Ok(payload) = serde_json::to_string(&cmd) {
-                let _ = self.enqueue_held_op(
-                    "park_held_order",
-                    format!("park:{}:migrate", e.id),
-                    &payload,
-                );
-            }
-        }
+        // Lifting a pre-upgrade draft into the shared local model is itself a
+        // local move — there is nothing on the server to tell about it.
+        let _ = lifted;
     }
     /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
     pub fn cart_set_discount(&self, discount_id: String) -> Result<(), CoreError> {
@@ -4178,8 +4115,13 @@ impl MadarCore {
         }
     }
 
-    /// Ids (held orders + transfers) with a queued-but-unacked local op — their
-    /// mirror entries must not be clobbered by a pull until the op lands.
+    /// Transfer ids with a queued-but-unacked local op — their mirror entries
+    /// must not be clobbered by a pull until the op lands.
+    ///
+    /// Held orders used to be half of this guard. They are not any more: a
+    /// parked draft is device-local and queues nothing, so there is no in-flight
+    /// window for a pull to race. Only the transfer wishes, which are real
+    /// server state, still need protecting.
     fn pending_held_ids(&self) -> Vec<String> {
         let Ok(items) = self.store.pending() else {
             return Vec::new();
@@ -4187,13 +4129,6 @@ impl MadarCore {
         items
             .iter()
             .filter_map(|i| match i.op_type.as_str() {
-                "park_held_order"
-                | "claim_held_order"
-                | "release_held_order"
-                | "discard_held_order"
-                | "complete_held_order" => serde_json::from_str::<held::HeldOpCommand>(&i.payload)
-                    .ok()
-                    .map(|c| c.held_order_id),
                 "create_table_transfer" | "cancel_table_transfer" | "fulfill_table_transfer" => {
                     serde_json::from_str::<held::TransferOpCommand>(&i.payload)
                         .ok()
@@ -5032,12 +4967,14 @@ impl MadarCore {
                 detail: "scan a card or type a phone number".into(),
             });
         }
-        let result =
-            loyalty_api::loyalty_lookup(&self.api.config(), loyalty_api::LoyaltyLookupParams {
+        let result = loyalty_api::loyalty_lookup(
+            &self.api.config(),
+            loyalty_api::LoyaltyLookupParams {
                 lookup_request: request,
-            })
-            .await
-            .map_err(net::map_api_error)?;
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
         Ok(loyalty::scan_view(&result))
     }
 
@@ -5112,9 +5049,12 @@ impl MadarCore {
         request.requested_at = Some(Some(now.into()));
 
         if self.current_session().map(|s| s.online).unwrap_or(false) {
-            match loyalty_api::loyalty_award(&self.api.config(), loyalty_api::LoyaltyAwardParams {
-                award_request: request.clone(),
-            })
+            match loyalty_api::loyalty_award(
+                &self.api.config(),
+                loyalty_api::LoyaltyAwardParams {
+                    award_request: request.clone(),
+                },
+            )
             .await
             {
                 Ok(result) => return Ok(Some(loyalty::member_view(&result.member))),
@@ -7187,6 +7127,88 @@ mod lifecycle_tests {
 
     /// A real signed-in core pinned OFFLINE (dead url), against a cached bundle —
     /// for driving the genuine open/close/checkout FFI paths with no network.
+    /// Parking a cart used to queue a `park_held_order` op that no drain arm
+    /// could send, so every park wrote a permanent stuck row into the sync
+    /// screen's list. A parked draft is device-local: it must queue NOTHING.
+    #[tokio::test]
+    async fn parking_a_cart_queues_nothing_and_leaves_no_stuck_row() {
+        let core = signed_in_offline_core().await;
+        let before = core.store.pending().unwrap().len();
+
+        // A cart with something in it — parking refuses an empty one.
+        cart::set_cart_payload(
+            &core.store,
+            &serde_json::json!({
+                "lines": [{
+                    "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
+                    "name": "Latte", "unit_price_minor": 5000, "qty": 1,
+                    "addons": [], "optionals": []
+                }]
+            }),
+        )
+        .unwrap();
+        core.hold_cart_on_table("Table 5".into(), None, None, None)
+            .unwrap();
+
+        assert_eq!(
+            core.store.pending().unwrap().len(),
+            before,
+            "a parked draft is device-local and must queue no op"
+        );
+        assert_eq!(
+            core.store.dead_count().unwrap(),
+            0,
+            "and therefore cannot leave a stuck row behind"
+        );
+    }
+
+    /// Tills upgrading from v0.2.0 arrive carrying dead rows from the old ops.
+    /// Boot clears exactly those, and nothing else — a dead row of another kind
+    /// is a real failure someone may still need to see.
+    #[test]
+    fn boot_sweeps_the_old_dead_held_ops_and_spares_every_other_kind() {
+        let store = store::Store::open("").unwrap();
+        let mut seq = 0i64;
+        let mut queue = |op_type: &str| {
+            seq += 1;
+            store
+                .enqueue(&store::NewOutboxOp {
+                    id: format!("{op_type}-{seq}"),
+                    op_type: op_type.into(),
+                    idempotency_key: format!("{op_type}-{seq}"),
+                    payload: "{}".into(),
+                    event_at: "2026-09-07T10:00:00Z".into(),
+                    depends_on_seq: None,
+                    user_id: None,
+                    clock_offset_ms: None,
+                    shift_id: None,
+                })
+                .unwrap();
+        };
+        for op in [
+            "park_held_order",
+            "claim_held_order",
+            "release_held_order",
+            "discard_held_order",
+            "complete_held_order",
+            "create_order",
+            "clear_table",
+        ] {
+            queue(op);
+        }
+        for item in store.pending().unwrap() {
+            store.mark_dead(item.seq, "stale").unwrap();
+        }
+        assert_eq!(store.dead_count().unwrap(), 7);
+
+        let swept = store.purge_dead_held_ops().unwrap();
+        assert_eq!(swept, 5, "the five held-order ops go");
+        // A dead order and a dead clear are real failures — they stay.
+        assert_eq!(store.dead_count().unwrap(), 2);
+        // And running it again is a no-op, so it is safe on every boot.
+        assert_eq!(store.purge_dead_held_ops().unwrap(), 0);
+    }
+
     async fn signed_in_offline_core() -> Arc<MadarCore> {
         use argon2::password_hash::SaltString;
         use argon2::{Argon2, PasswordHasher};

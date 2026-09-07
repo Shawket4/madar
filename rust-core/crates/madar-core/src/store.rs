@@ -691,6 +691,24 @@ impl Store {
         Ok(n as u32)
     }
 
+    /// Drop the dead rows left by the five held-order ops that could only ever
+    /// dead-letter (a parked draft is device-local; the backend has no
+    /// held-order endpoints). Returns how many went.
+    ///
+    /// A one-time sweep for anyone who has been running v0.2.0, where every
+    /// park wrote a permanent stuck row into the sync screen's list. Scoped to
+    /// exactly those five op types: dead rows of any other kind are real
+    /// failures someone may still need to see.
+    pub fn purge_dead_held_ops(&self) -> CoreResult<u32> {
+        let n = self.lock().execute(
+            "DELETE FROM outbox WHERE status='dead' AND op_type IN \
+             ('park_held_order','claim_held_order','release_held_order', \
+              'discard_held_order','complete_held_order')",
+            [],
+        )?;
+        Ok(n as u32)
+    }
+
     /// Drop cached `kv` rows whose key starts with `prefix` and whose last write
     /// is older than `cutoff` (RFC3339, the format `kv_put` stamps). Returns how
     /// many rows went.
@@ -1445,7 +1463,10 @@ mod tests {
             s.lock()
                 .execute(
                     "UPDATE kv SET updated_at = ?2 WHERE k = ?1",
-                    params![format!("cache:order:{i}"), format!("2026-09-0{i}T00:00:00+00:00")],
+                    params![
+                        format!("cache:order:{i}"),
+                        format!("2026-09-0{i}T00:00:00+00:00")
+                    ],
                 )
                 .unwrap();
         }
@@ -1454,10 +1475,16 @@ mod tests {
         assert_eq!(s.purge_cache_keep_newest("cache:order:", 3).unwrap(), 7);
         // The three newest stamps (7, 8, 9) survive; the older seven are gone.
         for i in 0..7 {
-            assert!(s.kv_get(&format!("cache:order:{i}")).unwrap().is_none(), "{i}");
+            assert!(
+                s.kv_get(&format!("cache:order:{i}")).unwrap().is_none(),
+                "{i}"
+            );
         }
         for i in 7..10 {
-            assert!(s.kv_get(&format!("cache:order:{i}")).unwrap().is_some(), "{i}");
+            assert!(
+                s.kv_get(&format!("cache:order:{i}")).unwrap().is_some(),
+                "{i}"
+            );
         }
         assert!(s.kv_get("cache:open_tickets").unwrap().is_some());
         // Already under the cap → nothing to do.
@@ -1469,10 +1496,7 @@ mod tests {
         let s = Store::open("").unwrap();
         s.kv_put("cache:shiftXorders:decoy", "[]").unwrap();
         s.lock()
-            .execute(
-                "UPDATE kv SET updated_at = '2020-01-01T00:00:00+00:00'",
-                [],
-            )
+            .execute("UPDATE kv SET updated_at = '2020-01-01T00:00:00+00:00'", [])
             .unwrap();
         let cutoff = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
         assert_eq!(

@@ -905,7 +905,9 @@ class OrderNotifier extends Notifier<OrderState> {
   /// room. The teller's one-tap answer on the tables screen, and the same walk
   /// the post-checkout prompt takes when they say "clear it now".
   Future<void> clearTable(String tableId) async {
-    await _clearTableOnServer(tableId);
+    // The failure toast is the error's own; saying "cleared" on top of it would
+    // contradict the message directly above.
+    if (!await _clearTableOnServer(tableId)) return;
     showToast(
       _tr('tables.cleared'),
       tone: ChipTone.success,
@@ -1030,10 +1032,17 @@ class OrderNotifier extends Notifier<OrderState> {
   /// Clear a bussed table: the one human act the server cannot derive. The
   /// teller's one-tap answer on the tables screen, and the same walk the
   /// post-checkout prompt takes when they say "clear it now". Offline-safe.
-  Future<void> _clearTableOnServer(String tableId) async {
+  /// Returns whether the table actually cleared.
+  ///
+  /// It used to return void after swallowing the error, so every caller
+  /// announced success even when the clear had failed — the teller was told the
+  /// table was free while the canvas still showed it red.
+  Future<bool> _clearTableOnServer(String tableId) async {
+    var ok = true;
     try {
       await _bridge.clearTable(tableId: tableId);
     } on MadarError catch (e) {
+      ok = false;
       showToast(
         _bridge.humanMessage(e),
         tone: ChipTone.danger,
@@ -1041,6 +1050,7 @@ class OrderNotifier extends Notifier<OrderState> {
       );
     }
     await loadFloor();
+    return ok;
   }
 
   /// Turn a table back over: release whatever the POS may release, then mark
@@ -1070,7 +1080,7 @@ class OrderNotifier extends Notifier<OrderState> {
       // queued right behind it lands the table on `free`.
       if (!await assignDraftTable(table.heldOrderId!, null)) return false;
     }
-    await _clearTableOnServer(table.id);
+    if (!await _clearTableOnServer(table.id)) return false;
     showToast(
       _tr('tables.freed'),
       tone: ChipTone.success,

@@ -109,13 +109,22 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
     );
   }
 
-  /// Waiter firing a NEW ticket → collect dine-in details first; adding a
-  /// round to the selected ticket fires straight away. Cashiers get the
-  /// shared tender drawer; a placed order clears the cart in the core, so
-  /// reload after the sheet closes either way.
+  /// Where a finished cart goes.
+  ///
+  /// **Dine-in is an open ticket, whoever rang it.** A table is occupied by
+  /// exactly one ticket — that is the row the dashboard's floor board renders
+  /// and the row `bookings::availability` reads. A teller who parked a
+  /// device-local draft on a table left it looking FREE to everyone else: two
+  /// tills could seat two parties on it and reservations kept offering it. So a
+  /// cart bound to a table fires a ticket for both roles, and the teller
+  /// settles that ticket afterwards.
+  ///
+  /// Parked drafts stay for the NO-TABLE case — counter and takeaway — which is
+  /// what they were always for.
   Future<void> _checkout() async {
     final state = ref.read(orderProvider);
-    if (!state.isWaiter) {
+    final dineIn = state.cartTableId != null;
+    if (!state.isWaiter && !dineIn) {
       // Captured BEFORE the sheet: settling clears the cart (and with it the
       // draft identity) — this is the held order the sale completes.
       final settledDraftId = state.cartDraftId;
@@ -148,6 +157,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
     } else {
       await _notifier.fireOrAddRound();
     }
+    // Firing queues through `/sync/replay` as `open_ticket`, a supported op, so
+    // this path is offline-safe in a way the parked draft never needed to be.
+    await _notifier.loadCart();
   }
 
   /// Close shift — pushed over the order surface like the natives' overlay;

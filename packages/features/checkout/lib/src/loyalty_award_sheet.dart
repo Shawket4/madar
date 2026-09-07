@@ -101,7 +101,11 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle_outline, size: 40, color: theme.colorScheme.primary),
+            Icon(
+              Icons.check_circle_outline,
+              size: 40,
+              color: theme.colorScheme.primary,
+            ),
             const SizedBox(height: 12),
             Text(
               _queued ? 'Points queued' : 'Points added',
@@ -138,11 +142,7 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 4),
-          LoyaltyScanCapture(
-            busy: _busy,
-            error: _error,
-            onCaptured: _award,
-          ),
+          LoyaltyScanCapture(busy: _busy, error: _error, onCaptured: _award),
         ],
       ),
     );

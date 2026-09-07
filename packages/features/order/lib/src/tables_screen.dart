@@ -11,6 +11,7 @@ import 'dart:math' as math;
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_order/src/open_tickets_screen.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/table_clear_prompt.dart';
 import 'package:feature_order/src/widgets.dart';
@@ -921,24 +922,19 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       words: TableStatusWords.of(ref.read(bridgeProvider)),
       zoomable: true,
       swapArmedId: _swapFrom,
+      // One gesture, one sheet. The long-press used to open a "settings"
+      // submenu whose only live action already sat on the tap sheet, and whose
+      // other three had empty bodies — status is derived and sections are
+      // dashboard-authored, so they could never have done anything. Both
+      // gestures now open the sheet for what that table actually is.
       onTap: (t) =>
           unawaited(_onTableTap(t, ticketOn(t.id), isWaiter: isWaiter)),
-      // Status + zone are one long-press away — the POS owns table STATE.
-      onLongPress: (t) => unawaited(_tableSettingsSheet(t)),
+      onLongPress: (t) =>
+          unawaited(_onTableTap(t, ticketOn(t.id), isWaiter: isWaiter)),
     );
   }
 
   // ── actions ────────────────────────────────────────────────────────────────
-
-  /// The live waiter ticket sitting on a table, if any.
-  TicketView? _ticketOn(String tableId) => ref
-      .read(orderProvider)
-      .openTickets
-      .where(
-        (t) =>
-            t.tableId == tableId && (t.status == 'open' || t.status == 'ready'),
-      )
-      .firstOrNull;
 
   Future<void> _onTableTap(
     FloorTableStateView t,
@@ -1094,22 +1090,16 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     FloorTableStateView t, {
     required bool isWaiter,
   }) async {
-    final hasCart = ref.read(orderProvider).cartLines.isNotEmpty;
+    // No "start order here" on a dirty table on purpose: if a new party is
+    // sitting there, the plates ARE gone, and Clear is the one honest action.
+    // Offering both would let a table go straight from one party to the next
+    // while still telling the manager it needs bussing.
     await _actionsSheet('${t.label} · ${_tr('tables.needs_clearing')}', [
       _SheetAction('sparkles', _tr('tables.clear'), () async {
         await _notifier.clearTable(t.id);
       }),
-      if (!isWaiter && hasCart)
-        _SheetAction('tray.and.arrow.down', _tr('tables.seat_here'), () async {
-          _notifier.setCartTable(t.id, t.label);
-          await _notifier.holdCart();
-          if (mounted) await Navigator.of(context).maybePop();
-        }),
       _SheetAction('arrow.triangle.2.circlepath', _tr('tables.swap'), () async {
         setState(() => _swapFrom = t.id);
-      }),
-      _SheetAction('gearshape', _tr('tables.settings'), () async {
-        await _tableSettingsSheet(t);
       }),
     ]);
   }
@@ -1119,15 +1109,20 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     FloorTableStateView t, {
     required bool isWaiter,
   }) async {
-    final hasCart = ref.read(orderProvider).cartLines.isNotEmpty;
     await _actionsSheet(t.label, [
-      if (!isWaiter && hasCart)
-        _SheetAction('tray.and.arrow.down', _tr('tables.seat_here'), () async {
-          // Park the LIVE cart directly onto this table.
+      // The natural gesture on a floor canvas: tap the table, start an order on
+      // it. Available to BOTH roles and with any cart — a waiter had no way to
+      // open an order on a table at all, and a teller with an empty cart got
+      // the same nothing. Binding the cart is all this does; the order becomes
+      // a ticket when it fires, which is what makes the table say it is taken.
+      _SheetAction(
+        'tray.and.arrow.down',
+        _tr('tables.start_order_here'),
+        () async {
           _notifier.setCartTable(t.id, t.label);
-          await _notifier.holdCart();
           if (mounted) await Navigator.of(context).maybePop();
-        }),
+        },
+      ),
       // Anything that isn't already available turns over from here — the
       // teller's manual counterpart to the automatic free-on-checkout.
       if (t.status != 'free')
@@ -1141,57 +1136,6 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       _SheetAction('arrow.triangle.2.circlepath', _tr('tables.swap'), () async {
         setState(() => _swapFrom = t.id);
       }),
-      _SheetAction('gearshape', _tr('tables.settings'), () async {
-        await _tableSettingsSheet(t);
-      }),
-    ]);
-  }
-
-  /// Operational table state — the POS's half of the floor split (geometry is
-  /// dashboard-authored): the status walk and which zone the PHYSICAL table
-  /// currently sits in.
-  Future<void> _tableSettingsSheet(FloorTableStateView t) async {
-    final bridge = ref.read(bridgeProvider);
-    final layout = ref.read(orderProvider).floorLayout;
-    final ticket = _ticketOn(t.id);
-    final occupied = t.heldOrderId != null || ticket != null;
-    await _actionsSheet('${_tr('tables.settings')} · ${t.label}', [
-      // Turning a table over is the teller's job, seated or not: a parked
-      // order detaches, a live ticket refuses (see makeTableAvailable).
-      if (t.status != 'free' || occupied)
-        _SheetAction(
-          'checkmark.circle',
-          bridge.tr(key: 'tables.make_available'),
-          () async {
-            await _notifier.makeTableAvailable(t, ticket: ticket);
-          },
-        ),
-      if (t.status != 'held' && !occupied)
-        _SheetAction(
-          'hand.raised',
-          bridge.tr(key: 'tables.held_res'),
-          () async {
-            // removed: status is derived; sections are dashboard-authored
-          },
-        ),
-      // Zone move — every OTHER section, plus "no section".
-      for (final s in layout?.sections ?? const <FloorSectionInfo>[])
-        if (t.sectionId != s.id)
-          _SheetAction(
-            'square.grid.2x2',
-            '${bridge.tr(key: 'tables.section')} · ${s.name}',
-            () async {
-              // removed: status is derived; sections are dashboard-authored
-            },
-          ),
-      if (t.sectionId != null)
-        _SheetAction(
-          'xmark.circle',
-          bridge.tr(key: 'tables.no_section'),
-          () async {
-            // removed: status is derived; sections are dashboard-authored
-          },
-        ),
     ]);
   }
 
@@ -1233,9 +1177,6 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
             await _notifier.makeTableAvailable(t);
           },
         ),
-        _SheetAction('gearshape', _tr('tables.settings'), () async {
-          await _tableSettingsSheet(t);
-        }),
       ],
     );
   }
@@ -1247,10 +1188,22 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     required bool isWaiter,
   }) async {
     await _actionsSheet('${t.label} · ${ticket.ticketRef ?? ''}', [
-      if (isWaiter)
-        _SheetAction('cart', _tr('tables.resume'), () async {
-          _notifier.selectTicket(ticket.id);
-          if (mounted) await Navigator.of(context).maybePop();
+      // Resume is no longer waiter-only: a teller's dine-in order is a ticket
+      // now too, and adding a round to it is the same act for both roles.
+      _SheetAction('cart', _tr('tables.resume'), () async {
+        _notifier.selectTicket(ticket.id);
+        if (mounted) await Navigator.of(context).maybePop();
+      }),
+      // Closing the table out. Tellers only — taking money is their job, and
+      // the drawer this opens is the one the tickets board already uses.
+      if (!isWaiter)
+        _SheetAction('creditcard', _tr('tables.settle'), () async {
+          if (!mounted) return;
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => OpenTicketsScreen(focusTicketId: ticket.id),
+            ),
+          );
         }),
       _SheetAction('arrow.triangle.2.circlepath', _tr('tables.move'), () async {
         setState(() => _swapFrom = t.id);
@@ -1260,9 +1213,6 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       }),
       _SheetAction('checkmark.circle', _tr('tables.make_available'), () async {
         await _notifier.makeTableAvailable(t, ticket: ticket);
-      }),
-      _SheetAction('gearshape', _tr('tables.settings'), () async {
-        await _tableSettingsSheet(t);
       }),
     ]);
   }

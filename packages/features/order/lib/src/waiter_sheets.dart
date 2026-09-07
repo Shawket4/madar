@@ -57,6 +57,18 @@ class _FireDetailsSheetState extends ConsumerState<FireDetailsSheet> {
   final Object _coversKey = Object();
 
   @override
+  void initState() {
+    super.initState();
+    // A table picked on the floor canvas is already bound to the cart. Without
+    // this the sheet opened blank and the table was silently forgotten by the
+    // time the order fired — the canvas gesture looked like it had worked and
+    // had not.
+    final s = ref.read(orderProvider);
+    _tableId = s.cartTableId;
+    _tableLabel = s.cartTableLabel;
+  }
+
+  @override
   void dispose() {
     _customer.dispose();
     _table.dispose();

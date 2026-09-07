@@ -158,17 +158,9 @@ pub(crate) struct TransferWire {
 // `request` is stored as the EXACT wire body the backend replay op expects, so
 // the drain just wraps it in the `/sync/replay` envelope.
 
-#[derive(Serialize, Deserialize)]
-pub(crate) struct ParkCommand {
-    pub held_order_id: String,
-    pub request: serde_json::Value,
-}
-
-#[derive(Serialize, Deserialize)]
-pub(crate) struct HeldOpCommand {
-    pub held_order_id: String,
-    pub request: serde_json::Value,
-}
+// `ParkCommand` and `HeldOpCommand` lived here. They are gone with the ops they
+// carried: a parked draft is device-local and the backend has no held-order
+// endpoints, so those five ops could only ever dead-letter.
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct SwapCommand {
@@ -939,10 +931,17 @@ pub(crate) fn save_floor(store: &Store, sections_json: &str, tables_json: &str) 
 /// Flip the status of the booking claiming any table in the mirror (seated /
 /// no-show / cancelled) so the canvas reacts before the next pull. A terminal
 /// status drops the hint — the table is simply free again.
-pub(crate) fn set_booking_status_local(store: &Store, booking_id: &str, status: &str) -> CoreResult<()> {
+pub(crate) fn set_booking_status_local(
+    store: &Store,
+    booking_id: &str,
+    status: &str,
+) -> CoreResult<()> {
     let mut tables = load_tables(store)?;
     for t in tables.iter_mut() {
-        if t.next_booking.as_ref().is_some_and(|b| b.booking_id == booking_id) {
+        if t.next_booking
+            .as_ref()
+            .is_some_and(|b| b.booking_id == booking_id)
+        {
             if matches!(status, "confirmed" | "seated") {
                 if let Some(b) = t.next_booking.as_mut() {
                     b.status = status.to_string();

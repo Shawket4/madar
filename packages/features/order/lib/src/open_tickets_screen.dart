@@ -83,7 +83,14 @@ ChipTone _ticketTone(String status) => switch (status) {
 /// another device reloads the list instantly (no manual refresh).
 class OpenTicketsScreen extends ConsumerStatefulWidget {
   /// Creates the open-tickets settle screen.
-  const OpenTicketsScreen({super.key});
+  ///
+  /// [focusTicketId] opens straight into that ticket's settle drawer — how the
+  /// floor canvas closes a table out: tap the table, Settle, and the money
+  /// flow is the SAME one the board uses rather than a second copy of it.
+  const OpenTicketsScreen({this.focusTicketId, super.key});
+
+  /// A ticket to settle immediately on open.
+  final String? focusTicketId;
 
   @override
   ConsumerState<OpenTicketsScreen> createState() => _OpenTicketsScreenState();
@@ -98,10 +105,21 @@ class _OpenTicketsScreenState extends ConsumerState<OpenTicketsScreen> {
     // On-appear: the shift (a settle needs its id) and the open board; the
     // shared checkout drawer loads its own payment methods. Post-frame:
     // notifier writes during initState land mid-build (crash).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       unawaited(_notifier.reconcileShift());
-      unawaited(_notifier.loadOpenTickets());
+      await _notifier.loadOpenTickets();
+      // Arrived from the floor canvas with a table to close out — go straight
+      // to that ticket's settle drawer. The board is still behind it, so
+      // dismissing lands somewhere sensible rather than back on the canvas.
+      final focus = widget.focusTicketId;
+      if (focus == null || !mounted) return;
+      final ticket = ref
+          .read(orderProvider)
+          .openTickets
+          .where((t) => t.id == focus)
+          .firstOrNull;
+      if (ticket != null) await _settleTicket(ticket);
     });
   }
 
