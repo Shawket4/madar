@@ -16,7 +16,7 @@ Name | Type | Description | Notes
 **delivery_ref** | Option<**String**> |  | [optional]
 **discount_amount** | **i32** |  | 
 **id** | **uuid::Uuid** |  | 
-**items** | Option<**serde_json::Value**> |  | 
+**items** | Option<**serde_json::Value**> | Frozen cart snapshot: the items at the time of the order (for display). | 
 **place_name** | Option<**String**> |  | [optional]
 **status** | **String** |  | 
 **subtotal** | **i32** |  | 

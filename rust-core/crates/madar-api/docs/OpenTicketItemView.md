@@ -5,7 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** |  | 
-**line** | Option<**serde_json::Value**> |  | 
+**line** | Option<**serde_json::Value**> | The frozen priced SnapshotLine (name, size, addons, totals). | 
 **line_total** | **i32** |  | 
 **menu_item_id** | Option<**uuid::Uuid**> |  | [optional]
 **round_number** | **i32** |  | 

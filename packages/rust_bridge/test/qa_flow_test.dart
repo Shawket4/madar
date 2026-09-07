@@ -139,6 +139,7 @@ void main() {
         amountTenderedMinor: totals.totalMinor + 5000,
         tipMinor: 0,
         splits: const [],
+        loyaltyRedemptions: const [],
       ),
     );
     expect(receipt.localOrderId, isNotEmpty);

@@ -8,7 +8,7 @@ Name | Type | Description | Notes
 **branch_id** | **uuid::Uuid** |  | 
 **branch_name** | **String** |  | 
 **cash_tips** | Option<**i64**> | The cash slice of `total_tips`. | [optional]
-**revenue_by_method** | Option<**serde_json::Value**> |  | 
+**revenue_by_method** | Option<**serde_json::Value**> | Goods only, by method actually tendered. Tips are in `total_tips`. | 
 **total_orders** | **i64** |  | 
 **total_revenue** | **i64** |  | 
 **total_tips** | Option<**i64**> | Tips, standalone — same definition as on the branch sales + shift reports. | [optional]

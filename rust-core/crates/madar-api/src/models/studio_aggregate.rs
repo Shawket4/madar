@@ -38,6 +38,9 @@ pub struct StudioAggregate {
     pub options: Vec<models::ItemOptionOut>,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// How the item is made, in order. Edited through `PUT /recipes/steps/{id}` and saved by the studio alongside the recipe lines.
+    #[serde(rename = "recipe_steps")]
+    pub recipe_steps: Vec<models::RecipeStep>,
     #[serde(rename = "sizes")]
     pub sizes: Vec<models::SizeOut>,
     #[serde(rename = "used_in_bundles")]
@@ -46,7 +49,7 @@ pub struct StudioAggregate {
 
 impl StudioAggregate {
     /// The full item aggregate the one-page Menu Studio editor renders.
-    pub fn new(availability: models::AvailabilityOut, catalog_revision: i64, id: uuid::Uuid, is_active: bool, modifier_groups: Vec<models::ModifierGroupOut>, name: String, name_translations: Option<serde_json::Value>, options: Vec<models::ItemOptionOut>, org_id: uuid::Uuid, sizes: Vec<models::SizeOut>, used_in_bundles: Vec<models::UsedInBundleOut>) -> StudioAggregate {
+    pub fn new(availability: models::AvailabilityOut, catalog_revision: i64, id: uuid::Uuid, is_active: bool, modifier_groups: Vec<models::ModifierGroupOut>, name: String, name_translations: Option<serde_json::Value>, options: Vec<models::ItemOptionOut>, org_id: uuid::Uuid, recipe_steps: Vec<models::RecipeStep>, sizes: Vec<models::SizeOut>, used_in_bundles: Vec<models::UsedInBundleOut>) -> StudioAggregate {
         StudioAggregate {
             availability: Box::new(availability),
             catalog_revision,
@@ -60,6 +63,7 @@ impl StudioAggregate {
             name_translations,
             options,
             org_id,
+            recipe_steps,
             sizes,
             used_in_bundles,
         }

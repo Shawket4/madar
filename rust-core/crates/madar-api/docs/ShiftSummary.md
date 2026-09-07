@@ -13,7 +13,7 @@ Name | Type | Description | Notes
 **closing_cash_system** | Option<**i64**> |  | [optional]
 **opened_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **opening_cash** | **i64** |  | 
-**revenue_by_method** | Option<**serde_json::Value**> |  | 
+**revenue_by_method** | Option<**serde_json::Value**> | Goods only, by method actually tendered. Tips are in `total_tips`. | 
 **shift_id** | **uuid::Uuid** |  | 
 **status** | **String** |  | 
 **teller_id** | **uuid::Uuid** |  | 

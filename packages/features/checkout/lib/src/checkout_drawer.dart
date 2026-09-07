@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
+import 'package:feature_checkout/src/loyalty_scan_sheet.dart';
 import 'package:feature_checkout/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -266,6 +267,22 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
                   discountLabel: tr('order.discount'),
                   taxLabel: tr('order.tax'),
                 ),
+                // Rewards — scan a card and cover lines of this basket.
+                // Above payment because it changes what is owed; the customer
+                // must see the new total before they pay it. Hidden when there
+                // are no cart lines (a ticket settle has none to cover).
+                if (s.cartLines.isNotEmpty)
+                  _RewardsSection(
+                    state: s,
+                    onScan: () => unawaited(
+                      showMadarSheet<void>(
+                        context,
+                        builder: (_) => const LoyaltyScanSheet(),
+                      ),
+                    ),
+                    onToggle: notifier.toggleReward,
+                    onClear: notifier.clearLoyalty,
+                  ),
                 // Payment — brand-colored method chips, or a split
                 // allocator.
                 _PaymentSection(
@@ -1298,6 +1315,164 @@ class _DiscountChip extends StatelessWidget {
               style: MadarType.bodySm.copyWith(
                 fontWeight: FontWeight.w600,
                 color: active ? colors.textOnAccent : colors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The rewards block in the tender drawer: who is spending, and which lines of
+/// this basket their balance covers.
+///
+/// Shows only what the member can actually afford — the server filters the
+/// catalogue by both the branch's list and the balance, so a line offered here
+/// is a line that will go through. A ticked line is priced at zero by the
+/// server, never by this widget.
+class _RewardsSection extends StatelessWidget {
+  const _RewardsSection({
+    required this.state,
+    required this.onScan,
+    required this.onToggle,
+    required this.onClear,
+  });
+
+  final CheckoutState state;
+  final VoidCallback onScan;
+  final void Function(int lineIndex) onToggle;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final m = state.loyaltyMember;
+
+    if (m == null) {
+      return ActionButton(
+        label: 'Rewards',
+        icon: 'star',
+        variant: ActionVariant.outline,
+        onTap: onScan,
+      );
+    }
+
+    // Only lines this balance could pay for. A basket of four coffees and a
+    // steak offers the coffees.
+    final claimable = <int>[
+      for (var i = 0; i < state.cartLines.length; i++)
+        if (state.rewardForLine(i) != null) i,
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(Space.md),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(m.name, style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 2),
+                    Text(
+                      // What is left AFTER what is ticked, because that is the
+                      // number the customer will ask about.
+                      '${state.balanceAfterRedemptions} ${m.balanceLabel} left',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: onClear,
+                icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Remove',
+              ),
+            ],
+          ),
+          if (claimable.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: Space.sm),
+              child: Text(
+                'Nothing in this order can be claimed yet.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            )
+          else
+            for (final i in claimable)
+              _RewardLine(
+                name: state.cartLines[i].name,
+                costLabel: state.rewardForLine(i)!.costLabel,
+                covered: state.redemptions[i] ?? 0,
+                quantity: state.cartLines[i].qty,
+                onTap: () => onToggle(i),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One cart line that a reward could cover, and how many of its units are.
+class _RewardLine extends StatelessWidget {
+  const _RewardLine({
+    required this.name,
+    required this.costLabel,
+    required this.covered,
+    required this.quantity,
+    required this.onTap,
+  });
+
+  final String name;
+  final String costLabel;
+  final int covered;
+  final int quantity;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final on = covered > 0;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.sm),
+        child: Row(
+          children: [
+            Icon(
+              on ? Icons.check_box : Icons.check_box_outline_blank,
+              size: 20,
+              color: on
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: Space.sm),
+            Expanded(
+              child: Text(
+                // "2 of 3 free" reads correctly whether one unit is covered or
+                // all of them; "free" alone would lie on a partly covered line.
+                quantity > 1 && on
+                    ? '$name — $covered of $quantity free'
+                    : name,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+            Text(
+              costLabel,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],

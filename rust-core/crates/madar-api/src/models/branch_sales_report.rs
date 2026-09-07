@@ -24,6 +24,7 @@ pub struct BranchSalesReport {
     pub cash_tips: Option<i64>,
     #[serde(rename = "from", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub from: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Money collected FOR GOODS, bucketed by the method actually tendered (`order_payments`). Tips are not in here — see `total_tips`.
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
     pub revenue_by_method: Option<serde_json::Value>,
     #[serde(rename = "subtotal")]

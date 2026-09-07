@@ -12,6 +12,7 @@ import 'device.dart';
 import 'error.dart';
 import 'floor.dart';
 import 'kds.dart';
+import 'loyalty.dart';
 import 'orders.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'printing.dart';
@@ -136,6 +137,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// send now. Works offline — the order stays queued and `queued_offline`
   /// is `true` on the receipt until it syncs.
   Future<ReceiptView> checkout({required CheckoutInput input});
+
+  /// Decide what a captured string is: a whole member token, a phone number,
+  /// or neither yet.
+  ///
+  /// Sync and allocation-light, so the scan sheet can call it on EVERY
+  /// keystroke. That is what makes a cheap USB imager work with no setup:
+  /// many wedge scanners type their payload and never send Enter, so the
+  /// sheet fires the lookup the moment this says the buffer is a whole card.
+  /// The token's shape lives in the core beside the server's own, not in Dart.
+  LoyaltyScanInput classifyLoyaltyInput({required String raw});
 
   /// Wipe the device binding entirely (factory reset of the device config).
   Future<void> clearDevice();
@@ -424,6 +435,38 @@ abstract class MadarBridge implements RustOpaqueInterface {
   Future<SessionSnapshot> login({required LoginRequest req});
 
   Future<void> logout({required bool wipeOutbox});
+
+  /// Add a sale's points to a member's balance — the receipt's button, and the
+  /// one on a past order.
+  ///
+  /// Returns the member's new balance when it went through, or `None` when the
+  /// till was offline and the press was queued: there is no balance to show
+  /// yet, and inventing one would be a lie the customer can read.
+  Future<LoyaltyMemberView?> loyaltyAward({
+    String? orderId,
+    String? orderKey,
+    required String orderCreatedAt,
+    String? token,
+    String? phone,
+  });
+
+  /// Is this sale still inside its 24-hour award window?
+  ///
+  /// Sync, so a history list can gate every row's button without a round trip.
+  /// Both arguments are RFC3339; pass the device's corrected now. This hides a
+  /// button the server would refuse — it does not decide anything, because the
+  /// server checks the same rule against the order's own timestamp.
+  bool loyaltyAwardWindowOpen({
+    required String orderCreatedAt,
+    required String now,
+  });
+
+  /// Identify the member in front of the till, from a scanned pass barcode or
+  /// (fallback) a phone number.
+  ///
+  /// Online-only: a balance is shared state any till can move, and a stale
+  /// number shown to a customer is worse than asking the teller to reconnect.
+  Future<LoyaltyScanView> loyaltyLookup({String? token, String? phone});
 
   /// Reflect a status the server will derive anyway (dirty after checkout,
   /// free after a void or move) in the local canvas. Queues nothing.

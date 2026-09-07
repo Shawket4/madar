@@ -127,6 +127,8 @@ pub mod insights_api;
 pub mod integrations_api;
 pub mod inventory_api;
 pub mod kitchen_api;
+pub mod loyalty_api;
+pub mod loyalty_public_api;
 pub mod menu_api;
 pub mod metrics_api;
 pub mod open_tickets_api;

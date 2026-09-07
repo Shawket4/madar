@@ -25,6 +25,13 @@ class CheckoutInput {
   /// Per-method split legs (empty = single payment).
   final List<CheckoutSplit> splits;
 
+  /// The member spending a balance on this sale, when rewards are applied.
+  final String? loyaltyCustomerId;
+
+  /// Rewards covering lines of the cart. The till says WHICH lines; the
+  /// server prices them and checks the balance.
+  final List<CheckoutRedemption> loyaltyRedemptions;
+
   const CheckoutInput({
     required this.paymentMethodId,
     required this.amountTenderedMinor,
@@ -33,6 +40,8 @@ class CheckoutInput {
     this.customerName,
     this.notes,
     required this.splits,
+    this.loyaltyCustomerId,
+    required this.loyaltyRedemptions,
   });
 
   @override
@@ -43,7 +52,9 @@ class CheckoutInput {
       tipPaymentMethodId.hashCode ^
       customerName.hashCode ^
       notes.hashCode ^
-      splits.hashCode;
+      splits.hashCode ^
+      loyaltyCustomerId.hashCode ^
+      loyaltyRedemptions.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -56,7 +67,31 @@ class CheckoutInput {
           tipPaymentMethodId == other.tipPaymentMethodId &&
           customerName == other.customerName &&
           notes == other.notes &&
-          splits == other.splits;
+          splits == other.splits &&
+          loyaltyCustomerId == other.loyaltyCustomerId &&
+          loyaltyRedemptions == other.loyaltyRedemptions;
+}
+
+/// One reward applied to one cart line.
+class CheckoutRedemption {
+  /// Index into the cart's lines, in the order the cart lists them.
+  final int itemIndex;
+
+  /// How many of that line's units the reward covers.
+  final int units;
+
+  const CheckoutRedemption({required this.itemIndex, required this.units});
+
+  @override
+  int get hashCode => itemIndex.hashCode ^ units.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CheckoutRedemption &&
+          runtimeType == other.runtimeType &&
+          itemIndex == other.itemIndex &&
+          units == other.units;
 }
 
 /// One leg of a split payment (a method + the amount paid on it).

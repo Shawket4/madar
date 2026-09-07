@@ -14,6 +14,50 @@ use serde::{Deserialize, Serialize, de::Error as _};
 use crate::{apis::ResponseContent, models};
 use super::{Error, configuration, ContentType};
 
+/// struct for passing parameters to the method [`branch_booking_qr`]
+#[derive(Clone, Debug)]
+pub struct BranchBookingQrParams {
+    /// Branch ID
+    pub id: String,
+    /// `true` (default) → branded A6 card PNG; `false` → plain receipt QR PNG.
+    pub card: Option<bool>,
+    /// Dynamic caption line beneath the tagline (A6 card only).
+    pub caption: Option<String>,
+    /// Raster DPI for the A6 card (clamped 72–2400). Default 600.
+    pub dpi: Option<u32>,
+    /// Print bleed in mm (A6 card only). Default 0.
+    pub bleed_mm: Option<f32>,
+    /// Draw crop marks (A6 card, only meaningful when `bleed_mm > 0`).
+    pub crop_marks: Option<bool>,
+    /// Return the A6 card as SVG (`data:image/svg+xml;base64,…`). Default false.
+    pub svg: Option<bool>,
+    /// Pixels per module for the plain receipt QR (1–40). Default 16.
+    pub module_px: Option<u32>,
+    pub slug: Option<String>
+}
+
+/// struct for passing parameters to the method [`branch_loyalty_qr`]
+#[derive(Clone, Debug)]
+pub struct BranchLoyaltyQrParams {
+    /// Branch ID
+    pub id: String,
+    /// `true` (default) → branded A6 card PNG; `false` → plain receipt QR PNG.
+    pub card: Option<bool>,
+    /// Dynamic caption line beneath the tagline (A6 card only).
+    pub caption: Option<String>,
+    /// Raster DPI for the A6 card (clamped 72–2400). Default 600.
+    pub dpi: Option<u32>,
+    /// Print bleed in mm (A6 card only). Default 0.
+    pub bleed_mm: Option<f32>,
+    /// Draw crop marks (A6 card, only meaningful when `bleed_mm > 0`).
+    pub crop_marks: Option<bool>,
+    /// Return the A6 card as SVG (`data:image/svg+xml;base64,…`). Default false.
+    pub svg: Option<bool>,
+    /// Pixels per module for the plain receipt QR (1–40). Default 16.
+    pub module_px: Option<u32>,
+    pub slug: Option<String>
+}
+
 /// struct for passing parameters to the method [`branch_qr`]
 #[derive(Clone, Debug)]
 pub struct BranchQrParams {
@@ -93,6 +137,27 @@ pub struct ListTablesParams {
     pub id: String
 }
 
+/// struct for passing parameters to the method [`org_booking_qr`]
+#[derive(Clone, Debug)]
+pub struct OrgBookingQrParams {
+    /// Organisation ID
+    pub id: String,
+    /// `true` (default) → branded A6 card PNG; `false` → plain receipt QR PNG.
+    pub card: Option<bool>,
+    /// Dynamic caption line beneath the tagline (A6 card only).
+    pub caption: Option<String>,
+    /// Raster DPI for the A6 card (clamped 72–2400). Default 600.
+    pub dpi: Option<u32>,
+    /// Print bleed in mm (A6 card only). Default 0.
+    pub bleed_mm: Option<f32>,
+    /// Draw crop marks (A6 card, only meaningful when `bleed_mm > 0`).
+    pub crop_marks: Option<bool>,
+    /// Return the A6 card as SVG (`data:image/svg+xml;base64,…`). Default false.
+    pub svg: Option<bool>,
+    /// Pixels per module for the plain receipt QR (1–40). Default 16.
+    pub module_px: Option<u32>
+}
+
 /// struct for passing parameters to the method [`org_qr`]
 #[derive(Clone, Debug)]
 pub struct OrgQrParams {
@@ -137,6 +202,32 @@ pub struct TableQrParams {
     pub module_px: Option<u32>
 }
 
+
+/// struct for typed errors of method [`branch_booking_qr`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BranchBookingQrError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`branch_loyalty_qr`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BranchLoyaltyQrError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
 
 /// struct for typed errors of method [`branch_qr`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -229,6 +320,19 @@ pub enum ListTablesError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`org_booking_qr`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum OrgBookingQrError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`org_qr`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -255,6 +359,128 @@ pub enum TableQrError {
     UnknownValue(serde_json::Value),
 }
 
+
+pub async fn branch_booking_qr(configuration: &configuration::Configuration, params: BranchBookingQrParams) -> Result<models::QrResponse, Error<BranchBookingQrError>> {
+
+    let uri_str = format!("{}/branches/{id}/booking-qr", configuration.base_path, id=crate::apis::urlencode(params.id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.card {
+        req_builder = req_builder.query(&[("card", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.caption {
+        req_builder = req_builder.query(&[("caption", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.dpi {
+        req_builder = req_builder.query(&[("dpi", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.bleed_mm {
+        req_builder = req_builder.query(&[("bleed_mm", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.crop_marks {
+        req_builder = req_builder.query(&[("crop_marks", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.svg {
+        req_builder = req_builder.query(&[("svg", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.module_px {
+        req_builder = req_builder.query(&[("module_px", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.slug {
+        req_builder = req_builder.query(&[("slug", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::QrResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::QrResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<BranchBookingQrError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
+pub async fn branch_loyalty_qr(configuration: &configuration::Configuration, params: BranchLoyaltyQrParams) -> Result<models::QrResponse, Error<BranchLoyaltyQrError>> {
+
+    let uri_str = format!("{}/branches/{id}/loyalty-qr", configuration.base_path, id=crate::apis::urlencode(params.id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.card {
+        req_builder = req_builder.query(&[("card", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.caption {
+        req_builder = req_builder.query(&[("caption", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.dpi {
+        req_builder = req_builder.query(&[("dpi", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.bleed_mm {
+        req_builder = req_builder.query(&[("bleed_mm", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.crop_marks {
+        req_builder = req_builder.query(&[("crop_marks", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.svg {
+        req_builder = req_builder.query(&[("svg", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.module_px {
+        req_builder = req_builder.query(&[("module_px", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.slug {
+        req_builder = req_builder.query(&[("slug", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::QrResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::QrResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<BranchLoyaltyQrError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
 
 pub async fn branch_qr(configuration: &configuration::Configuration, params: BranchQrParams) -> Result<models::QrResponse, Error<BranchQrError>> {
 
@@ -556,6 +782,64 @@ pub async fn list_tables(configuration: &configuration::Configuration, params: L
     } else {
         let content = resp.text().await?;
         let entity: Option<ListTablesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
+pub async fn org_booking_qr(configuration: &configuration::Configuration, params: OrgBookingQrParams) -> Result<models::QrResponse, Error<OrgBookingQrError>> {
+
+    let uri_str = format!("{}/orgs/{id}/booking-qr", configuration.base_path, id=crate::apis::urlencode(params.id));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.card {
+        req_builder = req_builder.query(&[("card", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.caption {
+        req_builder = req_builder.query(&[("caption", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.dpi {
+        req_builder = req_builder.query(&[("dpi", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.bleed_mm {
+        req_builder = req_builder.query(&[("bleed_mm", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.crop_marks {
+        req_builder = req_builder.query(&[("crop_marks", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.svg {
+        req_builder = req_builder.query(&[("svg", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.module_px {
+        req_builder = req_builder.query(&[("module_px", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::QrResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::QrResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<OrgBookingQrError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }

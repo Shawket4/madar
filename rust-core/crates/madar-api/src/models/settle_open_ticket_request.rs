@@ -22,6 +22,12 @@ pub struct SettleOpenTicketRequest {
     pub discount_type: Option<Option<String>>,
     #[serde(rename = "discount_value", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub discount_value: Option<Option<i32>>,
+    /// The member spending a balance on this settle, when rewards are applied.
+    #[serde(rename = "loyalty_customer_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub loyalty_customer_id: Option<Option<uuid::Uuid>>,
+    /// Rewards covering lines of the ticket. A table-service bill redeems exactly like a counter one — the cashier scans at settle either way.
+    #[serde(rename = "loyalty_redemptions", skip_serializing_if = "Option::is_none")]
+    pub loyalty_redemptions: Option<Vec<models::LoyaltyRedemptionInput>>,
     #[serde(rename = "payment_method")]
     pub payment_method: String,
     #[serde(rename = "shift_id")]
@@ -39,6 +45,8 @@ impl SettleOpenTicketRequest {
             discount_id: None,
             discount_type: None,
             discount_value: None,
+            loyalty_customer_id: None,
+            loyalty_redemptions: None,
             payment_method,
             shift_id,
             tip_amount: None,

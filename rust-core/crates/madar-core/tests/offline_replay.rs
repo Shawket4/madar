@@ -227,6 +227,8 @@ fn cash_checkout(core: &MadarCore) -> CheckoutInput {
         customer_name: None,
         notes: None,
         splits: vec![],
+        loyalty_customer_id: None,
+        loyalty_redemptions: vec![],
     }
 }
 

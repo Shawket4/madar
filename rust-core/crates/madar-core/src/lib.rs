@@ -48,6 +48,7 @@ pub mod kds;
 /// registry; the second delivery path beside the cloud bus. Outbox stays the truth.
 pub mod lan;
 /// Menu / catalog reads — branch-effective mirror + view DTOs (PLAN §R9).
+pub mod loyalty;
 pub mod menu;
 /// HTTP layer — drives the generated `madar-api` reqwest client (PLAN §R4 net/).
 pub mod net;
@@ -1158,6 +1159,21 @@ impl MadarCore {
                 (
                     serde_json::json!({ "op": "void_order", "teller_id": teller_id, "order_id": cmd.order_id, "request": cmd.request }),
                     Idem::VoidIdem,
+                )
+            }
+            "award_loyalty_points" => {
+                let mut cmd: loyalty::AwardCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                // Rebase the press onto server time, exactly as queued orders
+                // and voids are. Without this a till whose clock is an hour fast
+                // sends a `requested_at` in the server's future and the server
+                // correctly refuses it — punishing the customer for the till.
+                rebase_dopt(&mut cmd.request.requested_at, delta);
+                (
+                    serde_json::json!({ "op": "award_loyalty_points", "teller_id": teller_id, "request": cmd.request }),
+                    Idem::Yes,
                 )
             }
             "cash_movement" => {
@@ -4969,6 +4985,181 @@ impl MadarCore {
     ) -> Result<orders::OrderDetailView, CoreError> {
         let o = self.get_order_or_cache(&order_id).await?;
         Ok(orders::order_detail_view(&o, &self.current_locale()))
+    }
+
+    // ── Loyalty ─────────────────────────────────────────────────────────────
+    // Identify the member at the till and, when they have earned it, hand over a
+    // reward. Points are never awarded here: earning rides in the order's own
+    // payload (`CheckoutInput::loyalty_customer_id`) and the server computes it
+    // from the sale's totals, on the live path and on replay alike.
+
+    /// Look a member up from a scanned pass barcode, or by phone when their
+    /// phone is dead.
+    ///
+    /// Online-only, deliberately: a balance is shared state that any till in the
+    /// org can move, and showing a stale number to a customer is worse than
+    /// asking the teller to reconnect. The error says exactly that.
+    pub async fn loyalty_lookup(
+        &self,
+        token: Option<String>,
+        phone: Option<String>,
+    ) -> Result<loyalty::LoyaltyScanView, CoreError> {
+        use madar_api::apis::loyalty_api;
+        let branch = self.session_branch_id()?;
+        if !self.current_session().map(|s| s.online).unwrap_or(false) {
+            return Err(CoreError::Offline {
+                detail: "a points balance can only be looked up online".into(),
+            });
+        }
+        let branch_uuid = uuid::Uuid::parse_str(&branch).map_err(|_| CoreError::Validation {
+            field: "branch_id".into(),
+            detail: "session branch is not a uuid".into(),
+        })?;
+        let mut request = madar_api::models::LookupRequest::new(branch_uuid);
+        // Trimmed, and empty treated as absent: a barcode field that lost focus
+        // must not be sent as a token the server then reports as "no member".
+        request.token = token
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .map(Some);
+        request.phone = phone
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+            .map(Some);
+        if request.token.is_none() && request.phone.is_none() {
+            return Err(CoreError::Validation {
+                field: "token".into(),
+                detail: "scan a card or type a phone number".into(),
+            });
+        }
+        let result =
+            loyalty_api::loyalty_lookup(&self.api.config(), loyalty_api::LoyaltyLookupParams {
+                lookup_request: request,
+            })
+            .await
+            .map_err(net::map_api_error)?;
+        Ok(loyalty::scan_view(&result))
+    }
+
+    /// Add a sale's points to a member's balance — the button on the receipt,
+    /// and on a past order in the history.
+    ///
+    /// Unlike the lookup this is a WRITE, so it works offline: the press is
+    /// stamped and queued, and drains through `/sync/replay` into the very same
+    /// server code. That is why the window is anchored to when the button was
+    /// pressed rather than when the op arrived — a till that was offline for two
+    /// days still credits an award its teller made in time.
+    ///
+    /// The window is checked here as well as on the server. This copy stops a
+    /// pointless queued op; the server's copy is the one that decides.
+    pub async fn loyalty_award(
+        &self,
+        order_id: Option<String>,
+        order_key: Option<String>,
+        order_created_at: String,
+        token: Option<String>,
+        phone: Option<String>,
+    ) -> Result<Option<loyalty::LoyaltyMemberView>, CoreError> {
+        use madar_api::apis::loyalty_api;
+        let branch = self.session_branch_id()?;
+        let now = self.corrected_now();
+        if !loyalty::award_window_open(&order_created_at, &now.to_rfc3339()) {
+            return Err(CoreError::Validation {
+                field: "order".into(),
+                detail: format!(
+                    "points can only be added within {} hours of a sale",
+                    loyalty::AWARD_WINDOW_HOURS
+                ),
+            });
+        }
+        let branch_uuid = uuid::Uuid::parse_str(&branch).map_err(|_| CoreError::Validation {
+            field: "branch_id".into(),
+            detail: "session branch is not a uuid".into(),
+        })?;
+
+        let mut request = madar_api::models::AwardRequest::new(branch_uuid);
+        request.order_id = order_id
+            .as_deref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok())
+            .map(Some);
+        request.order_key = order_key
+            .as_deref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok())
+            .map(Some);
+        request.token = token
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .map(Some);
+        request.phone = phone
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+            .map(Some);
+        if request.order_id.is_none() && request.order_key.is_none() {
+            return Err(CoreError::Validation {
+                field: "order".into(),
+                detail: "no order to add points to".into(),
+            });
+        }
+        if request.token.is_none() && request.phone.is_none() {
+            return Err(CoreError::Validation {
+                field: "token".into(),
+                detail: "scan a card or type a phone number".into(),
+            });
+        }
+        // The moment of the press, on the device's corrected clock. The drain
+        // rebases it again by the measured offset before sending, so a till with
+        // a wrong clock is not punished by the server's bounds.
+        request.requested_at = Some(Some(now.into()));
+
+        if self.current_session().map(|s| s.online).unwrap_or(false) {
+            match loyalty_api::loyalty_award(&self.api.config(), loyalty_api::LoyaltyAwardParams {
+                award_request: request.clone(),
+            })
+            .await
+            {
+                Ok(result) => return Ok(Some(loyalty::member_view(&result.member))),
+                Err(e) => match net::map_api_error(e) {
+                    // The session said online but the round trip failed — this
+                    // is the offline case arriving a moment late. Queue the
+                    // press rather than losing it.
+                    CoreError::Offline { .. } | CoreError::Transient { .. } => {}
+                    // Anything else is a real answer from the server (the window
+                    // has closed, the card is not ours, the program is off) and
+                    // must reach the teller instead of being queued to fail
+                    // again later, silently, forever.
+                    other => return Err(other),
+                },
+            }
+        }
+
+        // Gate the award behind the SALE when that sale is itself still queued.
+        // The order's outbox id is its client-minted key, which is the same
+        // `order_key` this award names — so the two are linked with no new
+        // bookkeeping. Without this the award could reach the server first and
+        // be refused for an order that had not arrived yet.
+        let depends_on_seq = match order_key.as_deref() {
+            Some(key) => self.store.live_seq_of(key)?,
+            None => None,
+        };
+        let cmd = loyalty::AwardCommand { request };
+        let (user_id, clock_offset_ms) = self.outbox_meta();
+        let op_id = format!("loyalty_award:{}", uuid::Uuid::new_v4());
+        self.store.enqueue(&store::NewOutboxOp {
+            id: op_id.clone(),
+            op_type: "award_loyalty_points".into(),
+            idempotency_key: op_id,
+            payload: serde_json::to_string(&cmd)?,
+            event_at: now.to_rfc3339(),
+            depends_on_seq,
+            user_id,
+            clock_offset_ms,
+            shift_id: None,
+        })?;
+        // Try to send it straight away; offline simply leaves it queued.
+        let _ = self.drain_outbox().await;
+        // Queued: there is no balance to show yet. The caller says "added when
+        // this till reconnects" rather than inventing a number.
+        Ok(None)
     }
 
     /// Re-render a synced order as a receipt for reprint — same ESC/POS path as a

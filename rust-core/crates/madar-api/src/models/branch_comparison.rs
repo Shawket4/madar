@@ -22,6 +22,7 @@ pub struct BranchComparison {
     /// The cash slice of `total_tips`.
     #[serde(rename = "cash_tips", skip_serializing_if = "Option::is_none")]
     pub cash_tips: Option<i64>,
+    /// Goods only, by method actually tendered. Tips are in `total_tips`.
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
     pub revenue_by_method: Option<serde_json::Value>,
     #[serde(rename = "total_orders")]

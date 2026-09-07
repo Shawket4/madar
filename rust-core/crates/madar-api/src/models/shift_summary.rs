@@ -32,6 +32,7 @@ pub struct ShiftSummary {
     pub opened_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "opening_cash")]
     pub opening_cash: i64,
+    /// Goods only, by method actually tendered. Tips are in `total_tips`.
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
     pub revenue_by_method: Option<serde_json::Value>,
     #[serde(rename = "shift_id")]

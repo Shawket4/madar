@@ -21,6 +21,7 @@ Name | Type | Description | Notes
 **addon_slots** | [**Vec<models::AddonSlot>**](AddonSlot.md) |  | 
 **allowed_addon_ids** | **Vec<uuid::Uuid>** | Explicit per-item addon allowlist. Empty = no restriction (use org catalog). | 
 **optional_fields** | [**Vec<models::OptionalField>**](OptionalField.md) |  | 
+**recipe_steps** | Option<[**Vec<models::RecipeStep>**](RecipeStep.md)> | How the item is made, in order. Each preset step carries its animation's address and fingerprint, so a device downloads only what its own menu uses and never the whole library. | [optional]
 **recipes** | [**Vec<models::MenuItemRecipe>**](MenuItemRecipe.md) |  | 
 **sizes** | [**Vec<models::ItemSize>**](ItemSize.md) |  | 
 

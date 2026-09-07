@@ -35,6 +35,12 @@ pub struct CreateOrderRequest {
     pub idempotency_key: Option<Option<uuid::Uuid>>,
     #[serde(rename = "items")]
     pub items: Vec<models::OrderItemInput>,
+    /// The loyalty member spending a balance on this sale. Required when `loyalty_redemptions` is non-empty, and ONLY for that: earning is a separate, later act (`POST /loyalty/award`), so a sale that redeems nothing never names a member here.
+    #[serde(rename = "loyalty_customer_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub loyalty_customer_id: Option<Option<uuid::Uuid>>,
+    /// Rewards covering lines of this cart. Each names a line by its index in `items` and how many of that line's units the reward pays for, so a mixed basket can have one free coffee among four paid ones.
+    #[serde(rename = "loyalty_redemptions", skip_serializing_if = "Option::is_none")]
+    pub loyalty_redemptions: Option<Vec<models::LoyaltyRedemptionInput>>,
     #[serde(rename = "notes", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub notes: Option<Option<String>>,
     /// IGNORED by the server (accepted for backward compatibility only). The authoritative per-shift number is ALWAYS `MAX(order_number)+1` computed under the shift advisory lock — never the client value, which is used only on the device's local receipt. The byte-identical-at-reprint guarantee rides on `order_ref`, not this field. Two tills on one shift get distinct numbers (UNIQUE(shift_id, order_number) + the lock).
@@ -75,6 +81,8 @@ impl CreateOrderRequest {
             discount_value: None,
             idempotency_key: None,
             items,
+            loyalty_customer_id: None,
+            loyalty_redemptions: None,
             notes: None,
             order_number: None,
             order_ref: None,

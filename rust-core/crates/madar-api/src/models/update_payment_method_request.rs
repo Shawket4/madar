@@ -21,8 +21,8 @@ pub struct UpdatePaymentMethodRequest {
     pub is_active: Option<Option<bool>>,
     #[serde(rename = "is_cash", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub is_cash: Option<Option<bool>>,
-    #[serde(rename = "label_translations", skip_serializing_if = "Option::is_none")]
-    pub label_translations: Option<std::collections::HashMap<String, String>>,
+    #[serde(rename = "label_translations", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub label_translations: Option<Option<std::collections::HashMap<String, String>>>,
     #[serde(rename = "name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub name: Option<Option<String>>,
     #[serde(rename = "visible_in_integrations", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]

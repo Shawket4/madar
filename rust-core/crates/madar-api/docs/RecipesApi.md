@@ -8,6 +8,9 @@ Method | HTTP request | Description
 [**delete_drink_recipe**](RecipesApi.md#delete_drink_recipe) | **DELETE** /recipes/drinks/{menu_item_id}/{size} | 
 [**list_addon_ingredients**](RecipesApi.md#list_addon_ingredients) | **GET** /recipes/addons/{addon_item_id} | 
 [**list_drink_recipes**](RecipesApi.md#list_drink_recipes) | **GET** /recipes/drinks/{menu_item_id} | 
+[**list_recipe_steps**](RecipesApi.md#list_recipe_steps) | **GET** /recipes/steps/{menu_item_id} | 
+[**list_step_presets**](RecipesApi.md#list_step_presets) | **GET** /recipes/step-presets | 
+[**put_recipe_steps**](RecipesApi.md#put_recipe_steps) | **PUT** /recipes/steps/{menu_item_id} | Replace an item's steps, in one transaction.
 [**upsert_addon_ingredient**](RecipesApi.md#upsert_addon_ingredient) | **POST** /recipes/addons/{addon_item_id} | 
 [**upsert_drink_recipe**](RecipesApi.md#upsert_drink_recipe) | **POST** /recipes/drinks/{menu_item_id} | 
 
@@ -123,6 +126,88 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## list_recipe_steps
+
+> Vec<models::RecipeStep> list_recipe_steps(menu_item_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**menu_item_id** | **uuid::Uuid** | Menu item ID | [required] |
+
+### Return type
+
+[**Vec<models::RecipeStep>**](RecipeStep.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## list_step_presets
+
+> Vec<models::RecipeStepPreset> list_step_presets()
+
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**Vec<models::RecipeStepPreset>**](RecipeStepPreset.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_recipe_steps
+
+> Vec<models::RecipeStep> put_recipe_steps(menu_item_id, put_recipe_steps_request)
+Replace an item's steps, in one transaction.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**menu_item_id** | **uuid::Uuid** | Menu item ID | [required] |
+**put_recipe_steps_request** | [**PutRecipeStepsRequest**](PutRecipeStepsRequest.md) |  | [required] |
+
+### Return type
+
+[**Vec<models::RecipeStep>**](RecipeStep.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

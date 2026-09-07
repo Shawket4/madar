@@ -48,6 +48,9 @@ pub struct MenuItemFull {
     pub allowed_addon_ids: Vec<uuid::Uuid>,
     #[serde(rename = "optional_fields")]
     pub optional_fields: Vec<models::OptionalField>,
+    /// How the item is made, in order. Each preset step carries its animation's address and fingerprint, so a device downloads only what its own menu uses and never the whole library.
+    #[serde(rename = "recipe_steps", skip_serializing_if = "Option::is_none")]
+    pub recipe_steps: Option<Vec<models::RecipeStep>>,
     #[serde(rename = "recipes")]
     pub recipes: Vec<models::MenuItemRecipe>,
     #[serde(rename = "sizes")]
@@ -74,6 +77,7 @@ impl MenuItemFull {
             addon_slots,
             allowed_addon_ids,
             optional_fields,
+            recipe_steps: None,
             recipes,
             sizes,
         }

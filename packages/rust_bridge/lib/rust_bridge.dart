@@ -17,6 +17,7 @@ export 'src/generated/api/device.dart';
 export 'src/generated/api/error.dart';
 export 'src/generated/api/floor.dart';
 export 'src/generated/api/kds.dart';
+export 'src/generated/api/loyalty.dart';
 export 'src/generated/api/orders.dart';
 export 'src/generated/api/printing.dart';
 export 'src/generated/api/realtime.dart';

@@ -9,7 +9,7 @@ Name | Type | Description | Notes
 **by_category** | [**Vec<models::CategorySales>**](CategorySales.md) |  | 
 **cash_tips** | Option<**i64**> | The cash slice of `total_tips` (snapshotted `tip_is_cash`). | [optional]
 **from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
-**revenue_by_method** | Option<**serde_json::Value**> |  | 
+**revenue_by_method** | Option<**serde_json::Value**> | Money collected FOR GOODS, bucketed by the method actually tendered (`order_payments`). Tips are not in here — see `total_tips`. | 
 **subtotal** | **i64** |  | 
 **to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **top_items** | [**Vec<models::ItemSales>**](ItemSales.md) |  | 

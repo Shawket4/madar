@@ -16,6 +16,7 @@ Name | Type | Description | Notes
 **name_translations** | Option<**serde_json::Value**> |  | 
 **options** | [**Vec<models::ItemOptionOut>**](ItemOptionOut.md) |  | 
 **org_id** | **uuid::Uuid** |  | 
+**recipe_steps** | [**Vec<models::RecipeStep>**](RecipeStep.md) | How the item is made, in order. Edited through `PUT /recipes/steps/{id}` and saved by the studio alongside the recipe lines. | 
 **sizes** | [**Vec<models::SizeOut>**](SizeOut.md) |  | 
 **used_in_bundles** | [**Vec<models::UsedInBundleOut>**](UsedInBundleOut.md) |  | 
 

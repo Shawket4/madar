@@ -4,6 +4,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/checkout_drawer.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
+import 'package:feature_checkout/src/loyalty_award_sheet.dart';
 import 'package:feature_checkout/src/receipt_paper.dart';
 import 'package:feature_checkout/src/widgets.dart';
 import 'package:flutter/material.dart';
@@ -202,6 +203,34 @@ class _ReceiptConfirmation extends ConsumerWidget {
                       PrintState.idle ||
                       PrintState.printing => const SizedBox.shrink(),
                     },
+                    // Points are an explicit act, never a side effect of the
+                    // sale — so this button, not a checkbox at tender time. The
+                    // same button lives on this order in the history for the
+                    // next 24 hours, because "I left my card in the car" is
+                    // answered by the customer coming back, not by the till
+                    // holding the queue.
+                    if (ref
+                        .read(bridgeProvider)
+                        .loyaltyAwardWindowOpen(
+                          orderCreatedAt: receipt.createdAt,
+                          now: DateTime.now().toUtc().toIso8601String(),
+                        ))
+                      ActionButton(
+                        label: tr('loyalty.add_points'),
+                        icon: 'star',
+                        variant: ActionVariant.outline,
+                        onTap: () => unawaited(
+                          showMadarSheet<bool>(
+                            context,
+                            builder: (_) => LoyaltyAwardSheet(
+                              // A just-rung sale is known by its client key —
+                              // the server id may not exist yet.
+                              orderKey: receipt.localOrderId,
+                              orderCreatedAt: receipt.createdAt,
+                            ),
+                          ),
+                        ),
+                      ),
                     Row(
                       spacing: Space.sm,
                       children: [

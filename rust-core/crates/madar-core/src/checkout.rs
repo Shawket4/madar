@@ -141,6 +141,23 @@ pub struct CheckoutInput {
     pub notes: Option<String>,
     /// Per-method split legs (empty = single payment).
     pub splits: Vec<CheckoutSplit>,
+    /// The member spending a balance on this sale, when rewards are applied.
+    /// Earning is a separate, later act — a sale that redeems nothing leaves
+    /// this empty.
+    pub loyalty_customer_id: Option<String>,
+    /// Rewards covering lines of the cart: which line, and how many of its
+    /// units. The server prices them; the till only says which.
+    pub loyalty_redemptions: Vec<CheckoutRedemption>,
+}
+
+/// One reward applied to one cart line.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CheckoutRedemption {
+    /// Index into the cart's lines, in the order the cart lists them.
+    pub item_index: u32,
+    /// How many of that line's units the reward covers.
+    pub units: i32,
 }
 
 /// Everything the FFI needs to commit a checkout: the queued command + the
@@ -462,6 +479,26 @@ pub(crate) fn prepare(
             .map(|p| p.name)
             .unwrap_or_else(|| payment_method.clone());
         request.tip_payment_method = Some(Some(tip_method));
+    }
+    // Who and which lines — never a price. The server looks the reward up in the
+    // branch's catalogue, checks the balance against the WHOLE basket, and
+    // refuses the sale outright if it does not cover it.
+    request.loyalty_customer_id = input
+        .loyalty_customer_id
+        .as_deref()
+        .and_then(|id| uuid::Uuid::parse_str(id).ok())
+        .map(Some);
+    if !input.loyalty_redemptions.is_empty() {
+        request.loyalty_redemptions = Some(
+            input
+                .loyalty_redemptions
+                .iter()
+                .map(|r| models::LoyaltyRedemptionInput {
+                    item_index: r.item_index,
+                    units: Some(Some(r.units)),
+                })
+                .collect(),
+        );
     }
     request.customer_name = input
         .customer_name
@@ -811,6 +848,8 @@ mod tests {
             customer_name: None,
             notes: None,
             splits: vec![],
+            loyalty_customer_id: None,
+            loyalty_redemptions: vec![],
         }
     }
 

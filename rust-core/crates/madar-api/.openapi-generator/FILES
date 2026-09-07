@@ -13,6 +13,7 @@ docs/AddonItemIngredient.md
 docs/AddonOverride.md
 docs/AddonSalesRow.md
 docs/AddonSlot.md
+docs/AdjustRequest.md
 docs/AdvanceDecision.md
 docs/AiApi.md
 docs/AiChatKind.md
@@ -32,6 +33,8 @@ docs/AuthApi.md
 docs/AuthPermissionsResponse.md
 docs/AvailabilityOut.md
 docs/AvailabilityResponse.md
+docs/AwardRequest.md
+docs/AwardResult.md
 docs/BoardInfo.md
 docs/BookingSettings.md
 docs/BookingStats.md
@@ -65,6 +68,7 @@ docs/BundleWithComponents.md
 docs/BundlesApi.md
 docs/CancelBookingRequest.md
 docs/CancelInput.md
+docs/CardView.md
 docs/CartLineInput.md
 docs/CashMovement.md
 docs/CashMovementRequest.md
@@ -204,6 +208,9 @@ docs/ItemRoute.md
 docs/ItemRouteInput.md
 docs/ItemSales.md
 docs/ItemSize.md
+docs/JoinInfo.md
+docs/JoinInput.md
+docs/JoinResult.md
 docs/KitchenApi.md
 docs/KitchenLine.md
 docs/KitchenStation.md
@@ -213,10 +220,16 @@ docs/LateDeductionKind.md
 docs/LateTier.md
 docs/LeaveBalance.md
 docs/LeaveType.md
+docs/LedgerEntry.md
 docs/LedgerTotals.md
 docs/LoginRequest.md
 docs/LoginResponse.md
+docs/LookupRequest.md
 docs/LowStockRow.md
+docs/LoyaltyApi.md
+docs/LoyaltyPublicApi.md
+docs/LoyaltyRedemptionInput.md
+docs/LoyaltySettings.md
 docs/ManualRecordRequest.md
 docs/MarginLedgerReport.md
 docs/MarginLedgerRow.md
@@ -224,6 +237,9 @@ docs/MarginTargets.md
 docs/MarginWatch.md
 docs/MarketingLink.md
 docs/MeResponse.md
+docs/MemberDetail.md
+docs/MemberView.md
+docs/MembersPage.md
 docs/MenuApi.md
 docs/MenuItem.md
 docs/MenuItemFull.md
@@ -280,6 +296,7 @@ docs/PaginatedMenuItems.md
 docs/PaginatedOrders.md
 docs/PaginatedOrdersFull.md
 docs/PaginatedShifts.md
+docs/PassLinks.md
 docs/PatchGroupRequest.md
 docs/PatchOptionRequest.md
 docs/PauseInput.md
@@ -315,6 +332,7 @@ docs/PublicBookingInput.md
 docs/PublicBookingView.md
 docs/PublicBranch.md
 docs/PublicOrg.md
+docs/PublicReward.md
 docs/PublicSlot.md
 docs/PublicSlots.md
 docs/PurchaseOrder.md
@@ -329,6 +347,8 @@ docs/PutItemOptionsRequest.md
 docs/PutModifierGroupsRequest.md
 docs/PutOverrideRequest.md
 docs/PutRecipeRequest.md
+docs/PutRecipeStepsRequest.md
+docs/PutRewardItems.md
 docs/PutSizesRequest.md
 docs/PutTargetRequest.md
 docs/QrApi.md
@@ -341,6 +361,9 @@ docs/ReceivePurchaseOrderRequest.md
 docs/RecipeCostResult.md
 docs/RecipeLineInput.md
 docs/RecipeLineOut.md
+docs/RecipeStep.md
+docs/RecipeStepInput.md
+docs/RecipeStepPreset.md
 docs/RecipesApi.md
 docs/RegistryInfo.md
 docs/RenameConversationRequest.md
@@ -356,10 +379,14 @@ docs/ResolveBranchResponse.md
 docs/ResolvedShift.md
 docs/ResultBlock.md
 docs/ReturnLineInput.md
+docs/RewardCatalogue.md
+docs/RewardItem.md
+docs/RewardItemInput.md
 docs/RolePermission.md
 docs/RoutingModeResponse.md
 docs/SalaryAdvance.md
 docs/SaveLayoutRequest.md
+docs/ScanResult.md
 docs/ScheduleAssignment.md
 docs/ScheduleOverride.md
 docs/ScheduledDay.md
@@ -490,6 +517,8 @@ src/apis/insights_api.rs
 src/apis/integrations_api.rs
 src/apis/inventory_api.rs
 src/apis/kitchen_api.rs
+src/apis/loyalty_api.rs
+src/apis/loyalty_public_api.rs
 src/apis/menu_api.rs
 src/apis/metrics_api.rs
 src/apis/mod.rs
@@ -522,6 +551,7 @@ src/models/addon_item_ingredient.rs
 src/models/addon_override.rs
 src/models/addon_sales_row.rs
 src/models/addon_slot.rs
+src/models/adjust_request.rs
 src/models/advance_decision.rs
 src/models/ai_chat_kind.rs
 src/models/ai_chat_kind_one_of.rs
@@ -539,6 +569,8 @@ src/models/attendance_summary.rs
 src/models/auth_permissions_response.rs
 src/models/availability_out.rs
 src/models/availability_response.rs
+src/models/award_request.rs
+src/models/award_result.rs
 src/models/board_info.rs
 src/models/booking_settings.rs
 src/models/booking_stats.rs
@@ -568,6 +600,7 @@ src/models/bundle_status.rs
 src/models/bundle_with_components.rs
 src/models/cancel_booking_request.rs
 src/models/cancel_input.rs
+src/models/card_view.rs
 src/models/cart_line_input.rs
 src/models/cash_movement.rs
 src/models/cash_movement_request.rs
@@ -698,6 +731,9 @@ src/models/item_route.rs
 src/models/item_route_input.rs
 src/models/item_sales.rs
 src/models/item_size.rs
+src/models/join_info.rs
+src/models/join_input.rs
+src/models/join_result.rs
 src/models/kitchen_line.rs
 src/models/kitchen_station.rs
 src/models/kitchen_ticket_item_view.rs
@@ -706,10 +742,14 @@ src/models/late_deduction_kind.rs
 src/models/late_tier.rs
 src/models/leave_balance.rs
 src/models/leave_type.rs
+src/models/ledger_entry.rs
 src/models/ledger_totals.rs
 src/models/login_request.rs
 src/models/login_response.rs
+src/models/lookup_request.rs
 src/models/low_stock_row.rs
+src/models/loyalty_redemption_input.rs
+src/models/loyalty_settings.rs
 src/models/manual_record_request.rs
 src/models/margin_ledger_report.rs
 src/models/margin_ledger_row.rs
@@ -717,6 +757,9 @@ src/models/margin_targets.rs
 src/models/margin_watch.rs
 src/models/marketing_link.rs
 src/models/me_response.rs
+src/models/member_detail.rs
+src/models/member_view.rs
+src/models/members_page.rs
 src/models/menu_item.rs
 src/models/menu_item_full.rs
 src/models/menu_item_recipe.rs
@@ -769,6 +812,7 @@ src/models/paginated_menu_items.rs
 src/models/paginated_orders.rs
 src/models/paginated_orders_full.rs
 src/models/paginated_shifts.rs
+src/models/pass_links.rs
 src/models/patch_group_request.rs
 src/models/patch_option_request.rs
 src/models/pause_input.rs
@@ -802,6 +846,7 @@ src/models/public_booking_input.rs
 src/models/public_booking_view.rs
 src/models/public_branch.rs
 src/models/public_org.rs
+src/models/public_reward.rs
 src/models/public_slot.rs
 src/models/public_slots.rs
 src/models/purchase_order.rs
@@ -815,6 +860,8 @@ src/models/put_item_options_request.rs
 src/models/put_modifier_groups_request.rs
 src/models/put_override_request.rs
 src/models/put_recipe_request.rs
+src/models/put_recipe_steps_request.rs
+src/models/put_reward_items.rs
 src/models/put_sizes_request.rs
 src/models/put_target_request.rs
 src/models/qr_response.rs
@@ -825,6 +872,9 @@ src/models/receive_purchase_order_request.rs
 src/models/recipe_cost_result.rs
 src/models/recipe_line_input.rs
 src/models/recipe_line_out.rs
+src/models/recipe_step.rs
+src/models/recipe_step_input.rs
+src/models/recipe_step_preset.rs
 src/models/registry_info.rs
 src/models/rename_conversation_request.rs
 src/models/reorder_line.rs
@@ -837,10 +887,14 @@ src/models/resolve_branch_response.rs
 src/models/resolved_shift.rs
 src/models/result_block.rs
 src/models/return_line_input.rs
+src/models/reward_catalogue.rs
+src/models/reward_item.rs
+src/models/reward_item_input.rs
 src/models/role_permission.rs
 src/models/routing_mode_response.rs
 src/models/salary_advance.rs
 src/models/save_layout_request.rs
+src/models/scan_result.rs
 src/models/schedule_assignment.rs
 src/models/schedule_override.rs
 src/models/scheduled_day.rs

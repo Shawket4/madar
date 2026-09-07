@@ -123,6 +123,7 @@ void main() {
           amountTenderedMinor: totals.totalMinor,
           tipMinor: 0,
           splits: const [],
+          loyaltyRedemptions: const [],
         ),
       );
     }

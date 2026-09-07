@@ -26,6 +26,7 @@ pub struct ComputedPayslip {
     pub base_salary_piastres: i64,
     #[serde(rename = "bonuses_piastres")]
     pub bonuses_piastres: i64,
+    /// Line-by-line, so a preview can name each deduction rather than showing a lump sum nobody can argue with.
     #[serde(rename = "breakdown", deserialize_with = "Option::deserialize")]
     pub breakdown: Option<serde_json::Value>,
     #[serde(rename = "deductions_piastres")]

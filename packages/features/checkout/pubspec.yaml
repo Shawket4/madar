@@ -14,6 +14,11 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.3.2
+  # Camera scanning for the loyalty pass barcode. Android/iOS/macOS only — the
+  # Windows tills this app also ships to have no plugin, which is exactly why
+  # the scan sheet keeps a USB keyboard-wedge path and a phone-number fallback
+  # and treats the camera as the optional one of the three.
+  mobile_scanner: ^7.1.4
   rust_bridge: ^0.1.0
 
 dev_dependencies:

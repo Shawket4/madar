@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct OpenTicketItemView {
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// The frozen priced SnapshotLine (name, size, addons, totals).
     #[serde(rename = "line", deserialize_with = "Option::deserialize")]
     pub line: Option<serde_json::Value>,
     #[serde(rename = "line_total")]

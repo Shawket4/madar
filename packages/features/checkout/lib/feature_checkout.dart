@@ -21,6 +21,8 @@ export 'src/checkout_provider.dart'
         checkoutProvider,
         kReceiptChars,
         printerBrandOf;
+export 'src/loyalty_award_sheet.dart' show LoyaltyAwardSheet;
+export 'src/loyalty_scan_sheet.dart' show LoyaltyScanSheet;
 export 'src/receipt_paper.dart' show ReceiptPaper;
 export 'src/receipt_sheet.dart'
     show

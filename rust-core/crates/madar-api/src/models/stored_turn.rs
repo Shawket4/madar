@@ -29,6 +29,7 @@ pub struct StoredTurn {
     pub question: String,
     #[serde(rename = "seq")]
     pub seq: i32,
+    /// The queries that produced the answer — `[{title, preset_id, spec}]`. Re-running these is how a reopened conversation shows CURRENT figures rather than the numbers that were true when it was first asked.
     #[serde(rename = "specs", deserialize_with = "Option::deserialize")]
     pub specs: Option<serde_json::Value>,
 }

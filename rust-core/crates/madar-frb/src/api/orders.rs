@@ -113,6 +113,22 @@ pub struct _CheckoutInput {
     pub notes: Option<String>,
     /// Per-method split legs (empty = single payment).
     pub splits: Vec<CheckoutSplit>,
+    /// The member spending a balance on this sale, when rewards are applied.
+    pub loyalty_customer_id: Option<String>,
+    /// Rewards covering lines of the cart. The till says WHICH lines; the
+    /// server prices them and checks the balance.
+    pub loyalty_redemptions: Vec<CheckoutRedemption>,
+}
+
+pub use madar_core::checkout::CheckoutRedemption;
+
+/// One reward applied to one cart line.
+#[frb(mirror(CheckoutRedemption))]
+pub struct _CheckoutRedemption {
+    /// Index into the cart's lines, in the order the cart lists them.
+    pub item_index: u32,
+    /// How many of that line's units the reward covers.
+    pub units: i32,
 }
 
 // ── order view mirrors (madar-core/src/orders.rs) ───────────────────────────

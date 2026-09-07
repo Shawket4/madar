@@ -7,8 +7,11 @@
 /// (SheetSize.hug). Read-only — Print/Void live on the history rows.
 library;
 
+import 'dart:async';
+
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart';
 import 'package:flutter/material.dart' show Theme;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -167,6 +170,32 @@ class OrderDetailsSheet extends ConsumerWidget {
                   totalMinor: o.totalMinor,
                   currency: currency,
                 ),
+
+                // Adding points is claimable for 24 hours after the sale, so a
+                // customer who left their card behind can come back for it. The
+                // window is the core's rule (and the server re-checks it against
+                // this order's own timestamp), so this button disappears on its
+                // own — no timer, no stale state.
+                if (!voided &&
+                    bridge.loyaltyAwardWindowOpen(
+                      orderCreatedAt: o.createdAt,
+                      now: DateTime.now().toUtc().toIso8601String(),
+                    ))
+                  _AddPointsButton(
+                    label: t('loyalty.add_points'),
+                    onTap: () => unawaited(
+                      showMadarSheet<bool>(
+                        context,
+                        builder: (_) => LoyaltyAwardSheet(
+                          // A queued sale has no server id yet — it is known by
+                          // the client key it was rung under.
+                          orderId: o.queued ? null : o.id,
+                          orderKey: o.queued ? o.id : null,
+                          orderCreatedAt: o.createdAt,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -414,6 +443,50 @@ class _TotalsBlock extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The "add points" action on a past order.
+///
+/// Local rather than borrowed: `feature_checkout` and `feature_order` each
+/// already export an `ActionButton`, and importing a third of the same name is
+/// how that becomes an ambiguity every file in the workspace has to resolve.
+class _AddPointsButton extends StatelessWidget {
+  const _AddPointsButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Space.lg,
+          vertical: Space.md,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(Radii.md),
+          border: Border.all(color: colors.borderLight),
+          color: colors.surface,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          spacing: Space.xs,
+          children: [
+            MadarIcon('star', tint: colors.accent, size: IconSize.sm),
+            Text(
+              label,
+              style: MadarType.label.copyWith(color: colors.textPrimary),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -37,6 +37,7 @@ pub struct OrderHistorySummary {
     pub discount_amount: i32,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// Frozen cart snapshot: the items at the time of the order (for display).
     #[serde(rename = "items", deserialize_with = "Option::deserialize")]
     pub items: Option<serde_json::Value>,
     #[serde(rename = "place_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]

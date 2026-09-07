@@ -15,6 +15,8 @@ Name | Type | Description | Notes
 **discount_value** | Option<**i32**> |  | [optional]
 **idempotency_key** | Option<**uuid::Uuid**> |  | [optional]
 **items** | [**Vec<models::OrderItemInput>**](OrderItemInput.md) |  | 
+**loyalty_customer_id** | Option<**uuid::Uuid**> | The loyalty member spending a balance on this sale. Required when `loyalty_redemptions` is non-empty, and ONLY for that: earning is a separate, later act (`POST /loyalty/award`), so a sale that redeems nothing never names a member here. | [optional]
+**loyalty_redemptions** | Option<[**Vec<models::LoyaltyRedemptionInput>**](LoyaltyRedemptionInput.md)> | Rewards covering lines of this cart. Each names a line by its index in `items` and how many of that line's units the reward pays for, so a mixed basket can have one free coffee among four paid ones. | [optional]
 **notes** | Option<**String**> |  | [optional]
 **order_number** | Option<**i32**> | IGNORED by the server (accepted for backward compatibility only). The authoritative per-shift number is ALWAYS `MAX(order_number)+1` computed under the shift advisory lock — never the client value, which is used only on the device's local receipt. The byte-identical-at-reprint guarantee rides on `order_ref`, not this field. Two tills on one shift get distinct numbers (UNIQUE(shift_id, order_number) + the lock). | [optional]
 **order_ref** | Option<**String**> | Client-minted order reference (`<BRANCH>-<YYMMDD>-<DEVICE>-<NNNN>`). Stored verbatim when present; absent → the server mints the deterministic shift-based ref. The global `UNIQUE(order_ref)` index keeps both paths collision-safe (a managed per-device code makes concurrent tills unique). | [optional]

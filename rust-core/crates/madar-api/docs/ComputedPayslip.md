@@ -9,7 +9,7 @@ Name | Type | Description | Notes
 **base_piastres** | **i64** | After the attendance proration — what the days actually worked earn. | 
 **base_salary_piastres** | **i64** |  | 
 **bonuses_piastres** | **i64** |  | 
-**breakdown** | Option<**serde_json::Value**> |  | 
+**breakdown** | Option<**serde_json::Value**> | Line-by-line, so a preview can name each deduction rather than showing a lump sum nobody can argue with. | 
 **deductions_piastres** | **i64** |  | 
 **late_minutes** | **i64** |  | 
 **leave_days** | **f64** |  | 
