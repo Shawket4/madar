@@ -20,6 +20,8 @@ pub struct JoinResult {
     /// The live balance, in `mode`'s currency. Zero for a fresh member.
     #[serde(rename = "balance")]
     pub balance: i32,
+    #[serde(rename = "brand")]
+    pub brand: Box<models::CardBrand>,
     #[serde(rename = "member_token")]
     pub member_token: String,
     #[serde(rename = "mode")]
@@ -30,22 +32,20 @@ pub struct JoinResult {
     pub next_reward_cost: i32,
     #[serde(rename = "passes")]
     pub passes: Box<models::PassLinks>,
-    #[serde(rename = "program_name")]
-    pub program_name: String,
 }
 
 impl JoinResult {
     /// What the customer sees after signing up: their card, and the buttons.
-    pub fn new(already_member: bool, balance: i32, member_token: String, mode: String, name: String, next_reward_cost: i32, passes: models::PassLinks, program_name: String) -> JoinResult {
+    pub fn new(already_member: bool, balance: i32, brand: models::CardBrand, member_token: String, mode: String, name: String, next_reward_cost: i32, passes: models::PassLinks) -> JoinResult {
         JoinResult {
             already_member,
             balance,
+            brand: Box::new(brand),
             member_token,
             mode,
             name,
             next_reward_cost,
             passes: Box::new(passes),
-            program_name,
         }
     }
 }

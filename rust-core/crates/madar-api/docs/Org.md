@@ -4,6 +4,9 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**brand_accent** | Option<**String**> |  | [optional]
+**brand_background** | Option<**String**> | The card palette derived from `logo_url` when it was uploaded (`orgs::branding`). Read-only over the API: there is nothing to set, and nothing a client may set — the point of deriving is that a shop cannot choose two colours nobody can read. | [optional]
+**brand_foreground** | Option<**String**> |  | [optional]
 **currency_code** | **String** |  | 
 **id** | **uuid::Uuid** |  | 
 **is_active** | **bool** |  | 

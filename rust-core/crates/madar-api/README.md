@@ -493,6 +493,7 @@ Class | Method | HTTP request | Description
  - [BundleWithComponents](docs/BundleWithComponents.md)
  - [CancelBookingRequest](docs/CancelBookingRequest.md)
  - [CancelInput](docs/CancelInput.md)
+ - [CardBrand](docs/CardBrand.md)
  - [CardView](docs/CardView.md)
  - [CartLineInput](docs/CartLineInput.md)
  - [CashMovement](docs/CashMovement.md)

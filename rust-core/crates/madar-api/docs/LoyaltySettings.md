@@ -12,10 +12,6 @@ Name | Type | Description | Notes
 **enabled** | **bool** | The program switch for this scope. | 
 **mode** | **String** | What this scope collects: `\"points\"` (from money spent) or `\"visits\"` (one stamp per sale). One or the other — never both. | 
 **org_id** | **uuid::Uuid** |  | 
-**pass_background_color** | Option<**String**> |  | [optional]
-**pass_foreground_color** | Option<**String**> |  | [optional]
-**pass_label_color** | Option<**String**> |  | [optional]
-**pass_logo_url** | Option<**String**> |  | [optional]
 **program_name** | **String** |  | 
 **program_name_ar** | Option<**String**> |  | [optional]
 **require_otp** | **bool** | Verify the signup phone by WhatsApp code, like bookings and ordering. | 

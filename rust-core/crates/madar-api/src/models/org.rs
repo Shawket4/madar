@@ -13,6 +13,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Org {
+    #[serde(rename = "brand_accent", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub brand_accent: Option<Option<String>>,
+    /// The card palette derived from `logo_url` when it was uploaded (`orgs::branding`). Read-only over the API: there is nothing to set, and nothing a client may set — the point of deriving is that a shop cannot choose two colours nobody can read.
+    #[serde(rename = "brand_background", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub brand_background: Option<Option<String>>,
+    #[serde(rename = "brand_foreground", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub brand_foreground: Option<Option<String>>,
     #[serde(rename = "currency_code")]
     pub currency_code: String,
     #[serde(rename = "id")]
@@ -38,6 +45,9 @@ pub struct Org {
 impl Org {
     pub fn new(currency_code: String, id: uuid::Uuid, is_active: bool, name: String, slug: String, tax_rate: f64, timezone: String) -> Org {
         Org {
+            brand_accent: None,
+            brand_background: None,
+            brand_foreground: None,
             currency_code,
             id,
             is_active,

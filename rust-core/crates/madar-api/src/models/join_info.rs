@@ -18,6 +18,9 @@ pub struct JoinInfo {
     pub branch_id: uuid::Uuid,
     #[serde(rename = "branch_name")]
     pub branch_name: String,
+    /// Whose programme this is, and how the page should look.
+    #[serde(rename = "brand")]
+    pub brand: Box<models::CardBrand>,
     /// EGP that earns one point — the page's \"a point for every N EGP\" line. Piastres on the wire, as everywhere; the page divides by 100. Only meaningful when `mode` is `\"points\"`.
     #[serde(rename = "earn_piastres_per_point")]
     pub earn_piastres_per_point: i32,
@@ -30,12 +33,6 @@ pub struct JoinInfo {
     /// The cheapest reward on offer, in `mode`'s currency.
     #[serde(rename = "next_reward_cost")]
     pub next_reward_cost: i32,
-    #[serde(rename = "org_name")]
-    pub org_name: String,
-    #[serde(rename = "program_name")]
-    pub program_name: String,
-    #[serde(rename = "program_name_ar", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub program_name_ar: Option<Option<String>>,
     /// The page collects an OTP only when the branch asks for one.
     #[serde(rename = "require_otp")]
     pub require_otp: bool,
@@ -50,17 +47,15 @@ pub struct JoinInfo {
 
 impl JoinInfo {
     /// What the signup page needs to render itself before anyone types anything.
-    pub fn new(branch_id: uuid::Uuid, branch_name: String, earn_piastres_per_point: i32, enabled: bool, mode: String, next_reward_cost: i32, org_name: String, program_name: String, require_otp: bool, rewards: Vec<models::PublicReward>) -> JoinInfo {
+    pub fn new(branch_id: uuid::Uuid, branch_name: String, brand: models::CardBrand, earn_piastres_per_point: i32, enabled: bool, mode: String, next_reward_cost: i32, require_otp: bool, rewards: Vec<models::PublicReward>) -> JoinInfo {
         JoinInfo {
             branch_id,
             branch_name,
+            brand: Box::new(brand),
             earn_piastres_per_point,
             enabled,
             mode,
             next_reward_cost,
-            org_name,
-            program_name,
-            program_name_ar: None,
             require_otp,
             rewards,
             terms: None,

@@ -17,7 +17,7 @@ pub struct PassLinks {
     /// False when neither wallet is configured — the site shows the member's QR on the page instead of dead buttons.
     #[serde(rename = "any")]
     pub any: bool,
-    /// Downloads the signed `.pkpass`.
+    /// Downloads the signed `.pkpass`. Site-relative, because the signup page is served from the same origin as the API — so a pass needs a CERTIFICATE, not a configured base URL.
     #[serde(rename = "apple_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub apple_url: Option<Option<String>>,
     /// `https://pay.google.com/gp/v/save/<jwt>`.

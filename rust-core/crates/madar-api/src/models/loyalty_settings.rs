@@ -36,14 +36,6 @@ pub struct LoyaltySettings {
     pub mode: String,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
-    #[serde(rename = "pass_background_color", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub pass_background_color: Option<Option<String>>,
-    #[serde(rename = "pass_foreground_color", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub pass_foreground_color: Option<Option<String>>,
-    #[serde(rename = "pass_label_color", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub pass_label_color: Option<Option<String>>,
-    #[serde(rename = "pass_logo_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub pass_logo_url: Option<Option<String>>,
     #[serde(rename = "program_name")]
     pub program_name: String,
     #[serde(rename = "program_name_ar", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -68,10 +60,6 @@ impl LoyaltySettings {
             enabled,
             mode,
             org_id,
-            pass_background_color: None,
-            pass_foreground_color: None,
-            pass_label_color: None,
-            pass_logo_url: None,
             program_name,
             program_name_ar: None,
             require_otp,

@@ -17,6 +17,9 @@ pub struct CardView {
     /// The live balance, in `mode`'s currency.
     #[serde(rename = "balance")]
     pub balance: i32,
+    /// Whose card this is, and how it should look.
+    #[serde(rename = "brand")]
+    pub brand: Box<models::CardBrand>,
     #[serde(rename = "can_redeem")]
     pub can_redeem: bool,
     #[serde(rename = "member_token")]
@@ -31,17 +34,16 @@ pub struct CardView {
     pub passes: Box<models::PassLinks>,
     #[serde(rename = "points_to_next_reward")]
     pub points_to_next_reward: i32,
-    #[serde(rename = "program_name")]
-    pub program_name: String,
     #[serde(rename = "rewards")]
     pub rewards: Vec<models::PublicReward>,
 }
 
 impl CardView {
     /// The member's own card page — what they see when they open the link again.  The token in the path is the member's secret, which is why this returns only what the pass already shows and never the phone number in full.
-    pub fn new(balance: i32, can_redeem: bool, member_token: String, mode: String, name: String, next_reward_cost: i32, passes: models::PassLinks, points_to_next_reward: i32, program_name: String, rewards: Vec<models::PublicReward>) -> CardView {
+    pub fn new(balance: i32, brand: models::CardBrand, can_redeem: bool, member_token: String, mode: String, name: String, next_reward_cost: i32, passes: models::PassLinks, points_to_next_reward: i32, rewards: Vec<models::PublicReward>) -> CardView {
         CardView {
             balance,
+            brand: Box::new(brand),
             can_redeem,
             member_token,
             mode,
@@ -49,7 +51,6 @@ impl CardView {
             next_reward_cost,
             passes: Box::new(passes),
             points_to_next_reward,
-            program_name,
             rewards,
         }
     }
