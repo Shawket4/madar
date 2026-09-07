@@ -21,6 +21,9 @@ pub struct CardBrand {
     pub foreground_color: Option<Option<String>>,
     #[serde(rename = "label_color", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub label_color: Option<Option<String>>,
+    /// True when the logo is a shape on transparency, so the card may repaint it in the foreground for contrast. False for a logo with its background baked in, which gets a plate to sit on instead — repainting that one would give a solid rectangle. See `orgs::branding::is_mark`.
+    #[serde(rename = "logo_is_mark")]
+    pub logo_is_mark: bool,
     #[serde(rename = "logo_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub logo_url: Option<Option<String>>,
     /// The organisation's name. Always present.
@@ -35,11 +38,12 @@ pub struct CardBrand {
 
 impl CardBrand {
     /// How a tenant's card should look.  Every field is optional and the site falls back to Madar's own palette, so a tenant who has set nothing still gets a finished card rather than an unstyled one. `org_name` is NOT optional: whose card this is must always be on it, however little else has been configured.
-    pub fn new(org_name: String, program_name: String) -> CardBrand {
+    pub fn new(logo_is_mark: bool, org_name: String, program_name: String) -> CardBrand {
         CardBrand {
             background_color: None,
             foreground_color: None,
             label_color: None,
+            logo_is_mark,
             logo_url: None,
             org_name,
             program_name,

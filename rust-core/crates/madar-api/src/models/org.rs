@@ -20,6 +20,9 @@ pub struct Org {
     pub brand_background: Option<Option<String>>,
     #[serde(rename = "brand_foreground", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub brand_foreground: Option<Option<String>>,
+    /// True when the logo is a shape on transparency, so a card may repaint it for contrast (`branding::is_mark`). NULL until it has been looked at.
+    #[serde(rename = "brand_logo_is_mark", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub brand_logo_is_mark: Option<Option<bool>>,
     #[serde(rename = "currency_code")]
     pub currency_code: String,
     #[serde(rename = "id")]
@@ -48,6 +51,7 @@ impl Org {
             brand_accent: None,
             brand_background: None,
             brand_foreground: None,
+            brand_logo_is_mark: None,
             currency_code,
             id,
             is_active,
