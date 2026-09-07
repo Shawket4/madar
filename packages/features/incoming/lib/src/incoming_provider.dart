@@ -297,6 +297,9 @@ class IncomingNotifier extends Notifier<IncomingState> {
         ticketId: ticketId,
         shiftId: shift.id,
         paymentMethodId: paymentMethodId,
+        // A delivery ticket carries no rewards: the customer is not at a
+        // counter to present a card, and the courier is not the till.
+        loyaltyRedemptions: const [],
         amountTenderedMinor: amountTenderedMinor,
         tipMinor: tipMinor,
         tipPaymentMethodId: tipPaymentMethodId,

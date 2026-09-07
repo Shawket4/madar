@@ -89,6 +89,15 @@ pub struct TicketView {
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TicketLineView {
+    /// `open_ticket_items.id` — what a reward names to cover this line.
+    ///
+    /// A POSITION would not do: the server flattens the ticket's rounds in its
+    /// own order at settle time, and a till that guessed an index would take the
+    /// wrong item off the bill. Empty for a line that has not synced yet, which
+    /// is also a line that cannot be redeemed against.
+    pub id: String,
+    /// Which menu item this is, for matching against the reward catalogue.
+    pub menu_item_id: Option<String>,
     pub name: String,
     pub qty: i32,
     pub size_label: Option<String>,
@@ -185,6 +194,8 @@ fn line_view(it: &models::OpenTicketItemView) -> TicketLineView {
         .and_then(|v| v.as_i64())
         .unwrap_or(1) as i32;
     TicketLineView {
+        id: it.id.to_string(),
+        menu_item_id: it.menu_item_id.flatten().map(|m| m.to_string()),
         name: s("name").unwrap_or_else(|| "Item".to_string()),
         qty,
         size_label: s("size_label"),

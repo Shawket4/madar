@@ -271,7 +271,7 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
                 // Above payment because it changes what is owed; the customer
                 // must see the new total before they pay it. Hidden when there
                 // are no cart lines (a ticket settle has none to cover).
-                if (s.cartLines.isNotEmpty)
+                if (s.redeemableLines.isNotEmpty)
                   _RewardsSection(
                     state: s,
                     onScan: () => unawaited(
@@ -1331,6 +1331,9 @@ class _DiscountChip extends StatelessWidget {
 /// catalogue by both the branch's list and the balance, so a line offered here
 /// is a line that will go through. A ticked line is priced at zero by the
 /// server, never by this widget.
+///
+/// Serves both sessions: a counter cart and a table's open ticket. Dine-in is a
+/// ticket now, so without the second this would cover almost nothing.
 class _RewardsSection extends StatelessWidget {
   const _RewardsSection({
     required this.state,
@@ -1361,7 +1364,7 @@ class _RewardsSection extends StatelessWidget {
     // Only lines this balance could pay for. A basket of four coffees and a
     // steak offers the coffees.
     final claimable = <int>[
-      for (var i = 0; i < state.cartLines.length; i++)
+      for (var i = 0; i < state.redeemableLines.length; i++)
         if (state.rewardForLine(i) != null) i,
     ];
 
@@ -1413,10 +1416,10 @@ class _RewardsSection extends StatelessWidget {
           else
             for (final i in claimable)
               _RewardLine(
-                name: state.cartLines[i].name,
+                name: state.redeemableLines[i].name,
                 costLabel: state.rewardForLine(i)!.costLabel,
                 covered: state.redemptions[i] ?? 0,
-                quantity: state.cartLines[i].qty,
+                quantity: state.redeemableLines[i].qty,
                 onTap: () => onToggle(i),
               ),
         ],
@@ -1425,7 +1428,7 @@ class _RewardsSection extends StatelessWidget {
   }
 }
 
-/// One cart line that a reward could cover, and how many of its units are.
+/// One line a reward could cover, and how many of its units are.
 class _RewardLine extends StatelessWidget {
   const _RewardLine({
     required this.name,

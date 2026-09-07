@@ -5950,11 +5950,27 @@ impl MadarCore {
         discount_id: Option<String>,
         discount_type: Option<String>,
         discount_value: Option<i32>,
+        // The member spending a balance on this bill, and which of its LINES
+        // their rewards cover. Empty for a settle with no rewards, which is
+        // almost all of them.
+        loyalty_customer_id: Option<String>,
+        loyalty_redemptions: Vec<checkout::CheckoutRedemption>,
     ) -> Result<bool, CoreError> {
         let shift_uuid = uuid::Uuid::parse_str(&shift_id).map_err(|_| CoreError::Validation {
             field: "shift_id".into(),
             detail: "bad shift id".into(),
         })?;
+        // Redeeming gives away goods against a balance any till can spend, so it
+        // cannot be settled blind. Refused here rather than queued: a queued
+        // redemption would be discovered to be unaffordable long after the
+        // customer walked out with the item.
+        if !loyalty_redemptions.is_empty()
+            && !self.current_session().map(|s| s.online).unwrap_or(false)
+        {
+            return Err(CoreError::Offline {
+                detail: "a reward can only be redeemed online".into(),
+            });
+        }
         let payment_method = checkout::raw_payment_method(&self.store, &payment_method_id)?
             .map(|p| p.name)
             .ok_or_else(|| CoreError::Validation {
@@ -5977,6 +5993,27 @@ impl MadarCore {
             .map(Some);
         request.discount_type = discount_type.filter(|s| !s.trim().is_empty()).map(Some);
         request.discount_value = discount_value.map(Some);
+        request.loyalty_customer_id = loyalty_customer_id
+            .as_deref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok())
+            .map(Some);
+        if !loyalty_redemptions.is_empty() {
+            request.loyalty_redemptions = Some(
+                loyalty_redemptions
+                    .iter()
+                    .map(|r| madar_api::models::LoyaltyRedemptionInput {
+                        // A ticket names its LINE; the server resolves the index.
+                        item_index: None,
+                        ticket_line_id: r
+                            .ticket_line_id
+                            .as_deref()
+                            .and_then(|s| uuid::Uuid::parse_str(s).ok())
+                            .map(Some),
+                        units: Some(Some(r.units)),
+                    })
+                    .collect(),
+            );
+        }
         let cmd = tickets::SettleTicketCommand {
             ticket_id: ticket_id.clone(),
             request,

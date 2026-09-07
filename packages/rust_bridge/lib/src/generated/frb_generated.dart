@@ -745,6 +745,8 @@ abstract class RustBridgeApi extends BaseApi {
     String? discountId,
     String? discountType,
     int? discountValue,
+    String? loyaltyCustomerId,
+    required List<CheckoutRedemption> loyaltyRedemptions,
   });
 
   Future<ShiftReportView> crateApiBridgeMadarBridgeShiftReport({
@@ -5795,6 +5797,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     String? discountId,
     String? discountType,
     int? discountValue,
+    String? loyaltyCustomerId,
+    required List<CheckoutRedemption> loyaltyRedemptions,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -5813,6 +5817,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           sse_encode_opt_String(discountId, serializer);
           sse_encode_opt_String(discountType, serializer);
           sse_encode_opt_box_autoadd_i_32(discountValue, serializer);
+          sse_encode_opt_String(loyaltyCustomerId, serializer);
+          sse_encode_list_checkout_redemption(loyaltyRedemptions, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -5836,6 +5842,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           discountId,
           discountType,
           discountValue,
+          loyaltyCustomerId,
+          loyaltyRedemptions,
         ],
         apiImpl: this,
       ),
@@ -5856,6 +5864,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           "discountId",
           "discountType",
           "discountValue",
+          "loyaltyCustomerId",
+          "loyaltyRedemptions",
         ],
       );
 
@@ -7061,11 +7071,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   CheckoutRedemption dco_decode_checkout_redemption(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
     return CheckoutRedemption(
       itemIndex: dco_decode_u_32(arr[0]),
-      units: dco_decode_i_32(arr[1]),
+      ticketLineId: dco_decode_opt_String(arr[1]),
+      units: dco_decode_i_32(arr[2]),
     );
   }
 
@@ -8446,15 +8457,17 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   TicketLineView dco_decode_ticket_line_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return TicketLineView(
-      name: dco_decode_String(arr[0]),
-      qty: dco_decode_i_32(arr[1]),
-      sizeLabel: dco_decode_opt_String(arr[2]),
-      modifiers: dco_decode_list_String(arr[3]),
-      lineTotalMinor: dco_decode_i_64(arr[4]),
-      voided: dco_decode_bool(arr[5]),
+      id: dco_decode_String(arr[0]),
+      menuItemId: dco_decode_opt_String(arr[1]),
+      name: dco_decode_String(arr[2]),
+      qty: dco_decode_i_32(arr[3]),
+      sizeLabel: dco_decode_opt_String(arr[4]),
+      modifiers: dco_decode_list_String(arr[5]),
+      lineTotalMinor: dco_decode_i_64(arr[6]),
+      voided: dco_decode_bool(arr[7]),
     );
   }
 
@@ -9122,8 +9135,13 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_itemIndex = sse_decode_u_32(deserializer);
+    var var_ticketLineId = sse_decode_opt_String(deserializer);
     var var_units = sse_decode_i_32(deserializer);
-    return CheckoutRedemption(itemIndex: var_itemIndex, units: var_units);
+    return CheckoutRedemption(
+      itemIndex: var_itemIndex,
+      ticketLineId: var_ticketLineId,
+      units: var_units,
+    );
   }
 
   @protected
@@ -11182,6 +11200,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   @protected
   TicketLineView sse_decode_ticket_line_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_menuItemId = sse_decode_opt_String(deserializer);
     var var_name = sse_decode_String(deserializer);
     var var_qty = sse_decode_i_32(deserializer);
     var var_sizeLabel = sse_decode_opt_String(deserializer);
@@ -11189,6 +11209,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_lineTotalMinor = sse_decode_i_64(deserializer);
     var var_voided = sse_decode_bool(deserializer);
     return TicketLineView(
+      id: var_id,
+      menuItemId: var_menuItemId,
       name: var_name,
       qty: var_qty,
       sizeLabel: var_sizeLabel,
@@ -11792,6 +11814,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.itemIndex, serializer);
+    sse_encode_opt_String(self.ticketLineId, serializer);
     sse_encode_i_32(self.units, serializer);
   }
 
@@ -13379,6 +13402,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_opt_String(self.menuItemId, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_i_32(self.qty, serializer);
     sse_encode_opt_String(self.sizeLabel, serializer);
@@ -14489,6 +14514,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     String? discountId,
     String? discountType,
     int? discountValue,
+    String? loyaltyCustomerId,
+    required List<CheckoutRedemption> loyaltyRedemptions,
   }) => RustBridge.instance.api.crateApiBridgeMadarBridgeSettleTicket(
     that: this,
     ticketId: ticketId,
@@ -14500,6 +14527,8 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     discountId: discountId,
     discountType: discountType,
     discountValue: discountValue,
+    loyaltyCustomerId: loyaltyCustomerId,
+    loyaltyRedemptions: loyaltyRedemptions,
   );
 
   /// The current shift's report — drives the close-shift system-cash +

@@ -154,8 +154,13 @@ pub struct CheckoutInput {
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckoutRedemption {
-    /// Index into the cart's lines, in the order the cart lists them.
+    /// Index into the cart's lines, in the order the cart lists them. Used by
+    /// the CART path only — a ticket settle names its line by id instead.
     pub item_index: u32,
+    /// `open_ticket_items.id`, for a ticket settle. The server turns this into
+    /// the position that line lands at, because only the server knows the order
+    /// it flattens the ticket's rounds into.
+    pub ticket_line_id: Option<String>,
     /// How many of that line's units the reward covers.
     pub units: i32,
 }
@@ -494,7 +499,8 @@ pub(crate) fn prepare(
                 .loyalty_redemptions
                 .iter()
                 .map(|r| models::LoyaltyRedemptionInput {
-                    item_index: r.item_index,
+                    item_index: Some(Some(r.item_index)),
+                    ticket_line_id: None,
                     units: Some(Some(r.units)),
                 })
                 .collect(),

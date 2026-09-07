@@ -1278,6 +1278,8 @@ class OrderNotifier extends Notifier<OrderState> {
     int? amountTenderedMinor,
     int? tipMinor,
     String? tipPaymentMethodId,
+    String? loyaltyCustomerId,
+    List<CheckoutRedemption> loyaltyRedemptions = const [],
   }) async {
     final shiftId = state.shift?.id;
     if (shiftId == null) {
@@ -1302,6 +1304,8 @@ class OrderNotifier extends Notifier<OrderState> {
         amountTenderedMinor: amountTenderedMinor,
         tipMinor: tipMinor,
         tipPaymentMethodId: tipPaymentMethodId,
+        loyaltyCustomerId: loyaltyCustomerId,
+        loyaltyRedemptions: loyaltyRedemptions,
       );
       // The party paid and left their plates: the table needs a bus, and the
       // teller — not the app — decides when it is ready for the next party.

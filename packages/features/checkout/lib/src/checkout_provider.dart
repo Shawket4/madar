@@ -59,6 +59,35 @@ class CheckoutResult {
   final bool isCash;
 }
 
+/// A line a reward could cover, from either kind of session.
+///
+/// The cart names its lines by POSITION (the server indexes the items it is
+/// sent, in order). A ticket names them by ID, because the server flattens the
+/// ticket's rounds in its own order at settle time and a guessed position takes
+/// the wrong item off the bill. One type carries both so the rewards UI is one
+/// thing rather than two that drift.
+@immutable
+class RedeemableLine {
+  const RedeemableLine({
+    required this.itemId,
+    required this.name,
+    required this.qty,
+    this.cartIndex,
+    this.ticketLineId,
+  });
+
+  /// The menu item, for matching against the reward catalogue.
+  final String itemId;
+  final String name;
+  final int qty;
+
+  /// Position in the cart. Null for a ticket line.
+  final int? cartIndex;
+
+  /// `open_ticket_items.id`. Null for a cart line.
+  final String? ticketLineId;
+}
+
 /// One tender session's state: org config (payment methods + discounts),
 /// the money summary under charge, the teller's in-progress tender picks
 /// (method / cash / tip / splits), and the checkout + print lifecycle.
@@ -83,7 +112,7 @@ class CheckoutState {
     this.tipMethodId,
     this.splitMode = false,
     this.splitAmounts = const {},
-    this.cartLines = const [],
+    this.redeemableLines = const [],
     this.loyaltyMember,
     this.loyaltyRewards = const [],
     this.redemptions = const {},
@@ -125,9 +154,9 @@ class CheckoutState {
   // owed. Earning is the opposite — a separate button after the sale, open for
   // 24 hours. Pay less now, collect after.
 
-  /// The cart's lines, in the order the server will index them. Loaded for a
-  /// cart session only; a ticket settle has no cart to cover.
-  final List<CartLineView> cartLines;
+  /// What this session's rewards could cover: the cart's lines in a cart
+  /// session, the ticket's lines in a settle. Empty when neither applies.
+  final List<RedeemableLine> redeemableLines;
 
   /// The member whose balance is being spent, once scanned.
   final LoyaltyMemberView? loyaltyMember;
@@ -146,10 +175,10 @@ class CheckoutState {
   /// scan must not stop a customer from paying.
   final String? loyaltyError;
 
-  /// The reward priced for a cart line, when that line has one it can afford.
+  /// The reward priced for a line, when that line has one the balance affords.
   LoyaltyRewardView? rewardForLine(int index) {
-    if (index < 0 || index >= cartLines.length) return null;
-    final itemId = cartLines[index].itemId;
+    if (index < 0 || index >= redeemableLines.length) return null;
+    final itemId = redeemableLines[index].itemId;
     for (final r in loyaltyRewards) {
       if (r.menuItemId == itemId) return r;
     }
@@ -170,6 +199,20 @@ class CheckoutState {
   int get balanceAfterRedemptions =>
       (loyaltyMember?.balance ?? 0) - redemptionCost;
 
+  /// The ticked rewards, in the shape the core takes.
+  ///
+  /// A cart line goes by position and a ticket line by id — the two paths index
+  /// differently and only the server can resolve a ticket's.
+  List<CheckoutRedemption> get redemptionInputs => [
+    for (final e in redemptions.entries)
+      if (e.key >= 0 && e.key < redeemableLines.length)
+        CheckoutRedemption(
+          itemIndex: redeemableLines[e.key].cartIndex ?? 0,
+          ticketLineId: redeemableLines[e.key].ticketLineId,
+          units: e.value,
+        ),
+  ];
+
   CheckoutState copyWith({
     List<PaymentMethodView>? paymentMethods,
     List<DiscountView>? discounts,
@@ -188,7 +231,7 @@ class CheckoutState {
     Object? tipMethodId = _unset,
     bool? splitMode,
     Map<String, int>? splitAmounts,
-    List<CartLineView>? cartLines,
+    List<RedeemableLine>? redeemableLines,
     Object? loyaltyMember = _unset,
     List<LoyaltyRewardView>? loyaltyRewards,
     Map<int, int>? redemptions,
@@ -221,7 +264,7 @@ class CheckoutState {
           : tipMethodId as String?,
       splitMode: splitMode ?? this.splitMode,
       splitAmounts: splitAmounts ?? this.splitAmounts,
-      cartLines: cartLines ?? this.cartLines,
+      redeemableLines: redeemableLines ?? this.redeemableLines,
       loyaltyMember: loyaltyMember == _unset
           ? this.loyaltyMember
           : loyaltyMember as LoyaltyMemberView?,
@@ -290,13 +333,22 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     // The lines in the order the server indexes them — a reward names a line by
     // its position, so this list and the wire order must be the same list.
     final lines = await _quiet(bridge.cartLines) ?? const <CartLineView>[];
+    final redeemable = [
+      for (var i = 0; i < lines.length; i++)
+        RedeemableLine(
+          itemId: lines[i].itemId,
+          name: lines[i].name,
+          qty: lines[i].qty,
+          cartIndex: i,
+        ),
+    ];
     _update(
       (s) => _withSession(s, bridge).copyWith(
         paymentMethods: methods,
         discounts: discounts,
         cartDiscountId: discountId,
         orgLogoPath: logo,
-        cartLines: lines,
+        redeemableLines: redeemable,
         summary: totals == null ? null : _summaryOf(totals),
       ),
     );
@@ -344,7 +396,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     if (reward == null) return;
     final next = Map<int, int>.from(s.redemptions);
     final current = next[lineIndex] ?? 0;
-    final qty = s.cartLines[lineIndex].qty;
+    final qty = s.redeemableLines[lineIndex].qty;
     if (current >= qty) {
       next.remove(lineIndex);
     } else {
@@ -368,15 +420,35 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// A settle / finalize session over a FIXED [summary] (e.g. a ticket's
   /// subtotal) — loads the payment methods only; the discount is frozen at
   /// fire time so the cart discount slice stays untouched.
-  Future<void> startSettle(CheckoutSummary summary) async {
+  Future<void> startSettle(
+    CheckoutSummary summary, {
+
+    /// The ticket's live lines, so its bill can carry rewards too. Dine-in is
+    /// an open ticket now, so without these a table order could never redeem —
+    /// which would be most of them.
+    List<TicketLineView> ticketLines = const [],
+  }) async {
     final bridge = _bridge;
     final methods =
         await _quiet(bridge.listPaymentMethods) ?? const <PaymentMethodView>[];
+    final redeemable = [
+      for (final l in ticketLines)
+        // A voided line is not on the bill, and one that has not synced has no
+        // id for the server to resolve — neither can be covered.
+        if (!l.voided && l.id.isNotEmpty && l.menuItemId != null)
+          RedeemableLine(
+            itemId: l.menuItemId!,
+            name: l.name,
+            qty: l.qty,
+            ticketLineId: l.id,
+          ),
+    ];
     _update(
-      (s) => _withSession(
-        s,
-        bridge,
-      ).copyWith(paymentMethods: methods, summary: summary),
+      (s) => _withSession(s, bridge).copyWith(
+        paymentMethods: methods,
+        summary: summary,
+        redeemableLines: redeemable,
+      ),
     );
   }
 

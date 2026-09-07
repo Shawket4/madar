@@ -156,6 +156,10 @@ fn project_line(l: &serde_json::Value) -> crate::tickets::TicketLineView {
         }
     }
     crate::tickets::TicketLineView {
+        // A delivery line is not an open-ticket line and has no id to name — it
+        // is never a redemption target, and an empty id is what says so.
+        id: String::new(),
+        menu_item_id: None,
         name,
         qty,
         size_label: str_of("size_label"),

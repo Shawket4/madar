@@ -43,6 +43,11 @@ pub struct _TicketView {
 /// One bill line (display projection of the frozen `StoredTicketLine`).
 #[frb(mirror(TicketLineView))]
 pub struct _TicketLineView {
+    /// `open_ticket_items.id` — what a reward names to cover this line. Empty
+    /// for a line that has not synced, which cannot be redeemed against.
+    pub id: String,
+    /// Which menu item this is, for matching against the reward catalogue.
+    pub menu_item_id: Option<String>,
     pub name: String,
     pub qty: i32,
     pub size_label: Option<String>,
@@ -110,6 +115,12 @@ impl MadarBridge {
         discount_id: Option<String>,
         discount_type: Option<String>,
         discount_value: Option<i32>,
+        // `loyalty_customer_id` is the member spending a balance on this bill;
+        // `loyalty_redemptions` names which of the ticket's LINES their rewards
+        // cover — by line id, never by position (see
+        // `CheckoutRedemption::ticket_line_id`).
+        loyalty_customer_id: Option<String>,
+        loyalty_redemptions: Vec<crate::api::orders::CheckoutRedemption>,
     ) -> Result<bool, MadarError> {
         self.inner
             .settle_ticket(
@@ -122,6 +133,8 @@ impl MadarBridge {
                 discount_id,
                 discount_type,
                 discount_value,
+                loyalty_customer_id,
+                loyalty_redemptions,
             )
             .await
             .map_err(MadarError::from)

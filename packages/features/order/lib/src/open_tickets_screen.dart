@@ -169,9 +169,17 @@ class _OpenTicketsScreenState extends ConsumerState<OpenTicketsScreen> {
     TicketView ticket,
     CheckoutResult result,
   ) async {
+    // The rewards the teller ticked in the drawer, named by LINE id — the
+    // server resolves each to a position, because only it knows the order it
+    // flattens the ticket's rounds into.
+    final checkout = ref.read(checkoutProvider);
     final ok = await _notifier.settleTicket(
       ticket.id,
       result.primaryMethodId,
+      loyaltyCustomerId: checkout.redemptions.isEmpty
+          ? null
+          : checkout.loyaltyMember?.id,
+      loyaltyRedemptions: checkout.redemptionInputs,
       amountTenderedMinor: result.isCash && result.tenderedMinor > 0
           ? result.tenderedMinor
           : null,
@@ -326,6 +334,9 @@ class _SettleDrawerState extends ConsumerState<_SettleDrawer> {
                 subtotalMinor: widget.ticket.subtotalMinor,
                 totalMinor: widget.ticket.subtotalMinor,
               ),
+              // Dine-in is an open ticket now, so a table's bill has to be able
+              // to carry rewards — without these lines it never could.
+              ticketLines: widget.ticket.lines,
             ),
       );
     });

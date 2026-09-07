@@ -7215,6 +7215,9 @@ fn wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
             let api_discount_id = <Option<String>>::sse_decode(&mut deserializer);
             let api_discount_type = <Option<String>>::sse_decode(&mut deserializer);
             let api_discount_value = <Option<i32>>::sse_decode(&mut deserializer);
+            let api_loyalty_customer_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_loyalty_redemptions =
+                <Vec<crate::api::orders::CheckoutRedemption>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::MadarError>(
@@ -7247,6 +7250,8 @@ fn wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
                             api_discount_id,
                             api_discount_type,
                             api_discount_value,
+                            api_loyalty_customer_id,
+                            api_loyalty_redemptions,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -8459,6 +8464,7 @@ const _: fn() = || {
     {
         let CheckoutRedemption = None::<crate::api::orders::CheckoutRedemption>.unwrap();
         let _: u32 = CheckoutRedemption.item_index;
+        let _: Option<String> = CheckoutRedemption.ticket_line_id;
         let _: i32 = CheckoutRedemption.units;
     }
     {
@@ -8975,6 +8981,8 @@ const _: fn() = || {
     }
     {
         let TicketLineView = None::<crate::api::tickets::TicketLineView>.unwrap();
+        let _: String = TicketLineView.id;
+        let _: Option<String> = TicketLineView.menu_item_id;
         let _: String = TicketLineView.name;
         let _: i32 = TicketLineView.qty;
         let _: Option<String> = TicketLineView.size_label;
@@ -9525,9 +9533,11 @@ impl SseDecode for crate::api::orders::CheckoutRedemption {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_itemIndex = <u32>::sse_decode(deserializer);
+        let mut var_ticketLineId = <Option<String>>::sse_decode(deserializer);
         let mut var_units = <i32>::sse_decode(deserializer);
         return crate::api::orders::CheckoutRedemption {
             item_index: var_itemIndex,
+            ticket_line_id: var_ticketLineId,
             units: var_units,
         };
     }
@@ -11638,6 +11648,8 @@ impl SseDecode for crate::api::tickets::TicketFiredView {
 impl SseDecode for crate::api::tickets::TicketLineView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_menuItemId = <Option<String>>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_qty = <i32>::sse_decode(deserializer);
         let mut var_sizeLabel = <Option<String>>::sse_decode(deserializer);
@@ -11645,6 +11657,8 @@ impl SseDecode for crate::api::tickets::TicketLineView {
         let mut var_lineTotalMinor = <i64>::sse_decode(deserializer);
         let mut var_voided = <bool>::sse_decode(deserializer);
         return crate::api::tickets::TicketLineView {
+            id: var_id,
+            menu_item_id: var_menuItemId,
             name: var_name,
             qty: var_qty,
             size_label: var_sizeLabel,
@@ -13072,6 +13086,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::CheckoutRe
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.item_index.into_into_dart().into_dart(),
+            self.0.ticket_line_id.into_into_dart().into_dart(),
             self.0.units.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -14556,6 +14571,8 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::tickets::TicketFir
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::tickets::TicketLineView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.0.id.into_into_dart().into_dart(),
+            self.0.menu_item_id.into_into_dart().into_dart(),
             self.0.name.into_into_dart().into_dart(),
             self.0.qty.into_into_dart().into_dart(),
             self.0.size_label.into_into_dart().into_dart(),
@@ -15026,6 +15043,7 @@ impl SseEncode for crate::api::orders::CheckoutRedemption {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <u32>::sse_encode(self.item_index, serializer);
+        <Option<String>>::sse_encode(self.ticket_line_id, serializer);
         <i32>::sse_encode(self.units, serializer);
     }
 }
@@ -16464,6 +16482,8 @@ impl SseEncode for crate::api::tickets::TicketFiredView {
 impl SseEncode for crate::api::tickets::TicketLineView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <Option<String>>::sse_encode(self.menu_item_id, serializer);
         <String>::sse_encode(self.name, serializer);
         <i32>::sse_encode(self.qty, serializer);
         <Option<String>>::sse_encode(self.size_label, serializer);

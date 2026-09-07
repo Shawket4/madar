@@ -74,16 +74,27 @@ class CheckoutInput {
 
 /// One reward applied to one cart line.
 class CheckoutRedemption {
-  /// Index into the cart's lines, in the order the cart lists them.
+  /// Index into the cart's lines, in the order the cart lists them. The CART
+  /// path only.
   final int itemIndex;
+
+  /// `open_ticket_items.id`, for a ticket settle — the server resolves it to
+  /// a position, because only the server knows the order it flattens a
+  /// ticket's rounds into.
+  final String? ticketLineId;
 
   /// How many of that line's units the reward covers.
   final int units;
 
-  const CheckoutRedemption({required this.itemIndex, required this.units});
+  const CheckoutRedemption({
+    required this.itemIndex,
+    this.ticketLineId,
+    required this.units,
+  });
 
   @override
-  int get hashCode => itemIndex.hashCode ^ units.hashCode;
+  int get hashCode =>
+      itemIndex.hashCode ^ ticketLineId.hashCode ^ units.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -91,6 +102,7 @@ class CheckoutRedemption {
       other is CheckoutRedemption &&
           runtimeType == other.runtimeType &&
           itemIndex == other.itemIndex &&
+          ticketLineId == other.ticketLineId &&
           units == other.units;
 }
 

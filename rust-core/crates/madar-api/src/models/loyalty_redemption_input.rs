@@ -14,9 +14,12 @@ use serde::{Deserialize, Serialize};
 /// LoyaltyRedemptionInput : One reward applied to one line of the cart.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoyaltyRedemptionInput {
-    /// Index into `items`. An index rather than an id because a cart may hold the same menu item on two lines with different modifiers, and only the position tells them apart.
-    #[serde(rename = "item_index")]
-    pub item_index: u32,
+    /// Index into `items`. An index rather than an id because a cart may hold the same menu item on two lines with different modifiers, and only the position tells them apart.  Optional because a TICKET settle names its lines by id instead (see `ticket_line_id`) and the server fills this in — a till settling a ticket cannot see the order the server will flatten its rounds into, and a guessed index takes the wrong item off the bill.
+    #[serde(rename = "item_index", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub item_index: Option<Option<u32>>,
+    /// `open_ticket_items.id` — how a ticket settle names the line to cover. Resolved to `item_index` by `settle_open_ticket` before pricing.
+    #[serde(rename = "ticket_line_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub ticket_line_id: Option<Option<uuid::Uuid>>,
     /// How many of that line's units the reward covers. Defaults to one.
     #[serde(rename = "units", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub units: Option<Option<i32>>,
@@ -24,9 +27,10 @@ pub struct LoyaltyRedemptionInput {
 
 impl LoyaltyRedemptionInput {
     /// One reward applied to one line of the cart.
-    pub fn new(item_index: u32) -> LoyaltyRedemptionInput {
+    pub fn new() -> LoyaltyRedemptionInput {
         LoyaltyRedemptionInput {
-            item_index,
+            item_index: None,
+            ticket_line_id: None,
             units: None,
         }
     }

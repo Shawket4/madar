@@ -40,6 +40,12 @@ class TicketFiredView {
 
 /// One bill line (display projection of the frozen `StoredTicketLine`).
 class TicketLineView {
+  /// `open_ticket_items.id` — what a reward names to cover this line. Empty
+  /// for a line that has not synced, which cannot be redeemed against.
+  final String id;
+
+  /// Which menu item this is, for matching against the reward catalogue.
+  final String? menuItemId;
   final String name;
   final int qty;
   final String? sizeLabel;
@@ -48,6 +54,8 @@ class TicketLineView {
   final bool voided;
 
   const TicketLineView({
+    required this.id,
+    this.menuItemId,
     required this.name,
     required this.qty,
     this.sizeLabel,
@@ -58,6 +66,8 @@ class TicketLineView {
 
   @override
   int get hashCode =>
+      id.hashCode ^
+      menuItemId.hashCode ^
       name.hashCode ^
       qty.hashCode ^
       sizeLabel.hashCode ^
@@ -70,6 +80,8 @@ class TicketLineView {
       identical(this, other) ||
       other is TicketLineView &&
           runtimeType == other.runtimeType &&
+          id == other.id &&
+          menuItemId == other.menuItemId &&
           name == other.name &&
           qty == other.qty &&
           sizeLabel == other.sizeLabel &&

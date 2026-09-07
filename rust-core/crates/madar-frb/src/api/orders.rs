@@ -125,8 +125,13 @@ pub use madar_core::checkout::CheckoutRedemption;
 /// One reward applied to one cart line.
 #[frb(mirror(CheckoutRedemption))]
 pub struct _CheckoutRedemption {
-    /// Index into the cart's lines, in the order the cart lists them.
+    /// Index into the cart's lines, in the order the cart lists them. The CART
+    /// path only.
     pub item_index: u32,
+    /// `open_ticket_items.id`, for a ticket settle — the server resolves it to
+    /// a position, because only the server knows the order it flattens a
+    /// ticket's rounds into.
+    pub ticket_line_id: Option<String>,
     /// How many of that line's units the reward covers.
     pub units: i32,
 }
