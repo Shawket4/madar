@@ -13,9 +13,11 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct JoinInput {
-    /// Date of birth, `YYYY-MM-DD`. Accepted ONLY where the org asked for one: a field the shop turned off must not be storable by posting past the form, and the year is kept because a date without one is not a date.
-    #[serde(rename = "birthday", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub birthday: Option<Option<chrono::NaiveDate>>,
+    #[serde(rename = "birth_day", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub birth_day: Option<Option<i32>>,
+    /// The day of their birthday, 1–12 and 1–31. Accepted ONLY where the org asked for one: a field the shop turned off must not be storable by posting past the form.  No year, deliberately. A greeting needs to know WHEN, not how old — and a full date of birth is an identity credential, which is a great deal more than an annual message needs.
+    #[serde(rename = "birth_month", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub birth_month: Option<Option<i32>>,
     /// The branch whose counter code was scanned, when one was. Absent for an org-wide code — see [`BranchQuery`].
     #[serde(rename = "branch_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub branch_id: Option<Option<uuid::Uuid>>,
@@ -36,7 +38,8 @@ pub struct JoinInput {
 impl JoinInput {
     pub fn new(name: String, phone: String) -> JoinInput {
         JoinInput {
-            birthday: None,
+            birth_day: None,
+            birth_month: None,
             branch_id: None,
             device_token: None,
             locale: None,
