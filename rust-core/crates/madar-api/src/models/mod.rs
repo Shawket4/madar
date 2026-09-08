@@ -58,6 +58,8 @@ pub mod award_request;
 pub use self::award_request::AwardRequest;
 pub mod award_result;
 pub use self::award_result::AwardResult;
+pub mod birthday_preview;
+pub use self::birthday_preview::BirthdayPreview;
 pub mod board_info;
 pub use self::board_info::BoardInfo;
 pub mod booking_settings;

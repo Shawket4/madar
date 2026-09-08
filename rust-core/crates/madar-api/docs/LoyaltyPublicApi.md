@@ -130,7 +130,7 @@ No authorization required
 
 ## loyalty_join_info
 
-> models::JoinInfo loyalty_join_info(branch_id)
+> models::JoinInfo loyalty_join_info(branch_id, org_id)
 
 
 ### Parameters
@@ -138,7 +138,8 @@ No authorization required
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**branch_id** | **uuid::Uuid** |  | [required] |
+**branch_id** | Option<**uuid::Uuid**> | The counter QR of one branch. Its settings and its catalogue apply. |  |
+**org_id** | Option<**uuid::Uuid**> | The organisation's own code, for a shop that wants ONE card to hand out — a poster, a receipt footer, a link in a bio. The programme's org-level settings apply, which is also what the wallet pass has always used. |  |
 
 ### Return type
 

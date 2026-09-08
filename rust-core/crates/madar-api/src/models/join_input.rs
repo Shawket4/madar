@@ -16,8 +16,9 @@ pub struct JoinInput {
     /// Date of birth, `YYYY-MM-DD`. Accepted ONLY where the org asked for one: a field the shop turned off must not be storable by posting past the form, and the year is kept because a date without one is not a date.
     #[serde(rename = "birthday", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub birthday: Option<Option<chrono::NaiveDate>>,
-    #[serde(rename = "branch_id")]
-    pub branch_id: uuid::Uuid,
+    /// The branch whose counter code was scanned, when one was. Absent for an org-wide code — see [`BranchQuery`].
+    #[serde(rename = "branch_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub branch_id: Option<Option<uuid::Uuid>>,
     /// Device-trust token from `/public/otp/verify`. Required only when the branch's `require_otp` is on.
     #[serde(rename = "device_token", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub device_token: Option<Option<String>>,
@@ -26,18 +27,21 @@ pub struct JoinInput {
     pub locale: Option<Option<String>>,
     #[serde(rename = "name")]
     pub name: String,
+    #[serde(rename = "org_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub org_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "phone")]
     pub phone: String,
 }
 
 impl JoinInput {
-    pub fn new(branch_id: uuid::Uuid, name: String, phone: String) -> JoinInput {
+    pub fn new(name: String, phone: String) -> JoinInput {
         JoinInput {
             birthday: None,
-            branch_id,
+            branch_id: None,
             device_token: None,
             locale: None,
             name,
+            org_id: None,
             phone,
         }
     }

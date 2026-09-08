@@ -20,10 +20,11 @@ pub struct JoinInfo {
     /// What the birthday is worth here, so the page can say what it is FOR rather than asking for a date of birth and explaining nothing.
     #[serde(rename = "birthday_reward_amount", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub birthday_reward_amount: Option<Option<i32>>,
-    #[serde(rename = "branch_id")]
-    pub branch_id: uuid::Uuid,
-    #[serde(rename = "branch_name")]
-    pub branch_name: String,
+    /// Absent for an org-wide code — the customer has not told us where they are, and nothing in the programme needs to know.
+    #[serde(rename = "branch_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub branch_id: Option<Option<uuid::Uuid>>,
+    #[serde(rename = "branch_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub branch_name: Option<Option<String>>,
     /// Whose programme this is, and how the page should look.
     #[serde(rename = "brand")]
     pub brand: Box<models::CardBrand>,
@@ -53,12 +54,12 @@ pub struct JoinInfo {
 
 impl JoinInfo {
     /// What the signup page needs to render itself before anyone types anything.
-    pub fn new(birthday_enabled: bool, branch_id: uuid::Uuid, branch_name: String, brand: models::CardBrand, earn_piastres_per_point: i32, enabled: bool, mode: String, next_reward_cost: i32, require_otp: bool, rewards: Vec<models::PublicReward>) -> JoinInfo {
+    pub fn new(birthday_enabled: bool, brand: models::CardBrand, earn_piastres_per_point: i32, enabled: bool, mode: String, next_reward_cost: i32, require_otp: bool, rewards: Vec<models::PublicReward>) -> JoinInfo {
         JoinInfo {
             birthday_enabled,
             birthday_reward_amount: None,
-            branch_id,
-            branch_name,
+            branch_id: None,
+            branch_name: None,
             brand: Box::new(brand),
             earn_piastres_per_point,
             enabled,

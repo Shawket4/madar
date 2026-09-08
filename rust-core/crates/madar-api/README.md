@@ -165,6 +165,7 @@ Class | Method | HTTP request | Description
 *LoyaltyApi* | [**loyalty_adjust**](docs/LoyaltyApi.md#loyalty_adjust) | **POST** /loyalty/adjust | 
 *LoyaltyApi* | [**loyalty_award**](docs/LoyaltyApi.md#loyalty_award) | **POST** /loyalty/award | The live route. Tellers press the button; the permission is the same `update` the redeem action needs.
 *LoyaltyApi* | [**loyalty_lookup**](docs/LoyaltyApi.md#loyalty_lookup) | **POST** /loyalty/lookup | Identify the member in front of the till.
+*LoyaltyApi* | [**preview_loyalty_birthday_message**](docs/LoyaltyApi.md#preview_loyalty_birthday_message) | **POST** /loyalty/birthday-preview | Render the greeting for settings that have NOT been saved yet.
 *LoyaltyApi* | [**put_loyalty_reward_items**](docs/LoyaltyApi.md#put_loyalty_reward_items) | **PUT** /loyalty/reward-items | 
 *LoyaltyApi* | [**put_loyalty_settings**](docs/LoyaltyApi.md#put_loyalty_settings) | **PUT** /loyalty/settings | 
 *LoyaltyPublicApi* | [**loyalty_apple_pass**](docs/LoyaltyPublicApi.md#loyalty_apple_pass) | **GET** /public/loyalty/pass/{token}/apple.pkpass | Download the signed `.pkpass`.
@@ -285,6 +286,7 @@ Class | Method | HTTP request | Description
 *QrApi* | [**list_marketing_links**](docs/QrApi.md#list_marketing_links) | **GET** /qr/links | 
 *QrApi* | [**list_tables**](docs/QrApi.md#list_tables) | **GET** /branches/{id}/tables | 
 *QrApi* | [**org_booking_qr**](docs/QrApi.md#org_booking_qr) | **GET** /orgs/{id}/booking-qr | 
+*QrApi* | [**org_loyalty_qr**](docs/QrApi.md#org_loyalty_qr) | **GET** /orgs/{id}/loyalty-qr | The shop's join QR: one code for the whole organisation.
 *QrApi* | [**org_qr**](docs/QrApi.md#org_qr) | **GET** /orgs/{id}/qr | 
 *QrApi* | [**table_qr**](docs/QrApi.md#table_qr) | **GET** /branches/{id}/tables/{tid}/qr | 
 *RealtimeApi* | [**stream**](docs/RealtimeApi.md#stream) | **GET** /realtime/stream | SSE stream of all realtime events for a branch, filtered by topic + permission. **Updates-only**: the client seeds current state from the per-feature list endpoints (or `/realtime/snapshot`) first, then connects. On any error/close it re-seeds and reconnects.
@@ -465,6 +467,7 @@ Class | Method | HTTP request | Description
  - [AvailabilityResponse](docs/AvailabilityResponse.md)
  - [AwardRequest](docs/AwardRequest.md)
  - [AwardResult](docs/AwardResult.md)
+ - [BirthdayPreview](docs/BirthdayPreview.md)
  - [BoardInfo](docs/BoardInfo.md)
  - [BookingSettings](docs/BookingSettings.md)
  - [BookingStats](docs/BookingStats.md)

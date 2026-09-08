@@ -44,7 +44,10 @@ pub struct LoyaltyJoinParams {
 /// struct for passing parameters to the method [`loyalty_join_info`]
 #[derive(Clone, Debug)]
 pub struct LoyaltyJoinInfoParams {
-    pub branch_id: String
+    /// The counter QR of one branch. Its settings and its catalogue apply.
+    pub branch_id: Option<String>,
+    /// The organisation's own code, for a shop that wants ONE card to hand out — a poster, a receipt footer, a link in a bio. The programme's org-level settings apply, which is also what the wallet pass has always used.
+    pub org_id: Option<String>
 }
 
 
@@ -236,7 +239,12 @@ pub async fn loyalty_join_info(configuration: &configuration::Configuration, par
     let uri_str = format!("{}/public/loyalty/join-info", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    req_builder = req_builder.query(&[("branch_id", &params.branch_id.to_string())]);
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.org_id {
+        req_builder = req_builder.query(&[("org_id", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }

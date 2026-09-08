@@ -84,6 +84,12 @@ pub struct LoyaltyLookupParams {
     pub lookup_request: models::LookupRequest
 }
 
+/// struct for passing parameters to the method [`preview_loyalty_birthday_message`]
+#[derive(Clone, Debug)]
+pub struct PreviewLoyaltyBirthdayMessageParams {
+    pub loyalty_settings: models::LoyaltySettings
+}
+
 /// struct for passing parameters to the method [`put_loyalty_reward_items`]
 #[derive(Clone, Debug)]
 pub struct PutLoyaltyRewardItemsParams {
@@ -205,6 +211,19 @@ pub enum LoyaltyAwardError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LoyaltyLookupError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`preview_loyalty_birthday_message`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PreviewLoyaltyBirthdayMessageError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -600,6 +619,45 @@ pub async fn loyalty_lookup(configuration: &configuration::Configuration, params
     } else {
         let content = resp.text().await?;
         let entity: Option<LoyaltyLookupError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
+/// Rendered by the server, from the same `message_for` the sweep uses, because a preview reimplemented in the dashboard is a preview that drifts — and the thing it would drift from is a message sent once a year to a customer, where nobody would ever catch it.  Takes the settings being edited rather than reading the stored ones: the point is to see what you are about to save.
+pub async fn preview_loyalty_birthday_message(configuration: &configuration::Configuration, params: PreviewLoyaltyBirthdayMessageParams) -> Result<models::BirthdayPreview, Error<PreviewLoyaltyBirthdayMessageError>> {
+
+    let uri_str = format!("{}/loyalty/birthday-preview", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.loyalty_settings);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BirthdayPreview`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BirthdayPreview`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PreviewLoyaltyBirthdayMessageError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }

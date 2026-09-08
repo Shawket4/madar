@@ -13,6 +13,7 @@ Method | HTTP request | Description
 [**loyalty_adjust**](LoyaltyApi.md#loyalty_adjust) | **POST** /loyalty/adjust | 
 [**loyalty_award**](LoyaltyApi.md#loyalty_award) | **POST** /loyalty/award | The live route. Tellers press the button; the permission is the same `update` the redeem action needs.
 [**loyalty_lookup**](LoyaltyApi.md#loyalty_lookup) | **POST** /loyalty/lookup | Identify the member in front of the till.
+[**preview_loyalty_birthday_message**](LoyaltyApi.md#preview_loyalty_birthday_message) | **POST** /loyalty/birthday-preview | Render the greeting for settings that have NOT been saved yet.
 [**put_loyalty_reward_items**](LoyaltyApi.md#put_loyalty_reward_items) | **PUT** /loyalty/reward-items | 
 [**put_loyalty_settings**](LoyaltyApi.md#put_loyalty_settings) | **PUT** /loyalty/settings | 
 
@@ -268,6 +269,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::ScanResult**](ScanResult.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## preview_loyalty_birthday_message
+
+> models::BirthdayPreview preview_loyalty_birthday_message(loyalty_settings)
+Render the greeting for settings that have NOT been saved yet.
+
+Rendered by the server, from the same `message_for` the sweep uses, because a preview reimplemented in the dashboard is a preview that drifts — and the thing it would drift from is a message sent once a year to a customer, where nobody would ever catch it.  Takes the settings being edited rather than reading the stored ones: the point is to see what you are about to save.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**loyalty_settings** | [**LoyaltySettings**](LoyaltySettings.md) |  | [required] |
+
+### Return type
+
+[**models::BirthdayPreview**](BirthdayPreview.md)
 
 ### Authorization
 
