@@ -5,10 +5,11 @@ All URIs are relative to *http://localhost:8080*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**delete_loyalty_settings**](LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
+[**get_loyalty_google_object**](LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
 [**get_loyalty_member**](LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
 [**get_loyalty_reward_items**](LoyaltyApi.md#get_loyalty_reward_items) | **GET** /loyalty/reward-items | 
 [**get_loyalty_settings**](LoyaltyApi.md#get_loyalty_settings) | **GET** /loyalty/settings | 
-[**get_loyalty_wallet_status**](LoyaltyApi.md#get_loyalty_wallet_status) | **GET** /loyalty/wallet-status | Why there is no \"Add to Wallet\" button.
+[**get_loyalty_wallet_status**](LoyaltyApi.md#get_loyalty_wallet_status) | **GET** /loyalty/wallet-status | Why there is no \"Add to Wallet\" button. **Super admin only.**
 [**list_loyalty_members**](LoyaltyApi.md#list_loyalty_members) | **GET** /loyalty/members | 
 [**loyalty_adjust**](LoyaltyApi.md#loyalty_adjust) | **POST** /loyalty/adjust | 
 [**loyalty_award**](LoyaltyApi.md#loyalty_award) | **POST** /loyalty/award | The live route. Tellers press the button; the permission is the same `update` the redeem action needs.
@@ -34,6 +35,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
  (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_loyalty_google_object
+
+> models::GoogleObjectDump get_loyalty_google_object(id)
+What Google is actually holding for one member's card. **Super admin only.**
+
+The nearby-notification question has been answered three times by reasoning and never by looking: either the `locations` are on the object Google holds and the gap is in what Google does with them, or they never arrived and the gap is ours. Both stories fit every symptom from the outside; only the object separates them. This returns it verbatim, unsummarised, because a summary would be one more layer of my guessing between the evidence and the reader.  Super admin for the same reason as `wallet_status`: it is Madar's plumbing, named in Google's vocabulary, and there is nothing an org manager could do with it.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Loyalty member id | [required] |
+
+### Return type
+
+[**models::GoogleObjectDump**](GoogleObjectDump.md)
 
 ### Authorization
 
@@ -138,7 +169,7 @@ Name | Type | Description  | Required | Notes
 ## get_loyalty_wallet_status
 
 > models::WalletStatus get_loyalty_wallet_status(branch_id)
-Why there is no \"Add to Wallet\" button.
+Why there is no \"Add to Wallet\" button. **Super admin only.**
 
 Every failure in this feature has looked the same from the outside — a missing button, or a save that says \"something went wrong\" — while the cause was a variable nobody set, a key file the code never read, a service account Google had not been told about, or a link over a size limit. None of those reach a customer's screen, and only some reach a log.  This asks, on demand, and reports what it finds. It makes live calls to Google, so it is deliberately not part of any page load.
 

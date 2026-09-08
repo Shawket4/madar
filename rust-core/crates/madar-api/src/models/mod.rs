@@ -350,6 +350,8 @@ pub mod goods_receipt;
 pub use self::goods_receipt::GoodsReceipt;
 pub mod goods_receipt_line;
 pub use self::goods_receipt_line::GoodsReceiptLine;
+pub mod google_object_dump;
+pub use self::google_object_dump::GoogleObjectDump;
 pub mod grain;
 pub use self::grain::Grain;
 pub mod group_attach_input;

@@ -191,6 +191,7 @@ docs/ForceCloseRequest.md
 docs/FulfillTransferRequest.md
 docs/GoodsReceipt.md
 docs/GoodsReceiptLine.md
+docs/GoogleObjectDump.md
 docs/Grain.md
 docs/GroupAttachInput.md
 docs/GroupOptionOut.md
@@ -721,6 +722,7 @@ src/models/force_close_request.rs
 src/models/fulfill_transfer_request.rs
 src/models/goods_receipt.rs
 src/models/goods_receipt_line.rs
+src/models/google_object_dump.rs
 src/models/grain.rs
 src/models/group_attach_input.rs
 src/models/group_option_out.rs

@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WalletStatus {
+    /// Apple's push channel, which is SEPARATE from pass signing.  A pass can be issued perfectly and never change on anyone's phone, because the two are configured independently — and this panel used to report Apple as fine while every balance update went nowhere.
+    #[serde(rename = "apns")]
+    pub apns: Box<models::WalletProvider>,
     #[serde(rename = "apple")]
     pub apple: Box<models::WalletProvider>,
     #[serde(rename = "google")]
@@ -20,8 +23,9 @@ pub struct WalletStatus {
 }
 
 impl WalletStatus {
-    pub fn new(apple: models::WalletProvider, google: models::WalletProvider) -> WalletStatus {
+    pub fn new(apns: models::WalletProvider, apple: models::WalletProvider, google: models::WalletProvider) -> WalletStatus {
         WalletStatus {
+            apns: Box::new(apns),
             apple: Box::new(apple),
             google: Box::new(google),
         }

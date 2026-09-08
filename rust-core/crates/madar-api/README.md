@@ -157,10 +157,11 @@ Class | Method | HTTP request | Description
 *KitchenApi* | [**unbump**](docs/KitchenApi.md#unbump) | **POST** /kitchen/items/{item_id}/unbump | 
 *KitchenApi* | [**update_station**](docs/KitchenApi.md#update_station) | **PATCH** /kitchen/stations/{id} | 
 *LoyaltyApi* | [**delete_loyalty_settings**](docs/LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
+*LoyaltyApi* | [**get_loyalty_google_object**](docs/LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
 *LoyaltyApi* | [**get_loyalty_member**](docs/LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
 *LoyaltyApi* | [**get_loyalty_reward_items**](docs/LoyaltyApi.md#get_loyalty_reward_items) | **GET** /loyalty/reward-items | 
 *LoyaltyApi* | [**get_loyalty_settings**](docs/LoyaltyApi.md#get_loyalty_settings) | **GET** /loyalty/settings | 
-*LoyaltyApi* | [**get_loyalty_wallet_status**](docs/LoyaltyApi.md#get_loyalty_wallet_status) | **GET** /loyalty/wallet-status | Why there is no \"Add to Wallet\" button.
+*LoyaltyApi* | [**get_loyalty_wallet_status**](docs/LoyaltyApi.md#get_loyalty_wallet_status) | **GET** /loyalty/wallet-status | Why there is no \"Add to Wallet\" button. **Super admin only.**
 *LoyaltyApi* | [**list_loyalty_members**](docs/LoyaltyApi.md#list_loyalty_members) | **GET** /loyalty/members | 
 *LoyaltyApi* | [**loyalty_adjust**](docs/LoyaltyApi.md#loyalty_adjust) | **POST** /loyalty/adjust | 
 *LoyaltyApi* | [**loyalty_award**](docs/LoyaltyApi.md#loyalty_award) | **POST** /loyalty/award | The live route. Tellers press the button; the permission is the same `update` the redeem action needs.
@@ -614,6 +615,7 @@ Class | Method | HTTP request | Description
  - [FulfillTransferRequest](docs/FulfillTransferRequest.md)
  - [GoodsReceipt](docs/GoodsReceipt.md)
  - [GoodsReceiptLine](docs/GoodsReceiptLine.md)
+ - [GoogleObjectDump](docs/GoogleObjectDump.md)
  - [Grain](docs/Grain.md)
  - [GroupAttachInput](docs/GroupAttachInput.md)
  - [GroupOptionOut](docs/GroupOptionOut.md)
