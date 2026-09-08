@@ -4,6 +4,10 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**birthday_enabled** | Option<**bool**> | Ask for a birthday at signup, and greet them on the day.  Off means the form does not ASK — not that it asks and ignores. A date of birth is the most sensitive thing this feature collects, and a shop that does not run birthday rewards has no business holding one. | [optional]
+**birthday_message** | Option<**String**> | Overrides the built-in greeting. `{name}` is substituted; nothing else is. | [optional]
+**birthday_message_ar** | Option<**String**> |  | [optional]
+**birthday_reward_amount** | Option<**i32**> | Points or stamps given on the day. `None` is a greeting and nothing else, which is deliberately the default: plenty of shops want to say happy birthday without giving away a drink. | [optional]
 **branch_id** | Option<**uuid::Uuid**> | `null` = the org-wide default. A branch id = that branch's override. | [optional]
 **default_reward_cost** | **i32** | The cost offered by default when an admin adds a reward, in whatever this scope collects. Each reward may override it, so one catalogue holds \"espresso, 5 visits\" beside \"cake, 10 visits\". Also the pass's fallback target when no rewards have been curated yet. | 
 **earn_include_tax** | **bool** | Add tax to the basis. Tips never earn and have no toggle. | 

@@ -25,6 +25,9 @@ pub struct Org {
     pub brand_logo_is_mark: Option<Option<bool>>,
     #[serde(rename = "currency_code")]
     pub currency_code: String,
+    /// The branding tier. Super admin only — see `UpdateOrgRequest`.
+    #[serde(rename = "custom_branding")]
+    pub custom_branding: bool,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "is_active")]
@@ -46,13 +49,14 @@ pub struct Org {
 }
 
 impl Org {
-    pub fn new(currency_code: String, id: uuid::Uuid, is_active: bool, name: String, slug: String, tax_rate: f64, timezone: String) -> Org {
+    pub fn new(currency_code: String, custom_branding: bool, id: uuid::Uuid, is_active: bool, name: String, slug: String, tax_rate: f64, timezone: String) -> Org {
         Org {
             brand_accent: None,
             brand_background: None,
             brand_foreground: None,
             brand_logo_is_mark: None,
             currency_code,
+            custom_branding,
             id,
             is_active,
             logo_url: None,

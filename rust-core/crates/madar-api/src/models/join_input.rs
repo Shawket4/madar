@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct JoinInput {
+    /// Date of birth, `YYYY-MM-DD`. Accepted ONLY where the org asked for one: a field the shop turned off must not be storable by posting past the form, and the year is kept because a date without one is not a date.
+    #[serde(rename = "birthday", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub birthday: Option<Option<chrono::NaiveDate>>,
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
     /// Device-trust token from `/public/otp/verify`. Required only when the branch's `require_otp` is on.
@@ -30,6 +33,7 @@ pub struct JoinInput {
 impl JoinInput {
     pub fn new(branch_id: uuid::Uuid, name: String, phone: String) -> JoinInput {
         JoinInput {
+            birthday: None,
             branch_id,
             device_token: None,
             locale: None,

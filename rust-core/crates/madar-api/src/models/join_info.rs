@@ -14,6 +14,12 @@ use serde::{Deserialize, Serialize};
 /// JoinInfo : What the signup page needs to render itself before anyone types anything.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct JoinInfo {
+    /// Ask for a date of birth. False means the form does not show the field — a shop that does not run birthday rewards is not given one to hold.
+    #[serde(rename = "birthday_enabled")]
+    pub birthday_enabled: bool,
+    /// What the birthday is worth here, so the page can say what it is FOR rather than asking for a date of birth and explaining nothing.
+    #[serde(rename = "birthday_reward_amount", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub birthday_reward_amount: Option<Option<i32>>,
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
     #[serde(rename = "branch_name")]
@@ -47,8 +53,10 @@ pub struct JoinInfo {
 
 impl JoinInfo {
     /// What the signup page needs to render itself before anyone types anything.
-    pub fn new(branch_id: uuid::Uuid, branch_name: String, brand: models::CardBrand, earn_piastres_per_point: i32, enabled: bool, mode: String, next_reward_cost: i32, require_otp: bool, rewards: Vec<models::PublicReward>) -> JoinInfo {
+    pub fn new(birthday_enabled: bool, branch_id: uuid::Uuid, branch_name: String, brand: models::CardBrand, earn_piastres_per_point: i32, enabled: bool, mode: String, next_reward_cost: i32, require_otp: bool, rewards: Vec<models::PublicReward>) -> JoinInfo {
         JoinInfo {
+            birthday_enabled,
+            birthday_reward_amount: None,
             branch_id,
             branch_name,
             brand: Box::new(brand),

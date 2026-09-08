@@ -13,6 +13,17 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoyaltySettings {
+    /// Ask for a birthday at signup, and greet them on the day.  Off means the form does not ASK — not that it asks and ignores. A date of birth is the most sensitive thing this feature collects, and a shop that does not run birthday rewards has no business holding one.
+    #[serde(rename = "birthday_enabled", skip_serializing_if = "Option::is_none")]
+    pub birthday_enabled: Option<bool>,
+    /// Overrides the built-in greeting. `{name}` is substituted; nothing else is.
+    #[serde(rename = "birthday_message", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub birthday_message: Option<Option<String>>,
+    #[serde(rename = "birthday_message_ar", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub birthday_message_ar: Option<Option<String>>,
+    /// Points or stamps given on the day. `None` is a greeting and nothing else, which is deliberately the default: plenty of shops want to say happy birthday without giving away a drink.
+    #[serde(rename = "birthday_reward_amount", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub birthday_reward_amount: Option<Option<i32>>,
     /// `null` = the org-wide default. A branch id = that branch's override.
     #[serde(rename = "branch_id", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub branch_id: Option<Option<uuid::Uuid>>,
@@ -55,6 +66,10 @@ pub struct LoyaltySettings {
 impl LoyaltySettings {
     pub fn new(default_reward_cost: i32, earn_include_tax: bool, earn_on_discounted: bool, earn_piastres_per_point: i32, enabled: bool, mode: String, org_id: uuid::Uuid, program_name: String, require_otp: bool) -> LoyaltySettings {
         LoyaltySettings {
+            birthday_enabled: None,
+            birthday_message: None,
+            birthday_message_ar: None,
+            birthday_reward_amount: None,
             branch_id: None,
             default_reward_cost,
             earn_include_tax,

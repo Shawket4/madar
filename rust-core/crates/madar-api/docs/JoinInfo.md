@@ -4,6 +4,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**birthday_enabled** | **bool** | Ask for a date of birth. False means the form does not show the field — a shop that does not run birthday rewards is not given one to hold. | 
+**birthday_reward_amount** | Option<**i32**> | What the birthday is worth here, so the page can say what it is FOR rather than asking for a date of birth and explaining nothing. | [optional]
 **branch_id** | **uuid::Uuid** |  | 
 **branch_name** | **String** |  | 
 **brand** | [**models::CardBrand**](CardBrand.md) | Whose programme this is, and how the page should look. | 

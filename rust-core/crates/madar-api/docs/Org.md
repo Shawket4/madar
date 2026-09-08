@@ -9,6 +9,7 @@ Name | Type | Description | Notes
 **brand_foreground** | Option<**String**> |  | [optional]
 **brand_logo_is_mark** | Option<**bool**> | True when the logo is a shape on transparency, so a card may repaint it for contrast (`branding::is_mark`). NULL until it has been looked at. | [optional]
 **currency_code** | **String** |  | 
+**custom_branding** | **bool** | The branding tier. Super admin only — see `UpdateOrgRequest`. | 
 **id** | **uuid::Uuid** |  | 
 **is_active** | **bool** |  | 
 **logo_url** | Option<**String**> |  | [optional]

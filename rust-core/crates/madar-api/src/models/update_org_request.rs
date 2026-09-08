@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 pub struct UpdateOrgRequest {
     #[serde(rename = "currency_code", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub currency_code: Option<Option<String>>,
+    /// May this organisation wear its own mark and colours on the customer's card and signup page? A paid tier, and this endpoint is already super-admin only — which is the whole reason it lives here rather than with the other branding controls an org manager can reach.
+    #[serde(rename = "custom_branding", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub custom_branding: Option<Option<bool>>,
     #[serde(rename = "is_active", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub is_active: Option<Option<bool>>,
     /// `null` clears the logo; absent leaves it unchanged. To set a new logo, use `PUT /orgs/{id}/logo` (multipart) instead — JSON updates only accept the clear-to-null case here.
@@ -37,6 +40,7 @@ impl UpdateOrgRequest {
     pub fn new() -> UpdateOrgRequest {
         UpdateOrgRequest {
             currency_code: None,
+            custom_branding: None,
             is_active: None,
             logo_url: None,
             name: None,
