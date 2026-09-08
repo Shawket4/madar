@@ -72,6 +72,15 @@ pub struct UpdateOrgParams {
     pub update_org_request: models::UpdateOrgRequest
 }
 
+/// struct for passing parameters to the method [`upload_org_card_image`]
+#[derive(Clone, Debug)]
+pub struct UploadOrgCardImageParams {
+    /// Organization ID
+    pub id: String,
+    /// A wide photograph for the loyalty card. PNG, JPEG or WebP. Required.
+    pub image: std::path::PathBuf
+}
+
 /// struct for passing parameters to the method [`upload_org_logo`]
 #[derive(Clone, Debug)]
 pub struct UploadOrgLogoParams {
@@ -190,6 +199,19 @@ pub enum OfflineAuthBundleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UpdateOrgError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`upload_org_card_image`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UploadOrgCardImageError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -552,6 +574,51 @@ pub async fn update_org(configuration: &configuration::Configuration, params: Up
     } else {
         let content = resp.text().await?;
         let entity: Option<UpdateOrgError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
+/// Own-org, like the logo: it is the shop's own picture of its own coffee, and waiting on a super admin to change it helps nobody. It is stored whatever the branding tier says; whether it REACHES a card is decided later, by the same gate as the logo and the palette.  No palette is derived from it. A photograph has no dominant colour worth painting a card with — that is what the logo is for — and a card whose scheme changed because someone swapped the picture would be a surprise nobody asked for.
+pub async fn upload_org_card_image(configuration: &configuration::Configuration, params: UploadOrgCardImageParams) -> Result<models::Org, Error<UploadOrgCardImageError>> {
+
+    let uri_str = format!("{}/orgs/{id}/card-image", configuration.base_path, id=crate::apis::urlencode(params.id));
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    let mut multipart_form = reqwest::multipart::Form::new();
+    let file = TokioFile::open(&params.image).await?;
+    let stream = FramedRead::new(file, BytesCodec::new());
+    let file_name = params.image.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let file_part = reqwest::multipart::Part::stream(reqwest::Body::wrap_stream(stream)).file_name(file_name);
+    multipart_form = multipart_form.part("image", file_part);
+    req_builder = req_builder.multipart(multipart_form);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Org`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Org`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<UploadOrgCardImageError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }

@@ -18,6 +18,9 @@ pub struct Org {
     /// The card palette derived from `logo_url` when it was uploaded (`orgs::branding`). Read-only over the API: there is nothing to set, and nothing a client may set — the point of deriving is that a shop cannot choose two colours nobody can read.
     #[serde(rename = "brand_background", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub brand_background: Option<Option<String>>,
+    /// A wide photograph for the loyalty card. Own-org editable, like the logo.
+    #[serde(rename = "brand_card_image", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub brand_card_image: Option<Option<String>>,
     #[serde(rename = "brand_foreground", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub brand_foreground: Option<Option<String>>,
     /// True when the logo is a shape on transparency, so a card may repaint it for contrast (`branding::is_mark`). NULL until it has been looked at.
@@ -53,6 +56,7 @@ impl Org {
         Org {
             brand_accent: None,
             brand_background: None,
+            brand_card_image: None,
             brand_foreground: None,
             brand_logo_is_mark: None,
             currency_code,

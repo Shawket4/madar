@@ -250,6 +250,7 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**list_public_orgs**](docs/OrgsApi.md#list_public_orgs) | **GET** /public/orgs | 
 *OrgsApi* | [**offline_auth_bundle**](docs/OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
 *OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
+*OrgsApi* | [**upload_org_card_image**](docs/OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 *OrgsApi* | [**upload_org_logo**](docs/OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
 *PaymentMethodsApi* | [**activate_payment_method**](docs/PaymentMethodsApi.md#activate_payment_method) | **POST** /payment-methods/{id}/activate | 
 *PaymentMethodsApi* | [**create_payment_method**](docs/PaymentMethodsApi.md#create_payment_method) | **POST** /payment-methods | 

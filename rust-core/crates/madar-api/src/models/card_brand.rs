@@ -17,6 +17,9 @@ pub struct CardBrand {
     /// `#RRGGBB`, validated on write.
     #[serde(rename = "background_color", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub background_color: Option<Option<String>>,
+    /// The wide photograph across the card — Apple's strip, Google's hero image, and the band at the top of the web card. Absent is a finished card, not a broken one.
+    #[serde(rename = "card_image_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub card_image_url: Option<Option<String>>,
     #[serde(rename = "foreground_color", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub foreground_color: Option<Option<String>>,
     #[serde(rename = "label_color", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -41,6 +44,7 @@ impl CardBrand {
     pub fn new(logo_is_mark: bool, org_name: String, program_name: String) -> CardBrand {
         CardBrand {
             background_color: None,
+            card_image_url: None,
             foreground_color: None,
             label_color: None,
             logo_is_mark,

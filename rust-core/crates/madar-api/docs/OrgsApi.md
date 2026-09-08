@@ -13,6 +13,7 @@ Method | HTTP request | Description
 [**list_public_orgs**](OrgsApi.md#list_public_orgs) | **GET** /public/orgs | 
 [**offline_auth_bundle**](OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
 [**update_org**](OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
+[**upload_org_card_image**](OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 [**upload_org_logo**](OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
 
 
@@ -265,6 +266,37 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## upload_org_card_image
+
+> models::Org upload_org_card_image(id, image)
+The photograph across the loyalty card — Apple's strip, Google's hero image.
+
+Own-org, like the logo: it is the shop's own picture of its own coffee, and waiting on a super admin to change it helps nobody. It is stored whatever the branding tier says; whether it REACHES a card is decided later, by the same gate as the logo and the palette.  No palette is derived from it. A photograph has no dominant colour worth painting a card with — that is what the logo is for — and a card whose scheme changed because someone swapped the picture would be a surprise nobody asked for.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
+**image** | **std::path::PathBuf** | A wide photograph for the loyalty card. PNG, JPEG or WebP. Required. | [required] |
+
+### Return type
+
+[**models::Org**](Org.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: multipart/form-data
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
