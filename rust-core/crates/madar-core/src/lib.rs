@@ -4996,6 +4996,9 @@ impl MadarCore {
         order_created_at: String,
         token: Option<String>,
         phone: Option<String>,
+        // The member already identified for this sale, if the card was scanned
+        // at the till. Then collecting the points needs no second scan.
+        customer_id: Option<String>,
     ) -> Result<Option<loyalty::LoyaltyMemberView>, CoreError> {
         use madar_api::apis::loyalty_api;
         let branch = self.session_branch_id()?;
@@ -5031,13 +5034,21 @@ impl MadarCore {
             .map(|p| p.trim().to_string())
             .filter(|p| !p.is_empty())
             .map(Some);
+        request.customer_id = customer_id
+            .as_deref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok())
+            .map(Some);
         if request.order_id.is_none() && request.order_key.is_none() {
             return Err(CoreError::Validation {
                 field: "order".into(),
                 detail: "no order to add points to".into(),
             });
         }
-        if request.token.is_none() && request.phone.is_none() {
+        // A card scanned at the till already named the customer, and the order
+        // remembers it. Requiring a SECOND scan to collect the points for the
+        // same sale is what made this read as two unrelated features standing
+        // at one counter.
+        if request.token.is_none() && request.phone.is_none() && request.customer_id.is_none() {
             return Err(CoreError::Validation {
                 field: "token".into(),
                 detail: "scan a card or type a phone number".into(),

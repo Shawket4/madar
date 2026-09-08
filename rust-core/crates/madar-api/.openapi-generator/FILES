@@ -491,6 +491,8 @@ docs/VoidOrderRequest.md
 docs/WaiterStats.md
 docs/WaiterStatsReport.md
 docs/WaiveDeductionRequest.md
+docs/WalletProvider.md
+docs/WalletStatus.md
 docs/WasteReportRow.md
 docs/WhatsappApi.md
 docs/WhatsappStatus.md
@@ -994,6 +996,8 @@ src/models/void_order_request.rs
 src/models/waiter_stats.rs
 src/models/waiter_stats_report.rs
 src/models/waive_deduction_request.rs
+src/models/wallet_provider.rs
+src/models/wallet_status.rs
 src/models/waste_report_row.rs
 src/models/whatsapp_status.rs
 src/models/widget_outcome.rs

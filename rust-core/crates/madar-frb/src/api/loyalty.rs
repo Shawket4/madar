@@ -37,7 +37,13 @@ pub struct _LoyaltyMemberView {
     pub balance: i64,
     /// The cheapest reward on offer here, in the same currency.
     pub next_reward_cost: i64,
-    /// `next_reward_cost - balance`, floored at zero.
+    /// Rewards ALREADY earned and unclaimed. A card does not stop at full: six
+    /// orders against a five-order reward is one earned and one towards the
+    /// next, and a customer owed two may claim both on one bill.
+    pub rewards_ready: i64,
+    /// Steps on the CURRENT card, after the earned ones are set aside.
+    pub progress_to_next: i64,
+    /// What the next reward still needs.
     pub points_to_next_reward: i64,
     /// The balance affords at least one reward on offer here.
     pub can_redeem: bool,
@@ -82,6 +88,11 @@ pub struct _LoyaltyScanView {
     pub member: LoyaltyMemberView,
     pub rewards: Vec<LoyaltyRewardView>,
     pub recent: Vec<LoyaltyLedgerView>,
+    /// The whole menu is claimable, not only `rewards`. The till then offers
+    /// every line at `any_item_cost` rather than only the curated ones.
+    pub any_item: bool,
+    /// What one line costs when `any_item` is on.
+    pub any_item_cost: i64,
 }
 
 impl MadarBridge {
@@ -131,6 +142,11 @@ impl MadarBridge {
     /// Returns the member's new balance when it went through, or `None` when the
     /// till was offline and the press was queued: there is no balance to show
     /// yet, and inventing one would be a lie the customer can read.
+    ///
+    /// `customer_id` is the member already identified for this sale — the card
+    /// scanned before payment. Pass it and no second scan is needed; the order
+    /// remembers who it was either way, so the server accepts an award with no
+    /// member named at all.
     pub async fn loyalty_award(
         &self,
         order_id: Option<String>,
@@ -138,9 +154,17 @@ impl MadarBridge {
         order_created_at: String,
         token: Option<String>,
         phone: Option<String>,
+        customer_id: Option<String>,
     ) -> Result<Option<LoyaltyMemberView>, MadarError> {
         self.inner
-            .loyalty_award(order_id, order_key, order_created_at, token, phone)
+            .loyalty_award(
+                order_id,
+                order_key,
+                order_created_at,
+                token,
+                phone,
+                customer_id,
+            )
             .await
             .map_err(MadarError::from)
     }

@@ -29,7 +29,15 @@ pub struct LoyaltyMemberView {
     pub balance: i64,
     /// The cheapest reward on offer here, in the same currency.
     pub next_reward_cost: i64,
-    /// `next_reward_cost - balance`, floored at zero.
+    /// How many rewards are ALREADY earned and unclaimed.
+    ///
+    /// A card does not stop at full: six orders against a five-order reward is
+    /// one earned and one towards the next. A teller needs the count, because a
+    /// customer owed two rewards may claim both on one bill.
+    pub rewards_ready: i64,
+    /// Steps on the CURRENT card, after the earned ones are set aside.
+    pub progress_to_next: i64,
+    /// What the next reward still needs.
     pub points_to_next_reward: i64,
     /// The balance affords at least one reward on offer here.
     pub can_redeem: bool,
@@ -80,6 +88,14 @@ pub struct LoyaltyScanView {
     pub member: LoyaltyMemberView,
     pub rewards: Vec<LoyaltyRewardView>,
     pub recent: Vec<LoyaltyLedgerView>,
+    /// The whole menu is claimable, not just `rewards`.
+    ///
+    /// When this is on the catalogue stops being the list of what MAY be
+    /// claimed, so the till offers every line at `any_item_cost` rather than
+    /// only the lines it can find in `rewards`.
+    pub any_item: bool,
+    /// What any line costs in that mode. Meaningless unless `any_item`.
+    pub any_item_cost: i64,
 }
 
 /// How long after a sale its points may still be claimed.
@@ -239,6 +255,8 @@ pub fn member_view(m: &madar_api::models::MemberView) -> LoyaltyMemberView {
         mode: m.mode.clone(),
         balance,
         next_reward_cost: target,
+        rewards_ready: m.rewards_ready as i64,
+        progress_to_next: m.progress_to_next as i64,
         points_to_next_reward: m.points_to_next_reward as i64,
         can_redeem: m.can_redeem,
         progress_label: progress_label(balance, target),
@@ -261,6 +279,8 @@ pub fn scan_view(s: &madar_api::models::ScanResult) -> LoyaltyScanView {
                 cost_label: format!("{} {}", r.cost_amount, balance_label(&r.cost_currency)),
             })
             .collect(),
+        any_item: s.any_item,
+        any_item_cost: s.any_item_cost as i64,
         recent: s
             .recent
             .iter()

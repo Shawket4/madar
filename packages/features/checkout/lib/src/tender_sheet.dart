@@ -227,6 +227,11 @@ class _ReceiptConfirmation extends ConsumerWidget {
                               // the server id may not exist yet.
                               orderKey: receipt.localOrderId,
                               orderCreatedAt: receipt.createdAt,
+                              // If a card was scanned to pay, it is the same
+                              // customer collecting — no second scan.
+                              customerId: ref.read(
+                                checkoutProvider.select((s) => s.loyaltyMember?.id),
+                              ),
                             ),
                           ),
                         ),

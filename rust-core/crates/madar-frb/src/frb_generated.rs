@@ -4867,6 +4867,7 @@ fn wire__crate__api__bridge__MadarBridge_loyalty_award_impl(
             let api_order_created_at = <String>::sse_decode(&mut deserializer);
             let api_token = <Option<String>>::sse_decode(&mut deserializer);
             let api_phone = <Option<String>>::sse_decode(&mut deserializer);
+            let api_customer_id = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::MadarError>(
@@ -4895,6 +4896,7 @@ fn wire__crate__api__bridge__MadarBridge_loyalty_award_impl(
                             api_order_created_at,
                             api_token,
                             api_phone,
+                            api_customer_id,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -8677,6 +8679,8 @@ const _: fn() = || {
         let _: String = LoyaltyMemberView.mode;
         let _: i64 = LoyaltyMemberView.balance;
         let _: i64 = LoyaltyMemberView.next_reward_cost;
+        let _: i64 = LoyaltyMemberView.rewards_ready;
+        let _: i64 = LoyaltyMemberView.progress_to_next;
         let _: i64 = LoyaltyMemberView.points_to_next_reward;
         let _: bool = LoyaltyMemberView.can_redeem;
         let _: String = LoyaltyMemberView.progress_label;
@@ -8701,6 +8705,8 @@ const _: fn() = || {
         let _: crate::api::loyalty::LoyaltyMemberView = LoyaltyScanView.member;
         let _: Vec<crate::api::loyalty::LoyaltyRewardView> = LoyaltyScanView.rewards;
         let _: Vec<crate::api::loyalty::LoyaltyLedgerView> = LoyaltyScanView.recent;
+        let _: bool = LoyaltyScanView.any_item;
+        let _: i64 = LoyaltyScanView.any_item_cost;
     }
     {
         let MadarConfig = None::<crate::api::types::MadarConfig>.unwrap();
@@ -10754,6 +10760,8 @@ impl SseDecode for crate::api::loyalty::LoyaltyMemberView {
         let mut var_mode = <String>::sse_decode(deserializer);
         let mut var_balance = <i64>::sse_decode(deserializer);
         let mut var_nextRewardCost = <i64>::sse_decode(deserializer);
+        let mut var_rewardsReady = <i64>::sse_decode(deserializer);
+        let mut var_progressToNext = <i64>::sse_decode(deserializer);
         let mut var_pointsToNextReward = <i64>::sse_decode(deserializer);
         let mut var_canRedeem = <bool>::sse_decode(deserializer);
         let mut var_progressLabel = <String>::sse_decode(deserializer);
@@ -10765,6 +10773,8 @@ impl SseDecode for crate::api::loyalty::LoyaltyMemberView {
             mode: var_mode,
             balance: var_balance,
             next_reward_cost: var_nextRewardCost,
+            rewards_ready: var_rewardsReady,
+            progress_to_next: var_progressToNext,
             points_to_next_reward: var_pointsToNextReward,
             can_redeem: var_canRedeem,
             progress_label: var_progressLabel,
@@ -10813,10 +10823,14 @@ impl SseDecode for crate::api::loyalty::LoyaltyScanView {
             <Vec<crate::api::loyalty::LoyaltyRewardView>>::sse_decode(deserializer);
         let mut var_recent =
             <Vec<crate::api::loyalty::LoyaltyLedgerView>>::sse_decode(deserializer);
+        let mut var_anyItem = <bool>::sse_decode(deserializer);
+        let mut var_anyItemCost = <i64>::sse_decode(deserializer);
         return crate::api::loyalty::LoyaltyScanView {
             member: var_member,
             rewards: var_rewards,
             recent: var_recent,
+            any_item: var_anyItem,
+            any_item_cost: var_anyItemCost,
         };
     }
 }
@@ -13656,6 +13670,8 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltyMe
             self.0.mode.into_into_dart().into_dart(),
             self.0.balance.into_into_dart().into_dart(),
             self.0.next_reward_cost.into_into_dart().into_dart(),
+            self.0.rewards_ready.into_into_dart().into_dart(),
+            self.0.progress_to_next.into_into_dart().into_dart(),
             self.0.points_to_next_reward.into_into_dart().into_dart(),
             self.0.can_redeem.into_into_dart().into_dart(),
             self.0.progress_label.into_into_dart().into_dart(),
@@ -13728,6 +13744,8 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltySc
             self.0.member.into_into_dart().into_dart(),
             self.0.rewards.into_into_dart().into_dart(),
             self.0.recent.into_into_dart().into_dart(),
+            self.0.any_item.into_into_dart().into_dart(),
+            self.0.any_item_cost.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -15896,6 +15914,8 @@ impl SseEncode for crate::api::loyalty::LoyaltyMemberView {
         <String>::sse_encode(self.mode, serializer);
         <i64>::sse_encode(self.balance, serializer);
         <i64>::sse_encode(self.next_reward_cost, serializer);
+        <i64>::sse_encode(self.rewards_ready, serializer);
+        <i64>::sse_encode(self.progress_to_next, serializer);
         <i64>::sse_encode(self.points_to_next_reward, serializer);
         <bool>::sse_encode(self.can_redeem, serializer);
         <String>::sse_encode(self.progress_label, serializer);
@@ -15929,6 +15949,8 @@ impl SseEncode for crate::api::loyalty::LoyaltyScanView {
         <crate::api::loyalty::LoyaltyMemberView>::sse_encode(self.member, serializer);
         <Vec<crate::api::loyalty::LoyaltyRewardView>>::sse_encode(self.rewards, serializer);
         <Vec<crate::api::loyalty::LoyaltyLedgerView>>::sse_encode(self.recent, serializer);
+        <bool>::sse_encode(self.any_item, serializer);
+        <i64>::sse_encode(self.any_item_cost, serializer);
     }
 }
 

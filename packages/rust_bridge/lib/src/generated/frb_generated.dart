@@ -510,6 +510,7 @@ abstract class RustBridgeApi extends BaseApi {
     required String orderCreatedAt,
     String? token,
     String? phone,
+    String? customerId,
   });
 
   bool crateApiBridgeMadarBridgeLoyaltyAwardWindowOpen({
@@ -4135,6 +4136,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     required String orderCreatedAt,
     String? token,
     String? phone,
+    String? customerId,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -4149,6 +4151,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           sse_encode_String(orderCreatedAt, serializer);
           sse_encode_opt_String(token, serializer);
           sse_encode_opt_String(phone, serializer);
+          sse_encode_opt_String(customerId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -4161,7 +4164,15 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           decodeErrorData: sse_decode_madar_error,
         ),
         constMeta: kCrateApiBridgeMadarBridgeLoyaltyAwardConstMeta,
-        argValues: [that, orderId, orderKey, orderCreatedAt, token, phone],
+        argValues: [
+          that,
+          orderId,
+          orderKey,
+          orderCreatedAt,
+          token,
+          phone,
+          customerId,
+        ],
         apiImpl: this,
       ),
     );
@@ -4177,6 +4188,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           "orderCreatedAt",
           "token",
           "phone",
+          "customerId",
         ],
       );
 
@@ -7818,8 +7830,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   LoyaltyMemberView dco_decode_loyalty_member_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return LoyaltyMemberView(
       id: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
@@ -7827,10 +7839,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       mode: dco_decode_String(arr[3]),
       balance: dco_decode_i_64(arr[4]),
       nextRewardCost: dco_decode_i_64(arr[5]),
-      pointsToNextReward: dco_decode_i_64(arr[6]),
-      canRedeem: dco_decode_bool(arr[7]),
-      progressLabel: dco_decode_String(arr[8]),
-      balanceLabel: dco_decode_String(arr[9]),
+      rewardsReady: dco_decode_i_64(arr[6]),
+      progressToNext: dco_decode_i_64(arr[7]),
+      pointsToNextReward: dco_decode_i_64(arr[8]),
+      canRedeem: dco_decode_bool(arr[9]),
+      progressLabel: dco_decode_String(arr[10]),
+      balanceLabel: dco_decode_String(arr[11]),
     );
   }
 
@@ -7866,12 +7880,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   LoyaltyScanView dco_decode_loyalty_scan_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return LoyaltyScanView(
       member: dco_decode_loyalty_member_view(arr[0]),
       rewards: dco_decode_list_loyalty_reward_view(arr[1]),
       recent: dco_decode_list_loyalty_ledger_view(arr[2]),
+      anyItem: dco_decode_bool(arr[3]),
+      anyItemCost: dco_decode_i_64(arr[4]),
     );
   }
 
@@ -10353,6 +10369,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_mode = sse_decode_String(deserializer);
     var var_balance = sse_decode_i_64(deserializer);
     var var_nextRewardCost = sse_decode_i_64(deserializer);
+    var var_rewardsReady = sse_decode_i_64(deserializer);
+    var var_progressToNext = sse_decode_i_64(deserializer);
     var var_pointsToNextReward = sse_decode_i_64(deserializer);
     var var_canRedeem = sse_decode_bool(deserializer);
     var var_progressLabel = sse_decode_String(deserializer);
@@ -10364,6 +10382,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       mode: var_mode,
       balance: var_balance,
       nextRewardCost: var_nextRewardCost,
+      rewardsReady: var_rewardsReady,
+      progressToNext: var_progressToNext,
       pointsToNextReward: var_pointsToNextReward,
       canRedeem: var_canRedeem,
       progressLabel: var_progressLabel,
@@ -10406,10 +10426,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_member = sse_decode_loyalty_member_view(deserializer);
     var var_rewards = sse_decode_list_loyalty_reward_view(deserializer);
     var var_recent = sse_decode_list_loyalty_ledger_view(deserializer);
+    var var_anyItem = sse_decode_bool(deserializer);
+    var var_anyItemCost = sse_decode_i_64(deserializer);
     return LoyaltyScanView(
       member: var_member,
       rewards: var_rewards,
       recent: var_recent,
+      anyItem: var_anyItem,
+      anyItemCost: var_anyItemCost,
     );
   }
 
@@ -12790,6 +12814,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_String(self.mode, serializer);
     sse_encode_i_64(self.balance, serializer);
     sse_encode_i_64(self.nextRewardCost, serializer);
+    sse_encode_i_64(self.rewardsReady, serializer);
+    sse_encode_i_64(self.progressToNext, serializer);
     sse_encode_i_64(self.pointsToNextReward, serializer);
     sse_encode_bool(self.canRedeem, serializer);
     sse_encode_String(self.progressLabel, serializer);
@@ -12829,6 +12855,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_loyalty_member_view(self.member, serializer);
     sse_encode_list_loyalty_reward_view(self.rewards, serializer);
     sse_encode_list_loyalty_ledger_view(self.recent, serializer);
+    sse_encode_bool(self.anyItem, serializer);
+    sse_encode_i_64(self.anyItemCost, serializer);
   }
 
   @protected
@@ -14140,12 +14168,18 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// Returns the member's new balance when it went through, or `None` when the
   /// till was offline and the press was queued: there is no balance to show
   /// yet, and inventing one would be a lie the customer can read.
+  ///
+  /// `customer_id` is the member already identified for this sale — the card
+  /// scanned before payment. Pass it and no second scan is needed; the order
+  /// remembers who it was either way, so the server accepts an award with no
+  /// member named at all.
   Future<LoyaltyMemberView?> loyaltyAward({
     String? orderId,
     String? orderKey,
     required String orderCreatedAt,
     String? token,
     String? phone,
+    String? customerId,
   }) => RustBridge.instance.api.crateApiBridgeMadarBridgeLoyaltyAward(
     that: this,
     orderId: orderId,
@@ -14153,6 +14187,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     orderCreatedAt: orderCreatedAt,
     token: token,
     phone: phone,
+    customerId: customerId,
   );
 
   /// Is this sale still inside its 24-hour award window?

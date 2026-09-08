@@ -44,16 +44,22 @@ pub struct MemberView {
     pub phone: String,
     #[serde(rename = "points_balance")]
     pub points_balance: i32,
-    /// `next_reward_cost - balance`, floored at zero.
+    /// What that next reward still needs. Equals `next_reward_cost` on an exact multiple, because a fresh card is the honest thing to show there.
     #[serde(rename = "points_to_next_reward")]
     pub points_to_next_reward: i32,
+    /// Progress towards the NEXT reward, after the earned ones are set aside. `balance % next_reward_cost`.
+    #[serde(rename = "progress_to_next")]
+    pub progress_to_next: i32,
+    /// How many rewards the balance has ALREADY earned.  A card does not stop at full. Six stamps against a five-stamp reward is one reward earned and one stamp towards the next, not \"five and a bit wasted\" — and a customer who has been in eleven times is owed two rewards, whether or not they claimed the first.
+    #[serde(rename = "rewards_ready")]
+    pub rewards_ready: i32,
     #[serde(rename = "visits_balance")]
     pub visits_balance: i32,
 }
 
 impl MemberView {
     /// A member as the teller, the admin and the pass all see them.  Both balances travel, because an org may switch mode (or run points at one branch and stamps at another) and what a customer earned under the old rules is still theirs. `mode` says which one is LIVE where the question was asked, and `balance` is that one — so a caller never has to pick.
-    pub fn new(balance: i32, can_redeem: bool, enrolled_at: chrono::DateTime<chrono::FixedOffset>, id: uuid::Uuid, lifetime_points: i32, lifetime_visits: i32, locale: String, mode: String, name: String, next_reward_cost: i32, org_id: uuid::Uuid, phone: String, points_balance: i32, points_to_next_reward: i32, visits_balance: i32) -> MemberView {
+    pub fn new(balance: i32, can_redeem: bool, enrolled_at: chrono::DateTime<chrono::FixedOffset>, id: uuid::Uuid, lifetime_points: i32, lifetime_visits: i32, locale: String, mode: String, name: String, next_reward_cost: i32, org_id: uuid::Uuid, phone: String, points_balance: i32, points_to_next_reward: i32, progress_to_next: i32, rewards_ready: i32, visits_balance: i32) -> MemberView {
         MemberView {
             balance,
             can_redeem,
@@ -69,6 +75,8 @@ impl MemberView {
             phone,
             points_balance,
             points_to_next_reward,
+            progress_to_next,
+            rewards_ready,
             visits_balance,
         }
     }

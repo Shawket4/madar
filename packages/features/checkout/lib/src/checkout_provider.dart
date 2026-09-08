@@ -113,6 +113,8 @@ class CheckoutState {
     this.splitMode = false,
     this.splitAmounts = const {},
     this.redeemableLines = const [],
+    this.loyaltyAnyItem = false,
+    this.loyaltyAnyItemCost = 0,
     this.loyaltyMember,
     this.loyaltyRewards = const [],
     this.redemptions = const {},
@@ -166,6 +168,17 @@ class CheckoutState {
   /// is genuinely claimable.
   final List<LoyaltyRewardView> loyaltyRewards;
 
+  /// The whole menu is claimable, not just [loyaltyRewards].
+  ///
+  /// A shop whose programme is "collect five, get anything" cannot express that
+  /// as a catalogue without listing its entire menu and keeping that list in
+  /// step forever. With this on the catalogue stops being the list of what MAY
+  /// be claimed and every line is offered at [loyaltyAnyItemCost].
+  final bool loyaltyAnyItem;
+
+  /// What one line costs in that mode. Meaningless unless [loyaltyAnyItem].
+  final int loyaltyAnyItemCost;
+
   /// Cart line index → units covered by a reward.
   final Map<int, int> redemptions;
 
@@ -178,9 +191,23 @@ class CheckoutState {
   /// The reward priced for a line, when that line has one the balance affords.
   LoyaltyRewardView? rewardForLine(int index) {
     if (index < 0 || index >= redeemableLines.length) return null;
-    final itemId = redeemableLines[index].itemId;
+    final line = redeemableLines[index];
     for (final r in loyaltyRewards) {
-      if (r.menuItemId == itemId) return r;
+      if (r.menuItemId == line.itemId) return r;
+    }
+    // "Collect five, get anything." A line the catalogue does not list is still
+    // claimable, at the flat price. The server prices it the same way, so this
+    // offers nothing it would then refuse.
+    if (loyaltyAnyItem && (loyaltyMember?.balance ?? 0) >= loyaltyAnyItemCost) {
+      return LoyaltyRewardView(
+        menuItemId: line.itemId,
+        name: line.name,
+        priceMinor: 0,
+        costCurrency: loyaltyMember?.mode ?? 'points',
+        costAmount: loyaltyAnyItemCost,
+        costLabel:
+            '$loyaltyAnyItemCost ${loyaltyMember?.balanceLabel ?? ''}'.trim(),
+      );
     }
     return null;
   }
@@ -232,6 +259,8 @@ class CheckoutState {
     bool? splitMode,
     Map<String, int>? splitAmounts,
     List<RedeemableLine>? redeemableLines,
+    bool? loyaltyAnyItem,
+    int? loyaltyAnyItemCost,
     Object? loyaltyMember = _unset,
     List<LoyaltyRewardView>? loyaltyRewards,
     Map<int, int>? redemptions,
@@ -265,6 +294,8 @@ class CheckoutState {
       splitMode: splitMode ?? this.splitMode,
       splitAmounts: splitAmounts ?? this.splitAmounts,
       redeemableLines: redeemableLines ?? this.redeemableLines,
+      loyaltyAnyItem: loyaltyAnyItem ?? this.loyaltyAnyItem,
+      loyaltyAnyItemCost: loyaltyAnyItemCost ?? this.loyaltyAnyItemCost,
       loyaltyMember: loyaltyMember == _unset
           ? this.loyaltyMember
           : loyaltyMember as LoyaltyMemberView?,
@@ -372,6 +403,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         (s) => s.copyWith(
           loyaltyMember: scan.member,
           loyaltyRewards: scan.rewards,
+          loyaltyAnyItem: scan.anyItem,
+          loyaltyAnyItemCost: scan.anyItemCost.toInt(),
           loyaltyError: null,
         ),
       );

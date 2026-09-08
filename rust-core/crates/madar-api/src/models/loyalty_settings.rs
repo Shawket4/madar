@@ -43,6 +43,9 @@ pub struct LoyaltySettings {
     /// Verify the signup phone by WhatsApp code, like bookings and ordering.
     #[serde(rename = "require_otp")]
     pub require_otp: bool,
+    /// Any menu item may be taken as a reward, at `default_reward_cost`.  Off by default. A curated catalogue is the safer shape — it offers an espresso for five stamps without also offering the steak — and this is for the shops whose programme genuinely is \"collect five, get anything\", which a catalogue can only express by listing the entire menu and keeping that list in step with it forever.  The two are alternatives, not layers: with this on, the catalogue's per-item prices no longer apply, because an item's cost can no longer depend on which item it is.  Defaulted on the way in, because this type is the REQUEST body as well as the response: every till and dashboard already in the field sends a settings object without this key, and rejecting those would switch the programme off for everyone who had not updated yet.
+    #[serde(rename = "reward_any_item", skip_serializing_if = "Option::is_none")]
+    pub reward_any_item: Option<bool>,
     #[serde(rename = "terms", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub terms: Option<Option<String>>,
     #[serde(rename = "terms_ar", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
@@ -63,6 +66,7 @@ impl LoyaltySettings {
             program_name,
             program_name_ar: None,
             require_otp,
+            reward_any_item: None,
             terms: None,
             terms_ar: None,
         }

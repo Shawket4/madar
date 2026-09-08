@@ -442,12 +442,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Returns the member's new balance when it went through, or `None` when the
   /// till was offline and the press was queued: there is no balance to show
   /// yet, and inventing one would be a lie the customer can read.
+  ///
+  /// `customer_id` is the member already identified for this sale — the card
+  /// scanned before payment. Pass it and no second scan is needed; the order
+  /// remembers who it was either way, so the server accepts an award with no
+  /// member named at all.
   Future<LoyaltyMemberView?> loyaltyAward({
     String? orderId,
     String? orderKey,
     required String orderCreatedAt,
     String? token,
     String? phone,
+    String? customerId,
   });
 
   /// Is this sale still inside its 24-hour award window?

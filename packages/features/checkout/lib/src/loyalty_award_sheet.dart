@@ -33,6 +33,7 @@ class LoyaltyAwardSheet extends ConsumerStatefulWidget {
     required this.orderCreatedAt,
     this.orderId,
     this.orderKey,
+    this.customerId,
     super.key,
   });
 
@@ -46,6 +47,13 @@ class LoyaltyAwardSheet extends ConsumerStatefulWidget {
   /// The client-minted key. Present for a sale this till just rang, which may
   /// not have reached the server yet.
   final String? orderKey;
+
+  /// The member whose card was scanned at the till for this sale.
+  ///
+  /// When it is known there is nothing to scan: the sheet awards straight away
+  /// and closes. Scanning once, before payment, then again to collect for the
+  /// same sale, was two screens for one customer at one counter.
+  final String? customerId;
 
   @override
   ConsumerState<LoyaltyAwardSheet> createState() => _LoyaltyAwardSheetState();
@@ -70,6 +78,7 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
         orderCreatedAt: widget.orderCreatedAt,
         token: token,
         phone: phone,
+        customerId: token == null && phone == null ? widget.customerId : null,
       );
       if (!mounted) return;
       setState(() {
@@ -90,8 +99,29 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // The card was already scanned at the till, so there is nothing to ask.
+    // The sheet opens straight into its result rather than presenting a scanner
+    // to a teller who has just used one on the same customer.
+    if (widget.customerId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_award());
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Awarding to the card scanned at the till: no scanner, just the outcome.
+    if (widget.customerId != null && _awarded == null && !_queued && _error == null) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(20, 32, 20, 40),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     // Done — either credited, or safely queued.
     if (_awarded != null || _queued) {

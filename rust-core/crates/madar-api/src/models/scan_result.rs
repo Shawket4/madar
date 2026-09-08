@@ -14,6 +14,12 @@ use serde::{Deserialize, Serialize};
 /// ScanResult : What the teller's scan screen shows.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ScanResult {
+    /// The whole menu is claimable, not just `rewards`.  When on, `rewards` stops being the list of what MAY be claimed — it is only what happens to be curated — and the till offers every line at `any_item_cost`. Sent rather than inferred, because a till cannot tell \"no catalogue\" apart from \"any item\" without being told.
+    #[serde(rename = "any_item")]
+    pub any_item: bool,
+    /// What one line costs when `any_item` is on, in the branch's currency.
+    #[serde(rename = "any_item_cost")]
+    pub any_item_cost: i32,
     #[serde(rename = "member")]
     pub member: Box<models::MemberView>,
     /// Recent history, so a teller can answer \"where did my points go?\".
@@ -26,8 +32,10 @@ pub struct ScanResult {
 
 impl ScanResult {
     /// What the teller's scan screen shows.
-    pub fn new(member: models::MemberView, recent: Vec<models::LedgerEntry>, rewards: Vec<models::RewardItem>) -> ScanResult {
+    pub fn new(any_item: bool, any_item_cost: i32, member: models::MemberView, recent: Vec<models::LedgerEntry>, rewards: Vec<models::RewardItem>) -> ScanResult {
         ScanResult {
+            any_item,
+            any_item_cost,
             member: Box::new(member),
             recent,
             rewards,

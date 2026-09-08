@@ -70,7 +70,15 @@ class LoyaltyMemberView {
   /// The cheapest reward on offer here, in the same currency.
   final PlatformInt64 nextRewardCost;
 
-  /// `next_reward_cost - balance`, floored at zero.
+  /// Rewards ALREADY earned and unclaimed. A card does not stop at full: six
+  /// orders against a five-order reward is one earned and one towards the
+  /// next, and a customer owed two may claim both on one bill.
+  final PlatformInt64 rewardsReady;
+
+  /// Steps on the CURRENT card, after the earned ones are set aside.
+  final PlatformInt64 progressToNext;
+
+  /// What the next reward still needs.
   final PlatformInt64 pointsToNextReward;
 
   /// The balance affords at least one reward on offer here.
@@ -89,6 +97,8 @@ class LoyaltyMemberView {
     required this.mode,
     required this.balance,
     required this.nextRewardCost,
+    required this.rewardsReady,
+    required this.progressToNext,
     required this.pointsToNextReward,
     required this.canRedeem,
     required this.progressLabel,
@@ -103,6 +113,8 @@ class LoyaltyMemberView {
       mode.hashCode ^
       balance.hashCode ^
       nextRewardCost.hashCode ^
+      rewardsReady.hashCode ^
+      progressToNext.hashCode ^
       pointsToNextReward.hashCode ^
       canRedeem.hashCode ^
       progressLabel.hashCode ^
@@ -119,6 +131,8 @@ class LoyaltyMemberView {
           mode == other.mode &&
           balance == other.balance &&
           nextRewardCost == other.nextRewardCost &&
+          rewardsReady == other.rewardsReady &&
+          progressToNext == other.progressToNext &&
           pointsToNextReward == other.pointsToNextReward &&
           canRedeem == other.canRedeem &&
           progressLabel == other.progressLabel &&
@@ -201,14 +215,28 @@ class LoyaltyScanView {
   final List<LoyaltyRewardView> rewards;
   final List<LoyaltyLedgerView> recent;
 
+  /// The whole menu is claimable, not only `rewards`. The till then offers
+  /// every line at `any_item_cost` rather than only the curated ones.
+  final bool anyItem;
+
+  /// What one line costs when `any_item` is on.
+  final PlatformInt64 anyItemCost;
+
   const LoyaltyScanView({
     required this.member,
     required this.rewards,
     required this.recent,
+    required this.anyItem,
+    required this.anyItemCost,
   });
 
   @override
-  int get hashCode => member.hashCode ^ rewards.hashCode ^ recent.hashCode;
+  int get hashCode =>
+      member.hashCode ^
+      rewards.hashCode ^
+      recent.hashCode ^
+      anyItem.hashCode ^
+      anyItemCost.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -217,5 +245,7 @@ class LoyaltyScanView {
           runtimeType == other.runtimeType &&
           member == other.member &&
           rewards == other.rewards &&
-          recent == other.recent;
+          recent == other.recent &&
+          anyItem == other.anyItem &&
+          anyItemCost == other.anyItemCost;
 }

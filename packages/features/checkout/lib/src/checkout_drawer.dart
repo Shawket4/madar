@@ -1388,7 +1388,12 @@ class _RewardsSection extends StatelessWidget {
                     Text(
                       // What is left AFTER what is ticked, because that is the
                       // number the customer will ask about.
-                      '${state.balanceAfterRedemptions} ${m.balanceLabel} left',
+                      // A member owed more than one reward is told so: a card does
+                      // not stop at full, and a teller who cannot see the second
+                      // one will not offer it.
+                      m.rewardsReady > 1
+                          ? '${state.balanceAfterRedemptions} ${m.balanceLabel} left · ${m.rewardsReady} rewards ready'
+                          : '${state.balanceAfterRedemptions} ${m.balanceLabel} left',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),

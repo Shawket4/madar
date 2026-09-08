@@ -34,13 +34,19 @@ pub struct CardView {
     pub passes: Box<models::PassLinks>,
     #[serde(rename = "points_to_next_reward")]
     pub points_to_next_reward: i32,
+    /// Progress towards the next one, after the earned ones are set aside.
+    #[serde(rename = "progress_to_next")]
+    pub progress_to_next: i32,
     #[serde(rename = "rewards")]
     pub rewards: Vec<models::PublicReward>,
+    /// Rewards the balance has already earned — a card does not stop at full.
+    #[serde(rename = "rewards_ready")]
+    pub rewards_ready: i32,
 }
 
 impl CardView {
     /// The member's own card page — what they see when they open the link again.  The token in the path is the member's secret, which is why this returns only what the pass already shows and never the phone number in full.
-    pub fn new(balance: i32, brand: models::CardBrand, can_redeem: bool, member_token: String, mode: String, name: String, next_reward_cost: i32, passes: models::PassLinks, points_to_next_reward: i32, rewards: Vec<models::PublicReward>) -> CardView {
+    pub fn new(balance: i32, brand: models::CardBrand, can_redeem: bool, member_token: String, mode: String, name: String, next_reward_cost: i32, passes: models::PassLinks, points_to_next_reward: i32, progress_to_next: i32, rewards: Vec<models::PublicReward>, rewards_ready: i32) -> CardView {
         CardView {
             balance,
             brand: Box::new(brand),
@@ -51,7 +57,9 @@ impl CardView {
             next_reward_cost,
             passes: Box::new(passes),
             points_to_next_reward,
+            progress_to_next,
             rewards,
+            rewards_ready,
         }
     }
 }
