@@ -1510,11 +1510,14 @@ impl MadarCore {
         chrono::Utc::now() + chrono::Duration::milliseconds(skew_ms)
     }
 
-    /// Whether the live session's cached JWT has passed its `exp` (skew-corrected),
-    /// the truthful "needs re-auth" signal. Drives the reauth banner (`sync_status`
-    /// gates the sticky `auth_paused` on this) and the spurious-park recovery in
-    /// `refresh_connectivity`/`sync_now`/`retry_outbox`. True when there is no token
-    /// (can't sync without a credential) or its `exp` is unreadable (conservative).
+    /// Whether the live session's cached JWT has passed its `exp` (skew-corrected).
+    /// True when there is no token (can't sync without a credential) or its `exp` is
+    /// unreadable (conservative).
+    ///
+    /// This is what the OFFLINE unlock path reads, where there is no server to ask
+    /// and the claim is all we have. It deliberately no longer gates the re-login
+    /// banner: expiry is only ONE of the ways a token dies, and it was the only one
+    /// the teller was told about — see `sync_status`.
     fn session_token_expired(&self) -> bool {
         let token = self
             .session
@@ -1528,15 +1531,32 @@ impl MadarCore {
         }
     }
 
-    /// Clear a SPURIOUS auth-park: if the outbox is parked on a 401 but we still
-    /// hold a bearer whose `exp` is in the future, the 401 wasn't a real expiry
-    /// (captive portal / transient server hiccup), so un-park to let the drain
-    /// re-probe. A genuinely expired (or missing) token is left parked — only a
-    /// fresh login clears that, and the reauth banner stays up to prompt it. Burns
-    /// no retry budget either way (a real re-park uses `mark_retry_no_count`).
-    fn unpark_if_token_valid(&self) {
+    /// Clear a SPURIOUS auth-park by ASKING, rather than by guessing from `exp`.
+    ///
+    /// This used to un-park whenever the cached token had not expired, on the
+    /// theory that an unexpired token could only have been refused by something
+    /// standing in front of our backend. That theory is wrong in every case where
+    /// a live token is revoked rather than lapsed — a rotated signing secret, a
+    /// deactivated user, a suspended org — and it produced a loop nobody could get
+    /// out of: un-park, drain, 401, re-park, forever, with the banner suppressed on
+    /// the same "not expired yet" reasoning. The teller's only way out was to WAIT
+    /// for the token to expire.
+    ///
+    /// One authenticated request settles it. If the backend accepts the bearer, the
+    /// park really was spurious and the queue resumes; if it refuses, the park was
+    /// right and stays. A transport failure decides nothing and leaves it parked,
+    /// which costs nothing — a parked queue drains no differently from an offline
+    /// one, and the banner is online-gated anyway.
+    ///
+    /// Only ever reached while parked, so it adds no request to a healthy till.
+    async fn unpark_if_token_accepted(&self) {
         use std::sync::atomic::Ordering::Relaxed;
-        if self.auth_paused.load(Relaxed) && self.api.has_bearer() && !self.session_token_expired()
+        if !self.auth_paused.load(Relaxed) || !self.api.has_bearer() {
+            return;
+        }
+        if madar_api::apis::auth_api::get_my_permissions(&self.api.config())
+            .await
+            .is_ok()
         {
             self.auth_paused.store(false, Relaxed);
         }
@@ -3350,19 +3370,29 @@ impl MadarCore {
     /// Sync health for the action-bar chip + offline banner (counts + online),
     /// in one cheap local read. Always succeeds offline.
     pub fn sync_status(&self) -> Result<SyncStatusView, CoreError> {
-        // The host renders the re-login banner on `auth_paused`. Gate it on the
-        // cached JWT actually being EXPIRED so a spurious 401 (captive portal /
-        // transient server hiccup) with a still-valid token never forces a needless
-        // re-sign-in — the teller only re-authenticates once the token has genuinely
-        // lapsed. ALSO gate it on being ONLINE: re-auth exists to mint a fresh JWT
-        // from the server, so prompting while unreachable is a dead end (the
-        // offline banner tells that story instead). The internal sticky flag keeps
-        // the drain parked meanwhile and the prompt resurfaces the moment
-        // connectivity is confirmed (the host watches the offline→online edge).
+        // The host renders the re-login banner on `auth_paused`, and the flag is
+        // trusted on its own now. It is latched from exactly one place — a
+        // `CoreError::Unauthenticated`, which `status_to_error` produces ONLY for a
+        // 401 carrying our own error envelope. A captive portal or proxy answers
+        // with HTML and is classified `Offline` long before it reaches here. So the
+        // flag already means "our backend read this bearer and refused it", which
+        // is both more direct and more truthful than asking whether `exp` has
+        // passed.
+        //
+        // It used to be gated on expiry as well, and that gate was the bug: a token
+        // revoked rather than lapsed — rotated secret, deactivated user, suspended
+        // org — is refused by the server while its `exp` is still in the future, so
+        // the queue parked, the app looked merely offline, and the teller was never
+        // told to sign in. They had to wait out the token.
+        //
+        // Still gated on being ONLINE: re-auth mints a fresh JWT from the server,
+        // so prompting while unreachable is a dead end (the offline banner tells
+        // that story instead). The sticky flag keeps the drain parked meanwhile and
+        // the prompt resurfaces the moment connectivity is confirmed — the host
+        // watches the offline→online edge.
         let online = self.current_session().map(|s| s.online).unwrap_or(false);
-        let auth_paused = self.auth_paused.load(std::sync::atomic::Ordering::Relaxed)
-            && self.session_token_expired()
-            && online;
+        let auth_paused =
+            self.auth_paused.load(std::sync::atomic::Ordering::Relaxed) && online;
         Ok(SyncStatusView {
             pending: self.store.pending_count()?,
             failed: self.store.dead_count()?,
@@ -4713,11 +4743,11 @@ impl MadarCore {
 
     /// Force a sync now — drains the outbox. Cancellable/idempotent.
     pub async fn sync_now(&self) -> Result<(), CoreError> {
-        // An explicit push should recover a SPURIOUSLY parked queue (a captive-portal
-        // / transient 401 while the cached token is still valid). A genuinely expired
-        // token stays parked — only a re-login can fix that, and the reauth banner
-        // remains up to prompt it.
-        self.unpark_if_token_valid();
+        // An explicit push should recover a SPURIOUSLY parked queue — but only on
+        // proof that the bearer is good, never on the assumption that an unexpired
+        // one must be. A token the backend refuses stays parked, and the banner
+        // now says so instead of waiting for it to lapse.
+        self.unpark_if_token_accepted().await;
         // An explicit sync clears the offline (no-count) backoff so a backlog built
         // during an outage flushes NOW, not after the ~15s network-retry window.
         let _ = self.store.clear_network_backoff();
@@ -4731,7 +4761,7 @@ impl MadarCore {
     /// Requeue every dead command (clearing its error) and try to send now.
     /// Best-effort — offline just leaves them pending again.
     pub async fn retry_outbox(&self) -> Result<(), CoreError> {
-        self.unpark_if_token_valid();
+        self.unpark_if_token_accepted().await;
         self.store.requeue_dead()?;
         self.drain_outbox().await
     }
@@ -4792,12 +4822,12 @@ impl MadarCore {
                 // /health reached a server → online (a fast recovery signal; also
                 // resets the unconfirmed-failure streak).
                 self.set_online(true);
-                // Connectivity is CONFIRMED. If the queue is parked on a 401 but we
-                // still hold a non-expired token, the park was spurious (a portal /
-                // proxy blip or a transient server auth hiccup) — un-park so this pass
-                // re-probes. A genuinely expired token stays parked (the next replay
-                // 401s and re-parks), keeping the reauth banner up for a real re-login.
-                self.unpark_if_token_valid();
+                // Connectivity is CONFIRMED, so this is the moment a park can be
+                // tested rather than guessed at: one authenticated request says
+                // whether the bearer is still good. Accepted ⇒ the park was a portal
+                // blip and the queue resumes; refused ⇒ it was real, the park holds,
+                // and the banner is now up asking for a re-login.
+                self.unpark_if_token_accepted().await;
                 // Connectivity is CONFIRMED — un-gate the offline backlog so it
                 // drains on this pass instead of waiting out the network window.
                 let _ = self.store.clear_network_backoff();
@@ -7949,32 +7979,42 @@ mod lifecycle_tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    /// A token can die without expiring, and the teller has to be told.
+    ///
+    /// The banner used to require the cached JWT to have passed its `exp`. A
+    /// revoked token — rotated secret, deactivated user, suspended org — is
+    /// refused by the server while `exp` is still hours away, so the queue parked
+    /// silently, the till looked merely offline, and the only way out was to wait
+    /// for a token the server had already stopped honouring.
     #[test]
-    fn reauth_banner_only_shows_when_cached_jwt_expired() {
+    fn the_reauth_banner_shows_for_a_refused_token_even_before_it_expires() {
         use std::sync::atomic::Ordering::Relaxed;
         let core = MadarCore::from_env().unwrap();
         let now = core.corrected_now().timestamp();
 
-        // A still-VALID cached token + a parked queue (spurious 401) → banner hidden.
+        // Unexpired, and refused anyway: `auth_paused` is only ever latched from a
+        // 401 carrying our own error envelope, so it already means the backend
+        // looked at this bearer and said no.
         signed_in_with_token(&core, now + 3600);
         core.set_online(true);
         core.auth_paused.store(true, Relaxed);
         assert!(
-            !core.sync_status().unwrap().auth_paused,
-            "a still-valid JWT must NOT surface the re-login banner on a spurious 401"
+            core.sync_status().unwrap().auth_paused,
+            "a refused token must prompt a re-login without waiting for its exp"
         );
 
-        // An EXPIRED cached token + a parked queue → banner shows (real re-auth),
-        // but ONLY while online: re-auth mints a JWT from the server, so while
-        // unreachable the prompt is a dead end and stays suppressed until the
-        // restore edge resurfaces it.
-        signed_in_with_token(&core, now - 3600);
-        core.auth_paused.store(true, Relaxed);
+        // Still suppressed while unreachable: re-auth mints a JWT from the server,
+        // so the prompt would be a dead end. The host resurfaces it on the
+        // offline→online edge.
         core.set_online(false);
         assert!(
             !core.sync_status().unwrap().auth_paused,
-            "an expired JWT must stay quiet while OFFLINE (no server to re-auth against)"
+            "no re-login prompt while there is no server to re-login against"
         );
+
+        // And an expired one, once online, behaves exactly the same.
+        signed_in_with_token(&core, now - 3600);
+        core.auth_paused.store(true, Relaxed);
         core.set_online(true);
         assert!(
             core.sync_status().unwrap().auth_paused,
@@ -7982,25 +8022,28 @@ mod lifecycle_tests {
         );
     }
 
-    #[test]
-    fn unpark_clears_a_spurious_park_for_a_valid_token_only() {
+    /// Un-parking is evidence, not arithmetic.
+    ///
+    /// With no backend to ask, the park stands — whatever the clock says about the
+    /// token. The old rule cleared it on `exp` alone, which is what let a refused
+    /// token loop between un-park, drain, 401 and re-park without ever prompting.
+    #[tokio::test]
+    async fn an_unexpired_token_does_not_unpark_itself() {
         use std::sync::atomic::Ordering::Relaxed;
         let core = MadarCore::from_env().unwrap();
         let now = core.corrected_now().timestamp();
 
-        // Valid token → un-park clears the flag (the queue resumes).
         signed_in_with_token(&core, now + 3600);
         core.auth_paused.store(true, Relaxed);
-        core.unpark_if_token_valid();
+        core.unpark_if_token_accepted().await;
         assert!(
-            !core.auth_paused.load(Relaxed),
-            "valid token → spurious park cleared"
+            core.auth_paused.load(Relaxed),
+            "nothing confirmed the bearer, so the park must hold"
         );
 
-        // Expired token → stays parked (only a fresh login clears it).
         signed_in_with_token(&core, now - 3600);
         core.auth_paused.store(true, Relaxed);
-        core.unpark_if_token_valid();
+        core.unpark_if_token_accepted().await;
         assert!(
             core.auth_paused.load(Relaxed),
             "expired token → park retained for re-login"

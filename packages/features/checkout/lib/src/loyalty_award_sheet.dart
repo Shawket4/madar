@@ -116,7 +116,10 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
     final theme = Theme.of(context);
 
     // Awarding to the card scanned at the till: no scanner, just the outcome.
-    if (widget.customerId != null && _awarded == null && !_queued && _error == null) {
+    if (widget.customerId != null &&
+        _awarded == null &&
+        !_queued &&
+        _error == null) {
       return const Padding(
         padding: EdgeInsets.fromLTRB(20, 32, 20, 40),
         child: Center(child: CircularProgressIndicator()),

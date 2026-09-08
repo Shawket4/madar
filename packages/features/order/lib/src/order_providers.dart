@@ -1349,18 +1349,19 @@ class OrderNotifier extends Notifier<OrderState> {
   /// teller's shift is reconciled (mirrors the natives' refreshConnectivity).
   Future<void> refreshConnectivity() async {
     final wasOnline = state.isOnline;
+    final wasAuthPaused = state.syncAuthPaused;
     final online = await _quiet(_bridge.refreshConnectivity) ?? false;
     final status = await _quiet(_bridge.syncStatus);
+    final authPaused = status?.authPaused ?? state.syncAuthPaused;
     state = state.copyWith(
       isOnline: online,
       pendingCount: status?.pending ?? state.pendingCount,
       syncFailed: status?.failed ?? state.syncFailed,
-      syncAuthPaused: status?.authPaused ?? state.syncAuthPaused,
+      syncAuthPaused: authPaused,
       clockSkewMinutes: _bridge.clockSkewMinutes(),
     );
-    // Restore edge with a parked outbox → raise the re-auth prompt (see
-    // syncFromStatus — the core suppresses authPaused while offline).
-    if (!wasOnline && online && (status?.authPaused ?? false)) {
+    // The PARK edge, not the connectivity edge — see syncFromStatus.
+    if (authPaused && !wasAuthPaused) {
       ref.read(reauthRequestProvider.notifier).request();
     }
     if (!wasOnline && online && !state.isWaiter) {
@@ -1378,6 +1379,7 @@ class OrderNotifier extends Notifier<OrderState> {
     final status = await _quiet(_bridge.syncStatus);
     if (status == null) return;
     final wasOnline = state.isOnline;
+    final wasAuthPaused = state.syncAuthPaused;
     state = state.copyWith(
       isOnline: status.online,
       pendingCount: status.pending,
@@ -1385,10 +1387,17 @@ class OrderNotifier extends Notifier<OrderState> {
       syncAuthPaused: status.authPaused,
       clockSkewMinutes: _bridge.clockSkewMinutes(),
     );
-    // Connectivity just came back with the outbox parked on an expired
-    // bearer — NOW a re-login can actually mint a JWT, so raise the re-auth
-    // prompt (the core suppresses `authPaused` while offline by design).
-    if (!wasOnline && status.online && status.authPaused) {
+    // Raise the prompt when the outbox BECOMES parked, not when connectivity
+    // returns. Those coincide only for a token that died while the till was
+    // offline; one refused mid-shift, with the till online the whole time,
+    // never crossed a connectivity edge — so the sheet never opened and the
+    // teller was left with an inline banner and a queue that had quietly
+    // stopped draining.
+    //
+    // The restore case still works through the same rule: the core reports
+    // `authPaused` as false while offline by design, so coming back online
+    // flips it false → true and the edge fires there too.
+    if (status.authPaused && !wasAuthPaused) {
       ref.read(reauthRequestProvider.notifier).request();
     }
     if (!wasOnline && status.online && !state.isWaiter) {

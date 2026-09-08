@@ -230,7 +230,9 @@ class _ReceiptConfirmation extends ConsumerWidget {
                               // If a card was scanned to pay, it is the same
                               // customer collecting — no second scan.
                               customerId: ref.read(
-                                checkoutProvider.select((s) => s.loyaltyMember?.id),
+                                checkoutProvider.select(
+                                  (s) => s.loyaltyMember?.id,
+                                ),
                               ),
                             ),
                           ),

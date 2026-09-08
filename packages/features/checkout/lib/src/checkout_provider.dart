@@ -205,8 +205,8 @@ class CheckoutState {
         priceMinor: 0,
         costCurrency: loyaltyMember?.mode ?? 'points',
         costAmount: loyaltyAnyItemCost,
-        costLabel:
-            '$loyaltyAnyItemCost ${loyaltyMember?.balanceLabel ?? ''}'.trim(),
+        costLabel: '$loyaltyAnyItemCost ${loyaltyMember?.balanceLabel ?? ''}'
+            .trim(),
       );
     }
     return null;
@@ -404,7 +404,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
           loyaltyMember: scan.member,
           loyaltyRewards: scan.rewards,
           loyaltyAnyItem: scan.anyItem,
-          loyaltyAnyItemCost: scan.anyItemCost.toInt(),
+          // `PlatformInt64` is `int` on every platform this app ships to, so
+          // the conversion the analyzer flags here would be a no-op.
+          loyaltyAnyItemCost: scan.anyItemCost,
           loyaltyError: null,
         ),
       );
