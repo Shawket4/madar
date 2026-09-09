@@ -5029,9 +5029,10 @@ impl MadarCore {
         // The member already identified for this sale, if the card was scanned
         // at the till. Then collecting the points needs no second scan.
         customer_id: Option<String>,
-    ) -> Result<Option<loyalty::LoyaltyMemberView>, CoreError> {
+    ) -> Result<loyalty::LoyaltyAwardOutcome, CoreError> {
         use madar_api::apis::loyalty_api;
         let branch = self.session_branch_id()?;
+        let locale = self.current_locale();
         let now = self.corrected_now();
         if !loyalty::award_window_open(&order_created_at, &now.to_rfc3339()) {
             return Err(CoreError::Validation {
@@ -5098,7 +5099,11 @@ impl MadarCore {
             )
             .await
             {
-                Ok(result) => return Ok(Some(loyalty::member_view(&result.member))),
+                // `already_awarded` rides back out with the balance: a second
+                // press on the same sale is safe (the ledger is unique per
+                // order), and the teller is told it was already collected
+                // rather than shown a second "added".
+                Ok(result) => return Ok(loyalty::award_outcome(&locale, &result)),
                 Err(e) => match net::map_api_error(e) {
                     // The session said online but the round trip failed — this
                     // is the offline case arriving a moment late. Queue the
@@ -5138,9 +5143,9 @@ impl MadarCore {
         })?;
         // Try to send it straight away; offline simply leaves it queued.
         let _ = self.drain_outbox().await;
-        // Queued: there is no balance to show yet. The caller says "added when
-        // this till reconnects" rather than inventing a number.
-        Ok(None)
+        // Queued: there is no balance to show yet. The outcome says so in as
+        // many words rather than inventing a number.
+        Ok(loyalty::award_queued(&locale))
     }
 
     /// Re-render a synced order as a receipt for reprint — same ESC/POS path as a

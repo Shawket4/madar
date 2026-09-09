@@ -1,8 +1,11 @@
 import 'dart:async';
+
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/loyalty_scan_capture.dart';
-import 'package:flutter/material.dart';
+import 'package:feature_checkout/src/widgets.dart';
+import 'package:flutter/material.dart' show CircularProgressIndicator;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
@@ -17,9 +20,11 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// keystrokes are platform I/O — Rust cannot reach CameraX/AVFoundation without
 /// re-implementing them and shipping every frame across the bridge — so capture
 /// lives here. What a captured string MEANS is `classifyLoyaltyInput`; whether
-/// the sale is still claimable is `loyaltyAwardWindowOpen`; and what it is worth
-/// is the server's, from the order's own totals. The only judgement left in Dart
-/// is the in-flight guard, which is widget sequencing.
+/// the sale is still claimable is `loyaltyAwardWindowOpen`; what it is worth is
+/// the server's, from the order's own totals; and WHICH OF THE THREE OUTCOMES
+/// happened — added, already collected, queued — is `LoyaltyAwardOutcome`,
+/// phrased by the core. The only judgement left in Dart is the in-flight guard,
+/// which is widget sequencing.
 ///
 /// Three ways in, because one counter is not like another:
 ///  * **Camera** — where there is one. `mobile_scanner` covers Android, iOS and
@@ -62,8 +67,10 @@ class LoyaltyAwardSheet extends ConsumerStatefulWidget {
 class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
   bool _busy = false;
   String? _error;
-  LoyaltyMemberView? _awarded;
-  bool _queued = false;
+
+  /// What the server said happened, already phrased by the core. Null until a
+  /// press has been answered.
+  LoyaltyAwardOutcome? _outcome;
 
   Future<void> _award({String? token, String? phone}) async {
     final bridge = ref.read(bridgeProvider);
@@ -72,7 +79,7 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
       _error = null;
     });
     try {
-      final member = await bridge.loyaltyAward(
+      final outcome = await bridge.loyaltyAward(
         orderId: widget.orderId,
         orderKey: widget.orderKey,
         orderCreatedAt: widget.orderCreatedAt,
@@ -81,17 +88,14 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
         customerId: token == null && phone == null ? widget.customerId : null,
       );
       if (!mounted) return;
-      setState(() {
-        // A null member means the till was offline and the press was queued.
-        // Saying so is the honest answer; inventing a balance is not.
-        _awarded = member;
-        _queued = member == null;
-      });
+      setState(() => _outcome = outcome);
       MadarHaptics.success();
     } on MadarError catch (e) {
       if (!mounted) return;
-      // Refocusing for another attempt is the capture widget's business — it
-      // owns the fields and refocuses when `busy` falls.
+      // The server's own sentence — "the 24-hour window for adding points to
+      // this sale has closed", "That sale was voided" — reaches the teller as
+      // written. Refocusing for another attempt is the capture widget's
+      // business; it owns the fields and refocuses when `busy` falls.
       setState(() => _error = bridge.humanMessage(e));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -113,51 +117,69 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
 
     // Awarding to the card scanned at the till: no scanner, just the outcome.
-    if (widget.customerId != null &&
-        _awarded == null &&
-        !_queued &&
-        _error == null) {
-      return const Padding(
-        padding: EdgeInsets.fromLTRB(20, 32, 20, 40),
-        child: Center(child: CircularProgressIndicator()),
+    if (widget.customerId != null && _outcome == null && _error == null) {
+      return Padding(
+        padding: const EdgeInsetsDirectional.all(Space.xxl),
+        child: Center(
+          child: SizedBox.square(
+            dimension: IconSize.xxl,
+            child: CircularProgressIndicator(
+              color: colors.accent,
+              strokeWidth: 2,
+            ),
+          ),
+        ),
       );
     }
 
-    // Done — either credited, or safely queued.
-    if (_awarded != null || _queued) {
-      final m = _awarded;
+    if (_outcome case final outcome?) {
+      // One of three facts about the customer's card, and they are not
+      // interchangeable: the points went on, the sale had already been
+      // collected for (the call is idempotent per order, so the second press
+      // changed nothing), or the press is waiting for a connection.
+      final (String glyph, Color tint) = switch (outcome) {
+        LoyaltyAwardOutcome(queued: true) => (
+          'icloud.and.arrow.up',
+          colors.warning,
+        ),
+        LoyaltyAwardOutcome(alreadyCollected: true) => (
+          'checkmark.seal',
+          colors.accent,
+        ),
+        LoyaltyAwardOutcome(pointsAwarded: 0) => (
+          'exclamationmark.circle',
+          colors.textSecondary,
+        ),
+        _ => ('checkmark.circle.fill', colors.success),
+      };
       return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+        padding: const EdgeInsetsDirectional.all(Space.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
           children: [
-            Icon(
-              Icons.check_circle_outline,
-              size: 40,
-              color: theme.colorScheme.primary,
+            Center(
+              child: MadarIcon(glyph, tint: tint, size: IconSize.xxl),
             ),
-            const SizedBox(height: 12),
             Text(
-              _queued ? 'Points queued' : 'Points added',
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _queued
-                  ? 'This till is offline. The points go on as soon as it reconnects.'
-                  : '${m!.name} — ${m.balance} ${m.balanceLabel} · ${m.progressLabel}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              outcome.headline,
               textAlign: TextAlign.center,
+              style: MadarType.h3.copyWith(color: colors.textPrimary),
             ),
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Done'),
+            Text(
+              outcome.detail,
+              textAlign: TextAlign.center,
+              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+            ),
+            ActionButton(
+              label: t('common.done'),
+              onTap: () => Navigator.of(context).pop(true),
             ),
           ],
         ),
@@ -165,16 +187,16 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      padding: const EdgeInsetsDirectional.all(Space.lg),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        spacing: Space.sm,
         children: [
           Text(
-            'Add points to this sale',
-            style: theme.textTheme.titleMedium,
+            t('loyalty.add_points_title'),
             textAlign: TextAlign.center,
+            style: MadarType.h3.copyWith(color: colors.textPrimary),
           ),
-          const SizedBox(height: 4),
           LoyaltyScanCapture(busy: _busy, error: _error, onCaptured: _award),
         ],
       ),

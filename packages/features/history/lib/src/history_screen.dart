@@ -1261,8 +1261,13 @@ class _OrderDetailPanel extends StatelessWidget {
             ),
           ),
         ),
+        // A third action joined Print and Void here, so the group WRAPS: on a
+        // narrow card three labels in Arabic no longer fit beside the payment
+        // method, and an action a teller cannot reach is worse than one on its
+        // own line.
         Row(
           spacing: Space.md,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
               child: Text(
@@ -1275,20 +1280,61 @@ class _OrderDetailPanel extends StatelessWidget {
                 ),
               ),
             ),
-            if (canAct) ...[
-              _DetailAction(
-                label: t('receipt.print'),
-                glyph: 'printer',
-                color: colors.accent,
-                onTap: onPrint,
+            Flexible(
+              child: Wrap(
+                spacing: Space.md,
+                runSpacing: Space.sm,
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  // Adding points is claimable for 24 hours after the sale, so a
+                  // customer who produced their card only after paying — which is
+                  // most of the time — still gets their stamp. The window is the
+                  // core's rule (and the server re-checks it against this order's own
+                  // timestamp), so the action disappears on its own: no timer, no
+                  // stale state. A voided sale earns nothing, so it never appears
+                  // there. Unlike Print and Void this is offered on a still-QUEUED
+                  // sale too — the award names it by the client key it was rung
+                  // under, and the server resolves the two to one order.
+                  if (o.status != 'voided' &&
+                      bridge.loyaltyAwardWindowOpen(
+                        orderCreatedAt: o.createdAt,
+                        now: DateTime.now().toUtc().toIso8601String(),
+                      ))
+                    _DetailAction(
+                      label: t('loyalty.add_points'),
+                      glyph: 'star',
+                      color: colors.accent,
+                      onTap: () => unawaited(
+                        showMadarSheet<bool>(
+                          context,
+                          builder: (_) => LoyaltyAwardSheet(
+                            // A queued sale has no server id yet — it is known by the
+                            // client key it was rung under.
+                            orderId: o.queued ? null : o.id,
+                            orderKey: o.queued ? o.id : null,
+                            orderCreatedAt: o.createdAt,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (canAct) ...[
+                    _DetailAction(
+                      label: t('receipt.print'),
+                      glyph: 'printer',
+                      color: colors.accent,
+                      onTap: onPrint,
+                    ),
+                    _DetailAction(
+                      label: t('void.action'),
+                      glyph: 'trash',
+                      color: colors.danger,
+                      onTap: onVoid,
+                    ),
+                  ],
+                ],
               ),
-              _DetailAction(
-                label: t('void.action'),
-                glyph: 'trash',
-                color: colors.danger,
-                onTap: onVoid,
-              ),
-            ],
+            ),
           ],
         ),
       ],
@@ -1296,7 +1342,8 @@ class _OrderDetailPanel extends StatelessWidget {
   }
 }
 
-/// A leading-icon text action in the expanded detail panel (Print / Void).
+/// A leading-icon text action in the expanded detail panel (Add points /
+/// Print / Void).
 class _DetailAction extends StatelessWidget {
   const _DetailAction({
     required this.label,

@@ -503,7 +503,7 @@ abstract class RustBridgeApi extends BaseApi {
     required bool wipeOutbox,
   });
 
-  Future<LoyaltyMemberView?> crateApiBridgeMadarBridgeLoyaltyAward({
+  Future<LoyaltyAwardOutcome> crateApiBridgeMadarBridgeLoyaltyAward({
     required MadarBridge that,
     String? orderId,
     String? orderKey,
@@ -4129,7 +4129,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<LoyaltyMemberView?> crateApiBridgeMadarBridgeLoyaltyAward({
+  Future<LoyaltyAwardOutcome> crateApiBridgeMadarBridgeLoyaltyAward({
     required MadarBridge that,
     String? orderId,
     String? orderKey,
@@ -4160,7 +4160,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_box_autoadd_loyalty_member_view,
+          decodeSuccessData: sse_decode_loyalty_award_outcome,
           decodeErrorData: sse_decode_madar_error,
         ),
         constMeta: kCrateApiBridgeMadarBridgeLoyaltyAwardConstMeta,
@@ -7810,6 +7810,22 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  LoyaltyAwardOutcome dco_decode_loyalty_award_outcome(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return LoyaltyAwardOutcome(
+      member: dco_decode_opt_box_autoadd_loyalty_member_view(arr[0]),
+      queued: dco_decode_bool(arr[1]),
+      alreadyCollected: dco_decode_bool(arr[2]),
+      pointsAwarded: dco_decode_i_64(arr[3]),
+      headline: dco_decode_String(arr[4]),
+      detail: dco_decode_String(arr[5]),
+    );
+  }
+
+  @protected
   LoyaltyLedgerView dco_decode_loyalty_ledger_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -10336,6 +10352,29 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  LoyaltyAwardOutcome sse_decode_loyalty_award_outcome(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_member = sse_decode_opt_box_autoadd_loyalty_member_view(
+      deserializer,
+    );
+    var var_queued = sse_decode_bool(deserializer);
+    var var_alreadyCollected = sse_decode_bool(deserializer);
+    var var_pointsAwarded = sse_decode_i_64(deserializer);
+    var var_headline = sse_decode_String(deserializer);
+    var var_detail = sse_decode_String(deserializer);
+    return LoyaltyAwardOutcome(
+      member: var_member,
+      queued: var_queued,
+      alreadyCollected: var_alreadyCollected,
+      pointsAwarded: var_pointsAwarded,
+      headline: var_headline,
+      detail: var_detail,
+    );
+  }
+
+  @protected
   LoyaltyLedgerView sse_decode_loyalty_ledger_view(
     SseDeserializer deserializer,
   ) {
@@ -12788,6 +12827,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_loyalty_award_outcome(
+    LoyaltyAwardOutcome self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_loyalty_member_view(self.member, serializer);
+    sse_encode_bool(self.queued, serializer);
+    sse_encode_bool(self.alreadyCollected, serializer);
+    sse_encode_i_64(self.pointsAwarded, serializer);
+    sse_encode_String(self.headline, serializer);
+    sse_encode_String(self.detail, serializer);
+  }
+
+  @protected
   void sse_encode_loyalty_ledger_view(
     LoyaltyLedgerView self,
     SseSerializer serializer,
@@ -14163,17 +14216,18 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       .crateApiBridgeMadarBridgeLogout(that: this, wipeOutbox: wipeOutbox);
 
   /// Add a sale's points to a member's balance — the receipt's button, and the
-  /// one on a past order.
+  /// one on a past order in the history.
   ///
-  /// Returns the member's new balance when it went through, or `None` when the
-  /// till was offline and the press was queued: there is no balance to show
-  /// yet, and inventing one would be a lie the customer can read.
+  /// Returns the outcome the SERVER reported, already phrased: the points went
+  /// on, the sale had already been collected for (the endpoint is idempotent
+  /// per order, so a second press is safe and must say so), or the press was
+  /// queued because this till could not reach the server.
   ///
   /// `customer_id` is the member already identified for this sale — the card
   /// scanned before payment. Pass it and no second scan is needed; the order
   /// remembers who it was either way, so the server accepts an award with no
   /// member named at all.
-  Future<LoyaltyMemberView?> loyaltyAward({
+  Future<LoyaltyAwardOutcome> loyaltyAward({
     String? orderId,
     String? orderKey,
     required String orderCreatedAt,

@@ -437,17 +437,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
   Future<void> logout({required bool wipeOutbox});
 
   /// Add a sale's points to a member's balance — the receipt's button, and the
-  /// one on a past order.
+  /// one on a past order in the history.
   ///
-  /// Returns the member's new balance when it went through, or `None` when the
-  /// till was offline and the press was queued: there is no balance to show
-  /// yet, and inventing one would be a lie the customer can read.
+  /// Returns the outcome the SERVER reported, already phrased: the points went
+  /// on, the sale had already been collected for (the endpoint is idempotent
+  /// per order, so a second press is safe and must say so), or the press was
+  /// queued because this till could not reach the server.
   ///
   /// `customer_id` is the member already identified for this sale — the card
   /// scanned before payment. Pass it and no second scan is needed; the order
   /// remembers who it was either way, so the server accepts an award with no
   /// member named at all.
-  Future<LoyaltyMemberView?> loyaltyAward({
+  Future<LoyaltyAwardOutcome> loyaltyAward({
     String? orderId,
     String? orderKey,
     required String orderCreatedAt,

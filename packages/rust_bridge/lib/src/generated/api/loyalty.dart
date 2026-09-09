@@ -6,6 +6,64 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// What came of pressing "add points" on a sale.
+///
+/// Three outcomes a teller must be able to tell apart — added, already
+/// collected, queued — decided by the server and phrased by the core, so the
+/// sheet renders a sentence rather than choosing one.
+class LoyaltyAwardOutcome {
+  /// Where the customer now stands. `None` only for a queued press: there is
+  /// no balance yet, and a made-up one is a lie the customer can read.
+  final LoyaltyMemberView? member;
+
+  /// The press is queued because this till could not reach the server.
+  final bool queued;
+
+  /// The sale had already earned. The call is idempotent per order, so the
+  /// second press changed nothing and must not claim to have.
+  final bool alreadyCollected;
+
+  /// What THIS press added. Zero when already collected, and when the sale was
+  /// too small to reach one point.
+  final PlatformInt64 pointsAwarded;
+
+  /// Ready-made headline, localized.
+  final String headline;
+
+  /// Ready-made line under it, localized.
+  final String detail;
+
+  const LoyaltyAwardOutcome({
+    this.member,
+    required this.queued,
+    required this.alreadyCollected,
+    required this.pointsAwarded,
+    required this.headline,
+    required this.detail,
+  });
+
+  @override
+  int get hashCode =>
+      member.hashCode ^
+      queued.hashCode ^
+      alreadyCollected.hashCode ^
+      pointsAwarded.hashCode ^
+      headline.hashCode ^
+      detail.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoyaltyAwardOutcome &&
+          runtimeType == other.runtimeType &&
+          member == other.member &&
+          queued == other.queued &&
+          alreadyCollected == other.alreadyCollected &&
+          pointsAwarded == other.pointsAwarded &&
+          headline == other.headline &&
+          detail == other.detail;
+}
+
 /// One line of the member's recent history, already phrased for display.
 class LoyaltyLedgerView {
   /// `earn` | `redeem` | `adjust`.

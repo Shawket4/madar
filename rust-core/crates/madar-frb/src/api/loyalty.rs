@@ -10,7 +10,8 @@ use crate::api::error::MadarError;
 use flutter_rust_bridge::frb;
 
 pub use madar_core::loyalty::{
-    LoyaltyLedgerView, LoyaltyMemberView, LoyaltyRewardView, LoyaltyScanInput, LoyaltyScanView,
+    LoyaltyAwardOutcome, LoyaltyLedgerView, LoyaltyMemberView, LoyaltyRewardView, LoyaltyScanInput,
+    LoyaltyScanView,
 };
 
 /// What a captured string is. The UI captures bytes — camera frames via the
@@ -95,6 +96,30 @@ pub struct _LoyaltyScanView {
     pub any_item_cost: i64,
 }
 
+/// What came of pressing "add points" on a sale.
+///
+/// Three outcomes a teller must be able to tell apart — added, already
+/// collected, queued — decided by the server and phrased by the core, so the
+/// sheet renders a sentence rather than choosing one.
+#[frb(mirror(LoyaltyAwardOutcome))]
+pub struct _LoyaltyAwardOutcome {
+    /// Where the customer now stands. `None` only for a queued press: there is
+    /// no balance yet, and a made-up one is a lie the customer can read.
+    pub member: Option<LoyaltyMemberView>,
+    /// The press is queued because this till could not reach the server.
+    pub queued: bool,
+    /// The sale had already earned. The call is idempotent per order, so the
+    /// second press changed nothing and must not claim to have.
+    pub already_collected: bool,
+    /// What THIS press added. Zero when already collected, and when the sale was
+    /// too small to reach one point.
+    pub points_awarded: i64,
+    /// Ready-made headline, localized.
+    pub headline: String,
+    /// Ready-made line under it, localized.
+    pub detail: String,
+}
+
 impl MadarBridge {
     /// Decide what a captured string is: a whole member token, a phone number,
     /// or neither yet.
@@ -137,11 +162,12 @@ impl MadarBridge {
     }
 
     /// Add a sale's points to a member's balance — the receipt's button, and the
-    /// one on a past order.
+    /// one on a past order in the history.
     ///
-    /// Returns the member's new balance when it went through, or `None` when the
-    /// till was offline and the press was queued: there is no balance to show
-    /// yet, and inventing one would be a lie the customer can read.
+    /// Returns the outcome the SERVER reported, already phrased: the points went
+    /// on, the sale had already been collected for (the endpoint is idempotent
+    /// per order, so a second press is safe and must say so), or the press was
+    /// queued because this till could not reach the server.
     ///
     /// `customer_id` is the member already identified for this sale — the card
     /// scanned before payment. Pass it and no second scan is needed; the order
@@ -155,7 +181,7 @@ impl MadarBridge {
         token: Option<String>,
         phone: Option<String>,
         customer_id: Option<String>,
-    ) -> Result<Option<LoyaltyMemberView>, MadarError> {
+    ) -> Result<LoyaltyAwardOutcome, MadarError> {
         self.inner
             .loyalty_award(
                 order_id,

@@ -2,9 +2,19 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:app_core/app_core.dart';
-import 'package:flutter/material.dart';
+import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/src/widgets.dart';
+import 'package:flutter/material.dart'
+    show CircularProgressIndicator, InputDecoration, TextButton, TextField;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+
+/// Camera preview height — big enough to aim a pass at across a counter.
+const double _cameraHeight = 220;
+
+/// The stand-in panel on a till with no camera plugin (Windows).
+const double _wedgeOnlyHeight = 120;
 
 /// Captures a member's identity, three ways, and hands the result to its caller.
 ///
@@ -112,46 +122,69 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
       children: [
         Text(
-          _phoneMode
-              ? 'Look the customer up by the number they signed up with.'
-              : 'Hold their wallet pass to the scanner, or point the camera at it.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          t(_phoneMode ? 'loyalty.phone_hint' : 'loyalty.scan_hint'),
           textAlign: TextAlign.center,
+          style: MadarType.bodySm.copyWith(color: colors.textSecondary),
         ),
-        const SizedBox(height: 16),
 
         if (_phoneMode) ...[
-          TextField(
-            controller: _phone,
-            autofocus: true,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              labelText: 'Phone number',
-              hintText: '01x xxxx xxxx',
+          Container(
+            height: Metrics.inputHeight,
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(Radii.sm),
+              border: Border.all(color: colors.borderLight),
             ),
-            onSubmitted: (v) => unawaited(_offer(v)),
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Space.md,
+            ),
+            child: Row(
+              spacing: Space.sm,
+              children: [
+                MadarIcon('phone.fill', tint: colors.textMuted),
+                Expanded(
+                  child: Semantics(
+                    label: t('loyalty.phone_label'),
+                    textField: true,
+                    child: TextField(
+                      controller: _phone,
+                      autofocus: true,
+                      keyboardType: TextInputType.phone,
+                      cursorColor: colors.accent,
+                      style: MadarType.body.copyWith(color: colors.textPrimary),
+                      decoration: InputDecoration.collapsed(
+                        hintText: t('loyalty.phone_placeholder'),
+                        hintStyle: MadarType.body.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                      onSubmitted: (v) => unawaited(_offer(v)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: widget.busy
-                ? null
-                : () => unawaited(_offer(_phone.text)),
-            child: const Text('Look up'),
+          ActionButton(
+            label: t('loyalty.look_up'),
+            enabled: !widget.busy,
+            onTap: () => unawaited(_offer(_phone.text)),
           ),
         ] else ...[
           if (_camera != null)
             ClipRRect(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(Radii.md),
               child: SizedBox(
-                height: 220,
+                height: _cameraHeight,
                 child: MobileScanner(
                   controller: _camera,
                   onDetect: (capture) {
@@ -167,17 +200,23 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
             // No camera on this till. Say so plainly rather than showing a
             // black rectangle the teller will tap at.
             Container(
-              height: 120,
+              height: _wedgeOnlyHeight,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.dividerColor),
+                borderRadius: BorderRadius.circular(Radii.md),
+                border: Border.all(color: colors.borderLight),
               ),
-              child: Text(
-                'Ready for the barcode scanner',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                spacing: Space.sm,
+                children: [
+                  MadarIcon('qr', tint: colors.textMuted, size: IconSize.xl),
+                  Text(
+                    t('loyalty.scanner_ready'),
+                    style: MadarType.body.copyWith(color: colors.textSecondary),
+                  ),
+                ],
               ),
             ),
 
@@ -199,38 +238,36 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
           ),
         ],
 
-        if (widget.busy) ...[
-          const SizedBox(height: 12),
-          const Center(
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
+        if (widget.busy)
+          Center(
+            child: SizedBox.square(
+              dimension: IconSize.xl,
+              child: CircularProgressIndicator(
+                color: colors.accent,
+                strokeWidth: 2,
+              ),
             ),
           ),
-        ],
 
-        if (widget.error != null) ...[
-          const SizedBox(height: 12),
+        if (widget.error case final error?)
           Text(
-            widget.error!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.error,
-            ),
+            error,
             textAlign: TextAlign.center,
+            style: MadarType.bodySm.copyWith(color: colors.danger),
           ),
-        ],
 
-        const SizedBox(height: 16),
-        TextButton(
-          onPressed: () {
-            setState(() => _phoneMode = !_phoneMode);
-            if (!_phoneMode) _wedgeFocus.requestFocus();
-          },
-          child: Text(
-            _phoneMode
-                ? 'Scan a card instead'
-                : 'No card? Use their phone number',
+        // 48dp of tap target either way — a teller reaching for this has a
+        // customer waiting and one hand on the drawer.
+        Center(
+          child: TextButton(
+            onPressed: () {
+              setState(() => _phoneMode = !_phoneMode);
+              if (!_phoneMode) _wedgeFocus.requestFocus();
+            },
+            child: Text(
+              t(_phoneMode ? 'loyalty.scan_card_instead' : 'loyalty.use_phone'),
+              style: MadarType.label.copyWith(color: colors.accent),
+            ),
           ),
         ),
       ],

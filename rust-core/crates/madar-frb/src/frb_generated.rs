@@ -8662,6 +8662,15 @@ const _: fn() = || {
         let _: Option<String> = LoginRequest.org_id;
     }
     {
+        let LoyaltyAwardOutcome = None::<crate::api::loyalty::LoyaltyAwardOutcome>.unwrap();
+        let _: Option<crate::api::loyalty::LoyaltyMemberView> = LoyaltyAwardOutcome.member;
+        let _: bool = LoyaltyAwardOutcome.queued;
+        let _: bool = LoyaltyAwardOutcome.already_collected;
+        let _: i64 = LoyaltyAwardOutcome.points_awarded;
+        let _: String = LoyaltyAwardOutcome.headline;
+        let _: String = LoyaltyAwardOutcome.detail;
+    }
+    {
         let LoyaltyLedgerView = None::<crate::api::loyalty::LoyaltyLedgerView>.unwrap();
         let _: String = LoyaltyLedgerView.kind;
         let _: i64 = LoyaltyLedgerView.points;
@@ -10725,6 +10734,27 @@ impl SseDecode for crate::api::types::LoginRequest {
             email: var_email,
             password: var_password,
             org_id: var_orgId,
+        };
+    }
+}
+
+impl SseDecode for crate::api::loyalty::LoyaltyAwardOutcome {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_member =
+            <Option<crate::api::loyalty::LoyaltyMemberView>>::sse_decode(deserializer);
+        let mut var_queued = <bool>::sse_decode(deserializer);
+        let mut var_alreadyCollected = <bool>::sse_decode(deserializer);
+        let mut var_pointsAwarded = <i64>::sse_decode(deserializer);
+        let mut var_headline = <String>::sse_decode(deserializer);
+        let mut var_detail = <String>::sse_decode(deserializer);
+        return crate::api::loyalty::LoyaltyAwardOutcome {
+            member: var_member,
+            queued: var_queued,
+            already_collected: var_alreadyCollected,
+            points_awarded: var_pointsAwarded,
+            headline: var_headline,
+            detail: var_detail,
         };
     }
 }
@@ -13635,6 +13665,31 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::LoginReques
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltyAwardOutcome> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.member.into_into_dart().into_dart(),
+            self.0.queued.into_into_dart().into_dart(),
+            self.0.already_collected.into_into_dart().into_dart(),
+            self.0.points_awarded.into_into_dart().into_dart(),
+            self.0.headline.into_into_dart().into_dart(),
+            self.0.detail.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::loyalty::LoyaltyAwardOutcome>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::loyalty::LoyaltyAwardOutcome>>
+    for crate::api::loyalty::LoyaltyAwardOutcome
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::loyalty::LoyaltyAwardOutcome> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltyLedgerView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -15889,6 +15944,18 @@ impl SseEncode for crate::api::types::LoginRequest {
         <Option<String>>::sse_encode(self.email, serializer);
         <Option<String>>::sse_encode(self.password, serializer);
         <Option<String>>::sse_encode(self.org_id, serializer);
+    }
+}
+
+impl SseEncode for crate::api::loyalty::LoyaltyAwardOutcome {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<crate::api::loyalty::LoyaltyMemberView>>::sse_encode(self.member, serializer);
+        <bool>::sse_encode(self.queued, serializer);
+        <bool>::sse_encode(self.already_collected, serializer);
+        <i64>::sse_encode(self.points_awarded, serializer);
+        <String>::sse_encode(self.headline, serializer);
+        <String>::sse_encode(self.detail, serializer);
     }
 }
 

@@ -423,6 +423,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   LoginRequest dco_decode_login_request(dynamic raw);
 
   @protected
+  LoyaltyAwardOutcome dco_decode_loyalty_award_outcome(dynamic raw);
+
+  @protected
   LoyaltyLedgerView dco_decode_loyalty_ledger_view(dynamic raw);
 
   @protected
@@ -1078,6 +1081,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   LoginRequest sse_decode_login_request(SseDeserializer deserializer);
+
+  @protected
+  LoyaltyAwardOutcome sse_decode_loyalty_award_outcome(
+    SseDeserializer deserializer,
+  );
 
   @protected
   LoyaltyLedgerView sse_decode_loyalty_ledger_view(
@@ -1892,6 +1900,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_login_request(LoginRequest self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_loyalty_award_outcome(
+    LoyaltyAwardOutcome self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_loyalty_ledger_view(

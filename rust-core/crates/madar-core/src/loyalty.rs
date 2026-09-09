@@ -98,6 +98,75 @@ pub struct LoyaltyScanView {
     pub any_item_cost: i64,
 }
 
+/// What came of pressing "add points" on a sale.
+///
+/// The three outcomes a teller has to be able to tell apart are decided HERE,
+/// from what the server said, and phrased here too. "Added", "already
+/// collected" and "queued" are different facts about the customer's card, and a
+/// till that guessed between them would eventually claim to have added points
+/// it did not add.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoyaltyAwardOutcome {
+    /// The member's standing after the call. `None` only when the press was
+    /// queued: there is no balance yet, and inventing one is a lie the customer
+    /// can read off the screen.
+    pub member: Option<LoyaltyMemberView>,
+    /// The till was offline (or the round trip failed) and the press is queued.
+    pub queued: bool,
+    /// This sale had ALREADY earned. The endpoint is idempotent per order, so a
+    /// second press is safe — but the honest answer is "already collected", not
+    /// a second "added".
+    pub already_collected: bool,
+    /// What THIS press added. Zero for an already-collected sale, and for a sale
+    /// too small to reach one point.
+    pub points_awarded: i64,
+    /// The headline for the teller, already localized.
+    pub headline: String,
+    /// The line under it — where the customer now stands, or why there is no
+    /// balance to show. Already localized and already filled in.
+    pub detail: String,
+}
+
+/// The outcome of a press the server answered.
+pub fn award_outcome(locale: &str, r: &madar_api::models::AwardResult) -> LoyaltyAwardOutcome {
+    let member = member_view(&r.member);
+    let points = r.points_awarded as i64;
+    let headline = if r.already_awarded {
+        crate::i18n::tr(locale, "loyalty.already_collected")
+    } else if points == 0 {
+        // The sale is linked to the card either way — the server records who it
+        // earned for even at zero — so this is "no points", not "no".
+        crate::i18n::tr(locale, "loyalty.no_points")
+    } else {
+        crate::i18n::tr(locale, "loyalty.points_added")
+    };
+    let detail = format!(
+        "{} — {} {} · {}",
+        member.name, member.balance, member.balance_label, member.progress_label
+    );
+    LoyaltyAwardOutcome {
+        member: Some(member),
+        queued: false,
+        already_collected: r.already_awarded,
+        points_awarded: points,
+        headline,
+        detail,
+    }
+}
+
+/// The outcome of a press this till could not deliver.
+pub fn award_queued(locale: &str) -> LoyaltyAwardOutcome {
+    LoyaltyAwardOutcome {
+        member: None,
+        queued: true,
+        already_collected: false,
+        points_awarded: 0,
+        headline: crate::i18n::tr(locale, "loyalty.points_queued"),
+        detail: crate::i18n::tr(locale, "loyalty.queued_hint"),
+    }
+}
+
 /// How long after a sale its points may still be claimed.
 ///
 /// Kept in lock-step with the server's `loyalty::award::AWARD_WINDOW_HOURS`. The
@@ -351,6 +420,80 @@ mod tests {
         assert_eq!(classify_scan_input("   ").kind, "partial");
         // Right length, wrong sentinel — another vendor's barcode.
         assert_eq!(classify_scan_input("Xabcdefghijklmnopqrstuv").kind, "partial");
+    }
+
+    fn member(name: &str, balance: i32, target: i32) -> madar_api::models::MemberView {
+        madar_api::models::MemberView {
+            name: name.into(),
+            balance,
+            next_reward_cost: target,
+            mode: "visits".into(),
+            ..Default::default()
+        }
+    }
+
+    fn result(points: i32, already: bool) -> madar_api::models::AwardResult {
+        madar_api::models::AwardResult::new(
+            already,
+            member("Sara", 3, 5),
+            Default::default(),
+            points,
+        )
+    }
+
+    #[test]
+    fn a_first_press_says_the_points_went_on() {
+        let out = award_outcome("en", &result(1, false));
+        assert_eq!(out.headline, "Points added");
+        assert_eq!(out.detail, "Sara — 3 orders · 3 / 5");
+        assert!(!out.already_collected);
+        assert!(!out.queued);
+        assert_eq!(out.points_awarded, 1);
+    }
+
+    #[test]
+    fn a_second_press_on_one_sale_says_already_collected() {
+        // The endpoint is idempotent per order, so the second press is safe —
+        // and must not claim to have added a second stamp. The balance shown is
+        // the one that actually stands.
+        let out = award_outcome("en", &result(0, true));
+        assert_eq!(out.headline, "Already collected");
+        assert!(out.already_collected);
+        assert_eq!(out.points_awarded, 0);
+        assert_eq!(out.detail, "Sara — 3 orders · 3 / 5");
+    }
+
+    #[test]
+    fn a_sale_too_small_to_earn_says_so_rather_than_adding_nothing_loudly() {
+        let out = award_outcome("en", &result(0, false));
+        assert_eq!(out.headline, "No points for this sale");
+        assert!(!out.already_collected);
+    }
+
+    #[test]
+    fn a_queued_press_shows_no_balance_at_all() {
+        // There is no balance yet, and a made-up one is a lie the customer can
+        // read off the screen.
+        let out = award_queued("en");
+        assert!(out.member.is_none());
+        assert!(out.queued);
+        assert_eq!(out.headline, "Points queued");
+        assert!(out.detail.contains("offline"));
+    }
+
+    #[test]
+    fn every_outcome_is_phrased_in_arabic_too() {
+        // Arabic is first class: a teller on an ar till must never be shown the
+        // key, which is what an untranslated string resolves to.
+        for out in [
+            award_outcome("ar", &result(1, false)),
+            award_outcome("ar", &result(0, true)),
+            award_outcome("ar", &result(0, false)),
+            award_queued("ar"),
+        ] {
+            assert!(!out.headline.starts_with("loyalty."), "{}", out.headline);
+            assert!(!out.detail.starts_with("loyalty."), "{}", out.detail);
+        }
     }
 
     #[test]
