@@ -64,6 +64,15 @@ pub struct OfflineAuthBundleParams {
     pub id: String
 }
 
+/// struct for passing parameters to the method [`public_org_brand`]
+#[derive(Clone, Debug)]
+pub struct PublicOrgBrandParams {
+    /// The shop, when the page already knows which one it is.
+    pub org_id: Option<String>,
+    /// The first label of the hostname, when it does not — `rue` for `rue.madar-pos.cloud`.
+    pub slug: Option<String>
+}
+
 /// struct for passing parameters to the method [`update_org`]
 #[derive(Clone, Debug)]
 pub struct UpdateOrgParams {
@@ -186,6 +195,19 @@ pub enum ListPublicOrgsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum OfflineAuthBundleError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`public_org_brand`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PublicOrgBrandError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -536,6 +558,47 @@ pub async fn offline_auth_bundle(configuration: &configuration::Configuration, p
     } else {
         let content = resp.text().await?;
         let entity: Option<OfflineAuthBundleError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
+/// Public and unauthenticated by necessity: it is the first request a customer's browser makes, before there is any notion of a session. Nothing here is private — a name, a logo and three colours are on the shopfront.
+pub async fn public_org_brand(configuration: &configuration::Configuration, params: PublicOrgBrandParams) -> Result<models::PublicBrand, Error<PublicOrgBrandError>> {
+
+    let uri_str = format!("{}/public/orgs/brand", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.org_id {
+        req_builder = req_builder.query(&[("org_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.slug {
+        req_builder = req_builder.query(&[("slug", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PublicBrand`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PublicBrand`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PublicOrgBrandError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }

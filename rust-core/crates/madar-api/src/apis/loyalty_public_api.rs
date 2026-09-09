@@ -28,6 +28,13 @@ pub struct LoyaltyCardParams {
     pub token: String
 }
 
+/// struct for passing parameters to the method [`loyalty_card_orders`]
+#[derive(Clone, Debug)]
+pub struct LoyaltyCardOrdersParams {
+    /// Member token from the pass barcode
+    pub token: String
+}
+
 /// struct for passing parameters to the method [`loyalty_card_qr`]
 #[derive(Clone, Debug)]
 pub struct LoyaltyCardQrParams {
@@ -76,6 +83,19 @@ pub enum LoyaltyApplePassError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LoyaltyCardError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`loyalty_card_orders`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LoyaltyCardOrdersError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -192,6 +212,41 @@ pub async fn loyalty_card(configuration: &configuration::Configuration, params: 
     } else {
         let content = resp.text().await?;
         let entity: Option<LoyaltyCardError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
+/// Authenticated by the token in the URL — the same one their pass carries and the till scans — because that is the only credential a loyalty member has. Which means anyone holding the link can read it, and that is worth stating rather than glossing: a forwarded card link forwards the history with it. The shop decides whether to run a programme on those terms, and the privacy policy says so plainly.  Voided orders are excluded. A sale that was reversed is not something the customer bought, and showing it invites a question the page cannot answer.
+pub async fn loyalty_card_orders(configuration: &configuration::Configuration, params: LoyaltyCardOrdersParams) -> Result<models::PastOrders, Error<LoyaltyCardOrdersError>> {
+
+    let uri_str = format!("{}/public/loyalty/card/{token}/orders", configuration.base_path, token=crate::apis::urlencode(params.token));
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PastOrders`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PastOrders`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<LoyaltyCardOrdersError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }

@@ -302,6 +302,8 @@ docs/PaginatedOrders.md
 docs/PaginatedOrdersFull.md
 docs/PaginatedShifts.md
 docs/PassLinks.md
+docs/PastOrder.md
+docs/PastOrders.md
 docs/PatchGroupRequest.md
 docs/PatchOptionRequest.md
 docs/PauseInput.md
@@ -336,6 +338,7 @@ docs/PublicBookingInfo.md
 docs/PublicBookingInput.md
 docs/PublicBookingView.md
 docs/PublicBranch.md
+docs/PublicBrand.md
 docs/PublicOrg.md
 docs/PublicReward.md
 docs/PublicSlot.md
@@ -826,6 +829,8 @@ src/models/paginated_orders.rs
 src/models/paginated_orders_full.rs
 src/models/paginated_shifts.rs
 src/models/pass_links.rs
+src/models/past_order.rs
+src/models/past_orders.rs
 src/models/patch_group_request.rs
 src/models/patch_option_request.rs
 src/models/pause_input.rs
@@ -858,6 +863,7 @@ src/models/public_booking_info.rs
 src/models/public_booking_input.rs
 src/models/public_booking_view.rs
 src/models/public_branch.rs
+src/models/public_brand.rs
 src/models/public_org.rs
 src/models/public_reward.rs
 src/models/public_slot.rs

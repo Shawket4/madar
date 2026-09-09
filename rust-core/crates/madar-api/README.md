@@ -172,6 +172,7 @@ Class | Method | HTTP request | Description
 *LoyaltyApi* | [**refresh_loyalty_google_pass**](docs/LoyaltyApi.md#refresh_loyalty_google_pass) | **POST** /loyalty/members/{id}/google-refresh | Provision this member's Google card and report every word of it. **Super admin only.**
 *LoyaltyPublicApi* | [**loyalty_apple_pass**](docs/LoyaltyPublicApi.md#loyalty_apple_pass) | **GET** /public/loyalty/pass/{token}/apple.pkpass | Download the signed `.pkpass`.
 *LoyaltyPublicApi* | [**loyalty_card**](docs/LoyaltyPublicApi.md#loyalty_card) | **GET** /public/loyalty/card/{token} | 
+*LoyaltyPublicApi* | [**loyalty_card_orders**](docs/LoyaltyPublicApi.md#loyalty_card_orders) | **GET** /public/loyalty/card/{token}/orders | The member's own purchase history.
 *LoyaltyPublicApi* | [**loyalty_card_qr**](docs/LoyaltyPublicApi.md#loyalty_card_qr) | **GET** /public/loyalty/card/{token}/qr.png | The member's QR as a PNG.
 *LoyaltyPublicApi* | [**loyalty_join**](docs/LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | 
 *LoyaltyPublicApi* | [**loyalty_join_info**](docs/LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | 
@@ -252,6 +253,7 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**list_orgs**](docs/OrgsApi.md#list_orgs) | **GET** /orgs | 
 *OrgsApi* | [**list_public_orgs**](docs/OrgsApi.md#list_public_orgs) | **GET** /public/orgs | 
 *OrgsApi* | [**offline_auth_bundle**](docs/OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
+*OrgsApi* | [**public_org_brand**](docs/OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 *OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
 *OrgsApi* | [**upload_org_card_image**](docs/OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 *OrgsApi* | [**upload_org_logo**](docs/OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
@@ -717,6 +719,8 @@ Class | Method | HTTP request | Description
  - [PaginatedOrdersFull](docs/PaginatedOrdersFull.md)
  - [PaginatedShifts](docs/PaginatedShifts.md)
  - [PassLinks](docs/PassLinks.md)
+ - [PastOrder](docs/PastOrder.md)
+ - [PastOrders](docs/PastOrders.md)
  - [PatchGroupRequest](docs/PatchGroupRequest.md)
  - [PatchOptionRequest](docs/PatchOptionRequest.md)
  - [PauseInput](docs/PauseInput.md)
@@ -749,6 +753,7 @@ Class | Method | HTTP request | Description
  - [PublicBookingInput](docs/PublicBookingInput.md)
  - [PublicBookingView](docs/PublicBookingView.md)
  - [PublicBranch](docs/PublicBranch.md)
+ - [PublicBrand](docs/PublicBrand.md)
  - [PublicOrg](docs/PublicOrg.md)
  - [PublicReward](docs/PublicReward.md)
  - [PublicSlot](docs/PublicSlot.md)

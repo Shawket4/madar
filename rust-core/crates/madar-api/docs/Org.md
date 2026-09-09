@@ -17,6 +17,7 @@ Name | Type | Description | Notes
 **name** | **String** |  | 
 **receipt_footer** | Option<**String**> |  | [optional]
 **slug** | **String** |  | 
+**social_links** | **serde_json::Value** | Where else to find the shop, keyed by platform. See `orgs::social`. | 
 **tax_rate** | **f64** | Tax rate as a decimal (e.g. `0.14` for 14% VAT). Stored as `BigDecimal` internally; transmitted as a JSON number. | 
 **timezone** | **String** | IANA timezone name. The org-level default that branches inherit when their own timezone is unset. Defaults to `Africa/Cairo`. | 
 

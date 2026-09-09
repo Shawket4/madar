@@ -11,6 +11,7 @@ Name | Type | Description | Notes
 **name** | Option<**String**> |  | [optional]
 **receipt_footer** | Option<**String**> |  | [optional]
 **slug** | Option<**String**> |  | [optional]
+**social_links** | Option<**serde_json::Value**> | Where else to find the shop. Validated against a closed list of platforms and `https` only — these are printed onto a customer's wallet pass, and a card that renders whatever was typed can be made to say anything. See `orgs::social`. | [optional]
 **tax_rate** | Option<**f64**> |  | [optional]
 **timezone** | Option<**String**> | IANA timezone name (e.g. `Africa/Cairo`). Validated against the PostgreSQL timezone database. Branches inherit this when their own timezone is unset. | [optional]
 

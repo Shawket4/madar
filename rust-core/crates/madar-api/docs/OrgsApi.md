@@ -12,6 +12,7 @@ Method | HTTP request | Description
 [**list_orgs**](OrgsApi.md#list_orgs) | **GET** /orgs | 
 [**list_public_orgs**](OrgsApi.md#list_public_orgs) | **GET** /public/orgs | 
 [**offline_auth_bundle**](OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
+[**public_org_brand**](OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 [**update_org**](OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
 [**upload_org_card_image**](OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 [**upload_org_logo**](OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
@@ -233,6 +234,37 @@ Name | Type | Description  | Required | Notes
 ### Authorization
 
 [bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## public_org_brand
+
+> models::PublicBrand public_org_brand(org_id, slug)
+The shop behind a guest page.
+
+Public and unauthenticated by necessity: it is the first request a customer's browser makes, before there is any notion of a session. Nothing here is private — a name, a logo and three colours are on the shopfront.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | Option<**uuid::Uuid**> | The shop, when the page already knows which one it is. |  |
+**slug** | Option<**String**> | The first label of the hostname, when it does not — `rue` for `rue.madar-pos.cloud`. |  |
+
+### Return type
+
+[**models::PublicBrand**](PublicBrand.md)
+
+### Authorization
+
+No authorization required
 
 ### HTTP request headers
 

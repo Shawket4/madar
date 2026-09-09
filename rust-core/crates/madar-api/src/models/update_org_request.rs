@@ -29,6 +29,9 @@ pub struct UpdateOrgRequest {
     pub receipt_footer: Option<Option<String>>,
     #[serde(rename = "slug", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub slug: Option<Option<String>>,
+    /// Where else to find the shop. Validated against a closed list of platforms and `https` only — these are printed onto a customer's wallet pass, and a card that renders whatever was typed can be made to say anything. See `orgs::social`.
+    #[serde(rename = "social_links", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub social_links: Option<Option<serde_json::Value>>,
     #[serde(rename = "tax_rate", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub tax_rate: Option<Option<f64>>,
     /// IANA timezone name (e.g. `Africa/Cairo`). Validated against the PostgreSQL timezone database. Branches inherit this when their own timezone is unset.
@@ -46,6 +49,7 @@ impl UpdateOrgRequest {
             name: None,
             receipt_footer: None,
             slug: None,
+            social_links: None,
             tax_rate: None,
             timezone: None,
         }

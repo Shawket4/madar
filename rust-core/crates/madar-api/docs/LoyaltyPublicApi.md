@@ -6,6 +6,7 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**loyalty_apple_pass**](LoyaltyPublicApi.md#loyalty_apple_pass) | **GET** /public/loyalty/pass/{token}/apple.pkpass | Download the signed `.pkpass`.
 [**loyalty_card**](LoyaltyPublicApi.md#loyalty_card) | **GET** /public/loyalty/card/{token} | 
+[**loyalty_card_orders**](LoyaltyPublicApi.md#loyalty_card_orders) | **GET** /public/loyalty/card/{token}/orders | The member's own purchase history.
 [**loyalty_card_qr**](LoyaltyPublicApi.md#loyalty_card_qr) | **GET** /public/loyalty/card/{token}/qr.png | The member's QR as a PNG.
 [**loyalty_join**](LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | 
 [**loyalty_join_info**](LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | 
@@ -58,6 +59,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::CardView**](CardView.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## loyalty_card_orders
+
+> models::PastOrders loyalty_card_orders(token)
+The member's own purchase history.
+
+Authenticated by the token in the URL — the same one their pass carries and the till scans — because that is the only credential a loyalty member has. Which means anyone holding the link can read it, and that is worth stating rather than glossing: a forwarded card link forwards the history with it. The shop decides whether to run a programme on those terms, and the privacy policy says so plainly.  Voided orders are excluded. A sale that was reversed is not something the customer bought, and showing it invites a question the page cannot answer.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**token** | **String** | Member token from the pass barcode | [required] |
+
+### Return type
+
+[**models::PastOrders**](PastOrders.md)
 
 ### Authorization
 
