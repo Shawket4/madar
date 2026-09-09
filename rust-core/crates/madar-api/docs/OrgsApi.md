@@ -10,7 +10,6 @@ Method | HTTP request | Description
 [**get_onboarding**](OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 [**get_org**](OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 [**list_orgs**](OrgsApi.md#list_orgs) | **GET** /orgs | 
-[**list_public_orgs**](OrgsApi.md#list_public_orgs) | **GET** /public/orgs | 
 [**offline_auth_bundle**](OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
 [**public_org_brand**](OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 [**update_org**](OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
@@ -181,31 +180,6 @@ This endpoint does not need any parameter.
 ### Authorization
 
 [bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## list_public_orgs
-
-> Vec<models::PublicOrg> list_public_orgs()
-
-
-### Parameters
-
-This endpoint does not need any parameter.
-
-### Return type
-
-[**Vec<models::PublicOrg>**](PublicOrg.md)
-
-### Authorization
-
-No authorization required
 
 ### HTTP request headers
 

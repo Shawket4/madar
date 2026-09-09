@@ -339,7 +339,6 @@ docs/PublicBookingInput.md
 docs/PublicBookingView.md
 docs/PublicBranch.md
 docs/PublicBrand.md
-docs/PublicOrg.md
 docs/PublicReward.md
 docs/PublicSlot.md
 docs/PublicSlots.md
@@ -864,7 +863,6 @@ src/models/public_booking_input.rs
 src/models/public_booking_view.rs
 src/models/public_branch.rs
 src/models/public_brand.rs
-src/models/public_org.rs
 src/models/public_reward.rs
 src/models/public_slot.rs
 src/models/public_slots.rs

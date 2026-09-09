@@ -620,8 +620,6 @@ pub mod public_branch;
 pub use self::public_branch::PublicBranch;
 pub mod public_brand;
 pub use self::public_brand::PublicBrand;
-pub mod public_org;
-pub use self::public_org::PublicOrg;
 pub mod public_reward;
 pub use self::public_reward::PublicReward;
 pub mod public_slot;

@@ -1510,27 +1510,6 @@ impl MadarCore {
         chrono::Utc::now() + chrono::Duration::milliseconds(skew_ms)
     }
 
-    /// Whether the live session's cached JWT has passed its `exp` (skew-corrected).
-    /// True when there is no token (can't sync without a credential) or its `exp` is
-    /// unreadable (conservative).
-    ///
-    /// This is what the OFFLINE unlock path reads, where there is no server to ask
-    /// and the claim is all we have. It deliberately no longer gates the re-login
-    /// banner: expiry is only ONE of the ways a token dies, and it was the only one
-    /// the teller was told about — see `sync_status`.
-    fn session_token_expired(&self) -> bool {
-        let token = self
-            .session
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .as_ref()
-            .and_then(|s| s.token.clone());
-        match token {
-            Some(t) => token_is_expired(&t, self.corrected_now().timestamp()),
-            None => true,
-        }
-    }
-
     /// Clear a SPURIOUS auth-park by ASKING, rather than by guessing from `exp`.
     ///
     /// This used to un-park whenever the cached token had not expired, on the
@@ -1564,8 +1543,8 @@ impl MadarCore {
 
     /// Drop a BORROWED (foreign) bearer + its persisted token and require this teller
     /// to relogin under their OWN account: clears the borrow flag, nulls the bearer,
-    /// and sets `auth_paused` → with no token `session_token_expired()` is now true,
-    /// so the reauth banner shows (a same-teller online relogin clears it).
+    /// and sets `auth_paused`, which is on its own what raises the reauth banner
+    /// (a same-teller online relogin clears it).
     fn invalidate_borrowed_token(&self) {
         use std::sync::atomic::Ordering::Relaxed;
         self.borrowed_token.store(false, Relaxed);

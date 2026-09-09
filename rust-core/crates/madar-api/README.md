@@ -251,7 +251,6 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**get_onboarding**](docs/OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 *OrgsApi* | [**get_org**](docs/OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 *OrgsApi* | [**list_orgs**](docs/OrgsApi.md#list_orgs) | **GET** /orgs | 
-*OrgsApi* | [**list_public_orgs**](docs/OrgsApi.md#list_public_orgs) | **GET** /public/orgs | 
 *OrgsApi* | [**offline_auth_bundle**](docs/OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
 *OrgsApi* | [**public_org_brand**](docs/OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 *OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
@@ -754,7 +753,6 @@ Class | Method | HTTP request | Description
  - [PublicBookingView](docs/PublicBookingView.md)
  - [PublicBranch](docs/PublicBranch.md)
  - [PublicBrand](docs/PublicBrand.md)
- - [PublicOrg](docs/PublicOrg.md)
  - [PublicReward](docs/PublicReward.md)
  - [PublicSlot](docs/PublicSlot.md)
  - [PublicSlots](docs/PublicSlots.md)
