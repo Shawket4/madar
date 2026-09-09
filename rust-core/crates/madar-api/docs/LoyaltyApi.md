@@ -17,6 +17,7 @@ Method | HTTP request | Description
 [**preview_loyalty_birthday_message**](LoyaltyApi.md#preview_loyalty_birthday_message) | **POST** /loyalty/birthday-preview | Render the greeting for settings that have NOT been saved yet.
 [**put_loyalty_reward_items**](LoyaltyApi.md#put_loyalty_reward_items) | **PUT** /loyalty/reward-items | 
 [**put_loyalty_settings**](LoyaltyApi.md#put_loyalty_settings) | **PUT** /loyalty/settings | 
+[**refresh_loyalty_google_pass**](LoyaltyApi.md#refresh_loyalty_google_pass) | **POST** /loyalty/members/{id}/google-refresh | Provision this member's Google card and report every word of it. **Super admin only.**
 
 
 
@@ -394,6 +395,36 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## refresh_loyalty_google_pass
+
+> models::GoogleRefreshReport refresh_loyalty_google_pass(id)
+Provision this member's Google card and report every word of it. **Super admin only.**
+
+Reading the object back says what Google HOLDS. It does not say why, and by the time you are reading it the write that mattered is over — a refused class refresh is deliberately only a warning, because a customer must keep the card they have, so the reason goes to a log rather than to the person asking the question.  This runs the real provisioning through the real code path, keeping a transcript: every request, its status, and Google's answer verbatim. Then it reads both resources back, so the transcript and the outcome sit together.  It WRITES, which is why it is a POST and why it is not part of any page load. Everything it does, opening a customer's card page does too.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Loyalty member id | [required] |
+
+### Return type
+
+[**models::GoogleRefreshReport**](GoogleRefreshReport.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

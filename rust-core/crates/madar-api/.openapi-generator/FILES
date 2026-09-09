@@ -192,6 +192,7 @@ docs/FulfillTransferRequest.md
 docs/GoodsReceipt.md
 docs/GoodsReceiptLine.md
 docs/GoogleObjectDump.md
+docs/GoogleRefreshReport.md
 docs/Grain.md
 docs/GroupAttachInput.md
 docs/GroupOptionOut.md
@@ -495,6 +496,7 @@ docs/WaiterStatsReport.md
 docs/WaiveDeductionRequest.md
 docs/WalletProvider.md
 docs/WalletStatus.md
+docs/WalletStep.md
 docs/WasteReportRow.md
 docs/WhatsappApi.md
 docs/WhatsappStatus.md
@@ -723,6 +725,7 @@ src/models/fulfill_transfer_request.rs
 src/models/goods_receipt.rs
 src/models/goods_receipt_line.rs
 src/models/google_object_dump.rs
+src/models/google_refresh_report.rs
 src/models/grain.rs
 src/models/group_attach_input.rs
 src/models/group_option_out.rs
@@ -1002,6 +1005,7 @@ src/models/waiter_stats_report.rs
 src/models/waive_deduction_request.rs
 src/models/wallet_provider.rs
 src/models/wallet_status.rs
+src/models/wallet_step.rs
 src/models/waste_report_row.rs
 src/models/whatsapp_status.rs
 src/models/widget_outcome.rs

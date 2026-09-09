@@ -169,6 +169,7 @@ Class | Method | HTTP request | Description
 *LoyaltyApi* | [**preview_loyalty_birthday_message**](docs/LoyaltyApi.md#preview_loyalty_birthday_message) | **POST** /loyalty/birthday-preview | Render the greeting for settings that have NOT been saved yet.
 *LoyaltyApi* | [**put_loyalty_reward_items**](docs/LoyaltyApi.md#put_loyalty_reward_items) | **PUT** /loyalty/reward-items | 
 *LoyaltyApi* | [**put_loyalty_settings**](docs/LoyaltyApi.md#put_loyalty_settings) | **PUT** /loyalty/settings | 
+*LoyaltyApi* | [**refresh_loyalty_google_pass**](docs/LoyaltyApi.md#refresh_loyalty_google_pass) | **POST** /loyalty/members/{id}/google-refresh | Provision this member's Google card and report every word of it. **Super admin only.**
 *LoyaltyPublicApi* | [**loyalty_apple_pass**](docs/LoyaltyPublicApi.md#loyalty_apple_pass) | **GET** /public/loyalty/pass/{token}/apple.pkpass | Download the signed `.pkpass`.
 *LoyaltyPublicApi* | [**loyalty_card**](docs/LoyaltyPublicApi.md#loyalty_card) | **GET** /public/loyalty/card/{token} | 
 *LoyaltyPublicApi* | [**loyalty_card_qr**](docs/LoyaltyPublicApi.md#loyalty_card_qr) | **GET** /public/loyalty/card/{token}/qr.png | The member's QR as a PNG.
@@ -616,6 +617,7 @@ Class | Method | HTTP request | Description
  - [GoodsReceipt](docs/GoodsReceipt.md)
  - [GoodsReceiptLine](docs/GoodsReceiptLine.md)
  - [GoogleObjectDump](docs/GoogleObjectDump.md)
+ - [GoogleRefreshReport](docs/GoogleRefreshReport.md)
  - [Grain](docs/Grain.md)
  - [GroupAttachInput](docs/GroupAttachInput.md)
  - [GroupOptionOut](docs/GroupOptionOut.md)
@@ -894,6 +896,7 @@ Class | Method | HTTP request | Description
  - [WaiveDeductionRequest](docs/WaiveDeductionRequest.md)
  - [WalletProvider](docs/WalletProvider.md)
  - [WalletStatus](docs/WalletStatus.md)
+ - [WalletStep](docs/WalletStep.md)
  - [WasteReportRow](docs/WasteReportRow.md)
  - [WhatsappStatus](docs/WhatsappStatus.md)
  - [WidgetOutcome](docs/WidgetOutcome.md)
