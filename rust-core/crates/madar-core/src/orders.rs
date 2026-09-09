@@ -247,6 +247,7 @@ pub(crate) fn order_to_receipt(
         subtotal_minor: o.subtotal as i64,
         discount_minor: o.discount_amount as i64,
         tax_minor: o.tax_amount as i64,
+        service_charge_minor: o.service_charge_amount.unwrap_or(0) as i64,
         delivery_fee_minor: o.delivery_fee as i64,
         total_minor: o.total_amount as i64,
         tip_minor: o.tip_amount.unwrap_or(0) as i64,

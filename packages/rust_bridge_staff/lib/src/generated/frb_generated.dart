@@ -2318,8 +2318,8 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
   SessionSnapshot dco_decode_session_snapshot(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return SessionSnapshot(
       userId: dco_decode_String(arr[0]),
       displayName: dco_decode_String(arr[1]),
@@ -2328,8 +2328,11 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
       branchId: dco_decode_opt_String(arr[4]),
       currencyCode: dco_decode_String(arr[5]),
       taxRate: dco_decode_f_64(arr[6]),
-      online: dco_decode_bool(arr[7]),
-      permissionsLoaded: dco_decode_bool(arr[8]),
+      taxInclusive: dco_decode_bool(arr[7]),
+      serviceChargeRate: dco_decode_f_64(arr[8]),
+      serviceChargeTaxable: dco_decode_bool(arr[9]),
+      online: dco_decode_bool(arr[10]),
+      permissionsLoaded: dco_decode_bool(arr[11]),
     );
   }
 
@@ -3122,6 +3125,9 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
     var var_branchId = sse_decode_opt_String(deserializer);
     var var_currencyCode = sse_decode_String(deserializer);
     var var_taxRate = sse_decode_f_64(deserializer);
+    var var_taxInclusive = sse_decode_bool(deserializer);
+    var var_serviceChargeRate = sse_decode_f_64(deserializer);
+    var var_serviceChargeTaxable = sse_decode_bool(deserializer);
     var var_online = sse_decode_bool(deserializer);
     var var_permissionsLoaded = sse_decode_bool(deserializer);
     return SessionSnapshot(
@@ -3132,6 +3138,9 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
       branchId: var_branchId,
       currencyCode: var_currencyCode,
       taxRate: var_taxRate,
+      taxInclusive: var_taxInclusive,
+      serviceChargeRate: var_serviceChargeRate,
+      serviceChargeTaxable: var_serviceChargeTaxable,
       online: var_online,
       permissionsLoaded: var_permissionsLoaded,
     );
@@ -3834,6 +3843,9 @@ class StaffBridgeApiImpl extends StaffBridgeApiImplPlatform
     sse_encode_opt_String(self.branchId, serializer);
     sse_encode_String(self.currencyCode, serializer);
     sse_encode_f_64(self.taxRate, serializer);
+    sse_encode_bool(self.taxInclusive, serializer);
+    sse_encode_f_64(self.serviceChargeRate, serializer);
+    sse_encode_bool(self.serviceChargeTaxable, serializer);
     sse_encode_bool(self.online, serializer);
     sse_encode_bool(self.permissionsLoaded, serializer);
   }

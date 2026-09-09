@@ -128,6 +128,7 @@ pub struct _CartTotals {
     pub subtotal_minor: i64,
     pub discount_minor: i64,
     pub tax_minor: i64,
+    pub service_charge_minor: i64,
     pub total_minor: i64,
 }
 

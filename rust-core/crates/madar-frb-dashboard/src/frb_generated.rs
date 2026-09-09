@@ -1069,6 +1069,9 @@ const _: fn() = || {
         let _: Option<String> = SessionSnapshot.branch_id;
         let _: String = SessionSnapshot.currency_code;
         let _: f64 = SessionSnapshot.tax_rate;
+        let _: bool = SessionSnapshot.tax_inclusive;
+        let _: f64 = SessionSnapshot.service_charge_rate;
+        let _: bool = SessionSnapshot.service_charge_taxable;
         let _: bool = SessionSnapshot.online;
         let _: bool = SessionSnapshot.permissions_loaded;
     }
@@ -1472,6 +1475,9 @@ impl SseDecode for crate::api::types::SessionSnapshot {
         let mut var_branchId = <Option<String>>::sse_decode(deserializer);
         let mut var_currencyCode = <String>::sse_decode(deserializer);
         let mut var_taxRate = <f64>::sse_decode(deserializer);
+        let mut var_taxInclusive = <bool>::sse_decode(deserializer);
+        let mut var_serviceChargeRate = <f64>::sse_decode(deserializer);
+        let mut var_serviceChargeTaxable = <bool>::sse_decode(deserializer);
         let mut var_online = <bool>::sse_decode(deserializer);
         let mut var_permissionsLoaded = <bool>::sse_decode(deserializer);
         return crate::api::types::SessionSnapshot {
@@ -1482,6 +1488,9 @@ impl SseDecode for crate::api::types::SessionSnapshot {
             branch_id: var_branchId,
             currency_code: var_currencyCode,
             tax_rate: var_taxRate,
+            tax_inclusive: var_taxInclusive,
+            service_charge_rate: var_serviceChargeRate,
+            service_charge_taxable: var_serviceChargeTaxable,
             online: var_online,
             permissions_loaded: var_permissionsLoaded,
         };
@@ -1896,6 +1905,9 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::SessionSnap
             self.0.branch_id.into_into_dart().into_dart(),
             self.0.currency_code.into_into_dart().into_dart(),
             self.0.tax_rate.into_into_dart().into_dart(),
+            self.0.tax_inclusive.into_into_dart().into_dart(),
+            self.0.service_charge_rate.into_into_dart().into_dart(),
+            self.0.service_charge_taxable.into_into_dart().into_dart(),
             self.0.online.into_into_dart().into_dart(),
             self.0.permissions_loaded.into_into_dart().into_dart(),
         ]
@@ -2217,6 +2229,9 @@ impl SseEncode for crate::api::types::SessionSnapshot {
         <Option<String>>::sse_encode(self.branch_id, serializer);
         <String>::sse_encode(self.currency_code, serializer);
         <f64>::sse_encode(self.tax_rate, serializer);
+        <bool>::sse_encode(self.tax_inclusive, serializer);
+        <f64>::sse_encode(self.service_charge_rate, serializer);
+        <bool>::sse_encode(self.service_charge_taxable, serializer);
         <bool>::sse_encode(self.online, serializer);
         <bool>::sse_encode(self.permissions_loaded, serializer);
     }

@@ -48,6 +48,15 @@ pub struct Branch {
     pub printer_ip: Option<Option<String>>,
     #[serde(rename = "printer_port", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub printer_port: Option<Option<i32>>,
+    #[serde(rename = "service_charge_rate", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub service_charge_rate: Option<Option<f64>>,
+    #[serde(rename = "service_charge_taxable", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub service_charge_taxable: Option<Option<bool>>,
+    #[serde(rename = "tax_inclusive", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub tax_inclusive: Option<Option<bool>>,
+    /// Tax policy OVERRIDES. `null` means inherit the organisation's setting — which is not the same as `0`. An org that changes its rate still moves every branch that never asked to differ; a branch that genuinely charges no tax says so with an explicit `0`.
+    #[serde(rename = "tax_rate", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub tax_rate: Option<Option<f64>>,
     /// Effective IANA timezone name for this branch, resolved as `branch.timezone → org.timezone → Africa/Cairo`. Always present; clients should format all of this branch's timestamps in this zone.
     #[serde(rename = "timezone")]
     pub timezone: String,
@@ -73,6 +82,10 @@ impl Branch {
             printer_brand: None,
             printer_ip: None,
             printer_port: None,
+            service_charge_rate: None,
+            service_charge_taxable: None,
+            tax_inclusive: None,
+            tax_rate: None,
             timezone,
             updated_at,
         }

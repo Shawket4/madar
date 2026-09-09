@@ -16,8 +16,11 @@ Name | Type | Description | Notes
 **logo_url** | Option<**String**> |  | [optional]
 **name** | **String** |  | 
 **receipt_footer** | Option<**String**> |  | [optional]
+**service_charge_rate** | **f64** | Fraction of the bill added as a service charge; `0` disables it. | 
+**service_charge_taxable** | **bool** | Whether the service charge is itself taxed. | 
 **slug** | **String** |  | 
 **social_links** | **serde_json::Value** | Where else to find the shop, keyed by platform. See `orgs::social`. | 
+**tax_inclusive** | **bool** | `true` = menu prices already contain the tax, and the receipt breaks it out backwards rather than adding it on at the till. | 
 **tax_rate** | **f64** | Tax rate as a decimal (e.g. `0.14` for 14% VAT). Stored as `BigDecimal` internally; transmitted as a JSON number. | 
 **timezone** | **String** | IANA timezone name. The org-level default that branches inherit when their own timezone is unset. Defaults to `Africa/Cairo`. | 
 

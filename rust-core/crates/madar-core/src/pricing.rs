@@ -82,8 +82,15 @@ pub struct PriceCartInput {
     pub discount_kind: DiscountKind,
     /// Percentage (when `Percentage`) or fixed minor-units (when `Fixed`).
     pub discount_value: i64,
-    /// Decimal fraction, **exclusive** (e.g. `0.14` = 14%). `0.0` = tax-free.
+    /// Decimal fraction (e.g. `0.14` = 14%). `0.0` = tax-free. Whether it is
+    /// added on top or already inside the prices is `tax_inclusive`.
     pub tax_rate: f64,
+    /// `true` = the line prices already contain the tax.
+    pub tax_inclusive: bool,
+    /// Fraction of the bill added as a service charge; `0.0` disables it.
+    pub service_charge_rate: f64,
+    /// Whether the service charge is itself taxed.
+    pub service_charge_taxable: bool,
     /// Cash handed over, if any (for change calc).
     pub amount_tendered: Option<MoneyMinor>,
     /// Cash portion of a tip, subtracted from change so the teller-visible
@@ -101,6 +108,8 @@ pub struct PricedBreakdown {
     pub discount_minor: MoneyMinor,
     pub taxable_minor: MoneyMinor,
     pub tax_minor: MoneyMinor,
+    /// Added to the bill; `0` when the policy has no service charge.
+    pub service_charge_minor: MoneyMinor,
     pub total_minor: MoneyMinor,
     pub change_given_minor: MoneyMinor,
 }
@@ -108,6 +117,15 @@ pub struct PricedBreakdown {
 /// Matches the cart's `clamp(0, 999999)` change ceiling.
 const CHANGE_CAP: MoneyMinor = 999_999;
 
+/// The rate arrives as `f64` because that is what the FFI and the JSON carry.
+/// Converting through the decimal string keeps `0.145` as 0.145 rather than
+/// 0.14499999999999999, which is the whole reason the engine uses decimals.
+fn decimal_rate(r: f64) -> rust_decimal::Decimal {
+    use std::str::FromStr;
+    rust_decimal::Decimal::from_str(&r.to_string()).unwrap_or_default()
+}
+
+#[allow(dead_code)]
 #[inline]
 fn round_money(x: f64) -> MoneyMinor {
     // Dart `double.round()` is ties-away-from-zero; Rust `f64::round()` matches.
@@ -157,8 +175,22 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
     };
 
     let taxable = subtotal - discount;
-    let tax = round_money(taxable as f64 * input.tax_rate);
-    let total = taxable + tax;
+
+    // The bill's arithmetic is the shared engine's, not this module's.
+    //
+    // It used to be `taxable as f64 * rate` right here, which is the one place
+    // this till could disagree with the server by a piastre — and the server
+    // now REFUSES an order whose total it disagrees with, so that piastre was
+    // a sale that could not be rung up. `crate::tax` is the same code the
+    // backend runs, pinned to it by `tax_vectors.json`.
+    let policy = crate::tax::TaxPolicy {
+        tax_rate: decimal_rate(input.tax_rate),
+        tax_inclusive: input.tax_inclusive,
+        service_charge_rate: decimal_rate(input.service_charge_rate),
+        service_charge_taxable: input.service_charge_taxable,
+    };
+    let b = crate::tax::compute(subtotal, discount, &policy);
+    let total = b.total;
 
     let change_given = match input.amount_tendered {
         None => 0,
@@ -169,7 +201,8 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
         subtotal_minor: subtotal,
         discount_minor: discount,
         taxable_minor: taxable,
-        tax_minor: tax,
+        tax_minor: b.tax,
+        service_charge_minor: b.service_charge,
         total_minor: total,
         change_given_minor: change_given,
     }
@@ -196,6 +229,9 @@ mod tests {
             discount_kind: kind,
             discount_value: value,
             tax_rate: tax,
+            tax_inclusive: false,
+            service_charge_rate: 0.0,
+            service_charge_taxable: true,
             amount_tendered: None,
             cash_tip: 0,
         }
@@ -469,6 +505,7 @@ mod tests {
                 discount_minor: 0,
                 taxable_minor: 0,
                 tax_minor: 0,
+                service_charge_minor: 0,
                 total_minor: 0,
                 change_given_minor: 0,
             }
@@ -785,6 +822,9 @@ mod proptests {
                         discount_kind,
                         discount_value,
                         tax_rate,
+                        tax_inclusive: false,
+                        service_charge_rate: 0.0,
+                        service_charge_taxable: true,
                         amount_tendered,
                         cash_tip,
                     }
@@ -856,8 +896,24 @@ mod proptests {
             DiscountKind::Fixed => input.discount_value.clamp(0, subtotal),
         };
         let taxable = subtotal - discount;
-        let tax = (taxable as f64 * input.tax_rate).round() as i64;
-        let total = taxable + tax;
+        // The TAX is deliberately not restated here.
+        //
+        // This oracle exists so cargo-mutants cannot mutate the engine and the
+        // check together, and it still does that for the line maths, the
+        // discount clamping and the change. But tax is no longer this module's
+        // rule to restate: it belongs to `crate::tax`, which is pinned to the
+        // SERVER's engine by a shared fixture. A second hand-written statement
+        // of it here would be a third opinion about money, and the f64 form
+        // this used to carry is exactly the one that disagrees with the server
+        // on rates like 0.145.
+        let policy = crate::tax::TaxPolicy {
+            tax_rate: decimal_rate(input.tax_rate),
+            tax_inclusive: input.tax_inclusive,
+            service_charge_rate: decimal_rate(input.service_charge_rate),
+            service_charge_taxable: input.service_charge_taxable,
+        };
+        let b = crate::tax::compute(subtotal, discount, &policy);
+        let total = b.total;
         let change_given = match input.amount_tendered {
             None => 0,
             Some(t) => (t - total - input.cash_tip).clamp(0, CHANGE_CAP),
@@ -866,7 +922,8 @@ mod proptests {
             subtotal_minor: subtotal,
             discount_minor: discount,
             taxable_minor: taxable,
-            tax_minor: tax,
+            tax_minor: b.tax,
+            service_charge_minor: b.service_charge,
             total_minor: total,
             change_given_minor: change_given,
         }

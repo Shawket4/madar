@@ -16,6 +16,9 @@ pub struct MeResponse {
     /// Org currency code (e.g. \"EGP\").
     #[serde(rename = "currency_code")]
     pub currency_code: String,
+    /// The full policy, including tax-inclusive pricing and service charge.  A till re-reads this whenever it syncs, which is what makes a rate changed in the dashboard reach a device that has not signed in for weeks. Without it the till prices under a stale rate and — now that the server refuses totals it disagrees with — cannot sell at all.
+    #[serde(rename = "tax_policy")]
+    pub tax_policy: Box<models::TaxPolicyPublic>,
     /// Org tax rate as a decimal (e.g. 0.14 = 14% VAT); 0.0 when the user has no org. Exposed so the POS can compute a tax-inclusive cart total client-side.
     #[serde(rename = "tax_rate")]
     pub tax_rate: f64,
@@ -24,9 +27,10 @@ pub struct MeResponse {
 }
 
 impl MeResponse {
-    pub fn new(currency_code: String, tax_rate: f64, user: models::UserPublic) -> MeResponse {
+    pub fn new(currency_code: String, tax_policy: models::TaxPolicyPublic, tax_rate: f64, user: models::UserPublic) -> MeResponse {
         MeResponse {
             currency_code,
+            tax_policy: Box::new(tax_policy),
             tax_rate,
             user: Box::new(user),
         }

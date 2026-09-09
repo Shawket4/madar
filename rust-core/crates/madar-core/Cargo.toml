@@ -91,6 +91,10 @@ sha2 = "0.11"
 rusqlite = { version = "0.40", features = ["bundled"] }
 # DTO/payload (de)serialization + ids + timestamps + the FFI error model.
 serde = { version = "1", features = ["derive"] }
+# Money. The tax engine mirrors MadarRust's exactly, and f64 rounding is the
+# one way two correct implementations can still disagree by a piastre.
+rust_decimal = { version = "1", default-features = false, features = ["serde"] }
+rust_decimal_macros = "1"
 serde_json = "1"
 uuid = { version = "1", features = ["serde", "v4", "v5"] }
 chrono = { version = "0.4", features = ["serde"] }

@@ -14,6 +14,10 @@ Name | Type | Description | Notes
 **printer_brand** | Option<[**models::PrinterBrand**](PrinterBrand.md)> |  | [optional]
 **printer_ip** | Option<**String**> |  | [optional]
 **printer_port** | Option<**i32**> |  | [optional]
+**service_charge_rate** | Option<**f64**> |  | [optional]
+**service_charge_taxable** | Option<**bool**> |  | [optional]
+**tax_inclusive** | Option<**bool**> |  | [optional]
+**tax_rate** | Option<**f64**> |  | [optional]
 **timezone** | Option<**String**> |  | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

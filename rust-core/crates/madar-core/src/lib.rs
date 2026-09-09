@@ -21,6 +21,9 @@ pub use config::MadarConfig;
 
 /// The client-authoritative pricing engine (pure; the money source of truth).
 pub mod pricing;
+/// Tax and service charge. Mirrors `MadarRust/src/tax/engine.rs` byte for byte
+/// below the header, pinned by `tax_vectors.json`. See its module docs.
+pub mod tax;
 
 /// Cart — client-only in-progress order state, priced via `pricing`.
 pub mod bookings;
@@ -2539,6 +2542,7 @@ impl MadarCore {
                 notes: tr("receipt.notes"),
                 subtotal: tr("order.subtotal"),
                 discount: tr("order.discount"),
+                service_charge: tr("order.service_charge"),
                 tax: tr("order.tax"),
                 delivery_fee: tr("receipt.delivery_fee"),
                 total: tr("order.total"),
@@ -3278,11 +3282,14 @@ impl MadarCore {
     pub fn cart_discount_id(&self) -> Result<Option<String>, CoreError> {
         cart::discount_id(&self.store)
     }
-    /// Priced cart summary at the session's org tax rate (0 when signed out),
-    /// computed through the pricing engine.
+    /// Priced cart summary under the session's tax policy (tax-free when
+    /// signed out), computed through the shared engine.
     pub fn cart_totals(&self) -> Result<cart::CartTotals, CoreError> {
-        let tax_rate = self.current_session().map(|s| s.tax_rate).unwrap_or(0.0);
-        cart::totals(&self.store, tax_rate)
+        let policy = self
+            .current_session()
+            .map(|s| s.tax_policy())
+            .unwrap_or_default();
+        cart::totals(&self.store, &policy)
     }
 }
 
@@ -4657,7 +4664,7 @@ impl MadarCore {
         &self,
         input: checkout::CheckoutInput,
     ) -> Result<checkout::ReceiptView, CoreError> {
-        let (branch_id, tax_rate, teller_name) = {
+        let (branch_id, tax_policy, teller_name) = {
             let g = self.session.read().unwrap_or_else(|e| e.into_inner());
             let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
                 detail: "not signed in".into(),
@@ -4670,7 +4677,11 @@ impl MadarCore {
                     field: "branch_id".into(),
                     detail: "session has no branch".into(),
                 })?;
-            (branch, s.snapshot.tax_rate, s.snapshot.display_name.clone())
+            (
+                branch,
+                s.snapshot.tax_policy(),
+                s.snapshot.display_name.clone(),
+            )
         };
         let shift = shift::current(&self.store)?
             .filter(|s| s.is_open)
@@ -4686,7 +4697,7 @@ impl MadarCore {
             &branch_id,
             &shift.id,
             &input,
-            tax_rate,
+            &tax_policy,
             now,
         )?;
 
@@ -4727,6 +4738,10 @@ impl MadarCore {
         // one must be. A token the backend refuses stays parked, and the banner
         // now says so instead of waiting for it to lapse.
         self.unpark_if_token_accepted().await;
+        // Adopt any new tax policy BEFORE pricing anything else: a till that
+        // has been running since before a rate change would otherwise keep
+        // building bills the server will refuse.
+        self.refresh_tax_policy().await;
         // An explicit sync clears the offline (no-count) backoff so a backlog built
         // during an outage flushes NOW, not after the ~15s network-retry window.
         let _ = self.store.clear_network_backoff();
@@ -4735,6 +4750,66 @@ impl MadarCore {
         // (and pick up other tills' parks/moves). Best-effort.
         self.refresh_floor_and_held().await;
         drained
+    }
+
+    /// Re-read the branch's tax policy from the backend and adopt it.
+    ///
+    /// This is what makes a rate changed in the dashboard reach a till. The
+    /// policy used to be cached once, at online login, and never looked at
+    /// again — so a device that stayed signed in for a month priced every bill
+    /// under whatever the rate was when someone last signed in. That was
+    /// merely wrong before. It is now an OUTAGE: the server refuses an order
+    /// whose total disagrees with its own, so a till holding a stale rate
+    /// cannot complete a sale until it signs in again.
+    ///
+    /// Best-effort and silent. Offline, the cached policy is still the best
+    /// answer available, and failing a sync over it would be worse than
+    /// pricing under yesterday's rate for one more shift.
+    async fn refresh_tax_policy(&self) {
+        use madar_api::apis::auth_api;
+        // Only with a live bearer: an offline-unlocked session has no token,
+        // and there is nothing to ask.
+        let has_token = {
+            let g = self.session.read().unwrap_or_else(|e| e.into_inner());
+            g.as_ref().map(|s| s.token.is_some()).unwrap_or(false)
+        };
+        if !has_token {
+            return;
+        }
+        let Ok(me) = auth_api::me(&self.api.config()).await else {
+            return;
+        };
+
+        let blob = {
+            let mut g = self.session.write().unwrap_or_else(|e| e.into_inner());
+            match g.as_mut() {
+                Some(s) => {
+                    let p = &me.tax_policy;
+                    let changed = s.snapshot.tax_rate != p.tax_rate
+                        || s.snapshot.tax_inclusive != p.tax_inclusive
+                        || s.snapshot.service_charge_rate != p.service_charge_rate
+                        || s.snapshot.service_charge_taxable != p.service_charge_taxable;
+                    if !changed {
+                        None
+                    } else {
+                        // Adopting a policy the shop changed since sign-in.
+                        s.snapshot.tax_rate = p.tax_rate;
+                        s.snapshot.tax_inclusive = p.tax_inclusive;
+                        s.snapshot.service_charge_rate = p.service_charge_rate;
+                        s.snapshot.service_charge_taxable = p.service_charge_taxable;
+                        Some((s.to_blob(), s.snapshot.clone()))
+                    }
+                }
+                None => None,
+            }
+        };
+
+        if let Some((blob, snapshot)) = blob {
+            let _ = self.store.blob_put(session::K_SESSION_BLOB, &blob);
+            // And the offline cache, so the next unlock without a network
+            // starts from the new policy rather than the one it was born with.
+            session::cache_org_config(&self.store, &snapshot);
+        }
     }
 
     /// Requeue every dead command (clearing its error) and try to send now.
@@ -7121,6 +7196,9 @@ mod lifecycle_tests {
                 branch_id: branch.map(Into::into),
                 currency_code: "EGP".into(),
                 tax_rate: 0.14,
+                tax_inclusive: false,
+                service_charge_rate: 0.0,
+                service_charge_taxable: true,
                 online: true,
                 permissions_loaded: true,
             },
@@ -7882,6 +7960,9 @@ mod lifecycle_tests {
                 branch_id: Some(BRANCH_1.into()),
                 currency_code: "EGP".into(),
                 tax_rate: 0.14,
+                tax_inclusive: false,
+                service_charge_rate: 0.0,
+                service_charge_taxable: true,
                 online: false,
                 permissions_loaded: true,
             },
@@ -7904,6 +7985,9 @@ mod lifecycle_tests {
                 branch_id: Some("00000000-0000-0000-0000-000000000001".into()),
                 currency_code: "EGP".into(),
                 tax_rate: 0.14,
+                tax_inclusive: false,
+                service_charge_rate: 0.0,
+                service_charge_taxable: true,
                 online: false,
                 permissions_loaded: true,
             },

@@ -87,7 +87,15 @@ pub struct SessionSnapshot {
     pub org_id: Option<String>,
     pub branch_id: Option<String>,
     pub currency_code: String,
+    /// Fraction, NOT a percentage: `0.14` is 14%.
     pub tax_rate: f64,
+    /// `true` = menu prices already contain the tax, and the receipt breaks it
+    /// out backwards rather than adding it on.
+    pub tax_inclusive: bool,
+    /// Fraction of the bill added as a service charge; `0` disables it.
+    pub service_charge_rate: f64,
+    /// Whether the service charge is itself taxed.
+    pub service_charge_taxable: bool,
     /// `false` for an offline-unlocked session (no live token; sync will force a
     /// fresh online re-auth before it flushes the queue).
     pub online: bool,
@@ -95,6 +103,27 @@ pub struct SessionSnapshot {
     /// (offline unlock), `has_permission` is optimistic — the backend is the
     /// authority and validates the teller at replay.
     pub permissions_loaded: bool,
+}
+
+impl SessionSnapshot {
+    /// The tax policy to price under, in the shared engine's shape.
+    ///
+    /// Signed out, this is `TaxPolicy::default()` — tax-free. That is
+    /// deliberate: a till with no session must not invent a rate, and the old
+    /// `unwrap_or(0.0)` on the rate alone silently dropped a service charge and
+    /// tax-inclusive pricing on the floor.
+    pub(crate) fn tax_policy(&self) -> crate::tax::TaxPolicy {
+        use std::str::FromStr;
+        let rate = |r: f64| {
+            rust_decimal::Decimal::from_str(&r.to_string()).unwrap_or_default()
+        };
+        crate::tax::TaxPolicy {
+            tax_rate: rate(self.tax_rate),
+            tax_inclusive: self.tax_inclusive,
+            service_charge_rate: rate(self.service_charge_rate),
+            service_charge_taxable: self.service_charge_taxable,
+        }
+    }
 }
 
 // ── internal state (held by MadarCore) ─────────────────────────────────────
@@ -182,7 +211,12 @@ pub(crate) fn snapshot_from_login(
         org_id: resp.user.org_id.flatten().map(|u| u.to_string()),
         branch_id,
         currency_code: resp.currency_code.clone(),
-        tax_rate: resp.tax_rate,
+        // The whole policy, not the flat `tax_rate` beside it: that field is
+        // kept only so a build older than this one still parses the payload.
+        tax_rate: resp.tax_policy.tax_rate,
+        tax_inclusive: resp.tax_policy.tax_inclusive,
+        service_charge_rate: resp.tax_policy.service_charge_rate,
+        service_charge_taxable: resp.tax_policy.service_charge_taxable,
         online: true,
         permissions_loaded: false,
     }
@@ -209,10 +243,22 @@ pub(crate) fn cache_bundle(
     if let Ok(json) = serde_json::to_string(bundle) {
         let _ = store.kv_put(BUNDLE_KEY, &json);
     }
+    cache_org_config(store, snapshot);
+}
+
+/// Cache the org config an offline unlock rebuilds a session from.
+///
+/// Written at login AND whenever the policy changes under a running session,
+/// so a device that unlocks offline tomorrow starts from the rate the shop
+/// actually charges rather than the one in force when it last signed in.
+pub(crate) fn cache_org_config(store: &Store, snapshot: &SessionSnapshot) {
     let cfg = serde_json::json!({
         "org_id": snapshot.org_id,
         "currency_code": snapshot.currency_code,
         "tax_rate": snapshot.tax_rate,
+        "tax_inclusive": snapshot.tax_inclusive,
+        "service_charge_rate": snapshot.service_charge_rate,
+        "service_charge_taxable": snapshot.service_charge_taxable,
     });
     let _ = store.kv_put(ORG_CONFIG_KEY, &cfg.to_string());
 }
@@ -273,19 +319,31 @@ pub(crate) fn unlock_from_bundle(
             detail: "PIN not recognized.".into(),
         })?;
 
-    let (currency_code, tax_rate) = match store.kv_get(ORG_CONFIG_KEY)? {
-        Some(raw) => {
-            let v: serde_json::Value = serde_json::from_str(&raw).unwrap_or_default();
-            (
-                v.get("currency_code")
-                    .and_then(|x| x.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                v.get("tax_rate").and_then(|x| x.as_f64()).unwrap_or(0.0),
-            )
-        }
-        None => (String::new(), 0.0),
+    // The whole policy, not just the rate: an offline unlock has to price a
+    // cart exactly as the server would, and a service charge or tax-inclusive
+    // pricing it never heard about is a bill the server will refuse.
+    let cfg: serde_json::Value = match store.kv_get(ORG_CONFIG_KEY)? {
+        Some(raw) => serde_json::from_str(&raw).unwrap_or_default(),
+        None => serde_json::Value::Null,
     };
+    let currency_code = cfg
+        .get("currency_code")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    let tax_rate = cfg.get("tax_rate").and_then(|x| x.as_f64()).unwrap_or(0.0);
+    let tax_inclusive = cfg
+        .get("tax_inclusive")
+        .and_then(|x| x.as_bool())
+        .unwrap_or(false);
+    let service_charge_rate = cfg
+        .get("service_charge_rate")
+        .and_then(|x| x.as_f64())
+        .unwrap_or(0.0);
+    let service_charge_taxable = cfg
+        .get("service_charge_taxable")
+        .and_then(|x| x.as_bool())
+        .unwrap_or(true);
 
     let snapshot = SessionSnapshot {
         user_id: teller.user_id.to_string(),
@@ -295,6 +353,9 @@ pub(crate) fn unlock_from_bundle(
         branch_id: Some(branch_id.to_string()),
         currency_code,
         tax_rate,
+        tax_inclusive,
+        service_charge_rate,
+        service_charge_taxable,
         online: false,
         permissions_loaded: false,
     };
@@ -625,6 +686,12 @@ mod tests {
         models::LoginResponse {
             currency_code: "EGP".into(),
             tax_rate: 0.14,
+            tax_policy: Box::new(models::TaxPolicyPublic {
+                tax_rate: 0.14,
+                tax_inclusive: false,
+                service_charge_rate: 0.0,
+                service_charge_taxable: true,
+            }),
             token: "jwt.abc.def".into(),
             user: Box::new(user),
         }
@@ -706,6 +773,9 @@ mod tests {
                 branch_id: None,
                 currency_code: "EGP".into(),
                 tax_rate: 0.0,
+                tax_inclusive: false,
+                service_charge_rate: 0.0,
+                service_charge_taxable: true,
                 online,
                 permissions_loaded: loaded,
             },
@@ -839,6 +909,9 @@ mod tests {
             branch_id: Some("b".into()),
             currency_code: "EGP".into(),
             tax_rate: 0.14,
+            tax_inclusive: false,
+            service_charge_rate: 0.0,
+            service_charge_taxable: true,
             online: true,
             permissions_loaded: true,
         };
@@ -879,6 +952,9 @@ mod tests {
             branch_id: Some("b".into()),
             currency_code: "USD".into(),
             tax_rate: 0.07,
+            tax_inclusive: false,
+            service_charge_rate: 0.0,
+            service_charge_taxable: true,
             online: true,
             permissions_loaded: true,
         };

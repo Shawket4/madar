@@ -13,6 +13,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoyaltySettings {
+    /// The ceiling, when `balance_cap_enabled`. `None` = derive it.  A `None` here is NOT \"no cap\" — that is what the switch is for. It means the most expensive reward on offer at this scope, read from the catalogue at award time. Once a customer can claim anything in the programme, collecting more buys them nothing and leaves the shop carrying a liability it never chose; and because it is derived, adding a dearer reward raises the ceiling without anyone retyping it.  Earning at the cap is DROPPED, not refused: the sale is not the customer's doing and must not fail because their card is full.
+    #[serde(rename = "balance_cap", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub balance_cap: Option<Option<i32>>,
+    /// Whether a ceiling applies to what a member may hold at all.  Separate from the figure below, because \"no number\" has to be able to mean something. Off, a card collects without end.
+    #[serde(rename = "balance_cap_enabled", skip_serializing_if = "Option::is_none")]
+    pub balance_cap_enabled: Option<bool>,
     /// Ask for a birthday at signup, and greet them on the day.  Off means the form does not ASK — not that it asks and ignores. A date of birth is the most sensitive thing this feature collects, and a shop that does not run birthday rewards has no business holding one.
     #[serde(rename = "birthday_enabled", skip_serializing_if = "Option::is_none")]
     pub birthday_enabled: Option<bool>,
@@ -39,9 +45,18 @@ pub struct LoyaltySettings {
     /// One point per this many piastres. 1000 = a point per 10 EGP. The dashboard shows and accepts EGP; the wire is always piastres.
     #[serde(rename = "earn_piastres_per_point")]
     pub earn_piastres_per_point: i32,
+    /// The ceiling actually in force, once derived. **Read-only.**  `balance_cap` is what the shop TYPED, which is usually nothing; this is what that resolves to against the current catalogue. The dashboard shows it so \"leave it empty\" is a visible number rather than a promise, and so the figure on screen is the one the award path will use rather than the dashboard's own guess at it.  `null` when no ceiling applies.
+    #[serde(rename = "effective_balance_cap", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub effective_balance_cap: Option<Option<i32>>,
     /// The program switch for this scope.
     #[serde(rename = "enabled")]
     pub enabled: bool,
+    /// How many active branches have coordinates set. **Read-only.**  The one thing that decides whether a saved card can notify a customer when they are at the shop. Both wallets geofence from the branch coordinates on the pass, so a programme whose branches have none gets no location prompt on the phone and no nearby notification — and nothing anywhere said so, which reads as the wallet being broken rather than as a field nobody filled in.  Read-only in effect: this type doubles as the PUT body, and the write path binds its columns explicitly, so a value sent here is parsed and then ignored. It is a fact about `branches`, answered on this page because this is where someone wonders why the card is silent.
+    #[serde(rename = "geofenced_branches", skip_serializing_if = "Option::is_none")]
+    pub geofenced_branches: Option<i64>,
+    /// How many rewards one order may claim. `None` = unlimited.  `Some(1)` is the setting most shops mean when they ask for this: a member with thirty stamps and a five-stamp reward can otherwise take six free items in one visit, which is the same giveaway the shop believed it was spreading over six.
+    #[serde(rename = "max_rewards_per_order", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub max_rewards_per_order: Option<Option<i32>>,
     /// What this scope collects: `\"points\"` (from money spent) or `\"visits\"` (one stamp per sale). One or the other — never both.
     #[serde(rename = "mode")]
     pub mode: String,
@@ -75,6 +90,8 @@ pub struct LoyaltySettings {
 impl LoyaltySettings {
     pub fn new(default_reward_cost: i32, earn_include_tax: bool, earn_on_discounted: bool, earn_piastres_per_point: i32, enabled: bool, mode: String, org_id: uuid::Uuid, program_name: String, require_otp: bool) -> LoyaltySettings {
         LoyaltySettings {
+            balance_cap: None,
+            balance_cap_enabled: None,
             birthday_enabled: None,
             birthday_message: None,
             birthday_message_ar: None,
@@ -84,7 +101,10 @@ impl LoyaltySettings {
             earn_include_tax,
             earn_on_discounted,
             earn_piastres_per_point,
+            effective_balance_cap: None,
             enabled,
+            geofenced_branches: None,
+            max_rewards_per_order: None,
             mode,
             org_id,
             program_name,

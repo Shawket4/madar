@@ -88,6 +88,10 @@ pub struct ReceiptView {
     /// Discount applied before tax (0 when none). Shown on the printed receipt.
     pub discount_minor: i64,
     pub tax_minor: i64,
+    /// The service charge on this bill; `0` where the branch charges none. Its
+    /// own line on the receipt: a charge the customer did not choose is stated
+    /// separately from the tax, not folded into it.
+    pub service_charge_minor: i64,
     /// Delivery fee (0 for dine-in). Adds a line and forces a subtotal row.
     pub delivery_fee_minor: i64,
     pub total_minor: i64,
@@ -348,13 +352,15 @@ pub(crate) fn lines_to_wire_items(lines: &[cart::CartLineView]) -> Vec<models::O
         .collect()
 }
 
+use rust_decimal::prelude::ToPrimitive;
+
 pub(crate) fn prepare(
     store: &Store,
     locale: &str,
     branch_id: &str,
     shift_id: &str,
     input: &CheckoutInput,
-    tax_rate: f64,
+    policy: &crate::tax::TaxPolicy,
     now_rfc3339: String,
 ) -> CoreResult<Prepared> {
     let payment_method_id = &input.payment_method_id;
@@ -449,7 +455,10 @@ pub(crate) fn prepare(
             .collect(),
         discount_kind,
         discount_value,
-        tax_rate,
+        tax_rate: policy.tax_rate.to_f64().unwrap_or(0.0),
+        tax_inclusive: policy.tax_inclusive,
+        service_charge_rate: policy.service_charge_rate.to_f64().unwrap_or(0.0),
+        service_charge_taxable: policy.service_charge_taxable,
         amount_tendered: tendered,
         cash_tip,
     });
@@ -570,6 +579,7 @@ pub(crate) fn prepare(
         subtotal_minor: priced.subtotal_minor,
         discount_minor: priced.discount_minor,
         tax_minor: priced.tax_minor,
+        service_charge_minor: priced.service_charge_minor,
         delivery_fee_minor: 0,
         total_minor: priced.total_minor,
         tip_minor,
@@ -825,6 +835,14 @@ fn display_label(store: &Store, locale: &str, id: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    fn tax_policy_at(rate: f64) -> crate::tax::TaxPolicy {
+        use std::str::FromStr;
+        crate::tax::TaxPolicy {
+            tax_rate: rust_decimal::Decimal::from_str(&rate.to_string()).unwrap(),
+            ..Default::default()
+        }
+    }
+
     use super::*;
 
     const BRANCH: &str = "00000000-0000-0000-0000-0000000000b0";
@@ -866,7 +884,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &mk_input(method, tendered),
-            0.14,
+            &tax_policy_at(0.14),
             "2026-06-20T12:00:00+00:00".into(),
         )
     }
@@ -887,7 +905,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &input,
-            0.14,
+            &tax_policy_at(0.14),
             "2026-06-20T12:00:00+00:00".into(),
         )
         .unwrap();
@@ -963,7 +981,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &mk_input(CASH, 2000),
-            0.0,
+            &tax_policy_at(0.0),
             "2026-06-20T12:00:00+00:00".into(),
         )
         .unwrap();
@@ -1259,7 +1277,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &input,
-            0.14,
+            &tax_policy_at(0.14),
             "2026-06-20T12:00:00+00:00".into(),
         )
         .unwrap();
@@ -1298,7 +1316,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &input,
-            0.0,
+            &tax_policy_at(0.0),
             "2026-06-20T12:00:00+00:00".into(),
         )
         .unwrap();
@@ -1339,7 +1357,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &input,
-            0.14,
+            &tax_policy_at(0.14),
             "2026-06-20T12:00:00+00:00".into(),
         )
         .unwrap();
@@ -1365,7 +1383,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &input,
-            0.0,
+            &tax_policy_at(0.0),
             "2026-06-20T12:00:00+00:00".into(),
         )
         .unwrap();
@@ -1400,7 +1418,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &mk_input(CASH, 2000),
-            0.14,
+            &tax_policy_at(0.14),
             "2026-06-20T12:00:00+00:00".into(),
         )
         .unwrap();
@@ -1435,7 +1453,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &mk_input(CASH, 2000),
-            0.0,
+            &tax_policy_at(0.0),
             "2026-06-20T12:00:00+00:00".into(),
         )
         .unwrap();
@@ -1910,7 +1928,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &input,
-            0.14,
+            &tax_policy_at(0.14),
             "2026-06-20T12:00:00+00:00".into(),
         )
         .unwrap();
@@ -1928,7 +1946,7 @@ mod tests {
             BRANCH,
             SHIFT,
             &named,
-            0.14,
+            &tax_policy_at(0.14),
             "2026-06-20T12:00:00+00:00".into(),
         )
         .unwrap();

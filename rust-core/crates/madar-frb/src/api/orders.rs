@@ -65,6 +65,7 @@ pub struct _ReceiptView {
     /// Discount applied before tax (0 when none).
     pub discount_minor: i64,
     pub tax_minor: i64,
+    pub service_charge_minor: i64,
     /// Delivery fee (0 for dine-in).
     pub delivery_fee_minor: i64,
     pub total_minor: i64,

@@ -162,6 +162,10 @@ pub struct CartTotals {
     pub subtotal_minor: i64,
     pub discount_minor: i64,
     pub tax_minor: i64,
+    /// Added to the bill; `0` when the branch has no service charge. Rendered
+    /// as its own line, because a customer is entitled to see a charge they
+    /// did not choose stated separately from the tax.
+    pub service_charge_minor: i64,
     pub total_minor: i64,
 }
 
@@ -1174,9 +1178,10 @@ fn priced(l: &StoredLine) -> pricing::CartLine {
     }
 }
 
-/// Price the cart at `tax_rate` via the pricing engine, applying the selected
+/// Price the cart under `policy` via the pricing engine, applying the selected
 /// discount before tax.
-pub(crate) fn totals(store: &Store, tax_rate: f64) -> CoreResult<CartTotals> {
+pub(crate) fn totals(store: &Store, policy: &crate::tax::TaxPolicy) -> CoreResult<CartTotals> {
+    use rust_decimal::prelude::ToPrimitive;
     let lines = load(store)?;
     let item_count = lines.iter().map(|l| l.qty).sum();
     let (discount_kind, discount_value) = discount(store)?;
@@ -1184,7 +1189,10 @@ pub(crate) fn totals(store: &Store, tax_rate: f64) -> CoreResult<CartTotals> {
         lines: lines.iter().map(priced).collect(),
         discount_kind,
         discount_value,
-        tax_rate,
+        tax_rate: policy.tax_rate.to_f64().unwrap_or(0.0),
+        tax_inclusive: policy.tax_inclusive,
+        service_charge_rate: policy.service_charge_rate.to_f64().unwrap_or(0.0),
+        service_charge_taxable: policy.service_charge_taxable,
         amount_tendered: None,
         cash_tip: 0,
     });
@@ -1193,8 +1201,19 @@ pub(crate) fn totals(store: &Store, tax_rate: f64) -> CoreResult<CartTotals> {
         subtotal_minor: priced.subtotal_minor,
         discount_minor: priced.discount_minor,
         tax_minor: priced.tax_minor,
+        service_charge_minor: priced.service_charge_minor,
         total_minor: priced.total_minor,
     })
+}
+
+#[cfg(test)]
+#[allow(dead_code)]
+fn tax_policy_at(rate: f64) -> crate::tax::TaxPolicy {
+    use std::str::FromStr;
+    crate::tax::TaxPolicy {
+        tax_rate: rust_decimal::Decimal::from_str(&rate.to_string()).unwrap(),
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]
@@ -1502,7 +1521,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let t = totals(&s, 0.14).unwrap();
+        let t = totals(&s, &tax_policy_at(0.14)).unwrap();
         assert_eq!(t.item_count, 2);
         assert_eq!(t.subtotal_minor, 11_600);
         assert_eq!(t.tax_minor, 1624); // round(11600 * 0.14)
@@ -1786,10 +1805,11 @@ mod tests {
     #[test]
     fn empty_cart_totals_are_zero() {
         let s = store();
-        let t = totals(&s, 0.14).unwrap();
+        let t = totals(&s, &tax_policy_at(0.14)).unwrap();
         assert_eq!(
             t,
             CartTotals {
+                service_charge_minor: 0,
                 item_count: 0,
                 subtotal_minor: 0,
                 discount_minor: 0,
@@ -1812,7 +1832,7 @@ mod tests {
         seed_discounts(&s);
         add(&s, "a", "Latte", 1000).unwrap();
         set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
-        let t = totals(&s, 0.14).unwrap();
+        let t = totals(&s, &tax_policy_at(0.14)).unwrap();
         assert_eq!(t.subtotal_minor, 1000);
         assert_eq!(t.discount_minor, 100); // 10%
         assert_eq!(t.tax_minor, 126); // round((1000-100) * 0.14)
@@ -1825,7 +1845,7 @@ mod tests {
         seed_discounts(&s);
         add(&s, "a", "Latte", 1000).unwrap();
         set_discount(&s, "00000000-0000-0000-0000-0000000000d2").unwrap();
-        let t = totals(&s, 0.14).unwrap();
+        let t = totals(&s, &tax_policy_at(0.14)).unwrap();
         assert_eq!(t.discount_minor, 250);
         assert_eq!(t.tax_minor, 105); // round(750 * 0.14)
         assert_eq!(t.total_minor, 855);
@@ -1837,11 +1857,11 @@ mod tests {
         seed_discounts(&s);
         add(&s, "a", "Latte", 1000).unwrap();
         set_discount(&s, "not-a-real-id").unwrap(); // not in the catalog → ignored
-        assert_eq!(totals(&s, 0.0).unwrap().discount_minor, 0);
+        assert_eq!(totals(&s, &tax_policy_at(0.0)).unwrap().discount_minor, 0);
         set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
-        assert_eq!(totals(&s, 0.0).unwrap().discount_minor, 100);
+        assert_eq!(totals(&s, &tax_policy_at(0.0)).unwrap().discount_minor, 100);
         clear_discount(&s).unwrap();
-        assert_eq!(totals(&s, 0.0).unwrap().discount_minor, 0);
+        assert_eq!(totals(&s, &tax_policy_at(0.0)).unwrap().discount_minor, 0);
     }
 
     #[test]
@@ -2393,7 +2413,7 @@ mod tests {
             resolve_bundle_line(&bundle(), &[item()], &catalog(), &[combo_component()], 2),
         )
         .unwrap();
-        let t = totals(&s, 0.0).unwrap();
+        let t = totals(&s, &tax_policy_at(0.0)).unwrap();
         assert_eq!(t.item_count, 2);
         // (10000 + 500 + 300) × 2 = 21600.
         assert_eq!(t.subtotal_minor, 21600);

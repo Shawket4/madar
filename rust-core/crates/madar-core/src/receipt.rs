@@ -93,6 +93,7 @@ pub struct ReceiptLabels {
     pub notes: String,
     pub subtotal: String,
     pub discount: String,
+    pub service_charge: String,
     pub tax: String,
     pub delivery_fee: String,
     pub total: String,
@@ -244,6 +245,15 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
         out.push(Line::plain(row(
             &lab.discount,
             &money(-receipt.discount_minor, cur),
+            w,
+        )));
+    }
+    // Before the tax: a service charge is part of what is being taxed (where
+    // the policy says so), and a bill reads in the order the money is added.
+    if receipt.service_charge_minor > 0 {
+        out.push(Line::plain(row(
+            &lab.service_charge,
+            &money(receipt.service_charge_minor, cur),
             w,
         )));
     }
@@ -790,6 +800,7 @@ mod tests {
                 notes: "Notes:".into(),
                 subtotal: "Subtotal".into(),
                 discount: "Discount".into(),
+                service_charge: "Service".into(),
                 tax: "Tax".into(),
                 delivery_fee: "Delivery Fee".into(),
                 total: "Total".into(),
@@ -829,6 +840,7 @@ mod tests {
             subtotal_minor: 12500,
             discount_minor: 0,
             tax_minor: 1750,
+            service_charge_minor: 0,
             delivery_fee_minor: 0,
             total_minor: 14250,
             tip_minor: 0,

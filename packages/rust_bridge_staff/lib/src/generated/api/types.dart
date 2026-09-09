@@ -45,6 +45,9 @@ class SessionSnapshot {
   final String? branchId;
   final String currencyCode;
   final double taxRate;
+  final bool taxInclusive;
+  final double serviceChargeRate;
+  final bool serviceChargeTaxable;
   final bool online;
   final bool permissionsLoaded;
 
@@ -56,6 +59,9 @@ class SessionSnapshot {
     this.branchId,
     required this.currencyCode,
     required this.taxRate,
+    required this.taxInclusive,
+    required this.serviceChargeRate,
+    required this.serviceChargeTaxable,
     required this.online,
     required this.permissionsLoaded,
   });
@@ -69,6 +75,9 @@ class SessionSnapshot {
       branchId.hashCode ^
       currencyCode.hashCode ^
       taxRate.hashCode ^
+      taxInclusive.hashCode ^
+      serviceChargeRate.hashCode ^
+      serviceChargeTaxable.hashCode ^
       online.hashCode ^
       permissionsLoaded.hashCode;
 
@@ -84,6 +93,9 @@ class SessionSnapshot {
           branchId == other.branchId &&
           currencyCode == other.currencyCode &&
           taxRate == other.taxRate &&
+          taxInclusive == other.taxInclusive &&
+          serviceChargeRate == other.serviceChargeRate &&
+          serviceChargeTaxable == other.serviceChargeTaxable &&
           online == other.online &&
           permissionsLoaded == other.permissionsLoaded;
 }

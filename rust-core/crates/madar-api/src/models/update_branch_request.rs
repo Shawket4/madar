@@ -34,6 +34,14 @@ pub struct UpdateBranchRequest {
     pub printer_ip: Option<Option<String>>,
     #[serde(rename = "printer_port", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub printer_port: Option<Option<i32>>,
+    #[serde(rename = "service_charge_rate", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub service_charge_rate: Option<Option<f64>>,
+    #[serde(rename = "service_charge_taxable", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub service_charge_taxable: Option<Option<bool>>,
+    #[serde(rename = "tax_inclusive", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub tax_inclusive: Option<Option<bool>>,
+    #[serde(rename = "tax_rate", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub tax_rate: Option<Option<f64>>,
     #[serde(rename = "timezone", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub timezone: Option<Option<String>>,
 }
@@ -52,6 +60,10 @@ impl UpdateBranchRequest {
             printer_brand: None,
             printer_ip: None,
             printer_port: None,
+            service_charge_rate: None,
+            service_charge_taxable: None,
+            tax_inclusive: None,
+            tax_rate: None,
             timezone: None,
         }
     }

@@ -440,6 +440,7 @@ docs/SyncRecipeLine.md
 docs/SyncSize.md
 docs/TableBookingHint.md
 docs/TablePosition.md
+docs/TaxPolicyPublic.md
 docs/TeamPresence.md
 docs/TellerStats.md
 docs/Till.md
@@ -955,6 +956,7 @@ src/models/sync_recipe_line.rs
 src/models/sync_size.rs
 src/models/table_booking_hint.rs
 src/models/table_position.rs
+src/models/tax_policy_public.rs
 src/models/team_presence.rs
 src/models/teller_stats.rs
 src/models/till.rs

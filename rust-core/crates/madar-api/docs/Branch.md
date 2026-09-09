@@ -19,6 +19,10 @@ Name | Type | Description | Notes
 **printer_brand** | Option<[**models::PrinterBrand**](PrinterBrand.md)> |  | [optional]
 **printer_ip** | Option<**String**> |  | [optional]
 **printer_port** | Option<**i32**> |  | [optional]
+**service_charge_rate** | Option<**f64**> |  | [optional]
+**service_charge_taxable** | Option<**bool**> |  | [optional]
+**tax_inclusive** | Option<**bool**> |  | [optional]
+**tax_rate** | Option<**f64**> | Tax policy OVERRIDES. `null` means inherit the organisation's setting — which is not the same as `0`. An org that changes its rate still moves every branch that never asked to differ; a branch that genuinely charges no tax says so with an explicit `0`. | [optional]
 **timezone** | **String** | Effective IANA timezone name for this branch, resolved as `branch.timezone → org.timezone → Africa/Cairo`. Always present; clients should format all of this branch's timestamps in this zone. | 
 **updated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 

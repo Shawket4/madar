@@ -10,11 +10,11 @@ Name | Type | Description | Notes
 **order_id** | **uuid::Uuid** |  | 
 **order_number** | **i32** | Per-shift sequence number shown on the POS. | 
 **order_ref** | Option<**String**> | The human-readable reference printed on the receipt (`<BRANCHCODE>-<YYMMDD>-<NNNN>`). Null for orders predating it. | [optional]
-**service_charge** | **i32** | Always 0: Madar has no service-charge concept. Present so the field is stable if one is ever introduced. | 
+**service_charge** | **i32** | The service charge added to this order, `0` where the branch charges none. This was a hard-coded `0` for every order — the field was published as if it meant something while a service charge did not exist. It does now, and this is it. | 
 **status** | **String** |  | 
 **subtotal** | **i32** | Piastres. Sum of the line items before discount and tax. | 
 **tax_amount** | **i32** |  | 
-**total_amount** | **i32** | `subtotal - discount_amount + tax_amount`. Deliberately COMPUTED rather than read from `orders.total_amount`, which also carries the delivery fee — this figure is the order's own value and nothing else. Tips are excluded too (they are not part of `total_amount` in the first place). | 
+**total_amount** | **i32** | `subtotal - discount_amount + service_charge + tax_amount`. Deliberately COMPUTED rather than read from `orders.total_amount`, which also carries the delivery fee — this figure is the order's own value and nothing else. Tips are excluded too (they are not part of `total_amount` in the first place). | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

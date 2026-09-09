@@ -845,6 +845,7 @@ Class | Method | HTTP request | Description
  - [SyncSize](docs/SyncSize.md)
  - [TableBookingHint](docs/TableBookingHint.md)
  - [TablePosition](docs/TablePosition.md)
+ - [TaxPolicyPublic](docs/TaxPolicyPublic.md)
  - [TeamPresence](docs/TeamPresence.md)
  - [TellerStats](docs/TellerStats.md)
  - [Till](docs/Till.md)

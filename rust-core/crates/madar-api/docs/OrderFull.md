@@ -25,6 +25,7 @@ Name | Type | Description | Notes
 **order_type** | **String** | Order origin: \"dine_in\" (POS sale) or \"delivery\" (finalized delivery order). Defaults to \"dine_in\" for every POS sale. | 
 **payment_legs** | [**Vec<models::PaymentLeg>**](PaymentLeg.md) | What was ACTUALLY tendered, one entry per `order_payments` row — the same rows every money report buckets by. A single-tender order has one leg; a split order has one per leg (e.g. card 285.00 + cash 255.00). Empty on the response to order creation, where the legs are written just after the row this statement returns; every read hydrates it. | 
 **payment_method** | **String** | The order's NOMINAL payment label. For a split order this is the literal `'mixed'` — a label that exists in no money report, because reports bucket by what was actually tendered. Use [`Order::payment_legs`] for the real methods; treat this as a display badge only. | 
+**service_charge_amount** | Option<**i32**> | The service charge on this bill; `0` where the branch charges none. Its own field, and its own receipt line: a charge the customer did not choose is stated separately from the tax rather than folded into it. | [optional]
 **shift_id** | **uuid::Uuid** |  | 
 **status** | **String** |  | 
 **subtotal** | **i32** |  | 

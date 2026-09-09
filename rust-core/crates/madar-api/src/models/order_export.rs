@@ -63,6 +63,9 @@ pub struct OrderExport {
     /// The order's NOMINAL payment label. For a split order this is the literal `'mixed'` — a label that exists in no money report, because reports bucket by what was actually tendered. Use [`Order::payment_legs`] for the real methods; treat this as a display badge only.
     #[serde(rename = "payment_method")]
     pub payment_method: String,
+    /// The service charge on this bill; `0` where the branch charges none. Its own field, and its own receipt line: a charge the customer did not choose is stated separately from the tax rather than folded into it.
+    #[serde(rename = "service_charge_amount", skip_serializing_if = "Option::is_none")]
+    pub service_charge_amount: Option<i32>,
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
     #[serde(rename = "status")]
@@ -124,6 +127,7 @@ impl OrderExport {
             order_type,
             payment_legs,
             payment_method,
+            service_charge_amount: None,
             shift_id,
             status,
             subtotal,

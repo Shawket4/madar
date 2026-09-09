@@ -804,6 +804,8 @@ pub mod table_booking_hint;
 pub use self::table_booking_hint::TableBookingHint;
 pub mod table_position;
 pub use self::table_position::TablePosition;
+pub mod tax_policy_public;
+pub use self::tax_policy_public::TaxPolicyPublic;
 pub mod team_presence;
 pub use self::team_presence::TeamPresence;
 pub mod teller_stats;

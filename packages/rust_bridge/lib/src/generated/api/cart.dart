@@ -233,6 +233,7 @@ class CartTotals {
   final PlatformInt64 subtotalMinor;
   final PlatformInt64 discountMinor;
   final PlatformInt64 taxMinor;
+  final PlatformInt64 serviceChargeMinor;
   final PlatformInt64 totalMinor;
 
   const CartTotals({
@@ -240,6 +241,7 @@ class CartTotals {
     required this.subtotalMinor,
     required this.discountMinor,
     required this.taxMinor,
+    required this.serviceChargeMinor,
     required this.totalMinor,
   });
 
@@ -249,6 +251,7 @@ class CartTotals {
       subtotalMinor.hashCode ^
       discountMinor.hashCode ^
       taxMinor.hashCode ^
+      serviceChargeMinor.hashCode ^
       totalMinor.hashCode;
 
   @override
@@ -260,6 +263,7 @@ class CartTotals {
           subtotalMinor == other.subtotalMinor &&
           discountMinor == other.discountMinor &&
           taxMinor == other.taxMinor &&
+          serviceChargeMinor == other.serviceChargeMinor &&
           totalMinor == other.totalMinor;
 }
 

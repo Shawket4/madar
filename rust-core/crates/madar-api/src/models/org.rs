@@ -41,11 +41,20 @@ pub struct Org {
     pub name: String,
     #[serde(rename = "receipt_footer", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub receipt_footer: Option<Option<String>>,
+    /// Fraction of the bill added as a service charge; `0` disables it.
+    #[serde(rename = "service_charge_rate")]
+    pub service_charge_rate: f64,
+    /// Whether the service charge is itself taxed.
+    #[serde(rename = "service_charge_taxable")]
+    pub service_charge_taxable: bool,
     #[serde(rename = "slug")]
     pub slug: String,
     /// Where else to find the shop, keyed by platform. See `orgs::social`.
     #[serde(rename = "social_links")]
     pub social_links: serde_json::Value,
+    /// `true` = menu prices already contain the tax, and the receipt breaks it out backwards rather than adding it on at the till.
+    #[serde(rename = "tax_inclusive")]
+    pub tax_inclusive: bool,
     /// Tax rate as a decimal (e.g. `0.14` for 14% VAT). Stored as `BigDecimal` internally; transmitted as a JSON number.
     #[serde(rename = "tax_rate")]
     pub tax_rate: f64,
@@ -55,7 +64,7 @@ pub struct Org {
 }
 
 impl Org {
-    pub fn new(currency_code: String, custom_branding: bool, id: uuid::Uuid, is_active: bool, name: String, slug: String, social_links: serde_json::Value, tax_rate: f64, timezone: String) -> Org {
+    pub fn new(currency_code: String, custom_branding: bool, id: uuid::Uuid, is_active: bool, name: String, service_charge_rate: f64, service_charge_taxable: bool, slug: String, social_links: serde_json::Value, tax_inclusive: bool, tax_rate: f64, timezone: String) -> Org {
         Org {
             brand_accent: None,
             brand_background: None,
@@ -69,8 +78,11 @@ impl Org {
             logo_url: None,
             name,
             receipt_footer: None,
+            service_charge_rate,
+            service_charge_taxable,
             slug,
             social_links,
+            tax_inclusive,
             tax_rate,
             timezone,
         }

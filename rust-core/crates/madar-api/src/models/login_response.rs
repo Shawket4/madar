@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 pub struct LoginResponse {
     #[serde(rename = "currency_code")]
     pub currency_code: String,
+    /// The full policy, including tax-inclusive pricing and service charge. Prefer this over the flat `tax_rate` above.
+    #[serde(rename = "tax_policy")]
+    pub tax_policy: Box<models::TaxPolicyPublic>,
     /// Org tax rate as a decimal (e.g. 0.14 = 14% VAT); 0.0 when no org. Mirrors /auth/me so the POS has it immediately after login.
     #[serde(rename = "tax_rate")]
     pub tax_rate: f64,
@@ -26,9 +29,10 @@ pub struct LoginResponse {
 }
 
 impl LoginResponse {
-    pub fn new(currency_code: String, tax_rate: f64, token: String, user: models::UserPublic) -> LoginResponse {
+    pub fn new(currency_code: String, tax_policy: models::TaxPolicyPublic, tax_rate: f64, token: String, user: models::UserPublic) -> LoginResponse {
         LoginResponse {
             currency_code,
+            tax_policy: Box::new(tax_policy),
             tax_rate,
             token,
             user: Box::new(user),

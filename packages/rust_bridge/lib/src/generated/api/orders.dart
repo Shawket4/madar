@@ -470,6 +470,7 @@ class ReceiptView {
   /// Discount applied before tax (0 when none).
   final PlatformInt64 discountMinor;
   final PlatformInt64 taxMinor;
+  final PlatformInt64 serviceChargeMinor;
 
   /// Delivery fee (0 for dine-in).
   final PlatformInt64 deliveryFeeMinor;
@@ -511,6 +512,7 @@ class ReceiptView {
     required this.subtotalMinor,
     required this.discountMinor,
     required this.taxMinor,
+    required this.serviceChargeMinor,
     required this.deliveryFeeMinor,
     required this.totalMinor,
     required this.tipMinor,
@@ -542,6 +544,7 @@ class ReceiptView {
       subtotalMinor.hashCode ^
       discountMinor.hashCode ^
       taxMinor.hashCode ^
+      serviceChargeMinor.hashCode ^
       deliveryFeeMinor.hashCode ^
       totalMinor.hashCode ^
       tipMinor.hashCode ^
@@ -575,6 +578,7 @@ class ReceiptView {
           subtotalMinor == other.subtotalMinor &&
           discountMinor == other.discountMinor &&
           taxMinor == other.taxMinor &&
+          serviceChargeMinor == other.serviceChargeMinor &&
           deliveryFeeMinor == other.deliveryFeeMinor &&
           totalMinor == other.totalMinor &&
           tipMinor == other.tipMinor &&

@@ -7005,14 +7005,15 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   CartTotals dco_decode_cart_totals(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return CartTotals(
       itemCount: dco_decode_i_64(arr[0]),
       subtotalMinor: dco_decode_i_64(arr[1]),
       discountMinor: dco_decode_i_64(arr[2]),
       taxMinor: dco_decode_i_64(arr[3]),
-      totalMinor: dco_decode_i_64(arr[4]),
+      serviceChargeMinor: dco_decode_i_64(arr[4]),
+      totalMinor: dco_decode_i_64(arr[5]),
     );
   }
 
@@ -8266,8 +8267,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ReceiptView dco_decode_receipt_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 27)
-      throw Exception('unexpected arr length: expect 27 but see ${arr.length}');
+    if (arr.length != 28)
+      throw Exception('unexpected arr length: expect 28 but see ${arr.length}');
     return ReceiptView(
       localOrderId: dco_decode_String(arr[0]),
       orderNumber: dco_decode_opt_box_autoadd_i_64(arr[1]),
@@ -8278,24 +8279,25 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       subtotalMinor: dco_decode_i_64(arr[6]),
       discountMinor: dco_decode_i_64(arr[7]),
       taxMinor: dco_decode_i_64(arr[8]),
-      deliveryFeeMinor: dco_decode_i_64(arr[9]),
-      totalMinor: dco_decode_i_64(arr[10]),
-      tipMinor: dco_decode_i_64(arr[11]),
-      amountTenderedMinor: dco_decode_i_64(arr[12]),
-      changeMinor: dco_decode_i_64(arr[13]),
-      isCash: dco_decode_bool(arr[14]),
-      customerName: dco_decode_opt_String(arr[15]),
-      tellerName: dco_decode_opt_String(arr[16]),
-      isDelivery: dco_decode_bool(arr[17]),
-      deliveryChannel: dco_decode_opt_String(arr[18]),
-      customerPhone: dco_decode_opt_String(arr[19]),
-      deliveryAddress: dco_decode_opt_String(arr[20]),
-      deliveryZone: dco_decode_opt_String(arr[21]),
-      deliveryRef: dco_decode_opt_String(arr[22]),
-      paymentHint: dco_decode_opt_String(arr[23]),
-      deliveryNotes: dco_decode_opt_String(arr[24]),
-      queuedOffline: dco_decode_bool(arr[25]),
-      createdAt: dco_decode_String(arr[26]),
+      serviceChargeMinor: dco_decode_i_64(arr[9]),
+      deliveryFeeMinor: dco_decode_i_64(arr[10]),
+      totalMinor: dco_decode_i_64(arr[11]),
+      tipMinor: dco_decode_i_64(arr[12]),
+      amountTenderedMinor: dco_decode_i_64(arr[13]),
+      changeMinor: dco_decode_i_64(arr[14]),
+      isCash: dco_decode_bool(arr[15]),
+      customerName: dco_decode_opt_String(arr[16]),
+      tellerName: dco_decode_opt_String(arr[17]),
+      isDelivery: dco_decode_bool(arr[18]),
+      deliveryChannel: dco_decode_opt_String(arr[19]),
+      customerPhone: dco_decode_opt_String(arr[20]),
+      deliveryAddress: dco_decode_opt_String(arr[21]),
+      deliveryZone: dco_decode_opt_String(arr[22]),
+      deliveryRef: dco_decode_opt_String(arr[23]),
+      paymentHint: dco_decode_opt_String(arr[24]),
+      deliveryNotes: dco_decode_opt_String(arr[25]),
+      queuedOffline: dco_decode_bool(arr[26]),
+      createdAt: dco_decode_String(arr[27]),
     );
   }
 
@@ -8333,8 +8335,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   SessionSnapshot dco_decode_session_snapshot(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return SessionSnapshot(
       userId: dco_decode_String(arr[0]),
       displayName: dco_decode_String(arr[1]),
@@ -8343,8 +8345,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       branchId: dco_decode_opt_String(arr[4]),
       currencyCode: dco_decode_String(arr[5]),
       taxRate: dco_decode_f_64(arr[6]),
-      online: dco_decode_bool(arr[7]),
-      permissionsLoaded: dco_decode_bool(arr[8]),
+      taxInclusive: dco_decode_bool(arr[7]),
+      serviceChargeRate: dco_decode_f_64(arr[8]),
+      serviceChargeTaxable: dco_decode_bool(arr[9]),
+      online: dco_decode_bool(arr[10]),
+      permissionsLoaded: dco_decode_bool(arr[11]),
     );
   }
 
@@ -9075,12 +9080,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_subtotalMinor = sse_decode_i_64(deserializer);
     var var_discountMinor = sse_decode_i_64(deserializer);
     var var_taxMinor = sse_decode_i_64(deserializer);
+    var var_serviceChargeMinor = sse_decode_i_64(deserializer);
     var var_totalMinor = sse_decode_i_64(deserializer);
     return CartTotals(
       itemCount: var_itemCount,
       subtotalMinor: var_subtotalMinor,
       discountMinor: var_discountMinor,
       taxMinor: var_taxMinor,
+      serviceChargeMinor: var_serviceChargeMinor,
       totalMinor: var_totalMinor,
     );
   }
@@ -10968,6 +10975,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_subtotalMinor = sse_decode_i_64(deserializer);
     var var_discountMinor = sse_decode_i_64(deserializer);
     var var_taxMinor = sse_decode_i_64(deserializer);
+    var var_serviceChargeMinor = sse_decode_i_64(deserializer);
     var var_deliveryFeeMinor = sse_decode_i_64(deserializer);
     var var_totalMinor = sse_decode_i_64(deserializer);
     var var_tipMinor = sse_decode_i_64(deserializer);
@@ -10996,6 +11004,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       subtotalMinor: var_subtotalMinor,
       discountMinor: var_discountMinor,
       taxMinor: var_taxMinor,
+      serviceChargeMinor: var_serviceChargeMinor,
       deliveryFeeMinor: var_deliveryFeeMinor,
       totalMinor: var_totalMinor,
       tipMinor: var_tipMinor,
@@ -11061,6 +11070,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_branchId = sse_decode_opt_String(deserializer);
     var var_currencyCode = sse_decode_String(deserializer);
     var var_taxRate = sse_decode_f_64(deserializer);
+    var var_taxInclusive = sse_decode_bool(deserializer);
+    var var_serviceChargeRate = sse_decode_f_64(deserializer);
+    var var_serviceChargeTaxable = sse_decode_bool(deserializer);
     var var_online = sse_decode_bool(deserializer);
     var var_permissionsLoaded = sse_decode_bool(deserializer);
     return SessionSnapshot(
@@ -11071,6 +11083,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       branchId: var_branchId,
       currencyCode: var_currencyCode,
       taxRate: var_taxRate,
+      taxInclusive: var_taxInclusive,
+      serviceChargeRate: var_serviceChargeRate,
+      serviceChargeTaxable: var_serviceChargeTaxable,
       online: var_online,
       permissionsLoaded: var_permissionsLoaded,
     );
@@ -11821,6 +11836,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_64(self.subtotalMinor, serializer);
     sse_encode_i_64(self.discountMinor, serializer);
     sse_encode_i_64(self.taxMinor, serializer);
+    sse_encode_i_64(self.serviceChargeMinor, serializer);
     sse_encode_i_64(self.totalMinor, serializer);
   }
 
@@ -13296,6 +13312,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_64(self.subtotalMinor, serializer);
     sse_encode_i_64(self.discountMinor, serializer);
     sse_encode_i_64(self.taxMinor, serializer);
+    sse_encode_i_64(self.serviceChargeMinor, serializer);
     sse_encode_i_64(self.deliveryFeeMinor, serializer);
     sse_encode_i_64(self.totalMinor, serializer);
     sse_encode_i_64(self.tipMinor, serializer);
@@ -13355,6 +13372,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.branchId, serializer);
     sse_encode_String(self.currencyCode, serializer);
     sse_encode_f_64(self.taxRate, serializer);
+    sse_encode_bool(self.taxInclusive, serializer);
+    sse_encode_f_64(self.serviceChargeRate, serializer);
+    sse_encode_bool(self.serviceChargeTaxable, serializer);
     sse_encode_bool(self.online, serializer);
     sse_encode_bool(self.permissionsLoaded, serializer);
   }
