@@ -319,6 +319,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
       subtotalMinor: 0,
       discountMinor: 0,
       taxMinor: 0,
+      serviceChargeMinor: 0,
       deliveryFeeMinor: 0,
       totalMinor: 0,
       tipMinor: 0,

@@ -16,6 +16,7 @@ const CartTotals _emptyTotals = CartTotals(
   subtotalMinor: 0,
   discountMinor: 0,
   taxMinor: 0,
+  serviceChargeMinor: 0,
   totalMinor: 0,
 );
 
