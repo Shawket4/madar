@@ -175,6 +175,7 @@ Class | Method | HTTP request | Description
 *LoyaltyPublicApi* | [**loyalty_card_qr**](docs/LoyaltyPublicApi.md#loyalty_card_qr) | **GET** /public/loyalty/card/{token}/qr.png | The member's QR as a PNG.
 *LoyaltyPublicApi* | [**loyalty_join**](docs/LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | 
 *LoyaltyPublicApi* | [**loyalty_join_info**](docs/LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | 
+*LoyaltyPublicApi* | [**set_loyalty_card_preferences**](docs/LoyaltyPublicApi.md#set_loyalty_card_preferences) | **POST** /public/loyalty/card/{token}/preferences | 
 *MenuApi* | [**catalog_sync**](docs/MenuApi.md#catalog_sync) | **GET** /catalog/sync | 
 *MenuApi* | [**create_addon_item**](docs/MenuApi.md#create_addon_item) | **POST** /addon-items | 
 *MenuApi* | [**create_addon_slot**](docs/MenuApi.md#create_addon_slot) | **POST** /menu-items/{id}/addon-slots | 
@@ -501,6 +502,7 @@ Class | Method | HTTP request | Description
  - [CancelBookingRequest](docs/CancelBookingRequest.md)
  - [CancelInput](docs/CancelInput.md)
  - [CardBrand](docs/CardBrand.md)
+ - [CardPreferences](docs/CardPreferences.md)
  - [CardView](docs/CardView.md)
  - [CartLineInput](docs/CartLineInput.md)
  - [CashMovement](docs/CashMovement.md)

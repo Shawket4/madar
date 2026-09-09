@@ -9,6 +9,7 @@ Method | HTTP request | Description
 [**loyalty_card_qr**](LoyaltyPublicApi.md#loyalty_card_qr) | **GET** /public/loyalty/card/{token}/qr.png | The member's QR as a PNG.
 [**loyalty_join**](LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | 
 [**loyalty_join_info**](LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | 
+[**set_loyalty_card_preferences**](LoyaltyPublicApi.md#set_loyalty_card_preferences) | **POST** /public/loyalty/card/{token}/preferences | 
 
 
 
@@ -152,6 +153,35 @@ No authorization required
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## set_loyalty_card_preferences
+
+> set_loyalty_card_preferences(token, card_preferences)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**token** | **String** | Member token from the pass barcode | [required] |
+**card_preferences** | [**CardPreferences**](CardPreferences.md) |  | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

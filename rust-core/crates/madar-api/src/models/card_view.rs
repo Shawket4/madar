@@ -22,6 +22,9 @@ pub struct CardView {
     pub brand: Box<models::CardBrand>,
     #[serde(rename = "can_redeem")]
     pub can_redeem: bool,
+    /// They have asked this shop to stop sending them things.
+    #[serde(rename = "marketing_opt_out")]
+    pub marketing_opt_out: bool,
     #[serde(rename = "member_token")]
     pub member_token: String,
     #[serde(rename = "mode")]
@@ -46,11 +49,12 @@ pub struct CardView {
 
 impl CardView {
     /// The member's own card page — what they see when they open the link again.  The token in the path is the member's secret, which is why this returns only what the pass already shows and never the phone number in full.
-    pub fn new(balance: i32, brand: models::CardBrand, can_redeem: bool, member_token: String, mode: String, name: String, next_reward_cost: i32, passes: models::PassLinks, points_to_next_reward: i32, progress_to_next: i32, rewards: Vec<models::PublicReward>, rewards_ready: i32) -> CardView {
+    pub fn new(balance: i32, brand: models::CardBrand, can_redeem: bool, marketing_opt_out: bool, member_token: String, mode: String, name: String, next_reward_cost: i32, passes: models::PassLinks, points_to_next_reward: i32, progress_to_next: i32, rewards: Vec<models::PublicReward>, rewards_ready: i32) -> CardView {
         CardView {
             balance,
             brand: Box::new(brand),
             can_redeem,
+            marketing_opt_out,
             member_token,
             mode,
             name,

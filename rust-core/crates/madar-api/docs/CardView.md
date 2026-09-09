@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **balance** | **i32** | The live balance, in `mode`'s currency. | 
 **brand** | [**models::CardBrand**](CardBrand.md) | Whose card this is, and how it should look. | 
 **can_redeem** | **bool** |  | 
+**marketing_opt_out** | **bool** | They have asked this shop to stop sending them things. | 
 **member_token** | **String** |  | 
 **mode** | **String** |  | 
 **name** | **String** |  | 

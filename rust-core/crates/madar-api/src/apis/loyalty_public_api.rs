@@ -50,6 +50,14 @@ pub struct LoyaltyJoinInfoParams {
     pub org_id: Option<String>
 }
 
+/// struct for passing parameters to the method [`set_loyalty_card_preferences`]
+#[derive(Clone, Debug)]
+pub struct SetLoyaltyCardPreferencesParams {
+    /// Member token from the pass barcode
+    pub token: String,
+    pub card_preferences: models::CardPreferences
+}
+
 
 /// struct for typed errors of method [`loyalty_apple_pass`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +115,19 @@ pub enum LoyaltyJoinError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LoyaltyJoinInfoError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`set_loyalty_card_preferences`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SetLoyaltyCardPreferencesError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -270,6 +291,30 @@ pub async fn loyalty_join_info(configuration: &configuration::Configuration, par
     } else {
         let content = resp.text().await?;
         let entity: Option<LoyaltyJoinInfoError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent { status, content, entity }))
+    }
+}
+
+pub async fn set_loyalty_card_preferences(configuration: &configuration::Configuration, params: SetLoyaltyCardPreferencesParams) -> Result<(), Error<SetLoyaltyCardPreferencesError>> {
+
+    let uri_str = format!("{}/public/loyalty/card/{token}/preferences", configuration.base_path, token=crate::apis::urlencode(params.token));
+    let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.json(&params.card_preferences);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<SetLoyaltyCardPreferencesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }

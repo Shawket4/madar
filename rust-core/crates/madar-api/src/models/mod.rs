@@ -120,6 +120,8 @@ pub mod cancel_input;
 pub use self::cancel_input::CancelInput;
 pub mod card_brand;
 pub use self::card_brand::CardBrand;
+pub mod card_preferences;
+pub use self::card_preferences::CardPreferences;
 pub mod card_view;
 pub use self::card_view::CardView;
 pub mod cart_line_input;

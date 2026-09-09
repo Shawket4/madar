@@ -70,6 +70,7 @@ docs/BundlesApi.md
 docs/CancelBookingRequest.md
 docs/CancelInput.md
 docs/CardBrand.md
+docs/CardPreferences.md
 docs/CardView.md
 docs/CartLineInput.md
 docs/CashMovement.md
@@ -609,6 +610,7 @@ src/models/bundle_with_components.rs
 src/models/cancel_booking_request.rs
 src/models/cancel_input.rs
 src/models/card_brand.rs
+src/models/card_preferences.rs
 src/models/card_view.rs
 src/models/cart_line_input.rs
 src/models/cash_movement.rs

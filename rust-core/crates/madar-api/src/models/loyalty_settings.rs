@@ -61,6 +61,15 @@ pub struct LoyaltySettings {
     pub terms: Option<Option<String>>,
     #[serde(rename = "terms_ar", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub terms_ar: Option<Option<String>>,
+    /// Nudge a member who has not been in for a while. Off by default, like everything here that speaks to a customer unprompted.  The timing is not a per-shop setting: how long \"a while\" is, whether it repeats, and how stale is too stale are one operational judgement across the estate, and they live in the environment (`LOYALTY_WINBACK_*`) rather than in a form where a shop could set it to a day and burn its own list down.
+    #[serde(rename = "winback_enabled", skip_serializing_if = "Option::is_none")]
+    pub winback_enabled: Option<bool>,
+    /// ONE override, in whichever language the shop writes it, replacing the built-in English and Arabic both. `{name}` is substituted; nothing else.  Unset is the better default: the built-ins are written in each language rather than translated into one, so a customer reads a sentence that was composed for them.
+    #[serde(rename = "winback_message", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub winback_message: Option<Option<String>>,
+    /// Points or stamps to arrive with the nudge. `None` is words only.
+    #[serde(rename = "winback_reward_amount", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub winback_reward_amount: Option<Option<i32>>,
 }
 
 impl LoyaltySettings {
@@ -84,6 +93,9 @@ impl LoyaltySettings {
             reward_any_item: None,
             terms: None,
             terms_ar: None,
+            winback_enabled: None,
+            winback_message: None,
+            winback_reward_amount: None,
         }
     }
 }
