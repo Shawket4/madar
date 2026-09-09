@@ -23,19 +23,15 @@ pub struct PassLinks {
     /// `https://pay.google.com/gp/v/save/<jwt>`.
     #[serde(rename = "google_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub google_url: Option<Option<String>>,
-    /// This pass carries at least one branch location, so the phone CAN surface it near a shop — if the customer has let their wallet app do that.  The permission belongs to the wallet app and no web page can grant it, so the card page can only explain where it lives. Explaining it to someone whose shop has no coordinates on any branch would be worse than saying nothing: the steps would work and the card still would not appear. Hence a flag rather than an assumption.
-    #[serde(rename = "nearby")]
-    pub nearby: bool,
 }
 
 impl PassLinks {
     /// What signup hands the customer. Either side may be absent: a tenant with only Google credentials configured shows one button, not a broken one.
-    pub fn new(any: bool, nearby: bool) -> PassLinks {
+    pub fn new(any: bool) -> PassLinks {
         PassLinks {
             any,
             apple_url: None,
             google_url: None,
-            nearby,
         }
     }
 }
