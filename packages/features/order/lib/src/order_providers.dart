@@ -938,6 +938,35 @@ class OrderNotifier extends Notifier<OrderState> {
   /// A booked party arrived at their table: mark the booking seated
   /// (optimistic + queued) and point the LIVE order at that table under the
   /// guest's name, so the fire that follows links back to the booking.
+  /// Seat a party on a free table: open a tab, take the table, order nothing.
+  ///
+  /// The floor's primary gesture. This used to be `setCartTable`, which wrote
+  /// nothing but local UI state — so the table stayed free on the canvas and on
+  /// every other device until somebody fired a round, and two tellers could
+  /// seat the same table without either seeing the other.
+  ///
+  /// The cart is bound too, so the very next thing a teller does — adding items
+  /// — lands on this ticket rather than nowhere.
+  Future<void> seatTable(FloorTableStateView t, {int? guests}) async {
+    try {
+      await _bridge.seatTable(tableId: t.id, guestCount: guests);
+    } on MadarError catch (e) {
+      // A taken table comes back as a conflict, and the message names it. The
+      // canvas is reloaded so the teller sees who has it rather than being told
+      // "no" about a table that still looks free.
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+      await loadFloor();
+      return;
+    }
+    state = state.copyWith(cartTableId: t.id, cartTableLabel: t.label);
+    await loadFloor();
+    _refreshShell();
+  }
+
   Future<void> seatBooking(FloorTableStateView t) async {
     final id = t.bookingId;
     if (id == null) return;

@@ -3,22 +3,19 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
+import 'host_library.dart';
+
 /// Host-side bridge regression gate: loads the cargo-built dylib directly
 /// (no emulator, no Cargokit) and exercises every bridge mechanism that can
 /// run without a backend. Build the dylib first (release only — debug target dirs are huge):
 ///   cargo build -p madar_frb --release --manifest-path rust-core/Cargo.toml
 void main() {
   // Release only: debug rust builds are ~8 GB of target dir on this machine.
-  final dylib = File(
-    '${Directory.current.path}/../../rust-core/target/release/libmadar_frb.dylib',
-  );
+  final dylib = hostLibrary();
 
   if (!dylib.existsSync()) {
     test('bridge smoke (SKIPPED — dylib not built)', () {
-      markTestSkipped(
-        'Run: cargo build -p madar_frb --release '
-        '(--manifest-path rust-core/Cargo.toml)',
-      );
+      markTestSkipped(buildItFirst());
     });
     return;
   }

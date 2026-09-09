@@ -114,9 +114,7 @@ impl SessionSnapshot {
     /// tax-inclusive pricing on the floor.
     pub(crate) fn tax_policy(&self) -> crate::tax::TaxPolicy {
         use std::str::FromStr;
-        let rate = |r: f64| {
-            rust_decimal::Decimal::from_str(&r.to_string()).unwrap_or_default()
-        };
+        let rate = |r: f64| rust_decimal::Decimal::from_str(&r.to_string()).unwrap_or_default();
         crate::tax::TaxPolicy {
             tax_rate: rate(self.tax_rate),
             tax_inclusive: self.tax_inclusive,

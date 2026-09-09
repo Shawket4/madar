@@ -34,7 +34,10 @@ impl MadarBridge {
     /// Pull today's active bookings into the offline cache (best-effort; a
     /// `refresh_floor` does this too).
     pub async fn refresh_arrivals(&self) -> Result<(), MadarError> {
-        self.inner.refresh_arrivals().await.map_err(MadarError::from)
+        self.inner
+            .refresh_arrivals()
+            .await
+            .map_err(MadarError::from)
     }
 
     /// Today's active bookings from the cache, earliest first.
@@ -45,7 +48,11 @@ impl MadarBridge {
     /// The party arrived: mark the booking seated (optionally on another
     /// table). Optimistic-local + queued. Fire their ticket with `booking_id`
     /// to link it.
-    pub fn seat_booking(&self, booking_id: String, table_id: Option<String>) -> Result<(), MadarError> {
+    pub fn seat_booking(
+        &self,
+        booking_id: String,
+        table_id: Option<String>,
+    ) -> Result<(), MadarError> {
         self.inner
             .seat_booking(booking_id, table_id)
             .map_err(MadarError::from)
@@ -53,6 +60,8 @@ impl MadarBridge {
 
     /// The party never came: release the table. Optimistic-local + queued.
     pub fn no_show_booking(&self, booking_id: String) -> Result<(), MadarError> {
-        self.inner.no_show_booking(booking_id).map_err(MadarError::from)
+        self.inner
+            .no_show_booking(booking_id)
+            .map_err(MadarError::from)
     }
 }

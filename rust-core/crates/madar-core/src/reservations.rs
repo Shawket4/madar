@@ -72,7 +72,6 @@ impl From<models::FloorTable> for FloorTableView {
     }
 }
 
-
 /// Parse a host-supplied UUID string, surfacing a clean `Validation` error
 /// rather than letting a malformed id reach the wire.
 pub(crate) fn parse_uuid(field: &str, s: &str) -> Result<uuid::Uuid, CoreError> {
@@ -81,7 +80,6 @@ pub(crate) fn parse_uuid(field: &str, s: &str) -> Result<uuid::Uuid, CoreError> 
         detail: format!("invalid id '{s}'"),
     })
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -92,7 +90,6 @@ mod tests {
         assert!(parse_uuid("table_id", "not-a-uuid").is_err());
         assert!(parse_uuid("table_id", "11111111-1111-1111-1111-111111111111").is_ok());
     }
-
 
     #[test]
     fn table_view_flattens_optional_section() {

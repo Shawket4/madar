@@ -636,6 +636,19 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// to link it.
   Future<void> seatBooking({required String bookingId, String? tableId});
 
+  /// SEAT a party: open a tab on a table without ordering anything.
+  ///
+  /// The floor's primary gesture. Takes the table immediately on this device
+  /// and on every other one once it drains, raises no kitchen ticket, and
+  /// leaves the cart alone. A table somebody else already has comes back as a
+  /// conflict rather than being silently dropped.
+  Future<TicketFiredView> seatTable({
+    required String tableId,
+    String? customerName,
+    int? guestCount,
+    String? bookingId,
+  });
+
   /// Best-effort raw-TCP send of pre-rendered ESC/POS bytes to a network
   /// (JetDirect / port 9100) thermal printer.
   Future<void> sendToPrinter({

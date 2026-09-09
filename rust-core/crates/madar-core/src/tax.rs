@@ -185,11 +185,18 @@ mod tests {
     use rust_decimal_macros::dec;
 
     fn exclusive(rate: Decimal) -> TaxPolicy {
-        TaxPolicy { tax_rate: rate, ..TaxPolicy::default() }
+        TaxPolicy {
+            tax_rate: rate,
+            ..TaxPolicy::default()
+        }
     }
 
     fn inclusive(rate: Decimal) -> TaxPolicy {
-        TaxPolicy { tax_rate: rate, tax_inclusive: true, ..TaxPolicy::default() }
+        TaxPolicy {
+            tax_rate: rate,
+            tax_inclusive: true,
+            ..TaxPolicy::default()
+        }
     }
 
     #[test]
@@ -283,10 +290,26 @@ mod tests {
     fn a_percentage_masquerading_as_a_fraction_is_not_sane() {
         // `14` instead of `0.14` is the bug this whole module exists because
         // of. It must never reach `compute`.
-        assert!(!TaxPolicy { tax_rate: dec!(14), ..TaxPolicy::default() }.is_sane());
-        assert!(!TaxPolicy { service_charge_rate: dec!(12), ..TaxPolicy::default() }.is_sane());
-        assert!(TaxPolicy { tax_rate: dec!(0.14), ..TaxPolicy::default() }.is_sane());
-        assert!(TaxPolicy { tax_rate: Decimal::ONE, ..TaxPolicy::default() }.is_sane());
+        assert!(!TaxPolicy {
+            tax_rate: dec!(14),
+            ..TaxPolicy::default()
+        }
+        .is_sane());
+        assert!(!TaxPolicy {
+            service_charge_rate: dec!(12),
+            ..TaxPolicy::default()
+        }
+        .is_sane());
+        assert!(TaxPolicy {
+            tax_rate: dec!(0.14),
+            ..TaxPolicy::default()
+        }
+        .is_sane());
+        assert!(TaxPolicy {
+            tax_rate: Decimal::ONE,
+            ..TaxPolicy::default()
+        }
+        .is_sane());
     }
 
     #[test]

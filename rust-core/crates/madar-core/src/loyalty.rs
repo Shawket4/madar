@@ -419,7 +419,10 @@ mod tests {
         assert_eq!(classify_scan_input("https://example.com").kind, "partial");
         assert_eq!(classify_scan_input("   ").kind, "partial");
         // Right length, wrong sentinel — another vendor's barcode.
-        assert_eq!(classify_scan_input("Xabcdefghijklmnopqrstuv").kind, "partial");
+        assert_eq!(
+            classify_scan_input("Xabcdefghijklmnopqrstuv").kind,
+            "partial"
+        );
     }
 
     fn member(name: &str, balance: i32, target: i32) -> madar_api::models::MemberView {
@@ -516,7 +519,10 @@ mod tests {
 
     #[test]
     fn an_unreadable_timestamp_hides_the_button() {
-        assert!(!award_window_open("not a date", "2026-09-07T10:00:00+00:00"));
+        assert!(!award_window_open(
+            "not a date",
+            "2026-09-07T10:00:00+00:00"
+        ));
         assert!(!award_window_open("2026-09-07T10:00:00+00:00", "nonsense"));
     }
 

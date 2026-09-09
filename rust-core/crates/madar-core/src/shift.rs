@@ -952,7 +952,7 @@ mod tests {
         let v = cached_report_view(&report, 3000, queued);
 
         assert_eq!(v.expected_cash_minor, 63000); // 60000 + 3000 queued cash sales
-        // The drained movement is listed once, alongside the two queued ones.
+                                                  // The drained movement is listed once, alongside the two queued ones.
         assert_eq!(v.cash_movements.len(), 3);
         assert_eq!(v.cash_in_minor, 3500); // 2000 drained + 1500 queued
         assert_eq!(v.cash_out_minor, 500);

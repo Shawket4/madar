@@ -122,6 +122,9 @@ mod tests {
         set_status_local(&store, "2", "no_show").unwrap();
         let list = load_arrivals(&store).unwrap();
         assert_eq!(list.len(), 1);
-        assert_eq!((list[0].id.as_str(), list[0].status.as_str()), ("1", "seated"));
+        assert_eq!(
+            (list[0].id.as_str(), list[0].status.as_str()),
+            ("1", "seated")
+        );
     }
 }

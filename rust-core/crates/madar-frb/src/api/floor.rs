@@ -40,15 +40,7 @@ pub struct _FloorTableView {
     pub rotation: f64,
 }
 
-
 impl MadarBridge {
-
-
-
-
-
-
-
     // ── The floor: offline canvas, occupancy, transfer waitlist ──────────
     //
     // Everything here reads and writes the kv mirrors and the outbox, so it

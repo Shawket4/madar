@@ -6,6 +6,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
+import 'host_library.dart';
+
 /// End-to-end flow test against a LOCAL QA backend + seeded demo org —
 /// exercises the same bridge calls the screens make (bind → PIN login →
 /// catalog sync → configured cart add). Skipped unless MADAR_QA_API is set:
@@ -23,9 +25,7 @@ void main() {
     return;
   }
 
-  final dylib = File(
-    '${Directory.current.path}/../../rust-core/target/release/libmadar_frb.dylib',
-  );
+  final dylib = hostLibrary();
 
   late MadarCore core;
   late Directory tmp;

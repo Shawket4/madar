@@ -1152,7 +1152,10 @@ mod tests {
         assert_eq!(got.len(), 1, "B heard the cloud event exactly once");
         assert_eq!(got[0].msg_id, "cloud:b1:42");
         assert_eq!(got[0].event_type, "booking.created");
-        assert!(got[0].replay_op.is_none(), "display-only: the write lives in the cloud");
+        assert!(
+            got[0].replay_op.is_none(),
+            "display-only: the write lives in the cloud"
+        );
     }
 
     #[tokio::test]

@@ -226,7 +226,11 @@ mod tests {
             Some(tid),
         );
         assert_eq!(r.branch_id, bid);
-        assert_eq!(r.booking_id, Some(Some(tid)), "booking id rides on the fire");
+        assert_eq!(
+            r.booking_id,
+            Some(Some(tid)),
+            "booking id rides on the fire"
+        );
         assert_eq!(r.idempotency_key, Some(Some(tid)));
         assert_eq!(r.round_idempotency_key, Some(Some(rid)));
         assert_eq!(r.customer_name, None, "blank customer name dropped");

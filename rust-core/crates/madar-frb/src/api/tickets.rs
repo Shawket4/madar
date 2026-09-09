@@ -78,6 +78,25 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
+    /// SEAT a party: open a tab on a table without ordering anything.
+    ///
+    /// The floor's primary gesture. Takes the table immediately on this device
+    /// and on every other one once it drains, raises no kitchen ticket, and
+    /// leaves the cart alone. A table somebody else already has comes back as a
+    /// conflict rather than being silently dropped.
+    pub async fn seat_table(
+        &self,
+        table_id: String,
+        customer_name: Option<String>,
+        guest_count: Option<i32>,
+        booking_id: Option<String>,
+    ) -> Result<TicketFiredView, MadarError> {
+        self.inner
+            .seat_table(table_id, customer_name, guest_count, booking_id)
+            .await
+            .map_err(MadarError::from)
+    }
+
     /// Add a ROUND of the current cart to an existing open ticket. Same offline-first
     /// path as `fire_ticket`; gated behind the original fire if it hasn't synced.
     pub async fn add_ticket_round(&self, ticket_id: String) -> Result<TicketFiredView, MadarError> {

@@ -126,7 +126,10 @@ fn alert_for(event_type: &str, data: &str, locale: &str, tz: &str) -> Option<Ale
         // "Ahmed · 4 · 19:30 · T12" — who, how many, when (branch zone), where.
         let id = pick(&["id"]).unwrap_or_default();
         let guest = pick(&["guest_name"]);
-        let party = v.get("party_size").and_then(|x| x.as_i64()).map(|n| n.to_string());
+        let party = v
+            .get("party_size")
+            .and_then(|x| x.as_i64())
+            .map(|n| n.to_string());
         let when = pick(&["starts_at"]).and_then(|s| local_hhmm(&s, tz));
         let tables = v
             .get("table_labels")
@@ -432,7 +435,13 @@ async fn run_supervisor(
             Ok(resp) => {
                 attempt = 0;
                 listener.on_connection_changed(true);
-                drain_stream(resp, listener.as_ref(), relay.as_deref(), &mut last_event_id).await;
+                drain_stream(
+                    resp,
+                    listener.as_ref(),
+                    relay.as_deref(),
+                    &mut last_event_id,
+                )
+                .await;
                 listener.on_connection_changed(false);
             }
             // The token is gone — stop. Do NOT touch the outbox's `auth_paused`;
@@ -778,7 +787,13 @@ mod tests {
         .unwrap();
         assert_eq!(a.tag, "booking.created:b1");
         assert_eq!(a.body, "Ahmed · 4 · 19:30 · T12");
-        assert!(alert_for("booking.arriving", r#"{"id":"b1","guest_name":"A"}"#, "ar", "Africa/Cairo").is_some());
+        assert!(alert_for(
+            "booking.arriving",
+            r#"{"id":"b1","guest_name":"A"}"#,
+            "ar",
+            "Africa/Cairo"
+        )
+        .is_some());
         // A plain change (edit / cancel / seated) refreshes the board silently.
         assert!(alert_for("booking.changed", r#"{"id":"b1"}"#, "en", "Africa/Cairo").is_none());
         // Waiters hear bookings; the kitchen never does.
@@ -805,9 +820,14 @@ mod tests {
         assert_eq!(topics_for_role("kitchen"), ["kitchen"]);
         // Anyone who works the floor also gets `floor` (table state, held
         // orders, and dashboard layout edits), so canvases never go stale.
-        assert_eq!(topics_for_role("waiter"), ["tickets", "kitchen", "floor", "bookings"]);
+        assert_eq!(
+            topics_for_role("waiter"),
+            ["tickets", "kitchen", "floor", "bookings"]
+        );
         // teller / unknown → the full operating set.
-        for topic in ["delivery", "kitchen", "tickets", "orders", "floor", "bookings"] {
+        for topic in [
+            "delivery", "kitchen", "tickets", "orders", "floor", "bookings",
+        ] {
             assert!(
                 topics_for_role("teller").contains(&topic.to_string()),
                 "teller must subscribe to {topic}"
@@ -827,10 +847,22 @@ mod tests {
         .unwrap();
         assert_eq!(a.tag, "delivery.created:o1");
         assert!(a.body.contains("D-9") && a.body.contains("Sam"));
-        assert!(alert_for("ticket.fired", r#"{"id":"t1","ticket_ref":"T-3"}"#, "en", "Africa/Cairo").is_some());
+        assert!(alert_for(
+            "ticket.fired",
+            r#"{"id":"t1","ticket_ref":"T-3"}"#,
+            "en",
+            "Africa/Cairo"
+        )
+        .is_some());
         assert!(alert_for("kitchen.fired", r#"{"id":"k1"}"#, "en", "Africa/Cairo").is_some());
         // Silent events → None.
-        assert!(alert_for("kitchen.item_bumped", r#"{"id":"k1"}"#, "en", "Africa/Cairo").is_none());
+        assert!(alert_for(
+            "kitchen.item_bumped",
+            r#"{"id":"k1"}"#,
+            "en",
+            "Africa/Cairo"
+        )
+        .is_none());
         assert!(alert_for("ticket.settled", r#"{"id":"t1"}"#, "en", "Africa/Cairo").is_none());
         assert!(alert_for("delivery.updated", r#"{"id":"o1"}"#, "en", "Africa/Cairo").is_none());
     }

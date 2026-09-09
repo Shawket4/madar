@@ -186,8 +186,7 @@ class _TablePickerBodyState extends State<_TablePickerBody> {
                 // A table is pickable when nothing sits on it — or it's the
                 // order's OWN current table ("keep it" stays obvious).
                 enabledOf: (t) =>
-                    t.heldOrderId == null &&
-                    (t.status != 'seated' || t.id == widget.currentTableId),
+                    t.status != 'seated' || t.id == widget.currentTableId,
                 selectedId: widget.currentTableId,
                 onTap: (t) {
                   MadarHaptics.selection();
@@ -280,8 +279,7 @@ bool tableHasBooking(FloorTableStateView t) =>
 /// True when a table is paid-and-vacated but not yet bussed. A checkout no
 /// longer hands the table straight back to the room — only a human does — so
 /// this state is real, common, and must never read as available.
-bool tableNeedsClearing(FloorTableStateView t) =>
-    t.status == 'dirty' && t.heldOrderId == null;
+bool tableNeedsClearing(FloorTableStateView t) => t.status == 'dirty';
 
 /// Status → tone. Four states, four tones: taken (accent), held for a party
 /// (warning), needs clearing (danger — it is the one state that owes the room
@@ -291,10 +289,7 @@ Color tableTone(
   FloorTableStateView t, {
   bool occupied = false,
 }) {
-  if (occupied ||
-      t.heldOrderId != null ||
-      t.status == 'seated' ||
-      tableBookingSeated(t)) {
+  if (occupied || t.status == 'seated' || tableBookingSeated(t)) {
     return colors.accent;
   }
   if (tableNeedsClearing(t)) return colors.danger;
@@ -661,14 +656,13 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     // sit outside every section (QR-era rows carry no section, and a deleted
     // section leaves its tables orphaned). Without this they'd be filtered
     // out of every tab and the room would look empty.
-    final seatedCount = allTables
-        .where((t) => t.heldOrderId != null || t.status == 'seated')
-        .length;
-    // Kept for a booked party (or a teller's hold): counted once, shown amber.
+    final seatedCount = allTables.where((t) => t.status == 'seated').length;
+    // Kept for a booked party. `held` was also a teller's own short-lived hold
+    // on a table; nothing writes it any more, so a reservation is the only way
+    // a table is kept for someone.
     final heldCount = allTables
         .where(
           (t) =>
-              t.heldOrderId == null &&
               t.status != 'seated' &&
               !tableBookingSeated(t) &&
               (t.status == 'held' || tableIsReserved(t)),
@@ -927,42 +921,82 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       // other three had empty bodies — status is derived and sections are
       // dashboard-authored, so they could never have done anything. Both
       // gestures now open the sheet for what that table actually is.
+      // Tap does the thing you came to do; long-press is everything else.
+      //
+      // Both used to open the same sheet, so the commonest act in the room —
+      // seating a party — cost a tap, a modal, and a second tap, and
+      // long-press did nothing it did not already do.
       onTap: (t) =>
-          unawaited(_onTableTap(t, ticketOn(t.id), isWaiter: isWaiter)),
+          unawaited(_onTablePrimary(t, ticketOn(t.id), isWaiter: isWaiter)),
       onLongPress: (t) =>
-          unawaited(_onTableTap(t, ticketOn(t.id), isWaiter: isWaiter)),
+          unawaited(_onTableMenu(t, ticketOn(t.id), isWaiter: isWaiter)),
     );
   }
 
   // ── actions ────────────────────────────────────────────────────────────────
 
-  Future<void> _onTableTap(
+  /// Finish a pending move, or say there is none. Shared by both gestures so a
+  /// half-finished move cannot be left hanging by long-pressing out of it.
+  bool _completedMove(FloorTableStateView t) {
+    final from = _swapFrom;
+    if (from == null) return false;
+    setState(() => _swapFrom = null);
+    if (from != t.id) unawaited(_notifier.swapTables(from, t.id));
+    return true;
+  }
+
+  /// ONE act per state, on a single tap. No sheet, no choosing.
+  ///
+  /// The order below is the order a table's states actually exclude each other:
+  /// a live ticket beats a booking (the party is already sitting there), and a
+  /// table waiting to be bussed beats a free one.
+  Future<void> _onTablePrimary(
     FloorTableStateView t,
     TicketView? ticket, {
     required bool isWaiter,
   }) async {
-    // Swap mode: the second tap completes the move/exchange.
-    final from = _swapFrom;
-    if (from != null) {
-      setState(() => _swapFrom = null);
-      if (from != t.id) await _notifier.swapTables(from, t.id);
+    if (_completedMove(t)) return;
+
+    // Seated: add a round to what is already open.
+    if (ticket != null) {
+      _notifier.selectTicket(ticket.id);
+      if (mounted) await Navigator.of(context).maybePop();
       return;
     }
-    if (t.heldOrderId != null) {
-      await _heldTableSheet(t);
+    // Paid, plates still there. Clearing is the only honest act — a new party
+    // cannot be seated on a table nobody has bussed.
+    if (tableNeedsClearing(t)) {
+      await _notifier.clearTable(t.id);
       return;
     }
+    // Kept for a booked party: seating them is what the table is for.
+    if (tableHasBooking(t)) {
+      await _notifier.seatBooking(t);
+      if (mounted) await Navigator.of(context).maybePop();
+      return;
+    }
+    // Free: seat a walk-in. This OPENS A TAB and takes the table — on this
+    // device and on every other one — rather than binding a table id nobody
+    // else can see.
+    await _notifier.seatTable(t);
+    if (mounted) await Navigator.of(context).maybePop();
+  }
+
+  /// Everything that is not the obvious act.
+  Future<void> _onTableMenu(
+    FloorTableStateView t,
+    TicketView? ticket, {
+    required bool isWaiter,
+  }) async {
+    if (_completedMove(t)) return;
     if (ticket != null) {
       await _ticketTableSheet(t, ticket, isWaiter: isWaiter);
       return;
     }
-    // A paid-but-unbussed table asks its own question first.
     if (tableNeedsClearing(t)) {
       await _needsClearingSheet(t, isWaiter: isWaiter);
       return;
     }
-    // A table kept for a booked party: seat them, mark them a no-show, or
-    // knowingly seat a walk-in over the booking.
     if (tableHasBooking(t)) {
       await _reservedTableSheet(t, isWaiter: isWaiter);
       return;
@@ -1003,7 +1037,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
         ),
         _SheetAction(
           'arrow.triangle.2.circlepath',
-          _tr('tables.swap'),
+          _tr('tables.move'),
           () async {
             setState(() => _swapFrom = t.id);
           },
@@ -1098,7 +1132,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       _SheetAction('sparkles', _tr('tables.clear'), () async {
         await _notifier.clearTable(t.id);
       }),
-      _SheetAction('arrow.triangle.2.circlepath', _tr('tables.swap'), () async {
+      _SheetAction('arrow.triangle.2.circlepath', _tr('tables.move'), () async {
         setState(() => _swapFrom = t.id);
       }),
     ]);
@@ -1109,76 +1143,17 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     FloorTableStateView t, {
     required bool isWaiter,
   }) async {
+    // Seating is the TAP. What is left is the geometry, and a way back for a
+    // table stuck in a state nothing else will clear.
     await _actionsSheet(t.label, [
-      // The natural gesture on a floor canvas: tap the table, start an order on
-      // it. Available to BOTH roles and with any cart — a waiter had no way to
-      // open an order on a table at all, and a teller with an empty cart got
-      // the same nothing. Binding the cart is all this does; the order becomes
-      // a ticket when it fires, which is what makes the table say it is taken.
-      _SheetAction(
-        'tray.and.arrow.down',
-        _tr('tables.start_order_here'),
-        () async {
-          _notifier.setCartTable(t.id, t.label);
-          if (mounted) await Navigator.of(context).maybePop();
-        },
-      ),
-      // Anything that isn't already available turns over from here — the
-      // teller's manual counterpart to the automatic free-on-checkout.
-      if (t.status != 'free')
-        _SheetAction(
-          'checkmark.circle',
-          _tr('tables.make_available'),
-          () async {
-            await _notifier.makeTableAvailable(t);
-          },
-        ),
-      _SheetAction('arrow.triangle.2.circlepath', _tr('tables.swap'), () async {
+      _SheetAction('arrow.triangle.2.circlepath', _tr('tables.move'), () async {
         setState(() => _swapFrom = t.id);
       }),
+      if (t.status != 'free')
+        _SheetAction('checkmark.circle', _tr('tables.free_it'), () async {
+          await _notifier.makeTableAvailable(t);
+        }),
     ]);
-  }
-
-  /// A table owned by a held order: open / move / swap / waitlist / discard.
-  Future<void> _heldTableSheet(FloorTableStateView t) async {
-    final id = t.heldOrderId!;
-    final locked = t.heldLockedByOther;
-    await _actionsSheet(
-      '${t.label}${(t.heldOrderName?.isNotEmpty ?? false) ? ' · ${t.heldOrderName}' : ''}',
-      [
-        _SheetAction('cart', _tr('tables.resume'), () async {
-          if (locked) {
-            _notifier.showToast(
-              _tr('tables.locked'),
-              tone: ChipTone.warning,
-              icon: 'lock',
-            );
-            return;
-          }
-          await _notifier.switchToHeldOrder(id);
-          if (mounted) await Navigator.of(context).maybePop();
-        }),
-        _SheetAction(
-          'arrow.triangle.2.circlepath',
-          _tr('tables.move'),
-          () async {
-            setState(() => _swapFrom = t.id);
-          },
-        ),
-        _SheetAction('clock', _tr('tables.queue'), () async {
-          await _createWishFlow('held_order', id);
-        }),
-        // The party left: detach the parked order (it survives, table-less)
-        // and hand the table back to the room.
-        _SheetAction(
-          'checkmark.circle',
-          _tr('tables.make_available'),
-          () async {
-            await _notifier.makeTableAvailable(t);
-          },
-        ),
-      ],
-    );
   }
 
   /// A waiter ticket's table: target rounds (waiter) or move it.
@@ -1187,15 +1162,10 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     TicketView ticket, {
     required bool isWaiter,
   }) async {
+    // Adding a round is the TAP, so it is not repeated here. What is left is
+    // the money, the geometry, and the two ways a party leaves.
     await _actionsSheet('${t.label} · ${ticket.ticketRef ?? ''}', [
-      // Resume is no longer waiter-only: a teller's dine-in order is a ticket
-      // now too, and adding a round to it is the same act for both roles.
-      _SheetAction('cart', _tr('tables.resume'), () async {
-        _notifier.selectTicket(ticket.id);
-        if (mounted) await Navigator.of(context).maybePop();
-      }),
-      // Closing the table out. Tellers only — taking money is their job, and
-      // the drawer this opens is the one the tickets board already uses.
+      // Closing the table out. Tellers only — taking money is their job.
       if (!isWaiter)
         _SheetAction('creditcard', _tr('tables.settle'), () async {
           if (!mounted) return;
@@ -1211,9 +1181,18 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       _SheetAction('clock', _tr('tables.queue'), () async {
         await _createWishFlow('open_ticket', ticket.id);
       }),
-      _SheetAction('checkmark.circle', _tr('tables.make_available'), () async {
-        await _notifier.makeTableAvailable(t, ticket: ticket);
-      }),
+      // The party left without paying — or was seated by mistake. This
+      // ABANDONS a live tab, so it says so: "Make available" was the same
+      // words used for clearing an empty bussed table, which is a different
+      // act with different consequences.
+      _SheetAction(
+        'person.crop.circle.badge.xmark',
+        _tr('tables.free_it'),
+        () async {
+          final ok = await _confirmFreeLiveTable(t, ticket);
+          if (ok) await _notifier.makeTableAvailable(t, ticket: ticket);
+        },
+      ),
     ]);
   }
 
@@ -1343,6 +1322,36 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     final pick = await showTablePickerSheet(context, ref, allowClear: false);
     if (pick?.tableId == null) return;
     await _notifier.fulfillTransfer(entry.id, pick!.tableId!);
+  }
+
+  /// Confirm abandoning a LIVE tab.
+  ///
+  /// Freeing a bussed table and abandoning an unpaid one wore the same words
+  /// ("Make available") and the same one tap. One tidies the room; the other
+  /// walks away from money. This names the ticket and what it is worth, so the
+  /// difference is visible at the moment it matters.
+  Future<bool> _confirmFreeLiveTable(
+    FloorTableStateView t,
+    TicketView ticket,
+  ) async {
+    final total = Money.format(
+      ticket.subtotalMinor,
+      currency: ref.read(orderProvider).currency,
+    );
+    var confirmed = false;
+    await _actionsSheet(
+      '${t.label} · ${ticket.ticketRef ?? ''} · $total\n${_tr('tables.free_it_warning')}',
+      [
+        _SheetAction(
+          'person.crop.circle.badge.xmark',
+          _tr('tables.free_it'),
+          () async {
+            confirmed = true;
+          },
+        ),
+      ],
+    );
+    return confirmed;
   }
 
   Future<void> _actionsSheet(String title, List<_SheetAction> actions) async {
@@ -1557,7 +1566,7 @@ class _TableCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final occupied = ticket != null || table.heldOrderId != null;
+    final occupied = ticket != null;
     final needsClearing = tableNeedsClearing(table);
     // ONE colour per state (the dashboard's `tint`), used for the body tint,
     // the ring, the chairs, and the pill. Ink is always the page's foreground —
@@ -1599,14 +1608,11 @@ class _TableCell extends StatelessWidget {
             table.bookingStartsAt != null
         ? words.timeOf?.call(table.bookingStartsAt!)
         : null;
-    final who = table.heldOrderName?.trim().isNotEmpty ?? false
-        ? table.heldOrderName!.trim()
-        : ticket?.ticketRef ??
-              (bookedGuest == null
-                  ? null
-                  : (bookedAt == null
-                        ? bookedGuest
-                        : '$bookedGuest · $bookedAt'));
+    final who =
+        ticket?.ticketRef ??
+        (bookedGuest == null
+            ? null
+            : (bookedAt == null ? bookedGuest : '$bookedGuest · $bookedAt'));
     final howLong = elapsedLabel(table.heldSince);
     final statusWord = words.wordFor(table, occupied: occupied);
     final statusIcon = tableStatusIcon(table, occupied: occupied);
@@ -1773,12 +1779,6 @@ class _TableCell extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-            if (table.heldLockedByOther)
-              Positioned(
-                right: (5 * scale).clamp(3, 8).toDouble(),
-                top: (5 * scale).clamp(3, 8).toDouble(),
-                child: MadarIcon('lock', tint: ring, size: glyphSize),
               ),
           ],
         ),

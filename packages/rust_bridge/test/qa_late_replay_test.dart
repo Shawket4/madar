@@ -6,6 +6,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
+import 'host_library.dart';
+
 /// Reproduces the cross-till close race and its fix: a teller queues orders
 /// OFFLINE, ANOTHER till closes the shift server-side, then the queue drains.
 /// The replayed sales must land onto the (now closed) shift and reconcile its
@@ -37,9 +39,7 @@ void main() {
     throw StateError('runner never acked $phase');
   }
 
-  final dylib = File(
-    '${Directory.current.path}/../../rust-core/target/release/libmadar_frb.dylib',
-  );
+  final dylib = hostLibrary();
 
   late MadarCore core;
   late Directory tmp;

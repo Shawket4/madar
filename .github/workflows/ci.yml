@@ -80,3 +80,70 @@ jobs:
       - name: Host tests
         working-directory: packages/rust_bridge
         run: flutter test
+
+  windows:
+    name: Windows build + host tests
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+          # A separate key from the macOS job: same workspace, different host
+          # triple, and sharing the cache between them thrashes both.
+          key: windows
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      # The core, for THIS host. Windows names it `madar_frb.dll` with no
+      # `lib` prefix, which is why the test suites resolve the artifact by
+      # platform instead of naming the macOS one.
+      - name: Build host dll
+        working-directory: rust-core
+        run: cargo build -p madar_frb --release
+
+      # The suites skip themselves when the library is missing, so a wrong
+      # path makes this job pass green having loaded nothing. Fail loudly.
+      - name: Assert the dll is where the tests look for it
+        shell: pwsh
+        run: |
+          $dll = "rust-core/target/release/madar_frb.dll"
+          if (-not (Test-Path $dll)) {
+            Write-Output "::error::$dll is missing - the host suite would silently skip."
+            exit 1
+          }
+          Write-Output "Found $dll ($((Get-Item $dll).Length) bytes)"
+
+      - name: Pub get
+        run: dart pub get
+
+      # Rust-side unit tests. They are host-independent in principle and this
+      # is where a Windows-only path, separator or line-ending assumption
+      # actually shows up.
+      - name: Core tests
+        working-directory: rust-core
+        run: cargo test -p madar-core
+
+      - name: Host tests
+        working-directory: packages/rust_bridge
+        run: flutter test
+
+      # The desktop app itself. `flutter analyze` never touches the Windows
+      # runner code, the CMake wiring or the cargokit build hook, so this is
+      # the only step that answers "does the Windows app actually build".
+      - name: Build the Windows app
+        working-directory: apps/madar
+        run: flutter build windows --release
