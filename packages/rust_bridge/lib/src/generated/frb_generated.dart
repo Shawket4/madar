@@ -743,7 +743,7 @@ abstract class RustBridgeApi extends BaseApi {
     required String locale,
   });
 
-  Future<bool> crateApiBridgeMadarBridgeSettleTicket({
+  Future<String?> crateApiBridgeMadarBridgeSettleTicket({
     required MadarBridge that,
     required String ticketId,
     required String shiftId,
@@ -5856,7 +5856,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<bool> crateApiBridgeMadarBridgeSettleTicket({
+  Future<String?> crateApiBridgeMadarBridgeSettleTicket({
     required MadarBridge that,
     required String ticketId,
     required String shiftId,
@@ -5897,7 +5897,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
+          decodeSuccessData: sse_decode_opt_String,
           decodeErrorData: sse_decode_madar_error,
         ),
         constMeta: kCrateApiBridgeMadarBridgeSettleTicketConstMeta,
@@ -14690,7 +14690,10 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// action). Offline-first: the order is materialized server-side at replay,
   /// deduped on the ticket id. Returns true when still queued (offline). The
   /// cashier's settle-time discount/tip override the ticket's own.
-  Future<bool> settleTicket({
+  /// Settle a ticket into a paid order. Returns the ORDER ID once the settle
+  /// has acked, so the caller can fetch its receipt and print — `None` while
+  /// it is still queued offline, where no order exists yet.
+  Future<String?> settleTicket({
     required String ticketId,
     required String shiftId,
     required String paymentMethodId,

@@ -123,6 +123,9 @@ impl MadarBridge {
     /// deduped on the ticket id. Returns true when still queued (offline). The
     /// cashier's settle-time discount/tip override the ticket's own.
     #[allow(clippy::too_many_arguments)]
+    /// Settle a ticket into a paid order. Returns the ORDER ID once the settle
+    /// has acked, so the caller can fetch its receipt and print — `None` while
+    /// it is still queued offline, where no order exists yet.
     pub async fn settle_ticket(
         &self,
         ticket_id: String,
@@ -140,7 +143,7 @@ impl MadarBridge {
         // `CheckoutRedemption::ticket_line_id`).
         loyalty_customer_id: Option<String>,
         loyalty_redemptions: Vec<crate::api::orders::CheckoutRedemption>,
-    ) -> Result<bool, MadarError> {
+    ) -> Result<Option<String>, MadarError> {
         self.inner
             .settle_ticket(
                 ticket_id,

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1327,7 +1328,7 @@ class OrderNotifier extends Notifier<OrderState> {
           .where((t) => t.id == table)
           .firstOrNull
           ?.label;
-      await _bridge.settleTicket(
+      final orderId = await _bridge.settleTicket(
         ticketId: ticketId,
         shiftId: shiftId,
         paymentMethodId: paymentMethodId,
@@ -1343,6 +1344,10 @@ class OrderNotifier extends Notifier<OrderState> {
       await loadOpenTickets();
       await loadFloor();
       if (table != null) _askToClear(table, label);
+      // The customer's receipt. Settling a table used to print nothing at all —
+      // the checkout drawer printed, the floor's own settle did not — so a
+      // dine-in customer got a toast and no paper.
+      unawaited(_printSettledReceipt(orderId));
       showToast(_tr('waiter.settled'), tone: ChipTone.success);
       _refreshShell();
       return true;
@@ -1351,6 +1356,42 @@ class OrderNotifier extends Notifier<OrderState> {
       return false;
     } finally {
       state = state.copyWith(isBusy: false);
+    }
+  }
+
+  /// Print the receipt for a just-settled ticket.
+  ///
+  /// Best-effort and silent on failure by design: the money is already taken
+  /// and the ticket is closed, so a printer that is off, unbound or out of
+  /// paper must not read as a failed settle. `orderId` is null while the
+  /// settle is still queued offline — there is no order yet, and printing a
+  /// receipt for a sale the server has not accepted would be a lie on paper.
+  Future<void> _printSettledReceipt(String? orderId) async {
+    if (orderId == null) return;
+    final tx = ref.read(printerServiceProvider).activeTransport();
+    if (tx == null) return;
+    try {
+      final receipt = await _bridge.orderReceiptView(orderId: orderId);
+      final brand = printerBrandOf(_bridge.deviceConfig().printerBrand);
+      final bytes = await _bridge.renderReceipt(
+        receipt: receipt,
+        storeName: _bridge.deviceConfig().branchName ?? '',
+        currency: state.currency,
+        width: kReceiptChars,
+        brand: brand,
+      );
+      await tx.send(bytes);
+      // Cash opens the drawer, exactly as the checkout path does.
+      if (receipt.isCash) {
+        try {
+          await tx.send(await _bridge.cashDrawerKick(brand: brand));
+        } on Exception {
+          // The receipt printed; the kick is a bonus.
+        }
+      }
+    } on Exception {
+      // Nothing to say: the sale is done either way, and the receipt can be
+      // reprinted from history.
     }
   }
 

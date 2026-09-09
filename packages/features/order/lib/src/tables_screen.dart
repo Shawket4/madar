@@ -11,6 +11,7 @@ import 'dart:math' as math;
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/open_tickets_screen.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/table_clear_prompt.dart';
@@ -251,7 +252,7 @@ class TableStatusWords {
     if (occupied || t.status == 'seated' || tableBookingSeated(t)) {
       return seated;
     }
-    if (tableNeedsClearing(t)) return needsClearing;
+    if (tableNeedsClearing(t, occupied: occupied)) return needsClearing;
     if (tableIsReserved(t)) return reserved;
     return t.status == 'held' ? held : free;
   }
@@ -279,7 +280,14 @@ bool tableHasBooking(FloorTableStateView t) =>
 /// True when a table is paid-and-vacated but not yet bussed. A checkout no
 /// longer hands the table straight back to the room — only a human does — so
 /// this state is real, common, and must never read as available.
-bool tableNeedsClearing(FloorTableStateView t) => t.status == 'dirty';
+///
+/// A table with somebody ON it is never "needs clearing", whatever its stored
+/// status says. That can happen honestly — a party seated onto a table the
+/// previous one left dirty, a status write that lost a race — and in every such
+/// case the live occupant is the truth: telling a teller to bus an occupied
+/// table would have them clear a party that is still eating.
+bool tableNeedsClearing(FloorTableStateView t, {bool occupied = false}) =>
+    t.status == 'dirty' && !occupied;
 
 /// Status → tone. Four states, four tones: taken (accent), held for a party
 /// (warning), needs clearing (danger — it is the one state that owes the room
@@ -292,7 +300,7 @@ Color tableTone(
   if (occupied || t.status == 'seated' || tableBookingSeated(t)) {
     return colors.accent;
   }
-  if (tableNeedsClearing(t)) return colors.danger;
+  if (tableNeedsClearing(t, occupied: occupied)) return colors.danger;
   return t.status == 'held' || tableIsReserved(t)
       ? colors.warning
       : colors.success;
@@ -305,7 +313,7 @@ String? tableStatusIcon(FloorTableStateView t, {required bool occupied}) {
   if (occupied || t.status == 'seated' || tableBookingSeated(t)) {
     return 'person.2';
   }
-  if (tableNeedsClearing(t)) return 'sparkles';
+  if (tableNeedsClearing(t, occupied: occupied)) return 'sparkles';
   if (tableIsReserved(t)) return 'calendar.days';
   return t.status == 'held' ? 'hand.raised' : null;
 }
@@ -608,11 +616,30 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
   /// Swap/move mode: the FIRST table tapped, awaiting the second.
   String? _swapFrom;
 
+  /// Plan or list.
+  ///
+  /// A scale drawing answers "where is that table" and nothing else. It fits a
+  /// whole room onto a phone, so a busy floor renders as unreadable rectangles,
+  /// and it is silent — how long a party has been sitting, what their bill is,
+  /// whether the kitchen has their food are all a tap away each. The list says
+  /// all of it, sorted by what needs a person. Both are the same room and the
+  /// same actions; this only chooses how it is drawn.
+  bool _asList = false;
+
   /// A reserved table flips by the clock (`held_from`), not by an event — a
   /// once-a-minute tick keeps the canvas and the counts honest between pulls.
   Timer? _clock;
 
   OrderNotifier get _notifier => ref.read(orderProvider.notifier);
+
+  /// The live ticket on a table, if any. `settled` and `voided` have left the
+  /// floor; only `open` and `ready` occupy a table.
+  TicketView? _ticketOn(List<TicketView> tickets, String tableId) => tickets
+      .where(
+        (t) =>
+            t.tableId == tableId && (t.status == 'open' || t.status == 'ready'),
+      )
+      .firstOrNull;
   String _tr(String key) => ref.read(bridgeProvider).tr(key: key);
 
   @override
@@ -671,7 +698,10 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     final arrivals = ref.watch(orderProvider.select((s) => s.arrivals));
     // The work the floor owes itself: paid tables still waiting on a bus.
     final dirtyTables = allTables
-        .where(tableNeedsClearing)
+        .where(
+          (t) =>
+              tableNeedsClearing(t, occupied: _ticketOn(tickets, t.id) != null),
+        )
         .toList(growable: false);
     final sectionIds = {for (final s in sections) s.id};
     final orphans = allTables
@@ -793,20 +823,39 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                 ],
               ),
               const SizedBox(height: Space.md),
-              if (tabs.length > 1)
-                Wrap(
-                  spacing: Space.sm,
-                  runSpacing: Space.sm,
-                  children: [
-                    for (final (id, name) in tabs)
-                      _sectionChip(
-                        id: id,
-                        name: name,
-                        selected: id == activeId,
-                        count: countIn(id),
+              Row(
+                children: [
+                  if (tabs.length > 1)
+                    Expanded(
+                      child: Wrap(
+                        spacing: Space.sm,
+                        runSpacing: Space.sm,
+                        children: [
+                          for (final (id, name) in tabs)
+                            _sectionChip(
+                              id: id,
+                              name: name,
+                              selected: id == activeId,
+                              count: countIn(id),
+                            ),
+                        ],
                       ),
-                  ],
-                ),
+                    )
+                  else
+                    const Spacer(),
+                  // Plan or list. A view control, so it sits with the filter
+                  // rather than among the sheets — and the header row was
+                  // already one button past what a narrow window fits.
+                  ActionButton(
+                    label: _asList
+                        ? _tr('tables.view_plan')
+                        : _tr('tables.view_list'),
+                    icon: _asList ? 'square.grid.2x2' : 'list.bullet',
+                    variant: ActionVariant.outline,
+                    onTap: () => setState(() => _asList = !_asList),
+                  ),
+                ],
+              ),
               if (_swapFrom != null)
                 Padding(
                   padding: const EdgeInsetsDirectional.only(top: Space.md),
@@ -823,6 +872,40 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                         message: _tr('tables.empty_desc'),
                         actionLabel: _tr('chrome.sync_data'),
                         onAction: () => unawaited(_notifier.syncFloor()),
+                      )
+                    : _asList
+                    ? FloorListView(
+                        rows: buildFloorRows(
+                          tables: tables,
+                          ticketOn: (id) => _ticketOn(tickets, id),
+                          sectionName: (sid) => sid == null
+                              ? null
+                              : layout?.sections
+                                    .where((s) => s.id == sid)
+                                    .firstOrNull
+                                    ?.name,
+                          now: DateTime.now(),
+                        ),
+                        now: DateTime.now(),
+                        currency: ref.watch(
+                          orderProvider.select((s) => s.currency),
+                        ),
+                        words: FloorListWords.of(ref.read(bridgeProvider)),
+                        armedId: _swapFrom,
+                        onTap: (t) => unawaited(
+                          _onTablePrimary(
+                            t,
+                            _ticketOn(tickets, t.id),
+                            isWaiter: isWaiter,
+                          ),
+                        ),
+                        onLongPress: (t) => unawaited(
+                          _onTableMenu(
+                            t,
+                            _ticketOn(tickets, t.id),
+                            isWaiter: isWaiter,
+                          ),
+                        ),
                       )
                     : SingleChildScrollView(
                         child: _canvas(
@@ -901,13 +984,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     required bool isWaiter,
     required MadarColors colors,
   }) {
-    TicketView? ticketOn(String tableId) => tickets
-        .where(
-          (t) =>
-              t.tableId == tableId &&
-              (t.status == 'open' || t.status == 'ready'),
-        )
-        .firstOrNull;
+    TicketView? ticketOn(String tableId) => _ticketOn(tickets, tableId);
     return FloorCanvas(
       section: section,
       tables: tables,
@@ -1567,7 +1644,7 @@ class _TableCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final occupied = ticket != null;
-    final needsClearing = tableNeedsClearing(table);
+    final needsClearing = tableNeedsClearing(table, occupied: occupied);
     // ONE colour per state (the dashboard's `tint`), used for the body tint,
     // the ring, the chairs, and the pill. Ink is always the page's foreground —
     // no reversed-out text, so the two platforms never diverge on legibility.
@@ -1608,11 +1685,18 @@ class _TableCell extends StatelessWidget {
             table.bookingStartsAt != null
         ? words.timeOf?.call(table.bookingStartsAt!)
         : null;
-    final who =
-        ticket?.ticketRef ??
-        (bookedGuest == null
-            ? null
-            : (bookedAt == null ? bookedGuest : '$bookedGuest · $bookedAt'));
+    // Who is on this table. A NAME beats a reference: "Sara" tells a teller
+    // something across a room and "T-0412" does not, so the customer's name
+    // wins where the ticket carries one and the ref is the fallback.
+    final onIt = ticket?.customerName?.trim();
+    final who = (onIt?.isNotEmpty ?? false)
+        ? onIt
+        : ticket?.ticketRef ??
+              (bookedGuest == null
+                  ? null
+                  : (bookedAt == null
+                        ? bookedGuest
+                        : '$bookedGuest · $bookedAt'));
     final howLong = elapsedLabel(table.heldSince);
     final statusWord = words.wordFor(table, occupied: occupied);
     final statusIcon = tableStatusIcon(table, occupied: occupied);

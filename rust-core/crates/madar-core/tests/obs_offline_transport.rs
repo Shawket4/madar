@@ -47,11 +47,26 @@ fn captures_survive_on_disk_and_back_off_instead_of_being_lost() {
     );
 
     // A failed upload backs the row off; it is never dropped and never hot-looped.
-    std::thread::sleep(Duration::from_secs(1));
-    let due = store
-        .sentry_due(chrono::Utc::now().timestamp_millis(), 10)
-        .unwrap();
-    assert!(due.is_empty(), "a failed upload must be backed off");
+    //
+    // WAITED FOR, not slept past. How long a failed upload takes depends on how
+    // the host refuses a connection to a dead port: Linux and macOS send an
+    // instant RST, Windows does not, so a fixed sleep asserted the backoff
+    // before the attempt that records it had finished — green on two platforms
+    // and red on the third, about behaviour that is identical on all three.
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    let backed_off = loop {
+        let due = store
+            .sentry_due(chrono::Utc::now().timestamp_millis(), 10)
+            .unwrap();
+        if due.is_empty() {
+            break true;
+        }
+        if std::time::Instant::now() >= deadline {
+            break false;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    assert!(backed_off, "a failed upload must be backed off");
     assert_eq!(store.sentry_pending_count().unwrap(), 2, "nothing was lost");
 
     // What landed is a real envelope, carrying the device scope and the proof

@@ -1450,7 +1450,19 @@ impl MadarCore {
                     // keep it queued rather than ack a phantom fire/settle.
                     "open_ticket" | "ticket_add_round" | "settle_open_ticket" | "void_ticket" => {
                         match obj.get("id").and_then(|x| x.as_str()) {
-                            Some(id) => SendOutcome::Acked(Some(id.to_string())),
+                            Some(id) => {
+                                // A SETTLE hands back the paid order it just
+                                // materialised. Record it: the settle call itself
+                                // answers only "is this still queued", and by the
+                                // time it returns the ticket has left the board —
+                                // so without this nothing knows which order the
+                                // money became, and a receipt cannot be printed
+                                // after settling.
+                                if item.op_type == "settle_open_ticket" {
+                                    let _ = self.store.id_map_put("order", &item.id, id);
+                                }
+                                SendOutcome::Acked(Some(id.to_string()))
+                            }
                             None => SendOutcome::Offline,
                         }
                     }
@@ -6140,7 +6152,7 @@ impl MadarCore {
         // almost all of them.
         loyalty_customer_id: Option<String>,
         loyalty_redemptions: Vec<checkout::CheckoutRedemption>,
-    ) -> Result<bool, CoreError> {
+    ) -> Result<Option<String>, CoreError> {
         let shift_uuid = uuid::Uuid::parse_str(&shift_id).map_err(|_| CoreError::Validation {
             field: "shift_id".into(),
             detail: "bad shift id".into(),
@@ -6231,7 +6243,22 @@ impl MadarCore {
             shift_id: Some(shift_id.clone()),
         })?;
         let _ = self.drain_outbox().await;
-        Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
+        // The paid order the settle produced, when it acked — that is what a
+        // receipt prints from. `None` means the settle is still queued: there
+        // is no order yet, and inventing one would print a receipt for a sale
+        // the server has not accepted.
+        Ok(self.settled_order_id(op_id)?)
+    }
+
+    /// The paid order a settle produced, once it has acked.
+    ///
+    /// `settle_ticket` answers "is this still queued" and nothing else, and by
+    /// the time it returns the ticket has left the board — so this is how a
+    /// receipt gets printed after settling. `None` while the settle is still
+    /// queued offline: there is no order yet, and inventing one would print a
+    /// receipt for a sale the server has not accepted.
+    pub fn settled_order_id(&self, settle_op_id: String) -> Result<Option<String>, CoreError> {
+        Ok(self.store.id_map_get("order", &settle_op_id)?)
     }
 
     /// The branch's OPEN/READY open tickets (newest first). Server list (write-through

@@ -60,6 +60,23 @@ const _words = TableStatusWords(
   reserved: 'Reserved',
 );
 
+/// A live ticket on a table — what "somebody is sitting there" means now that
+/// held orders are gone.
+TicketView _liveTicket({
+  required String tableId,
+  String? customerName,
+  String status = 'open',
+}) => TicketView(
+  id: 'tk-$tableId',
+  tableId: tableId,
+  status: status,
+  customerName: customerName,
+  subtotalMinor: 0,
+  openedAt: '2026-09-09T19:00:00Z',
+  queuedOffline: false,
+  lines: const [],
+);
+
 void main() {
   group('reserved tables', () {
     FloorTableStateView t({
@@ -497,12 +514,10 @@ void main() {
                 width: 80,
                 height: 80,
                 rotation: 0,
-                heldOrderId: 'h1',
-                heldOrderName: 'Sara',
                 heldLockedByOther: false,
               ),
             ],
-            tickets: const [],
+            tickets: [_liveTicket(tableId: 't1', customerName: 'Sara')],
             seatsWord: 'seats',
             words: _words,
             onTap: (_) {},
@@ -644,12 +659,10 @@ void main() {
                 width: 80,
                 height: 80,
                 rotation: 0,
-                heldOrderId: 'h1',
-                heldOrderName: 'Sara',
                 heldLockedByOther: false,
               ),
             ],
-            tickets: const [],
+            tickets: [_liveTicket(tableId: 't2', customerName: 'Sara')],
             seatsWord: 'seats',
             words: _words,
             onTap: (_) {},
