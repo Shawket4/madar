@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1932258654;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1466413883;
 
 // Section: executor
 
@@ -6673,9 +6673,6 @@ fn wire__crate__api__bridge__MadarBridge_seat_table_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
             >>::sse_decode(&mut deserializer);
             let api_table_id = <String>::sse_decode(&mut deserializer);
-            let api_customer_name = <Option<String>>::sse_decode(&mut deserializer);
-            let api_guest_count = <Option<i32>>::sse_decode(&mut deserializer);
-            let api_booking_id = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::MadarError>(
@@ -6700,9 +6697,6 @@ fn wire__crate__api__bridge__MadarBridge_seat_table_impl(
                         let output_ok = crate::api::bridge::MadarBridge::seat_table(
                             &*api_that_guard,
                             api_table_id,
-                            api_customer_name,
-                            api_guest_count,
-                            api_booking_id,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -8052,6 +8046,66 @@ fn wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_unseat_table_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_unseat_table",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_table_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::bridge::MadarBridge::unseat_table(
+                            &*api_that_guard,
+                            api_table_id,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -9145,6 +9199,8 @@ const _: fn() = || {
         let _: Vec<String> = TicketLineView.modifiers;
         let _: i64 = TicketLineView.line_total_minor;
         let _: bool = TicketLineView.voided;
+        let _: i32 = TicketLineView.round_number;
+        let _: String = TicketLineView.round_fired_at;
     }
     {
         let TicketView = None::<crate::api::tickets::TicketView>.unwrap();
@@ -11877,6 +11933,8 @@ impl SseDecode for crate::api::tickets::TicketLineView {
         let mut var_modifiers = <Vec<String>>::sse_decode(deserializer);
         let mut var_lineTotalMinor = <i64>::sse_decode(deserializer);
         let mut var_voided = <bool>::sse_decode(deserializer);
+        let mut var_roundNumber = <i32>::sse_decode(deserializer);
+        let mut var_roundFiredAt = <String>::sse_decode(deserializer);
         return crate::api::tickets::TicketLineView {
             id: var_id,
             menu_item_id: var_menuItemId,
@@ -11886,6 +11944,8 @@ impl SseDecode for crate::api::tickets::TicketLineView {
             modifiers: var_modifiers,
             line_total_minor: var_lineTotalMinor,
             voided: var_voided,
+            round_number: var_roundNumber,
+            round_fired_at: var_roundFiredAt,
         };
     }
 }
@@ -12680,16 +12740,22 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        148 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+        147 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        150 => {
+        149 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        151 => {
             wire__crate__api__bridge__MadarBridge_void_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        151 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
+        152 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
             port,
             ptr,
             rust_vec_len,
@@ -12775,15 +12841,15 @@ fn pde_ffi_dispatcher_sync_impl(
         }
         133 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
         145 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        147 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
+        148 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        149 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
-        152 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        153 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        154 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        150 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
+        153 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        154 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        155 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -14871,6 +14937,8 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::tickets::TicketLin
             self.0.modifiers.into_into_dart().into_dart(),
             self.0.line_total_minor.into_into_dart().into_dart(),
             self.0.voided.into_into_dart().into_dart(),
+            self.0.round_number.into_into_dart().into_dart(),
+            self.0.round_fired_at.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -16818,6 +16886,8 @@ impl SseEncode for crate::api::tickets::TicketLineView {
         <Vec<String>>::sse_encode(self.modifiers, serializer);
         <i64>::sse_encode(self.line_total_minor, serializer);
         <bool>::sse_encode(self.voided, serializer);
+        <i32>::sse_encode(self.round_number, serializer);
+        <String>::sse_encode(self.round_fired_at, serializer);
     }
 }
 

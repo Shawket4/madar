@@ -124,6 +124,28 @@ impl MadarBridge {
     pub fn clear_table(&self, table_id: String) -> Result<(), MadarError> {
         self.inner.clear_table(table_id).map_err(MadarError::from)
     }
+    /// SEAT a party: take the table, and nothing else.
+    ///
+    /// The floor's primary gesture. Takes the table on this device immediately
+    /// and on every other one once it drains. It raises no kitchen ticket and
+    /// opens no tab — sitting down is not a bill. The party's FIRST ROUND
+    /// starts the tab and claims the table they are already at.
+    pub async fn seat_table(&self, table_id: String) -> Result<(), MadarError> {
+        self.inner
+            .seat_table(table_id)
+            .await
+            .map_err(MadarError::from)
+    }
+
+    /// Give a table back without a sale: they left before ordering, or the
+    /// wrong table was tapped. Frees it outright — nobody ate, so there is
+    /// nothing to bus.
+    pub async fn unseat_table(&self, table_id: String) -> Result<(), MadarError> {
+        self.inner
+            .unseat_table(table_id)
+            .await
+            .map_err(MadarError::from)
+    }
 }
 
 /// A floor area (level/zone) for the offline canvas.

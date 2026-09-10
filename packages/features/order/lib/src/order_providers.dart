@@ -959,9 +959,14 @@ class OrderNotifier extends Notifier<OrderState> {
   ///
   /// The cart is bound too, so the very next thing a teller does — adding items
   /// — lands on this ticket rather than nowhere.
-  Future<void> seatTable(FloorTableStateView t, {int? guests}) async {
+  /// Seat a party: take the table, and point the cart at it.
+  ///
+  /// No ticket is opened. Sitting down is not a bill — the tab starts with the
+  /// party's first round, which claims the table they are already sitting at.
+  /// So the only state that changes here is the room's, plus the cart's target.
+  Future<void> seatTable(FloorTableStateView t) async {
     try {
-      await _bridge.seatTable(tableId: t.id, guestCount: guests);
+      await _bridge.seatTable(tableId: t.id);
     } on MadarError catch (e) {
       // A taken table comes back as a conflict, and the message names it. The
       // canvas is reloaded so the teller sees who has it rather than being told
@@ -974,7 +979,45 @@ class OrderNotifier extends Notifier<OrderState> {
       await loadFloor();
       return;
     }
-    state = state.copyWith(cartTableId: t.id, cartTableLabel: t.label);
+    state = state.copyWith(
+      cartTableId: t.id,
+      cartTableLabel: t.label,
+      activeTicketId: null,
+    );
+    await loadFloor();
+    _refreshShell();
+  }
+
+  /// Aim the cart at a table that is ALREADY taken, without seating anything.
+  ///
+  /// The party sat down (possibly on another till); this is somebody arriving
+  /// to take their first order. The table is already `seated`, so seating it
+  /// again would be a lie and a wasted op.
+  void pointCartAtTable(String tableId, String label) {
+    state = state.copyWith(
+      cartTableId: tableId,
+      cartTableLabel: label,
+      activeTicketId: null,
+    );
+    _refreshShell();
+  }
+
+  /// Give a seated table back without a sale — they left before ordering, or
+  /// the wrong table was tapped. Nobody ate, so it goes straight back to the
+  /// room rather than waiting to be bussed.
+  Future<void> unseatTable(String tableId) async {
+    try {
+      await _bridge.unseatTable(tableId: tableId);
+    } on MadarError catch (e) {
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+    }
+    if (state.cartTableId == tableId) {
+      state = state.copyWith(cartTableId: null, cartTableLabel: null);
+    }
     await loadFloor();
     _refreshShell();
   }
@@ -1240,6 +1283,9 @@ class OrderNotifier extends Notifier<OrderState> {
     int? guestCount,
   }) async {
     final target = state.activeTicketId;
+    // Captured BEFORE the fire, because a successful one clears the cart and
+    // the chit is a picture of what was just sent.
+    final round = List<CartLineView>.unmodifiable(state.cartLines);
     final ok = target != null
         ? await _addRound(target)
         : await _fireTicket(
@@ -1248,6 +1294,10 @@ class OrderNotifier extends Notifier<OrderState> {
             notes: notes,
             guestCount: guestCount,
           );
+    // The kitchen's copy goes out on its own. A cook should never depend on
+    // somebody remembering to press a button per dish, which is what the
+    // per-line print button asked for.
+    if (ok) unawaited(printRound(round));
     if (ok) {
       state = state.copyWith(
         activeTicketId: null,
@@ -1384,6 +1434,38 @@ class OrderNotifier extends Notifier<OrderState> {
   /// Deliberately NOT a fire: this prints paper and changes no state. A teller
   /// who wants the kitchen to start on one thing while the party is still
   /// deciding can have that without committing the rest of the cart.
+  /// The whole round's kitchen copy, printed automatically when it fires.
+  ///
+  /// One chit per dish in a single transmission: a pass tears them apart and
+  /// hangs one per station, and each already names its table, ticket and time,
+  /// so a chit is self-identifying wherever it ends up.
+  ///
+  /// SILENT about a missing printer. This runs on every fire, and a shop with
+  /// no kitchen printer would otherwise be nagged on every round — the manual
+  /// per-line button is where that warning belongs, because there somebody
+  /// asked for a chit and deserves to hear it did not happen.
+  Future<void> printRound(List<CartLineView> lines) async {
+    if (lines.isEmpty) return;
+    final tx = ref.read(printerServiceProvider).activeTransport();
+    if (tx == null) return;
+    for (final line in lines) {
+      final bytes = await _chitBytes(line);
+      if (bytes == null) return;
+      try {
+        await tx.send(bytes);
+      } on Exception {
+        showToast(
+          _tr('printing.failed'),
+          tone: ChipTone.danger,
+          icon: 'xmark.circle',
+        );
+        return;
+      }
+    }
+  }
+
+  /// Print ONE dish's chit on request — the per-line button in the cart.
+  /// Loud where [printRound] is silent: somebody asked for this one.
   Future<void> printKitchenChit(CartLineView line) async {
     final tx = ref.read(printerServiceProvider).activeTransport();
     if (tx == null) {
@@ -1394,6 +1476,34 @@ class OrderNotifier extends Notifier<OrderState> {
       );
       return;
     }
+    final bytes = await _chitBytes(line);
+    if (bytes == null) {
+      showToast(
+        _tr('printing.failed'),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+      return;
+    }
+    try {
+      await tx.send(bytes);
+      showToast(
+        _tr('printing.chit_sent'),
+        tone: ChipTone.success,
+        icon: 'printer',
+      );
+    } on Exception {
+      showToast(
+        _tr('printing.failed'),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+    }
+  }
+
+  /// One dish rendered for the kitchen. `null` when the core could not lay it
+  /// out — the caller decides how loudly to say so.
+  Future<Uint8List?> _chitBytes(CartLineView line) async {
     try {
       // Everything changed about it, flattened: a cook does not care which of
       // our three lists a modification came from.
@@ -1407,7 +1517,7 @@ class OrderNotifier extends Notifier<OrderState> {
           for (final o in c.optionals) '   ${o.name}',
         ],
       ];
-      final bytes = await _bridge.renderKitchenChit(
+      return await _bridge.renderKitchenChit(
         chit: KitchenChit(
           item: line.name,
           qty: line.qty,
@@ -1425,18 +1535,8 @@ class OrderNotifier extends Notifier<OrderState> {
         width: kReceiptChars,
         brand: printerBrandOf(_bridge.deviceConfig().printerBrand),
       );
-      await tx.send(bytes);
-      showToast(
-        _tr('printing.chit_sent'),
-        tone: ChipTone.success,
-        icon: 'printer',
-      );
     } on Exception {
-      showToast(
-        _tr('printing.failed'),
-        tone: ChipTone.danger,
-        icon: 'xmark.circle',
-      );
+      return null;
     }
   }
 

@@ -481,6 +481,10 @@ typedef PlacedTable = ({FloorTableStateView table, double x, double y});
   return (placed, bottom);
 }
 
+/// How much of a long bill the ticket sheet shows before it scrolls — enough
+/// for a real dinner, short enough that the actions never leave the screen.
+const double _kBillMaxHeight = 260;
+
 /// The shared floor canvas — one renderer for the tables screen AND the table
 /// picker, so the POS always shows the room the dashboard drew (same glyphs,
 /// same scale rules). Behavior is injected: tap, long-press, per-table enable,
@@ -531,11 +535,7 @@ class FloorCanvas extends StatelessWidget {
     final (placed, _) = spreadTables(tables, spreadW, spreadH);
     final bounds = floorBounds(placed);
     TicketView? ticketOn(String tableId) => tickets
-        .where(
-          (t) =>
-              t.tableId == tableId &&
-              (t.status == 'open' || t.status == 'ready'),
-        )
+        .where((t) => t.tableId == tableId && isLiveTicket(t))
         .firstOrNull;
     return ClipRRect(
       borderRadius: BorderRadius.circular(Radii.md),
@@ -706,12 +706,13 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
 
   /// The live ticket on a table, if any. `settled` and `voided` have left the
   /// floor; only `open` and `ready` occupy a table.
-  TicketView? _ticketOn(List<TicketView> tickets, String tableId) => tickets
-      .where(
-        (t) =>
-            t.tableId == tableId && (t.status == 'open' || t.status == 'ready'),
-      )
-      .firstOrNull;
+  /// The live ticket on a table, if there is one.
+  ///
+  /// `queued` counts. A round fired with no network — or fired a second ago and
+  /// not yet pulled back — is a real bill on a real table, and leaving it out
+  /// made the floor treat a table it had just taken as untouchable.
+  TicketView? _ticketOn(List<TicketView> tickets, String tableId) =>
+      tickets.where((t) => t.tableId == tableId && isLiveTicket(t)).firstOrNull;
   String _tr(String key) => ref.read(bridgeProvider).tr(key: key);
 
   @override
@@ -1130,11 +1131,18 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     await Navigator.of(context).maybePop();
   }
 
-  /// ONE act per state, on a single tap. No sheet, no choosing.
+  /// ONE act per state, on a single tap.
   ///
   /// The order below is the order a table's states actually exclude each other:
-  /// a live ticket beats a booking (the party is already sitting there), and a
+  /// a live bill beats a booking (the party is already sitting there), and a
   /// table waiting to be bussed beats a free one.
+  ///
+  /// The split at the end is the whole shape of the floor. A table with a BILL
+  /// opens its bill — rounds, running total, and the two things you do with a
+  /// party who has ordered: add to it, or take their money. A table with a
+  /// party but NOTHING ORDERED YET goes straight to the menu, because there is
+  /// no bill to look at and the only reason anyone taps it is to take their
+  /// first order.
   Future<void> _onTablePrimary(
     FloorTableStateView t,
     TicketView? ticket, {
@@ -1142,19 +1150,14 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
   }) async {
     if (_completedMove(t)) return;
 
-    // Seated: add a round to what is already open.
+    // A bill on the table: show it.
     if (ticket != null) {
-      _notifier.selectTicket(ticket.id);
-      await _toOrderScreen();
+      await _ticketSheet(t, ticket, isWaiter: isWaiter);
       return;
     }
-    // A PARKED DRAFT is an occupant too.
-    //
-    // The cart's Hold button parks the order against its table and marks the
-    // table taken, so a table can be occupied with no ticket on it. Falling
-    // through to "seat a party" here would put a second party on a table that
-    // already has somebody's order waiting on it. Resuming is the same act as
-    // adding a round to a ticket: pick up what is already there.
+    // A PARKED DRAFT is an occupant too. The cart's Hold button parks the order
+    // against its table, so a table can be taken with no ticket on it. Resuming
+    // is the same act as adding a round: pick up what is already there.
     final held = t.heldOrderId;
     if (held != null) {
       if (t.heldLockedByOther) {
@@ -1181,29 +1184,26 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       await _toOrderScreen();
       return;
     }
-    // Taken on ANOTHER till, for a parked order this device cannot see.
-    //
-    // The floor now carries the occupancy of a held order even though the
-    // order itself stays on the till that parked it, so a table can read
-    // `seated` here with no ticket and no local draft behind it. There is
-    // nothing to open and nobody to seat: say who has it and stop, rather
-    // than firing a seat the server would refuse.
+    // SEATED, NOTHING ORDERED. The commonest state on a floor and, until the
+    // tab exists, one this screen used to have no answer for: it would tell the
+    // teller the table was "taken on another till" and stop. There is nothing
+    // to show and everything to take — go to the menu with the table in hand.
     if (t.status == 'seated') {
-      _notifier.showToast(
-        _tr('tables.taken_elsewhere'),
-        tone: ChipTone.warning,
-        icon: 'lock',
-      );
+      _notifier.pointCartAtTable(t.id, t.label);
+      await _toOrderScreen();
       return;
     }
-    // Free: seat a walk-in. This OPENS A TAB and takes the table — on this
-    // device and on every other one — rather than binding a table id nobody
-    // else can see.
+    // Free: seat a walk-in. Takes the table on every device; the tab starts
+    // with whatever they order first.
     await _notifier.seatTable(t);
     await _toOrderScreen();
   }
 
   /// Everything that is not the obvious act.
+  ///
+  /// A table with a bill has nothing extra here: its sheet already carries
+  /// every verb, so a long-press opens the same thing a tap does rather than a
+  /// second, shorter list of the same words.
   Future<void> _onTableMenu(
     FloorTableStateView t,
     TicketView? ticket, {
@@ -1211,7 +1211,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
   }) async {
     if (_completedMove(t)) return;
     if (ticket != null) {
-      await _ticketTableSheet(t, ticket, isWaiter: isWaiter);
+      await _ticketSheet(t, ticket, isWaiter: isWaiter);
       return;
     }
     if (t.heldOrderId != null) {
@@ -1423,44 +1423,239 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     );
   }
 
-  /// A waiter ticket's table: target rounds (waiter) or move it.
-  Future<void> _ticketTableSheet(
+  /// THE BILL. What a table's tap opens once the party has ordered.
+  ///
+  /// The floor used to answer a tap on a seated table by dropping the teller
+  /// into the menu, which meant "what do they owe?" was never on screen — you
+  /// long-pressed for a list of verbs and guessed. A table is a party with a
+  /// running bill, so tapping one shows the bill and the two things you do with
+  /// it: add to it, or take their money.
+  Future<void> _ticketSheet(
     FloorTableStateView t,
     TicketView ticket, {
     required bool isWaiter,
   }) async {
-    // Adding a round is the TAP, so it is not repeated here. What is left is
-    // the money, the geometry, and the two ways a party leaves.
-    await _actionsSheet('${t.label} · ${ticket.ticketRef ?? ''}', [
-      // Closing the table out. Tellers only — taking money is their job.
-      if (!isWaiter)
-        _SheetAction('creditcard', _tr('tables.settle'), () async {
-          if (!mounted) return;
-          await Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => OpenTicketsScreen(focusTicketId: ticket.id),
-            ),
-          );
-        }),
-      _SheetAction('arrow.triangle.2.circlepath', _tr('tables.move'), () async {
-        setState(() => _swapFrom = t.id);
-      }),
-      _SheetAction('clock', _tr('tables.queue'), () async {
-        await _createWishFlow('open_ticket', ticket.id);
-      }),
-      // The party left without paying — or was seated by mistake. This
-      // ABANDONS a live tab, so it says so: "Make available" was the same
-      // words used for clearing an empty bussed table, which is a different
-      // act with different consequences.
-      _SheetAction(
-        'person.crop.circle.badge.xmark',
-        _tr('tables.free_it'),
-        () async {
-          final ok = await _confirmFreeLiveTable(t, ticket);
-          if (ok) await _notifier.makeTableAvailable(t, ticket: ticket);
-        },
+    if (!mounted) return;
+    final bridge = ref.read(bridgeProvider);
+    final currency = ref.read(orderProvider).currency;
+    final seatedFor = formatSeatedFor(
+      DateTime.now().toUtc().difference(
+        DateTime.tryParse(ticket.openedAt)?.toUtc() ?? DateTime.now().toUtc(),
       ),
-    ]);
+    );
+    await showMadarSheet<void>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (sheetContext) {
+        final colors = sheetContext.madarColors;
+        void close() => Navigator.of(sheetContext).maybePop();
+        return Padding(
+          padding: const EdgeInsetsDirectional.all(Space.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      t.label,
+                      style: MadarType.h2.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  if (ticket.queuedOffline)
+                    StatusChip(
+                      label: _tr('waiter.queued'),
+                      tone: ChipTone.warning,
+                      icon: 'clock',
+                    ),
+                ],
+              ),
+              const SizedBox(height: Space.xs),
+              Text(
+                [
+                  if (ticket.ticketRef != null) ticket.ticketRef!,
+                  '${_tr('tables.seated')} $seatedFor',
+                  if (ticket.guestCount != null)
+                    '${ticket.guestCount} ${_tr('tables.guests')}',
+                  if (ticket.waiterName != null) ticket.waiterName!,
+                ].join(' · '),
+                style: MadarType.bodySm.copyWith(color: colors.textMuted),
+              ),
+              const SizedBox(height: Space.lg),
+              // Everything they have had. A ticket that fired offline has no
+              // lines mirrored back yet, so it says so rather than looking like
+              // an empty bill.
+              if (ticket.lines.isEmpty)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(bottom: Space.md),
+                  child: Text(
+                    _tr('tables.bill_pending'),
+                    style: MadarType.bodySm.copyWith(color: colors.textMuted),
+                  ),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: _kBillMaxHeight),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Grouped by ROUND, because that is how a bill is read:
+                        // the drinks at seven, the food at half past. A flat
+                        // list of the same items says nothing about how the
+                        // evening went, or what has been waiting longest.
+                        for (final round in groupBillByRound(ticket.lines)) ...[
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(
+                              top: Space.sm,
+                              bottom: Space.xs,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${_tr('tables.round')} ${round.number}',
+                                    style: MadarType.labelSm.copyWith(
+                                      color: colors.textMuted,
+                                      letterSpacing: MadarType.tracking,
+                                    ),
+                                  ),
+                                ),
+                                if (round.firedAt.isNotEmpty)
+                                  Text(
+                                    bridge.formatTime(
+                                      rfc3339: round.firedAt,
+                                      style: TimeStyle.time,
+                                    ),
+                                    style: MadarType.num.copyWith(
+                                      color: colors.textMuted,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          for (final line in round.lines)
+                            _BillLine(line: line, currency: currency),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              const MadarHairline(),
+              const SizedBox(height: Space.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _tr('order.total'),
+                      style: MadarType.title.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    Money.format(ticket.subtotalMinor, currency: currency),
+                    style: MadarType.moneyLg.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: Space.lg),
+              // The two acts. Adding is the common one and stays primary even
+              // for a teller, who adds far more rounds than they settle.
+              MadarButton(
+                label: _tr('tables.add_round'),
+                icon: 'plus.circle',
+                onTap: () {
+                  close();
+                  unawaited(() async {
+                    _notifier
+                      ..pointCartAtTable(t.id, t.label)
+                      ..selectTicket(ticket.id);
+                    await _toOrderScreen();
+                  }());
+                },
+              ),
+              // Taking money is the teller's job.
+              if (!isWaiter) ...[
+                const SizedBox(height: Space.sm),
+                MadarButton(
+                  label: _tr('tables.settle'),
+                  icon: 'creditcard',
+                  variant: MadarButtonVariant.outline,
+                  onTap: () {
+                    close();
+                    unawaited(_settleFromFloor(ticket));
+                  },
+                ),
+              ],
+              const SizedBox(height: Space.md),
+              // Everything else a party can do, kept quiet beneath the money.
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: Space.sm,
+                runSpacing: Space.sm,
+                children: [
+                  MadarButton(
+                    label: _tr('tables.move'),
+                    icon: 'arrow.triangle.2.circlepath',
+                    variant: MadarButtonVariant.outline,
+                    size: MadarButtonSize.compact,
+                    onTap: () {
+                      close();
+                      setState(() => _swapFrom = t.id);
+                    },
+                  ),
+                  MadarButton(
+                    label: _tr('tables.queue'),
+                    icon: 'clock',
+                    variant: MadarButtonVariant.outline,
+                    size: MadarButtonSize.compact,
+                    onTap: () {
+                      close();
+                      unawaited(_createWishFlow('open_ticket', ticket.id));
+                    },
+                  ),
+                  // The party left without paying — or was seated by mistake.
+                  // This ABANDONS a live tab, so it says so: "Make available"
+                  // was the same words used for clearing an empty bussed
+                  // table, a different act with different consequences.
+                  MadarButton(
+                    label: _tr('tables.free_it'),
+                    icon: 'person.crop.circle.badge.xmark',
+                    variant: MadarButtonVariant.outline,
+                    size: MadarButtonSize.compact,
+                    onTap: () {
+                      close();
+                      unawaited(() async {
+                        final ok = await _confirmFreeLiveTable(t, ticket);
+                        if (ok) {
+                          await _notifier.makeTableAvailable(t, ticket: ticket);
+                        }
+                      }());
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Take the money for a table, from the table.
+  Future<void> _settleFromFloor(TicketView ticket) async {
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => OpenTicketsScreen(focusTicketId: ticket.id),
+      ),
+    );
   }
 
   /// Choose which held order goes on this table.
@@ -2200,6 +2395,71 @@ class _HatchPainter extends CustomPainter {
 
 /// A count + its state, in the state's own colour — the header row that
 /// both summarises the room and teaches the canvas's vocabulary.
+/// One line of a table's bill: what it is, what was done to it, what it cost.
+class _BillLine extends StatelessWidget {
+  const _BillLine({required this.line, required this.currency});
+
+  final TicketLineView line;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    // A voided line stays ON the bill, struck through. Removing it would make
+    // the total unexplainable to the person reading it.
+    final struck = line.voided ? TextDecoration.lineThrough : null;
+    final tone = line.voided ? colors.textMuted : colors.textPrimary;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: _kBillQtyWidth,
+            child: Text(
+              '${line.qty}×',
+              style: MadarType.money.copyWith(
+                color: colors.textMuted,
+                decoration: struck,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  [
+                    line.name,
+                    if (line.sizeLabel != null) '· ${line.sizeLabel}',
+                  ].join(' '),
+                  style: MadarType.body.copyWith(
+                    color: tone,
+                    decoration: struck,
+                  ),
+                ),
+                if (line.modifiers.isNotEmpty)
+                  Text(
+                    line.modifiers.join(' · '),
+                    style: MadarType.labelSm.copyWith(color: colors.textMuted),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: Space.sm),
+          Text(
+            Money.format(line.lineTotalMinor, currency: currency),
+            style: MadarType.money.copyWith(color: tone, decoration: struck),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Width of the quantity column, so every line's name starts at one x.
+const double _kBillQtyWidth = 34;
+
 class _CountChip extends StatelessWidget {
   const _CountChip({
     required this.tone,

@@ -104,6 +104,13 @@ pub struct TicketLineView {
     pub modifiers: Vec<String>,
     pub line_total_minor: i64,
     pub voided: bool,
+    /// Which visit to the table this line arrived on, and when.
+    ///
+    /// A bill is read as a sequence — the drinks at seven, the food at half
+    /// past — and a flat list of items says nothing about how the evening went.
+    /// RFC3339; the host formats it, because the core never guesses a timezone.
+    pub round_number: i32,
+    pub round_fired_at: String,
 }
 
 // ── Request builders ──────────────────────────────────────────────────────────
@@ -195,6 +202,8 @@ fn line_view(it: &models::OpenTicketItemView) -> TicketLineView {
         .unwrap_or(1) as i32;
     TicketLineView {
         id: it.id.to_string(),
+        round_number: it.round_number,
+        round_fired_at: it.round_fired_at.to_rfc3339(),
         menu_item_id: it.menu_item_id.flatten().map(|m| m.to_string()),
         name: s("name").unwrap_or_else(|| "Item".to_string()),
         qty,
@@ -297,10 +306,13 @@ mod tests {
             })),
             line_total: 4500,
             menu_item_id: None,
-            round_number: 1,
+            round_number: 2,
+            round_fired_at: "2026-09-10T19:17:00Z".parse().unwrap(),
             voided: false,
         };
         let lv = line_view(&it);
+        assert_eq!(lv.round_number, 2, "which visit this arrived on");
+        assert!(lv.round_fired_at.starts_with("2026-09-10T19:17:00"));
         assert_eq!(lv.name, "Burger");
         assert_eq!(lv.qty, 3);
         assert_eq!(lv.size_label.as_deref(), Some("Large"));

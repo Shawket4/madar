@@ -160,7 +160,9 @@ fn en(key: &str) -> Option<&'static str> {
         "tables.locked" => "Being edited on another till",
         // A table another till is holding for its own parked order: the room
         // says taken, and this device has no order of its own to open.
-        "tables.taken_elsewhere" => "Taken on another till",
+        "tables.add_round" => "Add a round",
+        "tables.round" => "Round",
+        "tables.bill_pending" => "The first round has not synced yet",
         "tables.free" => "Free",
         "tables.seated" => "Seated",
         "tables.moved" => "Moved",
@@ -695,7 +697,9 @@ fn ar(key: &str) -> Option<&'static str> {
         "tables.cancel_wish" => "إزالة",
         "tables.taken" => "الطاولة محجوزة — تم الحفظ بدونها",
         "tables.locked" => "قيد التعديل على جهاز آخر",
-        "tables.taken_elsewhere" => "مشغولة من جهاز آخر",
+        "tables.add_round" => "إضافة جولة",
+        "tables.round" => "جولة",
+        "tables.bill_pending" => "لم تتم مزامنة الجولة الأولى بعد",
         "tables.free" => "متاحة",
         "tables.seated" => "مشغولة",
         "tables.moved" => "تم النقل",

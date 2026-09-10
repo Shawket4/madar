@@ -105,6 +105,55 @@ List<FloorRow> buildFloorRows({
   return rows;
 }
 
+/// One visit to the table: what arrived, and when.
+class BillRound {
+  const BillRound({
+    required this.number,
+    required this.firedAt,
+    required this.lines,
+  });
+
+  /// 1 for the round that opened the bill.
+  final int number;
+
+  /// RFC3339, as the core handed it over. Empty when the round has not synced
+  /// back yet — the caller shows no clock rather than an invented one.
+  final String firedAt;
+
+  final List<TicketLineView> lines;
+}
+
+/// Group a bill's lines into the rounds they arrived on, in order.
+///
+/// The lines come back already sorted by round, so this only has to notice
+/// where one round ends and the next begins.
+List<BillRound> groupBillByRound(List<TicketLineView> lines) {
+  final out = <BillRound>[];
+  for (final line in lines) {
+    final last = out.isEmpty ? null : out.last;
+    if (last == null || last.number != line.roundNumber) {
+      out.add(
+        BillRound(
+          number: line.roundNumber,
+          firedAt: line.roundFiredAt,
+          lines: [line],
+        ),
+      );
+    } else {
+      last.lines.add(line);
+    }
+  }
+  return out;
+}
+
+/// A ticket that is still somebody's live bill.
+///
+/// `queued` belongs here: a round fired with no network is a real bill on a
+/// real table, and every "is anyone there" check that looked only for
+/// `open`/`ready` read the table it had just taken as empty.
+bool isLiveTicket(TicketView t) =>
+    t.status == 'open' || t.status == 'ready' || t.status == 'queued';
+
 FloorUrgency _urgencyOf(FloorTableStateView t, TicketView? ticket) {
   // A live occupant outranks a stored `dirty`. That can happen honestly — a
   // party seated onto a table the last one left dirty — and telling a teller to

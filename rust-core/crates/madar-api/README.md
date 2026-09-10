@@ -106,7 +106,7 @@ Class | Method | HTTP request | Description
 *DiscountsApi* | [**list_discounts**](docs/DiscountsApi.md#list_discounts) | **GET** /discounts | 
 *DiscountsApi* | [**update_discount**](docs/DiscountsApi.md#update_discount) | **PATCH** /discounts/{id} | 
 *FloorApi* | [**clear_table**](docs/FloorApi.md#clear_table) | **POST** /floor/tables/{id}/clear | Mark a bussed table ready for the next party.
-*FloorApi* | [**hold_table**](docs/FloorApi.md#hold_table) | **POST** /floor/tables/{id}/hold | Take a table for a HELD ORDER the till keeps to itself.
+*FloorApi* | [**hold_table**](docs/FloorApi.md#hold_table) | **POST** /floor/tables/{id}/hold | Take a table. THE seating primitive.
 *FloorApi* | [**release_table**](docs/FloorApi.md#release_table) | **POST** /floor/tables/{id}/release | Give back a table a till was holding for its own parked order.
 *FloorApi* | [**swap_tables**](docs/FloorApi.md#swap_tables) | **POST** /floor/tables/swap | 
 *FloorTransfersApi* | [**cancel_transfer**](docs/FloorTransfersApi.md#cancel_transfer) | **POST** /floor/transfers/{id}/cancel | 

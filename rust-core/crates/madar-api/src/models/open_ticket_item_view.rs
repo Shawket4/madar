@@ -27,6 +27,9 @@ pub struct OpenTicketItemView {
         skip_serializing_if = "Option::is_none"
     )]
     pub menu_item_id: Option<Option<uuid::Uuid>>,
+    /// When the round this line came in on was fired. A bill is read as a sequence of visits to the table — \"the drinks at seven, the food at half past\" — and without the clock a till can only show a flat list that says nothing about how the evening went.
+    #[serde(rename = "round_fired_at")]
+    pub round_fired_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "round_number")]
     pub round_number: i32,
     #[serde(rename = "voided")]
@@ -38,6 +41,7 @@ impl OpenTicketItemView {
         id: uuid::Uuid,
         line: Option<serde_json::Value>,
         line_total: i32,
+        round_fired_at: chrono::DateTime<chrono::FixedOffset>,
         round_number: i32,
         voided: bool,
     ) -> OpenTicketItemView {
@@ -46,6 +50,7 @@ impl OpenTicketItemView {
             line,
             line_total,
             menu_item_id: None,
+            round_fired_at,
             round_number,
             voided,
         }

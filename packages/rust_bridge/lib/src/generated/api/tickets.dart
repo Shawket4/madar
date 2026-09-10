@@ -53,6 +53,10 @@ class TicketLineView {
   final PlatformInt64 lineTotalMinor;
   final bool voided;
 
+  /// Which visit to the table this line arrived on, and when (RFC3339).
+  final int roundNumber;
+  final String roundFiredAt;
+
   const TicketLineView({
     required this.id,
     this.menuItemId,
@@ -62,6 +66,8 @@ class TicketLineView {
     required this.modifiers,
     required this.lineTotalMinor,
     required this.voided,
+    required this.roundNumber,
+    required this.roundFiredAt,
   });
 
   @override
@@ -73,7 +79,9 @@ class TicketLineView {
       sizeLabel.hashCode ^
       modifiers.hashCode ^
       lineTotalMinor.hashCode ^
-      voided.hashCode;
+      voided.hashCode ^
+      roundNumber.hashCode ^
+      roundFiredAt.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -87,7 +95,9 @@ class TicketLineView {
           sizeLabel == other.sizeLabel &&
           modifiers == other.modifiers &&
           lineTotalMinor == other.lineTotalMinor &&
-          voided == other.voided;
+          voided == other.voided &&
+          roundNumber == other.roundNumber &&
+          roundFiredAt == other.roundFiredAt;
 }
 
 /// An open ticket for the waiter list / detail screens.

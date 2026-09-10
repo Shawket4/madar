@@ -54,6 +54,9 @@ pub struct _TicketLineView {
     pub modifiers: Vec<String>,
     pub line_total_minor: i64,
     pub voided: bool,
+    /// Which visit to the table this line arrived on, and when (RFC3339).
+    pub round_number: i32,
+    pub round_fired_at: String,
 }
 
 impl MadarBridge {
@@ -74,25 +77,6 @@ impl MadarBridge {
     ) -> Result<TicketFiredView, MadarError> {
         self.inner
             .fire_ticket(table_id, customer_name, notes, guest_count, booking_id)
-            .await
-            .map_err(MadarError::from)
-    }
-
-    /// SEAT a party: open a tab on a table without ordering anything.
-    ///
-    /// The floor's primary gesture. Takes the table immediately on this device
-    /// and on every other one once it drains, raises no kitchen ticket, and
-    /// leaves the cart alone. A table somebody else already has comes back as a
-    /// conflict rather than being silently dropped.
-    pub async fn seat_table(
-        &self,
-        table_id: String,
-        customer_name: Option<String>,
-        guest_count: Option<i32>,
-        booking_id: Option<String>,
-    ) -> Result<TicketFiredView, MadarError> {
-        self.inner
-            .seat_table(table_id, customer_name, guest_count, booking_id)
             .await
             .map_err(MadarError::from)
     }

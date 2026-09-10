@@ -82,7 +82,7 @@ class RustBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1932258654;
+  int get rustContentHash => -1466413883;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -681,12 +681,9 @@ abstract class RustBridgeApi extends BaseApi {
     String? tableId,
   });
 
-  Future<TicketFiredView> crateApiBridgeMadarBridgeSeatTable({
+  Future<void> crateApiBridgeMadarBridgeSeatTable({
     required MadarBridge that,
     required String tableId,
-    String? customerName,
-    int? guestCount,
-    String? bookingId,
   });
 
   Future<void> crateApiBridgeMadarBridgeSendToPrinter({
@@ -820,6 +817,11 @@ abstract class RustBridgeApi extends BaseApi {
     required String name,
     required String pin,
     required String branchId,
+  });
+
+  Future<void> crateApiBridgeMadarBridgeUnseatTable({
+    required MadarBridge that,
+    required String tableId,
   });
 
   void crateApiBridgeMadarBridgeUnsubscribeRealtime({
@@ -5426,12 +5428,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
-  Future<TicketFiredView> crateApiBridgeMadarBridgeSeatTable({
+  Future<void> crateApiBridgeMadarBridgeSeatTable({
     required MadarBridge that,
     required String tableId,
-    String? customerName,
-    int? guestCount,
-    String? bookingId,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -5442,9 +5441,6 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(tableId, serializer);
-          sse_encode_opt_String(customerName, serializer);
-          sse_encode_opt_box_autoadd_i_32(guestCount, serializer);
-          sse_encode_opt_String(bookingId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -5453,11 +5449,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_ticket_fired_view,
+          decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_madar_error,
         ),
         constMeta: kCrateApiBridgeMadarBridgeSeatTableConstMeta,
-        argValues: [that, tableId, customerName, guestCount, bookingId],
+        argValues: [that, tableId],
         apiImpl: this,
       ),
     );
@@ -5466,13 +5462,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   TaskConstMeta get kCrateApiBridgeMadarBridgeSeatTableConstMeta =>
       const TaskConstMeta(
         debugName: "MadarBridge_seat_table",
-        argNames: [
-          "that",
-          "tableId",
-          "customerName",
-          "guestCount",
-          "bookingId",
-        ],
+        argNames: ["that", "tableId"],
       );
 
   @override
@@ -6441,6 +6431,44 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<void> crateApiBridgeMadarBridgeUnseatTable({
+    required MadarBridge that,
+    required String tableId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(tableId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 147,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeUnseatTableConstMeta,
+        argValues: [that, tableId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeUnseatTableConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_unseat_table",
+        argNames: ["that", "tableId"],
+      );
+
+  @override
   void crateApiBridgeMadarBridgeUnsubscribeRealtime({
     required MadarBridge that,
   }) {
@@ -6455,7 +6483,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 147,
+            funcId: 148,
           )!;
         },
         codec: SseCodec(
@@ -6497,7 +6525,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 148,
+            funcId: 149,
             port: port_,
           );
         },
@@ -6531,7 +6559,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 149,
+            funcId: 150,
           )!;
         },
         codec: SseCodec(
@@ -6571,7 +6599,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 150,
+            funcId: 151,
             port: port_,
           );
         },
@@ -6611,7 +6639,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 151,
+            funcId: 152,
             port: port_,
           );
         },
@@ -6641,7 +6669,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 152,
+            funcId: 153,
           )!;
         },
         codec: SseCodec(
@@ -6667,7 +6695,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 153,
+            funcId: 154,
           )!;
         },
         codec: SseCodec(
@@ -6694,7 +6722,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 154,
+            funcId: 155,
           )!;
         },
         codec: SseCodec(
@@ -8626,8 +8654,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   TicketLineView dco_decode_ticket_line_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return TicketLineView(
       id: dco_decode_String(arr[0]),
       menuItemId: dco_decode_opt_String(arr[1]),
@@ -8637,6 +8665,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       modifiers: dco_decode_list_String(arr[5]),
       lineTotalMinor: dco_decode_i_64(arr[6]),
       voided: dco_decode_bool(arr[7]),
+      roundNumber: dco_decode_i_32(arr[8]),
+      roundFiredAt: dco_decode_String(arr[9]),
     );
   }
 
@@ -11451,6 +11481,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_modifiers = sse_decode_list_String(deserializer);
     var var_lineTotalMinor = sse_decode_i_64(deserializer);
     var var_voided = sse_decode_bool(deserializer);
+    var var_roundNumber = sse_decode_i_32(deserializer);
+    var var_roundFiredAt = sse_decode_String(deserializer);
     return TicketLineView(
       id: var_id,
       menuItemId: var_menuItemId,
@@ -11460,6 +11492,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       modifiers: var_modifiers,
       lineTotalMinor: var_lineTotalMinor,
       voided: var_voided,
+      roundNumber: var_roundNumber,
+      roundFiredAt: var_roundFiredAt,
     );
   }
 
@@ -13699,6 +13733,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_list_String(self.modifiers, serializer);
     sse_encode_i_64(self.lineTotalMinor, serializer);
     sse_encode_bool(self.voided, serializer);
+    sse_encode_i_32(self.roundNumber, serializer);
+    sse_encode_String(self.roundFiredAt, serializer);
   }
 
   @protected
@@ -14726,24 +14762,14 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         tableId: tableId,
       );
 
-  /// SEAT a party: open a tab on a table without ordering anything.
+  /// SEAT a party: take the table, and nothing else.
   ///
-  /// The floor's primary gesture. Takes the table immediately on this device
-  /// and on every other one once it drains, raises no kitchen ticket, and
-  /// leaves the cart alone. A table somebody else already has comes back as a
-  /// conflict rather than being silently dropped.
-  Future<TicketFiredView> seatTable({
-    required String tableId,
-    String? customerName,
-    int? guestCount,
-    String? bookingId,
-  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeSeatTable(
-    that: this,
-    tableId: tableId,
-    customerName: customerName,
-    guestCount: guestCount,
-    bookingId: bookingId,
-  );
+  /// The floor's primary gesture. Takes the table on this device immediately
+  /// and on every other one once it drains. It raises no kitchen ticket and
+  /// opens no tab — sitting down is not a bill. The party's FIRST ROUND
+  /// starts the tab and claims the table they are already at.
+  Future<void> seatTable({required String tableId}) => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeSeatTable(that: this, tableId: tableId);
 
   /// Best-effort raw-TCP send of pre-rendered ESC/POS bytes to a network
   /// (JetDirect / port 9100) thermal printer.
@@ -14950,6 +14976,12 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     pin: pin,
     branchId: branchId,
   );
+
+  /// Give a table back without a sale: they left before ordering, or the
+  /// wrong table was tapped. Frees it outright — nobody ate, so there is
+  /// nothing to bus.
+  Future<void> unseatTable({required String tableId}) => RustBridge.instance.api
+      .crateApiBridgeMadarBridgeUnseatTable(that: this, tableId: tableId);
 
   /// Tear down the subscription (idempotent). Call before re-attaching
   /// sinks — including on Flutter hot restart.

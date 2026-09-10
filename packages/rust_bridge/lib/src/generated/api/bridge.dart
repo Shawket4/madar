@@ -644,18 +644,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// to link it.
   Future<void> seatBooking({required String bookingId, String? tableId});
 
-  /// SEAT a party: open a tab on a table without ordering anything.
+  /// SEAT a party: take the table, and nothing else.
   ///
-  /// The floor's primary gesture. Takes the table immediately on this device
-  /// and on every other one once it drains, raises no kitchen ticket, and
-  /// leaves the cart alone. A table somebody else already has comes back as a
-  /// conflict rather than being silently dropped.
-  Future<TicketFiredView> seatTable({
-    required String tableId,
-    String? customerName,
-    int? guestCount,
-    String? bookingId,
-  });
+  /// The floor's primary gesture. Takes the table on this device immediately
+  /// and on every other one once it drains. It raises no kitchen ticket and
+  /// opens no tab — sitting down is not a bill. The party's FIRST ROUND
+  /// starts the tab and claims the table they are already at.
+  Future<void> seatTable({required String tableId});
 
   /// Best-effort raw-TCP send of pre-rendered ESC/POS bytes to a network
   /// (JetDirect / port 9100) thermal printer.
@@ -781,6 +776,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String pin,
     required String branchId,
   });
+
+  /// Give a table back without a sale: they left before ordering, or the
+  /// wrong table was tapped. Frees it outright — nobody ate, so there is
+  /// nothing to bus.
+  Future<void> unseatTable({required String tableId});
 
   /// Tear down the subscription (idempotent). Call before re-attaching
   /// sinks — including on Flutter hot restart.

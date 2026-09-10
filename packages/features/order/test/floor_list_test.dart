@@ -165,6 +165,50 @@ void main() {
     expect(rows.single.urgency, isNot(FloorUrgency.free));
   });
 
+  test("a round fired with no network is still somebody's bill", () {
+    // `queued` is what a fire looks like before it drains. Every "is anyone
+    // there" check used to look only for open/ready, so the floor read a table
+    // it had JUST taken as empty — and the tap handler, finding no ticket on a
+    // table the mirror said was seated, dead-ended on "taken on another till".
+    expect(
+      isLiveTicket(
+        _ticket(
+          tableId: 'a',
+          status: 'queued',
+          openedAt: '2026-09-09T19:00:00Z',
+        ),
+      ),
+      isTrue,
+    );
+    final rows = rowsFor(
+      [_table(id: 'a')],
+      {
+        'a': _ticket(
+          tableId: 'a',
+          status: 'queued',
+          openedAt: '2026-09-09T19:00:00Z',
+        ),
+      },
+    );
+    expect(rows.single.urgency, FloorUrgency.seated);
+  });
+
+  test('a settled or voided ticket is not a live bill', () {
+    for (final status in ['settled', 'voided']) {
+      expect(
+        isLiveTicket(
+          _ticket(
+            tableId: 'a',
+            status: status,
+            openedAt: '2026-09-09T19:00:00Z',
+          ),
+        ),
+        isFalse,
+        reason: '$status is over',
+      );
+    }
+  });
+
   test('a table with no ticket is never described as seated', () {
     final rows = rowsFor([_table(id: 'a')], {});
     expect(rows.single.urgency, FloorUrgency.free);

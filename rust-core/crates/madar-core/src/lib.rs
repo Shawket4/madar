@@ -6042,90 +6042,32 @@ impl MadarCore {
     /// fire op (offline-first), clears the cart, and best-effort drains. Returns a
     /// slim "sent to kitchen" confirmation — NOT a money receipt. The branch must
     /// be operating (the server enforces an open till at fire time).
-    /// Seat a party: open a tab on a table without ordering anything.
+    /// Seat a party: take the table, and nothing else.
     ///
-    /// Seating and firing used to be one act, because a ticket could not be
-    /// created without items. So the POS "claimed" a table in local UI state —
-    /// which never left the device, so two tellers could seat the same table
-    /// and neither could see the other, and the floor showed the table free
-    /// until somebody decided what to eat.
+    /// Sitting down is not a bill. This used to open an EMPTY TICKET, which put
+    /// a zero-value tab in every report and made a party who changed their mind
+    /// and left something you had to void. Occupancy travels on its own now, on
+    /// the same `hold_table` op a parked cart uses, and the tab starts with the
+    /// party's first round — which claims the table they are already sitting at.
     ///
-    /// This queues a ticket with no items. The server takes the table and
-    /// raises no kitchen ticket; rounds are added to it exactly as before. The
-    /// local canvas is painted `seated` immediately, so the room is right on
-    /// this device before the op drains and right on every other device after.
-    ///
-    /// A table that is already taken comes back as a conflict from the server
-    /// rather than being absorbed — seating IS a request for that table.
-    pub async fn seat_table(
-        &self,
-        table_id: String,
-        customer_name: Option<String>,
-        guest_count: Option<i32>,
-        booking_id: Option<String>,
-    ) -> Result<tickets::TicketFiredView, CoreError> {
-        let branch_id = self.session_branch_id()?;
-        let branch_uuid = uuid::Uuid::parse_str(&branch_id).map_err(|_| CoreError::Validation {
-            field: "branch_id".into(),
-            detail: "bad branch id".into(),
-        })?;
-        let table_uuid = uuid::Uuid::parse_str(&table_id).map_err(|_| CoreError::Validation {
-            field: "table_id".into(),
-            detail: "bad table id".into(),
-        })?;
-        let booking_uuid = booking_id
-            .as_deref()
-            .and_then(|s| uuid::Uuid::parse_str(s).ok());
-
-        let ticket_id = uuid::Uuid::new_v4();
-        let request = tickets::build_fire_request(
-            branch_uuid,
-            Vec::new(),
-            ticket_id,
-            // No round: nothing was ordered. The server skips `fire_round`
-            // entirely when the items are empty.
-            uuid::Uuid::new_v4(),
-            Some(table_uuid),
-            customer_name,
-            None,
-            guest_count,
-            booking_uuid,
-        );
-
-        if let Some(bid) = booking_id.as_deref() {
-            let _ = bookings::set_status_local(&self.store, bid, "seated");
-            let _ = held::set_booking_status_local(&self.store, bid, "seated");
-        }
-        // The room is right on this device now, not when the op drains.
+    /// Optimistic-local + queued, so a party can be seated with no network.
+    pub async fn seat_table(&self, table_id: String) -> Result<(), CoreError> {
+        self.session_branch_id()?;
         held::set_table_state_local(&self.store, &table_id, Some("seated"), None, false)?;
-
-        let cmd = tickets::FireTicketCommand {
-            ticket_id: ticket_id.to_string(),
-            request,
-        };
-        let (user_id, clock_offset_ms) = self.outbox_meta();
-        self.store.enqueue(&store::NewOutboxOp {
-            id: ticket_id.to_string(),
-            op_type: "open_ticket".into(),
-            idempotency_key: ticket_id.to_string(),
-            payload: serde_json::to_string(&cmd)?,
-            event_at: self.corrected_now().to_rfc3339(),
-            depends_on_seq: None,
-            user_id,
-            clock_offset_ms,
-            shift_id: None,
-        })?;
-        // Deliberately no LAN kitchen publish and no cart clear: nobody has
-        // ordered anything, and the teller's cart is their own business.
+        self.sync_hold_occupancy(None, Some(table_id), false)?;
         let _ = self.drain_outbox().await;
+        Ok(())
+    }
 
-        let tid = ticket_id.to_string();
-        let queued_offline = self.store.pending()?.iter().any(|i| i.id == tid);
-        Ok(tickets::TicketFiredView {
-            ticket_id: tid,
-            ticket_ref: None,
-            queued_offline,
-        })
+    /// Give a table back without a sale: the party left before ordering, or the
+    /// teller seated the wrong one. Frees it outright — nobody ate, so there is
+    /// nothing to bus.
+    pub async fn unseat_table(&self, table_id: String) -> Result<(), CoreError> {
+        self.session_branch_id()?;
+        held::set_table_state_local(&self.store, &table_id, Some("free"), None, false)?;
+        self.sync_hold_occupancy(Some(table_id), None, false)?;
+        let _ = self.drain_outbox().await;
+        Ok(())
     }
 
     pub async fn fire_ticket(

@@ -166,6 +166,11 @@ fn project_line(l: &serde_json::Value) -> crate::tickets::TicketLineView {
         modifiers,
         line_total_minor: line_total,
         voided: false,
+        // A delivery order arrives whole. There are no rounds to a bill nobody
+        // sat down for, so every line is "round one" and shares the order's
+        // own clock, which the caller already shows above the list.
+        round_number: 1,
+        round_fired_at: String::new(),
     }
 }
 
