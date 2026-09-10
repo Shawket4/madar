@@ -1189,13 +1189,39 @@ class OrderNotifier extends Notifier<OrderState> {
       // queued right behind it lands the table on `free`.
       if (!await assignDraftTable(table.heldOrderId!, null)) return false;
     }
-    if (!await _clearTableOnServer(table.id)) return false;
+    // TWO DIFFERENT ACTS, one button.
+    //
+    // A table waiting to be bussed is CLEARED: somebody ate, and a person is
+    // saying the plates are gone. A table where a party is sitting with nothing
+    // ordered is UNSEATED: they left before ordering, or the wrong table was
+    // tapped, and there is nothing to bus because nobody ate. Sending both
+    // through `clear_table` worked, but it wrote "cleared" into the ledger for a
+    // table nobody had eaten at — and the ledger is the thing you read back
+    // months later to find out what happened.
+    final ok = table.status == 'seated'
+        ? await _unseat(table.id)
+        : await _clearTableOnServer(table.id);
+    if (!ok) return false;
     showToast(
       _tr('tables.freed'),
       tone: ChipTone.success,
       icon: 'checkmark.circle',
     );
     return true;
+  }
+
+  Future<bool> _unseat(String tableId) async {
+    try {
+      await _bridge.unseatTable(tableId: tableId);
+      return true;
+    } on MadarError catch (e) {
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+      return false;
+    }
   }
 
   /// Assign / move / unassign a PARKED draft's table (loud on conflicts).

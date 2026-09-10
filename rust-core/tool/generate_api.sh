@@ -31,12 +31,22 @@ npx --yes @openapitools/openapi-generator-cli generate \
   -o "$PKG_DIR" \
   --additional-properties=packageName=madar-api,supportAsync=true,library=reqwest,useSingleRequestParameter=true,preferUnsignedInt=true,bestFitInt=true
 
-# 3/4 — Post-process: the backend serializes BigDecimal columns as JSON STRINGS
-# (current_stock, reorder_threshold, prices, quantity_used, …) but the generator
-# types them as f64. Make affected fields string-tolerant via serde. We tag the
-# whole models dir with a helper module and a build-time note; full per-field
-# fixups land in Phase 2 when the client is wired into madar-core.
-echo "── 3/4 Post-processing (string-tolerant decimals deferred to Phase 2)…"
+# 3/4 — Post-process.
+#
+# This step used to exist because the backend serialized BigDecimal columns as
+# JSON STRINGS while the generator typed them as f64, so the plan was to make
+# the CLIENT string-tolerant, "in Phase 2". Phase 2 never happened, and the
+# defect was instead worked around three separate times — a local serializer for
+# one field in `orders`, a `serde_json::Value` capture in `madar-core::menu`,
+# and this note — while every other field kept shipping a string. The one place
+# nobody had worked around was a shop's tax rate, where it read as "I set 14, it
+# saved, and nothing changed".
+#
+# It is fixed at the source now: `MadarRust/src/decimals.rs` serializes every
+# `numeric` as a number, and a guard test fails the build if a new field forgets
+# the annotation. The generated client's `f64` is finally what the wire carries,
+# so there is nothing to post-process.
+echo "── 3/4 Post-processing (nothing to do: the wire matches the schema)…"
 # Keep the generated crate out of the workspace's lint/doc noise.
 cat > "$PKG_DIR/.openapi-generator-ignore" <<'EOF'
 # Re-written by tool/generate_api.sh

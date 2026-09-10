@@ -292,8 +292,12 @@ struct FullRecipe {
     category: String,
     #[serde(default)]
     org_ingredient_id: Option<String>,
-    // numeric(12,3) → BigDecimal → JSON STRING ("18.000"). Captured as a Value so
-    // the string-vs-number encoding can't break the parse; projected to f64 below.
+    // A `Value`, so either encoding parses. The backend sends a NUMBER now
+    // (`decimals::serialize`, and a guard test that fails the build if a new
+    // `numeric` field forgets it), but it used to send the string `"18.000"`
+    // and a till in the field may still be talking to a server that does.
+    // Tolerating both is what makes the deploy order not matter; projected to
+    // f64 below either way.
     #[serde(default)]
     quantity_used: Value,
 }
