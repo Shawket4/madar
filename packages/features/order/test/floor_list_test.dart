@@ -11,6 +11,7 @@ FloorTableStateView _table({
   String label = 'T1',
   String status = 'free',
   String? bookingId,
+  String? heldOrderId,
 }) => FloorTableStateView(
   id: id,
   label: label,
@@ -24,6 +25,7 @@ FloorTableStateView _table({
   rotation: 0,
   heldLockedByOther: false,
   bookingId: bookingId,
+  heldOrderId: heldOrderId,
 );
 
 TicketView _ticket({
@@ -142,6 +144,16 @@ void main() {
       expect(rows.single.urgency, FloorUrgency.seated);
     },
   );
+
+  test('a parked draft occupies its table even with no ticket on it', () {
+    // The cart's Hold button parks an order against its table. There is no
+    // ticket, so every "is anyone there" check that looks only at tickets
+    // reads the table as FREE — and offers it to a second party while
+    // somebody's order is still waiting on it.
+    final rows = rowsFor([_table(id: 'a', heldOrderId: 'h1')], {});
+    expect(rows.single.urgency, FloorUrgency.seated);
+    expect(rows.single.urgency, isNot(FloorUrgency.free));
+  });
 
   test('a table with no ticket is never described as seated', () {
     final rows = rowsFor([_table(id: 'a')], {});

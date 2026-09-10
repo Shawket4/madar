@@ -510,6 +510,44 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('a parked draft reads as taken, not free', (tester) async {
+      // No ticket, but the cart's Hold button parked an order here. Drawing it
+      // in the free tone offers the table to a second party while somebody's
+      // order is still waiting on it.
+      await tester.pumpWidget(
+        _host(
+          FloorCanvas(
+            section: _section,
+            tables: const [
+              FloorTableStateView(
+                id: 't1',
+                sectionId: 'sec-in',
+                label: 'HELD',
+                seats: 4,
+                shape: 'rect',
+                status: 'seated',
+                posX: 0,
+                posY: 0,
+                width: 80,
+                height: 80,
+                rotation: 0,
+                heldLockedByOther: false,
+                heldOrderId: 'h1',
+                heldOrderName: 'Sara',
+              ),
+            ],
+            tickets: const [],
+            seatsWord: 'seats',
+            words: _words,
+            onTap: (_) {},
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      // And it says whose order is sitting there.
+      expect(find.text('Sara'), findsOneWidget);
+    });
+
     test('the predicate itself refuses to bus an occupied table', () {
       // The widget test below proves the rendering; this proves the RULE, and
       // it is the one that was silently dropped when the dead held-order code

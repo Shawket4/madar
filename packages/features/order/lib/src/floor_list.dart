@@ -114,6 +114,10 @@ FloorUrgency _urgencyOf(FloorTableStateView t, TicketView? ticket) {
         ? FloorUrgency.foodReady
         : FloorUrgency.seated;
   }
+  // A PARKED DRAFT occupies a table with no ticket on it: the cart's Hold
+  // button parks an order against its table. Reading that as free would offer
+  // the table to a second party while somebody's order waits on it.
+  if (t.heldOrderId != null) return FloorUrgency.seated;
   if (t.status == 'dirty') return FloorUrgency.needsClearing;
   if (t.bookingId != null) return FloorUrgency.reserved;
   return FloorUrgency.free;
@@ -358,6 +362,11 @@ class _FloorRowTile extends StatelessWidget {
   String _subtitle() {
     final t = row.ticket;
     if (t == null) {
+      // Whose order is parked here, when a draft is what occupies the
+      // table. Without it the row says "4 seats" about a table that is
+      // plainly taken.
+      final held = row.table.heldOrderName?.trim();
+      if (held != null && held.isNotEmpty) return held;
       if (row.urgency == FloorUrgency.reserved) {
         return row.table.bookingGuest ?? words.reserved;
       }

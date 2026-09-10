@@ -1147,6 +1147,27 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       await _toOrderScreen();
       return;
     }
+    // A PARKED DRAFT is an occupant too.
+    //
+    // The cart's Hold button parks the order against its table and marks the
+    // table taken, so a table can be occupied with no ticket on it. Falling
+    // through to "seat a party" here would put a second party on a table that
+    // already has somebody's order waiting on it. Resuming is the same act as
+    // adding a round to a ticket: pick up what is already there.
+    final held = t.heldOrderId;
+    if (held != null) {
+      if (t.heldLockedByOther) {
+        _notifier.showToast(
+          _tr('tables.locked'),
+          tone: ChipTone.warning,
+          icon: 'lock',
+        );
+        return;
+      }
+      await _notifier.switchToHeldOrder(held);
+      await _toOrderScreen();
+      return;
+    }
     // Paid, plates still there. Clearing is the only honest act — a new party
     // cannot be seated on a table nobody has bussed.
     if (tableNeedsClearing(t)) {
@@ -1175,6 +1196,10 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     if (_completedMove(t)) return;
     if (ticket != null) {
       await _ticketTableSheet(t, ticket, isWaiter: isWaiter);
+      return;
+    }
+    if (t.heldOrderId != null) {
+      await _heldTableSheet(t);
       return;
     }
     if (tableNeedsClearing(t)) {
@@ -1338,6 +1363,35 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
           await _notifier.makeTableAvailable(t);
         }),
     ]);
+  }
+
+  /// A table holding a PARKED DRAFT: move it, queue for it, or hand the table
+  /// back.
+  ///
+  /// Resuming is the tap, so it is not repeated here — the same shape as a
+  /// ticket's table.
+  Future<void> _heldTableSheet(FloorTableStateView t) async {
+    final id = t.heldOrderId!;
+    await _actionsSheet(
+      '${t.label}${(t.heldOrderName?.isNotEmpty ?? false) ? ' · ${t.heldOrderName}' : ''}',
+      [
+        _SheetAction(
+          'arrow.triangle.2.circlepath',
+          _tr('tables.move'),
+          () async {
+            setState(() => _swapFrom = t.id);
+          },
+        ),
+        _SheetAction('clock', _tr('tables.queue'), () async {
+          await _createWishFlow('held_order', id);
+        }),
+        // The party left: the parked order survives, table-less, and the table
+        // goes back to the room.
+        _SheetAction('checkmark.circle', _tr('tables.free_it'), () async {
+          await _notifier.makeTableAvailable(t);
+        }),
+      ],
+    );
   }
 
   /// A waiter ticket's table: target rounds (waiter) or move it.
@@ -1750,7 +1804,10 @@ class _TableCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final occupied = ticket != null;
+    // A parked draft occupies the table too — the cart's Hold button parks an
+    // order against it with no ticket involved. Counting only tickets drew a
+    // plainly-taken table in the free tone.
+    final occupied = ticket != null || table.heldOrderId != null;
     final needsClearing = tableNeedsClearing(table, occupied: occupied);
     // ONE colour per state (the dashboard's `tint`), used for the body tint,
     // the ring, the chairs, and the pill. Ink is always the page's foreground —
@@ -1795,7 +1852,7 @@ class _TableCell extends StatelessWidget {
     // Who is on this table. A NAME beats a reference: "Sara" tells a teller
     // something across a room and "T-0412" does not, so the customer's name
     // wins where the ticket carries one and the ref is the fallback.
-    final onIt = ticket?.customerName?.trim();
+    final onIt = ticket?.customerName?.trim() ?? table.heldOrderName?.trim();
     final who = (onIt?.isNotEmpty ?? false)
         ? onIt
         : ticket?.ticketRef ??
