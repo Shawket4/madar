@@ -550,6 +550,26 @@ pub(crate) fn assign_table_local(
                 ),
             });
         }
+        // A SEATED PARTY is an occupant this function could not see.
+        //
+        // Not every table order is a held one — a party can be seated straight
+        // onto a table and rung up from there, which is an open ticket and
+        // leaves no held row at all. Checking only held orders therefore missed
+        // the commoner case entirely, and would have parked somebody's cart on
+        // a table with people already eating at it.
+        //
+        // The mirrored status is the shared answer: `seated` is written by a
+        // ticket landing, by a booking being seated, and by another hold — the
+        // three ways a table becomes taken.
+        let seated = load_tables(store)?
+            .iter()
+            .any(|x| x.id == t && x.status == "seated");
+        if seated {
+            return Err(CoreError::Validation {
+                field: "table_id".into(),
+                detail: "table is taken".into(),
+            });
+        }
     }
     let label = table_label(store, table_id.as_deref());
     let mut list = load_held(store)?;
@@ -1064,6 +1084,58 @@ mod tests {
         serde_json::json!({ "lines": [{
             "item_id": "a", "name": "Latte", "unit_price_minor": 5000, "qty": qty
         }], "discount_id": null })
+    }
+
+    /// A table order does NOT have to be a held one, and the two must not be
+    /// able to sit on the same table.
+    ///
+    /// A party can be seated straight onto a table and rung up from there —
+    /// that is an open ticket and leaves no held row at all, which is the
+    /// commoner case. `held_on_table` only ever saw held orders, so it was
+    /// blind to exactly that, and would have parked somebody's cart on a table
+    /// with people already eating at it.
+    #[test]
+    fn a_hold_cannot_be_parked_on_a_table_a_party_is_already_seated_at() {
+        let s = store();
+        seed_floor(&s);
+
+        // A seated party with no held order behind it — a ticket landing, or a
+        // booking seated, both write exactly this and nothing else.
+        set_table_state_local(&s, "t1", Some("seated"), None, false).unwrap();
+
+        // A hold parked with no table, then offered that one.
+        park_local(&s, "h1", "b", "Sara", payload(1), None, "dev-a", "now").unwrap();
+        let err = assign_table_local(&s, "h1", Some("t1".into()), "now")
+            .expect_err("a seated table is taken, held row or not");
+        assert!(
+            format!("{err}").contains("taken"),
+            "the refusal says the table is taken: {err}"
+        );
+
+        // The free one is still fine, so this refuses the right thing only.
+        let e = assign_table_local(&s, "h1", Some("t2".into()), "now").unwrap();
+        assert_eq!(e.table_id.as_deref(), Some("t2"));
+    }
+
+    /// Clearing a hold's table is never refused — it frees, it does not claim.
+    #[test]
+    fn a_hold_can_always_be_taken_off_its_table() {
+        let s = store();
+        seed_floor(&s);
+        park_local(
+            &s,
+            "h1",
+            "b",
+            "Sara",
+            payload(1),
+            Some("t1".into()),
+            "dev-a",
+            "now",
+        )
+        .unwrap();
+        // Parking marked t1 seated; unassigning must not trip the new guard.
+        let e = assign_table_local(&s, "h1", None, "now").unwrap();
+        assert!(e.table_id.is_none());
     }
 
     #[test]
