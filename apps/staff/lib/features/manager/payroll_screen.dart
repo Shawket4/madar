@@ -209,7 +209,7 @@ class _PayrollScreenState extends ConsumerState<PayrollScreen> {
                       ],
                     ),
                     const SizedBox(height: Space.md),
-                    MadarCard(
+                    StaffCard(
                       padding: EdgeInsets.zero,
                       child: Column(
                         children: [
@@ -263,7 +263,7 @@ class _PeriodStepper extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    return MadarCard(
+    return StaffCard(
       padding: const EdgeInsets.symmetric(
         horizontal: Space.sm + 2,
         vertical: Space.sm,

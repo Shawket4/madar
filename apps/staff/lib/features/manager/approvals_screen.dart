@@ -182,7 +182,7 @@ class _ApprovalCard extends ConsumerWidget {
     // warning to read differently from a leave request at a glance.
     final isFix = request.kind == 'correction';
 
-    return MadarCard(
+    return StaffCard(
       padding: const EdgeInsets.fromLTRB(
         Space.md,
         Space.sm + 2,

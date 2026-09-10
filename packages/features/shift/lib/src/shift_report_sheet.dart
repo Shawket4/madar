@@ -12,7 +12,6 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_shift/src/controls.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,17 +63,6 @@ const double _voidTagBgAlpha = 0.08;
 /// Skeleton row height while the shift's orders lazy-load (≈ one order row).
 const double _orderSkeletonHeight = 26;
 
-// ── Theme-invariant "thermal paper" ink (ReceiptPaper.kt): a receipt is
-// always white paper with dark ink, so these are fixed, not tokens. ─────────
-const Color _paper = Color(0xFFFFFFFF);
-const Color _ink = Color(0xFF1A1A1A);
-const Color _faint = Color(0xFF6B6B6B);
-const Color _rule = Color(0xFFCCCCCC);
-const Color _inkTrack = Color(0xFFEEEEEE);
-const Color _inkSuccess = Color(0xFF2E7D32);
-const Color _inkDanger = Color(0xFFB71C1C);
-const Color _inkWarning = Color(0xFFB26A00);
-
 /// Tone set `ShiftReportBreakdown` renders with: the theme palette inside
 /// the close-shift report card (Kotlin ShiftReportBreakdown), or fixed
 /// ink-on-paper inside the Z-report preview sheet.
@@ -109,16 +97,16 @@ class ShiftReportPalette {
 
   /// Fixed ink-on-white for the paper preview (theme-invariant).
   static const ShiftReportPalette paper = ShiftReportPalette(
-    strong: _ink,
-    soft: _ink,
-    muted: _faint,
-    rule: _rule,
-    positive: _inkSuccess,
-    negative: _inkDanger,
-    caution: _inkWarning,
-    barTrack: _inkTrack,
-    barCash: _inkSuccess,
-    barOther: _ink,
+    strong: Paper.ink,
+    soft: Paper.ink,
+    muted: Paper.faint,
+    rule: Paper.rule,
+    positive: Paper.success,
+    negative: Paper.danger,
+    caution: Paper.warning,
+    barTrack: Paper.track,
+    barCash: Paper.success,
+    barOther: Paper.ink,
   );
 
   /// Primary row text.
@@ -649,7 +637,7 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
             children: [
               if (_printChip(state.print, t) case final Widget chip)
                 Center(child: chip),
-              ShiftButton(
+              MadarButton(
                 label: state.print == ShiftPrintState.printing
                     ? t('receipt.printing')
                     : t('shift.print_report'),
@@ -662,9 +650,9 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
                       .printReport(),
                 ),
               ),
-              ShiftButton(
+              MadarButton(
                 label: t('common.done'),
-                variant: ShiftButtonVariant.ghost,
+                variant: MadarButtonVariant.ghost,
                 onTap: () => Navigator.of(context).maybePop(),
               ),
             ],
@@ -732,9 +720,9 @@ class _ReportPaper extends StatelessWidget {
     final currency = bridge.currentSession()?.currencyCode ?? '';
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _paper,
+        color: Paper.paper,
         borderRadius: BorderRadius.circular(_paperRadius),
-        border: Border.all(color: _rule),
+        border: Border.all(color: Paper.rule),
       ),
       child: Padding(
         padding: const EdgeInsetsDirectional.all(_paperPad),
@@ -748,18 +736,18 @@ class _ReportPaper extends StatelessWidget {
               style: MadarType.title.copyWith(
                 fontSize: _storeNameSize,
                 fontWeight: FontWeight.w700,
-                color: _ink,
+                color: Paper.ink,
               ),
             ),
             Text(
               t('shift.report_title').toUpperCase(),
               textAlign: TextAlign.center,
               style: MadarType.labelSm.copyWith(
-                color: _faint,
+                color: Paper.faint,
                 letterSpacing: MadarType.tracking,
               ),
             ),
-            const _Rule(color: _rule),
+            const _Rule(color: Paper.rule),
             _paperStamp(t('shift.teller'), report.tellerName),
             _paperStamp(
               t('shift.opened_at'),
@@ -768,14 +756,14 @@ class _ReportPaper extends StatelessWidget {
                 style: TimeStyle.dateTime,
               ),
             ),
-            const _Rule(color: _rule),
+            const _Rule(color: Paper.rule),
             ShiftReportBreakdown(
               report: report,
               currency: currency,
               tr: t,
               palette: ShiftReportPalette.paper,
             ),
-            const _Rule(color: _rule),
+            const _Rule(color: Paper.rule),
             _OrdersSection(
               orders: orders,
               currency: currency,
@@ -798,11 +786,11 @@ class _ReportPaper extends StatelessWidget {
             label,
             style: MadarType.labelSm.copyWith(
               fontWeight: FontWeight.w400,
-              color: _faint,
+              color: Paper.faint,
             ),
           ),
         ),
-        Text(value, style: MadarType.labelSm.copyWith(color: _ink)),
+        Text(value, style: MadarType.labelSm.copyWith(color: Paper.ink)),
       ],
     );
   }
@@ -851,14 +839,14 @@ class _OrdersSection extends StatelessWidget {
                   child: Text(
                     t('shifts.orders').toUpperCase(),
                     style: MadarType.labelSm.copyWith(
-                      color: _faint,
+                      color: Paper.faint,
                       letterSpacing: MadarType.tracking,
                     ),
                   ),
                 ),
                 MadarIcon(
                   expanded ? 'chevron.up' : 'chevron.down',
-                  tint: _faint,
+                  tint: Paper.faint,
                 ),
               ],
             ),
@@ -874,7 +862,7 @@ class _OrdersSection extends StatelessWidget {
               t('shifts.no_orders'),
               style: MadarType.labelSm.copyWith(
                 fontWeight: FontWeight.w400,
-                color: _faint,
+                color: Paper.faint,
               ),
             )
           else
@@ -918,7 +906,7 @@ class _ShiftOrderRow extends StatelessWidget {
       opacity: voided ? _voidedAlpha : 1,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: _inkTrack,
+          color: Paper.track,
           borderRadius: BorderRadius.circular(Radii.xs),
         ),
         child: Padding(
@@ -933,13 +921,13 @@ class _ShiftOrderRow extends StatelessWidget {
                 o.orderNumber != null
                     ? '#${o.orderNumber}'
                     : t('history.order'),
-                style: MadarType.labelSm.copyWith(color: _ink),
+                style: MadarType.labelSm.copyWith(color: Paper.ink),
               ),
               Text(
                 bridge.formatTime(rfc3339: o.createdAt, style: TimeStyle.time),
                 style: MadarType.labelSm.copyWith(
                   fontWeight: FontWeight.w400,
-                  color: _faint,
+                  color: Paper.faint,
                 ),
               ),
               if (voided) _VoidedTag(label: t('history.voided')),
@@ -951,7 +939,7 @@ class _ShiftOrderRow extends StatelessWidget {
                   textAlign: TextAlign.end,
                   style: MadarType.labelSm.copyWith(
                     fontWeight: FontWeight.w400,
-                    color: _faint,
+                    color: Paper.faint,
                   ),
                 ),
               ),
@@ -963,14 +951,14 @@ class _ShiftOrderRow extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   decoration: voided ? TextDecoration.lineThrough : null,
                 ),
-                color: voided ? _faint : _ink,
+                color: voided ? Paper.faint : Paper.ink,
               ),
               // Per-order print — reprint this one order's receipt.
               TactileScale(
                 onTap: onPrint,
                 child: const Padding(
                   padding: EdgeInsetsDirectional.only(start: Space.xs),
-                  child: MadarIcon('printer', tint: _faint),
+                  child: MadarIcon('printer', tint: Paper.faint),
                 ),
               ),
             ],
@@ -992,10 +980,10 @@ class _VoidedTag extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _inkDanger.withValues(alpha: _voidTagBgAlpha),
+        color: Paper.danger.withValues(alpha: _voidTagBgAlpha),
         borderRadius: BorderRadius.circular(Radii.pill),
         border: Border.all(
-          color: _inkDanger.withValues(alpha: Opacities.border),
+          color: Paper.danger.withValues(alpha: Opacities.border),
         ),
       ),
       child: Padding(
@@ -1007,7 +995,7 @@ class _VoidedTag extends StatelessWidget {
           label,
           style: MadarType.labelSm.copyWith(
             fontSize: _metaSize,
-            color: _inkDanger,
+            color: Paper.danger,
           ),
         ),
       ),

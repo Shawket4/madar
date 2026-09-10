@@ -11,7 +11,6 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_shift/src/controls.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
@@ -118,7 +117,7 @@ class _CashMovementsScreenState extends ConsumerState<CashMovementsScreen> {
                           onRecord: () => unawaited(_record()),
                           tr: t,
                         ),
-                        ShiftSectionHeader(text: t('cash.history')),
+                        MadarSectionHeader(text: t('cash.history')),
                         if (loading && movements.isEmpty)
                           const SkeletonScope(
                             child: Column(
@@ -147,10 +146,11 @@ class _CashMovementsScreenState extends ConsumerState<CashMovementsScreen> {
                         else
                           // One card, rows separated by hairlines (the
                           // natives' zero-inset MadarCard).
-                          ShiftFlushCard(
+                          MadarCard.column(
+                            flush: true,
                             children: [
                               for (final (index, m) in movements.indexed) ...[
-                                if (index > 0) const ShiftHairline(),
+                                if (index > 0) const MadarHairline(),
                                 _MovementRow(
                                   movement: m,
                                   currency: currency,
@@ -199,7 +199,7 @@ class _SummaryStrip extends StatelessWidget {
       }
     }
     final net = totalIn - totalOut;
-    return ShiftCard(
+    return MadarCard.column(
       children: [
         Row(
           spacing: Space.sm,
@@ -323,7 +323,7 @@ class _RecordCard extends ConsumerWidget {
     final canRecord = ref.watch(
       cashMovementsProvider.select((s) => s.canRecord),
     );
-    return ShiftCard(
+    return MadarCard.column(
       children: [
         Row(
           spacing: Space.sm,
@@ -350,18 +350,18 @@ class _RecordCard extends ConsumerWidget {
             ),
           ],
         ),
-        AmountField(
+        MadarAmountField(
           amountMinor: amountMinor,
           onAmountMinor: (v) =>
               ref.read(cashMovementsProvider.notifier).setAmount(v),
           currencyCode: currency,
         ),
-        ShiftTextField(
+        MadarField(
           controller: note,
           placeholder: tr('cash.note'),
           icon: 'text.bubble',
         ),
-        ShiftButton(
+        MadarButton(
           label: tr('cash.record'),
           icon: 'plus.forwardslash.minus',
           loading: busy,

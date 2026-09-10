@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:design_system/src/banners.dart';
 import 'package:design_system/src/brand.dart';
+import 'package:design_system/src/controls.dart';
 import 'package:design_system/src/icons.dart';
 import 'package:design_system/src/money.dart';
 import 'package:design_system/src/sheet.dart';
@@ -54,6 +55,12 @@ class GalleryScreen extends StatefulWidget {
 }
 
 class _GalleryScreenState extends State<GalleryScreen> {
+  /// Live state for the control demos — a real field needs a real controller.
+  final TextEditingController _galleryField = TextEditingController(
+    text: 'Sara',
+  );
+  int _galleryAmount = 12050;
+
   bool _rtl = false;
   ToastData? _toast;
   int _nextToastId = 0;
@@ -121,6 +128,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
                     _buildToneSection(colors),
                     const SizedBox(height: Space.xxl),
                     _buildButtonSection(colors),
+                    const SizedBox(height: Space.xxl),
+                    _buildControlSection(colors),
                     const SizedBox(height: Space.xxl),
                     _buildSkeletonSection(colors),
                     const SizedBox(height: Space.xxl),
@@ -450,22 +459,124 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
   Widget _buildButtonSection(MadarColors colors) {
     return _Section(
-      title: 'Buttons · tactile press scales',
-      child: Wrap(
+      title: 'Buttons · the shared kit',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         spacing: Space.md,
-        runSpacing: Space.md,
         children: [
-          _GalleryButton(
-            label: 'pressScale ${MotionSpec.pressScale}',
-            icon: 'cart',
-            onTap: () => _showToast(ChipTone.accent),
+          Wrap(
+            spacing: Space.md,
+            runSpacing: Space.md,
+            children: [
+              MadarButton(
+                label: 'Primary',
+                icon: 'cart',
+                onTap: () => _showToast(ChipTone.accent),
+              ),
+              MadarButton(
+                label: 'Outline',
+                variant: MadarButtonVariant.outline,
+                onTap: () => _showToast(ChipTone.neutral),
+              ),
+              MadarButton(
+                label: 'Danger',
+                variant: MadarButtonVariant.danger,
+                onTap: () => _showToast(ChipTone.danger),
+              ),
+              MadarButton(
+                label: 'Ghost',
+                variant: MadarButtonVariant.ghost,
+                onTap: () => _showToast(ChipTone.neutral),
+              ),
+              MadarButton(label: 'Loading', loading: true, onTap: () {}),
+              MadarButton(label: 'Disabled', enabled: false, onTap: () {}),
+            ],
           ),
-          _GalleryButton(
-            label: 'pressScaleKey ${MotionSpec.pressScaleKey}',
-            icon: 'number',
-            scale: MotionSpec.pressScaleKey,
-            filled: false,
-            onTap: () => _showToast(ChipTone.neutral),
+          Text(
+            'Compact — a dense toolbar row, no halo',
+            style: MadarType.labelSm.copyWith(color: colors.textMuted),
+          ),
+          Wrap(
+            spacing: Space.sm,
+            runSpacing: Space.sm,
+            children: [
+              MadarButton(
+                label: 'Arrivals · 3',
+                icon: 'calendar.days',
+                variant: MadarButtonVariant.outline,
+                size: MadarButtonSize.compact,
+                onTap: () => _showToast(ChipTone.neutral),
+              ),
+              MadarButton(
+                label: 'Waitlist',
+                icon: 'clock',
+                variant: MadarButtonVariant.outline,
+                size: MadarButtonSize.compact,
+                onTap: () => _showToast(ChipTone.neutral),
+              ),
+              MadarButton(
+                label: 'Checkout',
+                size: MadarButtonSize.compact,
+                onTap: () => _showToast(ChipTone.accent),
+              ),
+            ],
+          ),
+          Text(
+            'Press scales — every pressable surface recoils on one of these',
+            style: MadarType.labelSm.copyWith(color: colors.textMuted),
+          ),
+          Wrap(
+            spacing: Space.md,
+            runSpacing: Space.md,
+            children: [
+              _GalleryButton(
+                label: 'pressScale ${MotionSpec.pressScale}',
+                icon: 'cart',
+                filled: false,
+                onTap: () => _showToast(ChipTone.neutral),
+              ),
+              _GalleryButton(
+                label: 'pressScaleKey ${MotionSpec.pressScaleKey}',
+                icon: 'number',
+                scale: MotionSpec.pressScaleKey,
+                filled: false,
+                onTap: () => _showToast(ChipTone.neutral),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Fields, card, section header, hairline ────────────────────────
+
+  Widget _buildControlSection(MadarColors colors) {
+    return _Section(
+      title: 'Fields · card · section header · hairline',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.md,
+        children: [
+          MadarField(
+            controller: _galleryField,
+            placeholder: 'Guest name',
+            icon: 'person',
+          ),
+          MadarAmountField(
+            amountMinor: _galleryAmount,
+            currencyCode: 'egp',
+            onAmountMinor: (v) => setState(() => _galleryAmount = v),
+          ),
+          MadarCard.column(
+            children: [
+              const MadarSectionHeader(text: 'Cash drawer'),
+              const MadarHairline(light: true),
+              Text(
+                'A card, a section header, and the hairline between them.',
+                style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+              ),
+            ],
           ),
         ],
       ),

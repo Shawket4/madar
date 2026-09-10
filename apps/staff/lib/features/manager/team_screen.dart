@@ -110,7 +110,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                 if (data.rows.isEmpty)
                   EmptyState(icon: 'person.2', title: t('team.empty'))
                 else
-                  MadarCard(
+                  StaffCard(
                     padding: EdgeInsets.zero,
                     child: Column(
                       children: [
@@ -161,7 +161,7 @@ class _LabourCard extends ConsumerWidget {
         : data.workedMinutes / data.plannedMinutes;
     final percent = (fraction * 100).round();
 
-    return MadarCard(
+    return StaffCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

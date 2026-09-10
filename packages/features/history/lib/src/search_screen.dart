@@ -99,7 +99,7 @@ class _OrderSearchScreenState extends ConsumerState<OrderSearchScreen> {
                   child: Column(
                     children: [
                       _SearchFilters(teller: _teller),
-                      const Hairline(),
+                      const MadarHairline(),
                       Expanded(child: _SearchResults(teller: _teller)),
                     ],
                   ),
@@ -200,17 +200,16 @@ class _SearchFilters extends ConsumerWidget {
               spacing: Space.sm,
               children: [
                 Expanded(
-                  child: HistoryTextField(
+                  child: MadarField(
                     controller: teller,
                     placeholder: t('search.teller_hint'),
                     icon: 'person',
                   ),
                 ),
-                HistoryButton(
+                MadarButton(
                   label: t('search.title'),
                   icon: 'magnifyingglass',
                   loading: searching,
-                  expand: false,
                   onTap: () =>
                       unawaited(notifier.run(reset: true, teller: teller.text)),
                 ),
@@ -263,9 +262,9 @@ class _SearchResults extends ConsumerWidget {
       separatorBuilder: (_, _) => const SizedBox(height: Space.sm),
       itemBuilder: (context, index) {
         if (index >= results.length) {
-          return HistoryButton(
+          return MadarButton(
             label: t('search.load_more'),
-            variant: HistoryButtonVariant.outline,
+            variant: MadarButtonVariant.outline,
             icon: 'arrow.down.circle',
             loading: searching,
             onTap: () => unawaited(

@@ -84,7 +84,7 @@ class _RosterScreenState extends ConsumerState<RosterScreen> {
           ),
           data: (rows) => rows.isEmpty
               ? EmptyState(icon: 'person', title: t('roster.noResults'))
-              : MadarCard(
+              : StaffCard(
                   padding: EdgeInsets.zero,
                   child: Column(
                     children: [
@@ -198,7 +198,7 @@ class _Profile extends ConsumerWidget {
         child: const IconTile(icon: 'chevron.backward', size: 34),
       ),
       children: [
-        MadarCard(
+        StaffCard(
           padding: const EdgeInsets.all(Space.lg),
           child: Row(
             children: [
@@ -239,7 +239,7 @@ class _Profile extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: Space.md),
-        MadarCard(
+        StaffCard(
           padding: EdgeInsets.zero,
           child: Column(
             children: [

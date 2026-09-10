@@ -5,7 +5,6 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_incoming/src/delivery_body.dart';
 import 'package:feature_incoming/src/incoming_provider.dart';
 import 'package:feature_incoming/src/tickets_settle_body.dart';
-import 'package:feature_incoming/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -131,7 +130,7 @@ class _IncomingScreenState extends ConsumerState<IncomingScreen> {
                         ),
                       ),
                     ),
-                    const IncomingHairline(),
+                    const MadarHairline(),
                   ],
                 ),
               ),

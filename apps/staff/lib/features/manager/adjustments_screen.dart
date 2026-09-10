@@ -319,7 +319,7 @@ class _AdjustmentCard extends ConsumerWidget {
     // Only a rule-generated row has an "original" to strike through.
     final wasOverridden = row.overridden && row.originalAmountMinor > 0;
 
-    return MadarCard(
+    return StaffCard(
       padding: const EdgeInsets.fromLTRB(
         Space.md,
         Space.sm + 2,
@@ -495,7 +495,7 @@ class _Advances extends ConsumerWidget {
             for (final advance in list)
               Padding(
                 padding: const EdgeInsets.only(bottom: Space.sm),
-                child: MadarCard(
+                child: StaffCard(
                   padding: const EdgeInsets.fromLTRB(
                     Space.md,
                     Space.sm + 2,

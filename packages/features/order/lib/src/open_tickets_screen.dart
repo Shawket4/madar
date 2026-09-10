@@ -570,15 +570,15 @@ class _SettleTicketCard extends ConsumerWidget {
                     spacing: Space.sm,
                     children: [
                       Expanded(
-                        child: ActionButton(
+                        child: MadarButton(
                           label: bridge.tr(key: 'order.view_order'),
                           icon: 'list.bullet',
-                          variant: ActionVariant.outline,
+                          variant: MadarButtonVariant.outline,
                           onTap: onView,
                         ),
                       ),
                       Expanded(
-                        child: ActionButton(
+                        child: MadarButton(
                           label: bridge.tr(key: 'waiter.settle'),
                           icon: 'checkmark.circle',
                           onTap: onSettle,
@@ -719,7 +719,7 @@ class _TicketDetailsSheet extends ConsumerWidget {
         // Settle CTA pinned under the details.
         Padding(
           padding: const EdgeInsetsDirectional.all(Space.lg),
-          child: ActionButton(
+          child: MadarButton(
             label: bridge.tr(key: 'waiter.settle'),
             icon: 'checkmark.circle',
             onTap: onSettle,

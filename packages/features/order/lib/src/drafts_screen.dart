@@ -15,7 +15,6 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/tables_screen.dart';
-import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -385,17 +384,17 @@ class _DiscardDraftSheet extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: ActionButton(
+                child: MadarButton(
                   label: bridge.tr(key: 'common.cancel'),
-                  variant: ActionVariant.outline,
+                  variant: MadarButtonVariant.outline,
                   onTap: () => Navigator.of(context).maybePop(),
                 ),
               ),
               const SizedBox(width: Space.sm),
               Expanded(
-                child: ActionButton(
+                child: MadarButton(
                   label: bridge.tr(key: 'sync.discard'),
-                  variant: ActionVariant.danger,
+                  variant: MadarButtonVariant.danger,
                   icon: 'trash',
                   onTap: () => Navigator.of(context).maybePop(true),
                 ),

@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_checkout/src/widgets.dart';
 import 'package:flutter/material.dart'
     show CircularProgressIndicator, InputDecoration, TextButton, TextField;
 import 'package:flutter/widgets.dart';
@@ -174,7 +173,7 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
               ],
             ),
           ),
-          ActionButton(
+          MadarButton(
             label: t('loyalty.look_up'),
             enabled: !widget.busy,
             onTap: () => unawaited(_offer(_phone.text)),

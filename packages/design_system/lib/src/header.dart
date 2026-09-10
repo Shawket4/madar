@@ -31,6 +31,7 @@ class MadarHeader extends StatelessWidget {
     this.subtitle,
     this.onBack,
     this.actions = const [],
+    this.below,
     this.tinted = false,
   });
 
@@ -45,6 +46,11 @@ class MadarHeader extends StatelessWidget {
 
   /// Trailing widgets, laid end-aligned with [Space.sm] gaps.
   final List<Widget> actions;
+
+  /// A full-width row under the title, INSIDE the bar — a screen's at-a-glance
+  /// summary (the floor's state counts) that wants the whole width rather than
+  /// what is left over beside the actions.
+  final Widget? below;
 
   /// Accent-washed variant for hero surfaces (e.g. KDS station header).
   final bool tinted;
@@ -63,62 +69,73 @@ class MadarHeader extends StatelessWidget {
         color: tinted ? colors.accentBg : colors.surface,
         border: Border(bottom: BorderSide(color: colors.borderLight)),
       ),
-      child: SizedBox(
-        height: _headerHeight,
-        child: Row(
-          children: [
-            if (onBack != null) ...[
-              TactileScale(
-                onTap: onBack,
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(Radii.sm),
-                  ),
-                  child: MadarIcon(
-                    'chevron.backward',
-                    tint: colors.textPrimary,
-                    size: IconSize.lg,
-                  ),
-                ),
-              ),
-              const SizedBox(width: Space.md),
-            ],
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.h3.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: MadarType.labelSm.copyWith(
-                        color: colors.textMuted,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: _headerHeight,
+            child: Row(
+              children: [
+                if (onBack != null) ...[
+                  TactileScale(
+                    onTap: onBack,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: colors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(Radii.sm),
+                      ),
+                      child: MadarIcon(
+                        'chevron.backward',
+                        tint: colors.textPrimary,
+                        size: IconSize.lg,
                       ),
                     ),
+                  ),
+                  const SizedBox(width: Space.md),
                 ],
-              ),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MadarType.h3.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: MadarType.labelSm.copyWith(
+                            color: colors.textMuted,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                for (final action in actions) ...[
+                  const SizedBox(width: Space.sm),
+                  action,
+                ],
+              ],
             ),
-            for (final action in actions) ...[
-              const SizedBox(width: Space.sm),
-              action,
-            ],
-          ],
-        ),
+          ),
+          if (below != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(bottom: Space.md),
+              child: below,
+            ),
+        ],
       ),
     );
   }

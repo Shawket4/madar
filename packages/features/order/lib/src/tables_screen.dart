@@ -16,7 +16,6 @@ import 'package:feature_order/src/open_tickets_screen.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/order_screen.dart';
 import 'package:feature_order/src/table_clear_prompt.dart';
-import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -199,9 +198,9 @@ class _TablePickerBodyState extends State<_TablePickerBody> {
           ),
           if (widget.allowClear) ...[
             const SizedBox(height: Space.lg),
-            ActionButton(
+            MadarButton(
               label: widget.clearLabel,
-              variant: ActionVariant.outline,
+              variant: MadarButtonVariant.outline,
               onTap: () =>
                   Navigator.of(context).maybePop(const TablePick(null, null)),
             ),
@@ -809,115 +808,124 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
 
     return Scaffold(
       backgroundColor: colors.bg,
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsetsDirectional.all(compact ? Space.md : Space.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  // Nothing behind home to go back to.
-                  if (!widget.isHome)
-                    IconButton(
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: MadarIcon(
-                        'chevron.backward',
-                        tint: colors.textPrimary,
-                      ),
-                    ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _tr('tables.title'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: (compact ? MadarType.h3 : MadarType.h2)
-                              .copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        // The room at a glance. These chips carry the state
-                        // vocabulary too, so no separate legend is needed —
-                        // one row that both counts and teaches.
-                        if (allTables.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsetsDirectional.only(
-                              top: Space.xs,
-                            ),
-                            child: Wrap(
-                              spacing: Space.md,
-                              runSpacing: Space.xs,
-                              children: [
-                                _CountChip(
-                                  tone: colors.accent,
-                                  solid: true,
-                                  label: _tr('tables.seated'),
-                                  count: seatedCount,
-                                ),
-                                _CountChip(
-                                  tone: colors.success,
-                                  label: _tr('tables.free'),
-                                  count:
-                                      allTables.length -
-                                      seatedCount -
-                                      heldCount -
-                                      dirtyTables.length,
-                                ),
-                                if (dirtyTables.isNotEmpty)
-                                  _CountChip(
-                                    tone: colors.danger,
-                                    label: _tr('tables.needs_clearing'),
-                                    count: dirtyTables.length,
-                                  ),
-                                if (heldCount > 0)
-                                  _CountChip(
-                                    tone: colors.warning,
-                                    label: _tr('tables.held_res'),
-                                    count: heldCount,
-                                  ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  // Bookings and the waitlist.
-                  //
-                  // On a phone these lose their words and keep their counts. A
-                  // label is the first thing to give up when the row will not
-                  // fit — an icon with "· 3" beside it still says everything
-                  // that matters, and the alternative was a header that
-                  // overflowed its own screen.
-                  ActionButton(
-                    label: compact
-                        ? (arrivals.isEmpty ? '' : '${arrivals.length}')
-                        : (arrivals.isEmpty
-                              ? _tr('tables.arrivals')
-                              : '${_tr('tables.arrivals')} · ${arrivals.length}'),
-                    icon: 'calendar.days',
-                    variant: ActionVariant.outline,
-                    onTap: () => unawaited(_openArrivals()),
-                  ),
-                  const SizedBox(width: Space.xs),
-                  ActionButton(
-                    label: compact
-                        ? (queue.isEmpty ? '' : '${queue.length}')
-                        : (queue.isEmpty
-                              ? _tr('tables.waitlist')
-                              : '${_tr('tables.waitlist')} · ${queue.length}'),
-                    icon: 'clock',
-                    variant: ActionVariant.outline,
-                    onTap: () => unawaited(_openWaitlist()),
-                  ),
-                ],
+      body: Column(
+        children: [
+          // THE house header, like every other screen. This screen used to
+          // draw its own — a Material IconButton, a different title size, no
+          // surface bar and no hairline — so the one screen a waiter stands in
+          // front of all shift was the one that did not look like the app.
+          MadarHeader(
+            title: _tr('tables.title'),
+            // Nothing behind home to go back to.
+            onBack: widget.isHome
+                ? null
+                : () => Navigator.of(context).maybePop(),
+            actions: [
+              // Bookings and the waitlist.
+              //
+              // On a phone these lose their words and keep their counts. A
+              // label is the first thing to give up when the row will not fit
+              // — an icon with "3" beside it still says everything that
+              // matters, and the alternative was a header that overflowed its
+              // own screen.
+              MadarButton(
+                label: compact
+                    ? (arrivals.isEmpty ? '' : '${arrivals.length}')
+                    : (arrivals.isEmpty
+                          ? _tr('tables.arrivals')
+                          : '${_tr('tables.arrivals')} · ${arrivals.length}'),
+                icon: 'calendar.days',
+                variant: MadarButtonVariant.outline,
+                size: MadarButtonSize.compact,
+                onTap: () => unawaited(_openArrivals()),
               ),
-              const SizedBox(height: Space.md),
-              Row(
-                children: [
-                  if (tabs.length > 1)
-                    Expanded(
-                      child: Wrap(
+              MadarButton(
+                label: compact
+                    ? (queue.isEmpty ? '' : '${queue.length}')
+                    : (queue.isEmpty
+                          ? _tr('tables.waitlist')
+                          : '${_tr('tables.waitlist')} · ${queue.length}'),
+                icon: 'clock',
+                variant: MadarButtonVariant.outline,
+                size: MadarButtonSize.compact,
+                onTap: () => unawaited(_openWaitlist()),
+              ),
+              // Plan or list. A control for the whole screen, so it belongs
+              // with the screen's other controls. It used to sit on the filter
+              // row, which on a one-area floor is otherwise empty — leaving one
+              // button floating in a band of nothing above the room.
+              MadarButton(
+                // Icon only, at every width. The glyph IS the label — a grid
+                // means "show me the room", a list means "show me the queue" —
+                // and the two beside it already carry words and counts. Three
+                // labelled buttons is what overflowed this row in the first
+                // place.
+                label: '',
+                icon: _asList ? 'square.grid.2x2' : 'list.bullet',
+                tooltip: _asList
+                    ? _tr('tables.view_plan')
+                    : _tr('tables.view_list'),
+                variant: MadarButtonVariant.outline,
+                size: MadarButtonSize.compact,
+                onTap: () => setState(() => _asList = !_asList),
+              ),
+            ],
+            // The room at a glance, on its own full-width line. These chips
+            // carry the state vocabulary too, so no separate legend is needed
+            // — one row that both counts and teaches. It used to be squeezed
+            // in beside the title, fighting the buttons for what was left.
+            below: allTables.isEmpty
+                ? null
+                : Wrap(
+                    spacing: Space.md,
+                    runSpacing: Space.xs,
+                    children: [
+                      _CountChip(
+                        tone: colors.accent,
+                        solid: true,
+                        label: _tr('tables.seated'),
+                        count: seatedCount,
+                      ),
+                      _CountChip(
+                        tone: colors.success,
+                        label: _tr('tables.free'),
+                        count:
+                            allTables.length -
+                            seatedCount -
+                            heldCount -
+                            dirtyTables.length,
+                      ),
+                      if (dirtyTables.isNotEmpty)
+                        _CountChip(
+                          tone: colors.danger,
+                          label: _tr('tables.needs_clearing'),
+                          count: dirtyTables.length,
+                        ),
+                      if (heldCount > 0)
+                        _CountChip(
+                          tone: colors.warning,
+                          label: _tr('tables.held_res'),
+                          count: heldCount,
+                        ),
+                    ],
+                  ),
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsetsDirectional.all(
+                  compact ? Space.md : Space.lg,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Areas, when there is more than one. A single-area floor
+                    // has nothing to filter, so the row is not drawn at all
+                    // rather than reserving a strip of empty chrome above the
+                    // room.
+                    if (tabs.length > 1) ...[
+                      Wrap(
                         spacing: Space.sm,
                         runSpacing: Space.sm,
                         children: [
@@ -930,86 +938,79 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                             ),
                         ],
                       ),
-                    )
-                  else
-                    const Spacer(),
-                  // Plan or list. A view control, so it sits with the filter
-                  // rather than among the sheets — and the header row was
-                  // already one button past what a narrow window fits.
-                  ActionButton(
-                    label: _asList
-                        ? _tr('tables.view_plan')
-                        : _tr('tables.view_list'),
-                    icon: _asList ? 'square.grid.2x2' : 'list.bullet',
-                    variant: ActionVariant.outline,
-                    onTap: () => setState(() => _asList = !_asList),
-                  ),
-                ],
-              ),
-              if (_swapFrom != null)
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(top: Space.md),
-                  child: _swapBanner(colors),
-                ),
-              const SizedBox(height: Space.md),
-              Expanded(
-                // An empty room still renders the screen (header + back) and
-                // says why — never a dead-end blank page.
-                child: allTables.isEmpty
-                    ? EmptyState(
-                        icon: 'square.grid.2x2',
-                        title: _tr('tables.empty_title'),
-                        message: _tr('tables.empty_desc'),
-                        actionLabel: _tr('chrome.sync_data'),
-                        onAction: () => unawaited(_notifier.syncFloor()),
-                      )
-                    : _asList
-                    ? FloorListView(
-                        rows: buildFloorRows(
-                          tables: tables,
-                          ticketOn: (id) => _ticketOn(tickets, id),
-                          sectionName: (sid) => sid == null
-                              ? null
-                              : layout?.sections
-                                    .where((s) => s.id == sid)
-                                    .firstOrNull
-                                    ?.name,
-                          now: DateTime.now(),
+                      const SizedBox(height: Space.md),
+                    ],
+                    if (_swapFrom != null)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(
+                          top: Space.md,
                         ),
-                        now: DateTime.now(),
-                        currency: ref.watch(
-                          orderProvider.select((s) => s.currency),
-                        ),
-                        words: FloorListWords.of(ref.read(bridgeProvider)),
-                        armedId: _swapFrom,
-                        onTap: (t) => unawaited(
-                          _onTablePrimary(
-                            t,
-                            _ticketOn(tickets, t.id),
-                            isWaiter: isWaiter,
-                          ),
-                        ),
-                        onLongPress: (t) => unawaited(
-                          _onTableMenu(
-                            t,
-                            _ticketOn(tickets, t.id),
-                            isWaiter: isWaiter,
-                          ),
-                        ),
-                      )
-                    : SingleChildScrollView(
-                        child: _canvas(
-                          active,
-                          tables,
-                          tickets,
-                          isWaiter: isWaiter,
-                          colors: colors,
-                        ),
+                        child: _swapBanner(colors),
                       ),
+                    if (_swapFrom != null) const SizedBox(height: Space.md),
+                    Expanded(
+                      // An empty room still renders the screen (header + back) and
+                      // says why — never a dead-end blank page.
+                      child: allTables.isEmpty
+                          ? EmptyState(
+                              icon: 'square.grid.2x2',
+                              title: _tr('tables.empty_title'),
+                              message: _tr('tables.empty_desc'),
+                              actionLabel: _tr('chrome.sync_data'),
+                              onAction: () => unawaited(_notifier.syncFloor()),
+                            )
+                          : _asList
+                          ? FloorListView(
+                              rows: buildFloorRows(
+                                tables: tables,
+                                ticketOn: (id) => _ticketOn(tickets, id),
+                                sectionName: (sid) => sid == null
+                                    ? null
+                                    : layout?.sections
+                                          .where((s) => s.id == sid)
+                                          .firstOrNull
+                                          ?.name,
+                                now: DateTime.now(),
+                              ),
+                              now: DateTime.now(),
+                              currency: ref.watch(
+                                orderProvider.select((s) => s.currency),
+                              ),
+                              words: FloorListWords.of(
+                                ref.read(bridgeProvider),
+                              ),
+                              armedId: _swapFrom,
+                              onTap: (t) => unawaited(
+                                _onTablePrimary(
+                                  t,
+                                  _ticketOn(tickets, t.id),
+                                  isWaiter: isWaiter,
+                                ),
+                              ),
+                              onLongPress: (t) => unawaited(
+                                _onTableMenu(
+                                  t,
+                                  _ticketOn(tickets, t.id),
+                                  isWaiter: isWaiter,
+                                ),
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              child: _canvas(
+                                active,
+                                tables,
+                                tickets,
+                                isWaiter: isWaiter,
+                                colors: colors,
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1489,10 +1490,10 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
             for (final d in drafts)
               Padding(
                 padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
-                child: ActionButton(
+                child: MadarButton(
                   label: '${d.name} · ${d.itemCount}',
                   icon: 'tray.full',
-                  variant: ActionVariant.outline,
+                  variant: MadarButtonVariant.outline,
                   onTap: () => Navigator.of(sheetContext).maybePop(d),
                 ),
               ),
@@ -1527,16 +1528,16 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
             for (final s in layout.sections)
               Padding(
                 padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
-                child: ActionButton(
+                child: MadarButton(
                   label: '${bridge.tr(key: 'tables.wish_any')} ${s.name}',
-                  variant: ActionVariant.outline,
+                  variant: MadarButtonVariant.outline,
                   onTap: () =>
                       Navigator.of(sheetContext).maybePop((s.id, null)),
                 ),
               ),
-            ActionButton(
+            MadarButton(
               label: bridge.tr(key: 'tables.pick'),
-              variant: ActionVariant.outline,
+              variant: MadarButtonVariant.outline,
               onTap: () => Navigator.of(sheetContext).maybePop((null, '')),
             ),
           ],
@@ -1682,10 +1683,10 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
             for (final a in actions)
               Padding(
                 padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
-                child: ActionButton(
+                child: MadarButton(
                   label: a.label,
                   icon: a.icon,
-                  variant: ActionVariant.outline,
+                  variant: MadarButtonVariant.outline,
                   onTap: () {
                     Navigator.of(sheetContext).maybePop();
                     unawaited(a.run());
@@ -2296,9 +2297,9 @@ class _WaitlistRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: Space.sm),
-          ActionButton(
+          MadarButton(
             label: fulfillLabel,
-            variant: ActionVariant.outline,
+            variant: MadarButtonVariant.outline,
             onTap: () => unawaited(onFulfill()),
           ),
           const SizedBox(width: Space.sm),
@@ -2374,14 +2375,14 @@ class _ArrivalRow extends StatelessWidget {
           ),
           if (!seated) ...[
             const SizedBox(width: Space.sm),
-            ActionButton(
+            MadarButton(
               label: noShowLabel,
               icon: 'xmark.circle',
-              variant: ActionVariant.outline,
+              variant: MadarButtonVariant.outline,
               onTap: onNoShow,
             ),
             const SizedBox(width: Space.sm),
-            ActionButton(
+            MadarButton(
               label: seatLabel,
               icon: 'person.2',
               onTap: () => unawaited(onSeat()),

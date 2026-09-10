@@ -187,7 +187,7 @@ class _BalanceCard extends ConsumerWidget {
     // sick leave would be a lie that stops people asking.
     final unlimited = balance.entitledCentidays == 0;
 
-    return MadarCard(
+    return StaffCard(
       padding: const EdgeInsets.symmetric(
         horizontal: Space.md,
         vertical: Space.sm + 2,
@@ -272,7 +272,7 @@ class _Form extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final colors = context.madarColors;
 
-    return MadarCard(
+    return StaffCard(
       padding: const EdgeInsets.all(Space.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -503,7 +503,7 @@ class _RequestRow extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final colors = context.madarColors;
 
-    return MadarCard(
+    return StaffCard(
       padding: const EdgeInsets.symmetric(
         horizontal: Space.md,
         vertical: Space.sm + 2,

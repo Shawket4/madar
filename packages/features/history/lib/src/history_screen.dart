@@ -17,7 +17,7 @@ import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_history/src/history_provider.dart';
 import 'package:feature_history/src/widgets.dart';
 import 'package:flutter/material.dart'
-    show CircularProgressIndicator, Scaffold, Theme;
+    show CircularProgressIndicator, Colors, Scaffold, Theme;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -239,7 +239,7 @@ class _FilterBar extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: Space.sm,
               children: [
-                HistoryTextField(
+                MadarField(
                   controller: controller,
                   placeholder: t('history.search'),
                   icon: 'magnifyingglass',
@@ -304,7 +304,7 @@ class _FilterBar extends ConsumerWidget {
             ),
           ),
         ),
-        const Hairline(light: true),
+        const MadarHairline(light: true),
       ],
     );
   }
@@ -651,7 +651,7 @@ class _OrderTable extends StatelessWidget {
                 ),
               ),
             ),
-            const Hairline(),
+            const MadarHairline(),
             for (final (idx, o) in visible.indexed) ...[
               _TableRow(
                 order: o,
@@ -664,7 +664,7 @@ class _OrderTable extends StatelessWidget {
                 onPrint: () => onPrint(o),
                 onVoid: () => onVoid(o),
               ),
-              if (idx < visible.length - 1) const Hairline(light: true),
+              if (idx < visible.length - 1) const MadarHairline(light: true),
             ],
           ],
         ),
@@ -763,7 +763,7 @@ class _TableRow extends StatelessWidget {
         ? colors.navyBg
         : zebra
         ? colors.surfaceAlt
-        : const Color(0x00000000);
+        : Colors.transparent;
     return ColoredBox(
       color: rowBg,
       child: Column(
@@ -1153,7 +1153,7 @@ class _OrderCard extends StatelessWidget {
             ),
           ),
           if (expanded) ...[
-            const Hairline(),
+            const MadarHairline(),
             _OrderDetailPanel(
               order: o,
               detail: rowDetail,
@@ -1200,7 +1200,7 @@ class _OrderDetailPanel extends StatelessWidget {
       children: [
         if (d != null) ...[
           for (final line in d.lines) _LineRow(line: line, currency: currency),
-          const Hairline(light: true),
+          const MadarHairline(light: true),
           _DetailRow(
             label: t('order.subtotal'),
             value: Money.format(d.subtotalMinor, currency: currency),
@@ -1717,13 +1717,13 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
                     onTap: () =>
                         ref.read(_voidFormProvider.notifier).selectReason(key),
                   ),
-                HistoryTextField(
+                MadarField(
                   controller: _note,
                   placeholder: t('void.note'),
                   icon: 'note.text',
                   enabled: !form.busy,
                 ),
-                const Hairline(),
+                const MadarHairline(),
                 Row(
                   spacing: Space.sm,
                   children: [
@@ -1750,16 +1750,16 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
                   spacing: Space.md,
                   children: [
                     Expanded(
-                      child: HistoryButton(
+                      child: MadarButton(
                         label: t('void.cancel'),
-                        variant: HistoryButtonVariant.outline,
+                        variant: MadarButtonVariant.outline,
                         onTap: () => Navigator.of(context).maybePop(false),
                       ),
                     ),
                     Expanded(
-                      child: HistoryButton(
+                      child: MadarButton(
                         label: t('void.confirm'),
-                        variant: HistoryButtonVariant.danger,
+                        variant: MadarButtonVariant.danger,
                         icon: 'trash',
                         loading: form.busy,
                         onTap: () => unawaited(_confirm()),

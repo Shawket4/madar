@@ -16,9 +16,6 @@ const double _greetingTracking = -0.5;
 /// Logo size on the narrow (stacked) layout (natives: 56.dp).
 const double _logoSize = 56;
 
-/// Sign-in CTA height (natives pass 52.dp, below Metric.buttonHeight).
-const double _signInHeight = 52;
-
 /// Shake step duration ×5 keyframes (natives: five 60 ms tweens).
 const Duration _shakeDuration = Duration(milliseconds: 300);
 
@@ -193,7 +190,7 @@ class _TellerFormState extends ConsumerState<_TellerForm>
           ],
         ),
         const SizedBox(height: Space.xxl),
-        MadarTextField(
+        MadarField(
           controller: _name,
           placeholder: t('login.name'),
           icon: 'person',
@@ -216,9 +213,8 @@ class _TellerFormState extends ConsumerState<_TellerForm>
         const SizedBox(height: Space.xl),
         MadarButton(
           label: t('login.sign_in'),
-          onPressed: _submit,
+          onTap: _submit,
           loading: busy,
-          height: _signInHeight,
           icon: 'arrow.right.circle',
         ),
         const SizedBox(height: Space.sm),

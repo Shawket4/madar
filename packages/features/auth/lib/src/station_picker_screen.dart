@@ -4,7 +4,6 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_auth/src/auth_layout.dart';
 import 'package:feature_auth/src/providers.dart';
-import 'package:feature_auth/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -85,9 +84,9 @@ class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
             icon: 'exclamationmark.circle',
           ),
         // ── Station list on its own bordered surface card ─────────────────
-        SurfaceCard(
+        MadarCard.column(
           children: [
-            SectionHeader(
+            MadarSectionHeader(
               text: t('setup.title'),
               icon: 'square.stack.3d.up.fill',
             ),
@@ -127,8 +126,8 @@ class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
         // ── Recessive exit ─────────────────────────────────────────────────
         MadarButton(
           label: t('home.sign_out'),
-          onPressed: () => unawaited(ref.read(authProvider.notifier).signOut()),
-          variant: AuthButtonVariant.ghost,
+          onTap: () => unawaited(ref.read(authProvider.notifier).signOut()),
+          variant: MadarButtonVariant.ghost,
           icon: 'rectangle.portrait.and.arrow.right',
         ),
       ],

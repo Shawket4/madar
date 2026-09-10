@@ -13,7 +13,6 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_shift/src/controls.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
 import 'package:flutter/material.dart' show Scaffold, Theme;
@@ -143,10 +142,10 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
                             ],
                           ),
                         if (report != null)
-                          ShiftButton(
+                          MadarButton(
                             label: t('shift.print_report'),
                             icon: 'printer',
-                            variant: ShiftButtonVariant.outline,
+                            variant: MadarButtonVariant.outline,
                             onTap: () => unawaited(_openReportPreview(report)),
                           ),
                         if (error != null)
@@ -155,10 +154,10 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
                             tone: ChipTone.danger,
                             icon: 'exclamationmark.circle',
                           ),
-                        ShiftButton(
+                        MadarButton(
                           label: t('order.close_shift'),
                           icon: 'lock',
-                          variant: ShiftButtonVariant.danger,
+                          variant: MadarButtonVariant.danger,
                           loading: busy,
                           onTap: () => unawaited(_close()),
                         ),
@@ -270,7 +269,7 @@ class _CashCard extends ConsumerWidget {
             currency: currency,
             tr: tr,
           ),
-        AmountField(
+        MadarAmountField(
           amountMinor: countedMinor,
           onAmountMinor: (v) =>
               ref.read(closeShiftProvider.notifier).setCounted(v),
@@ -284,7 +283,7 @@ class _CashCard extends ConsumerWidget {
             currency: currency,
             tr: tr,
           ),
-        ShiftTextField(
+        MadarField(
           controller: note,
           placeholder: needsReason
               ? tr('shift.opening_reason_label')

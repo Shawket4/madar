@@ -22,10 +22,15 @@ List<BoxShadow> shadowsOf(BuildContext context, MadarElevation level) =>
 /// Card corner radius used across every screen in the handoff.
 const double kCardRadius = Radii.md;
 
-/// The signature card: white, r16, one soft shadow. Everything on a screen sits
-/// in one of these or is a bare label between them.
-class MadarCard extends StatelessWidget {
-  const MadarCard({
+/// The staff app's signature card: white, r16, one soft shadow, no border.
+/// Everything on a screen sits in one of these or is a bare label between them.
+///
+/// Deliberately NOT the POS's [MadarCard]. This app is the HR handoff and
+/// keeps its own flatter, borderless surface; the shared one is bordered and
+/// belongs to the till. If the two are ever meant to converge, converge them
+/// on purpose rather than by having both answer to the same name.
+class StaffCard extends StatelessWidget {
+  const StaffCard({
     required this.child,
     this.padding = const EdgeInsets.all(Space.md),
     this.radius = kCardRadius,
@@ -152,7 +157,7 @@ class StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MadarCard(
+    return StaffCard(
       padding: const EdgeInsets.symmetric(
         horizontal: Space.md,
         vertical: Space.sm + 2,

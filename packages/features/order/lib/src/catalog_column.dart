@@ -247,7 +247,7 @@ class _CategoryTab extends StatelessWidget {
             // Active-tab underline.
             Container(
               height: 2,
-              color: active ? colors.accent : const Color(0x00000000),
+              color: active ? colors.accent : Colors.transparent,
             ),
           ],
         ),

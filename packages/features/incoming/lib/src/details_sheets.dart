@@ -1,6 +1,5 @@
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_incoming/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -150,7 +149,7 @@ class DeliveryDetailsSheet extends ConsumerWidget {
         // Address + payment context (only the rows that carry data).
         if ((address != null && address.isNotEmpty) ||
             (paymentHint != null && paymentHint.isNotEmpty))
-          IncomingCard(
+          MadarCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: Space.sm,
@@ -273,7 +272,7 @@ class _CustomerHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return IncomingCard(
+    return MadarCard(
       child: Row(
         spacing: Space.sm,
         children: [
@@ -427,7 +426,7 @@ class OrderLinesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return IncomingCard(
+    return MadarCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.md,
@@ -552,7 +551,7 @@ class TotalsBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return IncomingCard(
+    return MadarCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.xs,

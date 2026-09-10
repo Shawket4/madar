@@ -89,7 +89,7 @@ class _DeliveryBodyState extends ConsumerState<DeliveryBody>
         order: o,
         footer: o.isTerminal
             ? null
-            : IncomingButton(
+            : MadarButton(
                 label: bridge.tr(key: 'delivery.finalize'),
                 icon: 'checkmark.seal',
                 onTap: () => Navigator.of(sheetContext).maybePop(true),
@@ -159,7 +159,7 @@ class _DeliveryBodyState extends ConsumerState<DeliveryBody>
                   ],
                 ),
               ),
-              const IncomingHairline(),
+              const MadarHairline(),
             ],
           ),
         ),
@@ -198,7 +198,7 @@ class _DeliveryBodyState extends ConsumerState<DeliveryBody>
                     ],
                   ),
                 ),
-                const IncomingHairline(),
+                const MadarHairline(),
               ],
             ),
           ),
@@ -432,7 +432,7 @@ class _DeliveryOrderCard extends ConsumerWidget {
       // Tap the card to review the full order (lines + money + context).
       onTap: onView,
       behavior: HitTestBehavior.opaque,
-      child: IncomingCard(
+      child: MadarCard(
         clip: true,
         padding: EdgeInsetsDirectional.zero,
         child: Column(
@@ -600,19 +600,17 @@ class _DeliveryOrderCard extends ConsumerWidget {
                       children: [
                         // Visible "View order" — the same OUTLINE affordance
                         // the open-tickets card exposes.
-                        IncomingButton(
+                        MadarButton(
                           label: bridge.tr(key: 'order.view_order'),
                           icon: 'list.bullet',
-                          variant: IncomingButtonVariant.outline,
-                          expand: false,
+                          variant: MadarButtonVariant.outline,
                           onTap: onView,
                         ),
                         if (next != null)
                           Flexible(
-                            child: IncomingButton(
+                            child: MadarButton(
                               label: bridge.tr(key: 'delivery.action.$next'),
                               icon: 'arrow.right.circle',
-                              expand: false,
                               onTap: onAdvance,
                             ),
                           )
@@ -621,10 +619,9 @@ class _DeliveryOrderCard extends ConsumerWidget {
                           // primary action becomes Settle (finalize into a
                           // real sale, then show the receipt).
                           Flexible(
-                            child: IncomingButton(
+                            child: MadarButton(
                               label: bridge.tr(key: 'delivery.finalize'),
                               icon: 'checkmark.seal',
-                              expand: false,
                               onTap: onFinalize,
                             ),
                           ),
@@ -851,7 +848,7 @@ class _FinalizeHeader extends ConsumerWidget {
     );
     final o = order;
     final address = o.address;
-    return IncomingCard(
+    return MadarCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.sm,
@@ -985,7 +982,7 @@ class _CancelSheetState extends ConsumerState<_CancelSheet> {
               tone: ChipTone.danger,
               icon: 'exclamationmark.circle',
             ),
-          IncomingTextField(
+          MadarField(
             controller: _reason,
             placeholder: bridge.tr(key: 'delivery.cancel_reason'),
             icon: 'text.bubble',
@@ -1009,10 +1006,10 @@ class _CancelSheetState extends ConsumerState<_CancelSheet> {
               ),
             ],
           ),
-          IncomingButton(
+          MadarButton(
             label: bridge.tr(key: 'delivery.cancel'),
             icon: 'xmark.circle',
-            variant: IncomingButtonVariant.danger,
+            variant: MadarButtonVariant.danger,
             loading: busy,
             onTap: () => unawaited(_confirm()),
           ),

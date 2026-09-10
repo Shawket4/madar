@@ -14,7 +14,6 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
-import 'package:feature_shift/src/controls.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
 import 'package:flutter/material.dart'
@@ -147,7 +146,8 @@ class _HistoryBody extends ConsumerWidget {
                 ? ListView(
                     padding: const EdgeInsetsDirectional.all(Space.lg),
                     children: [
-                      ShiftFlushCard(
+                      MadarCard.column(
+                        flush: true,
                         children: [
                           _ColumnHeader(tr: t),
                           for (final (index, s) in rows.indexed)
@@ -283,7 +283,7 @@ class _ShiftRowGroup extends ConsumerWidget {
             onToggleOrders: toggleOrders,
           )
         else
-          _NarrowShiftCard(
+          _NarrowShiftRow(
             shift: s,
             currency: currency,
             loadingReport: loadingReport,
@@ -293,7 +293,7 @@ class _ShiftRowGroup extends ConsumerWidget {
             onToggleOrders: toggleOrders,
           ),
         ?panel,
-        if (wide) const ShiftHairline(),
+        if (wide) const MadarHairline(),
       ],
     );
   }
@@ -346,7 +346,7 @@ class _ColumnHeader extends StatelessWidget {
               ],
             ),
           ),
-          const ShiftHairline(),
+          const MadarHairline(),
         ],
       ),
     );
@@ -504,8 +504,8 @@ class _WideShiftRow extends StatelessWidget {
 
 /// Narrow row card: opened date + status chip up top, then the opening /
 /// declared / discrepancy metric rows.
-class _NarrowShiftCard extends StatelessWidget {
-  const _NarrowShiftCard({
+class _NarrowShiftRow extends StatelessWidget {
+  const _NarrowShiftRow({
     required this.shift,
     required this.currency,
     required this.loadingReport,

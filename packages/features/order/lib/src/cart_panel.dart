@@ -457,7 +457,7 @@ class _TellerHeldStrip extends ConsumerWidget {
               style: MadarType.h3.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: Space.lg),
-            OrderTextField(
+            MadarField(
               controller: controller,
               placeholder: bridge.tr(key: 'order.rename_hint'),
               icon: 'pencil',
@@ -469,12 +469,12 @@ class _TellerHeldStrip extends ConsumerWidget {
                   final label = sheetRef.watch(
                     orderProvider.select((s) => s.cartTableLabel),
                   );
-                  return ActionButton(
+                  return MadarButton(
                     label: label == null
                         ? bridge.tr(key: 'tables.assign')
                         : '${bridge.tr(key: 'order.table')} · $label',
                     icon: 'square.grid.2x2',
-                    variant: ActionVariant.outline,
+                    variant: MadarButtonVariant.outline,
                     onTap: () => unawaited(() async {
                       final pick = await showTablePickerSheet(
                         sheetContext,
@@ -492,7 +492,7 @@ class _TellerHeldStrip extends ConsumerWidget {
               ),
             ],
             const SizedBox(height: Space.xl),
-            ActionButton(
+            MadarButton(
               label: bridge.tr(key: 'common.done'),
               onTap: () => Navigator.of(sheetContext).maybePop(controller.text),
             ),
@@ -1002,7 +1002,7 @@ class _CartFooter extends ConsumerWidget {
                 ),
                 const SizedBox(width: Space.sm),
                 Expanded(
-                  child: ActionButton(
+                  child: MadarButton(
                     label: checkoutLabel,
                     icon: checkoutIcon,
                     loading: isBusy,

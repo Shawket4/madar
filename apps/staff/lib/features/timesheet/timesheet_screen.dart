@@ -153,7 +153,7 @@ class _Body extends ConsumerWidget {
             ],
           ),
         ] else
-          MadarCard(
+          StaffCard(
             padding: const EdgeInsets.symmetric(
               horizontal: Space.md,
               vertical: Space.sm + 2,
@@ -174,7 +174,7 @@ class _Body extends ConsumerWidget {
             ),
           ),
         const SizedBox(height: Space.md),
-        MadarCard(
+        StaffCard(
           padding: EdgeInsets.zero,
           child: Column(
             children: [
@@ -185,7 +185,7 @@ class _Body extends ConsumerWidget {
         ),
         const SizedBox(height: Space.md),
         // The ink footer bar the handoff puts under the week's list.
-        MadarCard(
+        StaffCard(
           color: colors.textPrimary,
           padding: const EdgeInsets.symmetric(
             horizontal: Space.lg,

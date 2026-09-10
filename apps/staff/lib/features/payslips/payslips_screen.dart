@@ -97,7 +97,7 @@ class _Hero extends ConsumerWidget {
     // unreadable on a dark surface.
     final accentOnInk = MadarColors.dark.navy;
 
-    return MadarCard(
+    return StaffCard(
       color: colors.textPrimary,
       radius: Radii.lg,
       padding: const EdgeInsets.all(Space.lg),
@@ -158,7 +158,7 @@ class _SlipRow extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final colors = context.madarColors;
 
-    return MadarCard(
+    return StaffCard(
       onTap: onTap,
       color: current ? colors.accentBg : null,
       padding: const EdgeInsets.symmetric(
@@ -238,7 +238,7 @@ class _Detail extends ConsumerWidget {
       children: [
         _Hero(slip: slip, currency: currency, compact: true),
         const SizedBox(height: Space.md),
-        MadarCard(
+        StaffCard(
           padding: EdgeInsets.zero,
           child: Column(
             children: [
@@ -275,7 +275,7 @@ class _Detail extends ConsumerWidget {
         const SizedBox(height: Space.md),
         // Net repeated on ink at the foot of the table — the figure that is
         // actually in the bank, after everything above it.
-        MadarCard(
+        StaffCard(
           color: colors.textPrimary,
           padding: const EdgeInsets.symmetric(
             horizontal: Space.lg,

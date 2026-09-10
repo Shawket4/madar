@@ -12,14 +12,6 @@ import 'package:rust_bridge/rust_bridge.dart';
 // receipt.rs. Theme-invariant BY DESIGN: a receipt is always white paper
 // with dark ink (the natives hardcode the same palette in both themes).
 
-const Color _paper = Color(0xFFFFFFFF);
-const Color _ink = Color(0xFF1A1A1A);
-const Color _faint = Color(0xFF6B6B6B);
-const Color _rule = Color(0xFFCCCCCC);
-
-/// The voided stamp's red (natives: 0xFFB71C1C).
-const Color _voidRed = Color(0xFFB71C1C);
-
 /// Paper card metrics (natives: 360.dp cap, 10.dp corners, 18.dp padding,
 /// 6.dp row gap).
 const double _paperMaxWidth = 360;
@@ -81,9 +73,9 @@ class ReceiptPaper extends ConsumerWidget {
       constraints: const BoxConstraints(maxWidth: _paperMaxWidth),
       padding: const EdgeInsetsDirectional.all(_paperPad),
       decoration: BoxDecoration(
-        color: _paper,
+        color: Paper.paper,
         borderRadius: BorderRadius.circular(_paperRadius),
-        border: Border.all(color: _rule),
+        border: Border.all(color: Paper.rule),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -116,7 +108,7 @@ class ReceiptPaper extends ConsumerWidget {
                   '*** ${tr('receipt.voided')} ***',
                   size: _boldRowSize,
                   weight: FontWeight.w700,
-                  color: _voidRed,
+                  color: Paper.danger,
                 ),
               _Mono(
                 storeName.trim().isEmpty ? 'MADAR' : storeName.toUpperCase(),
@@ -127,7 +119,7 @@ class ReceiptPaper extends ConsumerWidget {
                 _Mono(
                   '— ${(r.deliveryChannel == 'in_mall' ? tr('delivery.in_mall') : tr('receipt.delivery')).toUpperCase()} —',
                   size: _metaSize,
-                  color: _faint,
+                  color: Paper.faint,
                 ),
             ],
           ),
@@ -215,7 +207,7 @@ class ReceiptPaper extends ConsumerWidget {
                 _Mono(
                   '${tr('receipt.served_by')} ${r.tellerName}',
                   size: _metaSize,
-                  color: _faint,
+                  color: Paper.faint,
                 ),
               _Mono(tr('receipt.thank_you'), size: _rowSize),
             ],
@@ -250,7 +242,7 @@ class _LineBlock extends StatelessWidget {
             _Mono(
               '  – ${_nameWithSize(c.name, c.sizeLabel)}',
               size: _rowSize,
-              color: _faint,
+              color: Paper.faint,
               align: TextAlign.start,
             ),
             for (final m in c.addons)
@@ -300,7 +292,7 @@ class _Mono extends StatelessWidget {
     this.text, {
     required this.size,
     this.weight = FontWeight.w400,
-    this.color = _ink,
+    this.color = Paper.ink,
     this.align = TextAlign.center,
   });
 
@@ -336,7 +328,7 @@ class _Rule extends StatelessWidget {
       child: SizedBox(
         height: 1,
         width: double.infinity,
-        child: ColoredBox(color: _rule),
+        child: ColoredBox(color: Paper.rule),
       ),
     );
   }
@@ -359,7 +351,7 @@ class _MoneyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = faint ? _faint : _ink;
+    final color = faint ? Paper.faint : Paper.ink;
     final style = MadarType.bodySm.copyWith(
       fontSize: bold ? _boldRowSize : _rowSize,
       fontWeight: bold ? FontWeight.w700 : FontWeight.w400,

@@ -57,7 +57,7 @@ class _TicketsSettleBodyState extends ConsumerState<TicketsSettleBody> {
       maxWidth: Responsive.listMaxWidth,
       builder: (sheetContext) => TicketDetailsSheet(
         ticket: ticket,
-        footer: IncomingButton(
+        footer: MadarButton(
           label: bridge.tr(key: 'waiter.settle'),
           icon: 'checkmark.circle',
           onTap: () => Navigator.of(sheetContext).maybePop(true),
@@ -159,7 +159,7 @@ class _SettleTicketCard extends ConsumerWidget {
     final waiterName = ticket.waiterName;
     return TactileScale(
       onTap: onView,
-      child: IncomingCard(
+      child: MadarCard(
         clip: true,
         padding: EdgeInsetsDirectional.zero,
         child: Column(
@@ -290,15 +290,15 @@ class _SettleTicketCard extends ConsumerWidget {
                     spacing: Space.sm,
                     children: [
                       Expanded(
-                        child: IncomingButton(
+                        child: MadarButton(
                           label: bridge.tr(key: 'order.view_order'),
                           icon: 'list.bullet',
-                          variant: IncomingButtonVariant.outline,
+                          variant: MadarButtonVariant.outline,
                           onTap: onView,
                         ),
                       ),
                       Expanded(
-                        child: IncomingButton(
+                        child: MadarButton(
                           label: bridge.tr(key: 'waiter.settle'),
                           icon: 'checkmark.circle',
                           onTap: onSettle,
@@ -413,7 +413,7 @@ class _SettleHeader extends ConsumerWidget {
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
-    return IncomingCard(
+    return MadarCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.sm,

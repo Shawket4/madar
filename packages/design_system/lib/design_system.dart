@@ -5,12 +5,14 @@ library;
 
 export 'src/banners.dart';
 export 'src/brand.dart';
+export 'src/controls.dart';
 export 'src/drawer.dart';
 export 'src/focus.dart';
 export 'src/gallery.dart';
 export 'src/header.dart';
 export 'src/icons.dart';
 export 'src/money.dart';
+export 'src/paper.dart';
 export 'src/playful.dart';
 export 'src/responsive.dart';
 export 'src/sheet.dart';

@@ -6,7 +6,6 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/cart_panel.dart';
 import 'package:feature_order/src/order_providers.dart';
-import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Family TYPE annotations moved to the misc library in Riverpod 3.
@@ -740,7 +739,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SectionTitle(bridge.tr(key: 'order.recipe')),
+                              MadarSectionHeader(
+                                text: bridge.tr(key: 'order.recipe'),
+                              ),
                               const SizedBox(height: Space.sm),
                               for (final line in config.recipeLines) ...[
                                 _RecipeRow(line: line),
@@ -751,7 +752,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                               // this draws with no network.
                               if (_item.recipeSteps.isNotEmpty) ...[
                                 const SizedBox(height: Space.xs),
-                                SectionTitle(bridge.tr(key: 'order.steps')),
+                                MadarSectionHeader(
+                                  text: bridge.tr(key: 'order.steps'),
+                                ),
                                 const SizedBox(height: Space.sm),
                                 _StepList(steps: _item.recipeSteps),
                               ],
@@ -761,7 +764,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                         : const SizedBox(width: double.infinity),
                   ),
                   if (_item.sizes.isNotEmpty) ...[
-                    SectionTitle(bridge.tr(key: 'order.size')),
+                    MadarSectionHeader(text: bridge.tr(key: 'order.size')),
                     const SizedBox(height: Space.sm),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -821,9 +824,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                     onToggle: notifier.toggleOptional,
                   ),
                   if (!widget.isConfiguring) ...[
-                    SectionTitle(bridge.tr(key: 'order.notes')),
+                    MadarSectionHeader(text: bridge.tr(key: 'order.notes')),
                     const SizedBox(height: Space.sm),
-                    OrderTextField(
+                    MadarField(
                       controller: _notes,
                       placeholder: bridge.tr(key: 'order.notes_hint'),
                       icon: 'text.bubble',
@@ -897,10 +900,10 @@ class _OptionalsSectionState extends ConsumerState<_OptionalsSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: Space.md),
-        SectionTitle(bridge.tr(key: 'order.optionals')),
+        MadarSectionHeader(text: bridge.tr(key: 'order.optionals')),
         const SizedBox(height: Space.sm),
         if (fields.length > 4) ...[
-          OrderTextField(
+          MadarField(
             controller: _search,
             placeholder: bridge.tr(key: 'order.search_addons'),
             icon: 'magnifyingglass',
@@ -1146,7 +1149,7 @@ class _SheetFooter extends ConsumerWidget {
                   const SizedBox(width: Space.md),
                 ],
                 Expanded(
-                  child: ActionButton(
+                  child: MadarButton(
                     label: label,
                     enabled: canAdd,
                     loading: loading,
@@ -1349,7 +1352,7 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
           ),
           const SizedBox(height: Space.md),
           if (g.addons.length > 5) ...[
-            OrderTextField(
+            MadarField(
               controller: _search,
               placeholder: bridge.tr(key: 'order.search_addons'),
               icon: 'magnifyingglass',

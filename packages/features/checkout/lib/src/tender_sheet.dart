@@ -6,7 +6,6 @@ import 'package:feature_checkout/src/checkout_drawer.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/loyalty_award_sheet.dart';
 import 'package:feature_checkout/src/receipt_paper.dart';
-import 'package:feature_checkout/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -168,7 +167,7 @@ class _ReceiptConfirmation extends ConsumerWidget {
           color: colors.surface,
           child: Column(
             children: [
-              const Hairline(),
+              const MadarHairline(),
               Padding(
                 padding: const EdgeInsetsDirectional.all(Space.lg),
                 child: Column(
@@ -215,10 +214,10 @@ class _ReceiptConfirmation extends ConsumerWidget {
                           orderCreatedAt: receipt.createdAt,
                           now: DateTime.now().toUtc().toIso8601String(),
                         ))
-                      ActionButton(
+                      MadarButton(
                         label: tr('loyalty.add_points'),
                         icon: 'star',
-                        variant: ActionVariant.outline,
+                        variant: MadarButtonVariant.outline,
                         onTap: () => unawaited(
                           showMadarSheet<bool>(
                             context,
@@ -242,10 +241,10 @@ class _ReceiptConfirmation extends ConsumerWidget {
                       spacing: Space.sm,
                       children: [
                         Expanded(
-                          child: ActionButton(
+                          child: MadarButton(
                             label: tr('receipt.reprint'),
                             icon: 'printer',
-                            variant: ActionVariant.outline,
+                            variant: MadarButtonVariant.outline,
                             loading: printState == PrintState.printing,
                             onTap: () => unawaited(
                               ref
@@ -255,7 +254,7 @@ class _ReceiptConfirmation extends ConsumerWidget {
                           ),
                         ),
                         Expanded(
-                          child: ActionButton(
+                          child: MadarButton(
                             label: tr('order.new_order'),
                             icon: 'plus',
                             onTap: onDone,

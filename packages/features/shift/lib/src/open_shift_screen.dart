@@ -14,7 +14,6 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_shift/src/brand_panel.dart';
-import 'package:feature_shift/src/controls.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
@@ -216,13 +215,13 @@ class _FormColumn extends ConsumerWidget {
             ],
             const SizedBox(height: Space.xxl),
             // ── Hero count field (the one thing the teller must do) ───────
-            ShiftCard(
+            MadarCard.column(
               children: [
-                ShiftSectionHeader(
+                MadarSectionHeader(
                   text: t('shift.opening_cash'),
                   icon: 'banknote',
                 ),
-                AmountField(
+                MadarAmountField(
                   amountMinor: openingMinor,
                   onAmountMinor: (v) =>
                       ref.read(openShiftProvider.notifier).setAmount(v),
@@ -238,7 +237,7 @@ class _FormColumn extends ConsumerWidget {
                   ),
                 // Discrepancy reason — only when the count deviates.
                 if (needsReason)
-                  ShiftTextField(
+                  MadarField(
                     controller: reason,
                     placeholder: t('shift.opening_reason_label'),
                     icon: 'exclamationmark.bubble',
@@ -267,7 +266,7 @@ class _FormColumn extends ConsumerWidget {
             ] else
               const SizedBox(height: Space.xl),
             // ── Primary action ────────────────────────────────────────────
-            ShiftButton(
+            MadarButton(
               label: t('shift.open_button'),
               icon: 'lock.open',
               loading: busy,
@@ -279,9 +278,9 @@ class _FormColumn extends ConsumerWidget {
             ),
             const SizedBox(height: Space.sm),
             // ── Recessive exit ────────────────────────────────────────────
-            ShiftButton(
+            MadarButton(
               label: t('shift.switch_teller'),
-              variant: ShiftButtonVariant.ghost,
+              variant: MadarButtonVariant.ghost,
               onTap: () =>
                   unawaited(ref.read(openShiftProvider.notifier).signOut()),
             ),

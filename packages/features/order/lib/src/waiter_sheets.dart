@@ -119,7 +119,7 @@ class _FireDetailsSheetState extends ConsumerState<FireDetailsSheet> {
             style: MadarType.h2.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: Space.md),
-          OrderTextField(
+          MadarField(
             controller: _customer,
             placeholder: bridge.tr(key: 'waiter.customer_optional'),
             icon: 'person',
@@ -128,16 +128,16 @@ class _FireDetailsSheetState extends ConsumerState<FireDetailsSheet> {
           // With a floor layout: the real table picker. Without one: the old
           // free-text field (nothing blocks a branch that never drew a floor).
           if (ref.watch(orderProvider.select((s) => s.hasFloor)))
-            ActionButton(
+            MadarButton(
               label: _tableLabel == null
                   ? bridge.tr(key: 'tables.pick')
                   : '${bridge.tr(key: 'order.table')} · $_tableLabel',
               icon: 'square.grid.2x2',
-              variant: ActionVariant.outline,
+              variant: MadarButtonVariant.outline,
               onTap: () => unawaited(_pickTable()),
             )
           else
-            OrderTextField(
+            MadarField(
               controller: _table,
               placeholder: bridge.tr(key: 'waiter.table'),
               icon: 'square.grid.2x2',
@@ -167,13 +167,13 @@ class _FireDetailsSheetState extends ConsumerState<FireDetailsSheet> {
             ],
           ),
           const SizedBox(height: Space.md),
-          OrderTextField(
+          MadarField(
             controller: _notes,
             placeholder: bridge.tr(key: 'order.notes_hint'),
             icon: 'text.bubble',
           ),
           const SizedBox(height: Space.md),
-          ActionButton(
+          MadarButton(
             label: bridge.tr(key: 'waiter.fire'),
             icon: 'arrow.up.circle',
             loading: isBusy,
@@ -344,7 +344,7 @@ class _WaiterVoidSheetState extends ConsumerState<WaiterVoidSheet> {
             ),
             const SizedBox(height: Space.sm),
           ],
-          OrderTextField(
+          MadarField(
             controller: _note,
             placeholder: bridge.tr(key: 'void.note'),
             icon: 'note.text',
@@ -353,17 +353,17 @@ class _WaiterVoidSheetState extends ConsumerState<WaiterVoidSheet> {
           Row(
             children: [
               Expanded(
-                child: ActionButton(
+                child: MadarButton(
                   label: bridge.tr(key: 'void.cancel'),
-                  variant: ActionVariant.outline,
+                  variant: MadarButtonVariant.outline,
                   onTap: () => Navigator.of(context).maybePop(),
                 ),
               ),
               const SizedBox(width: Space.sm),
               Expanded(
-                child: ActionButton(
+                child: MadarButton(
                   label: bridge.tr(key: 'void.confirm'),
-                  variant: ActionVariant.danger,
+                  variant: MadarButtonVariant.danger,
                   icon: 'trash',
                   onTap: _confirm,
                 ),

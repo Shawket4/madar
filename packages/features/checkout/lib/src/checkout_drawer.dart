@@ -242,7 +242,7 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
           currency: s.currency,
           onClose: widget.onClose,
         ),
-        const Hairline(),
+        const MadarHairline(),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsetsDirectional.symmetric(
@@ -341,13 +341,16 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: Space.sm,
                     children: [
-                      SectionLabel(tr('order.customer')),
-                      CheckoutTextField(
+                      MadarSectionHeader(
+                        text: tr('order.customer'),
+                        tick: false,
+                      ),
+                      MadarField(
                         controller: _customer,
                         placeholder: tr('order.customer_hint'),
                         icon: 'person',
                       ),
-                      CheckoutTextField(
+                      MadarField(
                         controller: _notes,
                         placeholder: tr('order.notes_hint'),
                         icon: 'text.bubble',
@@ -369,10 +372,10 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
           color: colors.surface,
           child: Column(
             children: [
-              const Hairline(),
+              const MadarHairline(),
               Padding(
                 padding: const EdgeInsetsDirectional.all(Space.lg),
-                child: ActionButton(
+                child: MadarButton(
                   label: widget.terminalLabel,
                   icon: widget.terminalIcon,
                   loading: placing,
@@ -635,7 +638,9 @@ class _PaymentSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(child: SectionLabel(sectionLabel)),
+            Expanded(
+              child: MadarSectionHeader(text: sectionLabel, tick: false),
+            ),
             if (methods.length > 1)
               TactileScale(
                 onTap: () {
@@ -840,7 +845,7 @@ class _SplitAllocator extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: AmountField(
+                child: MadarAmountField(
                   amountMinor: splitAmounts[m.id] ?? 0,
                   onAmountMinor: (minor) => onSplitAmount(m.id, minor),
                   currencyCode: currency,
@@ -918,7 +923,7 @@ class _CashSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.sm,
       children: [
-        SectionLabel(sectionLabel),
+        MadarSectionHeader(text: sectionLabel, tick: false),
         // Amount-due hero block — tinted teal, the figure the cash tendered
         // must reach (mirrors the grand-total block in weight + treatment).
         Container(
@@ -949,7 +954,7 @@ class _CashSection extends StatelessWidget {
             ],
           ),
         ),
-        AmountField(
+        MadarAmountField(
           amountMinor: tendered,
           onAmountMinor: onTendered,
           currencyCode: currency,
@@ -1138,7 +1143,7 @@ class _TipCard extends StatelessWidget {
                 tint: colors.textMuted,
                 size: _tipHeart,
               ),
-              Expanded(child: SectionLabel(tipLabel)),
+              Expanded(child: MadarSectionHeader(text: tipLabel, tick: false)),
               if (tip > 0)
                 StatusChip(
                   label: Money.format(tip, currency: currency),
@@ -1160,7 +1165,7 @@ class _TipCard extends StatelessWidget {
                   ),
               ],
             ),
-          AmountField(
+          MadarAmountField(
             amountMinor: tip,
             onAmountMinor: onTip,
             currencyCode: currency,
@@ -1246,7 +1251,7 @@ class _DiscountSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.sm,
       children: [
-        SectionLabel(sectionLabel),
+        MadarSectionHeader(text: sectionLabel, tick: false),
         Wrap(
           spacing: Space.sm,
           runSpacing: Space.sm,
@@ -1353,10 +1358,10 @@ class _RewardsSection extends StatelessWidget {
     final m = state.loyaltyMember;
 
     if (m == null) {
-      return ActionButton(
+      return MadarButton(
         label: 'Rewards',
         icon: 'star',
-        variant: ActionVariant.outline,
+        variant: MadarButtonVariant.outline,
         onTap: onScan,
       );
     }

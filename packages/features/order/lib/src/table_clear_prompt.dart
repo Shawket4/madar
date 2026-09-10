@@ -18,7 +18,6 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/order_providers.dart';
-import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -129,7 +128,7 @@ class _TableClearBody extends StatelessWidget {
             style: MadarType.body.copyWith(color: colors.textMuted),
           ),
           const SizedBox(height: Space.xl),
-          ActionButton(
+          MadarButton(
             label: clearLabel,
             icon: 'checkmark.circle',
             onTap: () {
@@ -138,10 +137,10 @@ class _TableClearBody extends StatelessWidget {
             },
           ),
           const SizedBox(height: Space.sm),
-          ActionButton(
+          MadarButton(
             label: keepLabel,
             icon: 'clock',
-            variant: ActionVariant.outline,
+            variant: MadarButtonVariant.outline,
             onTap: () {
               MadarHaptics.selection();
               onAnswer(false);

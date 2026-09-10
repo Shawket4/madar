@@ -225,7 +225,7 @@ class _ClockHero extends ConsumerWidget {
     final open = view.openRecord;
     final since = open == null ? null : DateTime.tryParse(open.checkInAt);
 
-    return MadarCard(
+    return StaffCard(
       radius: Radii.lg,
       padding: const EdgeInsets.all(Space.lg),
       child: Column(
@@ -322,7 +322,7 @@ class _TodayCard extends ConsumerWidget {
       (sum, r) => sum + r.overtimeMinutes,
     );
 
-    return MadarCard(
+    return StaffCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -414,7 +414,7 @@ class _NextShiftStrip extends ConsumerWidget {
     if (next == null) return const SizedBox.shrink();
     final shift = next.shifts.first;
 
-    return MadarCard(
+    return StaffCard(
       radius: Radii.sm + 2,
       child: Row(
         children: [
@@ -533,7 +533,7 @@ class _TodayPermissions extends ConsumerWidget {
         for (final r in covering)
           Padding(
             padding: const EdgeInsets.only(bottom: Space.sm),
-            child: MadarCard(
+            child: StaffCard(
               color: colors.accentBg,
               padding: const EdgeInsets.symmetric(
                 horizontal: Space.md,

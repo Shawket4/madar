@@ -160,11 +160,28 @@ step with no cached file shows its number and name instead.
 1. **No business logic in Dart.** Sequence bridge calls; compute nothing.
 2. **Design system only.** `MadarType`, `Space`, `Radii`, `context.madarColors`,
    `MadarIcon`. No raw hex, no ad-hoc padding numbers.
-3. **Strings go through the core's i18n** — `bridge.tr(key: '…')`, with EN **and** AR in
+3. **One control kit, in `design_system/controls.dart`.** `MadarButton`
+   (primary / outline / ghost / danger, regular or compact), `MadarField`,
+   `MadarAmountField`, `MadarCard`, `MadarSectionHeader`, `MadarHairline`, and
+   `MadarHeader` above them. A feature package does NOT define its own button,
+   field, card or divider.
+
+   It used to: six near-identical buttons, six fields, four dividers, one set
+   per feature. They drifted, and every fork was missing a fix made in one of
+   its siblings — the checkout button never got the unbounded-width guard that
+   blanks a screen, the checkout amount field never got the `EntranceFocus` fix
+   for the iPad keyboard race. If a screen needs something the kit lacks, add
+   it to the kit with a size or variant; a control that is genuinely one
+   screen's own (a PIN pad, a payment badge, a floor table) still belongs to
+   that feature.
+
+   `apps/staff` deliberately keeps its own flatter `StaffCard` — it is a
+   separate app with its own surface. Converge it on purpose or not at all.
+4. **Strings go through the core's i18n** — `bridge.tr(key: '…')`, with EN **and** AR in
    `rust-core/crates/madar-core/src/i18n.rs`. Arabic is first-class.
-4. **Accessibility**: touch targets 44pt iOS / 48dp Android; wrap canvas cells in
+5. **Accessibility**: touch targets 44pt iOS / 48dp Android; wrap canvas cells in
    `Semantics` with a real label; respect `MediaQuery.disableAnimations`.
-5. **Tests** live beside the package (`packages/<pkg>/test/`). The floor canvas is pure
+6. **Tests** live beside the package (`packages/<pkg>/test/`). The floor canvas is pure
    geometry over plain data — no bridge, no providers — so test it directly.
 
 ## Gotchas

@@ -6,7 +6,6 @@ import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/cart_panel.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/order_providers.dart';
-import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Family TYPE annotations moved to the misc library in Riverpod 3.
@@ -218,7 +217,9 @@ class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SectionTitle(bridge.tr(key: 'order.bundle_includes')),
+                  MadarSectionHeader(
+                    text: bridge.tr(key: 'order.bundle_includes'),
+                  ),
                   const SizedBox(height: Space.md),
                   for (var i = 0; i < bundle.components.length; i++) ...[
                     Builder(
@@ -412,7 +413,7 @@ class _BundleFooter extends ConsumerWidget {
                   currency: currency,
                 ),
                 const SizedBox(height: Space.md),
-                ActionButton(
+                MadarButton(
                   label: bridge.tr(
                     key: canAdd ? 'order.add_to_cart' : 'order.configure',
                   ),

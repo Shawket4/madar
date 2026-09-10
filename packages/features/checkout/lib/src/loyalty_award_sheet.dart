@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/loyalty_scan_capture.dart';
-import 'package:feature_checkout/src/widgets.dart';
 import 'package:flutter/material.dart' show CircularProgressIndicator;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -177,7 +176,7 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
               textAlign: TextAlign.center,
               style: MadarType.bodySm.copyWith(color: colors.textSecondary),
             ),
-            ActionButton(
+            MadarButton(
               label: t('common.done'),
               onTap: () => Navigator.of(context).pop(true),
             ),

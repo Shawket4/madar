@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_auth/src/providers.dart';
-import 'package:feature_auth/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -109,18 +108,18 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
                   unawaited(ref.read(authProvider.notifier).bindBranch(branch)),
             )
         else ...[
-          MadarTextField(
+          MadarField(
             controller: _email,
             placeholder: t('setup.email'),
             icon: 'envelope',
             enabled: !busy,
             keyboardType: TextInputType.emailAddress,
           ),
-          MadarTextField(
+          MadarField(
             controller: _password,
             placeholder: t('setup.password'),
             icon: 'lock',
-            secure: true,
+            obscure: true,
             enabled: !busy,
             onSubmitted: (_) => _authenticate(),
           ),
@@ -134,16 +133,16 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
         if (!picking)
           MadarButton(
             label: t('setup.continue'),
-            onPressed: _authenticate,
+            onTap: _authenticate,
             loading: busy,
             icon: 'arrow.right.circle',
           ),
         if (picking || isBranchConfigured)
           MadarButton(
             label: t('setup.cancel'),
-            onPressed: () =>
+            onTap: () =>
                 unawaited(ref.read(authProvider.notifier).cancelReconfigure()),
-            variant: AuthButtonVariant.ghost,
+            variant: MadarButtonVariant.ghost,
           ),
       ],
     );

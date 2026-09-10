@@ -4,7 +4,6 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/receipt_paper.dart';
-import 'package:feature_checkout/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -199,7 +198,7 @@ class ReceiptSheet extends ConsumerWidget {
                 ],
               ),
             ),
-            const Hairline(),
+            const MadarHairline(),
             // Scrolling paper — centered like the natives' preview.
             Expanded(
               child: SingleChildScrollView(
@@ -232,17 +231,17 @@ class ReceiptSheet extends ConsumerWidget {
               color: colors.surface,
               child: Column(
                 children: [
-                  const Hairline(),
+                  const MadarHairline(),
                   Padding(
                     padding: const EdgeInsetsDirectional.all(Space.lg),
                     child: Row(
                       spacing: Space.sm,
                       children: [
                         Expanded(
-                          child: ActionButton(
+                          child: MadarButton(
                             label: tr('receipt.print'),
                             icon: 'printer',
-                            variant: ActionVariant.outline,
+                            variant: MadarButtonVariant.outline,
                             loading: preview.printing,
                             onTap: () => unawaited(
                               ref
@@ -252,7 +251,7 @@ class ReceiptSheet extends ConsumerWidget {
                           ),
                         ),
                         Expanded(
-                          child: ActionButton(
+                          child: MadarButton(
                             label: tr('order.done'),
                             icon: 'checkmark',
                             onTap: () => Navigator.of(context).maybePop(),

@@ -49,7 +49,7 @@ class _ShiftsScreenState extends ConsumerState<ShiftsScreen> {
       title: t('shifts.title'),
       onRefresh: () async => ref.invalidate(scheduleProvider(range)),
       children: [
-        MadarCard(
+        StaffCard(
           padding: const EdgeInsets.symmetric(
             horizontal: Space.sm + 2,
             vertical: Space.sm,
@@ -171,7 +171,7 @@ class _DayCard extends ConsumerWidget {
     final rest = day.shifts.isEmpty;
     final shift = rest ? null : day.shifts.first;
 
-    return MadarCard(
+    return StaffCard(
       padding: const EdgeInsets.all(Space.sm + 2),
       child: Row(
         children: [

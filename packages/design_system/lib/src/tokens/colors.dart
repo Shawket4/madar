@@ -135,3 +135,15 @@ class MadarColors extends ThemeExtension<MadarColors> {
 extension MadarColorsX on BuildContext {
   MadarColors get madarColors => MadarColors.of(this);
 }
+
+/// `#RRGGBB` (with or without the hash) to an opaque [Color].
+///
+/// The one place a colour arrives from OUTSIDE the token set: a category's
+/// style, a payment method's brand. Unparseable input falls back to black
+/// rather than throwing — a menu tile with the wrong tint is a blemish, a
+/// crashed catalogue is a shop that cannot sell.
+Color hexColor(String hex) {
+  final digits = hex.replaceFirst('#', '');
+  final value = int.tryParse(digits, radix: 16) ?? 0;
+  return Color(0xFF000000 | value);
+}

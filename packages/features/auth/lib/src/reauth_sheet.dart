@@ -25,9 +25,6 @@ const double _headerBodySize = 12;
 const double _closeSize = 32;
 const double _closeGlyph = 14;
 
-/// Sign-in CTA height (natives pass 52.dp, below Metrics.buttonHeight).
-const double _ctaHeight = 52;
-
 /// Switch-teller link size (natives: 13.sp SemiBold).
 const double _switchLinkSize = 13;
 
@@ -155,9 +152,8 @@ class ReauthSheet extends ConsumerWidget {
                 // brightest thing on the sheet (mirrors the Login pad).
                 MadarButton(
                   label: t('login.sign_in'),
-                  onPressed: () => unawaited(_submit(context, ref)),
+                  onTap: () => unawaited(_submit(context, ref)),
                   loading: busy,
-                  height: _ctaHeight,
                   icon: 'arrow.right.circle',
                 ),
                 const SizedBox(height: Space.sm),
