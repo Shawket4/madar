@@ -103,6 +103,46 @@ void main() {
     expect(rows.map((r) => r.table.label).toList(), ['T1', 'T2', 'T9', 'T10']);
   });
 
+  test('a live occupant outranks a stale dirty status', () {
+    // This happens honestly: a party seated onto a table the last one left
+    // unbussed, or a status write that lost a race. Telling a teller to clear
+    // it would have them bus people who are still eating — which is what the
+    // list said before the guard was restored.
+    final rows = rowsFor(
+      [_table(id: 'a', status: 'dirty')],
+      {'a': _ticket(tableId: 'a', openedAt: '2026-09-09T19:00:00Z')},
+    );
+    expect(rows.single.urgency, FloorUrgency.seated);
+    expect(rows.single.urgency, isNot(FloorUrgency.needsClearing));
+  });
+
+  test('food ready outranks a stale dirty status too', () {
+    final rows = rowsFor(
+      [_table(id: 'a', status: 'dirty')],
+      {
+        'a': _ticket(
+          tableId: 'a',
+          status: 'ready',
+          openedAt: '2026-09-09T19:00:00Z',
+        ),
+      },
+    );
+    expect(rows.single.urgency, FloorUrgency.foodReady);
+  });
+
+  test(
+    'a booking on an occupied table does not outrank the party sitting there',
+    () {
+      // A table can carry a future booking while the current party is still on
+      // it. The people in the room win.
+      final rows = rowsFor(
+        [_table(id: 'a', bookingId: 'bk-1')],
+        {'a': _ticket(tableId: 'a', openedAt: '2026-09-09T19:00:00Z')},
+      );
+      expect(rows.single.urgency, FloorUrgency.seated);
+    },
+  );
+
   test('a table with no ticket is never described as seated', () {
     final rows = rowsFor([_table(id: 'a')], {});
     expect(rows.single.urgency, FloorUrgency.free);

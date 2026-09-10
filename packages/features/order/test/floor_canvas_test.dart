@@ -510,6 +510,22 @@ void main() {
       handle.dispose();
     });
 
+    test('the predicate itself refuses to bus an occupied table', () {
+      // The widget test below proves the rendering; this proves the RULE, and
+      // it is the one that was silently dropped when the dead held-order code
+      // was removed. Without it a teller is told to clear a table with people
+      // still eating at it.
+      final dirty = _table(id: 't1', status: 'dirty');
+      expect(tableNeedsClearing(dirty), isTrue);
+      expect(
+        tableNeedsClearing(dirty, occupied: true),
+        isFalse,
+        reason: 'a live occupant is the truth, whatever the stored status says',
+      );
+      // And a free table is never reported as needing a bus.
+      expect(tableNeedsClearing(_table(id: 't2')), isFalse);
+    });
+
     testWidgets('a table with an order on it is never "needs clearing"', (
       tester,
     ) async {
