@@ -186,6 +186,7 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
   List<_RailSection> _sections({
     required String? role,
     required bool incomingHasNew,
+    required bool hasFloor,
     int incomingRing = 0,
   }) {
     // A waiter's tickets live in the cart strip — the rail keeps only the
@@ -193,6 +194,22 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
     if (role == 'waiter') return const [];
     return [
       _RailSection(_t('nav.section.orders'), [
+        // The floor and the open tickets were reachable only from a button on
+        // the order screen — so from anywhere else in the app they were two
+        // steps away through a screen you did not want, and from the rail they
+        // did not exist at all. They are the two surfaces a dining room is
+        // actually run from.
+        if (hasFloor)
+          _RailDest(
+            'square.grid.2x2',
+            _t('tables.title'),
+            onTap: () => _push(() => const TablesScreen()),
+          ),
+        _RailDest(
+          'doc.text',
+          _t('waiter.title'),
+          onTap: () => _push(() => const OpenTicketsScreen()),
+        ),
         _RailDest(
           'bicycle',
           _t('nav.incoming'),
@@ -295,6 +312,7 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
             ..._sections(
               role: ref.read(shellProvider).session?.role,
               incomingHasNew: false,
+              hasFloor: ref.read(orderProvider).hasFloor,
             ),
             _footer(),
           ]
@@ -455,6 +473,7 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
         unawaited(_openMoreDrawer());
       });
     final role = ref.watch(shellProvider.select((s) => s.session?.role));
+    final hasFloor = ref.watch(orderProvider.select((s) => s.hasFloor));
     final deliveryTick = ref.watch(deliveryTickProvider);
     final ticketTick = ref.watch(ticketTickProvider);
     final seenDelivery = ref.watch(
@@ -475,6 +494,7 @@ class _MadarChromeState extends ConsumerState<MadarChrome> {
                 sections: _sections(
                   role: role,
                   incomingHasNew: incomingHasNew,
+                  hasFloor: hasFloor,
                   // Every realtime order/ticket event bumps the sum, ringing
                   // the Incoming tile even while its badge is already lit.
                   incomingRing: deliveryTick + ticketTick,

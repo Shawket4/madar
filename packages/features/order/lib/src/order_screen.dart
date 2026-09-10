@@ -501,9 +501,24 @@ class _TablesButton extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: Space.sm),
       child: TactileScale(
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute<void>(builder: (_) => const TablesScreen())),
+        // BACK to the floor when the floor is what we came from, and only
+        // otherwise a push.
+        //
+        // In a table-first shop the floor IS home and this screen sits on top
+        // of it. Pushing another would stack a second copy of the room behind
+        // the first, so leaving it would land the teller on a stale floor and
+        // leaving that would finally reach home — two backs to get to a screen
+        // that was one back away.
+        onTap: () {
+          final nav = Navigator.of(context);
+          if (nav.canPop()) {
+            nav.pop();
+          } else {
+            nav.push(
+              MaterialPageRoute<void>(builder: (_) => const TablesScreen()),
+            );
+          }
+        },
         child: Tooltip(
           message: bridge.tr(key: 'tables.title'),
           child: Padding(

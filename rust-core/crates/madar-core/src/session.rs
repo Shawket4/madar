@@ -408,6 +408,48 @@ fn invalid(field: &str, message: &str) -> CoreError {
 
 #[cfg(test)]
 mod tests {
+    /// The table rule is a POLICY the till acts on, not just a server check —
+    /// so it has to survive the snapshot, the offline cache, and a server too
+    /// old to send it.
+    #[test]
+    fn the_table_rule_survives_a_round_trip_through_the_offline_cache() {
+        let store = Store::open(":memory:").unwrap();
+        let mut snap = SessionSnapshot {
+            user_id: "u".into(),
+            display_name: "Mona".into(),
+            role: "teller".into(),
+            org_id: Some("o".into()),
+            branch_id: Some("b".into()),
+            currency_code: "EGP".into(),
+            tax_rate: 0.14,
+            tax_inclusive: false,
+            service_charge_rate: 0.0,
+            service_charge_taxable: true,
+            require_table_for_orders: true,
+            online: true,
+            permissions_loaded: true,
+        };
+        cache_org_config(&store, &snap);
+
+        let raw = store.kv_get(ORG_CONFIG_KEY).unwrap().expect("cached");
+        let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(
+            v.get("require_table_for_orders").and_then(|x| x.as_bool()),
+            Some(true),
+            "an offline unlock tomorrow must open on the floor too"
+        );
+
+        // And off is off, not merely absent.
+        snap.require_table_for_orders = false;
+        cache_org_config(&store, &snap);
+        let raw = store.kv_get(ORG_CONFIG_KEY).unwrap().expect("cached");
+        let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(
+            v.get("require_table_for_orders").and_then(|x| x.as_bool()),
+            Some(false)
+        );
+    }
+
     use super::*;
 
     fn pin_req() -> LoginRequest {

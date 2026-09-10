@@ -207,6 +207,54 @@ fn line_view(it: &models::OpenTicketItemView) -> TicketLineView {
 
 #[cfg(test)]
 mod tests {
+    /// A SEAT is a fire with no items — and the difference has to survive the
+    /// request builder, because the server decides which act it is by looking
+    /// at exactly that.
+    #[test]
+    fn a_seat_request_carries_a_table_and_no_items() {
+        let branch = uuid::Uuid::new_v4();
+        let table = uuid::Uuid::new_v4();
+        let r = super::build_fire_request(
+            branch,
+            Vec::new(),
+            uuid::Uuid::new_v4(),
+            uuid::Uuid::new_v4(),
+            Some(table),
+            None,
+            None,
+            Some(2),
+            None,
+        );
+        assert!(r.items.is_empty(), "seating orders nothing");
+        assert_eq!(
+            r.table_id.flatten(),
+            Some(table),
+            "the table IS the request — a seat without one is not anything"
+        );
+        assert_eq!(r.guest_count.flatten(), Some(2));
+        // No round to dedup against, but the key rides along regardless so a
+        // retry of the same seat cannot open two tabs.
+        assert!(r.idempotency_key.flatten().is_some());
+    }
+
+    /// Blank names and notes are dropped rather than stored as whitespace.
+    #[test]
+    fn a_blank_customer_name_is_not_a_name() {
+        let r = super::build_fire_request(
+            uuid::Uuid::new_v4(),
+            Vec::new(),
+            uuid::Uuid::new_v4(),
+            uuid::Uuid::new_v4(),
+            Some(uuid::Uuid::new_v4()),
+            Some("   ".into()),
+            Some("\t".into()),
+            None,
+            None,
+        );
+        assert!(r.customer_name.flatten().is_none());
+        assert!(r.notes.flatten().is_none());
+    }
+
     use super::*;
 
     #[test]

@@ -51,6 +51,17 @@ if ! grep -q 'allow(clippy::all)' "$PKG_DIR/src/lib.rs"; then
     && mv "$PKG_DIR/src/lib.rs.tmp" "$PKG_DIR/src/lib.rs"
 fi
 
+# Normalise the formatting.
+#
+# The generator writes its own style — no trailing commas, its own import
+# order, long single-line signatures. Anyone who has ever run `cargo fmt` at
+# the workspace root has rustfmt'd this crate, and what is committed is
+# rustfmt'd. So without this step EVERY regeneration produces a five-hundred
+# file diff that is pure formatting, burying the handful of lines that actually
+# changed and making `cargo fmt --check` fail on machine output nobody wrote.
+echo "── 3.5/4 rustfmt the generated crate…"
+( cd "$PKG_DIR" && cargo fmt ) || echo "   (rustfmt unavailable — skipping)"
+
 # 4/4 — Sanity compile the generated crate on its own.
 echo "── 4/4 cargo check on generated client…"
 ( cd "$PKG_DIR" && cargo check --quiet ) && echo "   generated client compiles ✓" || {
