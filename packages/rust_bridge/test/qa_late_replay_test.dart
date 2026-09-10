@@ -59,7 +59,14 @@ void main() {
   });
 
   tearDownAll(() {
-    tmp.deleteSync(recursive: true);
+    // Best-effort: the core still holds the SQLite file open, and Windows
+    // refuses to remove a directory containing an open handle. See
+    // `bridge_smoke_test.dart` — housekeeping must not fail a green suite.
+    try {
+      tmp.deleteSync(recursive: true);
+    } on FileSystemException {
+      // Left for the OS to sweep.
+    }
   });
 
   test(

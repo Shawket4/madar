@@ -38,7 +38,16 @@ void main() {
   });
 
   tearDownAll(() {
-    tmp.deleteSync(recursive: true);
+    // Best-effort: the core still holds the SQLite file open, and Windows
+    // refuses to remove a directory containing an open handle where POSIX
+    // happily unlinks it. Every one of these tests had already passed when
+    // this threw, so failing the suite on temp-directory housekeeping reports
+    // a bug that is not there — and the OS reclaims the directory anyway.
+    try {
+      tmp.deleteSync(recursive: true);
+    } on FileSystemException {
+      // Left for the OS to sweep.
+    }
   });
 
   test('ffi surface version matches the wrapper contract', () {

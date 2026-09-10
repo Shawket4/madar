@@ -90,7 +90,9 @@ List<FloorRow> buildFloorRows({
     final byBand = a.urgency.index.compareTo(b.urgency.index);
     if (byBand != 0) return byBand;
     if (a.urgency == FloorUrgency.free || a.urgency == FloorUrgency.reserved) {
-      return _naturalLabel(a.table.label).compareTo(_naturalLabel(b.table.label));
+      return _naturalLabel(
+        a.table.label,
+      ).compareTo(_naturalLabel(b.table.label));
     }
     // Longest first: `openedAt` is RFC3339, so the EARLIER string sorts first
     // and that is exactly the table that has been waiting longest.
@@ -108,7 +110,9 @@ FloorUrgency _urgencyOf(FloorTableStateView t, TicketView? ticket) {
   // party seated onto a table the last one left dirty — and telling a teller to
   // bus an occupied table would have them clear people who are still eating.
   if (ticket != null) {
-    return ticket.status == 'ready' ? FloorUrgency.foodReady : FloorUrgency.seated;
+    return ticket.status == 'ready'
+        ? FloorUrgency.foodReady
+        : FloorUrgency.seated;
   }
   if (t.status == 'dirty') return FloorUrgency.needsClearing;
   if (t.bookingId != null) return FloorUrgency.reserved;
@@ -325,7 +329,9 @@ class _FloorRowTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    seated == null ? _statusWord(words, row.urgency) : formatSeatedFor(seated),
+                    seated == null
+                        ? _statusWord(words, row.urgency)
+                        : formatSeatedFor(seated),
                     style: MadarType.label.copyWith(
                       color: tone,
                       fontWeight: FontWeight.w700,

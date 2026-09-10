@@ -69,23 +69,16 @@ void main() {
       ),
     });
 
-    expect(
-      rows.map((r) => r.urgency).toList(),
-      [
-        FloorUrgency.needsClearing, // owes the room work
-        FloorUrgency.foodReady, // the kitchen is waiting on somebody
-        FloorUrgency.reserved, // a party is due
-        FloorUrgency.free, // nothing to do
-      ],
-      reason: 'a list is worked down, so what needs a person comes first',
-    );
+    expect(rows.map((r) => r.urgency).toList(), [
+      FloorUrgency.needsClearing, // owes the room work
+      FloorUrgency.foodReady, // the kitchen is waiting on somebody
+      FloorUrgency.reserved, // a party is due
+      FloorUrgency.free, // nothing to do
+    ], reason: 'a list is worked down, so what needs a person comes first');
   });
 
   test('the longest-seated table is the one to look at first', () {
-    final tables = [
-      _table(id: 'a'),
-      _table(id: 'b', label: 'T2'),
-    ];
+    final tables = [_table(id: 'a'), _table(id: 'b', label: 'T2')];
     final rows = rowsFor(tables, {
       // Seated two minutes ago.
       'a': _ticket(tableId: 'a', openedAt: '2026-09-09T19:58:00Z'),
