@@ -200,6 +200,7 @@ docs/GroupOptionOut.md
 docs/GroupOut.md
 docs/GuestSavedLocation.md
 docs/HistoryTurn.md
+docs/HoldTableRequest.md
 docs/HoursEntry.md
 docs/IngredientCategory.md
 docs/InsightsApi.md
@@ -373,6 +374,7 @@ docs/RecipeStepInput.md
 docs/RecipeStepPreset.md
 docs/RecipesApi.md
 docs/RegistryInfo.md
+docs/ReleaseTableRequest.md
 docs/RenameConversationRequest.md
 docs/ReorderLine.md
 docs/ReorderSuggestion.md
@@ -737,6 +739,7 @@ src/models/group_option_out.rs
 src/models/group_out.rs
 src/models/guest_saved_location.rs
 src/models/history_turn.rs
+src/models/hold_table_request.rs
 src/models/hours_entry.rs
 src/models/ingredient_category.rs
 src/models/inventory_valuation_report.rs
@@ -894,6 +897,7 @@ src/models/recipe_step.rs
 src/models/recipe_step_input.rs
 src/models/recipe_step_preset.rs
 src/models/registry_info.rs
+src/models/release_table_request.rs
 src/models/rename_conversation_request.rs
 src/models/reorder_line.rs
 src/models/reorder_suggestion.rs

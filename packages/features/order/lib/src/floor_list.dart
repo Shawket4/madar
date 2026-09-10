@@ -118,6 +118,11 @@ FloorUrgency _urgencyOf(FloorTableStateView t, TicketView? ticket) {
   // button parks an order against its table. Reading that as free would offer
   // the table to a second party while somebody's order waits on it.
   if (t.heldOrderId != null) return FloorUrgency.seated;
+  // And a draft parked on ANOTHER till occupies it just as firmly. That till
+  // pushes the occupancy without the order, so the table arrives here `seated`
+  // with no ticket and no draft this device can see — which is exactly what
+  // the two checks above would read as an empty table.
+  if (t.status == 'seated') return FloorUrgency.seated;
   if (t.status == 'dirty') return FloorUrgency.needsClearing;
   if (t.bookingId != null) return FloorUrgency.reserved;
   return FloorUrgency.free;

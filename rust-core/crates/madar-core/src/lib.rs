@@ -1325,6 +1325,31 @@ impl MadarCore {
                     Idem::Yes,
                 )
             }
+            // The occupancy half of a device-local hold. The ORDER never goes
+            // anywhere; only "this table is taken" does, so the dashboard's
+            // floor and every other till see the room as it is. A 409 (the
+            // floor moved on while we were offline) acks like the other floor
+            // ops — the next pull reconciles.
+            "hold_table" => {
+                let cmd: held::TableStateCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "hold_table", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
+                    Idem::Yes,
+                )
+            }
+            "release_table" => {
+                let cmd: held::TableStateCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "release_table", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
+                    Idem::Yes,
+                )
+            }
             "seat_booking" => {
                 let cmd: bookings::SeatBookingCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
@@ -3029,7 +3054,8 @@ impl MadarCore {
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| self.corrected_now().to_rfc3339());
         let device = self.lan_device_id();
-        let (_entry, conflict) = held::park_local(
+        let was_on = self.draft_table(&id);
+        let (entry, conflict) = held::park_local(
             &self.store,
             &id,
             &branch,
@@ -3039,11 +3065,13 @@ impl MadarCore {
             &device,
             &created,
         )?;
-        // NOT queued. Parked drafts are device-local by design (the 5 Sep
-        // refactor) and the backend has no held-order endpoints at all any
-        // more, so an op for one could only ever dead-letter — which is
-        // exactly what it did: every park wrote a permanent stuck row into
-        // the sync screen's list.
+        // The ORDER is NOT queued. Parked drafts are device-local by design
+        // (the 5 Sep refactor) and the backend has no held-order endpoints at
+        // all any more, so an op for one could only ever dead-letter — which
+        // is exactly what it did: every park wrote a permanent stuck row into
+        // the sync screen's list. Its TABLE is a different matter; see
+        // `sync_hold_occupancy`.
+        self.sync_hold_occupancy(was_on, entry.table_id.clone(), false)?;
         cart::clear(&self.store)?;
         Ok(conflict)
     }
@@ -3080,8 +3108,11 @@ impl MadarCore {
     pub fn discard_draft(&self, id: String) -> Result<(), CoreError> {
         let device = self.lan_device_id();
         let now = self.corrected_now().to_rfc3339();
-        // Device-local: nothing to queue (see `hold_cart_on_table`).
-        held::terminate_local(&self.store, &id, "discarded", Some(&device), &now)
+        let was_on = self.draft_table(&id);
+        // The order is device-local (see `hold_cart_on_table`); its table is
+        // not. Nobody ever sat, so the table goes straight back to the room.
+        held::terminate_local(&self.store, &id, "discarded", Some(&device), &now)?;
+        self.sync_hold_occupancy(was_on, None, false)
     }
 
     /// Mark a restored draft COMPLETED after its cart checked out (the host
@@ -3089,8 +3120,12 @@ impl MadarCore {
     /// the table; the queued op drains AFTER the order create (FIFO).
     pub fn complete_draft(&self, id: String, _order_id: Option<String>) -> Result<(), CoreError> {
         let now = self.corrected_now().to_rfc3339();
-        // Device-local: nothing to queue (see `hold_cart_on_table`).
-        held::terminate_local(&self.store, &id, "completed", None, &now)
+        let was_on = self.draft_table(&id);
+        // The order is device-local (see `hold_cart_on_table`); its table is
+        // not. The party ATE, so the table needs a cloth before anyone else
+        // sits — `dirty`, not `free`, on the server exactly as locally.
+        held::terminate_local(&self.store, &id, "completed", None, &now)?;
+        self.sync_hold_occupancy(was_on, None, true)
     }
 
     /// Assign / move / unassign a parked draft's table (interactive — loud
@@ -3101,8 +3136,12 @@ impl MadarCore {
         table_id: Option<String>,
     ) -> Result<(), CoreError> {
         let now = self.corrected_now().to_rfc3339();
-        // Device-local: nothing to queue (see `hold_cart_on_table`).
-        held::assign_table_local(&self.store, &id, table_id, &now).map(|_| ())
+        let was_on = self.draft_table(&id);
+        // The order is device-local (see `hold_cart_on_table`); its table is
+        // not — a move releases the old one and takes the new one, in that
+        // order.
+        let out = held::assign_table_local(&self.store, &id, table_id, &now)?;
+        self.sync_hold_occupancy(was_on, out.table_id, false)
     }
 
     /// Swap whatever sits on two tables (held orders and/or waiter tickets) —
@@ -3111,6 +3150,10 @@ impl MadarCore {
     pub fn swap_tables(&self, table_a: String, table_b: String) -> Result<(), CoreError> {
         let branch = self.session_branch_id()?;
         let now = self.corrected_now().to_rfc3339();
+        // A parked draft on either side moves too, and the server cannot see
+        // that: its swap sets each side's status from the TICKET it found, so
+        // it would free a table this till just moved a draft onto.
+        let held_before = self.held_sides(&table_a, &table_b);
         held::swap_local(&self.store, &table_a, &table_b, &now)?;
         let cmd = held::SwapCommand {
             request: serde_json::json!({
@@ -3121,7 +3164,33 @@ impl MadarCore {
             "swap_tables",
             format!("swap:{}", uuid::Uuid::new_v4()),
             &serde_json::to_string(&cmd)?,
-        )
+        )?;
+        // Queued AFTER the swap, so it lands last and has the final word on
+        // the two statuses. Each op is a no-op server-side when a ticket owns
+        // the table, so the ticket always wins the race.
+        let held_after = self.held_sides(&table_a, &table_b);
+        for (table, before, after) in [
+            (&table_a, held_before.0, held_after.0),
+            (&table_b, held_before.1, held_after.1),
+        ] {
+            match (before, after) {
+                (false, true) => self.sync_hold_occupancy(None, Some(table.clone()), false)?,
+                (true, false) => self.sync_hold_occupancy(Some(table.clone()), None, false)?,
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether each of two tables carries a parked draft right now.
+    fn held_sides(&self, a: &str, b: &str) -> (bool, bool) {
+        let on = |t: &str| {
+            held::held_on_table(&self.store, t, None)
+                .ok()
+                .flatten()
+                .is_some()
+        };
+        (on(a), on(b))
     }
 
     /// The branch floor: sections + tables + held-order occupancy, fully
@@ -3210,6 +3279,12 @@ impl MadarCore {
     /// a locally-occupied table).
     pub fn fulfill_transfer(&self, id: String, table_id: String) -> Result<(), CoreError> {
         let now = self.corrected_now().to_rfc3339();
+        // A transfer for a PARKED DRAFT moves it between tables locally and the
+        // server never hears of the draft, so the occupancy has to follow it.
+        // A transfer for a waiter's ticket needs none of this: the server moves
+        // the ticket and derives both statuses from it.
+        let draft = held::transfer_held_occupant(&self.store, &id);
+        let was_on = draft.as_deref().and_then(|d| self.draft_table(d));
         held::fulfill_transfer_local(&self.store, &id, &table_id, &now)?;
         let cmd = held::TransferOpCommand {
             transfer_id: id.clone(),
@@ -3219,7 +3294,11 @@ impl MadarCore {
             "fulfill_table_transfer",
             format!("transfer-fulfill:{id}:{}", uuid::Uuid::new_v4()),
             &serde_json::to_string(&cmd)?,
-        )
+        )?;
+        if draft.is_some() {
+            self.sync_hold_occupancy(was_on, Some(table_id), false)?;
+        }
+        Ok(())
     }
 
     /// Keep the LOCAL canvas in step with a status the server is about to
@@ -3264,6 +3343,64 @@ impl MadarCore {
             format!("table-clear:{table_id}:{}", uuid::Uuid::new_v4()),
             &serde_json::to_string(&cmd)?,
         )
+    }
+
+    /// Push the OCCUPANCY of a device-local hold, and nothing else.
+    ///
+    /// A parked cart never leaves the till — not its lines, not its money, not
+    /// its name. But which table it is sitting on is not the till's private
+    /// business: it is a fact about the room. While it stayed local, the
+    /// dashboard's floor and every other terminal were told a table with
+    /// somebody's order waiting on it was free, and the next party got seated
+    /// on top of it.
+    ///
+    /// So exactly one bit crosses the wire: taken, or given back. `bus` is the
+    /// one thing the server cannot derive — whether the party ATE before the
+    /// hold ended (checked out → the table needs a cloth) or never sat at all
+    /// (discarded → straight back to the room).
+    ///
+    /// FIFO ordering carries a move: release the old table, then hold the new
+    /// one, in that order.
+    fn sync_hold_occupancy(
+        &self,
+        before: Option<String>,
+        after: Option<String>,
+        bus: bool,
+    ) -> Result<(), CoreError> {
+        if before == after {
+            return Ok(());
+        }
+        if let Some(old) = before.clone().filter(|b| Some(b) != after.as_ref()) {
+            let cmd = held::TableStateCommand {
+                table_id: old.clone(),
+                request: serde_json::json!({ "bus": bus }),
+            };
+            self.enqueue_held_op(
+                "release_table",
+                format!("table-release:{old}:{}", uuid::Uuid::new_v4()),
+                &serde_json::to_string(&cmd)?,
+            )?;
+        }
+        if let Some(new) = after.filter(|a| Some(a) != before.as_ref()) {
+            let cmd = held::TableStateCommand {
+                table_id: new.clone(),
+                request: serde_json::json!({}),
+            };
+            self.enqueue_held_op(
+                "hold_table",
+                format!("table-hold:{new}:{}", uuid::Uuid::new_v4()),
+                &serde_json::to_string(&cmd)?,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// The table a parked order is on right now, if the till still knows it.
+    fn draft_table(&self, id: &str) -> Option<String> {
+        held::get(&self.store, id)
+            .ok()
+            .flatten()
+            .and_then(|h| h.table_id)
     }
 
     /// Enqueue one floor op (no shift gating — floor state floats free of
@@ -4086,18 +4223,42 @@ impl MadarCore {
                 // Re-apply a QUEUED local clear on top of the fresh pull, so a
                 // table the teller just bussed does not flicker back to dirty
                 // between this pull and its drain.
+                //
+                // Queued HOLDS and RELEASES ride the same rail, in queue order:
+                // a table this till just parked an order on must not read free
+                // between the park and its drain, or the canvas invites the
+                // teller to seat somebody on top of their own draft.
                 if let Ok(items) = self.store.pending() {
-                    for i in items.iter().filter(|i| i.op_type == "clear_table") {
-                        if let Ok(cmd) = serde_json::from_str::<held::TableStateCommand>(&i.payload)
-                        {
-                            let _ = held::set_table_state_local(
-                                &self.store,
-                                &cmd.table_id,
-                                Some("free"),
-                                None,
-                                false,
-                            );
-                        }
+                    for i in items.iter().filter(|i| {
+                        matches!(
+                            i.op_type.as_str(),
+                            "clear_table" | "hold_table" | "release_table"
+                        )
+                    }) {
+                        let Ok(cmd) = serde_json::from_str::<held::TableStateCommand>(&i.payload)
+                        else {
+                            continue;
+                        };
+                        let status = match i.op_type.as_str() {
+                            "hold_table" => "seated",
+                            "release_table" => {
+                                // The party ate: the table is waiting for a
+                                // cloth, not free.
+                                if cmd.request.get("bus").and_then(|b| b.as_bool()) == Some(true) {
+                                    "dirty"
+                                } else {
+                                    "free"
+                                }
+                            }
+                            _ => "free",
+                        };
+                        let _ = held::set_table_state_local(
+                            &self.store,
+                            &cmd.table_id,
+                            Some(status),
+                            None,
+                            false,
+                        );
                     }
                 }
             }
@@ -7491,7 +7652,8 @@ mod lifecycle_tests {
         assert_eq!(
             core.store.pending().unwrap().len(),
             before,
-            "a hold is device-local from park to checkout — nothing is queued"
+            "a hold with no table is device-local from park to checkout — \
+             nothing at all is queued"
         );
         assert_eq!(
             core.store.dead_count().unwrap(),
@@ -7524,6 +7686,129 @@ mod lifecycle_tests {
 
         assert_eq!(core.store.pending().unwrap().len(), before);
         assert_eq!(core.store.dead_count().unwrap(), 0);
+    }
+
+    /// Two free tables in the floor mirror — enough for the occupancy to have
+    /// somewhere to go.
+    fn seed_two_tables(core: &MadarCore) {
+        core.store
+            .kv_put(
+                held::K_FLOOR_TABLES,
+                r#"[{"id":"t1","section_id":"s","label":"T1","seats":4,"shape":"rect","status":"free","pos_x":0,"pos_y":0,"width":80,"height":80,"rotation":0,"is_active":true},
+                    {"id":"t2","section_id":"s","label":"T2","seats":2,"shape":"rect","status":"free","pos_x":9,"pos_y":9,"width":80,"height":80,"rotation":0,"is_active":true}]"#,
+            )
+            .unwrap();
+    }
+
+    /// The one thing a hold DOES push, and the exact shape of it: the table is
+    /// taken, then given back. Never the order — not its lines, not its money,
+    /// not its name — because the room is shared and the draft is not.
+    #[tokio::test]
+    async fn a_hold_on_a_table_pushes_the_occupancy_and_only_that() {
+        let core = signed_in_offline_core().await;
+        let (t1, t2) = ("t1".to_string(), "t2".to_string());
+        seed_two_tables(&core);
+        let before = core.store.pending().unwrap().len();
+
+        cart::set_cart_payload(
+            &core.store,
+            &serde_json::json!({
+                "lines": [{
+                    "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
+                    "name": "Latte", "unit_price_minor": 5000, "qty": 1,
+                    "addons": [], "optionals": []
+                }]
+            }),
+        )
+        .unwrap();
+        core.hold_cart_on_table("Sara".into(), None, None, Some(t1.clone()))
+            .unwrap();
+        let id = core.list_drafts().unwrap().first().unwrap().id.clone();
+
+        // Move it, then check it out.
+        core.assign_draft_table(id.clone(), Some(t2.clone()))
+            .unwrap();
+        core.complete_draft(id.clone(), None).unwrap();
+
+        let ops: Vec<(String, String)> = core.store.pending().unwrap()[before..]
+            .iter()
+            .map(|i| (i.op_type.clone(), i.payload.clone()))
+            .collect();
+        let kinds: Vec<&str> = ops.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(
+            kinds,
+            vec!["hold_table", "release_table", "hold_table", "release_table"],
+            "take t1; move = give t1 back then take t2; checkout gives t2 back"
+        );
+        // FIFO carries the move: the release of the old table is queued before
+        // the hold of the new one, so the server never sees the party on two.
+        assert!(ops[0].1.contains(&t1));
+        assert!(ops[1].1.contains(&t1));
+        assert!(ops[2].1.contains(&t2));
+        assert!(ops[3].1.contains(&t2));
+
+        // A move is not a meal: t1 goes back to the room. The checkout IS one.
+        assert!(
+            ops[1].1.contains("\"bus\":false"),
+            "moving off a table does not dirty it: {}",
+            ops[1].1
+        );
+        assert!(
+            ops[3].1.contains("\"bus\":true"),
+            "the party ate — the table needs a cloth: {}",
+            ops[3].1
+        );
+
+        // And nothing of the ORDER itself rode along.
+        for (_, payload) in &ops {
+            assert!(!payload.contains("Sara"), "the guest's name stayed home");
+            assert!(!payload.contains("Latte"), "the lines stayed home");
+            assert!(!payload.contains("5000"), "the money stayed home");
+            assert!(!payload.contains(&id), "the draft id stayed home");
+        }
+    }
+
+    /// A swap moves a parked draft too, and the server cannot see that: its own
+    /// swap sets each side's status from the TICKET it finds, so it would free
+    /// the very table the draft just landed on. The correction is queued behind
+    /// the swap, so it has the last word.
+    #[tokio::test]
+    async fn swapping_a_parked_draft_corrects_the_occupancy_behind_the_swap() {
+        let core = signed_in_offline_core().await;
+        seed_two_tables(&core);
+        cart::set_cart_payload(
+            &core.store,
+            &serde_json::json!({
+                "lines": [{
+                    "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
+                    "name": "Latte", "unit_price_minor": 5000, "qty": 1,
+                    "addons": [], "optionals": []
+                }]
+            }),
+        )
+        .unwrap();
+        core.hold_cart_on_table("Sara".into(), None, None, Some("t1".into()))
+            .unwrap();
+        let before = core.store.pending().unwrap().len();
+
+        core.swap_tables("t1".into(), "t2".into()).unwrap();
+
+        let ops: Vec<(String, String)> = core.store.pending().unwrap()[before..]
+            .iter()
+            .map(|i| (i.op_type.clone(), i.payload.clone()))
+            .collect();
+        let kinds: Vec<&str> = ops.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(
+            kinds,
+            vec!["swap_tables", "release_table", "hold_table"],
+            "the corrections land AFTER the swap the server would otherwise win"
+        );
+        assert!(ops[1].1.contains("t1"), "t1 is given back");
+        assert!(ops[2].1.contains("t2"), "t2 is taken");
+        assert!(
+            ops[1].1.contains("\"bus\":false"),
+            "a swap is not a meal: t1 goes back to the room"
+        );
     }
 
     /// Tills upgrading from v0.2.0 arrive carrying dead rows from the old ops.

@@ -1180,6 +1180,21 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       await _toOrderScreen();
       return;
     }
+    // Taken on ANOTHER till, for a parked order this device cannot see.
+    //
+    // The floor now carries the occupancy of a held order even though the
+    // order itself stays on the till that parked it, so a table can read
+    // `seated` here with no ticket and no local draft behind it. There is
+    // nothing to open and nobody to seat: say who has it and stop, rather
+    // than firing a seat the server would refuse.
+    if (t.status == 'seated') {
+      _notifier.showToast(
+        _tr('tables.taken_elsewhere'),
+        tone: ChipTone.warning,
+        icon: 'lock',
+      );
+      return;
+    }
     // Free: seat a walk-in. This OPENS A TAB and takes the table — on this
     // device and on every other one — rather than binding a table id nobody
     // else can see.

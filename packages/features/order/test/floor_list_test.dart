@@ -155,6 +155,16 @@ void main() {
     expect(rows.single.urgency, isNot(FloorUrgency.free));
   });
 
+  test('a draft parked on another till occupies its table here too', () {
+    // The other till keeps the ORDER — its lines, its money, its name — and
+    // pushes only the occupancy, so all this device ever sees is `seated`:
+    // no ticket, no draft of its own. Reading that as free was how a second
+    // party got seated on top of somebody's waiting order.
+    final rows = rowsFor([_table(id: 'a', status: 'seated')], {});
+    expect(rows.single.urgency, FloorUrgency.seated);
+    expect(rows.single.urgency, isNot(FloorUrgency.free));
+  });
+
   test('a table with no ticket is never described as seated', () {
     final rows = rowsFor([_table(id: 'a')], {});
     expect(rows.single.urgency, FloorUrgency.free);

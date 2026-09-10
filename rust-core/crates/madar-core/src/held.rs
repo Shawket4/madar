@@ -780,6 +780,16 @@ pub(crate) fn fulfill_transfer_local(
     Ok(())
 }
 
+/// The parked draft a waiting transfer belongs to, if it belongs to one at all
+/// (a transfer can just as well be a waiter's ticket, which the server moves).
+pub(crate) fn transfer_held_occupant(store: &Store, id: &str) -> Option<String> {
+    load_transfers(store)
+        .ok()?
+        .into_iter()
+        .find(|t| t.id == id && t.occupant_kind == "held_order")
+        .map(|t| t.occupant_id)
+}
+
 /// Operational table-state edit (status walk / zone move) applied to the
 /// floor mirror. Unknown table = no-op (the queued op still lands server-side
 /// once the layout syncs). LWW by design — matches the backend core.

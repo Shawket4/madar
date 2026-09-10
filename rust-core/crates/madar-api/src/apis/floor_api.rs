@@ -21,6 +21,22 @@ pub struct ClearTableParams {
     pub clear_table_request: models::ClearTableRequest,
 }
 
+/// struct for passing parameters to the method [`hold_table`]
+#[derive(Clone, Debug)]
+pub struct HoldTableParams {
+    /// Table ID
+    pub id: String,
+    pub hold_table_request: models::HoldTableRequest,
+}
+
+/// struct for passing parameters to the method [`release_table`]
+#[derive(Clone, Debug)]
+pub struct ReleaseTableParams {
+    /// Table ID
+    pub id: String,
+    pub release_table_request: models::ReleaseTableRequest,
+}
+
 /// struct for passing parameters to the method [`swap_tables`]
 #[derive(Clone, Debug)]
 pub struct SwapTablesParams {
@@ -31,6 +47,32 @@ pub struct SwapTablesParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ClearTableError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`hold_table`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum HoldTableError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`release_table`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReleaseTableError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -85,6 +127,86 @@ pub async fn clear_table(
     } else {
         let content = resp.text().await?;
         let entity: Option<ClearTableError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// A parked cart is device-local by design: the order, its lines and its money never leave the till, and only the sale it becomes is ever pushed. But the TABLE is not the till's private business — it is a fact about the room, and the dashboard's floor and every other till were being told that a table with somebody's order waiting on it was free. The next party got seated on top of it.  So the occupancy syncs and the order does not. The server learns that the table is taken and nothing whatever about what is on it.  Like `clear_table`, and for the reason written there, this is not a set-status endpoint: exactly one transition, `free` -> `seated`, refused from anything else. A table a ticket is already on stays the ticket's.
+pub async fn hold_table(
+    configuration: &configuration::Configuration,
+    params: HoldTableParams,
+) -> Result<(), Error<HoldTableError>> {
+    let uri_str = format!(
+        "{}/floor/tables/{id}/hold",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.hold_table_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<HoldTableError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// The counterpart to `hold_table`: the hold moved to another table, was checked out, or was discarded. Exactly one transition out of `seated` -- to `free`, or to `dirty` when `bus` says the party ate -- and never over a live ticket — if one has landed since, the ticket owns the table and this is a no-op rather than a way to free an occupied table.
+pub async fn release_table(
+    configuration: &configuration::Configuration,
+    params: ReleaseTableParams,
+) -> Result<(), Error<ReleaseTableError>> {
+    let uri_str = format!(
+        "{}/floor/tables/{id}/release",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.release_table_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ReleaseTableError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
