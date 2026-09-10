@@ -7443,6 +7443,89 @@ mod lifecycle_tests {
         );
     }
 
+    /// EVERY hold operation is device-local, not just the park.
+    ///
+    /// A hold is this till's own parked cart. Nothing about it belongs to the
+    /// server — the `held_orders` table it used to sync to is gone — and the
+    /// only thing that ever reaches the backend is the ORDER it becomes at
+    /// checkout, through the ordinary create path.
+    ///
+    /// Parking alone was pinned. Assigning a table, resuming, releasing,
+    /// discarding and completing were not, and each of them writes to the same
+    /// mirror; any one of them queuing an op would put a permanent stuck row
+    /// in the sync screen that no drain arm could ever clear.
+    #[tokio::test]
+    async fn no_hold_operation_ever_queues_anything() {
+        let core = signed_in_offline_core().await;
+        let before = core.store.pending().unwrap().len();
+
+        cart::set_cart_payload(
+            &core.store,
+            &serde_json::json!({
+                "lines": [{
+                    "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
+                    "name": "Latte", "unit_price_minor": 5000, "qty": 1,
+                    "addons": [], "optionals": []
+                }]
+            }),
+        )
+        .unwrap();
+        core.hold_cart_on_table("Table 5".into(), None, None, None)
+            .unwrap();
+
+        let id = core
+            .list_drafts()
+            .unwrap()
+            .first()
+            .expect("the draft exists")
+            .id
+            .clone();
+
+        // Every remaining verb, in the order a teller would reach them.
+        core.assign_draft_table(id.clone(), None).unwrap();
+        core.restore_draft(id.clone()).unwrap();
+        core.release_draft(id.clone()).unwrap();
+        core.restore_draft(id.clone()).unwrap();
+        core.complete_draft(id.clone(), None).unwrap();
+
+        assert_eq!(
+            core.store.pending().unwrap().len(),
+            before,
+            "a hold is device-local from park to checkout — nothing is queued"
+        );
+        assert_eq!(
+            core.store.dead_count().unwrap(),
+            0,
+            "so no hold can leave a stuck row nobody can clear"
+        );
+    }
+
+    /// Discarding is device-local too, and it is the other way a hold ends.
+    #[tokio::test]
+    async fn discarding_a_hold_queues_nothing_either() {
+        let core = signed_in_offline_core().await;
+        let before = core.store.pending().unwrap().len();
+        cart::set_cart_payload(
+            &core.store,
+            &serde_json::json!({
+                "lines": [{
+                    "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
+                    "name": "Latte", "unit_price_minor": 5000, "qty": 1,
+                    "addons": [], "optionals": []
+                }]
+            }),
+        )
+        .unwrap();
+        core.hold_cart_on_table("Table 9".into(), None, None, None)
+            .unwrap();
+        let id = core.list_drafts().unwrap().first().unwrap().id.clone();
+
+        core.discard_draft(id).unwrap();
+
+        assert_eq!(core.store.pending().unwrap().len(), before);
+        assert_eq!(core.store.dead_count().unwrap(), 0);
+    }
+
     /// Tills upgrading from v0.2.0 arrive carrying dead rows from the old ops.
     /// Boot clears exactly those, and nothing else — a dead row of another kind
     /// is a real failure someone may still need to see.

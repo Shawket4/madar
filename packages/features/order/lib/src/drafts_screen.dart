@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/order_providers.dart';
+import 'package:feature_order/src/tables_screen.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,6 +65,23 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
 
   /// Restore the draft into the cart (replacing the current one) and close
   /// the screen — the natives' whole-card tap (with its LongPress haptic).
+  /// Give this held order a table, move it, or take it off one.
+  ///
+  /// The same floor picker the order screen uses, so a teller points at the
+  /// room rather than reading a list of labels. Clearing is offered because a
+  /// party that moved to the bar should not leave a table marked taken.
+  Future<void> _assignTable(DraftView draft) async {
+    final pick = await showTablePickerSheet(
+      context,
+      ref,
+      currentTableId: draft.tableId,
+    );
+    if (pick == null || !mounted) return;
+    await ref
+        .read(orderProvider.notifier)
+        .assignDraftTable(draft.id, pick.tableId);
+  }
+
   Future<void> _restore(DraftView draft) async {
     MadarHaptics.impact();
     await ref.read(orderProvider.notifier).restoreDraft(draft.id);
@@ -125,6 +143,13 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
                               currency: currency,
                               onRestore: () => unawaited(_restore(draft)),
                               onDiscard: () => unawaited(_discard(draft)),
+                              // Only where a floor exists to put it on.
+                              onTable:
+                                  ref.watch(
+                                    orderProvider.select((s) => s.hasFloor),
+                                  )
+                                  ? () => unawaited(_assignTable(draft))
+                                  : null,
                             ),
                           ),
                         );
@@ -147,12 +172,17 @@ class _DraftCard extends ConsumerWidget {
     required this.currency,
     required this.onRestore,
     required this.onDiscard,
+    this.onTable,
   });
 
   final DraftView draft;
   final String currency;
   final VoidCallback onRestore;
   final VoidCallback onDiscard;
+
+  /// Assign / move / clear this held order's table. Null hides the affordance
+  /// (a branch with no authored floor has no table to give it).
+  final VoidCallback? onTable;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -241,6 +271,54 @@ class _DraftCard extends ConsumerWidget {
                 fontWeight: FontWeight.w900,
               ),
             ),
+            // Put this held order on a table — or move it off one.
+            //
+            // A hold and a table belong together: the order is parked BECAUSE
+            // a party is sitting somewhere, and until now the only way to give
+            // it a table was to have held it on one in the first place. The
+            // picker is the same floor the tables screen draws.
+            if (onTable != null)
+              Semantics(
+                button: true,
+                label: bridge.tr(key: 'tables.pick'),
+                child: TactileScale(
+                  onTap: onTable,
+                  child: Container(
+                    height: _discardTile,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: Space.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (draft.tableLabel?.isNotEmpty ?? false)
+                          ? colors.accentBg
+                          : colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(Radii.sm),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: Space.xs,
+                      children: [
+                        MadarIcon(
+                          'square.grid.2x2',
+                          tint: (draft.tableLabel?.isNotEmpty ?? false)
+                              ? colors.accent
+                              : colors.textMuted,
+                          size: IconSize.sm,
+                        ),
+                        if (draft.tableLabel?.isNotEmpty ?? false)
+                          Text(
+                            draft.tableLabel!,
+                            style: MadarType.label.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colors.accent,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             Semantics(
               button: true,
               label: bridge.tr(key: 'sync.discard'),

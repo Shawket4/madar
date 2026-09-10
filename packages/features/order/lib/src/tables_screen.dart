@@ -1352,9 +1352,22 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     FloorTableStateView t, {
     required bool isWaiter,
   }) async {
-    // Seating is the TAP. What is left is the geometry, and a way back for a
-    // table stuck in a state nothing else will clear.
+    // Seating is the TAP. What is left is the geometry, a held order that
+    // wants a home, and a way back for a table stuck in a state nothing else
+    // will clear.
+    final drafts = ref
+        .read(orderProvider)
+        .drafts
+        .where((d) => d.tableId == null && !d.lockedByOther)
+        .toList(growable: false);
     await _actionsSheet(t.label, [
+      // The other half of assigning a table from the drafts screen: a teller
+      // standing at the floor puts the held order where the party actually
+      // sat, without going to find it in a list first.
+      if (drafts.isNotEmpty)
+        _SheetAction('tray.full', _tr('tables.seat_held'), () async {
+          await _pickHeldOrderFor(t, drafts);
+        }),
       _SheetAction('arrow.triangle.2.circlepath', _tr('tables.move'), () async {
         setState(() => _swapFrom = t.id);
       }),
@@ -1432,6 +1445,48 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
         },
       ),
     ]);
+  }
+
+  /// Choose which held order goes on this table.
+  ///
+  /// Only unassigned drafts, and only ones no other till is editing — a locked
+  /// draft cannot be moved out from under whoever has it open.
+  Future<void> _pickHeldOrderFor(
+    FloorTableStateView t,
+    List<DraftView> drafts,
+  ) async {
+    if (!mounted) return;
+    final picked = await showMadarSheet<DraftView>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsetsDirectional.all(Space.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${_tr('tables.seat_held')} · ${t.label}',
+              style: MadarType.h3.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: Space.lg),
+            for (final d in drafts)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
+                child: ActionButton(
+                  label: '${d.name} · ${d.itemCount}',
+                  icon: 'tray.full',
+                  variant: ActionVariant.outline,
+                  onTap: () => Navigator.of(sheetContext).maybePop(d),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+    await _notifier.assignDraftTable(picked.id, t.id);
   }
 
   /// Pick a wish target (a whole section, or one exact table), then queue it.
