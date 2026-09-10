@@ -146,4 +146,10 @@ jobs:
       # the only step that answers "does the Windows app actually build".
       - name: Build the Windows app
         working-directory: apps/madar
-        run: flutter build windows --release
+        # `--verbose`, because a cargokit failure is otherwise UNDIAGNOSABLE
+        # from CI: the plugin's Rust build runs inside an MSBuild custom step,
+        # and Flutter swallows its stderr — the whole report is
+        # "MSB8066 ... exited with code -1", which says a build ran and stopped
+        # and nothing about why. The extra noise costs a scroll; not having it
+        # costs a round trip per guess.
+        run: flutter build windows --release --verbose

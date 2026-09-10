@@ -1,6 +1,6 @@
 # Pin the toolchain + the cross-compile targets every platform artifact needs,
 # so `rustup` provisions them on checkout. iOS (device + sim), Android (arm64,
-# armv7, x86_64), and desktop (macOS + Linux).
+# armv7, x86_64), and desktop (macOS, Linux, Windows).
 [toolchain]
 channel = "1.98.1"
 components = ["rustfmt", "clippy"]
@@ -13,4 +13,7 @@ targets = [
   "armv7-linux-androideabi",
   "x86_64-linux-android",
   "x86_64-unknown-linux-gnu",
+  # The app ships a `windows/` target and cargokit builds the plugin against
+  # this triple explicitly. It was missing while nothing checked Windows.
+  "x86_64-pc-windows-msvc",
 ]
