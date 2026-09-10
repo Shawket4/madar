@@ -15,7 +15,6 @@ import 'package:feature_order/src/cart_panel.dart' show OrderLinesCard;
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/table_clear_prompt.dart';
 import 'package:feature_order/src/waiter_sheets.dart';
-import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -585,22 +584,12 @@ class _SettleTicketCard extends ConsumerWidget {
                         ),
                       ),
                       // Void — danger tile opening the reason sheet.
-                      Semantics(
-                        button: true,
-                        label: bridge.tr(key: 'void.title'),
-                        child: TactileScale(
-                          onTap: onVoid,
-                          child: Container(
-                            width: kActionButtonHeight,
-                            height: kActionButtonHeight,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: colors.dangerBg,
-                              borderRadius: BorderRadius.circular(Radii.sm),
-                            ),
-                            child: MadarIcon('trash', tint: colors.danger),
-                          ),
-                        ),
+                      MadarGlyphTile(
+                        icon: 'trash',
+                        tint: colors.danger,
+                        background: colors.dangerBg,
+                        semanticLabel: bridge.tr(key: 'void.title'),
+                        onTap: onVoid,
                       ),
                     ],
                   ),

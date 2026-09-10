@@ -448,6 +448,7 @@ fn en(key: &str) -> Option<&'static str> {
         "shift.end_of_report" => "End of Report",
         "shift.print_report" => "Print report",
         "drafts.title" => "Held orders",
+        "drafts.hold" => "Hold this order",
         "drafts.empty" => "No held orders.",
         "drafts.current" => "Current",
         // side-rail labels + section captions
@@ -975,6 +976,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "shift.end_of_report" => "نهاية التقرير",
         "shift.print_report" => "طباعة التقرير",
         "drafts.title" => "طلبات معلّقة",
+        "drafts.hold" => "تعليق هذا الطلب",
         "drafts.empty" => "لا توجد طلبات معلّقة.",
         "drafts.current" => "الحالي",
         "nav.incoming" => "الوارد",

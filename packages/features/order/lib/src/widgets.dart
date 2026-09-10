@@ -1,13 +1,11 @@
-/// Small shared pieces the order feature reuses across its panels — the
-/// action button + text field (the natives' MadarButton / MadarTextField),
-/// the accent-dot section title, and the RFC3339/category helpers.
+/// What is left of the order feature's own kit: the native component metrics
+/// its panels measure against. Its button, field and section title are the
+/// design system's now — see `design_system/controls.dart` for why one of
+/// each, rather than one per feature.
 library;
 
 // Native metrics (OrderScreen.kt / Components.kt) that fall between the 4-pt
 // Space steps — kept verbatim so the Flutter chrome measures identically.
-
-/// Primary action button height (natives: 50.dp).
-const double kActionButtonHeight = 50;
 
 /// The item card's width/height ratio (natives: aspectRatio(0.94f)).
 const double kMenuCardAspect = 0.94;

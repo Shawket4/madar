@@ -296,6 +296,71 @@ class MadarButton extends StatelessWidget {
   }
 }
 
+/// A square glyph tile — a verb with no room for a word, standing beside a
+/// [MadarButton] in the same row.
+///
+/// It matches the button's height and corner radius at the same [size], which
+/// is the whole point: the pair used to be a 50pt tile beside a 54pt button,
+/// and a row of controls that do not line up is the cheapest way to make a
+/// screen look unfinished.
+class MadarGlyphTile extends StatelessWidget {
+  /// Creates a glyph tile.
+  const MadarGlyphTile({
+    required this.icon,
+    required this.onTap,
+    required this.tint,
+    required this.background,
+    this.semanticLabel,
+    this.size = MadarButtonSize.regular,
+    super.key,
+  });
+
+  /// [MadarIcon] name.
+  final String icon;
+
+  /// Tap handler; fires after the impact haptic.
+  final VoidCallback onTap;
+
+  /// Glyph colour.
+  final Color tint;
+
+  /// Tile fill — usually the tint's `*Bg` companion.
+  final Color background;
+
+  /// What the tile does, for a screen reader. A glyph alone says nothing.
+  final String? semanticLabel;
+
+  /// Matches the [MadarButton] it stands beside.
+  final MadarButtonSize size;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = size == MadarButtonSize.compact;
+    final side = compact ? _compactHeight : Metrics.buttonHeight;
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: TactileScale(
+        haptic: false,
+        onTap: () {
+          MadarHaptics.impact();
+          onTap();
+        },
+        child: Container(
+          width: side,
+          height: side,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(compact ? Radii.sm : Radii.md),
+          ),
+          child: MadarIcon(icon, tint: tint, size: IconSize.lg),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Text field ───────────────────────────────────────────────────────────
 
 /// THE text field: rounded fill with an animated focus ring — accent border,

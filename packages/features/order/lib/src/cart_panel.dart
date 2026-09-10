@@ -979,26 +979,14 @@ class _CartFooter extends ConsumerWidget {
             const SizedBox(height: Space.sm),
             Row(
               children: [
-                // Park the cart (held order) — a square accent-tinted tray.
-                TactileScale(
-                  onTap: () {
-                    MadarHaptics.impact();
-                    onHold();
-                  },
-                  child: Container(
-                    width: kActionButtonHeight,
-                    height: kActionButtonHeight,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: colors.accentBg,
-                      borderRadius: BorderRadius.circular(Radii.sm),
-                    ),
-                    child: MadarIcon(
-                      'tray.and.arrow.down',
-                      tint: colors.accent,
-                      size: IconSize.lg,
-                    ),
-                  ),
+                // Park the cart (held order) — a square accent-tinted tray,
+                // the same height as the checkout button beside it.
+                MadarGlyphTile(
+                  icon: 'tray.and.arrow.down',
+                  tint: colors.accent,
+                  background: colors.accentBg,
+                  semanticLabel: bridge.tr(key: 'drafts.hold'),
+                  onTap: onHold,
                 ),
                 const SizedBox(width: Space.sm),
                 Expanded(
