@@ -254,10 +254,57 @@ jobs:
           name: macos-build
           path: MadarPOS-macOS.zip
 
+  build-windows:
+    name: Build Windows
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: dart pub get
+
+      # Unsigned. There is no code-signing certificate in CI, so SmartScreen
+      # will warn on first launch — this artifact is for direct download and
+      # for the shop's own machines, not for wide distribution.
+      - name: Build Windows
+        working-directory: apps/madar
+        run: flutter build windows --release --build-number=${{ github.run_number }}
+
+      # The whole Release folder, not just the .exe: the app will not start
+      # without `flutter_windows.dll`, the plugin DLLs (madar_frb.dll among
+      # them) and the `data/` payload beside it.
+      - name: Zip Windows build
+        working-directory: apps/madar/build/windows/x64/runner/Release
+        run: Compress-Archive -Path * -DestinationPath "$env:GITHUB_WORKSPACE\MadarPOS-Windows.zip"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-build
+          path: MadarPOS-Windows.zip
+
   # ── GitHub Release ─────────────────────────────────────────────────────────
   release:
     name: Create GitHub Release
-    needs: [build-android, build-macos]
+    needs: [build-android, build-macos, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -282,6 +329,10 @@ jobs:
             echo ""
             echo "Download **MadarPOS-macOS.zip** below (ad-hoc signed — right-click → Open on first launch)."
             echo ""
+            echo "## 🪟 Windows"
+            echo ""
+            echo "Download **MadarPOS-Windows.zip** below and unzip it somewhere permanent — the .exe needs the DLLs and \`data/\` folder beside it. Unsigned, so SmartScreen warns once: More info → Run anyway."
+            echo ""
             echo "## 🏪 Google Play"
             echo ""
             echo "**app-release.aab** below is the Play upload (release-signed, versionCode ${{ github.run_number }}) — upload it from the Play Console."
@@ -299,3 +350,4 @@ jobs:
             artifacts/android-apk/app-armeabi-v7a-release.apk
             artifacts/android-aab/app-release.aab
             artifacts/macos-build/MadarPOS-macOS.zip
+            artifacts/windows-build/MadarPOS-Windows.zip
