@@ -32,6 +32,23 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# `permission_handler_windows` 0.2.2 (the latest there is) still compiles with
+# /await and <experimental/coroutine>. MSVC 14.51 turned the deprecation of
+# those into a HARD ERROR — STL1011 — so the plugin no longer builds at all:
+#
+#   error C2338: static assertion failed: 'error STL1011: The /await compiler
+#   option, <experimental/coroutine>, ... are deprecated by Microsoft and will
+#   be REMOVED SOON. ... You can define
+#   _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS to suppress this
+#   error for now.'
+#
+# This is that escape hatch, taken at the top so it reaches every plugin added
+# below. `flutter_local_notifications_windows` already defines it for itself,
+# which is the precedent. Remove it when the plugin moves to the C++20
+# <coroutine> header; leaving it is a bet that Microsoft does not follow
+# through on "REMOVED SOON".
+add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
