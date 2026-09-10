@@ -2520,6 +2520,28 @@ impl MadarCore {
     /// the raster width now comes from the device's paper config
     /// (`DeviceConfig::paper_dots` — 384 dots for a 58 mm Bluetooth portable, 576
     /// for a 72 mm LAN head). Pair with `send_to_printer`.
+    /// Render ONE item as a kitchen chit — no money, no logo, no totals.
+    ///
+    /// A different document from a receipt rather than a shorter one: a cook
+    /// needs the item, the count, what was changed and which table it belongs
+    /// to, and everything else is noise on a pass. Per item on purpose, so a
+    /// chit follows its plate and the grill never reads the bar's work.
+    pub fn render_kitchen_chit(
+        &self,
+        chit: receipt::KitchenChit,
+        width: u32,
+        brand: receipt::PrinterBrand,
+    ) -> Vec<u8> {
+        let loc = self.current_locale();
+        let tr = |k: &str| i18n::tr(&loc, k);
+        let labels = receipt::KitchenChitLabels {
+            heading: tr("kitchen.chit_heading"),
+            table: tr("kitchen.chit_table"),
+            note: tr("kitchen.chit_note"),
+        };
+        receipt::escpos_kitchen_chit(&chit, &labels, width, brand)
+    }
+
     pub fn render_receipt(
         &self,
         mut receipt: checkout::ReceiptView,
@@ -4796,10 +4818,12 @@ impl MadarCore {
             match g.as_mut() {
                 Some(s) => {
                     let p = &me.tax_policy;
+                    let requires_table = me.require_table_for_orders.unwrap_or(false);
                     let changed = s.snapshot.tax_rate != p.tax_rate
                         || s.snapshot.tax_inclusive != p.tax_inclusive
                         || s.snapshot.service_charge_rate != p.service_charge_rate
-                        || s.snapshot.service_charge_taxable != p.service_charge_taxable;
+                        || s.snapshot.service_charge_taxable != p.service_charge_taxable
+                        || s.snapshot.require_table_for_orders != requires_table;
                     if !changed {
                         None
                     } else {
@@ -4808,6 +4832,10 @@ impl MadarCore {
                         s.snapshot.tax_inclusive = p.tax_inclusive;
                         s.snapshot.service_charge_rate = p.service_charge_rate;
                         s.snapshot.service_charge_taxable = p.service_charge_taxable;
+                        // Switching this on changes the till's HOME SCREEN, so
+                        // it has to arrive the same way a rate does — on sync,
+                        // not on the next sign-in.
+                        s.snapshot.require_table_for_orders = requires_table;
                         Some((s.to_blob(), s.snapshot.clone()))
                     }
                 }
@@ -7311,6 +7339,7 @@ mod lifecycle_tests {
                 tax_inclusive: false,
                 service_charge_rate: 0.0,
                 service_charge_taxable: true,
+                require_table_for_orders: false,
                 online: true,
                 permissions_loaded: true,
             },
@@ -8075,6 +8104,7 @@ mod lifecycle_tests {
                 tax_inclusive: false,
                 service_charge_rate: 0.0,
                 service_charge_taxable: true,
+                require_table_for_orders: false,
                 online: false,
                 permissions_loaded: true,
             },
@@ -8100,6 +8130,7 @@ mod lifecycle_tests {
                 tax_inclusive: false,
                 service_charge_rate: 0.0,
                 service_charge_taxable: true,
+                require_table_for_orders: false,
                 online: false,
                 permissions_loaded: true,
             },

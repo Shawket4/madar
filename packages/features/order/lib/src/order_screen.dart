@@ -227,6 +227,16 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
     // A sale just vacated a table: ask the teller, once, whether it is
     // cleared. Declining leaves it visibly needing a bus on the floor.
     listenForTableClear(context, ref);
+    // Back to the floor once the round is in.
+    //
+    // Only when this screen was PUSHED — from a table — which is exactly the
+    // shape a table-first shop works in: pick a table, ring up a few things,
+    // return to the room. Where the order screen is home there is nothing to
+    // pop and this does nothing.
+    ref.listen(orderProvider.select((s) => s.firedSeq), (prev, next) {
+      if (prev == null || next == prev) return;
+      if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+    });
     ref
       // A ticket moved somewhere (fired / settled / voided on another
       // device) — refresh the waiter's held-ticket strip immediately (the

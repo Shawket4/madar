@@ -110,6 +110,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
   @protected
+  KitchenChit dco_decode_box_autoadd_kitchen_chit(dynamic raw);
+
+  @protected
   LoginRequest dco_decode_box_autoadd_login_request(dynamic raw);
 
   @protected
@@ -240,6 +243,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   KdsTicketView dco_decode_kds_ticket_view(dynamic raw);
+
+  @protected
+  KitchenChit dco_decode_kitchen_chit(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -664,6 +670,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  KitchenChit sse_decode_box_autoadd_kitchen_chit(SseDeserializer deserializer);
+
+  @protected
   LoginRequest sse_decode_box_autoadd_login_request(
     SseDeserializer deserializer,
   );
@@ -822,6 +831,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   KdsTicketView sse_decode_kds_ticket_view(SseDeserializer deserializer);
+
+  @protected
+  KitchenChit sse_decode_kitchen_chit(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -1374,6 +1386,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_kitchen_chit(
+    KitchenChit self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_login_request(
     LoginRequest self,
     SseSerializer serializer,
@@ -1573,6 +1591,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_kds_ticket_view(KdsTicketView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_kitchen_chit(KitchenChit self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);

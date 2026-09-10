@@ -14,6 +14,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/open_tickets_screen.dart';
 import 'package:feature_order/src/order_providers.dart';
+import 'package:feature_order/src/order_screen.dart';
 import 'package:feature_order/src/table_clear_prompt.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
@@ -600,7 +601,13 @@ class _FloorGridPainter extends CustomPainter {
 // ── The tables screen (canvas + actions + waitlist) ──────────────────────────
 
 class TablesScreen extends ConsumerStatefulWidget {
-  const TablesScreen({super.key});
+  const TablesScreen({this.isHome = false, super.key});
+
+  /// This screen IS the app's home, because the shop puts every sale on a
+  /// table. There is nothing behind it to go back to, so it shows no back
+  /// button — and picking a table PUSHES the order screen rather than popping
+  /// to one that was never there.
+  final bool isHome;
 
   @override
   ConsumerState<TablesScreen> createState() => _TablesScreenState();
@@ -739,13 +746,15 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
             children: [
               Row(
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    icon: MadarIcon(
-                      'chevron.backward',
-                      tint: colors.textPrimary,
+                  // Nothing behind home to go back to.
+                  if (!widget.isHome)
+                    IconButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: MadarIcon(
+                        'chevron.backward',
+                        tint: colors.textPrimary,
+                      ),
                     ),
-                  ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1022,6 +1031,23 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     return true;
   }
 
+  /// Leave for the order screen with this table's work in hand.
+  ///
+  /// Two shapes, one intent. Where the floor was pushed FROM the order screen,
+  /// popping returns to it. Where the floor is home — a shop that puts every
+  /// sale on a table — there is nothing behind it, so the order screen is
+  /// pushed and takes itself away again once the round is in.
+  Future<void> _toOrderScreen() async {
+    if (!mounted) return;
+    if (widget.isHome) {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const OrderScreen()));
+      return;
+    }
+    await Navigator.of(context).maybePop();
+  }
+
   /// ONE act per state, on a single tap. No sheet, no choosing.
   ///
   /// The order below is the order a table's states actually exclude each other:
@@ -1037,7 +1063,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     // Seated: add a round to what is already open.
     if (ticket != null) {
       _notifier.selectTicket(ticket.id);
-      if (mounted) await Navigator.of(context).maybePop();
+      await _toOrderScreen();
       return;
     }
     // Paid, plates still there. Clearing is the only honest act — a new party
@@ -1049,14 +1075,14 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     // Kept for a booked party: seating them is what the table is for.
     if (tableHasBooking(t)) {
       await _notifier.seatBooking(t);
-      if (mounted) await Navigator.of(context).maybePop();
+      await _toOrderScreen();
       return;
     }
     // Free: seat a walk-in. This OPENS A TAB and takes the table — on this
     // device and on every other one — rather than binding a table id nobody
     // else can see.
     await _notifier.seatTable(t);
-    if (mounted) await Navigator.of(context).maybePop();
+    await _toOrderScreen();
   }
 
   /// Everything that is not the obvious act.

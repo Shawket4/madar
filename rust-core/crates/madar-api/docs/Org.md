@@ -16,6 +16,7 @@ Name | Type | Description | Notes
 **logo_url** | Option<**String**> |  | [optional]
 **name** | **String** |  | 
 **receipt_footer** | Option<**String**> |  | [optional]
+**require_table_for_orders** | **bool** | Every dine-in sale must belong to a table. No effect where a branch has no floor authored — a shop cannot be made to seat somebody in a room with no seats. | 
 **service_charge_rate** | **f64** | Fraction of the bill added as a service charge; `0` disables it. | 
 **service_charge_taxable** | **bool** | Whether the service charge is itself taxed. | 
 **slug** | **String** |  | 

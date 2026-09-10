@@ -714,7 +714,25 @@ class _CartLineBody extends ConsumerWidget {
       child: Row(
         children: [
           Expanded(child: details),
-          const SizedBox(width: Space.md),
+          const SizedBox(width: Space.xs),
+          // Send THIS line to the kitchen, now.
+          //
+          // Not a fire: it prints paper and changes nothing. A teller whose
+          // party is still deciding can start the kitchen on the one thing
+          // they have agreed on without committing the rest of the cart.
+          Tooltip(
+            message: bridge.tr(key: 'printing.chit'),
+            child: IconButton(
+              visualDensity: VisualDensity.compact,
+              onPressed: () => unawaited(notifier.printKitchenChit(line)),
+              icon: MadarIcon(
+                'printer',
+                tint: colors.textSecondary,
+                size: IconSize.sm,
+              ),
+            ),
+          ),
+          const SizedBox(width: Space.xs),
           QtyStepper(
             qty: line.qty,
             // The minus button removes the line at qty 1.

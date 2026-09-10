@@ -4,6 +4,7 @@
 use flutter_rust_bridge::frb;
 
 use madar_core::checkout::ReceiptView;
+pub use madar_core::receipt::KitchenChit;
 use madar_core::shift::ShiftReportView;
 
 use crate::api::bridge::MadarBridge;
@@ -35,6 +36,17 @@ impl MadarBridge {
     ) -> Vec<u8> {
         self.inner
             .render_receipt(receipt, store_name, currency, width, brand)
+    }
+
+    /// Render ONE item as a compact kitchen chit — no money, no logo, no
+    /// totals. Pair with `send_to_printer`.
+    pub fn render_kitchen_chit(
+        &self,
+        chit: KitchenChit,
+        width: u32,
+        brand: PrinterBrand,
+    ) -> Vec<u8> {
+        self.inner.render_kitchen_chit(chit, width, brand)
     }
 
     /// Render the shift report (Z-report) to printer bytes — rasterized like
@@ -98,4 +110,22 @@ impl MadarBridge {
             .await
             .map_err(MadarError::from)
     }
+}
+
+/// One item, for the people cooking it.
+///
+/// Mirrors `madar_core::receipt::KitchenChit` so the host can build one. A
+/// chit is a DIFFERENT document from a receipt, not a shorter one: no money,
+/// no logo, no totals — the item, the count, what was changed about it, and
+/// the table it belongs to.
+#[frb(mirror(KitchenChit))]
+pub struct _KitchenChit {
+    pub item: String,
+    pub qty: i64,
+    pub size_label: Option<String>,
+    pub modifiers: Vec<String>,
+    pub note: Option<String>,
+    pub table_label: Option<String>,
+    pub ticket_ref: Option<String>,
+    pub at: String,
 }

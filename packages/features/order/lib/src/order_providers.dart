@@ -74,6 +74,7 @@ class OrderState {
     this.transferQueue = const [],
     this.pendingTableClear,
     this.activeTicketId,
+    this.firedSeq = 0,
     this.isOnline = true,
     this.pendingCount = 0,
     this.syncFailed = 0,
@@ -158,6 +159,14 @@ class OrderState {
   /// The waiter's selected round target (null = firing a NEW ticket).
   final String? activeTicketId;
 
+  /// Bumped every time a cart is successfully fired or added as a round.
+  ///
+  /// A SIGNAL, not a count: the order screen watches it so that, when it was
+  /// pushed from the floor, it can take itself away again once the round is in.
+  /// A teller who came from a table wants to be back at the table, not staring
+  /// at an empty cart wondering which button returns them.
+  final int firedSeq;
+
   TicketView? get activeTicket => isWaiter
       ? openTickets.where((t) => t.id == activeTicketId).firstOrNull
       : null;
@@ -194,6 +203,7 @@ class OrderState {
       .fold(0, (sum, l) => sum + l.qty);
 
   OrderState copyWith({
+    int? firedSeq,
     bool? isWaiter,
     String? currency,
     Object? shift = _unset,
@@ -264,6 +274,7 @@ class OrderState {
     pendingTableClear: identical(pendingTableClear, _unset)
         ? this.pendingTableClear
         : pendingTableClear as PendingTableClear?,
+    firedSeq: firedSeq ?? this.firedSeq,
     activeTicketId: identical(activeTicketId, _unset)
         ? this.activeTicketId
         : activeTicketId as String?,
@@ -1238,7 +1249,11 @@ class OrderNotifier extends Notifier<OrderState> {
             guestCount: guestCount,
           );
     if (ok) {
-      state = state.copyWith(activeTicketId: null, cartBookingId: null);
+      state = state.copyWith(
+        activeTicketId: null,
+        cartBookingId: null,
+        firedSeq: state.firedSeq + 1,
+      );
       _refreshShell();
     }
     return ok;
@@ -1356,6 +1371,72 @@ class OrderNotifier extends Notifier<OrderState> {
       return false;
     } finally {
       state = state.copyWith(isBusy: false);
+    }
+  }
+
+  /// Send ONE cart line to the kitchen printer as a chit.
+  ///
+  /// A chit is a different document from a receipt, not a shorter one: the
+  /// item, the count, what was changed and the table, and nothing about money.
+  /// Per line on purpose — a chit follows its plate, so the grill never reads
+  /// the bar's work.
+  ///
+  /// Deliberately NOT a fire: this prints paper and changes no state. A teller
+  /// who wants the kitchen to start on one thing while the party is still
+  /// deciding can have that without committing the rest of the cart.
+  Future<void> printKitchenChit(CartLineView line) async {
+    final tx = ref.read(printerServiceProvider).activeTransport();
+    if (tx == null) {
+      showToast(
+        _tr('printing.no_printer'),
+        tone: ChipTone.warning,
+        icon: 'printer',
+      );
+      return;
+    }
+    try {
+      // Everything changed about it, flattened: a cook does not care which of
+      // our three lists a modification came from.
+      final mods = <String>[
+        for (final a in line.addons)
+          if (a.qty > 1) '${a.name} x${a.qty}' else a.name,
+        for (final o in line.optionals) o.name,
+        for (final c in line.bundleComponents) ...[
+          '${c.qty}x ${c.name}',
+          for (final a in c.addons) '   ${a.name}',
+          for (final o in c.optionals) '   ${o.name}',
+        ],
+      ];
+      final bytes = await _bridge.renderKitchenChit(
+        chit: KitchenChit(
+          item: line.name,
+          qty: line.qty,
+          sizeLabel: line.sizeLabel,
+          modifiers: mods,
+          note: line.notes,
+          tableLabel: state.cartTableLabel,
+          ticketRef: state.activeTicket?.ticketRef,
+          // Formatted here: the renderer never guesses a timezone.
+          at: _bridge.formatTime(
+            rfc3339: DateTime.now().toUtc().toIso8601String(),
+            style: TimeStyle.time,
+          ),
+        ),
+        width: kReceiptChars,
+        brand: printerBrandOf(_bridge.deviceConfig().printerBrand),
+      );
+      await tx.send(bytes);
+      showToast(
+        _tr('printing.chit_sent'),
+        tone: ChipTone.success,
+        icon: 'printer',
+      );
+    } on Exception {
+      showToast(
+        _tr('printing.failed'),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
     }
   }
 

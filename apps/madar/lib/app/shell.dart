@@ -93,8 +93,26 @@ class _RouteHostState extends ConsumerState<_RouteHost> {
             : const LoginScreen(),
       AppRoute_Login() => const LoginScreen(),
       AppRoute_OpenShift() => const OpenShiftScreen(),
-      AppRoute_Order() ||
-      AppRoute_WaiterTickets() => const MadarChrome(child: OrderScreen()),
+      // A shop that puts every dine-in sale on a table STARTS on the table.
+      //
+      // The rule is not a validation to discover at the end — the server
+      // refuses a table-less till sale, and being told that after the items are
+      // rung up is far too late to be useful. So the floor is the home screen:
+      // pick a table, ring up a few things, and the order screen takes itself
+      // away again once the round is in.
+      //
+      // Only where there IS a floor. A branch with no tables cannot seat
+      // anybody, so it keeps the order screen it has always had — which is the
+      // same exemption the server applies.
+      AppRoute_Order() || AppRoute_WaiterTickets() =>
+        ref.watch(
+                  shellProvider.select(
+                    (s) => s.session?.requireTableForOrders ?? false,
+                  ),
+                ) &&
+                ref.watch(orderProvider.select((s) => s.hasFloor))
+            ? const MadarChrome(child: TablesScreen(isHome: true))
+            : const MadarChrome(child: OrderScreen()),
       AppRoute_KitchenDisplay(:final stationId) => KitchenDisplayScreen(
         stationId: stationId,
       ),

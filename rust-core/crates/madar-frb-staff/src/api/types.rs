@@ -26,6 +26,7 @@ pub struct _SessionSnapshot {
     pub tax_inclusive: bool,
     pub service_charge_rate: f64,
     pub service_charge_taxable: bool,
+    pub require_table_for_orders: bool,
     pub online: bool,
     pub permissions_loaded: bool,
 }

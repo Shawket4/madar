@@ -93,6 +93,7 @@ class SessionSnapshot {
   final bool taxInclusive;
   final double serviceChargeRate;
   final bool serviceChargeTaxable;
+  final bool requireTableForOrders;
   final bool online;
   final bool permissionsLoaded;
 
@@ -107,6 +108,7 @@ class SessionSnapshot {
     required this.taxInclusive,
     required this.serviceChargeRate,
     required this.serviceChargeTaxable,
+    required this.requireTableForOrders,
     required this.online,
     required this.permissionsLoaded,
   });
@@ -123,6 +125,7 @@ class SessionSnapshot {
       taxInclusive.hashCode ^
       serviceChargeRate.hashCode ^
       serviceChargeTaxable.hashCode ^
+      requireTableForOrders.hashCode ^
       online.hashCode ^
       permissionsLoaded.hashCode;
 
@@ -141,6 +144,7 @@ class SessionSnapshot {
           taxInclusive == other.taxInclusive &&
           serviceChargeRate == other.serviceChargeRate &&
           serviceChargeTaxable == other.serviceChargeTaxable &&
+          requireTableForOrders == other.requireTableForOrders &&
           online == other.online &&
           permissionsLoaded == other.permissionsLoaded;
 }

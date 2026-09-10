@@ -6,6 +6,59 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// One item, for the people cooking it.
+///
+/// Mirrors `madar_core::receipt::KitchenChit` so the host can build one. A
+/// chit is a DIFFERENT document from a receipt, not a shorter one: no money,
+/// no logo, no totals — the item, the count, what was changed about it, and
+/// the table it belongs to.
+class KitchenChit {
+  final String item;
+  final PlatformInt64 qty;
+  final String? sizeLabel;
+  final List<String> modifiers;
+  final String? note;
+  final String? tableLabel;
+  final String? ticketRef;
+  final String at;
+
+  const KitchenChit({
+    required this.item,
+    required this.qty,
+    this.sizeLabel,
+    required this.modifiers,
+    this.note,
+    this.tableLabel,
+    this.ticketRef,
+    required this.at,
+  });
+
+  @override
+  int get hashCode =>
+      item.hashCode ^
+      qty.hashCode ^
+      sizeLabel.hashCode ^
+      modifiers.hashCode ^
+      note.hashCode ^
+      tableLabel.hashCode ^
+      ticketRef.hashCode ^
+      at.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is KitchenChit &&
+          runtimeType == other.runtimeType &&
+          item == other.item &&
+          qty == other.qty &&
+          sizeLabel == other.sizeLabel &&
+          modifiers == other.modifiers &&
+          note == other.note &&
+          tableLabel == other.tableLabel &&
+          ticketRef == other.ticketRef &&
+          at == other.at;
+}
+
 /// Which thermal-printer command dialect to emit. Epson (ESC/POS) and Star
 /// (Star Line Mode) are NOT byte-compatible — different alignment, character
 /// size, cut and drawer-kick commands. The host picks this in Settings.

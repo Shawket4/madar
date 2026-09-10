@@ -569,6 +569,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// path out of a resume).
   Future<void> releaseDraft({required String id});
 
+  /// Render ONE item as a compact kitchen chit — no money, no logo, no
+  /// totals. Pair with `send_to_printer`.
+  Future<Uint8List> renderKitchenChit({
+    required KitchenChit chit,
+    required int width,
+    required PrinterBrand brand,
+  });
+
   /// Re-render a synced order as a receipt for reprint — same ESC/POS path as
   /// a fresh receipt. Offline-durable for any order seen online (cached).
   Future<Uint8List> renderOrderReceipt({

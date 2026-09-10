@@ -76,6 +76,9 @@ pub struct Org {
         skip_serializing_if = "Option::is_none"
     )]
     pub receipt_footer: Option<Option<String>>,
+    /// Every dine-in sale must belong to a table. No effect where a branch has no floor authored — a shop cannot be made to seat somebody in a room with no seats.
+    #[serde(rename = "require_table_for_orders")]
+    pub require_table_for_orders: bool,
     /// Fraction of the bill added as a service charge; `0` disables it.
     #[serde(rename = "service_charge_rate")]
     pub service_charge_rate: f64,
@@ -105,6 +108,7 @@ impl Org {
         id: uuid::Uuid,
         is_active: bool,
         name: String,
+        require_table_for_orders: bool,
         service_charge_rate: f64,
         service_charge_taxable: bool,
         slug: String,
@@ -126,6 +130,7 @@ impl Org {
             logo_url: None,
             name,
             receipt_footer: None,
+            require_table_for_orders,
             service_charge_rate,
             service_charge_taxable,
             slug,

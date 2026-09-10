@@ -96,6 +96,13 @@ pub struct SessionSnapshot {
     pub service_charge_rate: f64,
     /// Whether the service charge is itself taxed.
     pub service_charge_taxable: bool,
+    /// Every dine-in sale belongs to a table.
+    ///
+    /// Changes what the till PUTS IN FRONT of a teller, not just what the
+    /// server will accept: the floor becomes the home screen and a sale starts
+    /// by picking a table. A refusal after the items are rung up is far too
+    /// late to be useful.
+    pub require_table_for_orders: bool,
     /// `false` for an offline-unlocked session (no live token; sync will force a
     /// fresh online re-auth before it flushes the queue).
     pub online: bool,
@@ -215,6 +222,9 @@ pub(crate) fn snapshot_from_login(
         tax_inclusive: resp.tax_policy.tax_inclusive,
         service_charge_rate: resp.tax_policy.service_charge_rate,
         service_charge_taxable: resp.tax_policy.service_charge_taxable,
+        // `#[serde(default)]` on the wire, so a server older than this one
+        // simply means "no rule".
+        require_table_for_orders: resp.require_table_for_orders.unwrap_or(false),
         online: true,
         permissions_loaded: false,
     }
@@ -257,6 +267,7 @@ pub(crate) fn cache_org_config(store: &Store, snapshot: &SessionSnapshot) {
         "tax_inclusive": snapshot.tax_inclusive,
         "service_charge_rate": snapshot.service_charge_rate,
         "service_charge_taxable": snapshot.service_charge_taxable,
+        "require_table_for_orders": snapshot.require_table_for_orders,
     });
     let _ = store.kv_put(ORG_CONFIG_KEY, &cfg.to_string());
 }
@@ -342,6 +353,10 @@ pub(crate) fn unlock_from_bundle(
         .get("service_charge_taxable")
         .and_then(|x| x.as_bool())
         .unwrap_or(true);
+    let require_table_for_orders = cfg
+        .get("require_table_for_orders")
+        .and_then(|x| x.as_bool())
+        .unwrap_or(false);
 
     let snapshot = SessionSnapshot {
         user_id: teller.user_id.to_string(),
@@ -354,6 +369,7 @@ pub(crate) fn unlock_from_bundle(
         tax_inclusive,
         service_charge_rate,
         service_charge_taxable,
+        require_table_for_orders,
         online: false,
         permissions_loaded: false,
     };
@@ -683,6 +699,7 @@ mod tests {
         user.org_id = org.map(|o| Some(uuid::Uuid::parse_str(o).unwrap()));
         models::LoginResponse {
             currency_code: "EGP".into(),
+            require_table_for_orders: Some(false),
             tax_rate: 0.14,
             tax_policy: Box::new(models::TaxPolicyPublic {
                 tax_rate: 0.14,
@@ -774,6 +791,7 @@ mod tests {
                 tax_inclusive: false,
                 service_charge_rate: 0.0,
                 service_charge_taxable: true,
+                require_table_for_orders: false,
                 online,
                 permissions_loaded: loaded,
             },
@@ -910,6 +928,7 @@ mod tests {
             tax_inclusive: false,
             service_charge_rate: 0.0,
             service_charge_taxable: true,
+            require_table_for_orders: false,
             online: true,
             permissions_loaded: true,
         };
@@ -953,6 +972,7 @@ mod tests {
             tax_inclusive: false,
             service_charge_rate: 0.0,
             service_charge_taxable: true,
+            require_table_for_orders: false,
             online: true,
             permissions_loaded: true,
         };

@@ -2471,6 +2471,7 @@ const _: fn() = || {
         let _: bool = SessionSnapshot.tax_inclusive;
         let _: f64 = SessionSnapshot.service_charge_rate;
         let _: bool = SessionSnapshot.service_charge_taxable;
+        let _: bool = SessionSnapshot.require_table_for_orders;
         let _: bool = SessionSnapshot.online;
         let _: bool = SessionSnapshot.permissions_loaded;
     }
@@ -3192,6 +3193,7 @@ impl SseDecode for crate::api::types::SessionSnapshot {
         let mut var_taxInclusive = <bool>::sse_decode(deserializer);
         let mut var_serviceChargeRate = <f64>::sse_decode(deserializer);
         let mut var_serviceChargeTaxable = <bool>::sse_decode(deserializer);
+        let mut var_requireTableForOrders = <bool>::sse_decode(deserializer);
         let mut var_online = <bool>::sse_decode(deserializer);
         let mut var_permissionsLoaded = <bool>::sse_decode(deserializer);
         return crate::api::types::SessionSnapshot {
@@ -3205,6 +3207,7 @@ impl SseDecode for crate::api::types::SessionSnapshot {
             tax_inclusive: var_taxInclusive,
             service_charge_rate: var_serviceChargeRate,
             service_charge_taxable: var_serviceChargeTaxable,
+            require_table_for_orders: var_requireTableForOrders,
             online: var_online,
             permissions_loaded: var_permissionsLoaded,
         };
@@ -3976,6 +3979,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::SessionSnap
             self.0.tax_inclusive.into_into_dart().into_dart(),
             self.0.service_charge_rate.into_into_dart().into_dart(),
             self.0.service_charge_taxable.into_into_dart().into_dart(),
+            self.0.require_table_for_orders.into_into_dart().into_dart(),
             self.0.online.into_into_dart().into_dart(),
             self.0.permissions_loaded.into_into_dart().into_dart(),
         ]
@@ -4555,6 +4559,7 @@ impl SseEncode for crate::api::types::SessionSnapshot {
         <bool>::sse_encode(self.tax_inclusive, serializer);
         <f64>::sse_encode(self.service_charge_rate, serializer);
         <bool>::sse_encode(self.service_charge_taxable, serializer);
+        <bool>::sse_encode(self.require_table_for_orders, serializer);
         <bool>::sse_encode(self.online, serializer);
         <bool>::sse_encode(self.permissions_loaded, serializer);
     }

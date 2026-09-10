@@ -16,6 +16,12 @@ pub struct MeResponse {
     /// Org currency code (e.g. \"EGP\").
     #[serde(rename = "currency_code")]
     pub currency_code: String,
+    /// Every dine-in sale belongs to a table. Re-read on every `/auth/me`, so switching it on reaches a till that has been running for weeks.
+    #[serde(
+        rename = "require_table_for_orders",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub require_table_for_orders: Option<bool>,
     /// The full policy, including tax-inclusive pricing and service charge.  A till re-reads this whenever it syncs, which is what makes a rate changed in the dashboard reach a device that has not signed in for weeks. Without it the till prices under a stale rate and — now that the server refuses totals it disagrees with — cannot sell at all.
     #[serde(rename = "tax_policy")]
     pub tax_policy: Box<models::TaxPolicyPublic>,
@@ -35,6 +41,7 @@ impl MeResponse {
     ) -> MeResponse {
         MeResponse {
             currency_code,
+            require_table_for_orders: None,
             tax_policy: Box::new(tax_policy),
             tax_rate,
             user: Box::new(user),

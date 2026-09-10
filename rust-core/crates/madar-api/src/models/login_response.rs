@@ -15,6 +15,12 @@ use serde::{Deserialize, Serialize};
 pub struct LoginResponse {
     #[serde(rename = "currency_code")]
     pub currency_code: String,
+    /// Every dine-in sale belongs to a table.  The till needs this, not just the server: the rule changes what the POS puts in front of a teller — the floor becomes the home screen and a sale starts by picking a table — and a refusal AFTER the items are rung up is far too late to be useful.
+    #[serde(
+        rename = "require_table_for_orders",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub require_table_for_orders: Option<bool>,
     /// The full policy, including tax-inclusive pricing and service charge. Prefer this over the flat `tax_rate` above.
     #[serde(rename = "tax_policy")]
     pub tax_policy: Box<models::TaxPolicyPublic>,
@@ -38,6 +44,7 @@ impl LoginResponse {
     ) -> LoginResponse {
         LoginResponse {
             currency_code,
+            require_table_for_orders: None,
             tax_policy: Box::new(tax_policy),
             tax_rate,
             token,

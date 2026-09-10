@@ -10,6 +10,7 @@ Name | Type | Description | Notes
 **logo_url** | Option<**String**> | `null` clears the logo; absent leaves it unchanged. To set a new logo, use `PUT /orgs/{id}/logo` (multipart) instead — JSON updates only accept the clear-to-null case here. | [optional]
 **name** | Option<**String**> |  | [optional]
 **receipt_footer** | Option<**String**> |  | [optional]
+**require_table_for_orders** | Option<**bool**> |  | [optional]
 **service_charge_rate** | Option<**f64**> |  | [optional]
 **service_charge_taxable** | Option<**bool**> |  | [optional]
 **slug** | Option<**String**> |  | [optional]

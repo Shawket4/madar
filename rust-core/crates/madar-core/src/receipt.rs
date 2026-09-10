@@ -1833,3 +1833,252 @@ mod tests {
         );
     }
 }
+
+// ── kitchen chit ─────────────────────────────────────────────────────────────
+
+/// One item, for the people cooking it.
+///
+/// A DIFFERENT DOCUMENT from a receipt, not a shorter one. A cook needs the
+/// item, how many, what was changed about it, and which table it belongs to.
+/// Money, tax, the shop's logo, the payment method and the thank-you are all
+/// noise on a pass, and a chit that carries them wastes paper and time on a
+/// line where both are short.
+///
+/// Printed per item on purpose: a chit follows its plate, so one line goes to
+/// the grill and another to the bar without either station reading the other's
+/// work.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KitchenChit {
+    /// What to make.
+    pub item: String,
+    pub qty: i64,
+    /// Size variant, printed with the name.
+    pub size_label: Option<String>,
+    /// Everything changed about it — added, removed, chosen. Flattened by the
+    /// caller, because a cook does not care which of our three lists a
+    /// modification came from.
+    pub modifiers: Vec<String>,
+    /// Free text the customer or teller attached to this line.
+    pub note: Option<String>,
+    /// Where it goes. The single most important line on the paper.
+    pub table_label: Option<String>,
+    /// The ticket, for a cook matching a plate back to a bill.
+    pub ticket_ref: Option<String>,
+    /// Already-local, already-formatted. The renderer never guesses a timezone.
+    pub at: String,
+}
+
+/// The words a chit needs.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug)]
+pub struct KitchenChitLabels {
+    pub heading: String,
+    pub table: String,
+    pub note: String,
+}
+
+/// Build a chit's line list — pure, golden-tested like `layout`.
+pub fn kitchen_chit_layout(
+    chit: &KitchenChit,
+    labels: &KitchenChitLabels,
+    width: u32,
+) -> Vec<Line> {
+    let w = width.max(16) as usize;
+    let mut out: Vec<Line> = Vec::new();
+
+    out.push(Line {
+        text: labels.heading.clone(),
+        align: Align::Center,
+        bold: true,
+        size: Size::Normal,
+    });
+
+    // The table, as large as the printer can set it. A cook reads this from
+    // across a pass, upside down, in a hurry — it is the one thing on the chit
+    // that must not need looking at twice.
+    if let Some(t) = chit.table_label.as_deref().filter(|s| !s.trim().is_empty()) {
+        out.push(Line {
+            text: format!("{} {}", labels.table, t.trim()),
+            align: Align::Center,
+            bold: true,
+            size: Size::Double,
+        });
+    }
+    out.push(Line::plain("-".repeat(w)));
+
+    // The item, big, with its count in front of it. `2x` before the name rather
+    // than after: the number is what decides how many pans come out, and a cook
+    // scanning a rail sees the left edge first.
+    let name = match chit.size_label.as_deref().filter(|s| !s.trim().is_empty()) {
+        Some(sz) => format!("{} ({})", chit.item.trim(), sz.trim()),
+        None => chit.item.trim().to_string(),
+    };
+    out.push(Line {
+        text: format!("{}x {}", chit.qty.max(1), name),
+        align: Align::Left,
+        bold: true,
+        size: Size::Double,
+    });
+
+    // Modifications, indented under what they modify.
+    for m in chit.modifiers.iter().filter(|m| !m.trim().is_empty()) {
+        out.push(Line::plain(format!("  - {}", m.trim())));
+    }
+
+    if let Some(n) = chit.note.as_deref().filter(|s| !s.trim().is_empty()) {
+        out.push(Line::plain(""));
+        out.push(Line {
+            text: format!("{} {}", labels.note, n.trim()),
+            align: Align::Left,
+            bold: true,
+            size: Size::Normal,
+        });
+    }
+
+    out.push(Line::plain("-".repeat(w)));
+    // The ticket and the time, small, at the foot: needed occasionally, never
+    // urgently.
+    let foot = match chit.ticket_ref.as_deref().filter(|s| !s.trim().is_empty()) {
+        Some(r) => format!("{}  {}", r.trim(), chit.at),
+        None => chit.at.clone(),
+    };
+    out.push(Line::plain(foot));
+    out
+}
+
+/// Render a kitchen chit to printer bytes.
+pub fn escpos_kitchen_chit(
+    chit: &KitchenChit,
+    labels: &KitchenChitLabels,
+    width: u32,
+    brand: PrinterBrand,
+) -> Vec<u8> {
+    encode_for(brand, &kitchen_chit_layout(chit, labels, width))
+}
+
+#[cfg(test)]
+mod kitchen_chit_tests {
+    use super::*;
+
+    fn labels() -> KitchenChitLabels {
+        KitchenChitLabels {
+            heading: "KITCHEN".into(),
+            table: "Table".into(),
+            note: "NOTE:".into(),
+        }
+    }
+
+    fn chit() -> KitchenChit {
+        KitchenChit {
+            item: "Flat White".into(),
+            qty: 2,
+            size_label: Some("Large".into()),
+            modifiers: vec!["Oat milk".into(), "No sugar".into()],
+            note: Some("allergy: nuts".into()),
+            table_label: Some("T4".into()),
+            ticket_ref: Some("T-0412".into()),
+            at: "19:42".into(),
+        }
+    }
+
+    fn text_of(lines: &[Line]) -> Vec<String> {
+        lines.iter().map(|l| l.text.clone()).collect()
+    }
+
+    #[test]
+    fn a_chit_carries_no_money() {
+        // The whole reason it is a different document. A cook cannot act on a
+        // price, and a pass is not where a bill belongs.
+        let lines = kitchen_chit_layout(&chit(), &labels(), 32);
+        let all = text_of(&lines).join("\n");
+        for money in ["EGP", ".00", "Total", "Subtotal", "Tax"] {
+            assert!(
+                !all.contains(money),
+                "a kitchen chit must not print {money}:\n{all}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_table_is_the_biggest_thing_on_it() {
+        // Read from across a pass, upside down, in a hurry.
+        let lines = kitchen_chit_layout(&chit(), &labels(), 32);
+        let table = lines
+            .iter()
+            .find(|l| l.text.contains("T4"))
+            .expect("the table is printed");
+        assert_eq!(table.size, Size::Double);
+        assert!(table.bold);
+    }
+
+    #[test]
+    fn the_count_comes_before_the_name() {
+        // A cook scanning a rail reads the left edge first, and the number is
+        // what decides how many pans come out.
+        let lines = kitchen_chit_layout(&chit(), &labels(), 32);
+        let item = lines
+            .iter()
+            .find(|l| l.text.contains("Flat White"))
+            .expect("the item is printed");
+        assert!(
+            item.text.starts_with("2x "),
+            "expected the count first, got {:?}",
+            item.text
+        );
+        assert!(
+            item.text.contains("(Large)"),
+            "the size rides with the name"
+        );
+        assert_eq!(item.size, Size::Double);
+    }
+
+    #[test]
+    fn every_modification_is_printed() {
+        let lines = kitchen_chit_layout(&chit(), &labels(), 32);
+        let all = text_of(&lines).join("\n");
+        assert!(all.contains("Oat milk"));
+        assert!(all.contains("No sugar"));
+        // A note is not a modifier and must not be lost among them.
+        assert!(all.contains("allergy: nuts"));
+    }
+
+    #[test]
+    fn the_thin_case_still_reads() {
+        // No table, no note, no ref, no size — a counter sale of one thing.
+        let bare = KitchenChit {
+            item: "Espresso".into(),
+            qty: 1,
+            size_label: None,
+            modifiers: vec![],
+            note: None,
+            table_label: None,
+            ticket_ref: None,
+            at: "19:42".into(),
+        };
+        let lines = kitchen_chit_layout(&bare, &labels(), 32);
+        let all = text_of(&lines).join("\n");
+        assert!(all.contains("1x Espresso"));
+        assert!(all.contains("19:42"));
+        assert!(
+            !all.contains("Table"),
+            "no table line when there is no table"
+        );
+        assert!(!all.contains("NOTE:"), "no note line when there is no note");
+    }
+
+    #[test]
+    fn blank_modifiers_and_whitespace_are_dropped() {
+        // A trimmed-to-nothing modifier is a blank line on a pass.
+        let mut c = chit();
+        c.modifiers = vec!["  ".into(), "Extra hot".into(), "".into()];
+        c.note = Some("   ".into());
+        let lines = kitchen_chit_layout(&c, &labels(), 32);
+        let mods: Vec<_> = lines
+            .iter()
+            .filter(|l| l.text.starts_with("  - "))
+            .collect();
+        assert_eq!(mods.len(), 1, "only the real modifier survives");
+        assert!(!text_of(&lines).join("\n").contains("NOTE:"));
+    }
+}

@@ -58,6 +58,13 @@ pub struct UpdateOrgRequest {
     )]
     pub receipt_footer: Option<Option<String>>,
     #[serde(
+        rename = "require_table_for_orders",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub require_table_for_orders: Option<Option<bool>>,
+    #[serde(
         rename = "service_charge_rate",
         default,
         with = "::serde_with::rust::double_option",
@@ -119,6 +126,7 @@ impl UpdateOrgRequest {
             logo_url: None,
             name: None,
             receipt_footer: None,
+            require_table_for_orders: None,
             service_charge_rate: None,
             service_charge_taxable: None,
             slug: None,
