@@ -7800,7 +7800,60 @@ mod lifecycle_tests {
         assert_eq!(store.purge_dead_held_ops().unwrap(), 0);
     }
 
+    /// The org's tax policy has to reach the price the customer is shown.
+    ///
+    /// Every hop already looked right on its own — the backend resolves the
+    /// BRANCH's policy at login and at `/auth/me`, the snapshot carries all
+    /// four fields, the offline bundle round-trips them, and the engine has its
+    /// own inclusive/exclusive tests. What nothing covered was the whole chain:
+    /// a shop that turns "menu prices include tax" on, and a till that then
+    /// prices as though it had not.
+    #[tokio::test]
+    async fn the_shops_tax_policy_reaches_the_price_on_screen() {
+        let line = serde_json::json!({
+            "lines": [{
+                "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
+                "name": "Latte", "unit_price_minor": 10000, "qty": 1,
+                "addons": [], "optionals": []
+            }]
+        });
+
+        // EXCLUSIVE: 100.00 on the menu, tax added on top.
+        let core = signed_in_offline_core().await;
+        cart::set_cart_payload(&core.store, &line).unwrap();
+        let out = core.cart_totals().unwrap();
+        assert_eq!(out.subtotal_minor, 10000);
+        assert_eq!(out.tax_minor, 1400, "14% added on top");
+        assert_eq!(out.total_minor, 11400);
+
+        // INCLUSIVE, and a taxed service charge: the same shop, two switches.
+        let core = signed_in_offline_core_with(
+            r#"{"org_id":"00000000-0000-0000-0000-0000000000aa","currency_code":"EGP",
+                "tax_rate":0.14,"tax_inclusive":true,
+                "service_charge_rate":0.12,"service_charge_taxable":true}"#,
+        )
+        .await;
+        cart::set_cart_payload(&core.store, &line).unwrap();
+        let out = core.cart_totals().unwrap();
+        assert_eq!(out.subtotal_minor, 10000);
+        assert_eq!(out.service_charge_minor, 1200, "12% of the bill");
+        // Inclusive: the 112.00 the customer pays already contains the tax.
+        assert_eq!(out.total_minor, 11200, "the menu price is what they pay");
+        assert!(
+            out.tax_minor > 0 && out.tax_minor < 1400,
+            "tax is carved OUT of the gross, not added: got {}",
+            out.tax_minor
+        );
+    }
+
     async fn signed_in_offline_core() -> Arc<MadarCore> {
+        signed_in_offline_core_with(
+            r#"{"org_id":"00000000-0000-0000-0000-0000000000aa","currency_code":"EGP","tax_rate":0.14}"#,
+        )
+        .await
+    }
+
+    async fn signed_in_offline_core_with(org_config: &str) -> Arc<MadarCore> {
         use argon2::password_hash::SaltString;
         use argon2::{Argon2, PasswordHasher};
         let core = MadarCore::new(MadarConfig {
@@ -7829,7 +7882,7 @@ mod lifecycle_tests {
             )
             .unwrap();
         core.store
-            .kv_put(session::ORG_CONFIG_KEY, r#"{"org_id":"00000000-0000-0000-0000-0000000000aa","currency_code":"EGP","tax_rate":0.14}"#)
+            .kv_put(session::ORG_CONFIG_KEY, org_config)
             .unwrap();
         core.sign_in(session::LoginRequest {
             mode: session::LoginMode::Pin,
