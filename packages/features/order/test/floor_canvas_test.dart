@@ -292,14 +292,32 @@ void main() {
         ),
       );
       expect(tester.takeException(), isNull);
-      // Both are on screen, and the far one really is to the right of the near.
+      // Both are RENDERED — the point of an unbounded plane is that a table
+      // authored far out is never cropped away — and the far one really is to
+      // the right of the near.
       expect(find.text('NEAR'), findsOneWidget);
       expect(find.text('OUT'), findsOneWidget);
       expect(
         tester.getTopLeft(find.text('OUT')).dx,
         greaterThan(tester.getTopLeft(find.text('NEAR')).dx),
       );
-      expect(tester.getTopLeft(find.text('OUT')).dx, lessThan(800));
+      // Deliberately NOT "and it fits inside 800 points".
+      //
+      // A table 4,000 units out makes this room about 4,100 wide; fitting that
+      // into 800 draws each 80-unit table at fifteen pixels, which is smaller
+      // than the finger meant to press it. The room now stops shrinking at
+      // `kMinTablePx` and scrolls instead, so the far table is off-screen and
+      // reachable — which is the usable answer, not the cropped one.
+      final scale = floorScale(
+        viewportWidth: 800,
+        roomWidth: 4000 + 80 + kSeatAllowance * 2,
+        smallestTable: 80,
+      );
+      expect(
+        80 * scale,
+        greaterThanOrEqualTo(kMinTablePx),
+        reason: 'a table you cannot press is not a control',
+      );
     });
 
     test('frames the content, chairs included, not the stored canvas', () {

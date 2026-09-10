@@ -60,7 +60,26 @@ class _FakeBridge implements MadarBridge {
   }
 }
 
-Future<void> _pump(WidgetTester tester, FloorLayoutView layout) async {
+/// A phone, in logical pixels. Small enough to be honest: this is the width
+/// the header has already overflowed once.
+const Size _phone = Size(360, 780);
+
+Future<void> _pump(
+  WidgetTester tester,
+  FloorLayoutView layout, {
+  Size? surface,
+}) async {
+  if (surface != null) {
+    // Set the VIEW, not just the surface, and pin the pixel ratio to 1 — the
+    // test binding defaults to 3.0, so `setSurfaceSize(360x780)` alone would
+    // hand the widgets 120x260 logical pixels and test a phone nobody sells.
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = surface;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [bridgeProvider.overrideWithValue(_FakeBridge(layout))],
@@ -88,6 +107,34 @@ Future<void> _pump(WidgetTester tester, FloorLayoutView layout) async {
 }
 
 void main() {
+  testWidgets('a busy room fits a phone without overflowing', (tester) async {
+    // Thirty tables spread across a wide room — the shape that scales to 0.18
+    // on a phone and used to draw fourteen-pixel tables.
+    final tables = [
+      for (var i = 0; i < 30; i++)
+        _table(id: 't$i', label: 'T$i', x: (i % 6) * 320),
+    ];
+    await _pump(
+      tester,
+      FloorLayoutView(sections: const [], tables: tables),
+      surface: _phone,
+    );
+    // A RenderFlex overflow throws here, which is how the header's own
+    // overflow was caught the first time.
+    expect(tester.takeException(), isNull);
+    expect(find.text('tables.title'), findsOneWidget);
+  });
+
+  testWidgets('the empty room fits a phone too', (tester) async {
+    await _pump(
+      tester,
+      const FloorLayoutView(sections: [], tables: []),
+      surface: _phone,
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('tables.empty_title'), findsOneWidget);
+  });
+
   testWidgets('renders chrome and pops back when the floor is EMPTY', (
     tester,
   ) async {

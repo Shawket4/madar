@@ -343,6 +343,55 @@ const double kSeatAllowance = 22;
 /// the spirit of the dashboard's zoom ceiling.
 const double kMaxFloorScale = 1.6;
 
+/// The smallest a table may be drawn, in logical pixels.
+///
+/// A FLOOR under the fit, not a preference. Fitting a whole room to the
+/// viewport is the right instinct on a desk and ruinous on a phone: a thirty
+/// table dining room in 360 points scales to about 0.18, which draws an 80-unit
+/// table at fourteen pixels — smaller than the fingertip meant to press it, and
+/// far below the 44-point target both platforms ask for.
+///
+/// So the room stops shrinking here and starts SCROLLING instead. A plan you
+/// have to pan is usable; a plan you cannot hit is not.
+const double kMinTablePx = 44;
+
+/// The shortest edge of the smallest table in the room, in world units.
+///
+/// The floor is set by the SMALLEST table, not the average: it is the one a
+/// finger misses first, and a room is only as usable as its worst target.
+double smallestTableEdge(List<PlacedTable> placed) {
+  var smallest = double.infinity;
+  for (final p in placed) {
+    final edge = math.min(p.table.width, p.table.height);
+    if (edge > 0 && edge < smallest) smallest = edge;
+  }
+  return smallest.isFinite ? smallest : 80;
+}
+
+/// How much to magnify the room.
+///
+/// Fit it to the viewport, then bound that fit at both ends:
+///
+///   * never past [kMaxFloorScale], or a two-table bar draws each table the
+///     size of a dinner plate;
+///   * never below the scale that keeps the smallest table [kMinTablePx]
+///     across, because a table smaller than the finger pressing it is not a
+///     control. Below that the room stops shrinking and starts scrolling.
+///
+/// The minimum wins when the two disagree. A plan you have to pan is usable; a
+/// plan you cannot hit is not.
+double floorScale({
+  required double viewportWidth,
+  required double roomWidth,
+  required double smallestTable,
+}) {
+  if (roomWidth <= 0 || viewportWidth <= 0) return 1;
+  final fit = viewportWidth / roomWidth;
+  final minScale = smallestTable > 0 ? kMinTablePx / smallestTable : fit;
+  final capped = math.min(fit, kMaxFloorScale);
+  return math.max(capped, minScale);
+}
+
 /// The world box the room actually occupies, chairs included.
 ///
 /// The dashboard's floor is an UNBOUNDED plane — a table may sit at negative
@@ -502,23 +551,25 @@ class FloorCanvas extends StatelessWidget {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final scale = math.min(
-              constraints.maxWidth / bounds.width,
-              kMaxFloorScale,
+            final scale = floorScale(
+              viewportWidth: constraints.maxWidth,
+              roomWidth: bounds.width,
+              smallestTable: smallestTableEdge(placed),
             );
-            // When the cap bites, the room is narrower than the viewport —
-            // centre it rather than pinning it to the left edge.
-            final dx = math.max(
-              0,
-              (constraints.maxWidth - bounds.width * scale) / 2,
-            );
+            final drawnWidth = bounds.width * scale;
+            // When the room is narrower than the viewport, centre it rather
+            // than pinning it to the left edge. When it is WIDER — the phone
+            // case, where the minimum table size beat the fit — there is
+            // nothing to centre and the canvas scrolls.
+            final dx = math.max(0, (constraints.maxWidth - drawnWidth) / 2);
+            final canvasWidth = math.max(constraints.maxWidth, drawnWidth);
             final child = CustomPaint(
               painter: _FloorGridPainter(
                 pitch: 50 * scale,
                 color: colors.border.withValues(alpha: 0.55),
               ),
               child: SizedBox(
-                width: constraints.maxWidth,
+                width: canvasWidth,
                 height: bounds.height * scale,
                 child: Stack(
                   clipBehavior: Clip.none,
@@ -565,6 +616,21 @@ class FloorCanvas extends StatelessWidget {
                 ),
               ),
             );
+            // Wider than the viewport means the minimum table size won and the
+            // room now has to be panned rather than squinted at.
+            //
+            // A horizontal scroll does that, and `InteractiveViewer` steps
+            // aside while it does. Its unconstrained mode sizes to the child,
+            // which inside this screen's vertical scroll means an unbounded
+            // height and a layout assertion — and the zoom it offers is no
+            // longer the point once the tables are already at a pressable size.
+            final needsPan = canvasWidth > constraints.maxWidth + 0.5;
+            if (needsPan) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: child,
+              );
+            }
             if (!zoomable) return child;
             return InteractiveViewer(maxScale: 3, child: child);
           },
@@ -736,11 +802,16 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
               .where((t) => t.sectionId == activeId)
               .toList(growable: false);
 
+    // A phone. Labels give way to icons, the title steps down a size, and the
+    // padding tightens — the header row was already one button past what 360
+    // points fits, and it will only get more crowded.
+    final compact = MediaQuery.sizeOf(context).width < Responsive.tablet;
+
     return Scaffold(
       backgroundColor: colors.bg,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsetsDirectional.all(Space.lg),
+          padding: EdgeInsetsDirectional.all(compact ? Space.md : Space.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -761,9 +832,10 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                       children: [
                         Text(
                           _tr('tables.title'),
-                          style: MadarType.h2.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: (compact ? MadarType.h3 : MadarType.h2)
+                              .copyWith(fontWeight: FontWeight.w800),
                         ),
                         // The room at a glance. These chips carry the state
                         // vocabulary too, so no separate legend is needed —
@@ -810,21 +882,30 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                       ],
                     ),
                   ),
-                  // Today's bookings — badge shows how many parties are due.
+                  // Bookings and the waitlist.
+                  //
+                  // On a phone these lose their words and keep their counts. A
+                  // label is the first thing to give up when the row will not
+                  // fit — an icon with "· 3" beside it still says everything
+                  // that matters, and the alternative was a header that
+                  // overflowed its own screen.
                   ActionButton(
-                    label: arrivals.isEmpty
-                        ? _tr('tables.arrivals')
-                        : '${_tr('tables.arrivals')} · ${arrivals.length}',
+                    label: compact
+                        ? (arrivals.isEmpty ? '' : '${arrivals.length}')
+                        : (arrivals.isEmpty
+                              ? _tr('tables.arrivals')
+                              : '${_tr('tables.arrivals')} · ${arrivals.length}'),
                     icon: 'calendar.days',
                     variant: ActionVariant.outline,
                     onTap: () => unawaited(_openArrivals()),
                   ),
-                  const SizedBox(width: Space.sm),
-                  // The waitlist — badge shows how many parties wait.
+                  const SizedBox(width: Space.xs),
                   ActionButton(
-                    label: queue.isEmpty
-                        ? _tr('tables.waitlist')
-                        : '${_tr('tables.waitlist')} · ${queue.length}',
+                    label: compact
+                        ? (queue.isEmpty ? '' : '${queue.length}')
+                        : (queue.isEmpty
+                              ? _tr('tables.waitlist')
+                              : '${_tr('tables.waitlist')} · ${queue.length}'),
                     icon: 'clock',
                     variant: ActionVariant.outline,
                     onTap: () => unawaited(_openWaitlist()),
