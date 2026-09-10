@@ -53,6 +53,11 @@ class _FakeBridge implements MadarBridge {
     if (name == #listArrivals) return Future<List<BookingView>>.value(const []);
     if (name == #refreshArrivals) return Future<void>.value();
     if (name == #listDrafts) return Future<List<DraftView>>.value(const []);
+    // The floor loads its bills now — both roles, since which tables have
+    // ordered is part of the room's state.
+    if (name == #listOpenTickets) {
+      return Future<List<TicketView>>.value(const []);
+    }
     if (name == #cartLines) return Future<List<CartLineView>>.value(const []);
     if (name == #currentSession) return null;
     if (name == #clockSkewMinutes) return 0;

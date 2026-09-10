@@ -257,6 +257,21 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
                 // line-item review) — sits above the summary so the
                 // teller sees WHAT they're charging first.
                 ?widget.headerContent,
+                // WHO first. A card comes out at the start of a tender, not
+                // in the middle of it, and what it can cover changes the total
+                // the customer is about to be shown.
+                _CustomerSection(
+                  state: s,
+                  tr: tr,
+                  onScan: () => unawaited(
+                    showMadarSheet<void>(
+                      context,
+                      builder: (_) => const LoyaltyScanSheet(),
+                    ),
+                  ),
+                  onToggle: notifier.toggleReward,
+                  onClear: notifier.clearLoyalty,
+                ),
                 // Order summary card — subtotal/discount/tax light
                 // above, the grand total in a tinted teal block.
                 _SummaryCard(
@@ -267,22 +282,6 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
                   discountLabel: tr('order.discount'),
                   taxLabel: tr('order.tax'),
                 ),
-                // Rewards — scan a card and cover lines of this basket.
-                // Above payment because it changes what is owed; the customer
-                // must see the new total before they pay it. Hidden when there
-                // are no cart lines (a ticket settle has none to cover).
-                if (s.redeemableLines.isNotEmpty)
-                  _RewardsSection(
-                    state: s,
-                    onScan: () => unawaited(
-                      showMadarSheet<void>(
-                        context,
-                        builder: (_) => const LoyaltyScanSheet(),
-                      ),
-                    ),
-                    onToggle: notifier.toggleReward,
-                    onClear: notifier.clearLoyalty,
-                  ),
                 // Payment — brand-colored method chips, or a split
                 // allocator.
                 _PaymentSection(
@@ -1339,28 +1338,41 @@ class _DiscountChip extends StatelessWidget {
 ///
 /// Serves both sessions: a counter cart and a table's open ticket. Dine-in is a
 /// ticket now, so without the second this would cover almost nothing.
-class _RewardsSection extends StatelessWidget {
-  const _RewardsSection({
+/// WHO this sale is for, and what their card does about it.
+///
+/// It used to be a "Rewards" button buried between the summary and payment,
+/// and drawn only when something in the basket could be claimed — so a teller
+/// with a card in their hand and nothing claimable had nowhere to put it, and
+/// the earning side lived somewhere else entirely (three post-sale entry
+/// points, none of them here).
+///
+/// It sits at the TOP now and is always drawn: identifying the customer is the
+/// first thing that happens when a card comes out, and everything else — what
+/// they can spend, what this sale earns them — hangs off that one act.
+class _CustomerSection extends StatelessWidget {
+  const _CustomerSection({
     required this.state,
     required this.onScan,
     required this.onToggle,
     required this.onClear,
+    required this.tr,
   });
 
   final CheckoutState state;
   final VoidCallback onScan;
   final void Function(int lineIndex) onToggle;
   final VoidCallback onClear;
+  final String Function(String) tr;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = context.madarColors;
     final m = state.loyaltyMember;
 
     if (m == null) {
       return MadarButton(
-        label: 'Rewards',
-        icon: 'star',
+        label: tr('loyalty.scan_card'),
+        icon: 'qrcode.viewfinder',
         variant: MadarButtonVariant.outline,
         onTap: onScan,
       );
@@ -1373,67 +1385,63 @@ class _RewardsSection extends StatelessWidget {
         if (state.rewardForLine(i) != null) i,
     ];
 
-    return Container(
-      padding: const EdgeInsets.all(Space.md),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.dividerColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(m.name, style: theme.textTheme.titleSmall),
-                    const SizedBox(height: 2),
-                    Text(
-                      // What is left AFTER what is ticked, because that is the
-                      // number the customer will ask about.
-                      // A member owed more than one reward is told so: a card does
-                      // not stop at full, and a teller who cannot see the second
-                      // one will not offer it.
-                      m.rewardsReady > 1
-                          ? '${state.balanceAfterRedemptions} ${m.balanceLabel} left · ${m.rewardsReady} rewards ready'
-                          : '${state.balanceAfterRedemptions} ${m.balanceLabel} left',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+    return MadarCard.column(
+      spacing: Space.sm,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    m.name,
+                    style: MadarType.title.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colors.textPrimary,
                     ),
-                  ],
-                ),
+                  ),
+                  Text(
+                    // What is left AFTER what is ticked, because that is the
+                    // number the customer will ask about. A member owed more
+                    // than one reward is told so: a card does not stop at full,
+                    // and a teller who cannot see the second will not offer it.
+                    m.rewardsReady > 1
+                        ? '${state.balanceAfterRedemptions} ${m.balanceLabel} '
+                              '${tr('loyalty.left')} · ${m.rewardsReady} '
+                              '${tr('loyalty.rewards_ready')}'
+                        : '${state.balanceAfterRedemptions} ${m.balanceLabel} '
+                              '${tr('loyalty.left')}',
+                    style: MadarType.bodySm.copyWith(color: colors.textMuted),
+                  ),
+                ],
               ),
-              IconButton(
-                onPressed: onClear,
-                icon: const Icon(Icons.close, size: 18),
-                tooltip: 'Remove',
-              ),
-            ],
-          ),
-          if (claimable.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: Space.sm),
-              child: Text(
-                'Nothing in this order can be claimed yet.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            )
-          else
-            for (final i in claimable)
-              _RewardLine(
-                name: state.redeemableLines[i].name,
-                costLabel: state.rewardForLine(i)!.costLabel,
-                covered: state.redemptions[i] ?? 0,
-                quantity: state.redeemableLines[i].qty,
-                onTap: () => onToggle(i),
-              ),
-        ],
-      ),
+            ),
+            MadarGlyphTile(
+              icon: 'xmark',
+              tint: colors.textMuted,
+              background: colors.surfaceAlt,
+              semanticLabel: tr('loyalty.remove'),
+              size: MadarButtonSize.compact,
+              onTap: onClear,
+            ),
+          ],
+        ),
+        if (claimable.isEmpty)
+          Text(
+            tr('loyalty.nothing_claimable'),
+            style: MadarType.bodySm.copyWith(color: colors.textMuted),
+          )
+        else
+          for (final i in claimable)
+            _RewardLine(
+              name: state.redeemableLines[i].name,
+              costLabel: state.rewardForLine(i)!.costLabel,
+              covered: state.redemptions[i] ?? 0,
+              quantity: state.redeemableLines[i].qty,
+              onTap: () => onToggle(i),
+            ),
+      ],
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'package:app_core/app_core.dart';
+import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/loyalty_scan_capture.dart';
 import 'package:flutter/material.dart';
@@ -19,19 +21,22 @@ class LoyaltyScanSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(checkoutProvider);
-    final theme = Theme.of(context);
+    final bridge = ref.read(bridgeProvider);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      padding: const EdgeInsetsDirectional.all(Space.xl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Scan the customer’s card',
-            style: theme.textTheme.titleMedium,
+            bridge.tr(key: 'loyalty.scan_title'),
+            style: MadarType.h3.copyWith(
+              fontWeight: FontWeight.w700,
+              color: context.madarColors.textPrimary,
+            ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: Space.md),
           LoyaltyScanCapture(
             busy: state.loyaltyBusy,
             error: state.loyaltyError,

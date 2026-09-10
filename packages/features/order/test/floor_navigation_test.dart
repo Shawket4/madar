@@ -43,6 +43,11 @@ class _FakeBridge implements MadarBridge {
     if (name == #tr) return invocation.namedArguments[#key] as String? ?? '';
     if (name == #floorLayout) return Future<FloorLayoutView>.value(layout);
     if (name == #refreshFloor) return Future<void>.value();
+    // The floor loads its bills now — both roles, since which tables have
+    // ordered is part of the room's state.
+    if (name == #listOpenTickets) {
+      return Future<List<TicketView>>.value(const []);
+    }
     if (name == #listTransferQueue) {
       return Future<List<TransferQueueView>>.value(const []);
     }

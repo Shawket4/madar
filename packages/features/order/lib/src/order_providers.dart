@@ -167,9 +167,14 @@ class OrderState {
   /// at an empty cart wondering which button returns them.
   final int firedSeq;
 
-  TicketView? get activeTicket => isWaiter
-      ? openTickets.where((t) => t.id == activeTicketId).firstOrNull
-      : null;
+  /// The bill this cart's next round goes on, if one is targeted.
+  ///
+  /// Keyed on the TARGET, not the role. It used to return null for a teller,
+  /// from when only a waiter added rounds — so a teller adding one from the
+  /// floor got a cart that would not show what was already on the bill, and a
+  /// kitchen chit with no ticket reference on it.
+  TicketView? get activeTicket =>
+      openTickets.where((t) => t.id == activeTicketId).firstOrNull;
 
   // ── chrome ───────────────────────────────────────────────────────────────
   final bool isOnline;
@@ -373,10 +378,26 @@ class OrderNotifier extends Notifier<OrderState> {
     // Rust pool) — cold-open latency is the slowest call, not the sum. If
     // reconcile discovers a force-closed shift the route moves anyway, and
     // stats re-refresh after every tender, so the overlap is benign.
+    // BOTH ROLES load the open tickets.
+    //
+    // This was waiter-only, from when the floor was a waiter's screen. It is
+    // the teller's home screen now whenever the shop puts every sale on a
+    // table — and with an empty ticket list the floor could not tell a party
+    // who had ordered from one who had not. Every seated table read as "nobody
+    // has ordered yet", every tap opened a SECOND tab on it, and the bill sheet
+    // and Settle were unreachable from the room.
+    //
+    // The roles differ in what they may DO with a bill, not in whether they can
+    // see one.
     if (state.isWaiter) {
       await Future.wait([loadCatalog(), loadOpenTickets()]);
     } else {
-      await Future.wait([reconcileShift(), loadCatalog(), loadShiftStats()]);
+      await Future.wait([
+        reconcileShift(),
+        loadCatalog(),
+        loadShiftStats(),
+        loadOpenTickets(),
+      ]);
     }
     await _fetchCatalogIfEmpty();
     await Future.wait([loadCart(), loadDrafts(), loadFloor()]);
@@ -1111,7 +1132,10 @@ class OrderNotifier extends Notifier<OrderState> {
       await _bridge.refreshFloor();
       return true;
     });
-    await loadFloor();
+    // The room AND its bills. Which tables have ordered is part of the floor's
+    // state, not a separate concern — and where the floor is the home screen
+    // there is nothing else that would have loaded them.
+    await Future.wait([loadFloor(), loadOpenTickets()]);
   }
 
   /// Clear a bussed table: the one human act the server cannot derive. The
@@ -1202,11 +1226,9 @@ class OrderNotifier extends Notifier<OrderState> {
         icon: 'xmark.circle',
       );
     }
-    await Future.wait([
-      loadDrafts(),
-      loadFloor(),
-      if (state.isWaiter) loadOpenTickets(),
-    ]);
+    // Both roles: see the note in `init`. A floor without its bills is a floor
+    // that cannot tell you which tables have ordered.
+    await Future.wait([loadDrafts(), loadFloor(), loadOpenTickets()]);
   }
 
   /// Queue a party for a move (a section, or one specific table).

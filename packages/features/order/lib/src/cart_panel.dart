@@ -68,14 +68,21 @@ class CartPanel extends ConsumerWidget {
     );
     final hasLines = cartLines.isNotEmpty;
 
-    final checkoutLabel = !isWaiter
+    // The CTA says what THIS cart will do, which is a question about the cart,
+    // not about who is holding the till. A teller with a table in hand is
+    // sending a round to a kitchen exactly as a waiter is; labelling that
+    // "Checkout" because a teller pressed it was how the same button came to
+    // mean two different things on two screens.
+    final tableId = ref.watch(orderProvider.select((s) => s.cartTableId));
+    final sendsToKitchen = isWaiter || tableId != null;
+    final checkoutLabel = !sendsToKitchen
         ? tr('order.checkout')
         : activeTicketId != null
         ? tr('waiter.add_round')
         : tr('waiter.fire');
     final footer = _CartFooter(
       checkoutLabel: checkoutLabel,
-      checkoutIcon: isWaiter ? 'arrow.up.circle' : 'creditcard',
+      checkoutIcon: sendsToKitchen ? 'arrow.up.circle' : 'creditcard',
       onCheckout: onCheckout,
       onHold: () => unawaited(ref.read(orderProvider.notifier).holdCart()),
     );

@@ -147,15 +147,25 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
       await _notifier.loadShiftStats();
       return;
     }
-    if (state.activeTicketId == null) {
+    if (state.activeTicketId != null) {
+      // A bill is already open on this table: this is another round on it.
+      await _notifier.fireOrAddRound();
+    } else if (dineIn) {
+      // THE FIRST ROUND for a party who is already sitting down. Everything
+      // the details sheet would ask has an answer: the table is in hand and
+      // the party is at it. Asking "who is this for and where are they
+      // sitting?" of somebody who just seated them is the interruption that
+      // made this flow feel broken.
+      await _notifier.fireOrAddRound(tableId: state.cartTableId);
+    } else {
+      // No table — a walk-in tab. Who it is for, and where they will sit, are
+      // genuinely unknown, so this is where the sheet earns its place.
       await showMadarSheet<void>(
         context,
         size: SheetSize.hug,
         maxWidth: Responsive.sheetCompactMaxWidth,
         builder: (_) => const FireDetailsSheet(),
       );
-    } else {
-      await _notifier.fireOrAddRound();
     }
     // Firing queues through `/sync/replay` as `open_ticket`, a supported op, so
     // this path is offline-safe in a way the parked draft never needed to be.

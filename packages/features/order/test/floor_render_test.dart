@@ -20,6 +20,42 @@ import 'package:rust_bridge/rust_bridge.dart';
 
 const _render = bool.fromEnvironment('MADAR_RENDER');
 
+TicketLineView _line(String name, int qty, int minor, int round, String at) =>
+    TicketLineView(
+      id: '$name-$round',
+      name: name,
+      qty: qty,
+      modifiers: const [],
+      lineTotalMinor: minor,
+      voided: false,
+      roundNumber: round,
+      roundFiredAt: at,
+    );
+
+/// A party three rounds in: drinks, then food, then coffee.
+final _tickets = <TicketView>[
+  TicketView(
+    id: 'tk-1',
+    ticketRef: 'T-104',
+    tableId: 't2',
+    status: 'open',
+    guestCount: 2,
+    waiterName: 'Sara',
+    subtotalMinor: 19000,
+    openedAt: DateTime.now()
+        .toUtc()
+        .subtract(const Duration(minutes: 45))
+        .toIso8601String(),
+    queuedOffline: false,
+    lines: [
+      _line('Coke', 1, 2500, 1, '2026-09-10T19:02:00Z'),
+      _line('Sprite', 1, 2500, 1, '2026-09-10T19:02:00Z'),
+      _line('Grilled chicken', 2, 9000, 2, '2026-09-10T19:17:00Z'),
+      _line('Coffee', 1, 5000, 3, '2026-09-10T19:32:00Z'),
+    ],
+  ),
+];
+
 FloorTableStateView _table({
   required String id,
   required String label,
@@ -96,6 +132,16 @@ class _FakeBridge implements MadarBridge {
     if (name == #listArrivals) return Future<List<BookingView>>.value(const []);
     if (name == #refreshArrivals) return Future<void>.value();
     if (name == #listDrafts) return Future<List<DraftView>>.value(const []);
+    if (name == #listOpenTickets) {
+      return Future<List<TicketView>>.value(_tickets);
+    }
+    if (name == #formatTime) return '19:17';
+    if (name == #appRoute) return const AppRoute.order();
+    // The teller path loads more than the waiter one did — a shift and its
+    // stats. None of it is in the picture; it just has to not be null.
+    if (name == #currentShift) return Future<ShiftView?>.value();
+    if (name == #shiftStats) return Future<ShiftStatsView?>.value();
+    if (name == #reconcileShift) return Future<ShiftView?>.value();
     if (name == #cartLines) return Future<List<CartLineView>>.value(const []);
     if (name == #currentSession) return null;
     if (name == #clockSkewMinutes) return 0;
@@ -144,6 +190,50 @@ Future<void> _shoot(
 }
 
 void main() {
+  testWidgets('the bill sheet a tap opens', (tester) async {
+    // The screen a teller reads before taking money: rounds with their clock,
+    // what each cost, the running total, and the two things you do next.
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(900, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: const ValueKey('shot'),
+        child: ProviderScope(
+          overrides: [bridgeProvider.overrideWithValue(_FakeBridge())],
+          child: MaterialApp(
+            theme: MadarTheme.light(),
+            home: const TablesScreen(isHome: true),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // T2 is the table with the bill on it.
+    await tester.tap(find.text('T2'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(tester.takeException(), isNull, reason: 'the sheet laid out');
+    expect(find.text('Grilled chicken'), findsOneWidget);
+
+    if (_render) {
+      final boundary =
+          tester.renderObject(find.byKey(const ValueKey('shot')))
+              as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 2);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      final dir = Directory('build/render')..createSync(recursive: true);
+      File(
+        '${dir.path}/bill-sheet.png',
+      ).writeAsBytesSync(bytes!.buffer.asUint8List());
+    }
+  });
+
   testWidgets('the floor on a tablet', (tester) async {
     await _shoot(tester, const Size(1180, 820), MadarTheme.light(), 'tablet');
   });

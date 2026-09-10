@@ -121,6 +121,40 @@ the SSE stream is down. Both exist on purpose — don't remove the poll.
   (core) and `bus_table` (backend).
 - State never rests on colour alone: every tone has a glyph, needs-clearing is hatched.
 
+## Teller and waiter — what each one does
+
+Both work the same room. They differ in **what they may do with a bill**, not in
+what they can see, and every place the code branched on the role instead of the
+situation turned out to be a bug.
+
+| | Teller (cashier) | Waiter |
+|---|---|---|
+| Open a till | yes — a shift is theirs | never; a waiter has no drawer |
+| Seat a party / free a table | yes | yes |
+| Take a round to the kitchen | yes | yes |
+| See a table's bill | yes | yes |
+| **Settle a bill** | **yes** | no — `if (!isWaiter)` on the sheet, `SettleOpenTicket` is Teller-only in replay |
+| Void a bill | yes | yes |
+| Park a cart (held order) | yes — counter and takeaway | no; a waiter's parking is the open ticket |
+| Counter sale with no table | yes — the tender drawer | no; a waiter's cart always fires a ticket |
+| Shift stats / Z-report | yes | no (`loadShiftStats` returns early) |
+
+The rule for new code: **branch on the situation, not the role.** "Is there a
+table in hand?" and "is a bill targeted?" decide what a button does and says;
+`isWaiter` decides only whether taking money is offered. The bugs that came from
+getting this backwards:
+
+- `loadOpenTickets` was waiter-only, so a teller's floor had no bills at all —
+  every seated table read "nobody has ordered", every tap opened a SECOND tab,
+  and Settle was unreachable from the room. The floor is the teller's home
+  screen whenever the shop puts every sale on a table.
+- `activeTicket` returned null for a teller, so a teller adding a round saw a
+  cart that would not show the bill so far, and printed a chit with no ticket
+  reference.
+- The cart's CTA said "Checkout" for a teller and "Fire" for a waiter — so the
+  same button meant two different things depending on who held the till, while
+  doing the same thing.
+
 ## Bookings — the floor's future (shared with the dashboard + backend)
 A booking claims tables for a window (backend `src/bookings`); the floor mirror carries
 each table's `next_booking` (`held.rs` → `FloorTableStateView.booking_*`). The tables
