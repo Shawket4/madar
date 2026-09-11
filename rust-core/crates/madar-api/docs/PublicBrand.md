@@ -13,7 +13,7 @@ Name | Type | Description | Notes
 **logo_url** | Option<**String**> |  | [optional]
 **name** | **String** | Always the shop's own name, at every tier. A page that does not say whose it is helps nobody, and that was never the thing being sold. | 
 **org_id** | **uuid::Uuid** |  | 
-**slug** | **String** |  | 
+**slug** | Option<**String**> | `None` when the shop has no address of its own — reached by `org_id`, which every page that already knows the shop uses. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

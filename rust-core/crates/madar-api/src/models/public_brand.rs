@@ -46,8 +46,14 @@ pub struct PublicBrand {
     pub name: String,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
-    #[serde(rename = "slug")]
-    pub slug: String,
+    /// `None` when the shop has no address of its own — reached by `org_id`, which every page that already knows the shop uses.
+    #[serde(
+        rename = "slug",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub slug: Option<Option<String>>,
 }
 
 impl PublicBrand {
@@ -60,7 +66,6 @@ impl PublicBrand {
         logo_is_mark: bool,
         name: String,
         org_id: uuid::Uuid,
-        slug: String,
     ) -> PublicBrand {
         PublicBrand {
             accent_color,
@@ -72,7 +77,7 @@ impl PublicBrand {
             logo_url: None,
             name,
             org_id,
-            slug,
+            slug: None,
         }
     }
 }

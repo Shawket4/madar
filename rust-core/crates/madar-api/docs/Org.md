@@ -19,7 +19,7 @@ Name | Type | Description | Notes
 **require_table_for_orders** | **bool** | Every dine-in sale must belong to a table. No effect where a branch has no floor authored — a shop cannot be made to seat somebody in a room with no seats. | 
 **service_charge_rate** | **f64** | Fraction of the bill added as a service charge; `0` disables it. | 
 **service_charge_taxable** | **bool** | Whether the service charge is itself taxed. | 
-**slug** | **String** |  | 
+**slug** | Option<**String**> | `None` when the shop has no address of its own. Never an empty string — the column holds NULL for that and a CHECK keeps it so. | [optional]
 **social_links** | **serde_json::Value** | Where else to find the shop, keyed by platform. See `orgs::social`. | 
 **tax_inclusive** | **bool** | `true` = menu prices already contain the tax, and the receipt breaks it out backwards rather than adding it on at the till. | 
 **tax_rate** | **f64** | Tax rate as a decimal (e.g. `0.14` for 14% VAT). Stored as `BigDecimal` internally; transmitted as a JSON number. | 

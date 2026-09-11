@@ -85,8 +85,14 @@ pub struct Org {
     /// Whether the service charge is itself taxed.
     #[serde(rename = "service_charge_taxable")]
     pub service_charge_taxable: bool,
-    #[serde(rename = "slug")]
-    pub slug: String,
+    /// `None` when the shop has no address of its own. Never an empty string — the column holds NULL for that and a CHECK keeps it so.
+    #[serde(
+        rename = "slug",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub slug: Option<Option<String>>,
     /// Where else to find the shop, keyed by platform. See `orgs::social`.
     #[serde(rename = "social_links")]
     pub social_links: serde_json::Value,
@@ -111,7 +117,6 @@ impl Org {
         require_table_for_orders: bool,
         service_charge_rate: f64,
         service_charge_taxable: bool,
-        slug: String,
         social_links: serde_json::Value,
         tax_inclusive: bool,
         tax_rate: f64,
@@ -133,7 +138,7 @@ impl Org {
             require_table_for_orders,
             service_charge_rate,
             service_charge_taxable,
-            slug,
+            slug: None,
             social_links,
             tax_inclusive,
             tax_rate,
