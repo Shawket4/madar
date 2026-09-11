@@ -1,4 +1,4 @@
-/// Madar POS design system — ink/teal tokens, Cairo typography, MadarIcon,
+/// Madar POS design system — ink/teal tokens, IBM Plex typography, MadarIcon,
 /// responsive breakpoints, and the shared widget kit. Every feature package
 /// consumes this; no feature hardcodes a color, size, or duration.
 library;

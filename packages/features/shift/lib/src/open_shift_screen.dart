@@ -25,8 +25,9 @@ const double _formVPad = 48;
 /// Narrow-layout logo mark size (natives: MadarMark(56.dp)).
 const double _logoSize = 56;
 
-/// Greeting name type (natives: 28.sp black, -0.5 tracking; Cairo tops out
-/// at ExtraBold so w800 stands in for the natives' Black).
+/// Greeting name type (natives: 28.sp black, -0.5 tracking; Plex Sans Arabic
+/// tops out at Bold, so `MadarType.heaviest` stands in for the natives'
+/// Black).
 const double _greetingSize = 28;
 const double _greetingTracking = -0.5;
 

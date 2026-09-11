@@ -24,21 +24,22 @@ flutter:
     - assets/lottie/
     - assets/sounds/
   fonts:
-    - family: Cairo
+    # ONE SUPERFAMILY for both scripts. Plex Sans Arabic carries Latin as well
+    # as Arabic, so a bilingual row sits on one skeleton rather than two faces
+    # meeting in the middle of it — which is what replaced Cairo here.
+    #
+    # There is no 800: Plex stops at Bold. `MadarType.heaviest` says so, so a
+    # style cannot ask for a weight the family has not got.
+    - family: IBMPlexSansArabic
       fonts:
-        - asset: assets/fonts/Cairo-Regular.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Cairo-Medium.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Cairo-SemiBold.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/Cairo-Bold.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
           weight: 700
-        - asset: assets/fonts/Cairo-ExtraBold.ttf
-          weight: 800
-    # Numbers — times, durations, currency, IDs. A monospace face keeps a
-    # column of figures aligned and, more importantly, makes 09:04 read as a
-    # CLOCK rather than as prose.
     - family: IBMPlexMono
       fonts:
         - asset: assets/fonts/IBMPlexMono-Regular.ttf

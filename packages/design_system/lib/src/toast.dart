@@ -262,7 +262,7 @@ class _ToastHostState extends State<ToastHost>
   }
 }
 
-/// The tappable action label — Cairo Black 13 in the tone accent.
+/// The tappable action label — the heaviest cut at 13, in the tone accent.
 class _ToastAction extends StatelessWidget {
   const _ToastAction({required this.label, required this.color, this.onTap});
 

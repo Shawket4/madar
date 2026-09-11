@@ -29,8 +29,9 @@ const double _headerTile = 34;
 /// Live-connection dot diameter (natives: 8.dp).
 const double _connectionDot = 8;
 
-/// Station title size (natives: 20.sp Black; Cairo tops out at ExtraBold so
-/// w800 stands in for the natives' Black — the shift screens' convention).
+/// Station title size (natives: 20.sp Black; Plex Sans Arabic tops out at
+/// Bold, so `MadarType.heaviest` stands in for the natives' Black — the shift
+/// screens' convention).
 const double _stationTitleSize = 20;
 
 /// Adaptive grid minimum cell width (natives: GridCells.Adaptive(260.dp)).
@@ -70,7 +71,7 @@ const int _ageDangerMinutes = 10;
 /// Safety-net poll under the realtime tick (natives: 60s).
 const Duration _safetyPollPeriod = Duration(seconds: 60);
 
-/// Cairo at a native size/weight (colors applied per call site).
+/// The body face at a native size/weight (colors applied per call site).
 TextStyle _cairo(double size, FontWeight weight) =>
     MadarType.body.copyWith(fontSize: size, fontWeight: weight);
 

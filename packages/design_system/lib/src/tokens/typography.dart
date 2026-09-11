@@ -1,13 +1,19 @@
 import 'package:flutter/widgets.dart';
 
-/// The Madar type scale — Cairo at the natives' exact sizes/weights
-/// (Type.kt / Typography.swift). Money styles use tabular figures so
-/// amount columns align. Colors are applied by callers from MadarColors.
+/// The Madar type scale — IBM Plex Sans Arabic at the natives' exact
+/// sizes/weights (Type.kt / Typography.swift). Money styles use tabular figures
+/// so amount columns align. Colors are applied by callers from MadarColors.
+///
+/// ONE SUPERFAMILY, both scripts. Plex Sans Arabic carries Latin as well as
+/// Arabic, so a bilingual row — an Arabic item name beside a Latin size label —
+/// sits on one skeleton instead of two faces meeting in the middle of it. The
+/// figures are Plex Mono, the same superfamily's monospaced cut, which is why
+/// a column of totals lines up without the digits looking borrowed.
 abstract final class MadarType {
-  static const String fontFamily = 'Cairo';
+  static const String fontFamily = 'IBMPlexSansArabic';
 
-  /// The package the Cairo family is declared in (needed when consuming
-  /// the font from outside design_system).
+  /// The package the family is declared in (needed when consuming the font
+  /// from outside design_system).
   static const String fontPackage = 'design_system';
 
   static const List<FontFeature> _tabular = [FontFeature.tabularFigures()];
@@ -28,15 +34,18 @@ abstract final class MadarType {
     );
   }
 
+  /// The heaviest cut there is.
+  ///
+  /// Cairo went to ExtraBold and these styles asked for `w800`. Plex stops at
+  /// Bold, so `w800` would be matched to this anyway — said outright rather
+  /// than left as a weight the family cannot honour.
+  static const FontWeight heaviest = FontWeight.w700;
+
   /// Hero numbers, grand totals.
-  static final TextStyle display = _base(
-    34,
-    FontWeight.w800,
-    letterSpacing: -0.5,
-  );
+  static final TextStyle display = _base(34, heaviest, letterSpacing: -0.5);
 
   /// Screen titles.
-  static final TextStyle h1 = _base(30, FontWeight.w800, letterSpacing: -0.4);
+  static final TextStyle h1 = _base(30, heaviest, letterSpacing: -0.4);
 
   /// Section / sheet titles.
   static final TextStyle h2 = _base(22, FontWeight.w700, letterSpacing: -0.2);
@@ -65,14 +74,14 @@ abstract final class MadarType {
   /// Large amounts (tabular).
   static final TextStyle moneyLg = _base(
     24,
-    FontWeight.w800,
+    heaviest,
     features: _tabular,
   );
 
   /// Hero amount totals (tabular).
   static final TextStyle moneyDisplay = _base(
     34,
-    FontWeight.w800,
+    heaviest,
     features: _tabular,
   );
 

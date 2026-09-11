@@ -29,8 +29,8 @@ const double _paperPad = 18;
 /// Paper row rhythm (natives: spacedBy(6.dp)).
 const double _paperGap = 6;
 
-/// Header title size (natives: 18.sp Black; Cairo tops out at ExtraBold so
-/// w800 stands in for the natives' Black).
+/// Header title size (natives: 18.sp Black; Plex Sans Arabic tops out at
+/// Bold, so `MadarType.heaviest` stands in for the natives' Black).
 const double _headerTitleSize = 18;
 
 /// Store-name line on the paper (natives: 15.sp Bold).

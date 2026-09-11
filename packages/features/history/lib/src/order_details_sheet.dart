@@ -25,7 +25,8 @@ const double _qtyBadgeVPad = 3;
 /// Context-chip vertical inset (natives: 6.dp).
 const double _contextChipVPad = 6;
 
-/// Grand-total money size (natives: 20.sp Black; Cairo tops out at w800).
+/// Grand-total money size (natives: 20.sp Black; Plex Sans Arabic tops out at
+/// Bold).
 const double _totalMoneySize = 20;
 
 /// Best-effort line fetch — the natives' `loadOrderDetail` swallows
