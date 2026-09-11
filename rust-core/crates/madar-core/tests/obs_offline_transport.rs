@@ -40,9 +40,17 @@ fn captures_survive_on_disk_and_back_off_instead_of_being_lost() {
     // Offline by construction, so a flush must honestly report "not drained".
     assert!(!madar_core::obs::flush(Duration::from_secs(2)));
 
+    // WAITED FOR, not asserted immediately — the same platform difference the
+    // backoff loop below documents, biting one step earlier. A capture is
+    // handed to Sentry's background worker, which reaches the disk queue by way
+    // of an upload ATTEMPT, and how long that attempt takes depends on how the
+    // host refuses a connection to a dead port: Linux and macOS send an instant
+    // RST, Windows does not. So the 2s flush drained one report on Windows
+    // while the second was still in the worker, and the assertion read 1 — red
+    // on one platform about behaviour identical on all three.
+    let pending = wait_for(&store, 2);
     assert_eq!(
-        store.sentry_pending_count().unwrap(),
-        2,
+        pending, 2,
         "expected the two non-deduped reports to be durably queued"
     );
 
@@ -81,4 +89,23 @@ fn captures_survive_on_disk_and_back_off_instead_of_being_lost() {
     assert!(body.contains("lan.accept"));
 
     let _ = std::fs::remove_file(&path);
+}
+
+/// Block until the durable queue holds `want` rows, or give up after 30s and
+/// return whatever it holds so the assertion can report the real number.
+///
+/// Polling rather than sleeping a fixed span: the wait is for an upload attempt
+/// against a dead port to finish, and that takes an instant on Linux and macOS
+/// and rather longer on Windows. A sleep long enough for Windows would be dead
+/// time on every other run, and a sleep short enough for Linux is the flake
+/// this replaces.
+fn wait_for(store: &madar_core::store::Store, want: u32) -> u32 {
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        let n = store.sentry_pending_count().unwrap();
+        if n >= want || std::time::Instant::now() >= deadline {
+            return n;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
