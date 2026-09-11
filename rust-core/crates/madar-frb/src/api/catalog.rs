@@ -194,8 +194,8 @@ pub struct _DiscountView {
     pub name: String,
     /// Open string: `percentage` | `fixed` | … — host interprets `value`.
     pub dtype: String,
-    /// Percent points for `percentage`, minor-units for `fixed`.
-    pub value: i64,
+    /// A FRACTION for `percentage` (0.14 = 14%), minor-units for `fixed`.
+    pub value: f64,
     pub is_active: bool,
 }
 

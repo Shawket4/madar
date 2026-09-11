@@ -25,7 +25,7 @@ Name | Type | Description | Notes
 **discount_amount** | Option<**i32**> |  | [optional]
 **discount_id** | Option<**uuid::Uuid**> | Frozen channel discount on the item subtotal (`total == subtotal - discount_amount + delivery_fee`). `discount_amount` is 0 when none. | [optional]
 **discount_type** | Option<**String**> |  | [optional]
-**discount_value** | Option<**i32**> |  | [optional]
+**discount_value** | Option<**f64**> |  | [optional]
 **extra_prep_minutes** | **i32** | Extra prep minutes the teller added on top of the branch base (multiples of 5). | 
 **floor** | Option<**String**> |  | [optional]
 **id** | **uuid::Uuid** |  | 

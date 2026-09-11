@@ -44,7 +44,7 @@ pub struct OrderFull {
     #[serde(rename = "discount_type", skip_serializing_if = "Option::is_none")]
     pub discount_type: Option<String>,
     #[serde(rename = "discount_value")]
-    pub discount_value: i32,
+    pub discount_value: f64,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "notes", skip_serializing_if = "Option::is_none")]
@@ -121,7 +121,7 @@ impl OrderFull {
         created_at: chrono::DateTime<chrono::FixedOffset>,
         delivery_fee: i32,
         discount_amount: i32,
-        discount_value: i32,
+        discount_value: f64,
         id: uuid::Uuid,
         order_number: i32,
         order_type: String,

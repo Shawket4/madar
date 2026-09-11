@@ -7334,7 +7334,7 @@ fn wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
             let api_tip_payment_method_id = <Option<String>>::sse_decode(&mut deserializer);
             let api_discount_id = <Option<String>>::sse_decode(&mut deserializer);
             let api_discount_type = <Option<String>>::sse_decode(&mut deserializer);
-            let api_discount_value = <Option<i32>>::sse_decode(&mut deserializer);
+            let api_discount_value = <Option<f64>>::sse_decode(&mut deserializer);
             let api_loyalty_customer_id = <Option<String>>::sse_decode(&mut deserializer);
             let api_loyalty_redemptions =
                 <Vec<crate::api::orders::CheckoutRedemption>>::sse_decode(&mut deserializer);
@@ -8724,7 +8724,7 @@ const _: fn() = || {
         let _: String = DiscountView.id;
         let _: String = DiscountView.name;
         let _: String = DiscountView.dtype;
-        let _: i64 = DiscountView.value;
+        let _: f64 = DiscountView.value;
         let _: bool = DiscountView.is_active;
     }
     {
@@ -9919,7 +9919,7 @@ impl SseDecode for crate::api::catalog::DiscountView {
         let mut var_id = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_dtype = <String>::sse_decode(deserializer);
-        let mut var_value = <i64>::sse_decode(deserializer);
+        let mut var_value = <f64>::sse_decode(deserializer);
         let mut var_isActive = <bool>::sse_decode(deserializer);
         return crate::api::catalog::DiscountView {
             id: var_id,
@@ -15507,7 +15507,7 @@ impl SseEncode for crate::api::catalog::DiscountView {
         <String>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
         <String>::sse_encode(self.dtype, serializer);
-        <i64>::sse_encode(self.value, serializer);
+        <f64>::sse_encode(self.value, serializer);
         <bool>::sse_encode(self.is_active, serializer);
     }
 }

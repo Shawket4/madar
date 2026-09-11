@@ -23,9 +23,9 @@ pub struct DeliveryMenuDiscount {
     pub name: String,
     #[serde(rename = "name_translations")]
     pub name_translations: serde_json::Value,
-    /// Percentage points (0-100) for `percentage`; piastres for `fixed`.
+    /// A FRACTION for `percentage` (0.14 = 14%, like every other rate here); piastres for `fixed`.
     #[serde(rename = "value")]
-    pub value: i32,
+    pub value: f64,
 }
 
 impl DeliveryMenuDiscount {
@@ -35,7 +35,7 @@ impl DeliveryMenuDiscount {
         id: uuid::Uuid,
         name: String,
         name_translations: serde_json::Value,
-        value: i32,
+        value: f64,
     ) -> DeliveryMenuDiscount {
         DeliveryMenuDiscount {
             dtype,

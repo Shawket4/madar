@@ -17,7 +17,7 @@ Name | Type | Description | Notes
 **discount_amount** | **i32** |  | 
 **discount_id** | Option<**uuid::Uuid**> |  | [optional]
 **discount_type** | Option<**String**> |  | [optional]
-**discount_value** | **i32** |  | 
+**discount_value** | **f64** |  | 
 **id** | **uuid::Uuid** |  | 
 **notes** | Option<**String**> |  | [optional]
 **order_number** | **i32** |  | 

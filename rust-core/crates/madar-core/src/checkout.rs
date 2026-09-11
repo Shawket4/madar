@@ -557,7 +557,7 @@ pub(crate) fn prepare(
             .and_then(|id| uuid::Uuid::parse_str(&id).ok())
             .map(Some);
         request.discount_type = Some(Some(dtype.into()));
-        request.discount_value = Some(Some(discount_value as i32));
+        request.discount_value = Some(Some(discount_value));
         request.discount_amount = Some(Some(priced.discount_minor as i32));
     }
 
@@ -1398,7 +1398,7 @@ mod tests {
             .kv_put(
                 menu::K_DISCOUNTS,
                 r#"[
-                  {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"percentage","id":"00000000-0000-0000-0000-0000000000d1","is_active":true,"name":"10% off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":10},
+                  {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"percentage","id":"00000000-0000-0000-0000-0000000000d1","is_active":true,"name":"10% off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":0.10},
                   {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"fixed","id":"00000000-0000-0000-0000-0000000000d2","is_active":true,"name":"250 off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":250}
                 ]"#,
             )
@@ -1424,7 +1424,7 @@ mod tests {
         .unwrap();
         let r = &p.command.request;
         assert_eq!(r.discount_type, Some(Some("percentage".into())));
-        assert_eq!(r.discount_value, Some(Some(10)));
+        assert_eq!(r.discount_value, Some(Some(0.10)));
         assert_eq!(r.discount_amount, Some(Some(100))); // 10% of 1000
         assert_eq!(
             r.discount_id,
@@ -1459,7 +1459,7 @@ mod tests {
         .unwrap();
         let r = &p.command.request;
         assert_eq!(r.discount_type, Some(Some("fixed".into())));
-        assert_eq!(r.discount_value, Some(Some(250)));
+        assert_eq!(r.discount_value, Some(Some(250.0)));
         assert_eq!(r.discount_amount, Some(Some(250)));
         assert_eq!(r.total_amount, Some(Some(750))); // 1000 - 250, no tax
     }

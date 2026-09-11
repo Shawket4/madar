@@ -1273,8 +1273,17 @@ class _DiscountSection extends StatelessWidget {
   }
 }
 
-String _discountLabel(DiscountView d) =>
-    d.dtype == 'percentage' ? '${d.name} ${d.value}%' : d.name;
+/// `value` is a FRACTION for a percentage discount (0.125 = 12.5%), the same
+/// convention as the tax rate — so the chip multiplies it back up, and drops a
+/// trailing `.0` so the common case still reads "10%" and not "10.0%".
+String _discountLabel(DiscountView d) {
+  if (d.dtype != 'percentage') return d.name;
+  final pct = d.value * 100;
+  final text = pct == pct.roundToDouble()
+      ? pct.toStringAsFixed(0)
+      : pct.toStringAsFixed(1);
+  return '${d.name} $text%';
+}
 
 /// Discount chip — a content-width pill with a leading check when active,
 /// laid out in a Wrap (NOT a full-width stacked row).

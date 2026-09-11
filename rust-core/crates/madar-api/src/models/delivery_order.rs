@@ -123,7 +123,7 @@ pub struct DeliveryOrder {
     )]
     pub discount_type: Option<Option<String>>,
     #[serde(rename = "discount_value", skip_serializing_if = "Option::is_none")]
-    pub discount_value: Option<i32>,
+    pub discount_value: Option<f64>,
     /// Extra prep minutes the teller added on top of the branch base (multiples of 5).
     #[serde(rename = "extra_prep_minutes")]
     pub extra_prep_minutes: i32,

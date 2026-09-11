@@ -294,8 +294,8 @@ class DiscountView {
   /// Open string: `percentage` | `fixed` | … — host interprets `value`.
   final String dtype;
 
-  /// Percent points for `percentage`, minor-units for `fixed`.
-  final PlatformInt64 value;
+  /// A FRACTION for `percentage` (0.14 = 14%), minor-units for `fixed`.
+  final double value;
   final bool isActive;
 
   const DiscountView({

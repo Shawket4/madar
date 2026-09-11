@@ -756,9 +756,9 @@ mod tests {
         let mut o = models::OrderFull::new(
             uid(30),
             ts(),
-            0, // delivery_fee
-            0, // discount_amount
-            0, // discount_value
+            0,   // delivery_fee
+            0,   // discount_amount
+            0.0, // discount_value
             uid(31),
             42, // order_number
             "dine_in".into(),
@@ -783,7 +783,7 @@ mod tests {
             ts(),
             0,
             0,
-            0,
+            0.0, // discount_value
             uid(41),
             7,
             "dine_in".into(),

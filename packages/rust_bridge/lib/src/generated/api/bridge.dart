@@ -714,7 +714,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? tipPaymentMethodId,
     String? discountId,
     String? discountType,
-    int? discountValue,
+    double? discountValue,
     String? loyaltyCustomerId,
     required List<CheckoutRedemption> loyaltyRedemptions,
   });

@@ -26,7 +26,8 @@ pub type MoneyMinor = i64;
 pub enum DiscountKind {
     /// No discount.
     None,
-    /// `discount_value` is a percentage (e.g. `10` = 10%).
+    /// `discount_value` is a FRACTION (`0.10` = 10%) — the same convention as
+    /// `tax_rate` and every other rate in this system.
     Percentage,
     /// `discount_value` is a fixed amount in minor-units.
     Fixed,
@@ -80,8 +81,9 @@ pub struct CartLine {
 pub struct PriceCartInput {
     pub lines: Vec<CartLine>,
     pub discount_kind: DiscountKind,
-    /// Percentage (when `Percentage`) or fixed minor-units (when `Fixed`).
-    pub discount_value: i64,
+    /// A fraction (when `Percentage`, `0.10` = 10%) or minor-units (when
+    /// `Fixed`).
+    pub discount_value: f64,
     /// Decimal fraction (e.g. `0.14` = 14%). `0.0` = tax-free. Whether it is
     /// added on top or already inside the prices is `tax_inclusive`.
     pub tax_rate: f64,
@@ -167,11 +169,11 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
     let discount: MoneyMinor = match input.discount_kind {
         DiscountKind::None => 0,
         DiscountKind::Percentage => {
-            // Match Dart eval order: (subtotal * value) as int → / 100.0 → round.
-            let raw = round_money((subtotal * input.discount_value) as f64 / 100.0);
-            raw.clamp(0, subtotal)
+            // A fraction, MULTIPLIED — the same shape as the tax rate, and the
+            // same arithmetic the backend's `calc_discount` runs.
+            round_money(subtotal as f64 * input.discount_value).clamp(0, subtotal)
         }
-        DiscountKind::Fixed => input.discount_value.clamp(0, subtotal),
+        DiscountKind::Fixed => round_money(input.discount_value).clamp(0, subtotal),
     };
 
     let taxable = subtotal - discount;
@@ -223,7 +225,7 @@ mod tests {
         }
     }
 
-    fn cart(lines: Vec<CartLine>, kind: DiscountKind, value: i64, tax: f64) -> PriceCartInput {
+    fn cart(lines: Vec<CartLine>, kind: DiscountKind, value: f64, tax: f64) -> PriceCartInput {
         PriceCartInput {
             lines,
             discount_kind: kind,
@@ -239,7 +241,7 @@ mod tests {
 
     #[test]
     fn simple_qty_tax_and_change() {
-        let mut c = cart(vec![line(1000, 2)], DiscountKind::None, 0, 0.14);
+        let mut c = cart(vec![line(1000, 2)], DiscountKind::None, 0.0, 0.14);
         c.amount_tendered = Some(2500);
         let b = price_cart(c);
         assert_eq!(b.subtotal_minor, 2000);
@@ -303,7 +305,7 @@ mod tests {
             optionals: vec![OptionalSel { price: 300 }],
             bundle_components: vec![],
         };
-        let price = |l: CartLine| price_cart(cart(vec![l], DiscountKind::Percentage, 10, 0.14));
+        let price = |l: CartLine| price_cart(cart(vec![l], DiscountKind::Percentage, 0.1, 0.14));
         let a = price(legacy);
         let b = price(new_model);
         assert_eq!(
@@ -352,7 +354,7 @@ mod tests {
                     vec![comp_b, comp_a]
                 },
             };
-            price_cart(cart(vec![line], DiscountKind::None, 0, 0.0))
+            price_cart(cart(vec![line], DiscountKind::None, 0.0, 0.0))
         };
         assert_eq!(
             mk(true),
@@ -383,7 +385,7 @@ mod tests {
             optionals: vec![OptionalSel { price: 300 }],
             bundle_components: vec![],
         };
-        let b = price_cart(cart(vec![l], DiscountKind::None, 0, 0.0));
+        let b = price_cart(cart(vec![l], DiscountKind::None, 0.0, 0.0));
         // extras = 500 + 250*2 + 300 = 1300 ; (1500 + 1300) * 1
         assert_eq!(b.subtotal_minor, 2800);
         assert_eq!(b.total_minor, 2800);
@@ -394,7 +396,7 @@ mod tests {
         let b = price_cart(cart(
             vec![line(1000, 1)],
             DiscountKind::Percentage,
-            10,
+            0.1,
             0.14,
         ));
         assert_eq!(b.discount_minor, 100); // round(1000 * 10 / 100)
@@ -405,7 +407,7 @@ mod tests {
 
     #[test]
     fn fixed_discount_normal() {
-        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Fixed, 250, 0.14));
+        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Fixed, 250.0, 0.14));
         assert_eq!(b.discount_minor, 250);
         assert_eq!(b.taxable_minor, 750);
         assert_eq!(b.tax_minor, 105); // round(750 * 0.14)
@@ -414,7 +416,7 @@ mod tests {
 
     #[test]
     fn fixed_discount_caps_at_subtotal_100pct_off() {
-        let b = price_cart(cart(vec![line(500, 1)], DiscountKind::Fixed, 800, 0.0));
+        let b = price_cart(cart(vec![line(500, 1)], DiscountKind::Fixed, 800.0, 0.0));
         assert_eq!(b.discount_minor, 500); // clamped to subtotal
         assert_eq!(b.taxable_minor, 0);
         assert_eq!(b.total_minor, 0);
@@ -426,7 +428,7 @@ mod tests {
         let b = price_cart(cart(
             vec![line(1000, 1)],
             DiscountKind::Percentage,
-            150,
+            1.5,
             0.14,
         ));
         assert_eq!(b.discount_minor, 1000); // round(1500) clamped to 1000
@@ -437,17 +439,33 @@ mod tests {
 
     #[test]
     fn zero_tax_total_equals_taxable() {
-        let b = price_cart(cart(vec![line(1234, 1)], DiscountKind::None, 0, 0.0));
+        let b = price_cart(cart(vec![line(1234, 1)], DiscountKind::None, 0.0, 0.0));
         assert_eq!(b.tax_minor, 0);
         assert_eq!(b.total_minor, 1234);
     }
 
     #[test]
     fn rounding_is_ties_away_from_zero() {
-        // 25 * 10 / 100 = 2.5 exactly → must round to 3 (away from zero), not 2.
-        let b = price_cart(cart(vec![line(25, 1)], DiscountKind::Percentage, 10, 0.0));
+        // 25 * 0.10 = 2.5 exactly → must round to 3 (away from zero), not 2.
+        let b = price_cart(cart(vec![line(25, 1)], DiscountKind::Percentage, 0.1, 0.0));
         assert_eq!(b.discount_minor, 3);
         assert_eq!(b.total_minor, 22);
+    }
+
+    /// A percentage discount is a FRACTION, like `tax_rate` — which is the
+    /// whole point of the change: the `integer` column this replaced could not
+    /// express 12.5% at all, so a half-percent discount was unrepresentable
+    /// while a half-percent tax rate was ordinary.
+    #[test]
+    fn a_fractional_percentage_discount_is_expressible() {
+        let b = price_cart(cart(
+            vec![line(1000, 1)],
+            DiscountKind::Percentage,
+            0.125,
+            0.0,
+        ));
+        assert_eq!(b.discount_minor, 125);
+        assert_eq!(b.total_minor, 875);
     }
 
     #[test]
@@ -471,7 +489,7 @@ mod tests {
             optionals: vec![],
             bundle_components: vec![comp1, comp2],
         };
-        let b = price_cart(cart(vec![bundle], DiscountKind::None, 0, 0.0));
+        let b = price_cart(cart(vec![bundle], DiscountKind::None, 0.0, 0.0));
         // extras = (200 + 150) + (100) = 450 ; (5000 + 450) * 2
         assert_eq!(b.subtotal_minor, 10_900);
         assert_eq!(b.total_minor, 10_900);
@@ -479,7 +497,7 @@ mod tests {
 
     #[test]
     fn change_subtracts_cash_tip() {
-        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0, 0.0);
+        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0.0, 0.0);
         c.amount_tendered = Some(1500);
         c.cash_tip = 200;
         let b = price_cart(c);
@@ -489,7 +507,7 @@ mod tests {
 
     #[test]
     fn change_never_negative() {
-        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0, 0.0);
+        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0.0, 0.0);
         c.amount_tendered = Some(900);
         let b = price_cart(c);
         assert_eq!(b.change_given_minor, 0);
@@ -497,7 +515,7 @@ mod tests {
 
     #[test]
     fn empty_cart_is_zero() {
-        let b = price_cart(cart(vec![], DiscountKind::None, 0, 0.14));
+        let b = price_cart(cart(vec![], DiscountKind::None, 0.0, 0.14));
         assert_eq!(
             b,
             PricedBreakdown {
@@ -520,7 +538,7 @@ mod tests {
         let b = price_cart(cart(
             vec![line(1000, 2), line(500, 1), line(250, 4)],
             DiscountKind::None,
-            0,
+            0.0,
             0.0,
         ));
         assert_eq!(b.subtotal_minor, 3500);
@@ -530,7 +548,7 @@ mod tests {
     #[test]
     fn percentage_discount_rounds_half_up_at_minor_boundary() {
         // subtotal 5 × 10% = (5*10)/100 = 0.5 → ties-away → 1 (not 0).
-        let b = price_cart(cart(vec![line(5, 1)], DiscountKind::Percentage, 10, 0.0));
+        let b = price_cart(cart(vec![line(5, 1)], DiscountKind::Percentage, 0.1, 0.0));
         assert_eq!(b.discount_minor, 1);
         assert_eq!(b.taxable_minor, 4);
         assert_eq!(b.total_minor, 4);
@@ -539,7 +557,7 @@ mod tests {
     #[test]
     fn percentage_discount_below_half_rounds_down() {
         // subtotal 4 × 10% = (4*10)/100 = 0.4 → rounds to 0.
-        let b = price_cart(cart(vec![line(4, 1)], DiscountKind::Percentage, 10, 0.0));
+        let b = price_cart(cart(vec![line(4, 1)], DiscountKind::Percentage, 0.1, 0.0));
         assert_eq!(b.discount_minor, 0);
         assert_eq!(b.total_minor, 4);
     }
@@ -549,7 +567,7 @@ mod tests {
         let b = price_cart(cart(
             vec![line(1234, 3)],
             DiscountKind::Percentage,
-            100,
+            1.0,
             0.14,
         ));
         assert_eq!(b.subtotal_minor, 3702);
@@ -561,7 +579,12 @@ mod tests {
 
     #[test]
     fn percentage_discount_zero_value_is_no_discount() {
-        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Percentage, 0, 0.14));
+        let b = price_cart(cart(
+            vec![line(1000, 1)],
+            DiscountKind::Percentage,
+            0.0,
+            0.14,
+        ));
         assert_eq!(b.discount_minor, 0);
         assert_eq!(b.taxable_minor, 1000);
         assert_eq!(b.tax_minor, 140);
@@ -570,14 +593,14 @@ mod tests {
 
     #[test]
     fn fixed_discount_zero_value_is_no_discount() {
-        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Fixed, 0, 0.0));
+        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Fixed, 0.0, 0.0));
         assert_eq!(b.discount_minor, 0);
         assert_eq!(b.total_minor, 1000);
     }
 
     #[test]
     fn fixed_discount_equal_to_subtotal_zeroes_total() {
-        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Fixed, 1000, 0.14));
+        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Fixed, 1000.0, 0.14));
         assert_eq!(b.discount_minor, 1000);
         assert_eq!(b.taxable_minor, 0);
         assert_eq!(b.tax_minor, 0);
@@ -587,14 +610,14 @@ mod tests {
     #[test]
     fn negative_discount_value_clamps_to_zero() {
         // A stray negative fixed value must never INCREASE the total.
-        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Fixed, -500, 0.0));
+        let b = price_cart(cart(vec![line(1000, 1)], DiscountKind::Fixed, -500.0, 0.0));
         assert_eq!(b.discount_minor, 0);
         assert_eq!(b.total_minor, 1000);
         // Same guard on the percentage path (clamp lower bound is 0).
         let b = price_cart(cart(
             vec![line(1000, 1)],
             DiscountKind::Percentage,
-            -50,
+            -0.5,
             0.0,
         ));
         assert_eq!(b.discount_minor, 0);
@@ -604,7 +627,7 @@ mod tests {
     #[test]
     fn tax_rounds_half_away_from_zero_at_minor_boundary() {
         // taxable 5 × 0.10 = 0.5 → ties-away → 1.
-        let b = price_cart(cart(vec![line(5, 1)], DiscountKind::None, 0, 0.10));
+        let b = price_cart(cart(vec![line(5, 1)], DiscountKind::None, 0.0, 0.10));
         assert_eq!(b.tax_minor, 1);
         assert_eq!(b.total_minor, 6);
     }
@@ -612,14 +635,14 @@ mod tests {
     #[test]
     fn tax_below_half_rounds_down_at_minor_boundary() {
         // taxable 4 × 0.10 = 0.4 → rounds to 0.
-        let b = price_cart(cart(vec![line(4, 1)], DiscountKind::None, 0, 0.10));
+        let b = price_cart(cart(vec![line(4, 1)], DiscountKind::None, 0.0, 0.10));
         assert_eq!(b.tax_minor, 0);
         assert_eq!(b.total_minor, 4);
     }
 
     #[test]
     fn change_is_tendered_minus_total_no_tip() {
-        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0, 0.14);
+        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0.0, 0.14);
         c.amount_tendered = Some(2000);
         let b = price_cart(c);
         assert_eq!(b.total_minor, 1140);
@@ -628,7 +651,7 @@ mod tests {
 
     #[test]
     fn change_exact_payment_is_zero() {
-        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0, 0.0);
+        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0.0, 0.0);
         c.amount_tendered = Some(1000);
         let b = price_cart(c);
         assert_eq!(b.change_given_minor, 0);
@@ -637,7 +660,7 @@ mod tests {
     #[test]
     fn cash_tip_exceeding_overpayment_clamps_change_to_zero() {
         // Tendered exact, then a cash tip → change can't go negative.
-        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0, 0.0);
+        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0.0, 0.0);
         c.amount_tendered = Some(1000);
         c.cash_tip = 200;
         let b = price_cart(c);
@@ -647,7 +670,7 @@ mod tests {
     #[test]
     fn no_tender_means_no_change_even_with_cash_tip() {
         // amount_tendered None (card path) → change is 0 regardless of cash_tip.
-        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0, 0.0);
+        let mut c = cart(vec![line(1000, 1)], DiscountKind::None, 0.0, 0.0);
         c.cash_tip = 200;
         let b = price_cart(c);
         assert_eq!(b.change_given_minor, 0);
@@ -656,7 +679,7 @@ mod tests {
     #[test]
     fn change_is_capped_at_the_change_ceiling() {
         // A wildly-large tender must clamp to the CHANGE_CAP, never overflow.
-        let mut c = cart(vec![line(100, 1)], DiscountKind::None, 0, 0.0);
+        let mut c = cart(vec![line(100, 1)], DiscountKind::None, 0.0, 0.0);
         c.amount_tendered = Some(i64::MAX / 2);
         let b = price_cart(c);
         assert_eq!(b.change_given_minor, CHANGE_CAP);
@@ -680,7 +703,7 @@ mod tests {
             optionals: vec![],
             bundle_components: vec![comp],
         };
-        let b = price_cart(cart(vec![bundle], DiscountKind::None, 0, 0.0));
+        let b = price_cart(cart(vec![bundle], DiscountKind::None, 0.0, 0.0));
         // (4000 + 250) × 3 = 12_750.
         assert_eq!(b.subtotal_minor, 12_750);
     }
@@ -703,7 +726,7 @@ mod tests {
                 optionals: vec![],
             }],
         };
-        let b = price_cart(cart(vec![bundle], DiscountKind::None, 0, 0.0));
+        let b = price_cart(cart(vec![bundle], DiscountKind::None, 0.0, 0.0));
         assert_eq!(b.subtotal_minor, 5000); // only the fixed base
     }
 
@@ -721,14 +744,19 @@ mod tests {
             optionals: vec![],
             bundle_components: vec![],
         };
-        let b = price_cart(cart(vec![l], DiscountKind::None, 0, 0.0));
+        let b = price_cart(cart(vec![l], DiscountKind::None, 0.0, 0.0));
         assert_eq!(b.subtotal_minor, 1900);
     }
 
     #[test]
     fn large_amounts_do_not_overflow_i64() {
         // 1_000_000 minor (10k EGP) × 50 lines worth, 14% tax — well within i64.
-        let b = price_cart(cart(vec![line(1_000_000, 50)], DiscountKind::None, 0, 0.14));
+        let b = price_cart(cart(
+            vec![line(1_000_000, 50)],
+            DiscountKind::None,
+            0.0,
+            0.14,
+        ));
         assert_eq!(b.subtotal_minor, 50_000_000);
         assert_eq!(b.tax_minor, 7_000_000);
         assert_eq!(b.total_minor, 57_000_000);
@@ -745,7 +773,7 @@ mod tests {
             optionals: vec![OptionalSel { price: 300 }],
             bundle_components: vec![],
         };
-        let b = price_cart(cart(vec![l], DiscountKind::None, 0, 0.0));
+        let b = price_cart(cart(vec![l], DiscountKind::None, 0.0, 0.0));
         assert_eq!(b.subtotal_minor, 600);
     }
 
@@ -753,7 +781,7 @@ mod tests {
     fn full_golden_vector_discount_then_tax_then_change() {
         // End-to-end: subtotal 2000, 10% discount → 200, taxable 1800, 14% tax →
         // round(252.0)=252, total 2052, tendered 3000, cash tip 100 → change 848.
-        let mut c = cart(vec![line(1000, 2)], DiscountKind::Percentage, 10, 0.14);
+        let mut c = cart(vec![line(1000, 2)], DiscountKind::Percentage, 0.1, 0.14);
         c.amount_tendered = Some(3000);
         c.cash_tip = 100;
         let b = price_cart(c);
@@ -810,7 +838,10 @@ mod proptests {
                 Just(DiscountKind::Percentage),
                 Just(DiscountKind::Fixed)
             ],
-            0i64..200, // discount_value: a % up to 200 exercises the >100% clamp
+            // discount_value is polymorphic: a FRACTION for Percentage, minor
+            // units for Fixed. The wide arm takes the percentage well past 1.0
+            // to exercise the >100% clamp and gives Fixed a realistic range.
+            prop_oneof![0.0f64..2.0, 0.0f64..200.0],
             0.0f64..0.5,
             prop::option::of(0i64..1_000_000_000),
             0i64..100_000,
@@ -890,10 +921,10 @@ mod proptests {
         let discount = match input.discount_kind {
             DiscountKind::None => 0,
             DiscountKind::Percentage => {
-                let raw = ((subtotal * input.discount_value) as f64 / 100.0).round() as i64;
+                let raw = (subtotal as f64 * input.discount_value).round() as i64;
                 raw.clamp(0, subtotal)
             }
-            DiscountKind::Fixed => input.discount_value.clamp(0, subtotal),
+            DiscountKind::Fixed => (input.discount_value.round() as i64).clamp(0, subtotal),
         };
         let taxable = subtotal - discount;
         // The TAX is deliberately not restated here.

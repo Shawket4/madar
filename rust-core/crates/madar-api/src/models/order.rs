@@ -89,7 +89,7 @@ pub struct Order {
     )]
     pub discount_type: Option<Option<String>>,
     #[serde(rename = "discount_value")]
-    pub discount_value: i32,
+    pub discount_value: f64,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(
@@ -203,7 +203,7 @@ impl Order {
         created_at: chrono::DateTime<chrono::FixedOffset>,
         delivery_fee: i32,
         discount_amount: i32,
-        discount_value: i32,
+        discount_value: f64,
         id: uuid::Uuid,
         order_number: i32,
         order_type: String,

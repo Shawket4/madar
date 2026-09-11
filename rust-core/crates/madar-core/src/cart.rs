@@ -1110,18 +1110,18 @@ pub(crate) fn discount_id(store: &Store) -> CoreResult<Option<String>> {
 
 /// Resolve the cart's selected discount → (kind, value) from the cached catalog.
 /// Inactive / absent / unknown → no discount. The pricing engine then clamps it.
-pub(crate) fn discount(store: &Store) -> CoreResult<(DiscountKind, i64)> {
+pub(crate) fn discount(store: &Store) -> CoreResult<(DiscountKind, f64)> {
     let id = match discount_id(store)? {
         Some(id) => id,
-        None => return Ok((DiscountKind::None, 0)),
+        None => return Ok((DiscountKind::None, 0.0)),
     };
     let raw: Vec<models::Discount> = match store.kv_get(menu::K_DISCOUNTS)? {
         Some(j) => serde_json::from_str(&j).unwrap_or_default(),
         None => Vec::new(),
     };
     match raw.iter().find(|d| d.id.to_string() == id && d.is_active) {
-        Some(d) => Ok((kind_from_dtype(&d.dtype), d.value as i64)),
-        None => Ok((DiscountKind::None, 0)),
+        Some(d) => Ok((kind_from_dtype(&d.dtype), d.value)),
+        None => Ok((DiscountKind::None, 0.0)),
     }
 }
 
@@ -1821,7 +1821,7 @@ mod tests {
 
     fn seed_discounts(s: &Store) {
         s.kv_put(menu::K_DISCOUNTS, r#"[
-          {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"percentage","id":"00000000-0000-0000-0000-0000000000d1","is_active":true,"name":"10% off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":10},
+          {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"percentage","id":"00000000-0000-0000-0000-0000000000d1","is_active":true,"name":"10% off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":0.10},
           {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"fixed","id":"00000000-0000-0000-0000-0000000000d2","is_active":true,"name":"250 off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":250}
         ]"#).unwrap();
     }
@@ -2575,11 +2575,11 @@ mod tests {
         set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
         let (kind, value) = discount(&s).unwrap();
         assert_eq!(kind, DiscountKind::Percentage);
-        assert_eq!(value, 10);
+        assert_eq!(value, 0.10);
         set_discount(&s, "00000000-0000-0000-0000-0000000000d2").unwrap();
         let (kind, value) = discount(&s).unwrap();
         assert_eq!(kind, DiscountKind::Fixed);
-        assert_eq!(value, 250);
+        assert_eq!(value, 250.0);
     }
 
     #[test]
@@ -2588,7 +2588,7 @@ mod tests {
         seed_discounts(&s);
         let (kind, value) = discount(&s).unwrap();
         assert_eq!(kind, DiscountKind::None);
-        assert_eq!(value, 0);
+        assert_eq!(value, 0.0);
     }
 
     #[test]
@@ -2598,7 +2598,7 @@ mod tests {
         set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
         let (kind, value) = discount(&s).unwrap();
         assert_eq!(kind, DiscountKind::None);
-        assert_eq!(value, 0);
+        assert_eq!(value, 0.0);
     }
 
     // ── clear ─────────────────────────────────────────────────────────────────

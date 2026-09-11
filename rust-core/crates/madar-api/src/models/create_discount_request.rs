@@ -34,7 +34,7 @@ pub struct CreateDiscountRequest {
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
     #[serde(rename = "value")]
-    pub value: i32,
+    pub value: f64,
 }
 
 impl CreateDiscountRequest {
@@ -42,7 +42,7 @@ impl CreateDiscountRequest {
         dtype: String,
         name: String,
         org_id: uuid::Uuid,
-        value: i32,
+        value: f64,
     ) -> CreateDiscountRequest {
         CreateDiscountRequest {
             dtype,

@@ -47,7 +47,7 @@ pub struct UpdateDiscountRequest {
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub value: Option<Option<i32>>,
+    pub value: Option<Option<f64>>,
 }
 
 impl UpdateDiscountRequest {

@@ -120,7 +120,7 @@ impl MadarBridge {
         tip_payment_method_id: Option<String>,
         discount_id: Option<String>,
         discount_type: Option<String>,
-        discount_value: Option<i32>,
+        discount_value: Option<f64>,
         // `loyalty_customer_id` is the member spending a balance on this bill;
         // `loyalty_redemptions` names which of the ticket's LINES their rewards
         // cover — by line id, never by position (see

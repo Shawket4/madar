@@ -41,7 +41,7 @@ pub struct SettleOpenTicketRequest {
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub discount_value: Option<Option<i32>>,
+    pub discount_value: Option<Option<f64>>,
     /// The member spending a balance on this settle, when rewards are applied.
     #[serde(
         rename = "loyalty_customer_id",

@@ -214,8 +214,8 @@ pub struct DiscountView {
     pub name: String,
     /// Open string: `percentage` | `fixed` | … — host interprets `value`.
     pub dtype: String,
-    /// Percent points for `percentage`, minor-units for `fixed`.
-    pub value: i64,
+    /// A FRACTION for `percentage` (0.14 = 14%), minor-units for `fixed`.
+    pub value: f64,
     pub is_active: bool,
 }
 
@@ -702,7 +702,7 @@ pub(crate) fn discounts(store: &Store, locale: &str) -> CoreResult<Vec<DiscountV
             id: d.id.to_string(),
             name: resolve(&d.name_translations, &d.name, locale),
             dtype: d.dtype.clone(),
-            value: d.value as i64,
+            value: d.value,
             is_active: d.is_active,
         })
         .collect())
@@ -1430,7 +1430,7 @@ mod tests {
             r#"[
               {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z",
                "id":"00000000-0000-0000-0000-0000000000f1","org_id":"00000000-0000-0000-0000-0000000000ff",
-               "dtype":"percentage","value":10,"is_active":true,"name":"Ten Off",
+               "dtype":"percentage","value":0.10,"is_active":true,"name":"Ten Off",
                "name_translations":{"ar":"خصم"}},
               {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z",
                "id":"00000000-0000-0000-0000-0000000000f2","org_id":"00000000-0000-0000-0000-0000000000ff",
@@ -1443,10 +1443,10 @@ mod tests {
         assert_eq!(d.len(), 2);
         assert_eq!(d[0].name, "خصم");
         assert_eq!(d[0].dtype, "percentage");
-        assert_eq!(d[0].value, 10);
+        assert_eq!(d[0].value, 0.10);
         assert!(d[0].is_active);
         assert_eq!(d[1].dtype, "fixed");
-        assert_eq!(d[1].value, 500);
+        assert_eq!(d[1].value, 500.0);
         assert!(!d[1].is_active);
         assert_eq!(d[1].name, "Five EGP"); // no translation → base
     }

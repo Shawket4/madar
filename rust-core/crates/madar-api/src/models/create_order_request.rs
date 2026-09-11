@@ -70,7 +70,7 @@ pub struct CreateOrderRequest {
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub discount_value: Option<Option<i32>>,
+    pub discount_value: Option<Option<f64>>,
     #[serde(
         rename = "idempotency_key",
         default,

@@ -29,8 +29,9 @@ pub struct Discount {
     pub org_id: uuid::Uuid,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
+    /// Polymorphic by `dtype`: a FRACTION for `percentage` (0.14 = 14%, like every other rate in this schema), or minor units for `fixed`.
     #[serde(rename = "value")]
-    pub value: i32,
+    pub value: f64,
 }
 
 impl Discount {
@@ -43,7 +44,7 @@ impl Discount {
         name_translations: serde_json::Value,
         org_id: uuid::Uuid,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
-        value: i32,
+        value: f64,
     ) -> Discount {
         Discount {
             created_at,

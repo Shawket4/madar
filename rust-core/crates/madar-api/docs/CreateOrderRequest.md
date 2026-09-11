@@ -12,7 +12,7 @@ Name | Type | Description | Notes
 **discount_amount** | Option<**i32**> |  | [optional]
 **discount_id** | Option<**uuid::Uuid**> |  | [optional]
 **discount_type** | Option<**String**> |  | [optional]
-**discount_value** | Option<**i32**> |  | [optional]
+**discount_value** | Option<**f64**> |  | [optional]
 **idempotency_key** | Option<**uuid::Uuid**> |  | [optional]
 **items** | [**Vec<models::OrderItemInput>**](OrderItemInput.md) |  | 
 **loyalty_customer_id** | Option<**uuid::Uuid**> | The loyalty member spending a balance on this sale. Required when `loyalty_redemptions` is non-empty, and ONLY for that: earning is a separate, later act (`POST /loyalty/award`), so a sale that redeems nothing never names a member here. | [optional]

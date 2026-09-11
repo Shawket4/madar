@@ -6277,7 +6277,9 @@ impl MadarCore {
         tip_payment_method_id: Option<String>,
         discount_id: Option<String>,
         discount_type: Option<String>,
-        discount_value: Option<i32>,
+        // A FRACTION when `discount_type` is `percentage` (0.10 = 10%), minor
+        // units when `fixed` — the same convention as `tax_rate`.
+        discount_value: Option<f64>,
         // The member spending a balance on this bill, and which of its LINES
         // their rewards cover. Empty for a settle with no rewards, which is
         // almost all of them.

@@ -9,7 +9,7 @@ Name | Type | Description | Notes
 **name** | **String** |  | 
 **name_translations** | Option<**serde_json::Value**> |  | [optional]
 **org_id** | **uuid::Uuid** |  | 
-**value** | **i32** |  | 
+**value** | **f64** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

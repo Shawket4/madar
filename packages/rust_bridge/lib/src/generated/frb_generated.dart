@@ -757,7 +757,7 @@ abstract class RustBridgeApi extends BaseApi {
     String? tipPaymentMethodId,
     String? discountId,
     String? discountType,
-    int? discountValue,
+    double? discountValue,
     String? loyaltyCustomerId,
     required List<CheckoutRedemption> loyaltyRedemptions,
   });
@@ -5905,7 +5905,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     String? tipPaymentMethodId,
     String? discountId,
     String? discountType,
-    int? discountValue,
+    double? discountValue,
     String? loyaltyCustomerId,
     required List<CheckoutRedemption> loyaltyRedemptions,
   }) {
@@ -5925,7 +5925,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           sse_encode_opt_String(tipPaymentMethodId, serializer);
           sse_encode_opt_String(discountId, serializer);
           sse_encode_opt_String(discountType, serializer);
-          sse_encode_opt_box_autoadd_i_32(discountValue, serializer);
+          sse_encode_opt_box_autoadd_f_64(discountValue, serializer);
           sse_encode_opt_String(loyaltyCustomerId, serializer);
           sse_encode_list_checkout_redemption(loyaltyRedemptions, serializer);
           pdeCallFfi(
@@ -7364,7 +7364,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       id: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
       dtype: dco_decode_String(arr[2]),
-      value: dco_decode_i_64(arr[3]),
+      value: dco_decode_f_64(arr[3]),
       isActive: dco_decode_bool(arr[4]),
     );
   }
@@ -9512,7 +9512,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_id = sse_decode_String(deserializer);
     var var_name = sse_decode_String(deserializer);
     var var_dtype = sse_decode_String(deserializer);
-    var var_value = sse_decode_i_64(deserializer);
+    var var_value = sse_decode_f_64(deserializer);
     var var_isActive = sse_decode_bool(deserializer);
     return DiscountView(
       id: var_id,
@@ -12211,7 +12211,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_String(self.id, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_String(self.dtype, serializer);
-    sse_encode_i_64(self.value, serializer);
+    sse_encode_f_64(self.value, serializer);
     sse_encode_bool(self.isActive, serializer);
   }
 
@@ -14871,7 +14871,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     String? tipPaymentMethodId,
     String? discountId,
     String? discountType,
-    int? discountValue,
+    double? discountValue,
     String? loyaltyCustomerId,
     required List<CheckoutRedemption> loyaltyRedemptions,
   }) => RustBridge.instance.api.crateApiBridgeMadarBridgeSettleTicket(

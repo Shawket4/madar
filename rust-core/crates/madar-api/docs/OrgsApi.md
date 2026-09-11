@@ -48,7 +48,7 @@ Name | Type | Description  | Required | Notes
 
 ## create_org
 
-> models::Org create_org(name, slug, currency_code, logo, receipt_footer, tax_rate, timezone)
+> models::Org create_org(name, slug, currency_code, logo, receipt_footer, require_table_for_orders, service_charge_rate, service_charge_taxable, tax_inclusive, tax_rate, timezone)
 
 
 ### Parameters
@@ -61,7 +61,11 @@ Name | Type | Description  | Required | Notes
 **currency_code** | Option<**String**> |  |  |
 **logo** | Option<**std::path::PathBuf**> | Logo image file. PNG, JPEG, or WebP. Optional — omit the field entirely to create the org without a logo. |  |
 **receipt_footer** | Option<**String**> |  |  |
-**tax_rate** | Option<**f64**> |  |  |
+**require_table_for_orders** | Option<**bool**> | Must every sale name a table? Default false. |  |
+**service_charge_rate** | Option<**f64**> | A fraction, like the tax rate: 0.12 is 12%. Default 0. |  |
+**service_charge_taxable** | Option<**bool**> | Is the service charge itself taxed? Default true. |  |
+**tax_inclusive** | Option<**bool**> | Are menu prices tax-inclusive? Default false (tax added on top). |  |
+**tax_rate** | Option<**f64**> | A FRACTION: 0.14 is 14%. Same unit as `PATCH /orgs/{id}`. |  |
 **timezone** | Option<**String**> |  |  |
 
 ### Return type

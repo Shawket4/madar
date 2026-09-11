@@ -9,7 +9,7 @@ Name | Type | Description | Notes
 **customer_name** | Option<**String**> |  | [optional]
 **discount_id** | Option<**uuid::Uuid**> | Optional discount the waiter applied at order time (overridable at settle). | [optional]
 **discount_type** | Option<**String**> |  | [optional]
-**discount_value** | Option<**i32**> |  | [optional]
+**discount_value** | Option<**f64**> |  | [optional]
 **guest_count** | Option<**i32**> |  | [optional]
 **idempotency_key** | Option<**uuid::Uuid**> | Client-minted dedup key for the ticket (exactly-once across LAN + cloud). | [optional]
 **items** | [**Vec<models::OrderItemInput>**](OrderItemInput.md) | Client-priced items (same shape as a POS order line) — recorded verbatim. | 

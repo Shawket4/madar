@@ -31,6 +31,15 @@ pub struct CreateOrgParams {
     /// Logo image file. PNG, JPEG, or WebP. Optional — omit the field entirely to create the org without a logo.
     pub logo: Option<std::path::PathBuf>,
     pub receipt_footer: Option<String>,
+    /// Must every sale name a table? Default false.
+    pub require_table_for_orders: Option<bool>,
+    /// A fraction, like the tax rate: 0.12 is 12%. Default 0.
+    pub service_charge_rate: Option<f64>,
+    /// Is the service charge itself taxed? Default true.
+    pub service_charge_taxable: Option<bool>,
+    /// Are menu prices tax-inclusive? Default false (tax added on top).
+    pub tax_inclusive: Option<bool>,
+    /// A FRACTION: 0.14 is 14%. Same unit as `PATCH /orgs/{id}`.
     pub tax_rate: Option<f64>,
     pub timezone: Option<String>,
 }
@@ -324,7 +333,19 @@ pub async fn create_org(
     if let Some(param_value) = params.receipt_footer {
         multipart_form = multipart_form.text("receipt_footer", param_value.to_string());
     }
+    if let Some(param_value) = params.require_table_for_orders {
+        multipart_form = multipart_form.text("require_table_for_orders", param_value.to_string());
+    }
+    if let Some(param_value) = params.service_charge_rate {
+        multipart_form = multipart_form.text("service_charge_rate", param_value.to_string());
+    }
+    if let Some(param_value) = params.service_charge_taxable {
+        multipart_form = multipart_form.text("service_charge_taxable", param_value.to_string());
+    }
     multipart_form = multipart_form.text("slug", params.slug.to_string());
+    if let Some(param_value) = params.tax_inclusive {
+        multipart_form = multipart_form.text("tax_inclusive", param_value.to_string());
+    }
     if let Some(param_value) = params.tax_rate {
         multipart_form = multipart_form.text("tax_rate", param_value.to_string());
     }
