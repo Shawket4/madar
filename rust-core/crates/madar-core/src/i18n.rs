@@ -905,6 +905,10 @@ fn en(key: &str) -> Option<&'static str> {
         "role.org_admin" => "Admin",
         "role.super_admin" => "Admin",
         "role.kitchen" => "Kitchen",
+        // toggles (segmented on/off)
+        "toggle.off" => "Off",
+        "toggle.on" => "On",
+        "toggle.single_payment" => "One method",
         _ => return None,
     })
 }
@@ -1741,6 +1745,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "role.org_admin" => "مسؤول",
         "role.super_admin" => "مسؤول",
         "role.kitchen" => "المطبخ",
+        // toggles (segmented on/off)
+        "toggle.off" => "إيقاف",
+        "toggle.on" => "تشغيل",
+        "toggle.single_payment" => "طريقة واحدة",
         _ => return None,
     })
 }

@@ -1001,11 +1001,20 @@ class _MethodsRow extends StatelessWidget {
             onTap: () => onSelect(m.id),
           ),
         if (s.canSplit)
-          MadarChip(
-            label: tr('order.split_payment'),
-            glyph: MadarGlyph.split,
-            selected: s.splitMode,
-            onTap: onToggleSplit,
+          SizedBox(
+            width: double.infinity,
+            child: MadarSegmented<bool>(
+              items: [
+                MadarSegmentItem(false, tr('toggle.single_payment')),
+                MadarSegmentItem(
+                  true,
+                  tr('order.split_payment'),
+                  glyph: MadarGlyph.split,
+                ),
+              ],
+              value: s.splitMode,
+              onChanged: (_) => onToggleSplit(),
+            ),
           ),
       ],
     );

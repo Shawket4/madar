@@ -64,11 +64,6 @@ const EdgeInsetsDirectional _quickCashPad = EdgeInsetsDirectional.symmetric(
   vertical: 7,
 );
 
-/// Tip-method pill insets (natives: 11×6.dp).
-const EdgeInsetsDirectional _tipPillPad = EdgeInsetsDirectional.symmetric(
-  horizontal: 11,
-  vertical: 6,
-);
 
 /// Small active-check glyph inside chips (natives: 10.dp).
 const double _chipCheck = 10;
@@ -1179,17 +1174,14 @@ class _TipCard extends StatelessWidget {
             ],
           ),
           if (methods.length > 1)
-            Wrap(
-              spacing: Space.xs + 2,
-              runSpacing: Space.xs + 2,
-              children: [
-                for (final m in methods)
-                  _TipMethodPill(
-                    method: m,
-                    active: (tipMethod ?? selected) == m.id,
-                    onTap: () => onTipMethod(m.id),
-                  ),
+            MadarSegmented<String?>(
+              items: [
+                for (final m in methods) MadarSegmentItem(m.id, m.name),
               ],
+              value: tipMethod ?? selected,
+              onChanged: (id) {
+                if (id != null) onTipMethod(id);
+              },
             ),
           MadarAmountField(
             amountMinor: tip,
@@ -1197,57 +1189,6 @@ class _TipCard extends StatelessWidget {
             currencyCode: currency,
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Which-method-pays-the-tip pill — brand-filled when active.
-class _TipMethodPill extends StatelessWidget {
-  const _TipMethodPill({
-    required this.method,
-    required this.active,
-    required this.onTap,
-  });
-
-  final PaymentMethodView method;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return TactileScale(
-      onTap: () {
-        MadarHaptics.selection();
-        onTap();
-      },
-      child: Container(
-        padding: _tipPillPad,
-        decoration: BoxDecoration(
-          color: active ? hexColor(method.color) : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(Radii.pill),
-          border: active ? null : Border.all(color: colors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: Space.xs,
-          children: [
-            if (active)
-              MadarIcon(
-                'checkmark',
-                tint: colors.textOnAccent,
-                size: _chipCheck,
-              ),
-            Text(
-              method.name,
-              style: MadarType.labelSm.copyWith(
-                fontSize: _pillLabelSize,
-                color: active ? colors.textOnAccent : colors.textSecondary,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

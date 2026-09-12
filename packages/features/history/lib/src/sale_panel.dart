@@ -39,9 +39,6 @@ const double _sheetMaxWidth = 520;
 
 /// Restock switch track (44×26) and thumb (20) — tokens-only stand-in for
 /// the material Switch, as on the old void overlay.
-const double _switchTrackWidth = 44;
-const double _switchTrackHeight = 26;
-const double _switchThumb = 20;
 
 /// The sale, as a body: fills whatever the host gives it.
 class SalePanel extends ConsumerWidget {
@@ -1339,11 +1336,17 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
                         ),
                       ),
                     ),
-                    _RestockSwitch(
-                      value: form.restock,
-                      onChanged: (v) => ref
-                          .read(_voidFormProvider.notifier)
-                          .toggleRestock(on: v),
+                    Expanded(
+                      child: MadarSegmented<bool>(
+                        items: [
+                          MadarSegmentItem(false, t('toggle.off')),
+                          MadarSegmentItem(true, t('toggle.on')),
+                        ],
+                        value: form.restock,
+                        onChanged: (v) => ref
+                            .read(_voidFormProvider.notifier)
+                            .toggleRestock(on: v),
+                      ),
                     ),
                   ],
                 ),
@@ -1380,53 +1383,6 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// A tokens-only toggle: accent track when on, sunk grey when off, an
-/// animated thumb.
-class _RestockSwitch extends StatelessWidget {
-  const _RestockSwitch({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Semantics(
-      toggled: value,
-      child: TactileScale(
-        onTap: () => onChanged(!value),
-        child: AnimatedContainer(
-          duration: MotionSpec.standardDuration,
-          curve: MotionSpec.standardCurve,
-          width: _switchTrackWidth,
-          height: _switchTrackHeight,
-          padding: const EdgeInsetsDirectional.all(
-            (_switchTrackHeight - _switchThumb) / 2,
-          ),
-          decoration: BoxDecoration(
-            color: value ? colors.accent : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(Radii.pill),
-          ),
-          child: AnimatedAlign(
-            duration: MotionSpec.standardDuration,
-            curve: MotionSpec.standardCurve,
-            alignment: value
-                ? AlignmentDirectional.centerEnd
-                : AlignmentDirectional.centerStart,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: value ? colors.textOnAccent : colors.textMuted,
-                shape: BoxShape.circle,
-              ),
-              child: const SizedBox.square(dimension: _switchThumb),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

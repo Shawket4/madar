@@ -988,12 +988,17 @@ class _CancelSheetState extends ConsumerState<_CancelSheet> {
                   style: MadarType.body.copyWith(color: colors.textPrimary),
                 ),
               ),
-              ValueListenableBuilder<bool>(
-                valueListenable: _restock,
-                builder: (_, restock, _) => Switch(
-                  value: restock,
-                  activeTrackColor: colors.accent,
-                  onChanged: (value) => _restock.value = value,
+              Expanded(
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _restock,
+                  builder: (_, restock, _) => MadarSegmented<bool>(
+                    items: [
+                      MadarSegmentItem(false, bridge.tr(key: 'toggle.off')),
+                      MadarSegmentItem(true, bridge.tr(key: 'toggle.on')),
+                    ],
+                    value: restock,
+                    onChanged: (value) => _restock.value = value,
+                  ),
                 ),
               ),
             ],
