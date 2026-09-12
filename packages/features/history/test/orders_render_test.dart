@@ -171,6 +171,9 @@ final _pastOrders = <OrderSummaryView>[
     ),
 ];
 
+/// The one sale in the fixture that has money already given back on it.
+const _partlyRefundedOrderId = 'o-1042';
+
 const _detail1042 = OrderDetailView(
   id: 'o-1042',
   orderNumber: 1042,
@@ -232,10 +235,17 @@ const _receipt1042 = ReceiptView(
 /// A bridge that answers what Orders asks, from fixtures. [online] false is
 /// a till with no network; [arabic] mirrors the screen.
 class _FakeBridge implements MadarBridge {
-  _FakeBridge({this.online = true, this.arabic = false});
+  _FakeBridge({
+    this.online = true,
+    this.arabic = false,
+    this.fullyRefunded = false,
+  });
 
   final bool online;
   final bool arabic;
+
+  /// The one sale with refunds on it has had ALL of its money given back.
+  final bool fullyRefunded;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -287,6 +297,42 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #humanMessage) return 'Something went wrong';
     if (name == #clockSkewMinutes) return 0;
+    if (name == #listOrderRefunds) {
+      final id = invocation.namedArguments[#orderId] as String? ?? '';
+      // One sale carries a part refund; everything else is untouched, so the
+      // panel shows the block on exactly one row.
+      final refunded = id != _partlyRefundedOrderId
+          ? 0
+          : fullyRefunded
+          ? 24000
+          : 5000;
+      return Future<OrderRefundsView>.value(
+        OrderRefundsView(
+          orderId: id,
+          orderStatus: 'completed',
+          totalMinor: 24000,
+          refundedMinor: refunded,
+          refundedCashMinor: refunded,
+          refundableRemainingMinor: 24000 - refunded,
+          refunds: refunded == 0
+              ? const []
+              : [
+                  RefundView(
+                    id: 'rf-1',
+                    orderId: _partlyRefundedOrderId,
+                    amountMinor: refunded,
+                    method: 'Cash',
+                    isCash: true,
+                    reason: 'quality_issue',
+                    issuedAt: '2026-09-12T19:40:00Z',
+                    issuedByName: 'Sara',
+                    lines: const [],
+                    queued: false,
+                  ),
+                ],
+        ),
+      );
+    }
     if (name == #loyaltySettings) {
       // The branch runs a points programme, so *Add points* is offered.
       return Future<LoyaltyProgrammeView>.value(
@@ -476,10 +522,34 @@ void main() {
     expect(find.text('VAT included \u206614%\u2069'), findsOneWidget);
     expect(find.text('Reprint'), findsOneWidget);
     expect(find.text('Add points'), findsOneWidget);
-    // Refund is not on the bridge, so it is not on the screen; the screen
-    // says what a void is instead.
-    expect(find.text('Refund'), findsNothing);
+    // What has already gone back on this sale, before anything is offered
+    // about giving back more.
+    expect(find.text('Refunded'), findsOneWidget);
+    expect(find.text('− EGP 50.00'), findsOneWidget);
+    expect(find.text('Sara · Cash'), findsOneWidget);
+    expect(find.text('EGP 190.00 left to refund'), findsOneWidget);
     expect(find.textContaining('Void removes a mistaken sale'), findsOneWidget);
+  });
+
+  testWidgets('a sale refunded in full is not offered another refund', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      screen: const OrderHistoryScreen(),
+      bridge: _FakeBridge(fullyRefunded: true),
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'ipad-refunded-full',
+      then: (t) async {
+        await _open(t, 1042);
+        await _more(t);
+      },
+    );
+    // The row is still there, saying why it does nothing — a missing row
+    // reads as a missing feature.
+    expect(find.text('Refund'), findsOneWidget);
+    expect(find.text('Already refunded in full.'), findsWidgets);
   });
 
   testWidgets('the ⋯ sheet offers Void and Refund, each saying what it does', (

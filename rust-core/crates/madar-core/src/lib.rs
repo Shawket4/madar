@@ -2746,6 +2746,9 @@ impl MadarCore {
             short_by: tr("shift.drawer_short"),
             over_by: tr("shift.drawer_over"),
             voided: tr("history.voided"),
+            refunds: tr("shift.refunds"),
+            refunds_cash: tr("shift.refunds_cash"),
+            cash_in_refunded: tr("shift.cash_in_refunded"),
             transactions: tr("shift.transactions"),
             end_of_report: tr("shift.end_of_report"),
             cash_moves: tr("shift.cash_moves"),
@@ -5921,6 +5924,96 @@ impl MadarCore {
         })?;
         let _ = self.drain_outbox().await;
         Ok(())
+    }
+
+    /// What has already been given back against one sale, with the server's
+    /// own arithmetic for what is still refundable.
+    ///
+    /// Write-through cached per order, so a sale opened offline still shows
+    /// the refunds it carried the last time this till saw it. A stale figure
+    /// here cannot cause a wrong refund: the server checks the remainder again
+    /// and refuses anything over it. What it prevents is the teller typing a
+    /// second full refund into a sale that already had one, which no amount of
+    /// server-side refusal makes a pleasant thing to do in front of a customer.
+    pub async fn list_order_refunds(
+        &self,
+        order_id: String,
+    ) -> Result<orders::OrderRefundsView, CoreError> {
+        use madar_api::apis::refunds_api;
+        let key = format!("cache:refunds:order:{order_id}");
+        match refunds_api::list_order_refunds(
+            &self.api.config(),
+            refunds_api::ListOrderRefundsParams {
+                order_id: order_id.clone(),
+            },
+        )
+        .await
+        {
+            Ok(r) => {
+                let view = orders::order_refunds_view(&r);
+                // Cache the SERVER's answer, un-overlaid: the queued rows are
+                // read fresh from the outbox each time and drop out of it on
+                // their own once they land.
+                cache_views(&self.store, &key, std::slice::from_ref(&view));
+                Ok(self.with_pending_refunds(view))
+            }
+            Err(e) => cached_views::<orders::OrderRefundsView>(&self.store, &key)
+                .into_iter()
+                .next()
+                .map(|v| self.with_pending_refunds(v))
+                .ok_or_else(|| net::map_api_error(e)),
+        }
+    }
+
+    /// Add the refunds still in the outbox for this order, and take them off
+    /// the refundable remainder. The server will reach the same figure when
+    /// they drain; until then the till must not offer money it has already
+    /// handed over.
+    fn with_pending_refunds(&self, mut view: orders::OrderRefundsView) -> orders::OrderRefundsView {
+        let teller = self
+            .current_session()
+            .map(|s| s.display_name)
+            .unwrap_or_default();
+        let Ok(pending) = orders::pending_refunds(&self.store, &view.order_id, &teller) else {
+            return view;
+        };
+        let queued_total: i64 = pending.iter().map(|r| r.amount_minor).sum();
+        view.refunded_minor += queued_total;
+        view.refundable_remaining_minor = (view.refundable_remaining_minor - queued_total).max(0);
+        view.refunds.extend(pending);
+        view
+    }
+
+    /// Every refund issued during a shift — the Z-report's line, and the
+    /// reason a counted drawer is lighter than the sales say.
+    ///
+    /// Cached like the per-order read, because the close screen is exactly
+    /// where a till is most likely to be offline: the network went, the
+    /// shift ends anyway, and the teller still has to count.
+    pub async fn list_shift_refunds(
+        &self,
+        shift_id: String,
+    ) -> Result<orders::ShiftRefundsView, CoreError> {
+        use madar_api::apis::refunds_api;
+        let key = format!("cache:refunds:shift:{shift_id}");
+        match refunds_api::list_shift_refunds(
+            &self.api.config(),
+            refunds_api::ListShiftRefundsParams {
+                shift_id: shift_id.clone(),
+            },
+        )
+        .await
+        {
+            Ok(r) => {
+                let view = orders::shift_refunds_view(&r);
+                cache_views(&self.store, &key, std::slice::from_ref(&view));
+                Ok(view)
+            }
+            Err(e) => cached_views::<orders::ShiftRefundsView>(&self.store, &key)
+                .into_iter()
+                .next()
+                .ok_or_else(|| net::map_api_error(e)),
+        }
     }
 
     /// Refund money already taken, against a synced order.

@@ -11,8 +11,63 @@ pub use madar_core::checkout::{
     ReceiptView,
 };
 pub use madar_core::orders::{
-    OrderDetailLineView, OrderDetailView, OrderSearchPage, OrderSummaryView,
+    OrderDetailLineView, OrderDetailView, OrderRefundsView, OrderSearchPage, OrderSummaryView,
+    RefundLineView, RefundView, ShiftRefundsView,
 };
+
+/// What has already been given back against one sale.
+#[frb(mirror(OrderRefundsView))]
+pub struct _OrderRefundsView {
+    pub order_id: String,
+    /// The sale's own status — `voided` means there is nothing left to refund.
+    pub order_status: String,
+    pub total_minor: i64,
+    pub refunded_minor: i64,
+    /// The cash slice of it — what actually left a drawer.
+    pub refunded_cash_minor: i64,
+    /// What may still be given back. The server's arithmetic, not the till's.
+    pub refundable_remaining_minor: i64,
+    pub refunds: Vec<RefundView>,
+}
+
+/// Every refund issued during one shift — the Z-report's line.
+#[frb(mirror(ShiftRefundsView))]
+pub struct _ShiftRefundsView {
+    pub shift_id: String,
+    pub refund_count: i64,
+    pub refunded_minor: i64,
+    /// What left the drawer. The rest went back the way it came.
+    pub refunded_cash_minor: i64,
+    pub refunds: Vec<RefundView>,
+}
+
+/// One refund, as a receipt row.
+#[frb(mirror(RefundView))]
+pub struct _RefundView {
+    pub id: String,
+    pub order_id: String,
+    pub amount_minor: i64,
+    pub method: String,
+    /// `true` when it left the drawer.
+    pub is_cash: bool,
+    /// `customer_request` | `wrong_order` | `quality_issue` | `other`.
+    pub reason: String,
+    pub note: Option<String>,
+    pub issued_at: String,
+    pub issued_by_name: String,
+    /// Empty is not "no items" — it is "the whole sale".
+    pub lines: Vec<RefundLineView>,
+    /// Still in the outbox: the money went back, the server has not heard.
+    pub queued: bool,
+}
+
+#[frb(mirror(RefundLineView))]
+pub struct _RefundLineView {
+    pub item_name: String,
+    pub qty: i32,
+    pub amount_minor: i64,
+    pub restocked: bool,
+}
 
 // ── checkout / receipt DTO mirrors (madar-core/src/checkout.rs) ─────────────
 
@@ -286,6 +341,31 @@ impl MadarBridge {
     ) -> Result<(), MadarError> {
         self.inner
             .void_order(order_id, reason, note, restore_inventory)
+            .await
+            .map_err(MadarError::from)
+    }
+
+    /// What has already been given back against one sale, and what may still
+    /// be. Cached per order, with any refund still in the outbox overlaid, so
+    /// a teller offline cannot hand the same money over twice.
+    pub async fn list_order_refunds(
+        &self,
+        order_id: String,
+    ) -> Result<OrderRefundsView, MadarError> {
+        self.inner
+            .list_order_refunds(order_id)
+            .await
+            .map_err(MadarError::from)
+    }
+
+    /// Every refund issued during a shift — the Z-report's line, and why the
+    /// counted drawer is lighter than the sales say.
+    pub async fn list_shift_refunds(
+        &self,
+        shift_id: String,
+    ) -> Result<ShiftRefundsView, MadarError> {
+        self.inner
+            .list_shift_refunds(shift_id)
             .await
             .map_err(MadarError::from)
     }

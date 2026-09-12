@@ -40,6 +40,43 @@ pub(crate) fn pending_void_ids(store: &Store) -> CoreResult<HashSet<String>> {
     Ok(ids)
 }
 
+/// Refunds for one order still waiting in the outbox, newest last.
+///
+/// A refund handed over while the link is down is real: the cash left the
+/// drawer. Until it drains the server knows nothing about it, so the sale's
+/// refund list would show it as untouched and invite a second one. These rows
+/// stand in until the real ones arrive.
+pub(crate) fn pending_refunds(store: &Store, order_id: &str, teller: &str) -> CoreResult<Vec<RefundView>> {
+    let mut out = Vec::new();
+    for item in store.list_active_of_types(&["refund_order"])? {
+        let Ok(cmd) = serde_json::from_str::<RefundOrderCommand>(&item.payload) else {
+            continue;
+        };
+        if cmd.request.order_id.to_string() != order_id {
+            continue;
+        }
+        out.push(RefundView {
+            id: item.id.clone(),
+            order_id: order_id.to_string(),
+            amount_minor: i64::from(cmd.request.amount),
+            method: cmd.request.method.clone(),
+            // Unknowable here: whether a method is cash is the server's fact,
+            // and guessing it would put a wrong figure in the drawer line.
+            // The Z-report reads the SERVER's cash total; this row is only
+            // there so a teller can see the refund they just gave.
+            is_cash: false,
+            reason: format!("{:?}", cmd.request.reason).to_lowercase(),
+            note: cmd.request.note.clone().flatten().filter(|s| !s.trim().is_empty()),
+            issued_at: item.event_at.clone(),
+            issued_by_name: teller.to_string(),
+            lines: Vec::new(),
+            queued: true,
+        });
+    }
+    out.sort_by(|a, b| a.issued_at.cmp(&b.issued_at));
+    Ok(out)
+}
+
 /// A page of all-orders search results (history lookup across shifts).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -112,6 +149,125 @@ pub struct OrderDetailView {
     pub total_minor: i64,
     pub created_at: String,
     pub lines: Vec<OrderDetailLineView>,
+}
+
+/// What has already been given back against ONE sale.
+///
+/// The list is the receipt trail; the figures are what a teller needs before
+/// typing an amount. `refundable_remaining` is the server's own arithmetic,
+/// not the till's: partial refunds accumulate, and a screen that subtracted
+/// them itself would eventually disagree with the endpoint that refuses the
+/// next one.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OrderRefundsView {
+    pub order_id: String,
+    /// The sale's own status — `voided` means there is nothing left to refund.
+    pub order_status: String,
+    pub total_minor: i64,
+    /// Sum of every refund against this sale.
+    pub refunded_minor: i64,
+    /// The cash slice of it — what actually left a drawer.
+    pub refunded_cash_minor: i64,
+    /// What may still be given back. Zero on a fully refunded sale.
+    pub refundable_remaining_minor: i64,
+    pub refunds: Vec<RefundView>,
+}
+
+/// Every refund issued during one shift — the Z-report's line, and the reason
+/// the counted drawer is lighter than the sales say.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShiftRefundsView {
+    pub shift_id: String,
+    pub refund_count: i64,
+    pub refunded_minor: i64,
+    /// What left the drawer. The rest went back the way it came (card, wallet)
+    /// and never touched the cash count.
+    pub refunded_cash_minor: i64,
+    pub refunds: Vec<RefundView>,
+}
+
+/// One refund, as a receipt row.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RefundView {
+    pub id: String,
+    pub order_id: String,
+    pub amount_minor: i64,
+    /// The raw payment method name the money went back through.
+    pub method: String,
+    /// `true` when it left the drawer.
+    pub is_cash: bool,
+    /// `customer_request` | `wrong_order` | `quality_issue` | `other`.
+    pub reason: String,
+    pub note: Option<String>,
+    pub issued_at: String,
+    pub issued_by_name: String,
+    /// The lines it covered, when it was a line-level refund rather than a
+    /// flat amount. Empty is not "no items" — it is "the whole sale".
+    pub lines: Vec<RefundLineView>,
+    /// Still in the outbox: the money went back across the counter, but the
+    /// server has not acknowledged it yet. The row shows so the teller does
+    /// not hand the same refund over twice while the link is down.
+    pub queued: bool,
+}
+
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RefundLineView {
+    pub item_name: String,
+    pub qty: i32,
+    pub amount_minor: i64,
+    /// The stock went back on the shelf.
+    pub restocked: bool,
+}
+
+pub(crate) fn refund_view(r: &models::RefundFull) -> RefundView {
+    RefundView {
+        id: r.id.to_string(),
+        order_id: r.order_id.to_string(),
+        amount_minor: r.amount as i64,
+        method: r.method.clone(),
+        is_cash: r.is_cash,
+        reason: r.reason.clone(),
+        note: r.note.clone().filter(|s| !s.trim().is_empty()),
+        issued_at: r.issued_at.to_rfc3339(),
+        issued_by_name: r.issued_by_name.clone(),
+        queued: false,
+        lines: r
+            .lines
+            .iter()
+            .map(|l| RefundLineView {
+                item_name: l.item_name.clone(),
+                qty: l.quantity,
+                amount_minor: l.amount as i64,
+                restocked: l.restock,
+            })
+            .collect(),
+    }
+}
+
+pub(crate) fn order_refunds_view(r: &models::OrderRefunds) -> OrderRefundsView {
+    OrderRefundsView {
+        order_id: r.order_id.to_string(),
+        order_status: r.order_status.clone(),
+        total_minor: r.total_amount as i64,
+        refunded_minor: r.refunded_amount,
+        refunded_cash_minor: r.refunded_cash,
+        refundable_remaining_minor: r.refundable_remaining,
+        refunds: r.refunds.iter().map(refund_view).collect(),
+    }
+}
+
+pub(crate) fn shift_refunds_view(r: &models::ShiftRefunds) -> ShiftRefundsView {
+    ShiftRefundsView {
+        shift_id: r.shift_id.to_string(),
+        refund_count: r.refund_count,
+        refunded_minor: r.refunded_amount,
+        refunded_cash_minor: r.refunded_cash,
+        refunds: r.refunds.iter().map(refund_view).collect(),
+    }
 }
 
 /// Resolve a per-order snapshot name to the device locale. Every order row
@@ -674,6 +830,55 @@ mod tests {
         let ids = pending_void_ids(&store).unwrap();
         assert!(ids.contains("srv-order-1"));
         assert_eq!(ids.len(), 1);
+    }
+
+    #[test]
+    fn a_refund_handed_over_offline_shows_before_it_drains() {
+        let store = Store::open("").unwrap();
+        let order = uid(7);
+        assert!(
+            pending_refunds(&store, &order.to_string(), "Sara")
+                .unwrap()
+                .is_empty()
+        );
+
+        let mut request = models::CreateRefundRequest::new(
+            2500,
+            "cash".into(),
+            order,
+            models::RefundReason::WrongOrder,
+        );
+        request.note = Some(Some("spilled".into()));
+        let cmd = RefundOrderCommand { request };
+        store
+            .enqueue(&crate::store::NewOutboxOp {
+                id: "r1".into(),
+                op_type: "refund_order".into(),
+                idempotency_key: "r1".into(),
+                payload: serde_json::to_string(&cmd).unwrap(),
+                event_at: "2026-06-20T12:00:00+00:00".into(),
+                ..Default::default()
+            })
+            .unwrap();
+
+        let rows = pending_refunds(&store, &order.to_string(), "Sara").unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].amount_minor, 2500);
+        assert_eq!(rows[0].reason, "wrongorder");
+        assert_eq!(rows[0].note.as_deref(), Some("spilled"));
+        assert_eq!(rows[0].issued_by_name, "Sara");
+        assert!(rows[0].queued, "it has not reached the server yet");
+        assert!(
+            !rows[0].is_cash,
+            "whether a method is cash is the server's fact, never guessed here"
+        );
+
+        // Another order's refund is not this order's.
+        assert!(
+            pending_refunds(&store, &uid(8).to_string(), "Sara")
+                .unwrap()
+                .is_empty()
+        );
     }
 
     // ---- builders for the wire models ----------------------------------

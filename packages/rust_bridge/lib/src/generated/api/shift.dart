@@ -137,6 +137,17 @@ class ShiftReportView {
   final PlatformInt64 totalPaymentsMinor;
   final PlatformInt64 netPaymentsMinor;
   final PlatformInt64 voidedAmountMinor;
+
+  /// Refunds issued FROM THIS DRAWER — money out. The cash slice is the
+  /// only part expected cash subtracts; the rest went back the way it came.
+  final PlatformInt64 refundsIssuedMinor;
+  final PlatformInt64 refundsIssuedCashMinor;
+  final PlatformInt64 refundsIssuedCount;
+
+  /// Cash taken on this shift's sales that were later fully refunded. Not
+  /// revenue, but the notes did go into the drawer, so expected cash counts
+  /// them and the report adds up.
+  final PlatformInt64 cashInRefundedSalesMinor;
   final PlatformInt64 cashMovementsNetMinor;
 
   /// Pay-in / pay-out drawer totals (separate, not just the net) — Z-report depth.
@@ -165,6 +176,10 @@ class ShiftReportView {
     required this.totalPaymentsMinor,
     required this.netPaymentsMinor,
     required this.voidedAmountMinor,
+    required this.refundsIssuedMinor,
+    required this.refundsIssuedCashMinor,
+    required this.refundsIssuedCount,
+    required this.cashInRefundedSalesMinor,
     required this.cashMovementsNetMinor,
     required this.cashInMinor,
     required this.cashOutMinor,
@@ -189,6 +204,10 @@ class ShiftReportView {
       totalPaymentsMinor.hashCode ^
       netPaymentsMinor.hashCode ^
       voidedAmountMinor.hashCode ^
+      refundsIssuedMinor.hashCode ^
+      refundsIssuedCashMinor.hashCode ^
+      refundsIssuedCount.hashCode ^
+      cashInRefundedSalesMinor.hashCode ^
       cashMovementsNetMinor.hashCode ^
       cashInMinor.hashCode ^
       cashOutMinor.hashCode ^
@@ -215,6 +234,10 @@ class ShiftReportView {
           totalPaymentsMinor == other.totalPaymentsMinor &&
           netPaymentsMinor == other.netPaymentsMinor &&
           voidedAmountMinor == other.voidedAmountMinor &&
+          refundsIssuedMinor == other.refundsIssuedMinor &&
+          refundsIssuedCashMinor == other.refundsIssuedCashMinor &&
+          refundsIssuedCount == other.refundsIssuedCount &&
+          cashInRefundedSalesMinor == other.cashInRefundedSalesMinor &&
           cashMovementsNetMinor == other.cashMovementsNetMinor &&
           cashInMinor == other.cashInMinor &&
           cashOutMinor == other.cashOutMinor &&

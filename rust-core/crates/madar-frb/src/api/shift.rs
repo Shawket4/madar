@@ -93,6 +93,15 @@ pub struct _ShiftReportView {
     pub total_payments_minor: i64,
     pub net_payments_minor: i64,
     pub voided_amount_minor: i64,
+    /// Refunds issued FROM THIS DRAWER — money out. The cash slice is the
+    /// only part expected cash subtracts; the rest went back the way it came.
+    pub refunds_issued_minor: i64,
+    pub refunds_issued_cash_minor: i64,
+    pub refunds_issued_count: i64,
+    /// Cash taken on this shift's sales that were later fully refunded. Not
+    /// revenue, but the notes did go into the drawer, so expected cash counts
+    /// them and the report adds up.
+    pub cash_in_refunded_sales_minor: i64,
     pub cash_movements_net_minor: i64,
     /// Pay-in / pay-out drawer totals (separate, not just the net) — Z-report depth.
     pub cash_in_minor: i64,

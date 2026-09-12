@@ -584,10 +584,12 @@ Diagnostics › `coreVersion()`, `baseUrl()`, `environment()`, `clockSkewMinutes
 Each is "server has it / core lacks it" unless noted. Builders do not wait on these; the
 substitutes above are what ships in the morning.
 
-1. **Refunds** — the whole §2.10 sheet. Needs a core op (`create_refund`, outbox-first, `client_ref`
-   idempotent), `list_order_refunds` on the sale, `list_shift_refunds` for the Z, and
-   `compute_system_cash` subtracting cash refunds. Largest item; the design's Refund/Void split is
-   the books-are-honest story.
+1. ~~**Refunds**~~ — DONE, end to end. `refundOrder` (outbox-first, `client_ref` idempotent, the
+   issuing shift travelling with it), `listOrderRefunds` on the sale (cached, with refunds still
+   in the outbox overlaid so a teller offline cannot hand the same money over twice),
+   `listShiftRefunds`, and the Z-report's own returns lines on screen AND on paper
+   (`refundsIssuedMinor` / `refundsIssuedCashMinor` / `cashInRefundedSalesMinor`).
+   `compute_system_cash` subtracts cash refunds server-side.
 2. **Line void** — server work first (no route). Not a core ask yet.
 3. ~~**Kitchen routing mode**~~ — DONE. `kitchen_routing_mode()` reads `get_routing_mode →
    effective` write-through cached in kv and refreshed on every `sync_now`;
@@ -602,12 +604,16 @@ substitutes above are what ships in the morning.
    `preparingAt` and a computed `promisedReadyAt` (acceptance + branch base + the teller's
    extra, clamped forward, dropped once `readyAt` exists). The base prep time is cached in kv
    when the settings are read, so the promise survives going offline.
-7. **Force-close** — `force_close_shift(shift_id, reason)` for the manager's drawer page. Small.
-8. **Cash movement `kind` + `corrects_id`** — `recordCashMovement(kind, correctsId)` and
-   `CashMovementView.kind/correctsId`. Small; makes the Till's chips and *Correct ›* real.
-9. **`TicketView` totals** — project `OpenTicketView.bill` (`TicketBill`) into `TicketView`
-   (`discountMinor, serviceChargeMinor, taxMinor, totalMinor, taxInclusive, serviceChargeRate`).
-   Projection only, but it is what makes the Bill screen and a bill's Charge show a true TOTAL.
+7. ~~**Force-close**~~ — DONE. `forceCloseShift(shiftId, reason)`, online-only with a required
+   reason.
+8. ~~**Cash movement `kind` + `corrects_id`**~~ — DONE. `recordCashMovement(kind:, corrects:)`.
+9. ~~**`TicketView` totals**~~ — DONE. `TicketView.bill` (`TicketBillView`) carries the server's
+   own figures, and the bill's Charge collects the TOTAL rather than the subtotal.
+
+Still open, both SERVER work before the core can be asked for anything:
+
+- **Line void** — no route exists.
+- **`order_type: takeaway`** — a server rule and a request field, then `checkout` passes it.
    **Recommend doing this first** — it is the most visible dishonesty in the shipping app too.
 10. **Loyalty programme flag** — expose `loyalty_settings.enabled` + `mode` (+ `program_name`) if
     the till's role may read `get_loyalty_settings`; else add it to the login/`me` payload.

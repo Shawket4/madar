@@ -228,6 +228,56 @@ class OrderDetailView {
           lines == other.lines;
 }
 
+/// What has already been given back against one sale.
+class OrderRefundsView {
+  final String orderId;
+
+  /// The sale's own status — `voided` means there is nothing left to refund.
+  final String orderStatus;
+  final PlatformInt64 totalMinor;
+  final PlatformInt64 refundedMinor;
+
+  /// The cash slice of it — what actually left a drawer.
+  final PlatformInt64 refundedCashMinor;
+
+  /// What may still be given back. The server's arithmetic, not the till's.
+  final PlatformInt64 refundableRemainingMinor;
+  final List<RefundView> refunds;
+
+  const OrderRefundsView({
+    required this.orderId,
+    required this.orderStatus,
+    required this.totalMinor,
+    required this.refundedMinor,
+    required this.refundedCashMinor,
+    required this.refundableRemainingMinor,
+    required this.refunds,
+  });
+
+  @override
+  int get hashCode =>
+      orderId.hashCode ^
+      orderStatus.hashCode ^
+      totalMinor.hashCode ^
+      refundedMinor.hashCode ^
+      refundedCashMinor.hashCode ^
+      refundableRemainingMinor.hashCode ^
+      refunds.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OrderRefundsView &&
+          runtimeType == other.runtimeType &&
+          orderId == other.orderId &&
+          orderStatus == other.orderStatus &&
+          totalMinor == other.totalMinor &&
+          refundedMinor == other.refundedMinor &&
+          refundedCashMinor == other.refundedCashMinor &&
+          refundableRemainingMinor == other.refundableRemainingMinor &&
+          refunds == other.refunds;
+}
+
 /// A page of all-orders search results (history lookup across shifts).
 class OrderSearchPage {
   final List<OrderSummaryView> orders;
@@ -597,4 +647,141 @@ class ReceiptView {
           deliveryNotes == other.deliveryNotes &&
           queuedOffline == other.queuedOffline &&
           createdAt == other.createdAt;
+}
+
+class RefundLineView {
+  final String itemName;
+  final int qty;
+  final PlatformInt64 amountMinor;
+  final bool restocked;
+
+  const RefundLineView({
+    required this.itemName,
+    required this.qty,
+    required this.amountMinor,
+    required this.restocked,
+  });
+
+  @override
+  int get hashCode =>
+      itemName.hashCode ^
+      qty.hashCode ^
+      amountMinor.hashCode ^
+      restocked.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RefundLineView &&
+          runtimeType == other.runtimeType &&
+          itemName == other.itemName &&
+          qty == other.qty &&
+          amountMinor == other.amountMinor &&
+          restocked == other.restocked;
+}
+
+/// One refund, as a receipt row.
+class RefundView {
+  final String id;
+  final String orderId;
+  final PlatformInt64 amountMinor;
+  final String method;
+
+  /// `true` when it left the drawer.
+  final bool isCash;
+
+  /// `customer_request` | `wrong_order` | `quality_issue` | `other`.
+  final String reason;
+  final String? note;
+  final String issuedAt;
+  final String issuedByName;
+
+  /// Empty is not "no items" — it is "the whole sale".
+  final List<RefundLineView> lines;
+
+  /// Still in the outbox: the money went back, the server has not heard.
+  final bool queued;
+
+  const RefundView({
+    required this.id,
+    required this.orderId,
+    required this.amountMinor,
+    required this.method,
+    required this.isCash,
+    required this.reason,
+    this.note,
+    required this.issuedAt,
+    required this.issuedByName,
+    required this.lines,
+    required this.queued,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      orderId.hashCode ^
+      amountMinor.hashCode ^
+      method.hashCode ^
+      isCash.hashCode ^
+      reason.hashCode ^
+      note.hashCode ^
+      issuedAt.hashCode ^
+      issuedByName.hashCode ^
+      lines.hashCode ^
+      queued.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RefundView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          orderId == other.orderId &&
+          amountMinor == other.amountMinor &&
+          method == other.method &&
+          isCash == other.isCash &&
+          reason == other.reason &&
+          note == other.note &&
+          issuedAt == other.issuedAt &&
+          issuedByName == other.issuedByName &&
+          lines == other.lines &&
+          queued == other.queued;
+}
+
+/// Every refund issued during one shift — the Z-report's line.
+class ShiftRefundsView {
+  final String shiftId;
+  final PlatformInt64 refundCount;
+  final PlatformInt64 refundedMinor;
+
+  /// What left the drawer. The rest went back the way it came.
+  final PlatformInt64 refundedCashMinor;
+  final List<RefundView> refunds;
+
+  const ShiftRefundsView({
+    required this.shiftId,
+    required this.refundCount,
+    required this.refundedMinor,
+    required this.refundedCashMinor,
+    required this.refunds,
+  });
+
+  @override
+  int get hashCode =>
+      shiftId.hashCode ^
+      refundCount.hashCode ^
+      refundedMinor.hashCode ^
+      refundedCashMinor.hashCode ^
+      refunds.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ShiftRefundsView &&
+          runtimeType == other.runtimeType &&
+          shiftId == other.shiftId &&
+          refundCount == other.refundCount &&
+          refundedMinor == other.refundedMinor &&
+          refundedCashMinor == other.refundedCashMinor &&
+          refunds == other.refunds;
 }

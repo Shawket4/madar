@@ -287,6 +287,18 @@ pub struct ShiftReportView {
     pub total_payments_minor: i64,
     pub net_payments_minor: i64,
     pub voided_amount_minor: i64,
+    /// Refunds ISSUED FROM THIS DRAWER — money out, keyed on the refund's own
+    /// shift, which need not be the shift that made the sale. `*_cash_minor`
+    /// is the slice that left the drawer and the only part `expected_cash`
+    /// subtracts; the rest went back the way it came.
+    pub refunds_issued_minor: i64,
+    pub refunds_issued_cash_minor: i64,
+    pub refunds_issued_count: i64,
+    /// Cash taken on this shift's sales that were later fully refunded. The
+    /// payment lines leave those sales out — they are revenue, and the sale
+    /// was undone — but the notes DID go into the drawer, so expected cash
+    /// counts them. Without this line the report does not add up.
+    pub cash_in_refunded_sales_minor: i64,
     pub cash_movements_net_minor: i64,
     /// Pay-in / pay-out drawer totals (separate, not just the net) — Z-report depth.
     pub cash_in_minor: i64,
@@ -334,6 +346,12 @@ pub(crate) fn report_view(
         total_payments_minor: report.total_payments,
         net_payments_minor: report.net_payments,
         voided_amount_minor: report.voided_amount,
+        // `#[serde(default)]` on the wire: a server older than refunds simply
+        // reports nothing given back, which is what it means.
+        refunds_issued_minor: report.refunds_issued_amount.unwrap_or(0),
+        refunds_issued_cash_minor: report.refunds_issued_cash.unwrap_or(0),
+        refunds_issued_count: report.refunds_issued_count.unwrap_or(0),
+        cash_in_refunded_sales_minor: report.cash_in_refunded_sales.unwrap_or(0),
         cash_movements_net_minor: report.cash_movements_net,
         cash_in_minor: report.cash_movements_in,
         cash_out_minor: report.cash_movements_out,
@@ -396,6 +414,13 @@ pub(crate) fn offline_report_view(
         total_payments_minor: 0,
         net_payments_minor: 0,
         voided_amount_minor: 0,
+        // Offline the server's figures are unavailable, and a refund queued
+        // locally has not been priced into anything yet. Zero here is honest:
+        // this fallback reports the drawer, not the books.
+        refunds_issued_minor: 0,
+        refunds_issued_cash_minor: 0,
+        refunds_issued_count: 0,
+        cash_in_refunded_sales_minor: 0,
         cash_movements_net_minor: cash_in - cash_out,
         cash_in_minor: cash_in,
         cash_out_minor: cash_out,

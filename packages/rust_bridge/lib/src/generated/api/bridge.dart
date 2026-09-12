@@ -424,6 +424,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// `status = "queued"` — offline-first visibility before the fire syncs.
   Future<List<TicketView>> listOpenTickets();
 
+  /// What has already been given back against one sale, and what may still
+  /// be. Cached per order, with any refund still in the outbox overlaid, so
+  /// a teller offline cannot hand the same money over twice.
+  Future<OrderRefundsView> listOrderRefunds({required String orderId});
+
   /// A PAST shift's synced orders (history-screen expansion). Live when
   /// online, else the last-synced snapshot.
   Future<List<OrderSummaryView>> listOrdersForShift({required String shiftId});
@@ -437,6 +442,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The current shift's orders — still-queued sales (offline-safe) plus
   /// the server's synced orders when online (best-effort).
   Future<List<OrderSummaryView>> listShiftOrders();
+
+  /// Every refund issued during a shift — the Z-report's line, and why the
+  /// counted drawer is lighter than the sales say.
+  Future<ShiftRefundsView> listShiftRefunds({required String shiftId});
 
   /// Past shifts for this branch, newest first (the history screen). Live when
   /// online (cached write-through), else the last-synced snapshot.

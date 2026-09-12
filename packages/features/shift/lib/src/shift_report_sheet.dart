@@ -241,6 +241,35 @@ class ShiftReportBreakdown extends StatelessWidget {
             tone: p.negative,
             palette: p,
           ),
+        // Money GIVEN BACK from this drawer. A void says a sale never
+        // happened; a refund says it did and some of the money went out
+        // again — so it is its own line, and the cash slice is broken out
+        // because that is the only part the drawer count can see.
+        if (report.refundsIssuedMinor > 0) ...[
+          _TotalRow(
+            label: '${tr('shift.refunds')} (${report.refundsIssuedCount})',
+            value: '−${_money(report.refundsIssuedMinor)}',
+            tone: p.negative,
+            palette: p,
+          ),
+          if (report.refundsIssuedCashMinor != report.refundsIssuedMinor)
+            _TotalRow(
+              label: tr('shift.refunds_cash'),
+              value: '−${_money(report.refundsIssuedCashMinor)}',
+              tone: p.soft,
+              palette: p,
+            ),
+        ],
+        // The notes that went in on a sale later refunded in full. Not
+        // revenue — the payment lines rightly leave it out — but it is in
+        // the drawer, and without this line Expected cash does not add up.
+        if (report.cashInRefundedSalesMinor > 0)
+          _TotalRow(
+            label: tr('shift.cash_in_refunded'),
+            value: _money(report.cashInRefundedSalesMinor),
+            tone: p.soft,
+            palette: p,
+          ),
         _Rule(color: p.rule),
         _TotalRow(
           label: tr('shift.payments'),

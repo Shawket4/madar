@@ -341,6 +341,9 @@ pub struct ShiftReportLabels {
     pub short_by: String,
     pub over_by: String,
     pub voided: String,
+    pub refunds: String,
+    pub refunds_cash: String,
+    pub cash_in_refunded: String,
     pub transactions: String,
     pub end_of_report: String,
     pub cash_moves: String,
@@ -445,6 +448,31 @@ pub fn layout_shift_report(
         out.push(Line::plain(row(
             &labels.voided,
             &money(report.voided_amount_minor, cur),
+            w,
+        )));
+    }
+    // Money given back from this drawer, on the paper as on the screen. A
+    // Z-report the teller signs must name the returns; a drawer that is light
+    // by the day's refunds and says nothing about them reads as a shortage.
+    if report.refunds_issued_minor > 0 {
+        out.push(Line::plain(divider(w)));
+        out.push(Line::plain(row(
+            &format!("{} ({})", labels.refunds, report.refunds_issued_count),
+            &money(-report.refunds_issued_minor, cur),
+            w,
+        )));
+        if report.refunds_issued_cash_minor != report.refunds_issued_minor {
+            out.push(Line::plain(row(
+                &labels.refunds_cash,
+                &money(-report.refunds_issued_cash_minor, cur),
+                w,
+            )));
+        }
+    }
+    if report.cash_in_refunded_sales_minor > 0 {
+        out.push(Line::plain(row(
+            &labels.cash_in_refunded,
+            &money(report.cash_in_refunded_sales_minor, cur),
             w,
         )));
     }
@@ -731,6 +759,10 @@ mod tests {
             total_payments_minor: 8000,
             net_payments_minor: 8000,
             voided_amount_minor: 500,
+            refunds_issued_minor: 0,
+            refunds_issued_cash_minor: 0,
+            refunds_issued_count: 0,
+            cash_in_refunded_sales_minor: 0,
             cash_movements_net_minor: 1000,
             cash_in_minor: 3000,
             cash_out_minor: 2000,
@@ -777,6 +809,71 @@ mod tests {
             .any(|l| l.text.starts_with("Cash out") && l.text.ends_with("-20.00 EGP")));
         // Itemised movements: the noted one shows its note, the blank one the name.
         assert!(joined.contains("float") && joined.contains("Mona"));
+    }
+
+    #[test]
+    fn the_z_report_names_what_went_back() {
+        let mut report = z_report();
+        report.refunds_issued_minor = 4500;
+        report.refunds_issued_cash_minor = 2500;
+        report.refunds_issued_count = 2;
+        report.cash_in_refunded_sales_minor = 1200;
+        let joined: String = layout_shift_report(&report, "Cafe Madar", "EGP", 32, &z_labels())
+            .iter()
+            .map(|l| l.text.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+        // Two refunds, forty-five given back, twenty-five of it out of the
+        // drawer — a teller signing this can see why the notes are light.
+        assert!(joined.contains("Refunds (2)"), "{joined}");
+        assert!(joined.contains("-45.00 EGP"), "{joined}");
+        assert!(joined.contains("Refunds in cash"), "{joined}");
+        assert!(joined.contains("-25.00 EGP"), "{joined}");
+        // And the notes taken on a sale later refunded in full, which the
+        // payment lines leave out but the drawer still holds.
+        assert!(joined.contains("Cash on refunded sales"), "{joined}");
+        assert!(joined.contains("12.00 EGP"), "{joined}");
+    }
+
+    #[test]
+    fn a_shift_with_no_refunds_says_nothing_about_them() {
+        let joined: String = layout_shift_report(&z_report(), "Cafe Madar", "EGP", 32, &z_labels())
+            .iter()
+            .map(|l| l.text.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!joined.contains("Refunds"), "an empty line is noise");
+    }
+
+    /// A minimal report with no refunds — the two tests above differ only in
+    /// what they give back.
+    fn z_report() -> ShiftReportView {
+        ShiftReportView {
+            teller_name: "Mona".into(),
+            opened_at: "t".into(),
+            closed_at: None,
+            printed_at: "t".into(),
+            is_open: true,
+            opening_cash_was_edited: false,
+            opening_cash_original_minor: None,
+            opening_cash_edit_reason: None,
+            closing_cash_declared_minor: None,
+            expected_cash_minor: 15000,
+            opening_cash_minor: 10000,
+            total_payments_minor: 8000,
+            net_payments_minor: 8000,
+            voided_amount_minor: 0,
+            refunds_issued_minor: 0,
+            refunds_issued_cash_minor: 0,
+            refunds_issued_count: 0,
+            cash_in_refunded_sales_minor: 0,
+            cash_movements_net_minor: 0,
+            cash_in_minor: 0,
+            cash_out_minor: 0,
+            payment_lines: Vec::new(),
+            cash_movements: Vec::new(),
+            from_server: true,
+        }
     }
 
     fn ctx() -> EscPosCtx {
@@ -1580,6 +1677,9 @@ mod tests {
             short_by: "Short by".into(),
             over_by: "Over by".into(),
             voided: "Voided".into(),
+            refunds: "Refunds".into(),
+            refunds_cash: "Refunds in cash".into(),
+            cash_in_refunded: "Cash on refunded sales".into(),
             transactions: "Transactions".into(),
             end_of_report: "End of Report".into(),
             cash_moves: "Cash moves".into(),
@@ -1603,6 +1703,10 @@ mod tests {
             total_payments_minor: 0,
             net_payments_minor: 0,
             voided_amount_minor: 0,
+            refunds_issued_minor: 0,
+            refunds_issued_cash_minor: 0,
+            refunds_issued_count: 0,
+            cash_in_refunded_sales_minor: 0,
             cash_movements_net_minor: 0,
             cash_in_minor: 0,
             cash_out_minor: 0,

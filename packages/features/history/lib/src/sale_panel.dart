@@ -214,6 +214,90 @@ class MoreTile extends ConsumerWidget {
   }
 }
 
+/// What has already gone back on this sale.
+///
+/// Drawn before the actions, not after: a teller about to give money back
+/// needs to know what was given back already, and the number that matters is
+/// what is LEFT, which is the server's arithmetic rather than this screen's.
+class _RefundedBlock extends StatelessWidget {
+  const _RefundedBlock({
+    required this.refunds,
+    required this.currency,
+    required this.t,
+  });
+
+  final OrderRefundsView refunds;
+  final String currency;
+  final String Function(String) t;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final remaining = refunds.refundableRemainingMinor;
+    return Container(
+      padding: const EdgeInsetsDirectional.all(Space.md),
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(Radii.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.sm,
+        children: [
+          Row(
+            spacing: Space.sm,
+            children: [
+              Expanded(
+                child: Text(
+                  t('history.refunded'),
+                  style: MadarType.title.copyWith(color: colors.textPrimary),
+                ),
+              ),
+              Text(
+                '− ${Money.format(refunds.refundedMinor, currency: currency)}',
+                style: MadarType.money.copyWith(color: colors.danger),
+              ),
+            ],
+          ),
+          for (final r in refunds.refunds)
+            Row(
+              spacing: Space.sm,
+              children: [
+                Expanded(
+                  child: Text(
+                    [
+                      r.issuedByName,
+                      r.method,
+                      if (r.queued) t('history.refund_queued'),
+                    ].where((p) => p.isNotEmpty).join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.bodySm.copyWith(
+                      color: r.queued ? colors.warning : colors.textSecondary,
+                    ),
+                  ),
+                ),
+                Text(
+                  Money.format(r.amountMinor, currency: currency),
+                  style: MadarType.num.copyWith(color: colors.textSecondary),
+                ),
+              ],
+            ),
+          Text(
+            remaining <= 0
+                ? t('history.refund_all')
+                : t('history.refund_left').replaceAll(
+                    '{amount}',
+                    Money.format(remaining, currency: currency),
+                  ),
+            style: MadarType.bodySm.copyWith(color: colors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// "19:31 · dine-in · Sara · Cash · Omar". On the phone the number is in
 /// the header, so the time leads here as well.
 class _MetaLine extends StatelessWidget {
@@ -422,6 +506,10 @@ class _Actions extends ConsumerWidget {
     final o = order;
     final state = SaleState.of(o);
     final canReprint = state != SaleState.queued && state != SaleState.failed;
+    final refunds = ref.watch(historyProvider.select((s) => s.refunds));
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
     final canAward =
         ref.watch(historyProvider.select((s) => s.loyaltyOffered)) &&
         state != SaleState.voided &&
@@ -477,6 +565,10 @@ class _Actions extends ConsumerWidget {
                   ),
               ],
             ),
+          // What has already gone back on this sale, before anything is
+          // offered about giving more back.
+          if (refunds != null && refunds.refundedMinor > 0)
+            _RefundedBlock(refunds: refunds, currency: currency, t: t),
           if (state != SaleState.voided)
             Container(
               padding: const EdgeInsetsDirectional.all(Space.md),
@@ -616,6 +708,16 @@ class _MoreSheet extends ConsumerWidget {
       SaleState.failed => t('history.void_cannot_failed'),
       null => null,
     };
+    // And the one Void does not share: a sale already given back in full has
+    // nothing left to refund. The server refuses it; saying so here saves the
+    // teller typing an amount in front of a customer first.
+    final refundBlocked =
+        blocked ??
+        switch (ref.watch(historyProvider.select((s) => s.refunds))) {
+          final r? when r.orderId == o.id && r.refundableRemainingMinor <= 0 =>
+            t('history.refund_all'),
+          _ => null,
+        };
 
     return Padding(
       padding: const EdgeInsetsDirectional.all(Space.xl),
@@ -678,16 +780,16 @@ class _MoreSheet extends ConsumerWidget {
           MadarCard(
             flush: true,
             child: Opacity(
-              opacity: blocked == null ? 1 : Opacities.disabled,
+              opacity: refundBlocked == null ? 1 : Opacities.disabled,
               child: MadarRow(
                 title: t('history.refund_sale'),
-                subtitle: blocked ?? t('history.refund_teach'),
+                subtitle: refundBlocked ?? t('history.refund_teach'),
                 glyph: MadarGlyph.receipt,
-                onTap: blocked == null
+                onTap: refundBlocked == null
                     ? () =>
                           Navigator.of(context).maybePop(_MoreChoice.refundSale)
                     : null,
-                chevron: blocked == null,
+                chevron: refundBlocked == null,
                 titleStyle: MadarType.title.copyWith(
                   color: colors.textPrimary,
                 ),
@@ -817,6 +919,25 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
   bool _busy = false;
   String? _error;
 
+  /// What the SERVER says is still refundable, once earlier refunds are
+  /// counted. Null while it loads, or when nothing could be read — the
+  /// endpoint checks again anyway, so the sale's total is a safe start.
+  int? _remainingMinor;
+
+  int get _cap => _remainingMinor ?? widget.order.totalMinor;
+
+  @override
+  void initState() {
+    super.initState();
+    // The panel usually has this already; asking again costs a cached read
+    // and covers the sheet being opened from somewhere that did not.
+    final prior = ref.read(historyProvider).refunds;
+    if (prior != null && prior.orderId == widget.order.id) {
+      _remainingMinor = prior.refundableRemainingMinor;
+      _amountMinor = prior.refundableRemainingMinor;
+    }
+  }
+
   @override
   void dispose() {
     _note.dispose();
@@ -827,7 +948,9 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
     final bridge = ref.read(bridgeProvider);
     final minor = _amountMinor;
     if (minor <= 0) return;
-    if (minor > widget.order.totalMinor) {
+    // Against what is LEFT, not against the sale: a second refund on a sale
+    // already half given back is over by half, and the server refuses it.
+    if (minor > _cap) {
       setState(() => _error = historyTr(bridge, 'history.refund_over'));
       return;
     }
@@ -897,8 +1020,21 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
                             ),
                           ),
                           Text(
-                            '${saleTitle(bridge, o)}'
-                            ' · ${Money.format(o.totalMinor, currency: currency)}',
+                            [
+                              saleTitle(bridge, o),
+                              Money.format(o.totalMinor, currency: currency),
+                              // What is left, whenever it differs from the
+                              // sale — the figure this sheet is bounded by.
+                              if (_remainingMinor case final left?
+                                  when left != o.totalMinor && left <= 0)
+                                t('history.refund_all'),
+                              if (_remainingMinor case final left?
+                                  when left != o.totalMinor && left > 0)
+                                t('history.refund_left').replaceAll(
+                                  '{amount}',
+                                  Money.format(left, currency: currency),
+                                ),
+                            ].join(' · '),
                             style: MadarType.bodySm.copyWith(
                               color: colors.textSecondary,
                             ),

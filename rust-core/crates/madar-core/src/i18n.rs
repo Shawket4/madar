@@ -444,6 +444,9 @@ fn en(key: &str) -> Option<&'static str> {
         // Z-report (printed shift report)
         "shift.report_title" => "Shift Report",
         "shift.payments" => "Payments",
+        "shift.refunds" => "Refunds",
+        "shift.refunds_cash" => "Refunds in cash",
+        "shift.cash_in_refunded" => "Cash on refunded sales",
         "shift.cash_moves" => "Cash in/out",
         "shift.cash_in" => "Cash in",
         "shift.cash_out" => "Cash out",
@@ -719,9 +722,11 @@ fn en(key: &str) -> Option<&'static str> {
         "history.retry" => "Try again",
         "history.void_sale" => "Void sale",
         "history.void_teach" => "Void removes a mistaken sale as if it never happened.",
-        "history.refund_teach" => {
-            "Returning money on a sale that stands is a refund — the server does not offer refunds yet."
-        }
+        "history.refund_teach" => "Refund returns money on a sale that stands.",
+        "history.refunded" => "Refunded",
+        "history.refund_left" => "{amount} left to refund",
+        "history.refund_all" => "Already refunded in full.",
+        "history.refund_queued" => "Waiting to send",
         "history.void_cannot_queued" => {
             "A queued sale cannot be voided until it reaches the server."
         }
@@ -1196,6 +1201,9 @@ fn ar(key: &str) -> Option<&'static str> {
         // Z-report (printed shift report)
         "shift.report_title" => "تقرير الوردية",
         "shift.payments" => "المدفوعات",
+        "shift.refunds" => "المبالغ المستردة",
+        "shift.refunds_cash" => "المسترد نقداً",
+        "shift.cash_in_refunded" => "نقد مبيعات مستردة",
         "shift.cash_moves" => "إيداع/سحب",
         "shift.cash_in" => "إيداع نقدي",
         "shift.cash_out" => "سحب نقدي",
@@ -1461,9 +1469,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "history.retry" => "أعد المحاولة",
         "history.void_sale" => "إبطال البيع",
         "history.void_teach" => "الإبطال يزيل عملية بيع خاطئة كأنها لم تحدث.",
-        "history.refund_teach" => {
-            "إرجاع المال مع بقاء عملية البيع هو استرداد — والخادم لا يدعم الاسترداد بعد."
-        }
+        "history.refund_teach" => "الاسترداد يرجع المال مع بقاء عملية البيع.",
+        "history.refunded" => "مُسترد",
+        "history.refund_left" => "متبقٍ للاسترداد {amount}",
+        "history.refund_all" => "تم استرداد المبلغ بالكامل.",
+        "history.refund_queued" => "بانتظار الإرسال",
         "history.void_cannot_queued" => "لا يمكن إبطال عملية في الانتظار قبل وصولها إلى الخادم.",
         "history.void_cannot_voided" => "أُبطلت بالفعل.",
         "history.void_cannot_failed" => "لم تصل عملية البيع هذه إلى الخادم؛ لا شيء لإبطاله.",

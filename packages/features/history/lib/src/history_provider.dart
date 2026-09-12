@@ -86,6 +86,7 @@ class HistoryState {
     this.selectedId,
     this.detail,
     this.receipt,
+    this.refunds,
     this.detailLoading = false,
     this.toast,
     this.filtered = const [],
@@ -150,6 +151,10 @@ class HistoryState {
   /// does not (service, tip, change) and is what Reprint prints.
   final ReceiptView? receipt;
 
+  /// What has already been given back against [selectedId], and what may
+  /// still be. Null while it loads or when nothing could be fetched.
+  final OrderRefundsView? refunds;
+
   /// The detail fetch for [selectedId] is in flight.
   final bool detailLoading;
 
@@ -191,6 +196,7 @@ class HistoryState {
     Object? selectedId = _unset,
     Object? detail = _unset,
     Object? receipt = _unset,
+    Object? refunds = _unset,
     bool? detailLoading,
     Object? toast = _unset,
     List<OrderSummaryView>? filtered,
@@ -215,6 +221,9 @@ class HistoryState {
           ? this.selectedId
           : selectedId as String?,
       detail: detail == _unset ? this.detail : detail as OrderDetailView?,
+      refunds: refunds == _unset
+          ? this.refunds
+          : refunds as OrderRefundsView?,
       receipt: receipt == _unset ? this.receipt : receipt as ReceiptView?,
       detailLoading: detailLoading ?? this.detailLoading,
       toast: toast == _unset ? this.toast : toast as ToastData?,
@@ -437,6 +446,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
       selectedId: order.id,
       detail: null,
       receipt: null,
+      refunds: null,
       detailLoading: !order.queued,
     );
     if (!order.queued) unawaited(_loadDetail(order.id));
@@ -448,6 +458,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
       selectedId: null,
       detail: null,
       receipt: null,
+      refunds: null,
       detailLoading: false,
     );
   }
@@ -461,12 +472,20 @@ class HistoryNotifier extends Notifier<HistoryState> {
         .orderReceiptView(orderId: id)
         .then<ReceiptView?>((r) => r)
         .onError<MadarError>((_, _) => null);
+    // What was already given back, so the panel can say so and the refund
+    // sheet can default to the remainder rather than the full total.
+    final refundsF = _bridge
+        .listOrderRefunds(orderId: id)
+        .then<OrderRefundsView?>((r) => r)
+        .onError<MadarError>((_, _) => null);
     final detail = await detailF;
     final receipt = await receiptF;
+    final refunds = await refundsF;
     if (!_alive || state.selectedId != id) return;
     state = state.copyWith(
       detail: detail,
       receipt: receipt,
+      refunds: refunds,
       detailLoading: false,
     );
   }
@@ -477,7 +496,12 @@ class HistoryNotifier extends Notifier<HistoryState> {
     final id = state.selectedId;
     await load();
     if (!_alive || id == null || state.selectedId != id) return;
-    state = state.copyWith(detail: null, receipt: null, detailLoading: true);
+    state = state.copyWith(
+      detail: null,
+      receipt: null,
+      refunds: null,
+      detailLoading: true,
+    );
     await _loadDetail(id);
   }
 

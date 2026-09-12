@@ -403,6 +403,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<RecipeStepView> dco_decode_list_recipe_step_view(dynamic raw);
 
   @protected
+  List<RefundLineView> dco_decode_list_refund_line_view(dynamic raw);
+
+  @protected
+  List<RefundView> dco_decode_list_refund_view(dynamic raw);
+
+  @protected
   List<ShiftReportCashLine> dco_decode_list_shift_report_cash_line(dynamic raw);
 
   @protected
@@ -512,6 +518,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   OrderDetailView dco_decode_order_detail_view(dynamic raw);
 
   @protected
+  OrderRefundsView dco_decode_order_refunds_view(dynamic raw);
+
+  @protected
   OrderSearchPage dco_decode_order_search_page(dynamic raw);
 
   @protected
@@ -548,7 +557,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   RecipeStepView dco_decode_recipe_step_view(dynamic raw);
 
   @protected
+  RefundLineView dco_decode_refund_line_view(dynamic raw);
+
+  @protected
+  RefundView dco_decode_refund_view(dynamic raw);
+
+  @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
+
+  @protected
+  ShiftRefundsView dco_decode_shift_refunds_view(dynamic raw);
 
   @protected
   ShiftReportCashLine dco_decode_shift_report_cash_line(dynamic raw);
@@ -1075,6 +1093,14 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<RefundLineView> sse_decode_list_refund_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<RefundView> sse_decode_list_refund_view(SseDeserializer deserializer);
+
+  @protected
   List<ShiftReportCashLine> sse_decode_list_shift_report_cash_line(
     SseDeserializer deserializer,
   );
@@ -1218,6 +1244,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   OrderDetailView sse_decode_order_detail_view(SseDeserializer deserializer);
 
   @protected
+  OrderRefundsView sse_decode_order_refunds_view(SseDeserializer deserializer);
+
+  @protected
   OrderSearchPage sse_decode_order_search_page(SseDeserializer deserializer);
 
   @protected
@@ -1260,7 +1289,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   RecipeStepView sse_decode_recipe_step_view(SseDeserializer deserializer);
 
   @protected
+  RefundLineView sse_decode_refund_line_view(SseDeserializer deserializer);
+
+  @protected
+  RefundView sse_decode_refund_view(SseDeserializer deserializer);
+
+  @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
+
+  @protected
+  ShiftRefundsView sse_decode_shift_refunds_view(SseDeserializer deserializer);
 
   @protected
   ShiftReportCashLine sse_decode_shift_report_cash_line(
@@ -1914,6 +1952,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_refund_line_view(
+    List<RefundLineView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_refund_view(
+    List<RefundView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_shift_report_cash_line(
     List<ShiftReportCashLine> self,
     SseSerializer serializer,
@@ -2091,6 +2141,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_order_refunds_view(
+    OrderRefundsView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_order_search_page(
     OrderSearchPage self,
     SseSerializer serializer,
@@ -2157,8 +2213,23 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_refund_line_view(
+    RefundLineView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_refund_view(RefundView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_session_snapshot(
     SessionSnapshot self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_shift_refunds_view(
+    ShiftRefundsView self,
     SseSerializer serializer,
   );
 

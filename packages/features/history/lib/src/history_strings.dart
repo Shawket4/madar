@@ -87,6 +87,16 @@ const Map<String, HistoryString> historyFallbackStrings = {
     en: 'Refund returns money on a sale that stands.',
     ar: 'الاسترداد يرجع المال مع بقاء عملية البيع.',
   ),
+  'history.refunded': (en: 'Refunded', ar: 'مُسترد'),
+  'history.refund_left': (
+    en: '{amount} left to refund',
+    ar: 'متبقٍ للاسترداد {amount}',
+  ),
+  'history.refund_all': (
+    en: 'Already refunded in full.',
+    ar: 'تم استرداد المبلغ بالكامل.',
+  ),
+  'history.refund_queued': (en: 'Waiting to send', ar: 'بانتظار الإرسال'),
   'history.refund_amount': (en: 'Amount to return', ar: 'المبلغ المسترد'),
   'history.refund_method': (en: 'Back by', ar: 'طريقة الإرجاع'),
   'history.refund_reason': (en: 'Why', ar: 'السبب'),
