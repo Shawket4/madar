@@ -203,8 +203,7 @@ class RealtimeArmer {
         // A settled/voided bill or an order changes what the drawer should
         // hold. The backend publishes no shift/cash event, so these are the
         // closest cross-device signal for the Till's expected cash.
-        if (eventType.startsWith('order.') ||
-            eventType.startsWith('ticket.')) {
+        if (eventType.startsWith('order.') || eventType.startsWith('ticket.')) {
           _ref.read(drawerTickProvider.notifier).bump();
         }
         // The floor moved: a manager re-arranged the room in the dashboard
