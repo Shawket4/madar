@@ -133,6 +133,38 @@ impl MadarBridge {
         self.inner.format_time(rfc3339, style)
     }
 
+    /// THE money string in the current language — `display::format_money`.
+    /// The design system's `MadarFormat.money` is the synchronous mirror.
+    #[frb(sync)]
+    pub fn format_money(&self, minor: i64, currency: String, signed: bool) -> String {
+        self.inner.format_money(minor, currency, signed)
+    }
+
+    /// A row's stamp in the branch zone, 24-hour: `18:02` today,
+    /// `Sep 12 · 18:02` otherwise (Arabic `12 سبتمبر · 18:02`).
+    #[frb(sync)]
+    pub fn format_stamp(&self, rfc3339: String) -> String {
+        self.inner.format_stamp(rfc3339)
+    }
+
+    /// Elapsed since `rfc3339` by the corrected clock: `42m`, `1h 05m`.
+    #[frb(sync)]
+    pub fn format_elapsed_since(&self, rfc3339: String) -> String {
+        self.inner.format_elapsed_since(rfc3339)
+    }
+
+    /// A duration in seconds: `42m`, `1h 05m`, `2d 03h` (Arabic `42 د`…).
+    #[frb(sync)]
+    pub fn format_elapsed(&self, secs: i64) -> String {
+        self.inner.format_elapsed(secs)
+    }
+
+    /// The currency label in the current language (`EGP` / `ج.م`).
+    #[frb(sync)]
+    pub fn currency_label(&self, code: String) -> String {
+        self.inner.currency_label(code)
+    }
+
     /// The branch's IANA timezone name (cached at login, or the Cairo fallback) —
     /// for any host that needs the raw zone (e.g. a platform date picker).
     #[frb(sync)]

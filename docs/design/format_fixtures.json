@@ -1,0 +1,244 @@
+{
+ "_doc": "THE display-format contract. Read by rust-core madar-core display.rs tests AND packages/design_system test/format_test.dart. Change a rule: change this file, then both sides. See docs/design/SPEC.md §9.",
+ "money": [
+  {
+   "minor": 0,
+   "currency": "EGP",
+   "locale": "en",
+   "signed": false,
+   "out": "EGP 0.00"
+  },
+  {
+   "minor": 5,
+   "currency": "EGP",
+   "locale": "en",
+   "signed": false,
+   "out": "EGP 0.05"
+  },
+  {
+   "minor": 1250,
+   "currency": "EGP",
+   "locale": "en",
+   "signed": false,
+   "out": "EGP 12.50"
+  },
+  {
+   "minor": 123450,
+   "currency": "EGP",
+   "locale": "en",
+   "signed": false,
+   "out": "EGP 1,234.50"
+  },
+  {
+   "minor": 100000000,
+   "currency": "egp",
+   "locale": "en",
+   "signed": false,
+   "out": "EGP 1,000,000.00"
+  },
+  {
+   "minor": -5000,
+   "currency": "EGP",
+   "locale": "en",
+   "signed": false,
+   "out": "−EGP 50.00"
+  },
+  {
+   "minor": 2000,
+   "currency": "EGP",
+   "locale": "en",
+   "signed": true,
+   "out": "+EGP 20.00"
+  },
+  {
+   "minor": 0,
+   "currency": "EGP",
+   "locale": "en",
+   "signed": true,
+   "out": "EGP 0.00"
+  },
+  {
+   "minor": -1,
+   "currency": "",
+   "locale": "en",
+   "signed": false,
+   "out": "−0.01"
+  },
+  {
+   "minor": 99999,
+   "currency": "",
+   "locale": "en",
+   "signed": true,
+   "out": "+999.99"
+  },
+  {
+   "minor": 123450,
+   "currency": "EGP",
+   "locale": "ar",
+   "signed": false,
+   "out": "⁦1,234.50⁩ ج.م"
+  },
+  {
+   "minor": -5000,
+   "currency": "EGP",
+   "locale": "ar",
+   "signed": false,
+   "out": "⁦−50.00⁩ ج.م"
+  },
+  {
+   "minor": 2000,
+   "currency": "EGP",
+   "locale": "ar-EG",
+   "signed": true,
+   "out": "⁦+20.00⁩ ج.م"
+  },
+  {
+   "minor": 1250,
+   "currency": "",
+   "locale": "ar",
+   "signed": false,
+   "out": "⁦12.50⁩"
+  },
+  {
+   "minor": 1250,
+   "currency": "USD",
+   "locale": "ar",
+   "signed": false,
+   "out": "⁦12.50⁩ USD"
+  },
+  {
+   "minor": 1250,
+   "currency": "SAR",
+   "locale": "ar",
+   "signed": false,
+   "out": "⁦12.50⁩ ر.س"
+  }
+ ],
+ "currency": [
+  {
+   "code": "EGP",
+   "locale": "en",
+   "out": "EGP"
+  },
+  {
+   "code": "egp",
+   "locale": "ar",
+   "out": "ج.م"
+  },
+  {
+   "code": "SAR",
+   "locale": "ar",
+   "out": "ر.س"
+  },
+  {
+   "code": "AED",
+   "locale": "ar_AE",
+   "out": "د.إ"
+  },
+  {
+   "code": "XYZ",
+   "locale": "ar",
+   "out": "XYZ"
+  },
+  {
+   "code": "",
+   "locale": "ar",
+   "out": ""
+  }
+ ],
+ "elapsed": [
+  {
+   "secs": 0,
+   "locale": "en",
+   "out": "0m"
+  },
+  {
+   "secs": 59,
+   "locale": "en",
+   "out": "0m"
+  },
+  {
+   "secs": -30,
+   "locale": "en",
+   "out": "0m"
+  },
+  {
+   "secs": 60,
+   "locale": "en",
+   "out": "1m"
+  },
+  {
+   "secs": 2520,
+   "locale": "en",
+   "out": "42m"
+  },
+  {
+   "secs": 3900,
+   "locale": "en",
+   "out": "1h 05m"
+  },
+  {
+   "secs": 86399,
+   "locale": "en",
+   "out": "23h 59m"
+  },
+  {
+   "secs": 97200,
+   "locale": "en",
+   "out": "1d 03h"
+  },
+  {
+   "secs": 2520,
+   "locale": "ar",
+   "out": "42 د"
+  },
+  {
+   "secs": 3900,
+   "locale": "ar",
+   "out": "1 س 05 د"
+  },
+  {
+   "secs": 97200,
+   "locale": "ar",
+   "out": "1 ي 03 س"
+  }
+ ],
+ "stamp": [
+  {
+   "at": "2026-09-12T18:02:00",
+   "now": "2026-09-12T23:59:00",
+   "locale": "en",
+   "out": "18:02"
+  },
+  {
+   "at": "2026-09-12T08:05:00",
+   "now": "2026-09-13T00:10:00",
+   "locale": "en",
+   "out": "Sep 12 · 08:05"
+  },
+  {
+   "at": "2025-12-31T23:30:00",
+   "now": "2026-01-01T09:00:00",
+   "locale": "en",
+   "out": "Dec 31, 2025 · 23:30"
+  },
+  {
+   "at": "2026-09-12T18:02:00",
+   "now": "2026-09-12T19:00:00",
+   "locale": "ar",
+   "out": "18:02"
+  },
+  {
+   "at": "2026-09-12T18:02:00",
+   "now": "2026-09-13T19:00:00",
+   "locale": "ar",
+   "out": "12 سبتمبر · 18:02"
+  },
+  {
+   "at": "2025-01-03T07:00:00",
+   "now": "2026-09-13T19:00:00",
+   "locale": "ar",
+   "out": "3 يناير 2025 · 07:00"
+  }
+ ]
+}

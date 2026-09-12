@@ -109,6 +109,11 @@ abstract final class MadarType {
     fontWeight: weight,
     letterSpacing: letterSpacing,
     fontFeatures: _tabular,
+    // Plex Mono has no Arabic. A figure cell that carries a word ("42 د",
+    // "12 سبتمبر · 18:02", "ج.م") falls back to the sans superfamily
+    // instead of drawing tofu.
+    // (The `package:` prefix is applied to fallbacks too — do not add it.)
+    fontFamilyFallback: const [fontFamily],
   );
 
   /// A row's amount — 15 bold.

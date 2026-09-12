@@ -20,8 +20,10 @@
 /// must is unreadable under the clock.
 library;
 
+import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/header.dart';
 import 'package:design_system/src/responsive.dart';
+import 'package:design_system/src/tab_stack.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/dimens.dart';
 import 'package:flutter/material.dart';
@@ -39,8 +41,31 @@ class MadarPageScaffold extends StatelessWidget {
     this.safeTop = true,
     this.automaticBack = true,
     this.drawer,
+    this.width,
+    this.glyph,
+    this.bodyInset = true,
     super.key,
   });
+
+  /// Puts the page on the SPEC GRID (docs/design/SPEC.md §1–3): the header
+  /// reserves its leading slot so the title's x is the same on every page,
+  /// header and body share the gutter and are capped at this width on the
+  /// leading edge, and the body starts [Space.lg] under the header.
+  ///
+  /// Null keeps the legacy shell (the body is laid as given, the back slot
+  /// collapses on tab pages). New and migrated screens pass a width; the
+  /// null path is deprecated and goes when the last screen moves.
+  final MadarContentWidth? width;
+
+  /// A tab page's glyph for the header's leading slot. Defaults to the tab
+  /// stack's own ([MadarTabStack.glyph]). Ignored on a pushed page, which
+  /// shows its back tile there. Spec grid only.
+  final MadarGlyph? glyph;
+
+  /// Spec grid only: pad the body with the gutter and cap it at [width].
+  /// Off for a body that runs edge to edge (a floor canvas, a split view
+  /// that lays its own panes with [MadarContentFrame]).
+  final bool bodyInset;
 
   /// The page's content, laid under the header and given the rest of the
   /// height. Free-form: a page keeps whatever internals it had.
@@ -89,6 +114,7 @@ class MadarPageScaffold extends StatelessWidget {
     final back =
         onBack ??
         (automaticBack && canPop ? () => Navigator.maybePop(context) : null);
+    final spec = width;
     final header = title == null
         ? null
         : MadarHeader(
@@ -99,26 +125,56 @@ class MadarPageScaffold extends StatelessWidget {
             actions: actions,
             below: below,
             safeTop: safeTop,
+            leading: spec == null
+                ? MadarHeaderLeading.collapse
+                : MadarHeaderLeading.reserve,
+            glyph: back != null
+                ? null
+                : (glyph ?? MadarPages.tabGlyphOf(context)),
           );
 
-    Widget content = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (header != null)
-          Padding(
-            // ONE geometry for every page: the gutter either side and
-            // Space.md above, whatever the size class — the Sell tab's.
-            padding: EdgeInsetsDirectional.fromSTEB(
-              layout.gutter,
-              Space.md,
-              layout.gutter,
-              0,
+    Widget content;
+    if (spec == null) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (header != null)
+            Padding(
+              // ONE geometry for every page: the gutter either side and
+              // Space.md above, whatever the size class — the Sell tab's.
+              padding: EdgeInsetsDirectional.fromSTEB(
+                layout.gutter,
+                Space.md,
+                layout.gutter,
+                0,
+              ),
+              child: header,
             ),
-            child: header,
+          Expanded(child: body),
+        ],
+      );
+    } else {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (header != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(top: Space.md),
+              child: MadarContentFrame(width: spec, child: header),
+            ),
+          Expanded(
+            child: bodyInset
+                ? Padding(
+                    padding: EdgeInsetsDirectional.only(
+                      top: header == null ? 0 : Space.lg,
+                    ),
+                    child: MadarContentFrame(width: spec, child: body),
+                  )
+                : body,
           ),
-        Expanded(child: body),
-      ],
-    );
+        ],
+      );
+    }
 
     // The header pays the TOP inset itself (it has to: the back tile is the
     // thing that would otherwise sit under the clock). A page with no header

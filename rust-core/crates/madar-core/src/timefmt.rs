@@ -61,12 +61,25 @@ pub(crate) fn format(store: &Store, rfc3339: &str, style: TimeStyle, locale: &st
     strftime_in(&dt, pat, locale)
 }
 
-/// Arabic month names as written in Egypt and most of the region's shops
-/// (the transliterated Gregorian set, not the Levantine كانون/شباط one).
-const AR_MONTHS: [&str; 12] = [
-    "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر",
-    "نوفمبر", "ديسمبر",
-];
+/// A table row's stamp in the branch zone, 24-hour: `18:02` on the same
+/// branch-local day as `now`, else `Sep 12 · 18:02` (see `display::format_stamp`).
+/// Unparseable input passes through unchanged.
+pub(crate) fn format_stamp(
+    store: &Store,
+    rfc3339: &str,
+    locale: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> String {
+    let tz = branch_tz(store);
+    match chrono::DateTime::parse_from_rfc3339(rfc3339) {
+        Ok(d) => crate::display::format_stamp(
+            d.with_timezone(&tz).naive_local(),
+            now.with_timezone(&tz).naive_local(),
+            locale,
+        ),
+        Err(_) => rfc3339.to_string(),
+    }
+}
 
 /// `strftime` with the words in `locale`: for Arabic, `%p` becomes ص / م and
 /// `%b` the Arabic month. Figures stay Western, like every figure the app
@@ -85,7 +98,7 @@ where
         return dt.format(pat).to_string();
     }
     let ampm = if dt.hour() < 12 { "ص" } else { "م" };
-    let month = AR_MONTHS[dt.month0() as usize];
+    let month = crate::display::AR_MONTHS[dt.month0() as usize];
     let pat = pat.replace("%p", ampm).replace("%b", month);
     dt.format(&pat).to_string()
 }
@@ -151,6 +164,27 @@ mod tests {
         );
         // English is untouched.
         assert_eq!(format(&store, morning, TimeStyle::Time, "en"), "10:05 AM");
+    }
+
+    #[test]
+    fn stamp_reads_today_in_the_branch_zone() {
+        let store = Store::open("").unwrap();
+        store.kv_put(KEY_BRANCH_TZ, "Africa/Cairo").unwrap();
+        // 22:30 UTC on the 12th is 01:30 on the 13th in Cairo (UTC+3 in Sept).
+        let now = chrono::DateTime::parse_from_rfc3339("2026-09-12T22:30:00+00:00")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let at = "2026-09-12T22:05:00+00:00"; // 01:05 on the 13th, Cairo
+        assert_eq!(format_stamp(&store, at, "en", now), "01:05");
+        let yesterday = "2026-09-12T15:02:00+00:00"; // 18:02 on the 12th, Cairo
+        assert_eq!(
+            format_stamp(&store, yesterday, "en", now),
+            "Sep 12 · 18:02"
+        );
+        assert_eq!(
+            format_stamp(&store, yesterday, "ar", now),
+            "12 سبتمبر · 18:02"
+        );
     }
 
     #[test]

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 /// Which device the till is running on — THE decision every package makes
@@ -155,4 +156,118 @@ class ResponsiveInfo {
   bool get isWideTable => width >= Responsive.wideTable;
   bool get isWide => width >= Responsive.wide;
   bool get isDesktop => width >= Responsive.desktop;
+}
+
+/// The four size classes the spec (docs/design/SPEC.md §1) draws grids for.
+///
+/// [MadarLayout] stays THE phone/tablet switch (rail or tab bar); this is the
+/// finer question a page's grid asks — how wide may content run, how many
+/// table columns fit. Decided by the window and the platform:
+///
+/// * [phone] — shortest side < 600 (any orientation).
+/// * [desktop] — a macOS / Windows / Linux window that is not a phone.
+/// * [tabletLandscape] / [tabletPortrait] — everything else, by orientation.
+enum MadarSizeClass {
+  phone,
+  tabletPortrait,
+  tabletLandscape,
+  desktop;
+
+  static MadarSizeClass of(BuildContext context) =>
+      fromSize(MediaQuery.sizeOf(context), platform: defaultTargetPlatform);
+
+  static MadarSizeClass fromSize(
+    Size size, {
+    TargetPlatform platform = TargetPlatform.iOS,
+  }) {
+    if (MadarLayout.fromSize(size).isPhone) return MadarSizeClass.phone;
+    switch (platform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return MadarSizeClass.desktop;
+      case TargetPlatform.iOS:
+      case TargetPlatform.android:
+      case TargetPlatform.fuchsia:
+        return size.width >= size.height
+            ? MadarSizeClass.tabletLandscape
+            : MadarSizeClass.tabletPortrait;
+    }
+  }
+
+  bool get isPhone => this == MadarSizeClass.phone;
+
+  /// The page gutter — the same number [MadarLayout.gutter] gives, so a page
+  /// built either way lands on one edge. 16 phone, 24 everything else.
+  double get gutter => isPhone ? 16 : 24;
+}
+
+/// How wide a page's content may run. Content is ALWAYS aligned to the
+/// leading gutter — the title's edge — and never centred in the leftover
+/// width: a centred island moves every time the window does, and the eye
+/// has to find the page again. See docs/design/SPEC.md §3.
+enum MadarContentWidth {
+  /// Dashboards and split views: Till, Close shift, Orders, Queue, Sell,
+  /// Floor. Runs gutter to gutter.
+  full(double.infinity),
+
+  /// Tables and settings: Past shifts, Settings, Me, Sync, Bills. 880.
+  reading(880),
+
+  /// Forms: Cash in/out, Open shift. 560.
+  form(560);
+
+  const MadarContentWidth(this.maxWidth);
+
+  /// The cap; [double.infinity] for [full]. A phone always runs full.
+  final double maxWidth;
+}
+
+/// Lays [child] on the page grid: the leading gutter, capped at [width],
+/// aligned to the start edge. `MadarPageScaffold` applies this to the header
+/// and the body when given a `width`; use it directly for a block that must
+/// share that edge (a sheet's body, a split view's master column).
+class MadarContentFrame extends StatelessWidget {
+  const MadarContentFrame({
+    required this.child,
+    this.width = MadarContentWidth.full,
+    this.gutter = true,
+    super.key,
+  });
+
+  final Widget child;
+  final MadarContentWidth width;
+
+  /// Pad the side gutters. Off when an ancestor already did.
+  final bool gutter;
+
+  @override
+  Widget build(BuildContext context) {
+    final layout = MadarLayout.of(context);
+    var out = child;
+    if (width != MadarContentWidth.full && layout.isTablet) {
+      final inner = out;
+      // Padding the END, not Align + ConstrainedBox: the child keeps exactly
+      // the constraints it would have had (tight stays tight, so a body's
+      // Expanded children still fill), only narrower, and on the start edge.
+      out = LayoutBuilder(
+        builder: (context, c) {
+          final spare = c.maxWidth.isFinite
+              ? (c.maxWidth - width.maxWidth).clamp(0.0, double.infinity)
+              : 0.0;
+          return Padding(
+            padding: EdgeInsetsDirectional.only(end: spare),
+            child: inner,
+          );
+        },
+      );
+    }
+    if (gutter) {
+      out = Padding(
+        padding: EdgeInsetsDirectional.symmetric(horizontal: layout.gutter),
+        child: out,
+      );
+    }
+    return out;
+  }
 }

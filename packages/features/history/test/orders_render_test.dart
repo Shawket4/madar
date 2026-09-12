@@ -626,7 +626,7 @@ void main() {
     );
     // The header counts the shift in the core's words and figures.
     expect(
-      find.text('This shift · \u206642\u2069 sales · EGP 6230.00'),
+      find.text('This shift · \u206642\u2069 sales · EGP 6,230.00'),
       findsOneWidget,
     );
     // The list: a queued sale carries no number, a voided one is tagged.
@@ -871,7 +871,7 @@ void main() {
       // "عدد المبيعات: 42", not "42 مبيعات" — Arabic has six plural forms
       // and `tr` carries no count to choose between them, so the count is
       // named rather than agreed with. See i18n.rs.
-      find.text('هذه الوردية · عدد المبيعات: \u206642\u2069 · EGP 6230.00'),
+      find.text('هذه الوردية · عدد المبيعات: \u206642\u2069 · EGP 6,230.00'),
       findsOneWidget,
     );
     // Figures stay LTR islands inside the Arabic row.

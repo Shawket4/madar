@@ -453,7 +453,7 @@ void main() {
       name: 'ipad',
     );
     expect(find.text('Till 1'), findsOneWidget);
-    expect(find.text('EGP 2380.00'), findsOneWidget);
+    expect(find.text('EGP 2,380.00'), findsOneWidget);
     expect(find.text('Record pay-out'), findsOneWidget);
     // Pay out leads and is the chosen kind. It is the kit's toggle now —
     // which is the kit's BUTTON — so the chosen one is the primary variant
@@ -572,7 +572,7 @@ void main() {
     expect(find.text('reason required'), findsOneWidget);
     expect(find.text('Why is it short?'), findsOneWidget);
     // The arithmetic closes on the expected figure.
-    expect(find.text('+EGP 1420.00'), findsOneWidget);
+    expect(find.text('+EGP 1,420.00'), findsOneWidget);
   });
 
   testWidgets('close shift on a phone, drawer matches', (tester) async {

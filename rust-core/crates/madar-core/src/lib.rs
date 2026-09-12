@@ -34,6 +34,8 @@ pub mod catstyle;
 pub mod checkout;
 /// Delivery-order management (teller side) — list/advance/cancel/finalize.
 pub mod delivery;
+/// Display formats (money, elapsed, row stamps) — the contract in docs/design.
+pub mod display;
 /// Device binding (branch / till / station / printer / reconfigure) — persisted in
 /// the CORE store so the hosts hold no device state (THE ONE RULE).
 pub mod device;
@@ -3734,6 +3736,42 @@ impl MadarCore {
     /// the device sits). Mirrors Flutter's `AppTz.local()` + `formatting.dart`.
     pub fn format_time(&self, rfc3339: String, style: timefmt::TimeStyle) -> String {
         timefmt::format(&self.store, &rfc3339, style, &self.current_locale())
+    }
+
+    /// A row's stamp in the branch zone by the corrected clock: `18:02` today,
+    /// `Sep 12 · 18:02` otherwise. See `display::format_stamp`.
+    pub fn format_stamp(&self, rfc3339: String) -> String {
+        timefmt::format_stamp(
+            &self.store,
+            &rfc3339,
+            &self.current_locale(),
+            self.corrected_now(),
+        )
+    }
+
+    /// THE money string in the current language (`EGP 1,234.50` / `<LRI>1,234.50<PDI> ج.م`,
+    /// U+2212 minus, `signed` adds `+`). See `display::format_money`.
+    pub fn format_money(&self, minor: i64, currency: String, signed: bool) -> String {
+        display::format_money(minor, &currency, &self.current_locale(), signed)
+    }
+
+    /// How long since `rfc3339` by the corrected clock: `42m`, `1h 05m`
+    /// (`42 د`, `1 س 05 د`). Unparseable input reads `0m`.
+    pub fn format_elapsed_since(&self, rfc3339: String) -> String {
+        let secs = chrono::DateTime::parse_from_rfc3339(&rfc3339)
+            .map(|t| (self.corrected_now() - t.with_timezone(&chrono::Utc)).num_seconds())
+            .unwrap_or(0);
+        display::format_elapsed(secs, &self.current_locale())
+    }
+
+    /// A duration in seconds in the current language — see `display::format_elapsed`.
+    pub fn format_elapsed(&self, secs: i64) -> String {
+        display::format_elapsed(secs, &self.current_locale())
+    }
+
+    /// The currency as the current language reads it (`EGP` / `ج.م`).
+    pub fn currency_label(&self, code: String) -> String {
+        display::currency_label(&code, &self.current_locale())
     }
 
     /// The branch's IANA timezone name (cached at login, or the Cairo fallback) —

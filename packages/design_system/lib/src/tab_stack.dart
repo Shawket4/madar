@@ -16,6 +16,7 @@
 /// even though the surface itself sits on the root navigator.
 library;
 
+import 'package:design_system/src/glyphs.dart';
 import 'package:flutter/material.dart';
 
 /// Where pages are pushed.
@@ -41,6 +42,12 @@ abstract final class MadarPages {
   /// Whether the tab [context] sits in is the one in front. Registers a
   /// dependency, so a page rebuilds (and `didChangeDependencies` runs) when
   /// its tab is shown or hidden. True outside any tab stack.
+  /// The glyph of the tab [context] sits in — what a tab page's header shows
+  /// in its leading slot. Null outside a tab stack or when the shell gave
+  /// the stack none.
+  static MadarGlyph? tabGlyphOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_TabStackScope>()?.glyph;
+
   static bool isActive(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_TabStackScope>()?.active ??
       true;
@@ -59,8 +66,13 @@ class MadarTabStack extends StatefulWidget {
     required this.active,
     required this.child,
     this.onStackChanged,
+    this.glyph,
     super.key,
   });
+
+  /// The tab's glyph (the rail's), shown in the leading slot of the tab's
+  /// root page header under the spec geometry. See `MadarPageScaffold`.
+  final MadarGlyph? glyph;
 
   /// The nested navigator's key — the shell pops it to root on a re-tap.
   final GlobalKey<NavigatorState> navigatorKey;
@@ -107,6 +119,7 @@ class _MadarTabStackState extends State<MadarTabStack> {
   Widget build(BuildContext context) {
     return _TabStackScope(
       active: widget.active,
+      glyph: widget.glyph,
       child: Navigator(
         key: widget.navigatorKey,
         observers: [_observer],
@@ -120,13 +133,18 @@ class _MadarTabStackState extends State<MadarTabStack> {
 }
 
 class _TabStackScope extends InheritedWidget {
-  const _TabStackScope({required this.active, required super.child});
+  const _TabStackScope({
+    required this.active,
+    required super.child,
+    this.glyph,
+  });
 
   final bool active;
+  final MadarGlyph? glyph;
 
   @override
   bool updateShouldNotify(_TabStackScope oldWidget) =>
-      active != oldWidget.active;
+      active != oldWidget.active || glyph != oldWidget.glyph;
 }
 
 class _StackObserver extends NavigatorObserver {
