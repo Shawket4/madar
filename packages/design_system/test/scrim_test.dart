@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  _claimApiTests();
   setUp(debugResetScrim);
   tearDown(debugResetScrim);
 
@@ -90,4 +91,29 @@ void main() {
 /// A pushed route whose future we deliberately do not await inside a test.
 void unawaitedPush<T>(Future<T?> route) {
   route.ignore();
+}
+
+// A dialog that builds its own barrier still has to tell the kit it is
+// dimming, or a sheet raised from inside it dims a second time. That was the
+// Charge drawer: the loyalty scan sheet opened over it and the drawer behind
+// went nearly black, so the sheet looked like it had landed on nothing.
+void _claimApiTests() {
+  test('a surface that claims makes the next one stand down', () {
+    debugResetScrim();
+    expect(scrimIsDown, isFalse);
+    final first = claimScrim();
+    expect(first, isTrue, reason: 'nothing below it');
+    expect(scrimIsDown, isTrue);
+
+    final second = claimScrim();
+    expect(second, isFalse, reason: 'something below is already dimming');
+
+    releaseScrim(painting: second); // a no-op, by contract
+    expect(scrimIsDown, isTrue, reason: "the claim is still the first one's");
+
+    releaseScrim(painting: first);
+    expect(scrimIsDown, isFalse);
+    expect(claimScrim(), isTrue, reason: 'the next surface dims again');
+    debugResetScrim();
+  });
 }

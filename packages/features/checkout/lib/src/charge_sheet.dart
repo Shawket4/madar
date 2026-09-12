@@ -98,11 +98,23 @@ Future<ChargeOutcome?> _showChargeModal(
 ) {
   final colors = context.madarColors;
   final dark = Theme.of(context).brightness == Brightness.dark;
+  // Claim the dim, like every other modal surface in the kit.
+  //
+  // This is the only dialog in the app that built its own barrier instead of
+  // going through showMadarModal, so it never told the kit it was dimming —
+  // and a sheet raised from INSIDE it (the loyalty scan, off the Charge
+  // drawer) believed it was the first one down and dimmed again. Two layers
+  // over a centred modal is the "glitch out" that was reported: the drawer
+  // behind the sheet went nearly black, so the sheet looked like it had
+  // landed on nothing.
+  final paintsScrim = claimScrim();
   return showGeneralDialog<ChargeOutcome>(
     context: context,
     barrierDismissible: true,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: Colors.black.withValues(alpha: Opacities.scrim),
+    barrierColor: paintsScrim
+        ? Colors.black.withValues(alpha: Opacities.scrim)
+        : Colors.transparent,
     transitionDuration: MotionSpec.standardDuration,
     transitionBuilder: (context, animation, _, child) {
       final curved = CurvedAnimation(
@@ -142,7 +154,7 @@ Future<ChargeOutcome?> _showChargeModal(
         ),
       );
     },
-  );
+  ).whenComplete(() => releaseScrim(painting: paintsScrim));
 }
 
 /// THE tender drawer — one for a counter cart, a table's bill and an online
