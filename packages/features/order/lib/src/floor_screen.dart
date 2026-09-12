@@ -264,12 +264,29 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
             variant: MadarButtonVariant.ghost,
             onTap: () {
               Navigator.of(sheetContext).maybePop();
-              unawaited(_notifier.unseatTable(t.id));
+              unawaited(_confirmUnseat(t));
             },
           ),
         ],
       ),
     );
+  }
+
+  /// Unseating says nobody is there any more — the one act on this sheet a
+  /// mis-tap cannot walk back from other than seating the party again from
+  /// scratch (any bill, any covers on record, gone from the room). Destructive,
+  /// so it confirms first like every other floor action that erases rather
+  /// than merely tidies.
+  Future<void> _confirmUnseat(FloorTableStateView t) async {
+    if (!mounted) return;
+    final ok = await showMadarConfirm(
+      context,
+      title: '${_w('floor.unseat')} · ${t.label}',
+      body: _tr('floor.unseat_confirm'),
+      confirmLabel: _w('floor.unseat'),
+      cancelLabel: _tr('common.cancel'),
+    );
+    if (ok) unawaited(_notifier.unseatTable(t.id));
   }
 
   /// NEEDS CLEARING: the one honest act. "Reprint last receipt" is not here
@@ -657,8 +674,17 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
         onLongPress: (t) => unawaited(_onTable(t, _ticketOn(tickets, t.id))),
       );
     } else {
-      room = SingleChildScrollView(
+      // No outer scroller any more: the canvas gets the `Expanded` region
+      // below as a BOUNDED window, which is what lets `FloorCanvas` pan and
+      // pinch-zoom the room in both axes instead of only growing taller. Keyed
+      // by section so switching sections (terrace → inside → bar) cross-fades
+      // into the new room instead of snapping — "moving between them cleanly".
+      room = AnimatedSwitcher(
+        duration: MediaQuery.of(context).disableAnimations
+            ? Duration.zero
+            : MotionSpec.gentleDuration,
         child: FloorCanvas(
+          key: ValueKey(activeId),
           section: active,
           tables: tables,
           tickets: tickets,

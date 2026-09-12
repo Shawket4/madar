@@ -16,6 +16,7 @@ import 'package:feature_order/src/open_tickets_screen.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/order_screen.dart';
 import 'package:feature_order/src/table_clear_prompt.dart';
+import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -342,6 +343,19 @@ const double kSeatAllowance = 22;
 /// the spirit of the dashboard's zoom ceiling.
 const double kMaxFloorScale = 1.6;
 
+/// Pinch-zoom ceiling for the CANVAS ITSELF — the transform a finger drives —
+/// as distinct from [kMaxFloorScale], which only bounds the initial FIT before
+/// anyone has touched the screen. A terrace, an inside, and a bar drawn at the
+/// fitted scale still leaves a two-top too small to tap accurately on a cheap
+/// tablet from across the counter, so zooming in gets far more headroom than
+/// the fit ever grants.
+const double kFloorViewerMaxScale = 4;
+
+/// Pinch-zoom floor for the same transform — enough to pull back and see a
+/// whole section from one gesture, never so far that a table stops being a
+/// target a finger can find again.
+const double kFloorViewerMinScale = 0.5;
+
 /// The smallest a table may be drawn, in logical pixels.
 ///
 /// A FLOOR under the fit, not a preference. Fitting a whole room to the
@@ -539,12 +553,13 @@ class FloorCanvas extends StatelessWidget {
         .firstOrNull;
     return ClipRRect(
       borderRadius: BorderRadius.circular(Radii.md),
+      // NO fill here on purpose. A boxed grey panel behind the room read as a
+      // dirty smudge under both themes and fought the app's own background
+      // for attention — the tables are the thing that should read, not the
+      // slab they sit on. The faint dot grid below is the only "ground" the
+      // room gets, and only a hairline now marks where the canvas begins.
       child: DecoratedBox(
-        // The floor is a MATERIAL, not a wash: the second neutral layer with a
-        // faint dot grid (the same grid the dashboard editor snaps to), so the
-        // room has ground and scale even before a single table is placed.
         decoration: BoxDecoration(
-          color: colors.surfaceAlt,
           borderRadius: BorderRadius.circular(Radii.md),
           border: Border.all(color: colors.borderLight),
         ),
@@ -559,9 +574,10 @@ class FloorCanvas extends StatelessWidget {
             // When the room is narrower than the viewport, centre it rather
             // than pinning it to the left edge. When it is WIDER — the phone
             // case, where the minimum table size beat the fit — there is
-            // nothing to centre and the canvas scrolls.
+            // nothing to centre and the canvas pans instead.
             final dx = math.max(0, (constraints.maxWidth - drawnWidth) / 2);
             final canvasWidth = math.max(constraints.maxWidth, drawnWidth);
+            final canvasHeight = bounds.height * scale;
             final child = CustomPaint(
               painter: _FloorGridPainter(
                 pitch: 50 * scale,
@@ -569,7 +585,7 @@ class FloorCanvas extends StatelessWidget {
               ),
               child: SizedBox(
                 width: canvasWidth,
-                height: bounds.height * scale,
+                height: canvasHeight,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -587,26 +603,33 @@ class FloorCanvas extends StatelessWidget {
                         top: (p.y - bounds.top) * scale,
                         width: p.table.width * scale,
                         height: p.table.height * scale,
-                        child: Transform.rotate(
-                          angle: p.table.rotation * math.pi / 180,
-                          child: Opacity(
-                            opacity: (enabledOf?.call(p.table) ?? true)
-                                ? 1
-                                : 0.38,
-                            child: _TableCell(
-                              table: p.table,
-                              ticket: ticketOn(p.table.id),
-                              scale: scale,
-                              seatsWord: seatsWord,
-                              words: words,
-                              swapArmed: swapArmedId == p.table.id,
-                              selected: selectedId == p.table.id,
-                              onTap: (enabledOf?.call(p.table) ?? true)
-                                  ? () => onTap(p.table)
-                                  : null,
-                              onLongPress: onLongPress == null
-                                  ? null
-                                  : () => onLongPress!(p.table),
+                        // One table's realtime update (a ticket ticks in, a
+                        // status flips) must not force every OTHER table in
+                        // the room to repaint — without this every cell shares
+                        // one picture layer, so a thirty-table floor redraws
+                        // whole on every tick for a change to one cell.
+                        child: RepaintBoundary(
+                          child: Transform.rotate(
+                            angle: p.table.rotation * math.pi / 180,
+                            child: Opacity(
+                              opacity: (enabledOf?.call(p.table) ?? true)
+                                  ? 1
+                                  : 0.38,
+                              child: _TableCell(
+                                table: p.table,
+                                ticket: ticketOn(p.table.id),
+                                scale: scale,
+                                seatsWord: seatsWord,
+                                words: words,
+                                swapArmed: swapArmedId == p.table.id,
+                                selected: selectedId == p.table.id,
+                                onTap: (enabledOf?.call(p.table) ?? true)
+                                    ? () => onTap(p.table)
+                                    : null,
+                                onLongPress: onLongPress == null
+                                    ? null
+                                    : () => onLongPress!(p.table),
+                              ),
                             ),
                           ),
                         ),
@@ -615,14 +638,32 @@ class FloorCanvas extends StatelessWidget {
                 ),
               ),
             );
-            // Wider than the viewport means the minimum table size won and the
-            // room now has to be panned rather than squinted at.
-            //
-            // A horizontal scroll does that, and `InteractiveViewer` steps
-            // aside while it does. Its unconstrained mode sizes to the child,
-            // which inside this screen's vertical scroll means an unbounded
-            // height and a layout assertion — and the zoom it offers is no
-            // longer the point once the tables are already at a pressable size.
+
+            // The real pannable grid: a BOUNDED window (this screen now hands
+            // the canvas an `Expanded` region rather than an unbounded
+            // scroller) panning and pinch-zooming a room that is free to be
+            // any size — a two-table bar or a forty-table terrace, in both
+            // axes, not just the horizontal scroll a too-wide room used to
+            // fall back to. `constrained: false` is what makes the room draw
+            // at its own full size instead of being squeezed to the viewport.
+            if (zoomable && constraints.hasBoundedHeight) {
+              return InteractiveViewer(
+                constrained: false,
+                minScale: kFloorViewerMinScale,
+                maxScale: kFloorViewerMaxScale,
+                boundaryMargin: const EdgeInsets.all(80),
+                child: child,
+              );
+            }
+
+            // A caller that still hands this an UNBOUNDED height (nested in a
+            // vertical scroller) has no fixed window to pan within —
+            // `constrained: false` above would then ask this widget to be as
+            // tall as an infinite constraint and throw during layout. This is
+            // the historical bug the widget test below pins, so anything
+            // without a bounded window falls back to the old, narrower shapes:
+            // a horizontal scroll when the fit lost to the minimum table size,
+            // a self-sized (but still pinchable) `InteractiveViewer` otherwise.
             final needsPan = canvasWidth > constraints.maxWidth + 0.5;
             if (needsPan) {
               return SingleChildScrollView(
@@ -631,7 +672,10 @@ class FloorCanvas extends StatelessWidget {
               );
             }
             if (!zoomable) return child;
-            return InteractiveViewer(maxScale: 3, child: child);
+            return InteractiveViewer(
+              maxScale: kFloorViewerMaxScale,
+              child: child,
+            );
           },
         ),
       ),
@@ -996,13 +1040,23 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                                 ),
                               ),
                             )
-                          : SingleChildScrollView(
+                          // No outer scroller: the canvas gets this `Expanded`
+                          // slot as a BOUNDED window, which is what lets
+                          // `FloorCanvas` pan and pinch-zoom the room in both
+                          // axes. Keyed by section so switching areas
+                          // (terrace → inside → bar) cross-fades into the new
+                          // room instead of snapping.
+                          : AnimatedSwitcher(
+                              duration: MediaQuery.of(context).disableAnimations
+                                  ? Duration.zero
+                                  : MotionSpec.gentleDuration,
                               child: _canvas(
                                 active,
                                 tables,
                                 tickets,
                                 isWaiter: isWaiter,
                                 colors: colors,
+                                key: ValueKey(activeId),
                               ),
                             ),
                     ),
@@ -1075,9 +1129,11 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     List<TicketView> tickets, {
     required bool isWaiter,
     required MadarColors colors,
+    Key? key,
   }) {
     TicketView? ticketOn(String tableId) => _ticketOn(tickets, tableId);
     return FloorCanvas(
+      key: key,
       section: section,
       tables: tables,
       tickets: tickets,
@@ -1631,12 +1687,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                     size: MadarButtonSize.compact,
                     onTap: () {
                       close();
-                      unawaited(() async {
-                        final ok = await _confirmFreeLiveTable(t, ticket);
-                        if (ok) {
-                          await _notifier.makeTableAvailable(t, ticket: ticket);
-                        }
-                      }());
+                      unawaited(_freeLiveTable(ticket));
                     },
                   ),
                 ],
@@ -1832,30 +1883,29 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
   ///
   /// Freeing a bussed table and abandoning an unpaid one wore the same words
   /// ("Make available") and the same one tap. One tidies the room; the other
-  /// walks away from money. This names the ticket and what it is worth, so the
-  /// difference is visible at the moment it matters.
-  Future<bool> _confirmFreeLiveTable(
-    FloorTableStateView t,
-    TicketView ticket,
-  ) async {
-    final total = Money.format(
-      ticket.subtotalMinor,
-      currency: ref.read(orderProvider).currency,
+  /// walks away from money.
+  ///
+  /// It does NOT go through `makeTableAvailable`: that call refuses outright
+  /// when a live ticket is passed, on purpose — a bill cannot be silently
+  /// orphaned — so a confirmation in front of it only ever bought the teller
+  /// a "settle this bill first" toast for an act they had already confirmed.
+  ///
+  /// An abandoned tab is a VOID, which is the honest name for it and the only
+  /// one the ledger can read back: the bill is written off against a reason,
+  /// and voiding already frees the table on its way through. So this opens
+  /// the same reason-capturing void sheet the bill screen and the cart use,
+  /// which is a confirmation with the one question a blind Yes/No cannot
+  /// ask — why.
+  Future<void> _freeLiveTable(TicketView ticket) async {
+    if (!mounted) return;
+    final result = await showMadarSheet<VoidTicketResult>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (_) => WaiterVoidSheet(ticket: ticket),
     );
-    var confirmed = false;
-    await _actionsSheet(
-      '${t.label} · ${ticket.ticketRef ?? ''} · $total\n${_tr('tables.free_it_warning')}',
-      [
-        _SheetAction(
-          'person.crop.circle.badge.xmark',
-          _tr('tables.free_it'),
-          () async {
-            confirmed = true;
-          },
-        ),
-      ],
-    );
-    return confirmed;
+    if (result == null) return;
+    await _notifier.voidTicket(ticket.id, result.reason);
   }
 
   Future<void> _actionsSheet(String title, List<_SheetAction> actions) async {

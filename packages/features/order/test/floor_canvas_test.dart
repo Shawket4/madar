@@ -627,6 +627,87 @@ void main() {
     expect(find.text('T1'), findsOneWidget);
   });
 
+  testWidgets(
+    'a bounded canvas is a real 2D pan+zoom viewport, not a one-axis scroll',
+    (tester) async {
+      // The owner's ask: "pannable grid". Given a real (bounded) window to
+      // pan within — the normal case once callers stopped nesting this in a
+      // vertical scroller — the room must be free to be its own size and pan
+      // in both axes, not just fall back to a horizontal scroll once it is
+      // wider than the screen.
+      await tester.pumpWidget(
+        _host(
+          SizedBox(
+            width: 800,
+            height: 600,
+            child: FloorCanvas(
+              section: _section,
+              tables: [_table(id: 't1', sectionId: 'sec-in', x: 4000)],
+              tickets: const [],
+              seatsWord: 'seats',
+              words: _words,
+              zoomable: true,
+              onTap: (_) {},
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final viewer = tester.widget<InteractiveViewer>(
+        find.byType(InteractiveViewer),
+      );
+      expect(
+        viewer.constrained,
+        isFalse,
+        reason:
+            'the room draws at its own size; the viewport pans it, '
+            'rather than squeezing it down to fit',
+      );
+      expect(viewer.minScale, kFloorViewerMinScale);
+      expect(viewer.maxScale, kFloorViewerMaxScale);
+      // No horizontal-scroll fallback any more when a real window is given —
+      // panning is the InteractiveViewer's own job now.
+      expect(find.byType(SingleChildScrollView), findsNothing);
+    },
+  );
+
+  testWidgets('the canvas paints no background fill behind the room', (
+    tester,
+  ) async {
+    // The owner: "remove the background color for it, it looks bad like the
+    // grey one." The tables carry their own tone; the canvas itself must not
+    // paint a second, boxed slab under them in either theme.
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          height: 300,
+          child: FloorCanvas(
+            section: _section,
+            tables: [_table(id: 't1', sectionId: 'sec-in')],
+            tickets: const [],
+            seatsWord: 'seats',
+            words: _words,
+            onTap: (_) {},
+          ),
+        ),
+      ),
+    );
+    final box = tester.widget<DecoratedBox>(
+      find
+          .descendant(
+            of: find.byType(FloorCanvas),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    final decoration = box.decoration as BoxDecoration;
+    expect(
+      decoration.color,
+      isNull,
+      reason: 'no grey wash behind the room — only a hairline marks it',
+    );
+  });
+
   testWidgets('zoomable canvas survives an UNBOUNDED (scrolling) parent', (
     tester,
   ) async {

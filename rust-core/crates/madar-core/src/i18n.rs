@@ -631,6 +631,13 @@ fn en(key: &str) -> Option<&'static str> {
         "floor.party_size" => "Party size",
         "floor.take_order" => "Take an order",
         "floor.unseat" => "Unseat (party left)",
+        // Says what is LOST, because that is what the confirmation is for:
+        // the covers and the time seated are not recoverable, and the only
+        // way back is seating the party again from scratch.
+        "floor.unseat_confirm" => {
+            "The table goes back to available and this party's covers and \
+             seated-at time are gone. Only a bill already settled survives."
+        }
         "floor.cleared" => "Cleared",
         "floor.seat_booking_here" => "Seat a booking here",
         "floor.walk_in_here" => "Walk-in here",
@@ -1427,6 +1434,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "floor.party_size" => "عدد الأفراد",
         "floor.take_order" => "خذ الطلب",
         "floor.unseat" => "إلغاء الإجلاس (غادروا)",
+        "floor.unseat_confirm" => {
+            "ستعود الطاولة إلى المتاحة، ويُفقد عدد الأفراد ووقت الجلوس. لا \
+             يبقى إلا ما تم تحصيله بالفعل."
+        }
         "floor.cleared" => "تم التنظيف",
         "floor.seat_booking_here" => "أجلس حجزًا هنا",
         "floor.walk_in_here" => "زبون عابر هنا",

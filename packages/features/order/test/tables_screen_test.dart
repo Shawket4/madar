@@ -18,13 +18,14 @@ FloorTableStateView _table({
   String? sectionId,
   String label = 'T1',
   double x = 0,
+  String status = 'free',
 }) => FloorTableStateView(
   id: id,
   sectionId: sectionId,
   label: label,
   seats: 4,
   shape: 'rect',
-  status: 'free',
+  status: status,
   posX: x,
   posY: 0,
   width: 80,
@@ -37,9 +38,12 @@ FloorTableStateView _table({
 /// can match on the key), and every call the order surface makes during a
 /// render answers with an empty value.
 class _FakeBridge implements MadarBridge {
-  _FakeBridge(this.layout);
+  _FakeBridge(this.layout, {this.tickets = const []});
 
   final FloorLayoutView layout;
+
+  /// Live bills, so a test can put one on a table and reach the ticket sheet.
+  final List<TicketView> tickets;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -56,11 +60,12 @@ class _FakeBridge implements MadarBridge {
     // The floor loads its bills now — both roles, since which tables have
     // ordered is part of the room's state.
     if (name == #listOpenTickets) {
-      return Future<List<TicketView>>.value(const []);
+      return Future<List<TicketView>>.value(tickets);
     }
     if (name == #cartLines) return Future<List<CartLineView>>.value(const []);
     if (name == #currentSession) return null;
     if (name == #clockSkewMinutes) return 0;
+    if (name == #formatTime) return '19:00';
     return null;
   }
 }
@@ -73,6 +78,7 @@ Future<void> _pump(
   WidgetTester tester,
   FloorLayoutView layout, {
   Size? surface,
+  List<TicketView> tickets = const [],
 }) async {
   if (surface != null) {
     // Set the VIEW, not just the surface, and pin the pixel ratio to 1 — the
@@ -87,7 +93,9 @@ Future<void> _pump(
   }
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [bridgeProvider.overrideWithValue(_FakeBridge(layout))],
+      overrides: [
+        bridgeProvider.overrideWithValue(_FakeBridge(layout, tickets: tickets)),
+      ],
       child: MaterialApp(
         theme: MadarTheme.light(),
         home: Builder(
@@ -194,5 +202,86 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('open'), findsOneWidget);
+  });
+
+  testWidgets('multiple sections move between them on a tap', (tester) async {
+    // A shop with a terrace and a bar: each area's tables must show ONLY when
+    // its own tab is active, and switching never leaves the other area's
+    // tables lingering on screen.
+    await _pump(
+      tester,
+      FloorLayoutView(
+        sections: const [
+          FloorSectionInfo(
+            id: 'sec-terrace',
+            name: 'Terrace',
+            ordering: 0,
+            canvasW: 500,
+            canvasH: 400,
+          ),
+          FloorSectionInfo(
+            id: 'sec-bar',
+            name: 'Bar',
+            ordering: 1,
+            canvasW: 500,
+            canvasH: 400,
+          ),
+        ],
+        tables: [
+          _table(id: 't1', sectionId: 'sec-terrace'),
+          _table(id: 't2', sectionId: 'sec-bar', label: 'T2'),
+        ],
+      ),
+    );
+    expect(find.text('T1'), findsOneWidget);
+    expect(find.text('T2'), findsNothing);
+
+    await tester.tap(find.text('Bar · 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('T2'), findsOneWidget);
+    expect(find.text('T1'), findsNothing);
+  });
+
+  testWidgets('abandoning a live unpaid bill from the floor confirms first', (
+    tester,
+  ) async {
+    // Destructive: it walks away from a bill nobody paid. It must not fire
+    // on the one tap that opens the sheet — a rushed hand would abandon a
+    // real tab with no way back.
+    final tickets = [
+      TicketView(
+        id: 'tk-1',
+        tableId: 't1',
+        status: 'open',
+        subtotalMinor: 4500,
+        openedAt: DateTime.now().toUtc().toIso8601String(),
+        queuedOffline: false,
+        lines: const [],
+      ),
+    ];
+    await _pump(
+      tester,
+      FloorLayoutView(
+        sections: const [],
+        tables: [_table(id: 't1', status: 'seated')],
+      ),
+      tickets: tickets,
+    );
+
+    // A live bill: tapping the table opens it, not the menu.
+    await tester.tap(find.text('T1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('tables.free_it'));
+    await tester.pumpAndSettle();
+
+    // The confirm dialog is up — not an immediate abandon — naming what is
+    // about to happen.
+    expect(find.text('tables.free_it_warning'), findsOneWidget);
+    expect(find.text('common.cancel'), findsOneWidget);
+
+    // Cancelling leaves it exactly there: the dialog closes, nothing fired.
+    await tester.tap(find.text('common.cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('tables.free_it_warning'), findsNothing);
   });
 }
