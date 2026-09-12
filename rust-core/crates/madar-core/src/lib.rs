@@ -1222,7 +1222,9 @@ impl MadarCore {
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
                 (
-                    serde_json::json!({ "op": "fire_open_ticket", "teller_id": teller_id, "request": cmd.request }),
+                    // `origin_device_id`: the echo names this device, so it skips its
+                    // own ping — however late the op drains.
+                    serde_json::json!({ "op": "fire_open_ticket", "teller_id": teller_id, "request": cmd.request, "origin_device_id": self.lan_device_id() }),
                     Idem::Yes,
                 )
             }
@@ -1232,7 +1234,7 @@ impl MadarCore {
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
                 (
-                    serde_json::json!({ "op": "add_ticket_round", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "request": cmd.request }),
+                    serde_json::json!({ "op": "add_ticket_round", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "request": cmd.request, "origin_device_id": self.lan_device_id() }),
                     // A genuine round-retry dedups to 200 server-side (on the round
                     // idempotency key, checked before the conflict gate). So a 409
                     // ("round to a settled/voided ticket") or 404 (ticket never
@@ -2217,6 +2219,7 @@ impl MadarCore {
             session.role.clone(),
             self.branch_timezone(),
             self.alert_memory.clone(),
+            self.lan_device_id(),
         ));
         *self
             .unified_listener
@@ -6498,29 +6501,6 @@ impl MadarCore {
         Ok(())
     }
 
-    /// Mute the alert this device is about to cause.
-    ///
-    /// A teller who fires a round gets that round back over SSE moments
-    /// later, and `role_wants_alert` cannot tell it apart from a round some
-    /// other device sent: a till both fires and settles, so the ROLE says
-    /// "yes, tickets are your work" either way. Nothing on the event names
-    /// the device that produced it. So the device names it here, before the
-    /// echo arrives — the alert memory is already the thing that decides
-    /// whether a tag has been heard, and a tag heard in advance is exactly
-    /// what this is.
-    ///
-    /// The board still updates; only the ping, the buzz and the notification
-    /// are suppressed. Muting the wrong thing costs one missed ping, which is
-    /// why this is called with ids this device MINTED and nothing else.
-    fn mute_own_alert(&self, event_type: &str, id: &str) {
-        if id.is_empty() {
-            return;
-        }
-        if let Ok(mut d) = self.alert_memory.lock() {
-            d.insert(&realtime::alert_tag(event_type, id));
-        }
-    }
-
     /// Give a table back without a sale: the party left before ordering, or the
     /// teller seated the wrong one. Frees it outright — nobody ate, so there is
     /// nothing to bus.
@@ -6612,7 +6592,8 @@ impl MadarCore {
             .and_then(|p| serde_json::to_string(p).ok())
             .unwrap_or_else(|| "{}".into());
         let envelope = serde_json::json!({
-            "op": "fire_open_ticket", "teller_id": teller, "request": cmd.request
+            "op": "fire_open_ticket", "teller_id": teller, "request": cmd.request,
+            "origin_device_id": self.lan_device_id()
         })
         .to_string();
         self.lan_publish("kitchen", "kitchen.fired", data, Some(envelope))
@@ -6620,11 +6601,6 @@ impl MadarCore {
         let _ = self.drain_outbox().await;
 
         let tid = ticket_id.to_string();
-        // This till is about to hear its own fire come back over SSE. The
-        // board should update; the ping should not sound at the person who
-        // just pressed Fire.
-        self.mute_own_alert("ticket.fired", &tid);
-        self.mute_own_alert("kitchen.fired", &round_id.to_string());
         let queued_offline = self.store.pending()?.iter().any(|i| i.id == tid);
         Ok(tickets::TicketFiredView {
             ticket_id: tid,
@@ -6683,17 +6659,14 @@ impl MadarCore {
             .and_then(|p| serde_json::to_string(p).ok())
             .unwrap_or_else(|| "{}".into());
         let envelope = serde_json::json!({
-            "op": "add_ticket_round", "teller_id": teller, "ticket_id": ticket_id, "request": cmd.request
+            "op": "add_ticket_round", "teller_id": teller, "ticket_id": ticket_id, "request": cmd.request,
+            "origin_device_id": self.lan_device_id()
         })
         .to_string();
         self.lan_publish("kitchen", "kitchen.fired", data, Some(envelope))
             .await;
         let _ = self.drain_outbox().await;
         let rid = round_id.to_string();
-        // Same as fire: the round this teller just sent comes straight back,
-        // and the ping belongs to whoever DIDN'T send it.
-        self.mute_own_alert("ticket.round_added", &ticket_id);
-        self.mute_own_alert("kitchen.fired", &rid);
         let queued_offline = self.store.pending()?.iter().any(|i| i.id == rid);
         Ok(tickets::TicketFiredView {
             ticket_id,

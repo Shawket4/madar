@@ -152,7 +152,18 @@ fn alert_for(event_type: &str, data: &str, locale: &str, tz: &str) -> Option<Ale
             tag: alert_tag(event_type, &id),
         });
     }
-    let id = pick(&["id", "order_id", "open_ticket_id", "msg_id"]).unwrap_or_default();
+    let mut id = pick(&["id", "order_id", "open_ticket_id", "msg_id"]).unwrap_or_default();
+    // A fire is one ROUND: tag it by the round, or a ticket's second round (from
+    // any device) dedups against its first and never pings.
+    if matches!(event_type, "ticket.fired" | "ticket.round_added" | "kitchen.fired") {
+        if let Some(round) = origin_of(&v).round_key {
+            id = round;
+        } else if event_type == "ticket.round_added" {
+            // An older server with no `origin`: the item count grows every round.
+            let n = v.get("items").and_then(|x| x.as_array()).map_or(0, |a| a.len());
+            id = format!("{id}#{n}");
+        }
+    }
     let reff = pick(&[
         "delivery_ref",
         "ticket_ref",
@@ -173,10 +184,45 @@ fn alert_for(event_type: &str, data: &str, locale: &str, tz: &str) -> Option<Ale
     })
 }
 
+/// Who caused an event — the backend's `origin` block on `ticket.fired`,
+/// `ticket.round_added` and `kitchen.fired`. Absent on every other event.
+#[derive(Debug, Default, PartialEq)]
+pub(crate) struct EventOrigin {
+    pub device_id: Option<String>,
+    pub round_key: Option<String>,
+}
+
+fn origin_of(v: &serde_json::Value) -> EventOrigin {
+    let o = v.get("origin");
+    let s = |k: &str| {
+        o.and_then(|o| o.get(k))
+            .and_then(|x| x.as_str())
+            .map(str::to_string)
+            .filter(|s| !s.is_empty())
+    };
+    EventOrigin {
+        device_id: s("device_id"),
+        round_key: s("round_idempotency_key"),
+    }
+}
+
+/// `true` when this device produced the event. The server mints its own ticket
+/// id, so the event's `id` is never one the firing device knows — it is the
+/// device id the firing device put on the op that identifies the echo. That
+/// id travels inside the queued op, so a round queued offline and synced hours
+/// later is still recognised, and nothing has to be pre-registered before the
+/// echo can arrive.
+pub(crate) fn is_own_event(data: &str, own_device_id: &str) -> bool {
+    if own_device_id.is_empty() {
+        return false;
+    }
+    serde_json::from_str::<serde_json::Value>(data)
+        .ok()
+        .and_then(|v| origin_of(&v).device_id)
+        .is_some_and(|d| d == own_device_id)
+}
+
 /// The tag an alert for `event_type` about `id` would carry.
-///
-/// A device writes this into the [AlertMemory] for work it is about to do, so
-/// the event coming back does not alert the person who caused it.
 pub(crate) fn alert_tag(event_type: &str, id: &str) -> String {
     format!("{event_type}:{id}")
 }
@@ -213,21 +259,12 @@ fn role_wants_alert(event_type: &str, role: &str) -> bool {
     }
 }
 
-/// The alert memory, shared with the core so a device can mute the echo of its
-/// OWN work before it comes back over the wire. See [AlertDedup].
+/// The alert memory (see [AlertDedup]), owned by the core so it outlives a
+/// stream restart.
 pub(crate) type AlertMemory = Arc<std::sync::Mutex<AlertDedup>>;
 
 /// Bounded recent-tag set so a re-delivered alert (LAN + cloud both carry it, or a
-/// quick reconnect) fires only once.
-///
-/// It is also how a till stops alerting itself. `role_wants_alert` can only
-/// answer "is this the KIND of work my role does", and a teller both fires
-/// rounds and settles them — so on a shop that puts every sale on a table, the
-/// till pinged and buzzed at every round its own teller had just sent. Nothing
-/// in the event says which device produced it. So the device doing the work
-/// writes the tag it is about to hear into this set first, and the echo
-/// arrives already-seen. Bounded and FIFO, so a muted tag that never comes
-/// back (the request failed, the stream was down) ages out on its own.
+/// quick reconnect) fires only once. Bounded and FIFO.
 pub(crate) struct AlertDedup {
     seen: std::collections::HashSet<String>,
     order: std::collections::VecDeque<String>,
@@ -269,6 +306,9 @@ pub(crate) struct AlertingListener {
     /// The branch's IANA zone, for times in alert bodies ("19:30").
     tz: String,
     dedup: AlertMemory,
+    /// This device's stable id — events whose `origin` names it are its own
+    /// work coming back, and never ping here.
+    device_id: String,
 }
 
 impl AlertingListener {
@@ -279,6 +319,7 @@ impl AlertingListener {
         role: String,
         tz: String,
         dedup: AlertMemory,
+        device_id: String,
     ) -> Self {
         Self {
             inner,
@@ -287,6 +328,7 @@ impl AlertingListener {
             role,
             tz,
             dedup,
+            device_id,
         }
     }
 }
@@ -298,6 +340,11 @@ impl EventListener for AlertingListener {
         // 2. Raise an alert ONLY for a NEW, alert-worthy event that is incoming work
         //    for THIS role (a waiter doesn't ping on the tickets it fires itself).
         if !role_wants_alert(&event.event_type, &self.role) {
+            return;
+        }
+        // A teller both fires rounds and settles them, so the role alone would
+        // ping the till at every round its own teller just sent.
+        if is_own_event(&event.data, &self.device_id) {
             return;
         }
         let locale = self.locale.read().map(|g| g.clone()).unwrap_or_default();
@@ -926,46 +973,140 @@ mod tests {
         );
     }
 
-    /// A till that fires a round hears it back over SSE within the second.
-    /// `role_wants_alert` cannot help: a teller both fires rounds and settles
-    /// them, so the role says "tickets are your work" either way, and nothing
-    /// on the event names the device that produced it. The device names it —
-    /// in advance — by writing the tag it is about to hear.
-    #[test]
-    fn a_device_does_not_ping_at_its_own_round() {
-        let mut d = AlertDedup::new();
-        // The till fires, and mutes the echo before it can arrive.
-        d.insert(&alert_tag("ticket.round_added", "tk-7"));
+    // ── Own-echo suppression, against the payloads the backend actually sends ──
 
-        assert!(
-            !d.insert(&alert_tag("ticket.round_added", "tk-7")),
-            "the round this till just sent must not ping the teller who sent it"
-        );
-        assert!(
-            d.insert(&alert_tag("ticket.round_added", "tk-8")),
-            "a round from the OTHER till is still new work and still pings"
-        );
-        assert!(
-            d.insert(&alert_tag("ticket.ready", "tk-7")),
-            "the same ticket going READY is a different event and still pings \
-             — muting one kind of alert must not mute the rest of that \
-             ticket's life"
-        );
+    /// `ticket.round_added` as `publish_fired` serialises it: the OpenTicketView
+    /// (server-minted `id`) with `origin` added alongside.
+    fn round_added(ticket: &str, device: Option<&str>, round: &str, items: usize) -> String {
+        let items: Vec<_> = (0..items)
+            .map(|i| serde_json::json!({ "id": format!("line-{i}"), "name": "Tea", "quantity": 1 }))
+            .collect();
+        serde_json::json!({
+            "id": ticket, "branch_id": "b1", "table_id": null, "ticket_ref": "T-MAIN-260912-0007",
+            "status": "open", "opened_by": "u1", "opened_by_name": "Mona", "customer_name": null,
+            "notes": null, "guest_count": 2, "subtotal": 4500, "order_id": null, "booking_id": null,
+            "opened_at": "2026-09-12T10:00:00Z", "seated_at": null, "ready_at": null,
+            "settled_at": null, "items": items,
+            "origin": { "device_id": device, "ticket_idempotency_key": null,
+                        "round_idempotency_key": round }
+        })
+        .to_string()
     }
 
-    /// Muting is bounded like everything else in this set: a tag whose event
-    /// never arrives (the request failed, the stream was down) must age out
-    /// rather than deafen the till to that id forever.
-    #[test]
-    fn a_mute_that_is_never_claimed_ages_out() {
-        let mut d = AlertDedup::new();
-        d.insert(&alert_tag("ticket.fired", "stale"));
-        for i in 0..600 {
-            d.insert(&alert_tag("ticket.fired", &format!("other-{i}")));
+    #[derive(Default)]
+    struct Rec(std::sync::Mutex<Vec<String>>);
+    impl EventListener for Rec {
+        fn on_event(&self, e: RealtimeEvent) {
+            self.0.lock().unwrap().push(format!("board:{}", e.event_type));
         }
-        assert!(
-            d.insert(&alert_tag("ticket.fired", "stale")),
-            "an unclaimed mute is forgotten, so the id can alert again later"
+        fn on_connection_changed(&self, _: bool) {}
+    }
+    impl RealtimePlayer for Rec {
+        fn play_ping(&self) {
+            self.0.lock().unwrap().push("ping".into());
+        }
+        fn post_notification(&self, _: String, _: String, tag: String) {
+            self.0.lock().unwrap().push(format!("notify:{tag}"));
+        }
+        fn haptic(&self) {}
+    }
+
+    fn till(device: &str) -> (AlertingListener, Arc<Rec>, Arc<Rec>) {
+        let board = Arc::new(Rec::default());
+        let player = Arc::new(Rec::default());
+        let l = AlertingListener::new(
+            board.clone(),
+            player.clone(),
+            Arc::new(RwLock::new("en".into())),
+            "teller".into(),
+            "Africa/Cairo".into(),
+            Arc::new(std::sync::Mutex::new(AlertDedup::new())),
+            device.into(),
         );
+        (l, board, player)
+    }
+
+    fn pings(p: &Rec) -> usize {
+        p.0.lock().unwrap().iter().filter(|x| *x == "ping").count()
+    }
+
+    /// The till that fired a round hears it back: the board updates, nothing pings.
+    /// The event carries the SERVER's ticket id — nothing the till minted — so
+    /// only the origin can tell them apart.
+    #[test]
+    fn a_device_does_not_ping_at_its_own_round() {
+        let (l, board, player) = till("dev-A");
+        let ev = |d| RealtimeEvent {
+            event_type: "ticket.fired".into(),
+            data: d,
+        };
+        l.on_event(ev(round_added("srv-ticket-1", Some("dev-A"), "round-1", 1)));
+        assert_eq!(pings(&player), 0, "own fire must not ping");
+        assert_eq!(board.0.lock().unwrap().len(), 1, "but the board still refreshes");
+
+        // The SAME event on another till pings there.
+        let (other, _, other_player) = till("dev-B");
+        other.on_event(ev(round_added("srv-ticket-1", Some("dev-A"), "round-1", 1)));
+        assert_eq!(pings(&other_player), 1, "another device still alerts");
+    }
+
+    /// Per round, not per ticket: this till's round 2 is muted, but round 3 of
+    /// the SAME ticket fired by another device still pings here — and round 2
+    /// delivered twice (LAN + cloud) pings the other till only once.
+    #[test]
+    fn own_round_mutes_only_that_round() {
+        let (l, _, player) = till("dev-A");
+        let ev = |d| RealtimeEvent {
+            event_type: "ticket.round_added".into(),
+            data: d,
+        };
+        l.on_event(ev(round_added("srv-t", Some("dev-A"), "round-2", 2)));
+        assert_eq!(pings(&player), 0);
+        l.on_event(ev(round_added("srv-t", Some("dev-B"), "round-3", 3)));
+        assert_eq!(pings(&player), 1, "another device's later round on the same ticket pings");
+        l.on_event(ev(round_added("srv-t", Some("dev-B"), "round-4", 4)));
+        assert_eq!(pings(&player), 2, "and so does the one after it");
+        l.on_event(ev(round_added("srv-t", Some("dev-B"), "round-4", 4)));
+        assert_eq!(pings(&player), 2, "a re-delivered round pings once");
+    }
+
+    /// A round queued offline and replayed hours later still names the device
+    /// that queued it, so there is no window in which it can ping: the check
+    /// is on the payload, not on anything registered before the echo arrived.
+    #[test]
+    fn a_late_synced_own_round_still_does_not_ping() {
+        let (l, _, player) = till("dev-A");
+        // Thousands of other events in between must not age anything out.
+        for i in 0..2000 {
+            l.on_event(RealtimeEvent {
+                event_type: "delivery.created".into(),
+                data: format!(r#"{{"id":"o{i}"}}"#),
+            });
+        }
+        let before = pings(&player);
+        l.on_event(RealtimeEvent {
+            event_type: "ticket.round_added".into(),
+            data: round_added("srv-t", Some("dev-A"), "queued-round", 1),
+        });
+        assert_eq!(pings(&player), before);
+    }
+
+    /// An older server (no `origin`) keeps alerting — and its rounds on one
+    /// ticket no longer collapse into a single tag.
+    #[test]
+    fn events_without_origin_still_alert_per_round() {
+        let (l, _, player) = till("dev-A");
+        for n in 1..=2 {
+            let mut v: serde_json::Value =
+                serde_json::from_str(&round_added("srv-t", None, "x", n)).unwrap();
+            v.as_object_mut().unwrap().remove("origin");
+            l.on_event(RealtimeEvent {
+                event_type: "ticket.round_added".into(),
+                data: v.to_string(),
+            });
+        }
+        assert_eq!(pings(&player), 2);
+        assert!(!is_own_event(r#"{"id":"t"}"#, "dev-A"));
+        assert!(!is_own_event(&round_added("t", Some("dev-A"), "r", 1), ""));
     }
 }
