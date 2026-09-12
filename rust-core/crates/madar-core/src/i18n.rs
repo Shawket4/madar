@@ -214,6 +214,23 @@ fn en(key: &str) -> Option<&'static str> {
         "tables.booking_no_show" => "Marked as no-show",
         "tables.walk_in_anyway" => "Seat a walk-in anyway",
         "tables.guests" => "guests",
+        // A table's own history: what it has done and what it earns. The
+        // figures count SETTLED bills only — an open bill has not finished
+        // and a voided one took nothing.
+        "tables.history" => "Table history",
+        "tables.history_hint" => "Last 30 days",
+        "tables.history_empty" => "Nothing has sat here in the last 30 days.",
+        "tables.history_offline" => {
+            "Takings need a connection — this one is not cached, so it can \
+             never show you last week's numbers by mistake."
+        }
+        "tables.covers" => "Covers",
+        "tables.takings" => "Takings",
+        "tables.avg_bill" => "Average bill",
+        "tables.avg_time" => "Average stay",
+        "tables.turns" => "Turns a day",
+        "tables.sittings" => "Bills",
+        "tables.still_open" => "Still open",
         "tables.seat_held" => "Put a held order here",
         "tables.view_list" => "List",
         "tables.view_plan" => "Plan",
@@ -1060,6 +1077,20 @@ fn ar(key: &str) -> Option<&'static str> {
         "tables.booking_no_show" => "تم تسجيل عدم الحضور",
         "tables.walk_in_anyway" => "إجلاس زبون عابر رغم ذلك",
         "tables.guests" => "أشخاص",
+        "tables.history" => "سجل الطاولة",
+        "tables.history_hint" => "آخر ٣٠ يومًا",
+        "tables.history_empty" => "لم يجلس أحد هنا خلال آخر ٣٠ يومًا.",
+        "tables.history_offline" => {
+            "تحتاج الأرقام إلى اتصال — وهي غير محفوظة محليًا حتى لا تعرض \
+             أرقام الأسبوع الماضي بالخطأ."
+        }
+        "tables.covers" => "عدد الأفراد",
+        "tables.takings" => "الإيراد",
+        "tables.avg_bill" => "متوسط الفاتورة",
+        "tables.avg_time" => "متوسط مدة الجلوس",
+        "tables.turns" => "دورات في اليوم",
+        "tables.sittings" => "الفواتير",
+        "tables.still_open" => "ما زالت مفتوحة",
         "tables.seat_held" => "ضع طلبًا معلّقًا هنا",
         "tables.view_list" => "قائمة",
         "tables.view_plan" => "مخطط",

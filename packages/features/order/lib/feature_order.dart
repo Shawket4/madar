@@ -32,5 +32,6 @@ export 'src/order_screen.dart' show OrderScreen;
 export 'src/sell_screen.dart' show SellScreen;
 export 'src/table_clear_prompt.dart'
     show listenForTableClear, showTableClearPrompt;
+export 'src/table_history_sheet.dart' show showTableHistory;
 export 'src/tables_screen.dart'
     show TablePick, TableStatusWords, TablesScreen, showTablePickerSheet;

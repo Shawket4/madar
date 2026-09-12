@@ -22,6 +22,7 @@ import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_screen.dart';
 import 'package:feature_order/src/table_clear_prompt.dart';
+import 'package:feature_order/src/table_history_sheet.dart';
 import 'package:feature_order/src/tables_screen.dart'
     show
         FloorCanvas,
@@ -237,6 +238,8 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       maxWidth: Responsive.sheetCompactMaxWidth,
       builder: (sheetContext) => _StateSheet(
         title: t.label,
+        historyFor: t.id,
+        historyLabel: _tr('tables.history'),
         subtitle: [
           _tr('tables.seated'),
           ?ago,
@@ -317,6 +320,8 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       maxWidth: Responsive.sheetCompactMaxWidth,
       builder: (sheetContext) => _StateSheet(
         title: t.label,
+        historyFor: t.id,
+        historyLabel: _tr('tables.history'),
         subtitle: _tr('tables.needs_clearing'),
         children: [
           MadarButton(
@@ -347,6 +352,8 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       maxWidth: Responsive.sheetCompactMaxWidth,
       builder: (sheetContext) => _StateSheet(
         title: t.label,
+        historyFor: t.id,
+        historyLabel: _tr('tables.history'),
         subtitle: [
           if (t.bookingGuest?.trim().isNotEmpty ?? false) t.bookingGuest!,
           if (t.bookingParty != null)
@@ -792,11 +799,21 @@ class _StateSheet extends StatelessWidget {
     required this.title,
     required this.children,
     this.subtitle,
+    this.historyFor,
+    this.historyLabel,
   });
 
   final String title;
   final String? subtitle;
   final List<Widget> children;
+
+  /// The table to open a history for, appended as the quietest action on
+  /// every state sheet. Every table has a past, whatever it is doing now, so
+  /// the door belongs on all of them rather than on one.
+  final String? historyFor;
+
+  /// Already-localised label for that action.
+  final String? historyLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -820,6 +837,20 @@ class _StateSheet extends StatelessWidget {
           for (final (i, child) in children.indexed) ...[
             if (i > 0 && child is MadarButton) const SizedBox(height: Space.sm),
             child,
+          ],
+          if (historyFor != null) ...[
+            const SizedBox(height: Space.sm),
+            MadarButton(
+              label: historyLabel ?? '',
+              glyph: MadarGlyph.clock,
+              variant: MadarButtonVariant.ghost,
+              onTap: () {
+                Navigator.of(context).maybePop();
+                unawaited(
+                  showTableHistory(context, tableId: historyFor!, label: title),
+                );
+              },
+            ),
           ],
         ],
       ),
