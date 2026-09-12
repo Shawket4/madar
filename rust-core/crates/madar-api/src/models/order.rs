@@ -81,6 +81,9 @@ pub struct Order {
         skip_serializing_if = "Option::is_none"
     )]
     pub discount_id: Option<Option<uuid::Uuid>>,
+    /// The stored value — a fraction for a percentage. Same column as [`Order::discount_value`].
+    #[serde(rename = "discount_rate", skip_serializing_if = "Option::is_none")]
+    pub discount_rate: Option<f64>,
     #[serde(
         rename = "discount_type",
         default,
@@ -88,8 +91,9 @@ pub struct Order {
         skip_serializing_if = "Option::is_none"
     )]
     pub discount_type: Option<Option<String>>,
+    /// LEGACY SPELLING — an integer, 0-100 for a percentage. See `discounts::wire`: every shipped till was generated against `integer`, and a double here fails to deserialise the whole ORDER, not just this field. Read [`Order::discount_rate`] for the stored number.
     #[serde(rename = "discount_value")]
-    pub discount_value: f64,
+    pub discount_value: i64,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(
@@ -214,7 +218,7 @@ impl Order {
         created_at: chrono::DateTime<chrono::FixedOffset>,
         delivery_fee: i32,
         discount_amount: i32,
-        discount_value: f64,
+        discount_value: i64,
         id: uuid::Uuid,
         order_number: i32,
         order_type: String,
@@ -241,6 +245,7 @@ impl Order {
             delivery_order_id: None,
             discount_amount,
             discount_id: None,
+            discount_rate: None,
             discount_type: None,
             discount_value,
             id,

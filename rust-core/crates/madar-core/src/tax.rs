@@ -434,7 +434,10 @@ mod tests {
     fn a_half_percent_is_expressible() {
         // The reason the value is a fraction: an integer percentage could not
         // say 12.5% at all.
-        assert_eq!(discount_amount(1000, Discount::Percentage(dec!(0.125))), 125);
+        assert_eq!(
+            discount_amount(1000, Discount::Percentage(dec!(0.125))),
+            125
+        );
     }
 
     #[test]
@@ -526,7 +529,9 @@ mod conformance {
         // The fixture must actually exercise the derivation, or this test is
         // back to trusting a ready-made amount.
         assert!(
-            vectors.iter().any(|v| v.discount_kind == "percentage" && v.discount_value == "0.145"),
+            vectors
+                .iter()
+                .any(|v| v.discount_kind == "percentage" && v.discount_value == "0.145"),
             "the shared fixture no longer carries the 14.5% discount that bit"
         );
 
@@ -538,8 +543,10 @@ mod conformance {
                 service_charge_rate: v.service_charge_rate.parse().unwrap(),
                 service_charge_taxable: v.service_charge_taxable,
             };
-            let discount =
-                discount_amount(v.subtotal, discount_from_wire(&v.discount_kind, &v.discount_value));
+            let discount = discount_amount(
+                v.subtotal,
+                discount_from_wire(&v.discount_kind, &v.discount_value),
+            );
             let got = compute(v.subtotal, discount, &policy);
             if got.discount != v.discount
                 || got.service_charge != v.service_charge

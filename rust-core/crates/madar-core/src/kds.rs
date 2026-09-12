@@ -440,7 +440,10 @@ mod tests {
     fn only_till_modes_let_the_counter_bump() {
         assert!(till_shows_kitchen(Some("till")));
         assert!(till_shows_kitchen(Some("both")));
-        assert!(!till_shows_kitchen(Some("kds")), "the kitchen owns the board");
+        assert!(
+            !till_shows_kitchen(Some("kds")),
+            "the kitchen owns the board"
+        );
         assert!(!till_shows_kitchen(Some("off")));
         assert!(!till_shows_kitchen(None), "never asked → do not guess");
     }

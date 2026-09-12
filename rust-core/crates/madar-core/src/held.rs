@@ -1192,7 +1192,15 @@ mod tests {
 
         // A seated party with no held order behind it — a ticket landing, or a
         // booking seated, both write exactly this and nothing else.
-        set_table_state_local(&s, "t1", Some("seated"), None, false, Some("2026-09-12T18:00:00Z")).unwrap();
+        set_table_state_local(
+            &s,
+            "t1",
+            Some("seated"),
+            None,
+            false,
+            Some("2026-09-12T18:00:00Z"),
+        )
+        .unwrap();
 
         // A hold parked with no table, then offered that one.
         park_local(&s, "h1", "b", "Sara", payload(1), None, "dev-a", "now").unwrap();
@@ -1565,5 +1573,4 @@ mod tests {
 
     const T0: &str = "2026-09-12T18:00:00Z";
     const T1: &str = "2026-09-12T18:45:00Z";
-
 }

@@ -23,9 +23,12 @@ pub struct DeliveryMenuDiscount {
     pub name: String,
     #[serde(rename = "name_translations")]
     pub name_translations: serde_json::Value,
-    /// A FRACTION for `percentage` (0.14 = 14%, like every other rate here); piastres for `fixed`.
+    /// LEGACY SPELLING — an integer, 0-100 for a percentage; piastres for `fixed`. See `discounts::wire`.
     #[serde(rename = "value")]
-    pub value: f64,
+    pub value: i64,
+    /// The stored fraction, for clients that know to ask.
+    #[serde(rename = "value_rate")]
+    pub value_rate: f64,
 }
 
 impl DeliveryMenuDiscount {
@@ -35,7 +38,8 @@ impl DeliveryMenuDiscount {
         id: uuid::Uuid,
         name: String,
         name_translations: serde_json::Value,
-        value: f64,
+        value: i64,
+        value_rate: f64,
     ) -> DeliveryMenuDiscount {
         DeliveryMenuDiscount {
             dtype,
@@ -43,6 +47,7 @@ impl DeliveryMenuDiscount {
             name,
             name_translations,
             value,
+            value_rate,
         }
     }
 }

@@ -1143,6 +1143,30 @@ pub(crate) fn discount_id(store: &Store) -> CoreResult<Option<String>> {
 
 /// Resolve the cart's selected discount → (kind, value) from the cached catalog.
 /// Inactive / absent / unknown → no discount. The pricing engine then clamps it.
+
+/// The stored value of a discount — a FRACTION for a percentage, minor units
+/// for a fixed one.
+///
+/// Read `value_rate`, never `value`. `value` is the LEGACY spelling on the
+/// wire: an integer, 0-100 for a percentage, kept because every till in the
+/// field was generated against `integer` and a double there fails to
+/// deserialise the whole object rather than reading as a small number.
+/// Reading `value` as if it were the fraction charges 1400% instead of 14%.
+///
+/// The fallback is for a server that predates the split, not a preference:
+/// if `value_rate` is absent, `value` still carries 0-100 and has to come
+/// back down. A percentage is told apart by `dtype` here because we have it.
+pub(crate) fn discount_rate(d: &models::Discount) -> f64 {
+    if let Some(r) = d.value_rate {
+        return r;
+    }
+    if d.dtype == "percentage" {
+        d.value as f64 / 100.0
+    } else {
+        d.value as f64
+    }
+}
+
 pub(crate) fn discount(store: &Store) -> CoreResult<(DiscountKind, f64)> {
     let id = match discount_id(store)? {
         Some(id) => id,
@@ -1153,7 +1177,7 @@ pub(crate) fn discount(store: &Store) -> CoreResult<(DiscountKind, f64)> {
         None => Vec::new(),
     };
     match raw.iter().find(|d| d.id.to_string() == id && d.is_active) {
-        Some(d) => Ok((kind_from_dtype(&d.dtype), d.value)),
+        Some(d) => Ok((kind_from_dtype(&d.dtype), discount_rate(d))),
         None => Ok((DiscountKind::None, 0.0)),
     }
 }
@@ -1853,9 +1877,12 @@ mod tests {
     }
 
     fn seed_discounts(s: &Store) {
+        // The wire as the server now speaks it: `value` is the LEGACY
+        // integer every shipped till was built for, `value_rate` the stored
+        // fraction beside it. See `discount_rate`.
         s.kv_put(menu::K_DISCOUNTS, r#"[
-          {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"percentage","id":"00000000-0000-0000-0000-0000000000d1","is_active":true,"name":"10% off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":0.10},
-          {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"fixed","id":"00000000-0000-0000-0000-0000000000d2","is_active":true,"name":"250 off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":250}
+          {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"percentage","id":"00000000-0000-0000-0000-0000000000d1","is_active":true,"name":"10% off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":10,"value_rate":0.10},
+          {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z","dtype":"fixed","id":"00000000-0000-0000-0000-0000000000d2","is_active":true,"name":"250 off","name_translations":{},"org_id":"00000000-0000-0000-0000-0000000000ff","value":250,"value_rate":250}
         ]"#).unwrap();
     }
 
@@ -2745,4 +2772,37 @@ mod tests {
         assert_eq!(g.max_selections, None, "extras still stack");
     }
 
+    /// The incident: `value` went back to an integer on the wire, so reading
+    /// it as the fraction charges 1400% instead of 14%. Every read goes
+    /// through `discount_rate`.
+    #[test]
+    fn a_discount_reads_its_rate_and_not_the_spelling_kept_for_old_tills() {
+        let now = chrono::Utc::now().fixed_offset();
+        let mut d = models::Discount::new(
+            now,
+            "percentage".into(),
+            uuid::Uuid::nil(),
+            true,
+            "Staff".into(),
+            serde_json::json!({}),
+            uuid::Uuid::nil(),
+            now,
+            14,
+        );
+        d.value_rate = Some(0.14);
+        assert_eq!(discount_rate(&d), 0.14);
+
+        // A server that predates the split sends only the legacy integer.
+        d.value_rate = None;
+        assert_eq!(
+            discount_rate(&d),
+            0.14,
+            "the legacy spelling still has to come back down"
+        );
+
+        // A fixed discount is minor units in BOTH spellings — never divided.
+        d.dtype = "fixed".into();
+        d.value = 5000;
+        assert_eq!(discount_rate(&d), 5000.0);
+    }
 }

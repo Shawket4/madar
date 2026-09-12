@@ -115,6 +115,9 @@ pub struct DeliveryOrder {
         skip_serializing_if = "Option::is_none"
     )]
     pub discount_id: Option<Option<uuid::Uuid>>,
+    /// The stored value — a fraction for a percentage. Same column as [`DeliveryOrder::discount_value`].
+    #[serde(rename = "discount_rate", skip_serializing_if = "Option::is_none")]
+    pub discount_rate: Option<f64>,
     #[serde(
         rename = "discount_type",
         default,
@@ -122,8 +125,9 @@ pub struct DeliveryOrder {
         skip_serializing_if = "Option::is_none"
     )]
     pub discount_type: Option<Option<String>>,
+    /// LEGACY SPELLING on the wire — an integer, 0-100 for a percentage. See `discounts::wire`: a double here fails to deserialise the whole DELIVERY ORDER on every shipped till, not just this field.
     #[serde(rename = "discount_value", skip_serializing_if = "Option::is_none")]
-    pub discount_value: Option<f64>,
+    pub discount_value: Option<i64>,
     /// How `road_distance_meters` was measured: `osrm` (routed) or `haversine` (straight line — the routing fallback, and always the in-mall walking distance). `None` exactly when no distance was recorded.
     #[serde(
         rename = "distance_source",
@@ -304,6 +308,7 @@ impl DeliveryOrder {
             delivery_zone_id: None,
             discount_amount: None,
             discount_id: None,
+            discount_rate: None,
             discount_type: None,
             discount_value: None,
             distance_source: None,

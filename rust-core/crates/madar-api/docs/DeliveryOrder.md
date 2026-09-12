@@ -24,8 +24,9 @@ Name | Type | Description | Notes
 **delivery_zone_id** | Option<**uuid::Uuid**> |  | [optional]
 **discount_amount** | Option<**i32**> |  | [optional]
 **discount_id** | Option<**uuid::Uuid**> | Frozen channel discount on the item subtotal. `discount_amount` is 0 when none. | [optional]
+**discount_rate** | Option<**f64**> | The stored value — a fraction for a percentage. Same column as [`DeliveryOrder::discount_value`]. | [optional]
 **discount_type** | Option<**String**> |  | [optional]
-**discount_value** | Option<**f64**> |  | [optional]
+**discount_value** | Option<**i64**> | LEGACY SPELLING on the wire — an integer, 0-100 for a percentage. See `discounts::wire`: a double here fails to deserialise the whole DELIVERY ORDER on every shipped till, not just this field. | [optional]
 **distance_source** | Option<**String**> | How `road_distance_meters` was measured: `osrm` (routed) or `haversine` (straight line — the routing fallback, and always the in-mall walking distance). `None` exactly when no distance was recorded. | [optional]
 **extra_prep_minutes** | **i32** | Extra prep minutes the teller added on top of the branch base (multiples of 5). | 
 **floor** | Option<**String**> |  | [optional]

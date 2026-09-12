@@ -291,10 +291,7 @@ fn reprice(
         service_charge_rate: dec(b.service_charge_rate),
         service_charge_taxable,
     };
-    let discount = match (
-        flat(&v.discount_type).as_deref(),
-        flat(&v.discount_value),
-    ) {
+    let discount = match (flat(&v.discount_type).as_deref(), flat(&v.discount_value)) {
         (Some("percentage"), Some(val)) => crate::tax::Discount::Percentage(dec(val)),
         (Some("fixed"), Some(val)) => crate::tax::Discount::Fixed(dec(val)),
         _ => crate::tax::Discount::None,
@@ -654,7 +651,10 @@ mod tests {
         let tv = to_view_with(&v, false, &ids(&[0xA, 0xB]), false);
         assert_eq!(tv.subtotal_minor, 0);
         let bill = tv.bill.unwrap();
-        assert_eq!((bill.subtotal_minor, bill.tax_minor, bill.total_minor), (0, 0, 0));
+        assert_eq!(
+            (bill.subtotal_minor, bill.tax_minor, bill.total_minor),
+            (0, 0, 0)
+        );
     }
 
     #[test]

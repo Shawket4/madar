@@ -261,10 +261,7 @@ impl MadarBridge {
     /// with the network down. This one is a manager's question between
     /// services, and a stale copy would quietly answer a question about money
     /// with last week's numbers.
-    pub async fn table_history(
-        &self,
-        table_id: String,
-    ) -> Result<TableHistoryView, MadarError> {
+    pub async fn table_history(&self, table_id: String) -> Result<TableHistoryView, MadarError> {
         let h = self
             .inner
             .table_history(table_id)

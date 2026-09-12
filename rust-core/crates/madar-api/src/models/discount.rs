@@ -29,9 +29,12 @@ pub struct Discount {
     pub org_id: uuid::Uuid,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
-    /// Polymorphic by `dtype`: a FRACTION for `percentage` (0.14 = 14%, like every other rate in this schema), or minor units for `fixed`.
+    /// LEGACY SPELLING — an integer, 0-100 for a percentage, minor units for `fixed`. What every shipped client was generated against; see `discounts::wire`. Read [`Discount::value_rate`] for the real stored number.
     #[serde(rename = "value")]
-    pub value: f64,
+    pub value: i64,
+    /// The stored value: a FRACTION for `percentage` (0.14 = 14%, like every other rate in this schema), or minor units for `fixed`. The same column as [`Discount::value`], spelled the way the engine holds it.
+    #[serde(rename = "value_rate", skip_serializing_if = "Option::is_none")]
+    pub value_rate: Option<f64>,
 }
 
 impl Discount {
@@ -44,7 +47,7 @@ impl Discount {
         name_translations: serde_json::Value,
         org_id: uuid::Uuid,
         updated_at: chrono::DateTime<chrono::FixedOffset>,
-        value: f64,
+        value: i64,
     ) -> Discount {
         Discount {
             created_at,
@@ -56,6 +59,7 @@ impl Discount {
             org_id,
             updated_at,
             value,
+            value_rate: None,
         }
     }
 }

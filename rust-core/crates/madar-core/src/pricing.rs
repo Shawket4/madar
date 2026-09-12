@@ -554,7 +554,12 @@ mod tests {
     /// in the payload, and a refused order.
     #[test]
     fn percentage_discount_at_a_rate_binary_cannot_hold_still_lands_on_the_half() {
-        let b = price_cart(cart(vec![line(100, 1)], DiscountKind::Percentage, 0.145, 0.0));
+        let b = price_cart(cart(
+            vec![line(100, 1)],
+            DiscountKind::Percentage,
+            0.145,
+            0.0,
+        ));
         assert_eq!(b.discount_minor, 15);
         assert_eq!(b.total_minor, 85);
         assert_eq!(

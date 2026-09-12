@@ -46,7 +46,11 @@ pub(crate) fn pending_void_ids(store: &Store) -> CoreResult<HashSet<String>> {
 /// drawer. Until it drains the server knows nothing about it, so the sale's
 /// refund list would show it as untouched and invite a second one. These rows
 /// stand in until the real ones arrive.
-pub(crate) fn pending_refunds(store: &Store, order_id: &str, teller: &str) -> CoreResult<Vec<RefundView>> {
+pub(crate) fn pending_refunds(
+    store: &Store,
+    order_id: &str,
+    teller: &str,
+) -> CoreResult<Vec<RefundView>> {
     let mut out = Vec::new();
     for item in store.list_active_of_types(&["refund_order"])? {
         let Ok(cmd) = serde_json::from_str::<RefundOrderCommand>(&item.payload) else {
@@ -66,7 +70,12 @@ pub(crate) fn pending_refunds(store: &Store, order_id: &str, teller: &str) -> Co
             // there so a teller can see the refund they just gave.
             is_cash: false,
             reason: format!("{:?}", cmd.request.reason).to_lowercase(),
-            note: cmd.request.note.clone().flatten().filter(|s| !s.trim().is_empty()),
+            note: cmd
+                .request
+                .note
+                .clone()
+                .flatten()
+                .filter(|s| !s.trim().is_empty()),
             issued_at: item.event_at.clone(),
             issued_by_name: teller.to_string(),
             lines: Vec::new(),
@@ -876,11 +885,9 @@ mod tests {
     fn a_refund_handed_over_offline_shows_before_it_drains() {
         let store = Store::open("").unwrap();
         let order = uid(7);
-        assert!(
-            pending_refunds(&store, &order.to_string(), "Sara")
-                .unwrap()
-                .is_empty()
-        );
+        assert!(pending_refunds(&store, &order.to_string(), "Sara")
+            .unwrap()
+            .is_empty());
 
         let mut request = models::CreateRefundRequest::new(
             2500,
@@ -914,11 +921,9 @@ mod tests {
         );
 
         // Another order's refund is not this order's.
-        assert!(
-            pending_refunds(&store, &uid(8).to_string(), "Sara")
-                .unwrap()
-                .is_empty()
-        );
+        assert!(pending_refunds(&store, &uid(8).to_string(), "Sara")
+            .unwrap()
+            .is_empty());
     }
 
     // ---- builders for the wire models ----------------------------------
@@ -1010,9 +1015,10 @@ mod tests {
         let mut o = models::OrderFull::new(
             uid(30),
             ts(),
-            0,   // delivery_fee
-            0,   // discount_amount
-            0.0, // discount_value
+            0, // delivery_fee
+            0, // discount_amount
+            0, // discount_value — an INTEGER on the wire again; see
+            // `discounts::wire` in the backend and `cart::discount_rate`.
             uid(31),
             42, // order_number
             "dine_in".into(),
@@ -1037,7 +1043,8 @@ mod tests {
             ts(),
             0,
             0,
-            0.0, // discount_value
+            0, // discount_value — an INTEGER on the wire again; see
+            // `discounts::wire` in the backend and `cart::discount_rate`.
             uid(41),
             7,
             "dine_in".into(),

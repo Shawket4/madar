@@ -16,8 +16,9 @@ Name | Type | Description | Notes
 **delivery_order_id** | Option<**uuid::Uuid**> | Links a finalized delivery order back to its `delivery_orders` row (customer, address, channel, zone). `null` for dine-in orders. | [optional]
 **discount_amount** | **i32** |  | 
 **discount_id** | Option<**uuid::Uuid**> |  | [optional]
+**discount_rate** | Option<**f64**> | The stored value — a fraction for a percentage. Same column as [`Order::discount_value`]. | [optional]
 **discount_type** | Option<**String**> |  | [optional]
-**discount_value** | **f64** |  | 
+**discount_value** | **i64** | LEGACY SPELLING — an integer, 0-100 for a percentage. See `discounts::wire`: every shipped till was generated against `integer`, and a double here fails to deserialise the whole ORDER, not just this field. Read [`Order::discount_rate`] for the stored number. | 
 **id** | **uuid::Uuid** |  | 
 **notes** | Option<**String**> |  | [optional]
 **order_number** | **i32** |  | 

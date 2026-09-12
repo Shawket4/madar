@@ -454,7 +454,10 @@ mod tests {
         o.delivery_ref = Some(Some(String::new()));
         assert_eq!(order_view(&o, "en", 0).order_ref, None);
         o.delivery_ref = Some(Some("D-DT-0042".into()));
-        assert_eq!(order_view(&o, "en", 0).order_ref.as_deref(), Some("D-DT-0042"));
+        assert_eq!(
+            order_view(&o, "en", 0).order_ref.as_deref(),
+            Some("D-DT-0042")
+        );
         o.delivery_ref = None; // absent
         assert_eq!(order_view(&o, "en", 0).order_ref, None);
     }
@@ -477,7 +480,10 @@ mod tests {
     fn order_view_terminal_states() {
         for s in ["delivered", "cancelled", "rejected"] {
             let o = order(s, "outside", cart_with_lines(1));
-            assert!(order_view(&o, "en", 0).is_terminal, "{s} should be terminal");
+            assert!(
+                order_view(&o, "en", 0).is_terminal,
+                "{s} should be terminal"
+            );
         }
     }
 

@@ -350,7 +350,11 @@ pub fn programme_view(
         mode: s.mode.clone(),
         program_name: crate::menu::pick_lang(
             &s.program_name,
-            s.program_name_ar.clone().flatten().unwrap_or_default().as_str(),
+            s.program_name_ar
+                .clone()
+                .flatten()
+                .unwrap_or_default()
+                .as_str(),
             locale,
         ),
         balance_label: balance_label(&s.mode).to_string(),

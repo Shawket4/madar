@@ -702,7 +702,7 @@ pub(crate) fn discounts(store: &Store, locale: &str) -> CoreResult<Vec<DiscountV
             id: d.id.to_string(),
             name: resolve(&d.name_translations, &d.name, locale),
             dtype: d.dtype.clone(),
-            value: d.value,
+            value: crate::cart::discount_rate(&d),
             is_active: d.is_active,
         })
         .collect())
@@ -1430,7 +1430,7 @@ mod tests {
             r#"[
               {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z",
                "id":"00000000-0000-0000-0000-0000000000f1","org_id":"00000000-0000-0000-0000-0000000000ff",
-               "dtype":"percentage","value":0.10,"is_active":true,"name":"Ten Off",
+               "dtype":"percentage","value":10,"value_rate":0.10,"is_active":true,"name":"Ten Off",
                "name_translations":{"ar":"خصم"}},
               {"created_at":"2026-06-19T10:00:00Z","updated_at":"2026-06-19T10:00:00Z",
                "id":"00000000-0000-0000-0000-0000000000f2","org_id":"00000000-0000-0000-0000-0000000000ff",

@@ -5430,13 +5430,12 @@ impl MadarCore {
                 cache_views(&self.store, K_LOYALTY_SETTINGS, std::slice::from_ref(&s));
                 s
             }
-            Err(_) => cached_views::<madar_api::models::LoyaltySettings>(
-                &self.store,
-                K_LOYALTY_SETTINGS,
-            )
-            .into_iter()
-            .next()
-            .unwrap_or_default(),
+            Err(_) => {
+                cached_views::<madar_api::models::LoyaltySettings>(&self.store, K_LOYALTY_SETTINGS)
+                    .into_iter()
+                    .next()
+                    .unwrap_or_default()
+            }
         };
         Ok(loyalty::programme_view(&settings, &self.current_locale()))
     }
@@ -6109,7 +6108,11 @@ impl MadarCore {
         // events, and keying on the order alone would collapse them into one.
         let client_ref = uuid::Uuid::new_v5(
             &uuid::Uuid::NAMESPACE_OID,
-            format!("refund:{order_id}:{amount_minor}:{method}:{}", issued_at.to_rfc3339()).as_bytes(),
+            format!(
+                "refund:{order_id}:{amount_minor}:{method}:{}",
+                issued_at.to_rfc3339()
+            )
+            .as_bytes(),
         );
 
         let mut request = madar_api::models::CreateRefundRequest::new(
@@ -6121,12 +6124,12 @@ impl MadarCore {
         request.note = Some(note);
         request.issued_at = Some(Some(issued_at));
         request.client_ref = Some(Some(client_ref));
-        request.shift_id = Some(Some(
-            uuid::Uuid::parse_str(&open_shift.id).map_err(|_| CoreError::Validation {
+        request.shift_id = Some(Some(uuid::Uuid::parse_str(&open_shift.id).map_err(
+            |_| CoreError::Validation {
                 field: "shift_id".into(),
                 detail: "the open shift has no server id".into(),
-            })?,
-        ));
+            },
+        )?));
 
         let cmd = orders::RefundOrderCommand { request };
         let (user_id, clock_offset_ms) = self.outbox_meta();
@@ -6146,7 +6149,6 @@ impl MadarCore {
         let _ = self.drain_outbox().await;
         Ok(())
     }
-
 
     /// Reconcile the device's shift with the server (online). Caches the server's
     /// open shift, or CLEARS the local cache when the server reports none — e.g.
@@ -6505,7 +6507,6 @@ impl MadarCore {
             d.insert(&realtime::alert_tag(event_type, id));
         }
     }
-
 
     /// Give a table back without a sale: the party left before ordering, or the
     /// teller seated the wrong one. Frees it outright — nobody ate, so there is
