@@ -139,9 +139,22 @@ OrderSummaryView _order(
 
 /// This shift, newest first, the way the mirror hands them back.
 final _shiftOrders = <OrderSummaryView>[
-  _order(1043, at: '2026-09-12T19:40:00Z', total: 4500, queued: true),
+  // A queued sale is a counter sale by construction, and the core says so.
+  _order(
+    1043,
+    at: '2026-09-12T19:40:00Z',
+    total: 4500,
+    queued: true,
+    type: 'takeaway',
+  ),
   _order(1042, at: '2026-09-12T19:31:00Z', customer: 'Omar'),
-  _order(1041, at: '2026-09-12T19:28:00Z', total: 4500, payment: 'Card'),
+  _order(
+    1041,
+    at: '2026-09-12T19:28:00Z',
+    total: 4500,
+    payment: 'Card',
+    type: 'takeaway',
+  ),
   _order(
     1040,
     at: '2026-09-12T19:20:00Z',
@@ -688,6 +701,28 @@ void main() {
     );
     expect(find.text('#1039'), findsOneWidget);
     expect(find.text('#1042'), findsNothing);
+  });
+
+  testWidgets('Dine-in and Takeaway are separate chips now', (tester) async {
+    await _shoot(
+      tester,
+      screen: const OrderHistoryScreen(),
+      bridge: _FakeBridge(),
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'ipad-takeaway-chip',
+      then: (t) async {
+        await t.tap(find.widgetWithText(MadarChip, 'Takeaway'));
+        await t.pump();
+        await t.pump(const Duration(milliseconds: 400));
+      },
+    );
+    // The counter sale, and the queued one that is also a counter sale.
+    expect(find.text('#1041'), findsOneWidget);
+    expect(find.text('QUEUED'), findsOneWidget);
+    // Not the table's bill, and not the online order.
+    expect(find.text('#1042'), findsNothing);
+    expect(find.text('#D-118'), findsNothing);
   });
 
   testWidgets('search finds a sale by number, customer or amount', (

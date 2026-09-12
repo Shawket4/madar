@@ -313,6 +313,7 @@ class _ListColumn extends ConsumerWidget {
             children: [
               chip(OrdersFilter.all, t('history.type.all')),
               chip(OrdersFilter.dineIn, t('history.type.dine_in')),
+              chip(OrdersFilter.takeaway, t('history.type.takeaway')),
               chip(OrdersFilter.online, t('history.type.online')),
               chip(OrdersFilter.voided, t('history.voided')),
             ],

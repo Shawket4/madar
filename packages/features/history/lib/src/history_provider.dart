@@ -41,15 +41,27 @@ enum OrdersScope {
   all,
 }
 
-/// The chip row: three origins and the one correction the core knows.
-/// Voided stands where the design's "Refunded" chip goes once refunds exist
-/// on the bridge; a sale that has returned money will be a fifth value.
+/// The chip row: the three origins a sale can have, and the one correction
+/// the core knows.
+///
+/// Dine-in used to mean "not delivery", which swept every counter sale in
+/// with the tables. The server tells the three apart now — a bill settled
+/// from a waiter's ticket is dine-in, anything rung straight through the till
+/// is takeaway — and only dine-in carries a service charge, so conflating
+/// them hid the difference that decides what a sale was charged.
+///
+/// Rows rung before September 2026 all say `dine_in`, because `takeaway`
+/// could not be expressed; the Dine-in chip therefore still shows old counter
+/// sales. That is the recorded history, not a filter bug.
 enum OrdersFilter {
   /// Every row.
   all,
 
-  /// Anything that is not an online order.
+  /// Eaten here — settled from a waiter's ticket.
   dineIn,
+
+  /// Rung at the counter and carried out.
+  takeaway,
 
   /// Online (delivery) orders.
   online,
@@ -60,7 +72,8 @@ enum OrdersFilter {
   /// Whether [o] passes this chip.
   bool matches(OrderSummaryView o) => switch (this) {
     OrdersFilter.all => true,
-    OrdersFilter.dineIn => o.orderType != 'delivery',
+    OrdersFilter.dineIn => o.orderType == 'dine_in',
+    OrdersFilter.takeaway => o.orderType == 'takeaway',
     OrdersFilter.online => o.orderType == 'delivery',
     OrdersFilter.voided => o.status == 'voided',
   };

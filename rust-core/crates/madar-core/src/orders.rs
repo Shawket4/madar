@@ -575,7 +575,13 @@ pub(crate) fn queued(store: &Store, shift_id: &str) -> CoreResult<Vec<OrderSumma
             // name/number yet. They're rung in the default dine-in flow (delivery
             // has its own path), so the type filter treats them as such.
             teller_name: None,
-            order_type: "dine_in".into(),
+            // A queued `create_order` is a COUNTER sale by construction: a
+            // dine-in bill settles through `settle_ticket`, which is a
+            // different op, and the request carries no ticket for the server
+            // to find. It records those as `takeaway` — so saying `dine_in`
+            // here made every offline sale change its own type the moment it
+            // synced, and the type filter disagree with itself in between.
+            order_type: "takeaway".into(),
             customer_name: flat(&r.customer_name).filter(|s| !s.is_empty()),
             // order_ref is CLIENT-minted (mint_order_ref, SENT on the request), so
             // it's known the moment the order is queued — NOT something we wait for
@@ -618,7 +624,13 @@ pub(crate) fn queued_all(store: &Store) -> CoreResult<Vec<OrderSummaryView>> {
                 .unwrap_or_default(),
             queued: true,
             teller_name: None,
-            order_type: "dine_in".into(),
+            // A queued `create_order` is a COUNTER sale by construction: a
+            // dine-in bill settles through `settle_ticket`, which is a
+            // different op, and the request carries no ticket for the server
+            // to find. It records those as `takeaway` — so saying `dine_in`
+            // here made every offline sale change its own type the moment it
+            // synced, and the type filter disagree with itself in between.
+            order_type: "takeaway".into(),
             customer_name: flat(&r.customer_name).filter(|s| !s.is_empty()),
             order_ref: flat(&r.order_ref).filter(|s| !s.is_empty()),
         });
@@ -788,6 +800,18 @@ mod tests {
         assert_eq!(q[0].order_number, None);
         assert_eq!(q[0].payment_label, "Cash");
         assert_eq!(q[0].status, "queued");
+    }
+
+    #[test]
+    fn a_queued_sale_is_a_takeaway_before_and_after_it_syncs() {
+        let store = Store::open("").unwrap();
+        queue_order(&store, "o1", SHIFT, 1000);
+        // The server records a counter sale as `takeaway` — a dine-in bill
+        // settles through a different op entirely. Saying `dine_in` here made
+        // the row change type on sync and the Dine-in filter show a sale that
+        // would leave it an hour later.
+        assert_eq!(queued(&store, SHIFT).unwrap()[0].order_type, "takeaway");
+        assert_eq!(queued_all(&store).unwrap()[0].order_type, "takeaway");
     }
 
     #[test]

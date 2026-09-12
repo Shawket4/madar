@@ -613,7 +613,11 @@ substitutes above are what ships in the morning.
 Still open, both SERVER work before the core can be asked for anything:
 
 - **Line void** — no route exists.
-- **`order_type: takeaway`** — a server rule and a request field, then `checkout` passes it.
+- ~~**`order_type: takeaway`**~~ — DONE, and it needs no request field: the server DERIVES it
+  (a bill settled from a waiter's ticket is `dine_in`, anything rung straight through the till
+  is `takeaway`), so a till cannot claim a type to dodge the service charge. The core stopped
+  labelling queued counter sales `dine_in`, and Orders has Dine-in and Takeaway as separate
+  chips rather than one that meant "not delivery".
    **Recommend doing this first** — it is the most visible dishonesty in the shipping app too.
 10. **Loyalty programme flag** — expose `loyalty_settings.enabled` + `mode` (+ `program_name`) if
     the till's role may read `get_loyalty_settings`; else add it to the login/`me` payload.
