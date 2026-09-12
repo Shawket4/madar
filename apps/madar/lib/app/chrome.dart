@@ -333,6 +333,13 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       : _Tab.queue;
 
   void _select(_Tab tab) {
+    // The Sell tab is the counter and only the counter. Tabs live in an
+    // IndexedStack, so SellScreen's initState runs once; aiming the cart
+    // back at takeaway has to happen every time the tab is SHOWN — including
+    // a re-tap of the tab already in front of the teller.
+    if (tab == _Tab.sell) {
+      unawaited(ref.read(orderProvider.notifier).pointCartAtTakeaway());
+    }
     if (_chosen == tab) return;
     setState(() => _chosen = tab);
   }

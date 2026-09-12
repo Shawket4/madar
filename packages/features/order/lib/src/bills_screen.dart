@@ -106,7 +106,8 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
     );
     controller.dispose();
     if (name == null || !mounted) return;
-    _notifier.startNewBill(name);
+    await _notifier.startNewBill(name);
+    if (!mounted) return;
     await Navigator.of(
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => const SellScreen()));

@@ -14,7 +14,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/open_tickets_screen.dart';
 import 'package:feature_order/src/order_providers.dart';
-import 'package:feature_order/src/order_screen.dart';
+import 'package:feature_order/src/sell_screen.dart';
 import 'package:feature_order/src/table_clear_prompt.dart';
 import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:flutter/material.dart';
@@ -1184,9 +1184,9 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
   Future<void> _toOrderScreen() async {
     if (!mounted) return;
     if (widget.isHome) {
-      await Navigator.of(
-        context,
-      ).push(MaterialPageRoute<void>(builder: (_) => const OrderScreen()));
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
+      );
       return;
     }
     await Navigator.of(context).maybePop();

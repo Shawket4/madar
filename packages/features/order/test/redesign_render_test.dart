@@ -331,8 +331,14 @@ class _FakeBridge implements MadarBridge {
   /// The table each park landed on, in order — null means the counter.
   final List<String?> parked = [];
 
-  /// How many times the cart was emptied on a retarget.
+  /// How many times a cart was emptied.
   int cleared = 0;
+
+  /// The core's carts, one per context (`null` = takeaway), and the active
+  /// context — the fake keeps them apart exactly the way the core does.
+  final Map<String?, List<CartLineView>> carts = {null: List.of(_cart)};
+  String? context;
+  List<CartLineView> get _inHand => carts[context] ??= [];
 
   ShiftView? get _shift => shiftOpen
       ? const ShiftView(
@@ -388,13 +394,45 @@ class _FakeBridge implements MadarBridge {
     // Recorded, because the ORDER of them is the fix: park, clear, adopt.
     if (name == #holdCartOnTable) {
       parked.add(invocation.namedArguments[#tableId] as String?);
+      _inHand.clear();
       return Future<bool>.value(false);
     }
     if (name == #cartClear) {
       cleared += 1;
+      _inHand.clear();
       return Future<void>.value();
     }
-    if (name == #cartLines) return Future<List<CartLineView>>.value(_cart);
+    if (name == #cartSetContext) {
+      context = invocation.namedArguments[#tableId] as String?;
+      return Future<List<CartLineView>>.value(List.of(_inHand));
+    }
+    if (name == #cartContext) return Future<String?>.value(context);
+    // No printer configured: a fired round prints nothing.
+    if (name == #deviceConfig) {
+      return const DeviceConfigView(reconfiguring: false, configured: true);
+    }
+    if (name == #cartAdd) {
+      final id = invocation.namedArguments[#itemId] as String;
+      final label = invocation.namedArguments[#name] as String;
+      final minor = invocation.namedArguments[#unitPriceMinor] as int;
+      final i = _inHand.indexWhere((l) => l.itemId == id);
+      if (i < 0) {
+        _inHand.add(_cartLine(id, label, minor, 1));
+      } else {
+        final l = _inHand[i];
+        _inHand[i] = _cartLine(id, label, minor, l.qty + 1);
+      }
+      return Future<List<CartLineView>>.value(List.of(_inHand));
+    }
+    if (name == #fireTicket) {
+      _inHand.clear();
+      return Future<TicketFiredView>.value(
+        const TicketFiredView(ticketId: 'tk-new', queuedOffline: false),
+      );
+    }
+    if (name == #cartLines) {
+      return Future<List<CartLineView>>.value(List.of(_inHand));
+    }
     if (name == #cartTotals) return Future<CartTotals>.value(_totals);
     if (name == #listDrafts) return Future<List<DraftView>>.value(_drafts);
     if (name == #floorLayout) return Future<FloorLayoutView>.value(_layout);
@@ -581,8 +619,8 @@ void main() {
 
     testWidgets('the Sell TAB always comes back to takeaway', (tester) async {
       // The report: tap a table, leave without firing, return to Sell — and
-      // you are still on that table with nothing saying so. Whatever is in
-      // hand parks itself on the way out, so nothing is lost either.
+      // you are still on that table with nothing saying so. The table keeps
+      // its own cart in the core, so nothing is lost either.
       final container = await _mount(
         tester,
         screen: const SellScreen(),
@@ -756,13 +794,15 @@ void main() {
 /// with items already and you open a new table, it's already there. It's
 /// shared between them."
 ///
-/// There is ONE cart in the core, and `cartTableId` was only a label on it.
-/// Aiming the cart somewhere else left the lines untouched, so a half-built
-/// takeaway became table 5's first round and two tables tapped in a row
-/// shared one basket. A retarget is a switch now: park what is in hand under
-/// its own identity, clear, then adopt.
+/// The core keeps one cart per context (takeaway, or a table) and the host
+/// only switches which one is in hand. Nothing is parked, cleared or copied
+/// to fake the isolation any more.
 void _cartContextTests() {
-  testWidgets('a cart never follows the teller onto another table', (
+  List<String> inHand(ProviderContainer c) => [
+    for (final l in c.read(orderProvider).cartLines) '${l.name}x${l.qty}',
+  ];
+
+  testWidgets('every table and the counter keep their own cart', (
     tester,
   ) async {
     final bridge = _FakeBridge();
@@ -774,27 +814,63 @@ void _cartContextTests() {
     );
     final notifier = container.read(orderProvider.notifier);
     await tester.pump();
+    final takeaway = inHand(container);
+    expect(takeaway, isNotEmpty, reason: 'the counter has unfired work');
 
+    // Add to T1.
+    await notifier.pointCartAtTable('t1', 'T1');
+    expect(inHand(container), isEmpty, reason: 'T1 starts with its own cart');
+    await notifier.addToCart(_items.first);
+    await notifier.addToCart(_items.first);
+    final t1 = inHand(container);
+    expect(t1, ['${_items.first.name}x2']);
+
+    // T2 is empty.
     await notifier.pointCartAtTable('t2', 'T2');
-    await tester.pump();
     expect(container.read(orderProvider).cartTableId, 't2');
-    final afterFirst = bridge.parked.length;
+    expect(inHand(container), isEmpty);
 
-    // A second table, with lines in hand from the first.
-    await notifier.pointCartAtTable('t3', 'T3');
+    // Takeaway is its own, untouched.
+    await notifier.pointCartAtTakeaway();
+    expect(container.read(orderProvider).cartTableId, isNull);
+    expect(inHand(container), takeaway);
+
+    // Back to T1: its items are there.
+    await notifier.pointCartAtTable('t1', 'T1');
+    expect(inHand(container), t1);
+
+    // Fire T1: T1 starts fresh, takeaway untouched.
+    expect(await notifier.fireOrAddRound(tableId: 't1'), isTrue);
+    expect(inHand(container), isEmpty);
+    expect(container.read(orderProvider).cartTableId, 't1');
+    await notifier.pointCartAtTakeaway();
+    expect(inHand(container), takeaway);
+
+    expect(bridge.parked, isEmpty, reason: 'switching never parks');
+    expect(bridge.cleared, 0, reason: 'switching never clears');
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('seating a booking and picking a table go through the switch', (
+    tester,
+  ) async {
+    final bridge = _FakeBridge();
+    final container = await _mount(
+      tester,
+      screen: const SellScreen.forTable(),
+      size: _ipad,
+      bridge: bridge,
+    );
+    final notifier = container.read(orderProvider.notifier);
     await tester.pump();
+    final takeaway = inHand(container);
 
-    expect(container.read(orderProvider).cartTableId, 't3');
-    expect(
-      bridge.parked.length,
-      greaterThan(afterFirst),
-      reason: "the first table's order is parked before the second is taken",
-    );
-    expect(
-      bridge.parked.last,
-      't2',
-      reason: 'it parks under the table it CAME from, not the one going to',
-    );
+    await notifier.setCartTable('t3', 'T3');
+    expect(bridge.context, 't3');
+    expect(inHand(container), isEmpty, reason: 'no takeaway lines leak in');
+
+    await notifier.setCartTable(null, null);
+    expect(inHand(container), takeaway);
   });
 
   testWidgets('re-tapping the same table does not churn the cart', (
@@ -811,15 +887,12 @@ void _cartContextTests() {
     await tester.pump();
 
     await notifier.pointCartAtTable('t2', 'T2');
-    await tester.pump();
-    final parks = bridge.parked.length;
-    final clears = bridge.cleared;
-
+    await notifier.addToCart(_items.first);
     await notifier.pointCartAtTable('t2', 'T2');
-    await tester.pump();
 
-    expect(bridge.parked.length, parks, reason: 'same target, no park');
-    expect(bridge.cleared, clears, reason: 'same target, no clear');
+    expect(bridge.parked, isEmpty);
+    expect(bridge.cleared, 0);
+    expect(inHand(container), ['${_items.first.name}x1']);
     expect(container.read(orderProvider).cartTableId, 't2');
   });
 }

@@ -449,6 +449,9 @@ class _FakeBridge implements MadarBridge {
   final bool requireTable;
   final bool online;
   final int pending;
+
+  /// The cart context the shell last switched the core to.
+  String? activeCart;
   final int failed;
   final bool authPaused;
   final int clockSkew;
@@ -580,6 +583,13 @@ class _FakeBridge implements MadarBridge {
     if (name == #cartLines) {
       return Future<List<CartLineView>>.value(_waiter ? const [] : _cart);
     }
+    // The core's active cart context (null = takeaway); switching is recorded
+    // so the Sell tab's takeaway guarantee can be asserted.
+    if (name == #cartSetContext) {
+      activeCart = invocation.namedArguments[#tableId] as String?;
+      return Future<List<CartLineView>>.value(const []);
+    }
+    if (name == #cartContext) return Future<String?>.value(activeCart);
     if (name == #cartTotals) {
       return Future<CartTotals>.value(
         _waiter
@@ -851,6 +861,32 @@ void main() {
     await _shot(tester, 'shell-teller-queue-ipad');
     await _tab(tester, 'till');
     await _shot(tester, 'shell-teller-till-ipad');
+  });
+
+  testWidgets('the Sell tab is always takeaway, even re-selected', (
+    tester,
+  ) async {
+    final bridge = _FakeBridge();
+    final container = await _mount(tester, bridge: bridge, size: _ipad);
+    final order = container.read(orderProvider.notifier);
+
+    // Tap a table, add nothing, leave for Floor, come back to Sell.
+    await order.pointCartAtTable('t1', 'T1');
+    await _tab(tester, 'floor');
+    expect(container.read(orderProvider).cartTableId, 't1');
+    await _tab(tester, 'sell');
+    await _settle(tester);
+    expect(container.read(orderProvider).cartTableId, isNull);
+    expect(bridge.activeCart, isNull);
+
+    // Already ON Sell (IndexedStack: initState does not run again), aimed at
+    // a table from elsewhere — re-tapping the tab still lands on takeaway.
+    await order.pointCartAtTable('t2', 'T2');
+    expect(bridge.activeCart, 't2');
+    await _tab(tester, 'sell');
+    await _settle(tester);
+    expect(container.read(orderProvider).cartTableId, isNull);
+    expect(bridge.activeCart, isNull);
   });
 
   testWidgets('every sale on a table: Floor is home; dark; queued pill', (

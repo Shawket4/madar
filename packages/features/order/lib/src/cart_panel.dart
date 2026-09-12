@@ -554,7 +554,9 @@ class TellerHeldStrip extends ConsumerWidget {
                             .cartTableId,
                       );
                       if (pick != null) {
-                        notifier.setCartTable(pick.tableId, pick.label);
+                        unawaited(
+                          notifier.setCartTable(pick.tableId, pick.label),
+                        );
                       }
                     }()),
                   );
