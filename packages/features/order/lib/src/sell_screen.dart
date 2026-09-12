@@ -137,7 +137,12 @@ class _SellScreenState extends ConsumerState<SellScreen>
         // The TAB is the counter. Aiming the cart back at takeaway parks
         // anything still pointed at a table, so returning here from a table
         // you never fired lands you where the tab says you are.
-        if (!widget.forTable && mounted) {
+        // Only while the tab is what's on screen: a table's Sell pushed over
+        // it before this lands must not have its cart yanked to takeaway
+        // (that is how a table's screen came up titled "Takeaway").
+        if (!widget.forTable &&
+            mounted &&
+            (ModalRoute.of(context)?.isCurrent ?? true)) {
           await _notifier.pointCartAtTakeaway();
         }
       }());
@@ -355,51 +360,54 @@ class _SellScreenState extends ConsumerState<SellScreen>
           ),
         );
 
-    final header = MadarHeader(
-      title: title == null ? orderWord(bridge, 'sell.takeaway') : title(bridge),
-      onBack: Navigator.of(context).canPop()
-          ? () => Navigator.of(context).maybePop()
-          : null,
-      actions: [
-        MadarGlyphTile(
-          glyph: _searching ? MadarGlyph.close : MadarGlyph.search,
-          semanticLabel: bridge.tr(key: 'order.search'),
-          onTap: () => setState(() {
-            _searching = !_searching;
-            if (!_searching) _search.clear();
-          }),
+    final guests = ref.watch(orderProvider.select(_guestsOf));
+    final pageTitle = title == null
+        ? orderWord(bridge, 'sell.takeaway')
+        : title(bridge);
+    // A table's party size under its name — "4 guests" — once it is known
+    // (the bill's own count, else what was picked at seating).
+    final pageSubtitle = guests == null
+        ? null
+        : '$guests ${bridge.tr(key: 'tables.guests')}';
+    final headerActions = <Widget>[
+      MadarGlyphTile(
+        glyph: _searching ? MadarGlyph.close : MadarGlyph.search,
+        semanticLabel: bridge.tr(key: 'order.search'),
+        onTap: () => setState(() {
+          _searching = !_searching;
+          if (!_searching) _search.clear();
+        }),
+      ),
+      // Wide layout keeps the cart column on-screen — its own
+      // `TellerHeldStrip` already shows every parked draft, so a second
+      // entry point here would just be a shortcut to something already
+      // visible. Narrow hides the cart behind a sheet, so this is that
+      // sheet's only door.
+      if (counter && !layout.isTablet)
+        // An ACTION, not a filter — so it is the kit's button, like every
+        // other action. A chip says "this is one of a set you choose
+        // between"; this opens a sheet.
+        MadarButton(
+          label: drafts == 0
+              ? orderWord(bridge, 'sell.parked')
+              : '${orderWord(bridge, 'sell.parked')} $drafts',
+          glyph: MadarGlyph.bag,
+          variant: MadarButtonVariant.secondary,
+          size: MadarButtonSize.compact,
+          onTap: () => unawaited(_openParked()),
         ),
-        // Wide layout keeps the cart column on-screen — its own
-        // `TellerHeldStrip` already shows every parked draft, so a second
-        // entry point here would just be a shortcut to something already
-        // visible. Narrow hides the cart behind a sheet, so this is that
-        // sheet's only door.
-        if (counter && !layout.isTablet)
-          // An ACTION, not a filter — so it is the kit's button, like every
-          // other action. A chip says "this is one of a set you choose
-          // between"; this opens a sheet.
-          MadarButton(
-            label: drafts == 0
-                ? orderWord(bridge, 'sell.parked')
-                : '${orderWord(bridge, 'sell.parked')} $drafts',
-            glyph: MadarGlyph.bag,
-            variant: MadarButtonVariant.secondary,
-            size: MadarButtonSize.compact,
-            onTap: () => unawaited(_openParked()),
-          ),
-      ],
-      // The search field belongs to the whole screen; the CATEGORY strip does
-      // not — see below, where it sits inside the catalog column.
-      below: _searching
-          ? MadarField(
-              controller: _search,
-              placeholder: bridge.tr(key: 'order.search'),
-              glyph: MadarGlyph.search,
-              autofocus: true,
-              onChanged: (_) => setState(() {}),
-            )
-          : null,
-    );
+    ];
+    // The search field belongs to the whole screen; the CATEGORY strip does
+    // not — see below, where it sits inside the catalog column.
+    final headerBelow = _searching
+        ? MadarField(
+            controller: _search,
+            placeholder: bridge.tr(key: 'order.search'),
+            glyph: MadarGlyph.search,
+            autofocus: true,
+            onChanged: (_) => setState(() {}),
+          )
+        : null;
 
     // INSIDE the catalog side of the split, not above it.
     //
@@ -447,20 +455,15 @@ class _SellScreenState extends ConsumerState<SellScreen>
       anchors: _anchors,
       child: MadarPageScaffold(
         safeTop: widget.forTable,
+        title: pageTitle,
+        subtitle: pageSubtitle,
+        actions: headerActions,
+        below: headerBelow,
         body: SafeArea(
           top: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: EdgeInsetsDirectional.fromSTEB(
-                  layout.gutter,
-                  Space.md,
-                  layout.gutter,
-                  0,
-                ),
-                child: header,
-              ),
               Expanded(
                 child: layout.isTablet
                     ? Row(
@@ -491,6 +494,16 @@ class _SellScreenState extends ConsumerState<SellScreen>
         ),
       ),
     );
+  }
+
+  /// The party size of the table in hand, or null when none is known.
+  static int? _guestsOf(OrderState s) {
+    final ticket = s.activeTicket;
+    final tableId = ticket?.tableId ?? s.cartTableId;
+    final n =
+        ticket?.guestCount ??
+        (tableId == null ? null : s.pendingCovers[tableId]);
+    return n == null || n <= 0 ? null : n;
   }
 
   /// The header's title, or null for the plain counter — a function of the

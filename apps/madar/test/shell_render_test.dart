@@ -1140,17 +1140,32 @@ Future<void> _openPage(
   );
   if (tab != null) await _tab(tester, tab);
   if (pushed != null) {
+    // A table's Sell is only ever pushed with a table in hand — seated with
+    // its party — so the picture shows what a teller sees, not takeaway.
+    if (pushed().runtimeType == SellScreen) {
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(Navigator).first),
+      );
+      final order = container.read(orderProvider.notifier);
+      await order.pointCartAtTable('t2', 'T2');
+      order.setPendingCovers('t2', 4);
+    }
     tester
         .state<NavigatorState>(find.byType(Navigator).first)
         .push(MaterialPageRoute<void>(builder: (_) => pushed()));
     await _settle(tester);
+    if (pushed().runtimeType == SellScreen) {
+      // The page title AND the cart header name the table, not takeaway.
+      expect(find.text('T2 · Round 1'), findsWidgets);
+      expect(find.text('4 guests'), findsOneWidget);
+    }
   }
 }
 
 /// Pages still drawing the kit header by hand rather than through the
 /// shell's slot. Their geometry is held to the same numbers below; the key
-/// is what they lack. Sell is mid-edit elsewhere — move it and empty this.
-const _headerByHand = {'sell', 'sell-for-table'};
+/// is what they lack. Empty: every page's header is the shell's own.
+const _headerByHand = <String>{};
 
 /// Where the one header's title sits: its left edge, its top, and whether a
 /// back tile stands before it.
