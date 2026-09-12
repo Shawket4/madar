@@ -358,7 +358,7 @@ class _CartHeader extends StatelessWidget {
         children: [
           // WHERE THE FLIGHT LANDS.
           //
-          // playCartFlight asks cartAnchorCenter() for a target and returns
+          // playCartFlight asks CartAnchors.center() for a target and returns
           // silently when there isn't one. Both anchor keys were only ever
           // mounted inside the OLD cart panel, which nothing reaches any
           // more — so on this cart the dot had nowhere to go and every
@@ -368,16 +368,11 @@ class _CartHeader extends StatelessWidget {
           // Nudge is the other half: the header dips when the dot arrives,
           // so the cart acknowledges the catch instead of the item just
           // appearing in the list.
-          ValueListenableBuilder<int>(
-            valueListenable: cartCatchTick,
-            builder: (context, tick, child) =>
-                Nudge(trigger: tick, kind: NudgeKind.dip, child: child!),
-            // The anchor wraps the GLYPH, not the whole row, so the dot
-            // lands on the cart rather than in the middle of the title.
-            child: KeyedSubtree(
-              key: cartPanelAnchor,
-              child: MadarIcon('cart', tint: colors.accent, size: IconSize.lg),
-            ),
+          //
+          // The anchor wraps the GLYPH, not the whole row, so the dot lands
+          // on the cart rather than in the middle of the title.
+          CartAnchorPad(
+            child: MadarIcon('cart', tint: colors.accent, size: IconSize.lg),
           ),
           Expanded(
             child: Row(
@@ -783,17 +778,12 @@ class SellBar extends ConsumerWidget {
               spacing: Space.md,
               children: [
                 // The phone's landing pad — same reason as the panel's.
-                ValueListenableBuilder<int>(
-                  valueListenable: cartCatchTick,
-                  builder: (context, tick, child) =>
-                      Nudge(trigger: tick, kind: NudgeKind.dip, child: child!),
-                  child: KeyedSubtree(
-                    key: cartBarAnchor,
-                    child: MadarIcon(
-                      'cart',
-                      tint: colors.accent,
-                      size: IconSize.lg,
-                    ),
+                CartAnchorPad(
+                  bar: true,
+                  child: MadarIcon(
+                    'cart',
+                    tint: colors.accent,
+                    size: IconSize.lg,
                   ),
                 ),
                 Expanded(

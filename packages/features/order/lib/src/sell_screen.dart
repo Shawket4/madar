@@ -121,6 +121,10 @@ class _SellScreenState extends ConsumerState<SellScreen>
   /// between the finger and the cart.
   final _needsSheet = <String, bool>{};
 
+  /// This screen's cart landing pads — its own, so a table's pushed Sell
+  /// never shares a GlobalKey with the Sell tab mounted underneath it.
+  final _anchors = CartAnchors();
+
   OrderNotifier get _notifier => ref.read(orderProvider.notifier);
 
   @override
@@ -198,13 +202,14 @@ class _SellScreenState extends ConsumerState<SellScreen>
   /// (the reported bug: tapping a tile added the item with no motion at all).
   void _flyToCart(Offset origin) {
     if (MediaQuery.disableAnimationsOf(context)) return;
-    final to = cartAnchorCenter();
+    final anchors = CartAnchors.maybeOf(context);
+    final to = anchors?.center();
     if (to == null) return;
     playCartFlight(
       context,
       from: origin,
       to: to,
-      onArrive: () => cartCatchTick.value++,
+      onArrive: () => anchors!.catchTick.value++,
     );
   }
 
@@ -215,11 +220,14 @@ class _SellScreenState extends ConsumerState<SellScreen>
     await showMadarSheet<void>(
       context,
       size: SheetSize.hug,
-      builder: (_) => ItemDetailSheet(
-        item: item,
-        addons: addons,
-        groups: groups,
-        editLine: edit,
+      builder: (_) => CartAnchorScope(
+        anchors: _anchors,
+        child: ItemDetailSheet(
+          item: item,
+          addons: addons,
+          groups: groups,
+          editLine: edit,
+        ),
       ),
     );
   }
@@ -235,7 +243,10 @@ class _SellScreenState extends ConsumerState<SellScreen>
       context,
       size: SheetSize.hug,
       maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (_) => BundleDetailSheet(bundle: bundle),
+      builder: (_) => CartAnchorScope(
+        anchors: _anchors,
+        child: BundleDetailSheet(bundle: bundle),
+      ),
     );
   }
 
@@ -277,13 +288,16 @@ class _SellScreenState extends ConsumerState<SellScreen>
     await showMadarSheet<void>(
       context,
       size: SheetSize.large,
-      builder: (sheetContext) => SellCart(
-        onTerminal: () {
-          Navigator.of(sheetContext).maybePop();
-          unawaited(_terminal());
-        },
-        onEditLine: (line) => unawaited(_editLine(line)),
-        onClose: () => Navigator.of(sheetContext).maybePop(),
+      builder: (sheetContext) => CartAnchorScope(
+        anchors: _anchors,
+        child: SellCart(
+          onTerminal: () {
+            Navigator.of(sheetContext).maybePop();
+            unawaited(_terminal());
+          },
+          onEditLine: (line) => unawaited(_editLine(line)),
+          onClose: () => Navigator.of(sheetContext).maybePop(),
+        ),
       ),
     );
   }
@@ -424,48 +438,51 @@ class _SellScreenState extends ConsumerState<SellScreen>
 
     // As a tab body the shell's top bar above it already paid the top inset;
     // pushed for a table it is the topmost thing and pays the inset itself.
-    return MadarPageScaffold(
-      safeTop: widget.forTable,
-      body: SafeArea(
-        top: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: EdgeInsetsDirectional.fromSTEB(
-                layout.gutter,
-                Space.md,
-                layout.gutter,
-                0,
+    return CartAnchorScope(
+      anchors: _anchors,
+      child: MadarPageScaffold(
+        safeTop: widget.forTable,
+        body: SafeArea(
+          top: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsetsDirectional.fromSTEB(
+                  layout.gutter,
+                  Space.md,
+                  layout.gutter,
+                  0,
+                ),
+                child: header,
               ),
-              child: header,
-            ),
-            Expanded(
-              child: layout.isTablet
-                  ? Row(
-                      children: [
-                        Expanded(child: catalog),
-                        const VerticalDivider(width: 1, thickness: 1),
-                        SizedBox(
-                          width: Responsive.cartColumnWidth,
-                          child: SellCart(
-                            onTerminal: () => unawaited(_terminal()),
-                            onEditLine: (line) => unawaited(_editLine(line)),
+              Expanded(
+                child: layout.isTablet
+                    ? Row(
+                        children: [
+                          Expanded(child: catalog),
+                          const VerticalDivider(width: 1, thickness: 1),
+                          SizedBox(
+                            width: Responsive.cartColumnWidth,
+                            child: SellCart(
+                              onTerminal: () => unawaited(_terminal()),
+                              onEditLine: (line) => unawaited(_editLine(line)),
+                            ),
                           ),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      children: [
-                        Expanded(child: catalog),
-                        SellBar(
-                          onOpen: () => unawaited(_openCartSheet()),
-                          onTerminal: () => unawaited(_terminal()),
-                        ),
-                      ],
-                    ),
-            ),
-          ],
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          Expanded(child: catalog),
+                          SellBar(
+                            onOpen: () => unawaited(_openCartSheet()),
+                            onTerminal: () => unawaited(_terminal()),
+                          ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );

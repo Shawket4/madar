@@ -217,7 +217,9 @@ class _CartHeader extends ConsumerWidget {
           // The wide layout's flight landing pad — the title + count group
           // dips when a flown dot arrives; the count pops as it rises.
           ValueListenableBuilder<int>(
-            valueListenable: cartCatchTick,
+            valueListenable:
+                CartAnchors.maybeOf(context)?.catchTick ??
+                ValueNotifier<int>(0),
             builder: (context, tick, child) =>
                 Nudge(trigger: tick, kind: NudgeKind.dip, child: child!),
             child: Row(
@@ -226,7 +228,7 @@ class _CartHeader extends ConsumerWidget {
                 // The glyph the flight lands on — the anchor wraps ONLY the
                 // icon so the dot lands in the cart, not the group's center.
                 KeyedSubtree(
-                  key: cartPanelAnchor,
+                  key: CartAnchors.maybeOf(context)?.panel,
                   child: MadarIcon(
                     'cart',
                     tint: colors.accent,
@@ -1272,7 +1274,9 @@ class CartBar extends ConsumerWidget {
                 child: Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: ValueListenableBuilder<int>(
-                    valueListenable: cartCatchTick,
+                    valueListenable:
+                        CartAnchors.maybeOf(context)?.catchTick ??
+                        ValueNotifier<int>(0),
                     builder: (context, tick, child) => Nudge(
                       trigger: tick,
                       kind: NudgeKind.dip,
@@ -1286,7 +1290,7 @@ class CartBar extends ConsumerWidget {
                           // The glyph the flight lands on — anchor on the
                           // icon ONLY, so the dot lands in the cart.
                           KeyedSubtree(
-                            key: cartBarAnchor,
+                            key: CartAnchors.maybeOf(context)?.bar,
                             child: MadarIcon('cart', tint: colors.textOnAccent),
                           ),
                           const SizedBox(width: Space.xs),

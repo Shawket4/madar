@@ -14,6 +14,7 @@ import 'dart:ui' as ui;
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/feature_order.dart';
+import 'package:feature_order/src/cart_anchor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show FontLoader;
@@ -643,6 +644,28 @@ void main() {
       // And the two constructors really are two different errands.
       expect(const SellScreen().forTable, isFalse);
       expect(const SellScreen.forTable().forTable, isTrue);
+    });
+
+    testWidgets("a table's Sell pushed over the Sell tab: no duplicate "
+        'cart anchors, the flight lands on the visible cart', (tester) async {
+      await _mount(tester, screen: const SellScreen(), size: _ipad);
+      final tab = tester.element(find.byType(SellScreen));
+      Navigator.of(tab).push(
+        MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.takeException(), isNull);
+      final screens = find.byType(SellScreen, skipOffstage: false);
+      expect(screens, findsNWidgets(2));
+      final pads = find.byType(CartAnchorPad, skipOffstage: false);
+      final anchors = {for (final e in pads.evaluate()) CartAnchors.maybeOf(e)};
+      expect(anchors.length, 2, reason: 'one set per screen');
+      final visible = CartAnchors.maybeOf(
+        tester.element(find.byType(CartAnchorPad)),
+      );
+      expect(visible!.center(), isNotNull);
     });
 
     testWidgets('a phone with no shift says why it cannot charge', (

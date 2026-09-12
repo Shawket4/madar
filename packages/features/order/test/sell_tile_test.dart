@@ -176,36 +176,58 @@ void _gridTests() {
   });
 }
 
-// The add-to-cart flight asks `cartAnchorCenter()` for somewhere to land and
-// returns silently when there is nowhere. Both anchors were only ever mounted
-// inside the OLD cart panel, which nothing reaches any more — so on the cart
-// that shipped, the dot had no destination and EVERY add-to-cart skipped its
-// animation without a sound. The launch code was never the problem.
+// The add-to-cart flight asks its screen's `CartAnchors.center()` for
+// somewhere to land and returns silently when there is nowhere. The anchors
+// are per screen: a table's pushed Sell over the mounted Sell tab must not
+// share a GlobalKey with it, and its dot must land in ITS cart.
 void _cartAnchorTests() {
   testWidgets('nothing mounted means no landing point', (tester) async {
     await tester.pumpWidget(const SizedBox.shrink());
-    expect(
-      cartAnchorCenter(),
-      isNull,
-      reason: 'this is the state the live cart was shipping in',
-    );
+    expect(CartAnchors().center(), isNull);
   });
 
   testWidgets('a mounted anchor gives the flight its target', (tester) async {
+    final anchors = CartAnchors();
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: Align(
-          alignment: Alignment.topLeft,
-          child: KeyedSubtree(
-            key: cartPanelAnchor,
-            child: const SizedBox(width: 40, height: 20),
+        child: CartAnchorScope(
+          anchors: anchors,
+          child: const Align(
+            alignment: Alignment.topLeft,
+            child: CartAnchorPad(child: SizedBox(width: 40, height: 20)),
           ),
         ),
       ),
     );
-    final at = cartAnchorCenter();
-    expect(at, isNotNull);
-    expect(at, const Offset(20, 10), reason: 'the centre of the anchored box');
+    expect(anchors.center(), const Offset(20, 10));
+  });
+
+  testWidgets('two screens each keep their own anchors, no duplicate key', (
+    tester,
+  ) async {
+    final under = CartAnchors();
+    final over = CartAnchors();
+    Widget pad(CartAnchors a, Alignment at) => CartAnchorScope(
+      anchors: a,
+      child: Align(
+        alignment: at,
+        child: const CartAnchorPad(child: SizedBox(width: 40, height: 20)),
+      ),
+    );
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Stack(
+          children: [
+            pad(under, Alignment.topLeft),
+            pad(over, Alignment.bottomRight),
+          ],
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(under.center(), const Offset(20, 10));
+    expect(over.center(), isNot(under.center()));
   });
 }

@@ -755,13 +755,14 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
   void _flyToCart() {
     if (MediaQuery.disableAnimationsOf(context)) return;
     final render = _footerKey.currentContext?.findRenderObject();
-    final to = cartAnchorCenter();
+    final anchors = CartAnchors.maybeOf(context);
+    final to = anchors?.center();
     if (render is! RenderBox || !render.hasSize || to == null) return;
     playCartFlight(
       context,
       from: render.localToGlobal(render.size.center(Offset.zero)),
       to: to,
-      onArrive: () => cartCatchTick.value++,
+      onArrive: () => anchors!.catchTick.value++,
     );
   }
 

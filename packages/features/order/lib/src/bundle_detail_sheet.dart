@@ -171,13 +171,14 @@ class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
   /// end is missing.
   void _flyToCart() {
     final render = _footerKey.currentContext?.findRenderObject();
-    final to = cartAnchorCenter();
+    final anchors = CartAnchors.maybeOf(context);
+    final to = anchors?.center();
     if (render is! RenderBox || !render.hasSize || to == null) return;
     playCartFlight(
       context,
       from: render.localToGlobal(render.size.center(Offset.zero)),
       to: to,
-      onArrive: () => cartCatchTick.value++,
+      onArrive: () => anchors!.catchTick.value++,
     );
   }
 
