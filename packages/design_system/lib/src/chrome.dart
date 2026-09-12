@@ -28,6 +28,9 @@ const double _badgeTop = 8;
 const double _badgeEnd = 10;
 const double _badgeSize = 20;
 
+/// The outbox pill's live sync glyph.
+const double _pillGlyph = 18;
+
 /// One destination in a shell: Sell, Floor, Queue, Till — or Floor, Bills,
 /// Me. The label arrives localised; the glyph is the outline that fills
 /// when the tab is active.
@@ -149,7 +152,7 @@ class MadarRailTab extends StatelessWidget {
                 PositionedDirectional(
                   top: _badgeTop,
                   end: _badgeEnd,
-                  child: MadarBadge(count: tab.badge),
+                  child: MadarBadge(count: tab.badge, pulse: !selected),
                 ),
             ],
           ),
@@ -160,17 +163,25 @@ class MadarRailTab extends StatelessWidget {
 }
 
 /// The amber count disc on a tab. Mono, LTR.
+///
+/// It POPS each time the count rises (the pre-rebuild rail's bump), and with
+/// [pulse] a soft halo breathes behind it — the natives' rail marker for
+/// "something new is waiting behind a tab you are not on". Reduced motion
+/// keeps the disc and drops both.
 class MadarBadge extends StatelessWidget {
-  const MadarBadge({required this.count, super.key});
+  const MadarBadge({required this.count, this.pulse = false, super.key});
 
   final int count;
+
+  /// Breathe a halo behind the disc — for a tab that is not in front.
+  final bool pulse;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     // No `alignment:` on the Container — under loose constraints (a Wrap, a
     // Stack) that would expand the disc to the full width. The Row centres.
-    return Container(
+    final disc = Container(
       constraints: const BoxConstraints(minWidth: _badgeSize),
       height: _badgeSize,
       padding: const EdgeInsetsDirectional.symmetric(horizontal: 6),
@@ -192,6 +203,78 @@ class MadarBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+    return Nudge(
+      trigger: count,
+      child: pulse
+          ? Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(child: _PulsingHalo(color: colors.warning)),
+                disc,
+              ],
+            )
+          : disc,
+    );
+  }
+}
+
+/// The natives' rail marker: a soft disc behind the badge whose opacity
+/// breathes 1 ↔ 0.25 on a 750ms half-cycle (the pre-rebuild `_PulsingDot`).
+class _PulsingHalo extends StatefulWidget {
+  const _PulsingHalo({required this.color});
+
+  final Color color;
+
+  @override
+  State<_PulsingHalo> createState() => _PulsingHaloState();
+}
+
+class _PulsingHaloState extends State<_PulsingHalo>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 750),
+    lowerBound: 0.25,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (motionReduced(context)) {
+      _pulse
+        ..stop()
+        ..value = 0.25;
+    } else if (!_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: OverflowBox(
+        maxWidth: double.infinity,
+        maxHeight: double.infinity,
+        child: FadeTransition(
+          opacity: _pulse,
+          child: Container(
+            width: _badgeSize + 10,
+            height: _badgeSize + 10,
+            decoration: BoxDecoration(
+              color: widget.color.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(Radii.pill),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -475,12 +558,8 @@ class _BarTab extends StatelessWidget {
       button: true,
       selected: selected,
       label: tab.label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          MadarHaptics.selection();
-          onTap();
-        },
+      child: TactileScale(
+        onTap: onTap,
         child: Container(
           height: Metrics.tabBarHeight - Space.lg,
           decoration: BoxDecoration(
@@ -512,7 +591,7 @@ class _BarTab extends StatelessWidget {
                 PositionedDirectional(
                   top: 2,
                   end: Space.md,
-                  child: MadarBadge(count: tab.badge),
+                  child: MadarBadge(count: tab.badge, pulse: !selected),
                 ),
             ],
           ),
@@ -602,7 +681,21 @@ class MadarOutboxPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: Space.sm,
         children: [
-          MadarGlyphIcon(glyph, size: IconSize.sm, color: glyphColor),
+          // Connected and queued states draw the living sync glyph (the
+          // pre-rebuild SyncGlyph): a still ring + check when caught up, a
+          // sweeping ring while work drains. Offline / stuck keep their
+          // flat white glyphs — the amber and red fills are the message.
+          switch (state) {
+            OutboxState.synced => const SyncGlyph(
+              state: SyncGlyphState.online,
+              size: _pillGlyph,
+            ),
+            OutboxState.queued => const SyncGlyph(
+              state: SyncGlyphState.syncing,
+              size: _pillGlyph,
+            ),
+            _ => MadarGlyphIcon(glyph, size: IconSize.sm, color: glyphColor),
+          },
           if (count > 0)
             Text(
               '$count',

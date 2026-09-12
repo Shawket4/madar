@@ -98,6 +98,8 @@ class _TactileScaleState extends State<TactileScale>
 
   void _handleDown(PointerDownEvent _) {
     if (widget.haptic) MadarHaptics.selection();
+    // Reduced motion: the haptic still answers, the card does not move.
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return;
     _springTo(widget.scale);
   }
 

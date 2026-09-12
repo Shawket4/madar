@@ -19,6 +19,12 @@ import 'package:flutter/material.dart';
 //   [Nudge]         — badge pop / cart-catch dip on a counter change
 //   [playCartFlight] — the add-to-cart dot arcing into the cart
 
+/// Whether the platform asked for reduced motion
+/// (`MediaQuery.disableAnimations`). Every playful animation lands on its
+/// final frame instead of playing, and nothing loops.
+bool motionReduced(BuildContext context) =>
+    MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
 /// The three connectivity states [SyncGlyph] renders.
 enum SyncGlyphState {
   /// Confirmed reachable — closed ring + check, still (motion = activity).
@@ -70,6 +76,11 @@ class _SyncGlyphState extends State<SyncGlyph> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _prev = widget.state;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _syncLoops();
   }
 
@@ -78,13 +89,22 @@ class _SyncGlyphState extends State<SyncGlyph> with TickerProviderStateMixin {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.state != widget.state) {
       _prev = oldWidget.state;
-      _trans.forward(from: 0);
+      if (motionReduced(context)) {
+        _trans.value = 1;
+      } else {
+        _trans.forward(from: 0);
+      }
       _syncLoops();
     }
   }
 
   /// Run only the loop the current state needs — an idle glyph must not tick.
   void _syncLoops() {
+    if (motionReduced(context)) {
+      _spin.stop();
+      _breathe.stop();
+      return;
+    }
     if (widget.state == SyncGlyphState.syncing) {
       _spin.repeat();
     } else {
@@ -284,6 +304,12 @@ class _SettleMarkState extends State<SettleMark>
     vsync: this,
     duration: const Duration(milliseconds: 1300),
   )..forward();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (motionReduced(context)) _play.value = 1;
+  }
 
   @override
   void dispose() {
@@ -733,7 +759,9 @@ class _NudgeState extends State<Nudge> with SingleTickerProviderStateMixin {
   @override
   void didUpdateWidget(Nudge oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.trigger > oldWidget.trigger) _play.forward(from: 0);
+    if (widget.trigger > oldWidget.trigger && !motionReduced(context)) {
+      _play.forward(from: 0);
+    }
   }
 
   @override
@@ -848,6 +876,15 @@ class _QueuedMarkState extends State<QueuedMark> with TickerProviderStateMixin {
     vsync: this,
     duration: const Duration(seconds: 4),
   )..repeat();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (motionReduced(context)) {
+      _enter.value = 1;
+      _loop.stop();
+    }
+  }
 
   @override
   void dispose() {
