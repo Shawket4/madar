@@ -33,7 +33,7 @@ const int _prefsFlex = 6;
 ///
 /// The notifier already refuses outright while a shift is open; this is the
 /// question for the case it allows.
-Future<bool> _confirmSignOut(BuildContext context, WidgetRef ref) {
+Future<bool> confirmSignOut(BuildContext context, WidgetRef ref) {
   final bridge = ref.read(bridgeProvider);
   return showMadarConfirm(
     context,
@@ -138,7 +138,7 @@ class _Preferences extends ConsumerWidget {
   /// Sign-out (guarded in the notifier): pop first, then refresh the shell
   /// so the route flip lands on the shell subtree, not this overlay.
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
-    if (!await _confirmSignOut(context, ref)) return;
+    if (!await confirmSignOut(context, ref)) return;
     if (!context.mounted) return;
     final shell = ref.read(shellProvider.notifier);
     final ok = await ref.read(settingsProvider.notifier).signOut();
@@ -164,6 +164,14 @@ class _Preferences extends ConsumerWidget {
           NoticeBanner(
             text: error.of(ref.bridge),
             icon: 'exclamationmark.circle',
+          ),
+        if (ref.watch(settingsProvider.select((s) => s.writeError))
+            case final writeError?)
+          NoticeBanner(
+            text: writeError.of(ref.bridge),
+            tone: ChipTone.danger,
+            icon: 'exclamationmark.triangle',
+            onTap: ref.read(settingsProvider.notifier).clearWriteError,
           ),
         const _AccountCard(),
         MadarSectionHeader(text: t('settings.language')),

@@ -40,6 +40,8 @@ String printerAddressOf(DeviceConfigView config) {
   return (port != null && port != _jetDirectPort) ? '$host:$port' : host;
 }
 
+const Object _keep = Object();
+
 /// Immutable settings-screen state: the config mirror plus everything the
 /// cards render.
 class SettingsState {
@@ -56,6 +58,7 @@ class SettingsState {
     this.scanningBt = false,
     this.floorAuthored = true,
     this.error,
+    this.writeError,
   });
 
   /// The core's device-config mirror (till/station/printer/LAN bindings).
@@ -97,6 +100,11 @@ class SettingsState {
   /// Guard-failure banner text (open-shift sign-out/reconfigure).
   final UiText? error;
 
+  /// The last device write the core refused (printer, till, LAN hub, …), or
+  /// null. Writes used to fail silently, so a till looked bound to a
+  /// printer or a drawer it was not.
+  final UiText? writeError;
+
   /// Whether the drawer is open (blocks sign-out and reconfigure).
   bool get hasOpenShift => shift?.isOpen ?? false;
 
@@ -116,6 +124,7 @@ class SettingsState {
     bool? scanningBt,
     bool? floorAuthored,
     UiText? error,
+    Object? writeError = _keep,
   }) {
     return SettingsState(
       config: config ?? this.config,
@@ -130,6 +139,9 @@ class SettingsState {
       scanningBt: scanningBt ?? this.scanningBt,
       floorAuthored: floorAuthored ?? this.floorAuthored,
       error: error ?? this.error,
+      writeError: identical(writeError, _keep)
+          ? this.writeError
+          : writeError as UiText?,
     );
   }
 }
@@ -194,6 +206,28 @@ class SettingsNotifier extends Notifier<SettingsState> {
 
   // ── device writes (custody lives in the CORE; the state only mirrors) ────
 
+  /// A device WRITE: unlike [_quiet] a refusal is surfaced in
+  /// [SettingsState.writeError] (and cleared by the next write that lands).
+  /// Returns false when the core refused.
+  Future<bool> _write(Future<void> Function() body) async {
+    try {
+      await body();
+      if (state.writeError != null) state = state.copyWith(writeError: null);
+      return true;
+    } on MadarError catch (e) {
+      ref.read(connectivityRefreshProvider.notifier).reportError(e);
+      state = state.copyWith(writeError: UiText.error(e));
+      return false;
+    } on Exception catch (e) {
+      ref.read(connectivityRefreshProvider.notifier).reportError(e);
+      state = state.copyWith(writeError: const UiText.key('err.generic'));
+      return false;
+    }
+  }
+
+  /// Dismiss the write-failure banner.
+  void clearWriteError() => state = state.copyWith(writeError: null);
+
   /// Persist this till's device code per keystroke (the core sanitizes;
   /// blank is ignored and keeps the current code).
   void setDeviceCode(String code) => _bridge.setDeviceCode(code: code);
@@ -204,7 +238,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
     if (brand != null) state = state.copyWith(brand: brand);
     final wire = state.brand == PrinterBrand.star ? 'star' : 'epson';
     final (host, port) = _parsePrinter(address);
-    await _quiet(
+    await _write(
       () => _bridge.setDevicePrinter(
         host: host.isEmpty ? null : host,
         port: port,
@@ -218,7 +252,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// (Classic SPP) — and re-mirror. Entering Bluetooth kicks off a paired-
   /// device scan so the picker is ready.
   Future<void> setTransport(String kind) async {
-    await _quiet(() => _bridge.setDevicePrinterTransport(kind: kind));
+    await _write(() => _bridge.setDevicePrinterTransport(kind: kind));
     state = state.copyWith(config: _bridge.deviceConfig());
     if (kind == 'bluetooth') await loadPairedDevices();
   }
@@ -227,7 +261,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// re-mirror so the picker highlights the choice. The core renders the raster
   /// to this width on the next print.
   Future<void> setPaperDots(int dots) async {
-    await _quiet(() => _bridge.setDevicePrinterPaper(dots: dots));
+    await _write(() => _bridge.setDevicePrinterPaper(dots: dots));
     state = state.copyWith(config: _bridge.deviceConfig());
   }
 
@@ -248,13 +282,12 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// Bind the chosen paired Bluetooth printer (MAC + name) and re-mirror. Drops
   /// any open link so the next print reconnects to this device.
   Future<void> selectBtDevice(BtDevice device) async {
-    await _quiet(() async {
+    await _write(() async {
       await ref.read(printerServiceProvider).disconnectBluetooth();
       await _bridge.setDevicePrinterBt(
         address: device.address,
         name: device.name,
       );
-      return true;
     });
     state = state.copyWith(config: _bridge.deviceConfig());
   }
@@ -263,22 +296,35 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// it live if the relay is already running.
   Future<void> setLanHub(String value) async {
     final trimmed = value.trim();
-    await _quiet(
+    await _write(
       () => _bridge.setDeviceLanHub(hub: trimmed.isEmpty ? null : trimmed),
     );
     state = state.copyWith(config: _bridge.deviceConfig());
   }
 
   /// Bind this device's till (drawer); null = the branch default.
-  Future<void> bindTill(String? tillId) async {
-    await _quiet(() => _bridge.setDeviceTill(tillId: tillId));
+  ///
+  /// Refused while a shift is open: the open shift belongs to the drawer it
+  /// was opened on, and re-binding mid-shift would count this till's sales
+  /// against another drawer's Z. The shift is re-read first, so a stale
+  /// "closed" from the screen's first load cannot let it through.
+  Future<bool> bindTill(String? tillId) async {
+    final shift = await _quiet(_bridge.currentShift);
+    if (shift?.isOpen ?? state.hasOpenShift) {
+      state = state.copyWith(
+        writeError: const UiText.key('settings.till_shift_open'),
+      );
+      return false;
+    }
+    final ok = await _write(() => _bridge.setDeviceTill(tillId: tillId));
     state = state.copyWith(config: _bridge.deviceConfig());
+    return ok;
   }
 
   /// Bind this device's kitchen station (KDS devices). The station rides
   /// the route (`kitchenDisplay(stationId)`), so refresh the shell.
   Future<void> bindStation(String stationId) async {
-    await _quiet(() => _bridge.setDeviceStation(stationId: stationId));
+    await _write(() => _bridge.setDeviceStation(stationId: stationId));
     state = state.copyWith(config: _bridge.deviceConfig());
     ref.read(shellProvider.notifier).refresh();
   }
@@ -296,7 +342,10 @@ class SettingsNotifier extends Notifier<SettingsState> {
     final session = ref.read(shellProvider).session;
     try {
       final bytes = await _bridge.renderReceipt(
-        receipt: _testReceipt(session?.displayName),
+        receipt: _testReceipt(
+          session?.displayName,
+          _bridge.tr(key: 'settings.test_receipt_line'),
+        ),
         storeName: config.branchName ?? '',
         currency: session?.currencyCode ?? '',
         width: kReceiptChars,
@@ -309,16 +358,15 @@ class SettingsNotifier extends Notifier<SettingsState> {
     }
   }
 
-  /// A zero-total single-line receipt for the test page (printed content,
-  /// not UI chrome — the natives print receipts only, so no i18n key
-  /// exists for it).
-  ReceiptView _testReceipt(String? tellerName) {
+  /// A zero-total single-line receipt for the test page, its one line in
+  /// the till's language like every other receipt.
+  ReceiptView _testReceipt(String? tellerName, String line) {
     return ReceiptView(
       localOrderId: 'test-print',
       isVoided: false,
-      lines: const [
+      lines: [
         ReceiptLineView(
-          name: 'TEST',
+          name: line,
           qty: 1,
           lineTotalMinor: 0,
           isBundle: false,
@@ -338,6 +386,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
       amountTenderedMinor: 0,
       changeMinor: 0,
       isCash: false,
+      payments: const [],
       tellerName: tellerName,
       isDelivery: false,
       queuedOffline: false,

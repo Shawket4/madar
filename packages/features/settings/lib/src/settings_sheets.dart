@@ -70,14 +70,16 @@ Future<void> showLegalSheet(BuildContext context) => showMadarSheet<void>(
 
 /// The frame every sheet shares: an h2 title with a close tile, then the
 /// content in its own scroll so a long feed never overflows the sheet.
-class _SheetFrame extends StatelessWidget {
+class _SheetFrame extends ConsumerWidget {
   const _SheetFrame({required this.title, required this.children});
 
   final String title;
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // A write the core refused is said where it was made.
+    final writeError = ref.watch(settingsProvider.select((s) => s.writeError));
     final colors = context.madarColors;
     final layout = context.madarLayout;
     return Padding(
@@ -109,6 +111,15 @@ class _SheetFrame extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Space.lg),
+          if (writeError != null) ...[
+            NoticeBanner(
+              text: writeError.of(ref.bridge),
+              tone: ChipTone.danger,
+              icon: 'exclamationmark.triangle',
+              onTap: ref.read(settingsProvider.notifier).clearWriteError,
+            ),
+            const SizedBox(height: Space.md),
+          ],
           Flexible(
             child: SingleChildScrollView(
               padding: EdgeInsetsDirectional.only(
@@ -432,9 +443,16 @@ class _TillSheet extends ConsumerWidget {
     final notifier = ref.read(settingsProvider.notifier);
     final tills = ref.watch(settingsProvider.select((s) => s.tills));
     final tillId = ref.watch(settingsProvider.select((s) => s.config.tillId));
+    final hasOpenShift = ref.watch(
+      settingsProvider.select((s) => s.hasOpenShift),
+    );
     return _SheetFrame(
       title: bridge.tr(key: 'settings.till'),
       children: [
+        if (hasOpenShift) ...[
+          _Caption(bridge.tr(key: 'settings.till_shift_open')),
+          const SizedBox(height: Space.md),
+        ],
         MadarCard(
           flush: true,
           child: Column(

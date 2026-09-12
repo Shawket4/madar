@@ -14,7 +14,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_settings/src/labels.dart';
 import 'package:feature_settings/src/settings_provider.dart';
 import 'package:feature_settings/src/settings_screen.dart'
-    show LanguageSegment, MotionSegment, ThemeSegment;
+    show LanguageSegment, MotionSegment, ThemeSegment, confirmSignOut;
 import 'package:feature_settings/src/settings_sheets.dart';
 import 'package:feature_settings/src/sync_provider.dart';
 import 'package:feature_settings/src/sync_screen.dart';
@@ -30,22 +30,6 @@ const int _prefsFlex = 5;
 
 /// The signed-in waiter's open bills. MINE is a display-name match —
 /// `TicketView` carries `waiterName`, not an `openedBy` id — which is the
-/// Signing a till out mid-service. Queued sales survive on the device and go
-/// when the next person signs in, so nothing is lost — but nobody can ring up
-/// until then, which is worth saying out loud on a shop floor.
-///
-/// The notifier already refuses outright while a shift is open; this is the
-/// question for the case it allows.
-Future<bool> _confirmSignOut(BuildContext context, WidgetRef ref) {
-  final bridge = ref.read(bridgeProvider);
-  return showMadarConfirm(
-    context,
-    title: bridge.tr(key: 'settings.sign_out_title'),
-    body: bridge.tr(key: 'settings.sign_out_body'),
-    confirmLabel: bridge.tr(key: 'home.sign_out'),
-    cancelLabel: bridge.tr(key: 'common.cancel'),
-  );
-}
 
 /// same rule the Bills tab groups by.
 class MeBillsNotifier extends Notifier<List<TicketView>> {
@@ -351,7 +335,7 @@ class _Preferences extends ConsumerWidget {
   /// No route to pop — the tab lives in the shell — so refresh the shell
   /// and let the route flip to Login.
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
-    if (!await _confirmSignOut(context, ref)) return;
+    if (!await confirmSignOut(context, ref)) return;
     final shell = ref.read(shellProvider.notifier);
     final ok = await ref.read(settingsProvider.notifier).signOut();
     if (!ok) return;

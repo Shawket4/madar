@@ -957,6 +957,8 @@ fn en(key: &str) -> Option<&'static str> {
         "login.pin_too_short" => "A PIN is at least 4 digits.",
         "login.reconfigure_title" => "Reconfigure this device?",
         "login.reconfigure_body" => "The till leaves its branch until a manager signs in and binds it again. Tellers cannot sign in meanwhile.",
+        "settings.till_shift_open" => "Close the shift before moving this device to another till.",
+        "settings.test_receipt_line" => "Test print",
         _ => return None,
     })
 }
@@ -1837,6 +1839,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "login.pin_too_short" => "الرقم السري 4 أرقام على الأقل.",
         "login.reconfigure_title" => "إعادة تهيئة هذا الجهاز؟",
         "login.reconfigure_body" => "تخرج الكاشة من فرعها حتى يسجّل مدير الدخول ويربطها من جديد. لا يستطيع الكاشير تسجيل الدخول خلال ذلك.",
+        "settings.till_shift_open" => "أغلق الوردية قبل نقل هذا الجهاز إلى كاشة أخرى.",
+        "settings.test_receipt_line" => "طباعة تجريبية",
         _ => return None,
     })
 }
