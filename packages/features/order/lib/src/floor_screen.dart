@@ -530,6 +530,9 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
 
   @override
   Widget build(BuildContext context) {
+    // The screen's words come through [_w]/[_tr], plain bridge reads. This is
+    // what re-pulls them when the language changes under a pushed route.
+    ref.watch(localeGenerationProvider);
     final colors = context.madarColors;
     listenForTableClear(context, ref);
     ref

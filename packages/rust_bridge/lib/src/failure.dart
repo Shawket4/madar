@@ -14,7 +14,9 @@ extension MadarErrorMessage on MadarBridge {
       // password: is required"); we prettify instead ("password is
       // required" — underscores spaced).
       MadarError_Validation(:final field, :final detail) => _or(
-        field.trim().isEmpty ? detail : '${field.replaceAll('_', ' ')} $detail',
+        field.trim().isEmpty || coreDetailKeys.containsKey(detail)
+            ? detail
+            : '${field.replaceAll('_', ' ')} $detail',
       ),
       MadarError_Server(:final detail) => _or(detail),
       MadarError_Transient() => tr(key: 'err.network'),
@@ -23,6 +25,49 @@ extension MadarErrorMessage on MadarBridge {
     };
   }
 
-  String _or(String detail) =>
-      detail.trim().isEmpty ? tr(key: 'err.generic') : detail;
+  String _or(String detail) {
+    if (detail.trim().isEmpty) return tr(key: 'err.generic');
+    final key = coreDetailKeys[detail];
+    return key == null ? detail : tr(key: key);
+  }
 }
+
+/// The core's own refusals (raised in English, so a log reads them) → the key
+/// that says the same thing to a teller in the app's language. A detail not
+/// listed here is shown as written — a server's sentence, a field message.
+/// Pinned against the core's sources by `tests/i18n_call_sites.rs`, which
+/// checks every key below exists in both languages.
+const Map<String, String> coreDetailKeys = {
+  'not signed in': 'err.not_signed_in',
+  'token expired': 'err.session_expired',
+  'wrong pin': 'err.wrong_pin',
+  'PIN not recognized.': 'err.wrong_pin',
+  'no offline bundle cached — sign in online once first':
+      'err.no_offline_bundle',
+  'cart is empty': 'err.cart_empty',
+  'no open shift': 'err.no_shift',
+  'no shift': 'err.no_shift',
+  'held order is being edited on another till': 'err.held_elsewhere',
+  'held order not found': 'err.parked_gone',
+  'no such parked order': 'err.parked_gone',
+  'a parked order needs a name': 'err.parked_name',
+  'unknown payment method': 'err.unknown_payment',
+  'scan a card or type a phone number': 'err.scan_or_phone',
+  'no order to add points to': 'err.no_order_points',
+  'table is taken': 'err.table_taken',
+  'this party already has a waiting transfer': 'err.transfer_waiting',
+  'open a shift first so the stranded orders can move onto it':
+      'err.shift_for_stranded',
+  'no printer configured for this device': 'printing.no_printer',
+  'a note is required for cash movements': 'err.cash_note',
+  'amount cannot be zero': 'err.amount_zero',
+  'must be greater than zero': 'err.amount_zero',
+  'amount is out of range': 'err.amount_range',
+  'a refund is cash leaving a drawer; open a shift first':
+      'history.refund_needs_shift',
+  'a refund names a SYNCED sale; a queued one has no server id yet':
+      'err.refund_queued',
+  'say why the drawer was closed for someone else': 'err.force_close_reason',
+  'required — an override with no reason is indistinguishable from a mistake':
+      'shift.opening_reason_required',
+};

@@ -400,7 +400,9 @@ class _FakeBridge implements MadarBridge {
 
   /// The parked orders the strip lists.
   final List<DraftView> drafts;
-  final bool rtl;
+
+  /// Mutable: `setLocale` flips it, so a test can switch language mid-flight.
+  bool rtl;
   final bool shiftOpen;
 
   /// The table each park landed on, in order — null means the counter.
@@ -438,6 +440,10 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #isRtl) return rtl;
     if (name == #locale) return rtl ? 'ar' : 'en';
+    if (name == #setLocale) {
+      rtl = invocation.namedArguments[#locale] == 'ar';
+      return null;
+    }
     if (name == #currentSession) {
       return SessionSnapshot(
         userId: 'u-1',
@@ -657,6 +663,87 @@ Future<void> _capture(WidgetTester tester, String name) async {
 void main() {
   _cartContextTests();
   setUpAll(_loadFonts);
+
+  // A language switch reaches a screen pushed two routes deep — its words AND
+  // its direction — with no restart and no navigation. The Settings sheet is
+  // where a teller switches, and it sits on top of exactly this kind of stack.
+  testWidgets('switching language re-words and mirrors a deep pushed route', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = _ipad;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final fake = _FakeBridge();
+    final container = ProviderContainer(
+      overrides: [bridgeProvider.overrideWithValue(fake)],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: Consumer(
+          builder: (context, ref, _) {
+            final rtl = ref.watch(localeProvider.select((s) => s.rtl));
+            return MaterialApp(
+              theme: MadarTheme.light(),
+              // The shell's own arrangement: direction ABOVE the navigator.
+              builder: (context, child) => Directionality(
+                textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+                child: child!,
+              ),
+              home: const FloorScreen(),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Floor → the table's Bill: a pushed route over the floor.
+    await tester.tap(find.text('T2'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('Subtotal'), findsOneWidget);
+    BuildContext billContext() => tester.element(find.text('Subtotal').first);
+    expect(Directionality.of(billContext()), TextDirection.ltr);
+    expect(find.text('Floor', skipOffstage: false), findsWidgets);
+
+    container.read(localeProvider.notifier).set('ar');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Subtotal'), findsNothing);
+    final subtotal = find.text('المجموع الفرعي');
+    expect(subtotal, findsOneWidget, reason: 'the pushed Bill re-worded');
+    expect(
+      Directionality.of(tester.element(subtotal)),
+      TextDirection.rtl,
+      reason: 'the pushed Bill mirrored',
+    );
+    // And the floor under it, not only the route in front.
+
+    // And the floor UNDER it, once it is shown again. (Riverpod pauses a
+    // route's watches while it is covered, so the floor re-words as it is
+    // revealed rather than while hidden — nobody can see the difference.)
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('Floor'), findsNothing);
+    expect(find.text('الصالة'), findsWidgets);
+    await tester.tap(find.text('T2'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    container.read(localeProvider.notifier).set('en');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Subtotal'), findsOneWidget);
+    expect(Directionality.of(billContext()), TextDirection.ltr);
+  });
 
   group('Sell', () {
     testWidgets('the counter on an iPad: tiles, cart column, Charge', (

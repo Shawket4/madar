@@ -27,6 +27,10 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_local_notifications: ^22.0.1
+  # Material's own words (text-field Cut/Copy/Paste, tooltips) in the app's
+  # language, flipping with it.
+  flutter_localizations:
+    sdk: flutter
   flutter_riverpod: ^3.3.2
   # Direct (not just transitive via rust_bridge) so observability.dart may
   # name the FRB exception types it tags Rust-core failures by.

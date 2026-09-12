@@ -346,3 +346,37 @@ fn every_key_the_app_builds_at_runtime_exists_in_both_locales() {
         missing.join("\n  ")
     );
 }
+
+/// `rust_bridge/lib/src/failure.dart` swaps the core's English refusal details
+/// for keys. A detail reworded here would silently stop matching and go back
+/// to English on screen, so every detail it lists must still be raised by
+/// this crate, word for word.
+#[test]
+fn every_core_detail_the_app_translates_is_still_raised() {
+    let root = dart_root();
+    let failure = std::fs::read_to_string(root.join("packages/rust_bridge/lib/src/failure.dart"))
+        .expect("failure.dart");
+    let start = failure.find("coreDetailKeys = {").expect("the detail map");
+    let body = &failure[start..failure[start..].find("};").map(|e| start + e).unwrap()];
+    let mut core_src = String::new();
+    let src_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    for e in std::fs::read_dir(&src_dir).unwrap().flatten() {
+        if e.path().extension().is_some_and(|x| x == "rs") {
+            core_src.push_str(&std::fs::read_to_string(e.path()).unwrap_or_default());
+        }
+    }
+    let mut stale = Vec::new();
+    let mut n = 0;
+    for line in body.lines() {
+        let t = line.trim();
+        let Some(rest) = t.strip_prefix('\'') else { continue };
+        let Some(end) = rest.find("':") else { continue };
+        let detail = rest[..end].replace("\\'", "'");
+        n += 1;
+        if !core_src.contains(&format!("\"{detail}\"")) {
+            stale.push(detail);
+        }
+    }
+    assert!(n > 10, "parsed only {n} details — the parser is broken");
+    assert!(stale.is_empty(), "details no longer raised by the core: {stale:?}");
+}

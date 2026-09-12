@@ -21,7 +21,7 @@ class LoyaltyScanSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(checkoutProvider);
-    final bridge = ref.read(bridgeProvider);
+    final bridge = ref.bridge;
 
     // Scrolls rather than overflows: phone mode adds a field and a button
     // under the title, and a short landscape phone has no room for all of it.
