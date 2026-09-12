@@ -23,6 +23,7 @@ export 'src/money.dart';
 export 'src/paper.dart';
 export 'src/playful.dart';
 export 'src/responsive.dart';
+export 'src/scrim.dart';
 export 'src/sheet.dart';
 export 'src/skeleton.dart';
 export 'src/states.dart';

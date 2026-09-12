@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:design_system/src/responsive.dart';
+import 'package:design_system/src/scrim.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/dimens.dart';
 import 'package:design_system/src/tokens/elevation.dart';
@@ -170,6 +171,12 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
   Timer? _popTimer;
   bool _dismissing = false;
 
+  /// Whether THIS sheet paints the dim, or something below it already does.
+  /// See scrim.dart: the dim belongs to the stack, not to each surface.
+  /// Claimed in [initState] — not lazily — so the answer is fixed before the
+  /// first frame and released exactly once.
+  late final bool _paintsScrim;
+
   // Captured during layout for the gesture + dismiss math.
   double _sheetHeight = 0;
   double _hiddenExtent = 0;
@@ -177,6 +184,7 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
   @override
   void initState() {
     super.initState();
+    _paintsScrim = claimScrim();
     _slide = AnimationController.unbounded(vsync: this, value: 1);
     _drag = AnimationController.unbounded(vsync: this);
     _scrim = AnimationController(
@@ -196,6 +204,7 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
 
   @override
   void dispose() {
+    releaseScrim(painting: _paintsScrim);
     _popTimer?.cancel();
     _scrimOpacity.dispose();
     _scrim.dispose();
@@ -348,10 +357,14 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
                   onTap: _handleScrimTap,
                   child: Semantics(
                     label: dismissLabel,
-                    child: FadeTransition(
-                      opacity: _scrimOpacity,
-                      child: const ColoredBox(color: _scrimColor),
-                    ),
+                    child: _paintsScrim
+                        ? FadeTransition(
+                            opacity: _scrimOpacity,
+                            child: const ColoredBox(color: _scrimColor),
+                          )
+                        // Still full-bleed and still tappable — the dim is
+                        // what is suppressed, never the tap-to-dismiss.
+                        : const SizedBox.expand(),
                   ),
                 ),
               ),

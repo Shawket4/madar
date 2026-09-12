@@ -9,6 +9,7 @@ library;
 
 import 'package:design_system/src/controls.dart';
 import 'package:design_system/src/responsive.dart';
+import 'package:design_system/src/scrim.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/dimens.dart';
 import 'package:design_system/src/tokens/elevation.dart';
@@ -28,11 +29,18 @@ Future<T?> showMadarModal<T>(
 }) {
   final colors = context.madarColors;
   final dark = Theme.of(context).brightness == Brightness.dark;
+  // The dim belongs to the stack (scrim.dart), not to each surface: a
+  // confirm raised from inside a sheet must not dim a page the sheet already
+  // dimmed, or two layers put the screen at three-quarters black and the
+  // teller loses sight of what they were confirming ABOUT.
+  final paintsScrim = claimScrim();
   return showGeneralDialog<T>(
     context: context,
     barrierDismissible: dismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: Colors.black.withValues(alpha: Opacities.scrim),
+    barrierColor: paintsScrim
+        ? Colors.black.withValues(alpha: Opacities.scrim)
+        : Colors.transparent,
     transitionDuration: MotionSpec.standardDuration,
     transitionBuilder: (context, animation, _, child) {
       final curved = CurvedAnimation(
@@ -77,7 +85,7 @@ Future<T?> showMadarModal<T>(
         ),
       );
     },
-  );
+  ).whenComplete(() => releaseScrim(painting: paintsScrim));
 }
 
 /// The standard modal body: a title, an optional line of body text, and a
