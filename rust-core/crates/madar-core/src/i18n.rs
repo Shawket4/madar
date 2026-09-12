@@ -4,6 +4,20 @@
 //!
 //! Resolution: device locale → its language subtag → `en` → the key itself.
 //! RTL languages (ar/…) are flagged so the host can flip layout direction.
+//!
+//! KNOWN LIMITATION — plurals: `tr` takes no count, so a key can carry only
+//! ONE Arabic string, never the six CLDR plural forms (zero/one/two/few/
+//! many/other) Arabic grammar actually uses. Every Dart call site that shows
+//! a live count builds `'$n ' + tr(key)` (e.g. `order.items`, `tables.seats`,
+//! `tables.guests`, `sync.tries`, `chrome.orders`) — the noun picked here is
+//! therefore only grammatically correct for SOME values of `n`, never all of
+//! them, and there is no fix available at this layer. Where the whole phrase
+//! lives in one key (`history.sales_count`, `history.found_count`) it is
+//! rephrased as "count of X: N" to sidestep the agreement question instead
+//! of picking a wrong-most-of-the-time plural. A real fix needs `tr` (or a
+//! new entry point) to accept a count and select among plural forms — a
+//! signature change that ripples into every `bridge.tr(key: …)` call site,
+//! out of scope for a strings-only pass.
 
 /// Localized string for `key` in `locale`, falling back en → key.
 pub fn tr(locale: &str, key: &str) -> String {
@@ -644,6 +658,14 @@ fn en(key: &str) -> Option<&'static str> {
         "charge.applied_at_charge" => "applied at charge",
         "charge.free" => "free",
         "charge.sale" => "Sale",
+        // The FAMILY a payment method belongs to, shown as a caption under a
+        // shop-named method: "InstaPay" alone says nothing about how the money
+        // moves, and two custom methods with the same generic icon are
+        // otherwise indistinguishable on the tender drawer.
+        "charge.kind_cash" => "Cash",
+        "charge.kind_card" => "Card",
+        "charge.kind_wallet" => "Wallet",
+        "charge.kind_custom" => "Custom",
         "charge.will_send" => "Will send when back online",
         "charge.cleared_q" => "cleared?",
         "charge.cleared" => "Cleared",
@@ -656,10 +678,14 @@ fn en(key: &str) -> Option<&'static str> {
         "queue.title" => "Queue",
         "queue.bills" => "Bills",
         "queue.online" => "Online",
+        "queue.kitchen" => "Kitchen",
         "queue.accept" => "Accept",
         "queue.decline" => "Decline",
         "queue.decline_reason" => "Reason",
         "queue.ready_in" => "Ready in",
+        // The promise ("Ready by 19:25") vs the fact, once the kitchen finished
+        // ("Ready 19:19") — reuses `queue.ready_by`'s wording, this is the latter.
+        "queue.ready_at" => "Ready",
         "queue.minutes" => "minutes",
         "queue.charge" => "Charge",
         "queue.picked_up" => "Picked up",
@@ -726,11 +752,26 @@ fn en(key: &str) -> Option<&'static str> {
         }
         "history.void_sale" => "Void sale",
         "history.void_teach" => "Void removes a mistaken sale as if it never happened.",
+        "history.refund_sale" => "Refund",
         "history.refund_teach" => "Refund returns money on a sale that stands.",
         "history.refunded" => "Refunded",
         "history.refund_left" => "{amount} left to refund",
         "history.refund_all" => "Already refunded in full.",
         "history.refund_queued" => "Waiting to send",
+        // the refund sheet: how much, back by what method, and why
+        "history.refund_amount" => "Amount to return",
+        "history.refund_method" => "Back by",
+        "history.refund_reason" => "Why",
+        "history.refund_confirm" => "Refund",
+        "history.refund_over" => "More than the sale was for.",
+        "history.refund_needs_shift" => {
+            "A refund is cash out of a drawer — open a shift first."
+        }
+        "history.refund_reason_customer" => "Customer asked",
+        "history.refund_reason_wrong" => "Wrong order",
+        "history.refund_reason_quality" => "Quality",
+        "history.refund_reason_overcharged" => "Overcharged",
+        "history.refund_reason_other" => "Something else",
         "history.void_cannot_queued" => {
             "A queued sale cannot be voided until it reaches the server."
         }
@@ -929,7 +970,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "tables.wish_any" => "أي طاولة في",
         "tables.fulfill" => "إجلاس هنا",
         "tables.cancel_wish" => "إزالة",
-        "tables.taken" => "الطاولة محجوزة — تم الحفظ بدونها",
+        // Deliberately NOT "محجوزة" (the word `tables.reserved` uses) — this is
+        // a race with another till, not a customer's booking, and reusing the
+        // booking word would tell the teller the wrong story.
+        "tables.taken" => "سبقك جهاز آخر إلى هذه الطاولة — تم الحفظ بدونها",
         "tables.locked" => "قيد التعديل على جهاز آخر",
         "tables.add_round" => "إضافة جولة",
         "tables.round" => "جولة",
@@ -957,7 +1001,9 @@ fn ar(key: &str) -> Option<&'static str> {
         "tables.freed" => "الطاولة متاحة الآن",
         "tables.seats" => "مقاعد",
         "tables.no_section" => "بدون قسم",
-        "tables.held_res" => "محجوزة",
+        // A soft hold, not a confirmed booking — kept distinct from
+        // `tables.reserved` below so the two pills never read the same.
+        "tables.held_res" => "قيد الحجز",
         "tables.reserved" => "محجوزة",
         "tables.reserved_for" => "محجوزة لـ",
         "tables.seat_booking" => "إجلاس هذه المجموعة",
@@ -971,7 +1017,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "tables.seat_held" => "ضع طلبًا معلّقًا هنا",
         "tables.view_list" => "قائمة",
         "tables.view_plan" => "مخطط",
-        "tables.due" => "موعده",
+        "tables.due" => "مستحق الآن",
         "tables.late" => "متأخر",
         "tables.status" => "الحالة",
         // ── التنظيف: الدفع يترك الطاولة بحاجة إلى تجهيز ──
@@ -1038,7 +1084,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "receipt.print_failed" => "تعذّر الوصول إلى الطابعة",
         "receipt.no_printer" => "اضبط الطابعة في الإعدادات",
         "receipt.ref" => "مرجع:",
-        "receipt.voided" => "ملغي",
+        // The participle of إبطال, not إلغاء: the button says "Void"
+        // (إبطال) everywhere, so the state it leaves behind must not read
+        // "cancelled". Vocalised (مُبطَل, not مبطل) because the bare spelling
+        // is also "the one who voids".
+        "receipt.voided" => "مُبطَل",
         "receipt.delivery" => "توصيل",
         "receipt.customer" => "العميل",
         "receipt.phone" => "الهاتف",
@@ -1094,14 +1144,19 @@ fn ar(key: &str) -> Option<&'static str> {
         "notif.new_booking" => "حجز جديد",
         "notif.booking_arriving" => "مجموعة محجوزة على وصول",
         "waiter.need_shift" => "افتح وردية للتسوية",
-        "waiter.void_title" => "إلغاء التذكرة",
+        // Void ("إبطال") is a distinct action from Cancel ("إلغاء") throughout
+        // this file — it erases a mistaken sale/ticket as if it never
+        // happened, an audited action, not a plain "never mind". Every
+        // `void.*`/`*.void_*`/`sync.op_void_*` key below uses the same word.
+        "waiter.void_title" => "إبطال التذكرة",
         "waiter.void_reason" => "السبب (اختياري)",
         "ticket.status.open" => "مفتوحة",
         "ticket.status.ready" => "جاهزة",
         "ticket.status.settled" => "مُسوّاة",
-        "ticket.status.voided" => "ملغاة",
+        // Feminine: تذكرة. See `receipt.voided` for the root.
+        "ticket.status.voided" => "مُبطَلة",
         "ticket.status.queued" => "بالانتظار",
-        "common.void" => "إلغاء",
+        "common.void" => "إبطال",
         "common.cancel" => "إلغاء",
         // reservations & floor plan (host UI)
         "reservations.title" => "الحجوزات",
@@ -1111,7 +1166,9 @@ fn ar(key: &str) -> Option<&'static str> {
         "reservations.setStatus" => "تعيين الحالة",
         "reservations.noBookings" => "لا توجد حجوزات نشطة",
         "reservations.status_free" => "فارغة",
-        "reservations.status_held" => "محجوزة",
+        // Same word as `tables.held_res` — see the note there: a hold is not
+        // a booking, so it must not share `tables.reserved`'s "محجوزة".
+        "reservations.status_held" => "قيد الحجز",
         "reservations.status_seated" => "مشغولة",
         "reservations.status_dirty" => "تحتاج تنظيف",
         "delivery.queue" => "قائمة التوصيل",
@@ -1159,7 +1216,9 @@ fn ar(key: &str) -> Option<&'static str> {
         "sync.pending" => "قيد المزامنة",
         "sync.op_open_shift" => "فتح وردية",
         "sync.op_close_shift" => "إغلاق وردية",
-        "sync.op_create_order" => "طلب",
+        // EN says "Sale", not "Order" — matches `charge.sale`/`history.sale`
+        // ("بيع"), not `order.title` ("طلب").
+        "sync.op_create_order" => "بيع",
         // order-screen chrome (action bar + banners)
         "chrome.online" => "متصل",
         "chrome.clock_skew" => "ساعة الجهاز غير مضبوطة — يرجى تصحيحها",
@@ -1241,7 +1300,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "history.completed" => "مكتمل",
         "history.search" => "ابحث في الطلبات",
         "history.failed" => "فشل",
-        "history.voided" => "ملغى",
+        "history.voided" => "مُبطَل",
         "history.order" => "طلب",
         // order-history table (Flutter-style columns / filters / stats)
         "history.current_shift" => "الوردية الحالية",
@@ -1374,11 +1433,13 @@ fn ar(key: &str) -> Option<&'static str> {
         "floor.no_bill_yet" => "لا فاتورة بعد",
         // bill + the waiter's bills tab
         "bill.title" => "الفاتورة",
-        "bill.void_bill" => "إلغاء الفاتورة",
+        "bill.void_bill" => "إبطال الفاتورة",
         "bill.gone" => "أُغلقت هذه الفاتورة على جهاز آخر",
         "bill.ready" => "جاهز",
         "bill.queued" => "في الانتظار",
-        "bill.voided" => "ملغى",
+        // Feminine agreement: فاتورة is feminine, so the participle takes the
+        // ة ending (compare `history.voided`, describing a بيع — masculine).
+        "bill.voided" => "مُبطَلة",
         "bills.title" => "الفواتير",
         "bills.mine" => "فواتيري",
         "bills.others" => "الآخرون",
@@ -1395,6 +1456,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "charge.applied_at_charge" => "يُطبَّق عند التحصيل",
         "charge.free" => "مجاناً",
         "charge.sale" => "بيع",
+        "charge.kind_cash" => "نقدي",
+        "charge.kind_card" => "بطاقة",
+        "charge.kind_wallet" => "محفظة",
+        "charge.kind_custom" => "مخصص",
         "charge.will_send" => "سيُرسل عند عودة الاتصال",
         "charge.cleared_q" => "تم تنظيفها؟",
         "charge.cleared" => "تم التنظيف",
@@ -1407,10 +1472,12 @@ fn ar(key: &str) -> Option<&'static str> {
         "queue.title" => "الوارد",
         "queue.bills" => "الفواتير",
         "queue.online" => "أونلاين",
+        "queue.kitchen" => "المطبخ",
         "queue.accept" => "قبول",
         "queue.decline" => "رفض",
         "queue.decline_reason" => "السبب",
         "queue.ready_in" => "جاهز خلال",
+        "queue.ready_at" => "جاهز",
         "queue.minutes" => "دقيقة",
         "queue.charge" => "تحصيل",
         "queue.picked_up" => "تم الاستلام",
@@ -1451,8 +1518,13 @@ fn ar(key: &str) -> Option<&'static str> {
         "shifts.force_closed" => "أُغلقت إجبارياً",
         // orders (history): this shift / all, the sale, void versus refund
         "history.this_shift" => "هذه الوردية",
-        "history.sales_count" => "{count} مبيعات",
-        "history.found_count" => "{count} نتيجة",
+        // "{count} مبيعات" only agrees for counts 3–10 — Arabic has six
+        // plural forms and `tr` carries no count to pick between them (see
+        // i18n.rs's module docs / this feature's report). Phrasing it as
+        // "count of X: N" instead of "N nouns" sidesteps the agreement
+        // question rather than shipping a form that is wrong most shifts.
+        "history.sales_count" => "عدد المبيعات: {count}",
+        "history.found_count" => "عدد النتائج: {count}",
         "history.no_shift" => "لا توجد وردية مفتوحة",
         "history.search_hint" => "الرقم أو العميل أو المبلغ",
         "history.type.online" => "أونلاين",
@@ -1477,11 +1549,23 @@ fn ar(key: &str) -> Option<&'static str> {
         }
         "history.void_sale" => "إبطال البيع",
         "history.void_teach" => "الإبطال يزيل عملية بيع خاطئة كأنها لم تحدث.",
+        "history.refund_sale" => "استرداد",
         "history.refund_teach" => "الاسترداد يرجع المال مع بقاء عملية البيع.",
         "history.refunded" => "مُسترد",
         "history.refund_left" => "متبقٍ للاسترداد {amount}",
         "history.refund_all" => "تم استرداد المبلغ بالكامل.",
         "history.refund_queued" => "بانتظار الإرسال",
+        "history.refund_amount" => "المبلغ المسترد",
+        "history.refund_method" => "طريقة الإرجاع",
+        "history.refund_reason" => "السبب",
+        "history.refund_confirm" => "استرداد",
+        "history.refund_over" => "أكبر من قيمة عملية البيع.",
+        "history.refund_needs_shift" => "الاسترداد نقد يخرج من الدرج — افتح وردية أولاً.",
+        "history.refund_reason_customer" => "طلب العميل",
+        "history.refund_reason_wrong" => "طلب خاطئ",
+        "history.refund_reason_quality" => "الجودة",
+        "history.refund_reason_overcharged" => "زيادة في الحساب",
+        "history.refund_reason_other" => "سبب آخر",
         "history.void_cannot_queued" => "لا يمكن إبطال عملية في الانتظار قبل وصولها إلى الخادم.",
         "history.void_cannot_voided" => "أُبطلت بالفعل.",
         "history.void_cannot_failed" => "لم تصل عملية البيع هذه إلى الخادم؛ لا شيء لإبطاله.",
@@ -1507,7 +1591,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "sync.stuck" => "متعثر",
         "sync.needs_you" => "يحتاجك",
         "sync.blocked" => "محجوز",
-        "sync.blocked_hint" => "مبيعات عالقة خلف فتح وردية فاشل. افتح وردية ثم استرجعها.",
+        "sync.blocked_hint" => "توقفت هذه المبيعات بسبب فشل فتح الوردية. افتح وردية جديدة لاسترجاعها.",
         "sync.recover" => "استرجاع المبيعات العالقة",
         "sync.recover_need_shift" => "افتح وردية أولاً",
         "sync.recovered" => "تم استرجاعها",
@@ -1518,11 +1602,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "sync.more" => "أخرى",
         "sync.see_all" => "عرض الكل",
         "sync.refused" => "رفضه الخادم",
-        "sync.op_void_order" => "إلغاء بيع",
+        "sync.op_void_order" => "إبطال بيع",
         "sync.op_cash_movement" => "حركة نقدية",
         "sync.op_open_ticket" => "فاتورة جديدة",
         "sync.op_ticket_add_round" => "جولة",
-        "sync.op_void_ticket" => "إلغاء فاتورة",
+        "sync.op_void_ticket" => "إبطال فاتورة",
         "sync.op_settle_open_ticket" => "تحصيل فاتورة",
         "sync.op_award_loyalty_points" => "نقاط الولاء",
         "sync.op_lan_mirror" => "مرآة الشبكة المحلية",
