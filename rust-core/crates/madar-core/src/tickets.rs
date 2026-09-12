@@ -76,11 +76,53 @@ pub struct TicketView {
     /// so the teller can see who took the table. `null` if the name is unknown.
     pub waiter_name: Option<String>,
     pub guest_count: Option<i32>,
+    /// The lines as charged, before discount. The FIRST LINE of the bill, not
+    /// the bill — see [`TicketBillView`].
     pub subtotal_minor: i64,
+    /// What the drawer must collect, as the SERVER prices it.
+    ///
+    /// The till used to carry the subtotal alone and charge that, while the
+    /// settle booked subtotal + service charge + tax. Every branch sits at rate
+    /// 0 today so nothing was lost, but a new organisation defaults to 14%
+    /// exclusive — at which point the drawer would have collected exactly the
+    /// tax less than the books recorded, on every dine-in bill.
+    ///
+    /// `None` only for a ticket the server has not seen yet (a queued fire).
+    /// A caller with no bill must say so rather than showing the subtotal as
+    /// though it were a total.
+    pub bill: Option<TicketBillView>,
     pub order_id: Option<String>,
     pub opened_at: String,
     pub queued_offline: bool,
     pub lines: Vec<TicketLineView>,
+}
+
+/// The bill as the server prices it: what is owed, and how it was arrived at.
+///
+/// Projected rather than computed. The server is the only party that knows the
+/// branch's effective tax policy at the moment of settle — the org's rate with
+/// the branch's per-field override on top — and a till that recomputed it would
+/// be a second opinion about money. `crate::tax` exists for the cart preview,
+/// where there is no server bill to ask for.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+// No `Eq`: the rates are f64, and a rate is a number to render, not a key to
+// compare. PartialEq is enough for the tests that pin these figures.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TicketBillView {
+    /// Lines as charged, before discount. Gross when tax-inclusive.
+    pub subtotal_minor: i64,
+    /// The WAITER's discount, resolved. A cashier who clears it at settle sees
+    /// a different total than this one, which is the point of showing it.
+    pub discount_minor: i64,
+    pub service_charge_minor: i64,
+    /// Inside the total when `tax_inclusive`, on top of it otherwise.
+    pub tax_minor: i64,
+    /// What the drawer must collect.
+    pub total_minor: i64,
+    /// The rates these figures were computed under, for the printed bill.
+    pub tax_rate: f64,
+    pub service_charge_rate: f64,
+    pub tax_inclusive: bool,
 }
 
 /// One bill line (display projection of the frozen `StoredTicketLine`).
@@ -171,10 +213,27 @@ pub(crate) fn to_view(v: &models::OpenTicketView, queued_offline: bool) -> Ticke
         waiter_name: flat(&v.opened_by_name).filter(|s| !s.is_empty()),
         guest_count: flat(&v.guest_count),
         subtotal_minor: v.subtotal as i64,
+        bill: v.bill.as_deref().map(bill_view),
         order_id: flat(&v.order_id).map(|u| u.to_string()),
         opened_at: v.opened_at.to_rfc3339(),
         queued_offline,
         lines: v.items.iter().map(line_view).collect(),
+    }
+}
+
+/// Project the server's priced bill. Every figure is taken, never derived — a
+/// total this side recomputed from its parts would disagree with the books the
+/// moment a rounding rule differed.
+fn bill_view(b: &models::TicketBill) -> TicketBillView {
+    TicketBillView {
+        subtotal_minor: b.subtotal as i64,
+        discount_minor: b.discount_amount as i64,
+        service_charge_minor: b.service_charge_amount as i64,
+        tax_minor: b.tax_amount as i64,
+        total_minor: b.total as i64,
+        tax_rate: b.tax_rate,
+        service_charge_rate: b.service_charge_rate,
+        tax_inclusive: b.tax_inclusive,
     }
 }
 
@@ -321,6 +380,63 @@ mod tests {
         assert!(!lv.voided);
     }
 
+    /// THE DRAWER COLLECTS WHAT THE SETTLE BOOKS.
+    ///
+    /// `TicketView` carried only a subtotal, and the Charge sheet used it as
+    /// the total — so a bill of 175 in lines, priced by the server at 175 + 21
+    /// service charge + 27 tax, would have been charged at 175 and booked at
+    /// 223. Nothing was ever short, because every branch sits at rate 0; a new
+    /// organisation defaults to 14% exclusive, and from that moment every
+    /// dine-in bill would have been out by exactly the tax.
+    ///
+    /// The figures are TAKEN, never derived. A total recomputed on this side
+    /// from its parts would disagree with the books the moment a rounding rule
+    /// differed, which is the failure the shared tax fixture exists to prevent.
+    #[test]
+    fn the_bill_is_the_servers_price_not_the_subtotal() {
+        let bill = models::TicketBill {
+            subtotal: 17500,
+            discount_amount: 0,
+            service_charge_amount: 2100,
+            tax_amount: 2744,
+            total: 22344,
+            tax_rate: 0.14,
+            service_charge_rate: 0.12,
+            tax_inclusive: false,
+        };
+        let got = bill_view(&bill);
+
+        assert_eq!(got.subtotal_minor, 17500, "the lines");
+        assert_eq!(got.total_minor, 22344, "what the drawer collects");
+        assert_ne!(
+            got.total_minor, got.subtotal_minor,
+            "a taxed bill's total is not its subtotal — the bug this pins"
+        );
+        assert_eq!(got.service_charge_minor, 2100);
+        assert_eq!(got.tax_minor, 2744);
+        assert!(!got.tax_inclusive);
+    }
+
+    /// An inclusive shop's tax is INSIDE the total, so the drawer collects the
+    /// menu price and the tax is carved out for the books.
+    #[test]
+    fn an_inclusive_bill_collects_the_menu_price() {
+        let bill = models::TicketBill {
+            subtotal: 11400,
+            discount_amount: 0,
+            service_charge_amount: 0,
+            tax_amount: 1400,
+            total: 11400,
+            tax_rate: 0.14,
+            service_charge_rate: 0.0,
+            tax_inclusive: true,
+        };
+        let got = bill_view(&bill);
+        assert_eq!(got.total_minor, got.subtotal_minor, "tax is already inside");
+        assert_eq!(got.tax_minor, 1400, "and still recorded");
+        assert!(got.tax_inclusive);
+    }
+
     #[test]
     fn to_view_flattens_double_options() {
         let v = models::OpenTicketView {
@@ -330,6 +446,16 @@ mod tests {
             table_id: None,
             ticket_ref: Some(Some("T-BR-260625-0001".into())),
             status: "open".into(),
+            // The server prices the bill; this fixture exercises the flattening
+            // of the double-Options around it, so `None` is the case under test.
+            bill: None,
+            discount_id: None,
+            discount_type: None,
+            discount_value: None,
+            ready: None,
+            void_note: None,
+            void_reason: None,
+            voided_at: None,
             opened_by: uuid::Uuid::new_v4(),
             opened_by_name: Some(Some("Sara".into())),
             customer_name: None,

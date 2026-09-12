@@ -1730,6 +1730,10 @@ fn queued_ticket_view(
         waiter_name,
         guest_count: cmd.request.guest_count.flatten(),
         subtotal_minor,
+        // A fire the server has not seen has no priced bill: the branch's
+        // effective tax policy is the server's to apply, and a guess here would
+        // be a number the settle then contradicts.
+        bill: None,
         order_id: None,
         opened_at: event_at.to_string(),
         queued_offline: true,

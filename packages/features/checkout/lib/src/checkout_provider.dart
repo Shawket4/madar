@@ -621,16 +621,34 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     await _loadShift();
   }
 
-  /// A bill: the ticket's subtotal is the hero (labelled so — `TicketView`
-  /// carries no total), its live lines can carry rewards by id, and the
-  /// discount is a pick the server applies at settle.
+  /// A bill, priced by the SERVER.
+  ///
+  /// `totalMinor` used to be the ticket's subtotal, because `TicketView` had
+  /// nothing else on it — so the drawer collected the lines while the settle
+  /// booked lines + service charge + tax. Every branch sits at rate 0, so no
+  /// till has yet been short; a new organisation defaults to 14% exclusive,
+  /// and from that moment every dine-in bill would have been undercollected by
+  /// exactly the tax.
+  ///
+  /// `ticket.bill` is absent only for a fire still in the outbox, which the
+  /// server has never priced. Falling back to the subtotal there is honest —
+  /// it is all that is known — and such a ticket cannot be charged anyway.
   Future<void> startBill(TicketView ticket, {ChargeTarget? target}) async {
     _update((s) => s.copyWith(target: target ?? BillChargeTarget(ticket)));
+    final bill = ticket.bill;
     await startSettle(
-      CheckoutSummary(
-        subtotalMinor: ticket.subtotalMinor,
-        totalMinor: ticket.subtotalMinor,
-      ),
+      bill == null
+          ? CheckoutSummary(
+              subtotalMinor: ticket.subtotalMinor,
+              totalMinor: ticket.subtotalMinor,
+            )
+          : CheckoutSummary(
+              subtotalMinor: bill.subtotalMinor,
+              discountMinor: bill.discountMinor,
+              serviceChargeMinor: bill.serviceChargeMinor,
+              taxMinor: bill.taxMinor,
+              totalMinor: bill.totalMinor,
+            ),
       ticketLines: ticket.lines,
       loadDiscounts: true,
     );

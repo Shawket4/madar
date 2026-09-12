@@ -134,6 +134,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ShiftView dco_decode_box_autoadd_shift_view(dynamic raw);
 
   @protected
+  TicketBillView dco_decode_box_autoadd_ticket_bill_view(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_u_16(dynamic raw);
 
   @protected
@@ -488,6 +491,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ShiftView? dco_decode_opt_box_autoadd_shift_view(dynamic raw);
 
   @protected
+  TicketBillView? dco_decode_opt_box_autoadd_ticket_bill_view(dynamic raw);
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_16(dynamic raw);
 
   @protected
@@ -561,6 +567,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SyncStatusView dco_decode_sync_status_view(dynamic raw);
+
+  @protected
+  TicketBillView dco_decode_ticket_bill_view(dynamic raw);
 
   @protected
   TicketFiredView dco_decode_ticket_fired_view(dynamic raw);
@@ -700,6 +709,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   ShiftView sse_decode_box_autoadd_shift_view(SseDeserializer deserializer);
+
+  @protected
+  TicketBillView sse_decode_box_autoadd_ticket_bill_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   int sse_decode_box_autoadd_u_16(SseDeserializer deserializer);
@@ -1172,6 +1186,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  TicketBillView? sse_decode_opt_box_autoadd_ticket_bill_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_16(SseDeserializer deserializer);
 
   @protected
@@ -1259,6 +1278,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SyncStatusView sse_decode_sync_status_view(SseDeserializer deserializer);
+
+  @protected
+  TicketBillView sse_decode_ticket_bill_view(SseDeserializer deserializer);
 
   @protected
   TicketFiredView sse_decode_ticket_fired_view(SseDeserializer deserializer);
@@ -1430,6 +1452,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_box_autoadd_shift_view(
     ShiftView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ticket_bill_view(
+    TicketBillView self,
     SseSerializer serializer,
   );
 
@@ -2019,6 +2047,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_ticket_bill_view(
+    TicketBillView? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_u_16(int? self, SseSerializer serializer);
 
   @protected
@@ -2150,6 +2184,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_sync_status_view(
     SyncStatusView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ticket_bill_view(
+    TicketBillView self,
     SseSerializer serializer,
   );
 

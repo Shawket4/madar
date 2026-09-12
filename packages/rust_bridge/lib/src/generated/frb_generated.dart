@@ -7002,6 +7002,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  TicketBillView dco_decode_box_autoadd_ticket_bill_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_ticket_bill_view(raw);
+  }
+
+  @protected
   int dco_decode_box_autoadd_u_16(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -8221,6 +8227,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  TicketBillView? dco_decode_opt_box_autoadd_ticket_bill_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_ticket_bill_view(raw);
+  }
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_16(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_16(raw);
@@ -8638,6 +8650,24 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  TicketBillView dco_decode_ticket_bill_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return TicketBillView(
+      subtotalMinor: dco_decode_i_64(arr[0]),
+      discountMinor: dco_decode_i_64(arr[1]),
+      serviceChargeMinor: dco_decode_i_64(arr[2]),
+      taxMinor: dco_decode_i_64(arr[3]),
+      totalMinor: dco_decode_i_64(arr[4]),
+      taxRate: dco_decode_f_64(arr[5]),
+      serviceChargeRate: dco_decode_f_64(arr[6]),
+      taxInclusive: dco_decode_bool(arr[7]),
+    );
+  }
+
+  @protected
   TicketFiredView dco_decode_ticket_fired_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -8674,8 +8704,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   TicketView dco_decode_ticket_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return TicketView(
       id: dco_decode_String(arr[0]),
       ticketRef: dco_decode_opt_String(arr[1]),
@@ -8685,10 +8715,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       waiterName: dco_decode_opt_String(arr[5]),
       guestCount: dco_decode_opt_box_autoadd_i_32(arr[6]),
       subtotalMinor: dco_decode_i_64(arr[7]),
-      orderId: dco_decode_opt_String(arr[8]),
-      openedAt: dco_decode_String(arr[9]),
-      queuedOffline: dco_decode_bool(arr[10]),
-      lines: dco_decode_list_ticket_line_view(arr[11]),
+      bill: dco_decode_opt_box_autoadd_ticket_bill_view(arr[8]),
+      orderId: dco_decode_opt_String(arr[9]),
+      openedAt: dco_decode_String(arr[10]),
+      queuedOffline: dco_decode_bool(arr[11]),
+      lines: dco_decode_list_ticket_line_view(arr[12]),
     );
   }
 
@@ -9067,6 +9098,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ShiftView sse_decode_box_autoadd_shift_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_shift_view(deserializer));
+  }
+
+  @protected
+  TicketBillView sse_decode_box_autoadd_ticket_bill_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_ticket_bill_view(deserializer));
   }
 
   @protected
@@ -10901,6 +10940,19 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  TicketBillView? sse_decode_opt_box_autoadd_ticket_bill_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_ticket_bill_view(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_16(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -11458,6 +11510,29 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  TicketBillView sse_decode_ticket_bill_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_subtotalMinor = sse_decode_i_64(deserializer);
+    var var_discountMinor = sse_decode_i_64(deserializer);
+    var var_serviceChargeMinor = sse_decode_i_64(deserializer);
+    var var_taxMinor = sse_decode_i_64(deserializer);
+    var var_totalMinor = sse_decode_i_64(deserializer);
+    var var_taxRate = sse_decode_f_64(deserializer);
+    var var_serviceChargeRate = sse_decode_f_64(deserializer);
+    var var_taxInclusive = sse_decode_bool(deserializer);
+    return TicketBillView(
+      subtotalMinor: var_subtotalMinor,
+      discountMinor: var_discountMinor,
+      serviceChargeMinor: var_serviceChargeMinor,
+      taxMinor: var_taxMinor,
+      totalMinor: var_totalMinor,
+      taxRate: var_taxRate,
+      serviceChargeRate: var_serviceChargeRate,
+      taxInclusive: var_taxInclusive,
+    );
+  }
+
+  @protected
   TicketFiredView sse_decode_ticket_fired_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_ticketId = sse_decode_String(deserializer);
@@ -11508,6 +11583,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_waiterName = sse_decode_opt_String(deserializer);
     var var_guestCount = sse_decode_opt_box_autoadd_i_32(deserializer);
     var var_subtotalMinor = sse_decode_i_64(deserializer);
+    var var_bill = sse_decode_opt_box_autoadd_ticket_bill_view(deserializer);
     var var_orderId = sse_decode_opt_String(deserializer);
     var var_openedAt = sse_decode_String(deserializer);
     var var_queuedOffline = sse_decode_bool(deserializer);
@@ -11521,6 +11597,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       waiterName: var_waiterName,
       guestCount: var_guestCount,
       subtotalMinor: var_subtotalMinor,
+      bill: var_bill,
       orderId: var_orderId,
       openedAt: var_openedAt,
       queuedOffline: var_queuedOffline,
@@ -11916,6 +11993,15 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_shift_view(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_ticket_bill_view(
+    TicketBillView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ticket_bill_view(self, serializer);
   }
 
   @protected
@@ -13333,6 +13419,19 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_ticket_bill_view(
+    TicketBillView? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_ticket_bill_view(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_u_16(int? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -13709,6 +13808,22 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_ticket_bill_view(
+    TicketBillView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.subtotalMinor, serializer);
+    sse_encode_i_64(self.discountMinor, serializer);
+    sse_encode_i_64(self.serviceChargeMinor, serializer);
+    sse_encode_i_64(self.taxMinor, serializer);
+    sse_encode_i_64(self.totalMinor, serializer);
+    sse_encode_f_64(self.taxRate, serializer);
+    sse_encode_f_64(self.serviceChargeRate, serializer);
+    sse_encode_bool(self.taxInclusive, serializer);
+  }
+
+  @protected
   void sse_encode_ticket_fired_view(
     TicketFiredView self,
     SseSerializer serializer,
@@ -13748,6 +13863,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.waiterName, serializer);
     sse_encode_opt_box_autoadd_i_32(self.guestCount, serializer);
     sse_encode_i_64(self.subtotalMinor, serializer);
+    sse_encode_opt_box_autoadd_ticket_bill_view(self.bill, serializer);
     sse_encode_opt_String(self.orderId, serializer);
     sse_encode_String(self.openedAt, serializer);
     sse_encode_bool(self.queuedOffline, serializer);

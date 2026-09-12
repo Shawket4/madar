@@ -9184,6 +9184,17 @@ const _: fn() = || {
         let _: bool = SyncStatusView.auth_paused;
     }
     {
+        let TicketBillView = None::<crate::api::tickets::TicketBillView>.unwrap();
+        let _: i64 = TicketBillView.subtotal_minor;
+        let _: i64 = TicketBillView.discount_minor;
+        let _: i64 = TicketBillView.service_charge_minor;
+        let _: i64 = TicketBillView.tax_minor;
+        let _: i64 = TicketBillView.total_minor;
+        let _: f64 = TicketBillView.tax_rate;
+        let _: f64 = TicketBillView.service_charge_rate;
+        let _: bool = TicketBillView.tax_inclusive;
+    }
+    {
         let TicketFiredView = None::<crate::api::tickets::TicketFiredView>.unwrap();
         let _: String = TicketFiredView.ticket_id;
         let _: Option<String> = TicketFiredView.ticket_ref;
@@ -9212,6 +9223,7 @@ const _: fn() = || {
         let _: Option<String> = TicketView.waiter_name;
         let _: Option<i32> = TicketView.guest_count;
         let _: i64 = TicketView.subtotal_minor;
+        let _: Option<crate::api::tickets::TicketBillView> = TicketView.bill;
         let _: Option<String> = TicketView.order_id;
         let _: String = TicketView.opened_at;
         let _: bool = TicketView.queued_offline;
@@ -11330,6 +11342,19 @@ impl SseDecode for Option<crate::api::types::ShiftView> {
     }
 }
 
+impl SseDecode for Option<crate::api::tickets::TicketBillView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::tickets::TicketBillView>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<u16> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11908,6 +11933,30 @@ impl SseDecode for crate::api::sync::SyncStatusView {
     }
 }
 
+impl SseDecode for crate::api::tickets::TicketBillView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_subtotalMinor = <i64>::sse_decode(deserializer);
+        let mut var_discountMinor = <i64>::sse_decode(deserializer);
+        let mut var_serviceChargeMinor = <i64>::sse_decode(deserializer);
+        let mut var_taxMinor = <i64>::sse_decode(deserializer);
+        let mut var_totalMinor = <i64>::sse_decode(deserializer);
+        let mut var_taxRate = <f64>::sse_decode(deserializer);
+        let mut var_serviceChargeRate = <f64>::sse_decode(deserializer);
+        let mut var_taxInclusive = <bool>::sse_decode(deserializer);
+        return crate::api::tickets::TicketBillView {
+            subtotal_minor: var_subtotalMinor,
+            discount_minor: var_discountMinor,
+            service_charge_minor: var_serviceChargeMinor,
+            tax_minor: var_taxMinor,
+            total_minor: var_totalMinor,
+            tax_rate: var_taxRate,
+            service_charge_rate: var_serviceChargeRate,
+            tax_inclusive: var_taxInclusive,
+        };
+    }
+}
+
 impl SseDecode for crate::api::tickets::TicketFiredView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11961,6 +12010,7 @@ impl SseDecode for crate::api::tickets::TicketView {
         let mut var_waiterName = <Option<String>>::sse_decode(deserializer);
         let mut var_guestCount = <Option<i32>>::sse_decode(deserializer);
         let mut var_subtotalMinor = <i64>::sse_decode(deserializer);
+        let mut var_bill = <Option<crate::api::tickets::TicketBillView>>::sse_decode(deserializer);
         let mut var_orderId = <Option<String>>::sse_decode(deserializer);
         let mut var_openedAt = <String>::sse_decode(deserializer);
         let mut var_queuedOffline = <bool>::sse_decode(deserializer);
@@ -11974,6 +12024,7 @@ impl SseDecode for crate::api::tickets::TicketView {
             waiter_name: var_waiterName,
             guest_count: var_guestCount,
             subtotal_minor: var_subtotalMinor,
+            bill: var_bill,
             order_id: var_orderId,
             opened_at: var_openedAt,
             queued_offline: var_queuedOffline,
@@ -14904,6 +14955,33 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::sync::SyncStatusVi
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::tickets::TicketBillView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.subtotal_minor.into_into_dart().into_dart(),
+            self.0.discount_minor.into_into_dart().into_dart(),
+            self.0.service_charge_minor.into_into_dart().into_dart(),
+            self.0.tax_minor.into_into_dart().into_dart(),
+            self.0.total_minor.into_into_dart().into_dart(),
+            self.0.tax_rate.into_into_dart().into_dart(),
+            self.0.service_charge_rate.into_into_dart().into_dart(),
+            self.0.tax_inclusive.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::tickets::TicketBillView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::tickets::TicketBillView>>
+    for crate::api::tickets::TicketBillView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::tickets::TicketBillView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::tickets::TicketFiredView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -14966,6 +15044,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::tickets::TicketVie
             self.0.waiter_name.into_into_dart().into_dart(),
             self.0.guest_count.into_into_dart().into_dart(),
             self.0.subtotal_minor.into_into_dart().into_dart(),
+            self.0.bill.into_into_dart().into_dart(),
             self.0.order_id.into_into_dart().into_dart(),
             self.0.opened_at.into_into_dart().into_dart(),
             self.0.queued_offline.into_into_dart().into_dart(),
@@ -16510,6 +16589,16 @@ impl SseEncode for Option<crate::api::types::ShiftView> {
     }
 }
 
+impl SseEncode for Option<crate::api::tickets::TicketBillView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::tickets::TicketBillView>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<u16> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16866,6 +16955,20 @@ impl SseEncode for crate::api::sync::SyncStatusView {
     }
 }
 
+impl SseEncode for crate::api::tickets::TicketBillView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.subtotal_minor, serializer);
+        <i64>::sse_encode(self.discount_minor, serializer);
+        <i64>::sse_encode(self.service_charge_minor, serializer);
+        <i64>::sse_encode(self.tax_minor, serializer);
+        <i64>::sse_encode(self.total_minor, serializer);
+        <f64>::sse_encode(self.tax_rate, serializer);
+        <f64>::sse_encode(self.service_charge_rate, serializer);
+        <bool>::sse_encode(self.tax_inclusive, serializer);
+    }
+}
+
 impl SseEncode for crate::api::tickets::TicketFiredView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16902,6 +17005,7 @@ impl SseEncode for crate::api::tickets::TicketView {
         <Option<String>>::sse_encode(self.waiter_name, serializer);
         <Option<i32>>::sse_encode(self.guest_count, serializer);
         <i64>::sse_encode(self.subtotal_minor, serializer);
+        <Option<crate::api::tickets::TicketBillView>>::sse_encode(self.bill, serializer);
         <Option<String>>::sse_encode(self.order_id, serializer);
         <String>::sse_encode(self.opened_at, serializer);
         <bool>::sse_encode(self.queued_offline, serializer);

@@ -5,7 +5,7 @@ use flutter_rust_bridge::frb;
 use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
-pub use madar_core::tickets::{TicketFiredView, TicketLineView, TicketView};
+pub use madar_core::tickets::{TicketBillView, TicketFiredView, TicketLineView, TicketView};
 
 /// The slim "sent to kitchen" confirmation after a fire/round — deliberately NOT
 /// a money-laden receipt (a fired ticket has no payment yet). `queued_offline` is
@@ -33,11 +33,32 @@ pub struct _TicketView {
     /// so the teller can see who took the table. `null` if the name is unknown.
     pub waiter_name: Option<String>,
     pub guest_count: Option<i32>,
+    /// The lines before discount — the bill's first line, not the bill.
     pub subtotal_minor: i64,
+    /// What the drawer must collect, priced by the server. `None` only for a
+    /// fire still in the outbox, which nothing has priced yet.
+    pub bill: Option<TicketBillView>,
     pub order_id: Option<String>,
     pub opened_at: String,
     pub queued_offline: bool,
     pub lines: Vec<TicketLineView>,
+}
+
+/// The bill as the server prices it — the figure the drawer collects, because
+/// it is the figure the settle books.
+#[frb(mirror(TicketBillView))]
+pub struct _TicketBillView {
+    pub subtotal_minor: i64,
+    /// The waiter's discount, resolved. A cashier clearing it at settle will
+    /// see a different total, which is why it is shown.
+    pub discount_minor: i64,
+    pub service_charge_minor: i64,
+    /// Inside the total when `tax_inclusive`, on top of it otherwise.
+    pub tax_minor: i64,
+    pub total_minor: i64,
+    pub tax_rate: f64,
+    pub service_charge_rate: f64,
+    pub tax_inclusive: bool,
 }
 
 /// One bill line (display projection of the frozen `StoredTicketLine`).

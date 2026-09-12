@@ -6,6 +6,60 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// The bill as the server prices it — the figure the drawer collects, because
+/// it is the figure the settle books.
+class TicketBillView {
+  final PlatformInt64 subtotalMinor;
+
+  /// The waiter's discount, resolved. A cashier clearing it at settle will
+  /// see a different total, which is why it is shown.
+  final PlatformInt64 discountMinor;
+  final PlatformInt64 serviceChargeMinor;
+
+  /// Inside the total when `tax_inclusive`, on top of it otherwise.
+  final PlatformInt64 taxMinor;
+  final PlatformInt64 totalMinor;
+  final double taxRate;
+  final double serviceChargeRate;
+  final bool taxInclusive;
+
+  const TicketBillView({
+    required this.subtotalMinor,
+    required this.discountMinor,
+    required this.serviceChargeMinor,
+    required this.taxMinor,
+    required this.totalMinor,
+    required this.taxRate,
+    required this.serviceChargeRate,
+    required this.taxInclusive,
+  });
+
+  @override
+  int get hashCode =>
+      subtotalMinor.hashCode ^
+      discountMinor.hashCode ^
+      serviceChargeMinor.hashCode ^
+      taxMinor.hashCode ^
+      totalMinor.hashCode ^
+      taxRate.hashCode ^
+      serviceChargeRate.hashCode ^
+      taxInclusive.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TicketBillView &&
+          runtimeType == other.runtimeType &&
+          subtotalMinor == other.subtotalMinor &&
+          discountMinor == other.discountMinor &&
+          serviceChargeMinor == other.serviceChargeMinor &&
+          taxMinor == other.taxMinor &&
+          totalMinor == other.totalMinor &&
+          taxRate == other.taxRate &&
+          serviceChargeRate == other.serviceChargeRate &&
+          taxInclusive == other.taxInclusive;
+}
+
 /// The slim "sent to kitchen" confirmation after a fire/round — deliberately NOT
 /// a money-laden receipt (a fired ticket has no payment yet). `queued_offline` is
 /// true when the fire is still in the outbox (no network) — the UI shows "queued".
@@ -114,7 +168,13 @@ class TicketView {
   /// so the teller can see who took the table. `null` if the name is unknown.
   final String? waiterName;
   final int? guestCount;
+
+  /// The lines before discount — the bill's first line, not the bill.
   final PlatformInt64 subtotalMinor;
+
+  /// What the drawer must collect, priced by the server. `None` only for a
+  /// fire still in the outbox, which nothing has priced yet.
+  final TicketBillView? bill;
   final String? orderId;
   final String openedAt;
   final bool queuedOffline;
@@ -129,6 +189,7 @@ class TicketView {
     this.waiterName,
     this.guestCount,
     required this.subtotalMinor,
+    this.bill,
     this.orderId,
     required this.openedAt,
     required this.queuedOffline,
@@ -145,6 +206,7 @@ class TicketView {
       waiterName.hashCode ^
       guestCount.hashCode ^
       subtotalMinor.hashCode ^
+      bill.hashCode ^
       orderId.hashCode ^
       openedAt.hashCode ^
       queuedOffline.hashCode ^
@@ -163,6 +225,7 @@ class TicketView {
           waiterName == other.waiterName &&
           guestCount == other.guestCount &&
           subtotalMinor == other.subtotalMinor &&
+          bill == other.bill &&
           orderId == other.orderId &&
           openedAt == other.openedAt &&
           queuedOffline == other.queuedOffline &&
