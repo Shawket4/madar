@@ -61,6 +61,7 @@ class ItemSheetArgs {
   ItemSheetArgs({
     required this.item,
     required this.addons,
+    this.groups = const [],
     this.editLine,
     this.configureSeed,
     this.isConfiguring = false,
@@ -70,6 +71,10 @@ class ItemSheetArgs {
 
   /// The item's addons with charged prices resolved by the core.
   final List<ItemAddonView> addons;
+
+  /// The core's modifier groups — the groups the sheet RENDERS by default, so
+  /// a seeded or rehydrated selection must be keyed by these ids.
+  final List<ModifierGroupView> groups;
 
   /// Edit mode: the cart line being reconfigured (null = adding fresh).
   final CartLineView? editLine;
@@ -166,9 +171,14 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     return _seed(arg);
   }
 
-  /// Restore a saved addon (id + qty) into the right group — by its TYPE →
-  /// slot / global `type:` bucket, NOT the on-screen groups (which the
-  /// allowlist / "show all" filter may hide), so a selection never drops.
+  /// Restore a saved addon (id + qty) into the right group.
+  ///
+  /// With core groups (the default, rendered view) the addon goes to the
+  /// group that lists it — that is the key the sheet reads. Keying by slot id
+  /// or `type:milk_type` there parked the recipe's full-fat in a bucket
+  /// nothing rendered, so the milk group showed no choice and a pick of oat
+  /// was sent beside it. Without core groups (legacy catalog) it goes by TYPE
+  /// → slot / global `type:` bucket.
   static void _placeAddon(
     ItemSheetArgs args,
     Map<String, String> single,
@@ -176,6 +186,21 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     String addonItemId,
     int qty,
   ) {
+    final core = args.groups
+        .where(
+          (g) =>
+              g.kind == ModifierGroupKind.addon &&
+              g.options.any((o) => o.id == addonItemId),
+        )
+        .firstOrNull;
+    if (core != null) {
+      if (coreGroupIsSingle(core, args.addons)) {
+        single[core.groupId] = addonItemId;
+      } else {
+        multi.putIfAbsent(core.groupId, () => {})[addonItemId] = qty;
+      }
+      return;
+    }
     final type = args.addons
         .where((a) => a.addonItemId == addonItemId)
         .firstOrNull
@@ -215,6 +240,32 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
   static void _seedDefaultMilk(ItemSheetArgs args, Map<String, String> single) {
     final milk = args.item.defaultMilkAddonId;
     if (milk == null) return;
+    // The rendered core group that offers this milk (or, failing that, the
+    // one typed milk) — see [_placeAddon].
+    final core =
+        args.groups
+            .where(
+              (g) =>
+                  g.kind == ModifierGroupKind.addon &&
+                  g.options.any((o) => o.id == milk),
+            )
+            .firstOrNull ??
+        args.groups
+            .where(
+              (g) =>
+                  g.kind == ModifierGroupKind.addon &&
+                  g.addonType == 'milk_type',
+            )
+            .firstOrNull;
+    if (core != null) {
+      single[core.groupId] = milk;
+      return;
+    }
+    if (args.groups.isNotEmpty) {
+      // Core groups but none offers milk: nothing renders it, so don't seed
+      // a hidden selection (the core applies the recipe's milk anyway).
+      return;
+    }
     final slot = args.item.addonSlots
         .where((s) => s.addonType == 'milk_type')
         .firstOrNull;
@@ -266,14 +317,41 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     _maybeRefreshRecipe();
   }
 
+  /// The swap family [addonId] belongs to, or null when it is additive.
+  String? _familyOf(String addonId, [AddonGroup? g]) {
+    final type =
+        arg.addons
+            .where((a) => a.addonItemId == addonId)
+            .firstOrNull
+            ?.addonType ??
+        g?.addons.where((a) => a.addonItemId == addonId).firstOrNull?.addonType;
+    return type != null && isSwapFamily(type) ? type : null;
+  }
+
   void toggleSingle(AddonGroup g, String addonId) {
     final single = {...state.single};
+    final family = _familyOf(addonId, g);
     if (single[g.id] == addonId) {
-      if (!g.isRequired) single.remove(g.id);
+      // A swap family is a radio: the drink always has its one milk, so
+      // tapping the chosen one again keeps it (pick another to change it).
+      if (!g.isRequired && family == null) single.remove(g.id);
     } else {
       single[g.id] = addonId;
     }
-    state = state.copyWith(single: single);
+    var multi = state.multi;
+    if (family != null) {
+      // ONE bucket per family across every group key (core group, slot,
+      // `type:` bucket in "show all"): the new pick REPLACES the old milk.
+      single.removeWhere((k, v) => k != g.id && _familyOf(v) == family);
+      multi = {
+        for (final e in multi.entries)
+          e.key: {
+            for (final a in e.value.entries)
+              if (_familyOf(a.key) != family) a.key: a.value,
+          },
+      }..removeWhere((_, v) => v.isEmpty);
+    }
+    state = state.copyWith(single: single, multi: multi);
     _maybeRefreshRecipe();
   }
 
@@ -403,6 +481,21 @@ itemConfigProvider = NotifierProvider.autoDispose
 bool isSwapFamily(String addonType) =>
     addonType == 'milk_type' || addonType == 'coffee_type';
 
+/// Whether a core modifier group renders as ONE choice (radio, no stepper).
+///
+/// The core already caps swap-family groups at one; this re-derives it from
+/// the group's type and its options' addon types so an older core (or a group
+/// the wire mis-typed as multi with no max) can never render milk as a
+/// multi-select with a quantity stepper.
+bool coreGroupIsSingle(ModifierGroupView g, List<ItemAddonView> addons) {
+  if (g.maxSelections == 1) return true;
+  if (g.addonType != null && isSwapFamily(g.addonType!)) return true;
+  return g.options.any(
+    (o) =>
+        addons.any((a) => a.addonItemId == o.id && isSwapFamily(a.addonType)),
+  );
+}
+
 /// Item customization — size, addons (per slot + global types), optional
 /// fields, live recipe preview, notes, qty. Prices come pre-resolved from
 /// the core; this only displays and sums.
@@ -449,6 +542,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
   late final ItemSheetArgs _args = ItemSheetArgs(
     item: widget.item,
     addons: widget.addons,
+    groups: widget.groups,
     editLine: widget.editLine,
     configureSeed: widget.configureSeed,
     isConfiguring: widget.isConfiguring,
@@ -524,8 +618,8 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                 chargedPriceMinor: o.chargedPriceMinor,
               ),
           ],
-          isMulti: (g.maxSelections ?? 2) > 1,
-          maxSel: g.maxSelections,
+          isMulti: !coreGroupIsSingle(g, widget.addons),
+          maxSel: coreGroupIsSingle(g, widget.addons) ? 1 : g.maxSelections,
           isRequired: g.isRequired,
           minSel: g.minSelections,
         ),
