@@ -5070,6 +5070,9 @@ impl MadarCore {
         // has been running since before a rate change would otherwise keep
         // building bills the server will refuse.
         self.refresh_tax_policy().await;
+        // Same reasoning, one screen over: a shop that switched its kitchen
+        // onto a KDS must not leave this till showing a Kitchen segment.
+        let _ = self.kitchen_routing_mode().await;
         // An explicit sync clears the offline (no-count) backoff so a backlog built
         // during an outage flushes NOW, not after the ~15s network-retry window.
         let _ = self.store.clear_network_backoff();
@@ -6821,6 +6824,84 @@ impl MadarCore {
     /// Un-bump a kitchen line (undo a mistaken bump). Same outbox-first path.
     pub async fn kds_unbump(&self, item_id: String) -> Result<(), CoreError> {
         self.enqueue_bump(item_id, false).await
+    }
+
+    /// Where the branch expects a fired round to be SEEN: `kds` (a screen in
+    /// the kitchen), `till` (the counter bumps it itself), `both`, or `off`
+    /// (nothing is routed at all).
+    ///
+    /// `None` means this device has never reached the server since it was
+    /// bound — not a mode. Ask [`kds::till_shows_kitchen`] rather than
+    /// comparing strings at the call site; the safe answer to `None` is
+    /// different for each question.
+    ///
+    /// Write-through cached and refreshed on every sync, because this decides
+    /// whether a till may show kitchen work at all: a shop that moves its
+    /// kitchen onto a screen must not leave tills bumping for another shift.
+    pub async fn kitchen_routing_mode(&self) -> Result<Option<String>, CoreError> {
+        let branch_id = self.session_branch_id()?;
+        Ok(self
+            .fetch_routing_mode(&branch_id)
+            .await
+            .or_else(|| self.store.kv_get(kds::K_ROUTING_MODE).ok().flatten()))
+    }
+
+    /// Ask the server for the effective routing mode and cache it. `None` when
+    /// offline or unauthorised — the caller falls back to the last known one.
+    async fn fetch_routing_mode(&self, branch_id: &str) -> Option<String> {
+        use madar_api::apis::kitchen_api as k;
+        let resp = k::get_routing_mode(
+            &self.api.config(),
+            k::GetRoutingModeParams {
+                branch_id: branch_id.to_string(),
+            },
+        )
+        .await
+        .ok()?;
+        // `effective`, not `mode`: `mode` is null whenever the branch is on
+        // auto, and auto is a real answer (kds-if-stations-else-till) that the
+        // server has already resolved.
+        let _ = self.store.kv_put(kds::K_ROUTING_MODE, &resp.effective);
+        Some(resp.effective)
+    }
+
+    /// Set the branch's routing mode. `None` clears the override back to auto.
+    /// Online-only and immediate — this is a manager changing how the shop
+    /// runs, not a sale, so it must fail loudly rather than queue.
+    pub async fn set_kitchen_routing_mode(
+        &self,
+        mode: Option<String>,
+    ) -> Result<String, CoreError> {
+        use madar_api::apis::kitchen_api as k;
+        let branch_id = self.session_branch_id()?;
+        if let Some(m) = mode.as_deref() {
+            if !matches!(m, "kds" | "till" | "both" | "off") {
+                return Err(CoreError::Validation {
+                    field: "mode".into(),
+                    detail: "mode must be kds, till, both, or off".into(),
+                });
+            }
+        }
+        let branch_uuid =
+            uuid::Uuid::parse_str(&branch_id).map_err(|_| CoreError::Validation {
+                field: "branch_id".into(),
+                detail: "session branch is not a uuid".into(),
+            })?;
+        let resp = k::set_routing_mode(
+            &self.api.config(),
+            k::SetRoutingModeParams {
+                set_routing_mode_request: madar_api::models::SetRoutingModeRequest {
+                    branch_id: branch_uuid,
+                    // `Some(None)` is the wire's "clear the override", which is
+                    // not the same as omitting the field.
+                    mode: Some(mode),
+                },
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        let _ = self.store.kv_put(kds::K_ROUTING_MODE, &resp.effective);
+        Ok(resp.effective)
     }
 
     /// The branch's active tills (the device-setup / Settings till picker). Write-

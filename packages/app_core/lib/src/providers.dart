@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
@@ -186,6 +188,58 @@ final floorTickProvider = NotifierProvider<TickNotifier, int>(TickNotifier.new);
 final bookingTickProvider = NotifierProvider<TickNotifier, int>(
   TickNotifier.new,
 );
+
+/// Where this branch expects a fired round to be SEEN: `kds` (a screen in the
+/// kitchen), `till` (the counter bumps it itself), `both`, or `off` (nothing
+/// is routed at all). `null` until this device has reached the server once.
+///
+/// Re-read on every connectivity pulse, because it is a shop-level setting a
+/// manager can change from the dashboard mid-shift: a till that was offline
+/// when the kitchen moved onto a screen must not keep bumping for the rest of
+/// the day. The core caches the last known answer, so this survives going
+/// offline; only a device that has NEVER reached the server sees `null`.
+class KitchenRoutingModeNotifier extends Notifier<String?> {
+  @override
+  String? build() {
+    // listen, NOT watch: a pulse should refresh the answer, not throw the
+    // last known one away and blink the Kitchen segment out of the header
+    // every time the link flaps.
+    ref.listen(connectivityPulseProvider, (_, _) => unawaited(refresh()));
+    unawaited(refresh());
+    return null;
+  }
+
+  /// Re-read the mode. The core answers from its cache when the server is
+  /// unreachable, so this only stays `null` on a device that has never
+  /// reached it at all.
+  Future<void> refresh() async {
+    try {
+      state = await ref.read(bridgeProvider).kitchenRoutingMode();
+    } on MadarError catch (e) {
+      // Signed out, or no branch bound yet — not worth a banner. A transport
+      // failure is worth a connectivity re-check.
+      ref.read(connectivityRefreshProvider.notifier).reportError(e);
+    }
+  }
+}
+
+final kitchenRoutingModeProvider =
+    NotifierProvider<KitchenRoutingModeNotifier, String?>(
+      KitchenRoutingModeNotifier.new,
+    );
+
+/// Does the TILL show kitchen work in this mode? The Rust twin is
+/// `kds::till_shows_kitchen`; both must answer the same, and both answer
+/// `false` to an unknown mode.
+///
+/// `till` and `both` are the modes where a fired round is meant to be seen at
+/// the counter. In `kds` the kitchen owns the board and a till that bumps is
+/// bumping behind the cook's back; in `off` nothing is routed anywhere.
+bool tillShowsKitchen(String? mode) => mode == 'till' || mode == 'both';
+
+/// Is anything routed to a kitchen at all? `off` is a shop that fires nothing
+/// — no chit, no board, no readiness to draw. Unknown is NOT off.
+bool kitchenIsRouted(String? mode) => mode != 'off';
 
 /// SSE connection state — the KDS header dot / reconnecting banner.
 class ConnectedNotifier extends Notifier<bool> {

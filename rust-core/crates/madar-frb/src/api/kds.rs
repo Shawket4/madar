@@ -82,4 +82,26 @@ impl MadarBridge {
             .await
             .map_err(MadarError::from)
     }
+
+    /// Where the branch expects a fired round to be seen: `kds`, `till`,
+    /// `both`, or `off`. `null` means this device has never reached the
+    /// server — hide kitchen work rather than guess a mode.
+    pub async fn kitchen_routing_mode(&self) -> Result<Option<String>, MadarError> {
+        self.inner
+            .kitchen_routing_mode()
+            .await
+            .map_err(MadarError::from)
+    }
+
+    /// Set the branch's routing mode; `null` clears the override back to auto.
+    /// Returns the effective mode the server resolved. Online-only.
+    pub async fn set_kitchen_routing_mode(
+        &self,
+        mode: Option<String>,
+    ) -> Result<String, MadarError> {
+        self.inner
+            .set_kitchen_routing_mode(mode)
+            .await
+            .map_err(MadarError::from)
+    }
 }

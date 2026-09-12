@@ -613,6 +613,9 @@ class _DiagnosticsSheet extends ConsumerWidget {
         ref.watch(realtimeConnectedProvider) && bridge.isRealtimeSubscribed();
     final skew = bridge.clockSkewMinutes();
     final lanActive = bridge.lanActive();
+    // Null until this device has reached the server once — then the row is
+    // simply absent rather than claiming a mode.
+    final routing = ref.watch(kitchenRoutingModeProvider);
     return _SheetFrame(
       title: t('settings.diagnostics'),
       children: [
@@ -646,6 +649,15 @@ class _DiagnosticsSheet extends ConsumerWidget {
                   : t('settings.lan_offline'),
               tone: lanActive ? colors.success : colors.textSecondary,
             ),
+            // Why there is (or is not) a Kitchen segment on the Queue — the
+            // exact question this sheet exists to answer. Read-only: the mode
+            // belongs to the branch, and the dashboard owns it.
+            if (routing != null)
+              _InfoRow(
+                label: t('settings.kitchen_routing'),
+                value: t('settings.routing_$routing'),
+                tone: routing == 'off' ? colors.textSecondary : null,
+              ),
             _InfoRow(label: t('settings.pending'), value: '$pending'),
           ],
         ),

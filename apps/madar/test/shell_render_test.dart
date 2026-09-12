@@ -531,6 +531,9 @@ class _FakeBridge implements MadarBridge {
     if (name == #pendingOutboxCount) return Future<int>.value(pending);
     if (name == #refreshConnectivity) return Future<bool>.value(online);
     if (name == #isRealtimeSubscribed) return online;
+    // A kitchen screen owns the board here, so the Queue offers no Kitchen
+    // segment — the shell's tab set is unchanged by it either way.
+    if (name == #kitchenRoutingMode) return Future<String?>.value('kds');
     if (name == #lanActive) return true;
     if (name == #lanPeerCount) return 2;
     if (name == #recentLogs) return Future<List<DiagLogView>>.value(const []);

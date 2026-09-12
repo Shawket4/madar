@@ -388,6 +388,8 @@ class _FakeBridge implements MadarBridge {
       return at.length >= 16 ? at.substring(11, 16) : at;
     }
     if (name == #isRealtimeSubscribed) return true;
+    // The branch routes to the till, so Diagnostics names the mode.
+    if (name == #kitchenRoutingMode) return Future<String?>.value('till');
     if (name == #lanActive) return true;
     if (name == #lanPeerCount) return 2;
     if (name == #clockSkewMinutes) return 0;

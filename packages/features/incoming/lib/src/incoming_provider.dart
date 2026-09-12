@@ -28,7 +28,11 @@ const List<int> kPrepOffsets = [0, 10, 25, 40];
 /// The two segments the till can back today. Kitchen (routing mode `till`)
 /// stays out until the bridge can read the routing mode — shown ungated it
 /// would let a till bump lines behind a KDS.
-enum QueueSegment { bills, online }
+/// The Queue's segments. `kitchen` only exists when the branch routes fired
+/// rounds to the TILL (mode `till` or `both`) — see [tillShowsKitchen]. In
+/// `kds` mode the kitchen owns its board and the counter must not bump
+/// behind it, so the segment is not offered at all.
+enum QueueSegment { bills, online, kitchen }
 
 /// copyWith sentinel — lets callers CLEAR the nullable fields (`error`,
 /// `toast`) by passing an explicit `null`.

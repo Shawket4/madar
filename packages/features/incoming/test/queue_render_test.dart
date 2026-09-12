@@ -200,6 +200,36 @@ final _tickets = <TicketView>[
   ),
 ];
 
+/// One fired round, as the cook's board sees it — the same view the KDS
+/// renders, because the Queue's Kitchen segment mounts the same widget.
+final _kitchen = <KdsTicketView>[
+  const KdsTicketView(
+    id: 'kt-1',
+    kitchenRef: 'K-41',
+    tableLabel: 'T5',
+    roundNumber: 1,
+    sourceType: 'open_ticket',
+    status: 'firing',
+    createdAt: '2026-09-10T19:24:00Z',
+    items: [
+      KdsLineView(
+        id: 'kl-1',
+        name: 'Flat White',
+        qty: 2,
+        modifiers: ['Oat'],
+        bumped: false,
+      ),
+      KdsLineView(
+        id: 'kl-2',
+        name: 'Grilled chicken',
+        qty: 1,
+        modifiers: [],
+        bumped: false,
+      ),
+    ],
+  ),
+];
+
 FloorTableStateView _table(String id, String label) => FloorTableStateView(
   id: id,
   sectionId: 'sec',
@@ -267,6 +297,7 @@ const _en = <String, String>{
   'delivery.mode_open': 'open',
   'delivery.mode_closed': 'closed',
   'receipt.delivery_fee': 'fee',
+  'kds.title': 'Kitchen',
   'ticket.status.open': 'Open',
   'ticket.status.ready': 'Ready',
   'waiter.covers': 'covers',
@@ -304,6 +335,7 @@ const _ar = <String, String>{
   'delivery.mode_open': 'مفتوح',
   'delivery.mode_closed': 'مغلق',
   'receipt.delivery_fee': 'رسوم التوصيل',
+  'kds.title': 'المطبخ',
   'ticket.status.open': 'مفتوحة',
   'ticket.status.ready': 'جاهزة',
   'waiter.covers': 'ضيوف',
@@ -318,11 +350,18 @@ class _FakeBridge implements MadarBridge {
     this.arabic = false,
     this.orders = const [],
     this.tickets = const [],
+    this.routingMode,
+    this.kitchen = const [],
   });
 
   final bool arabic;
   final List<DeliveryOrderView> orders;
   final List<TicketView> tickets;
+
+  /// `kds` · `till` · `both` · `off`, or null for a device that has never
+  /// reached the server. Only `till` and `both` may show a Kitchen segment.
+  final String? routingMode;
+  final List<KdsTicketView> kitchen;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -379,6 +418,27 @@ class _FakeBridge implements MadarBridge {
         online: true,
         permissionsLoaded: true,
       );
+    }
+    if (name == #kitchenRoutingMode) {
+      return Future<String?>.value(routingMode);
+    }
+    if (name == #kdsList) return Future<List<KdsTicketView>>.value(kitchen);
+    if (name == #kdsListStations) {
+      return Future<List<KdsStationView>>.value(const []);
+    }
+    if (name == #syncStatus) {
+      return Future<SyncStatusView>.value(
+        const SyncStatusView(
+          online: true,
+          pending: 0,
+          failed: 0,
+          blocked: 0,
+          authPaused: false,
+        ),
+      );
+    }
+    if (name == #listOutbox) {
+      return Future<List<OutboxItemView>>.value(const []);
     }
     if (name == #isRealtimeSubscribed) return true;
     if (name == #clockSkewMinutes) return 0;
@@ -567,5 +627,88 @@ void main() {
       segment: QueueSegment.online,
     );
     expect(find.text('Nothing waiting.'), findsOneWidget);
+  });
+
+  testWidgets('routing to a kitchen screen offers the till no Kitchen segment', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'bills-ipad-kds-mode',
+      bridge: _FakeBridge(
+        orders: _orders,
+        tickets: _tickets,
+        routingMode: 'kds',
+      ),
+      segment: QueueSegment.bills,
+    );
+    // Bumping from here would clear a line off a screen a cook is working
+    // from. The segment is not offered at all.
+    expect(find.text('Kitchen'), findsNothing);
+  });
+
+  testWidgets('a device that has never synced does not guess a mode', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'bills-ipad-no-mode',
+      bridge: _FakeBridge(orders: _orders, tickets: _tickets),
+      segment: QueueSegment.bills,
+    );
+    expect(find.text('Kitchen'), findsNothing);
+  });
+
+  testWidgets('routing to the till shows the board inside the Queue', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'kitchen-ipad-light',
+      bridge: _FakeBridge(
+        orders: _orders,
+        tickets: _tickets,
+        routingMode: 'till',
+        kitchen: _kitchen,
+      ),
+      segment: QueueSegment.kitchen,
+    );
+    expect(find.text('Kitchen'), findsOneWidget);
+    // The cook's own card, in the cashier's inbox: same widget, same feed.
+    // The line is a rich span (qty × name), so match on the span's text.
+    expect(
+      find.textContaining('Flat White', findRichText: true),
+      findsOneWidget,
+    );
+    // And the table it belongs to, so the cashier knows whose food it is.
+    expect(find.text('T5'), findsOneWidget);
+  });
+
+  testWidgets('the segment falls back when the mode changes under it', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'kitchen-ipad-revoked',
+      bridge: _FakeBridge(
+        orders: _orders,
+        tickets: _tickets,
+        routingMode: 'kds',
+        kitchen: _kitchen,
+      ),
+      // A teller standing on Kitchen when the shop moved onto a KDS.
+      segment: QueueSegment.kitchen,
+    );
+    expect(find.text('Kitchen'), findsNothing);
+    // Bills, not a blank pane pointing at a segment that no longer exists.
+    expect(find.text('T3'), findsOneWidget);
   });
 }

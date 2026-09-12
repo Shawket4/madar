@@ -140,6 +140,35 @@ fn line_view(it: &models::KitchenTicketItemView) -> KdsLineView {
     }
 }
 
+// ── Routing mode ──────────────────────────────────────────────────────────────
+
+/// kv key for the branch's last-known kitchen routing mode.
+pub(crate) const K_ROUTING_MODE: &str = "cache:kitchen_routing_mode";
+
+/// Does the TILL show kitchen work in this mode?
+///
+/// `till` and `both` are the two modes where a fired round is expected to be
+/// seen and bumped at the counter. In `kds` the kitchen owns the board, and a
+/// till that bumps is bumping behind the cook's back — the line goes dark on a
+/// screen someone is still working from. In `off` nothing is routed anywhere,
+/// so there is no work to show.
+///
+/// `None` is "we have never asked the server" — a device bound but not yet
+/// synced. It answers `false`, deliberately: hiding a segment costs a tap,
+/// showing it in `kds` mode costs the kitchen a ticket.
+pub fn till_shows_kitchen(mode: Option<&str>) -> bool {
+    matches!(mode, Some("till") | Some("both"))
+}
+
+/// Is anything routed to a kitchen at all?
+///
+/// `off` means the shop does not fire rounds anywhere — no chit, no board, no
+/// readiness. A screen that draws "ready" states in `off` mode is describing a
+/// workflow the shop does not run.
+pub fn kitchen_is_routed(mode: Option<&str>) -> bool {
+    !matches!(mode, Some("off"))
+}
+
 // ── Offline fire projection (Phase E) ─────────────────────────────────────────
 //
 // When a waiter fires while offline, the KDS must still show the ticket NOW. The
@@ -405,5 +434,26 @@ mod tests {
         assert_eq!(lv.notes.as_deref(), Some("no salt"));
         assert_eq!(lv.station_name.as_deref(), Some("Grill"));
         assert!(!lv.bumped);
+    }
+
+    #[test]
+    fn only_till_modes_let_the_counter_bump() {
+        assert!(till_shows_kitchen(Some("till")));
+        assert!(till_shows_kitchen(Some("both")));
+        assert!(!till_shows_kitchen(Some("kds")), "the kitchen owns the board");
+        assert!(!till_shows_kitchen(Some("off")));
+        assert!(!till_shows_kitchen(None), "never asked → do not guess");
+    }
+
+    #[test]
+    fn off_is_the_only_mode_with_no_kitchen() {
+        assert!(!kitchen_is_routed(Some("off")));
+        for m in ["kds", "till", "both"] {
+            assert!(kitchen_is_routed(Some(m)));
+        }
+        assert!(
+            kitchen_is_routed(None),
+            "unknown is not off — a shop that routes must not lose its readiness"
+        );
     }
 }

@@ -1,6 +1,11 @@
-/// The Queue — the teller's one inbox: bills to charge and online orders,
-/// as two segments with their counts in the label. (The Kitchen segment,
-/// routing mode `till`, waits on a flag the bridge cannot read yet.)
+/// The Queue — the teller's one inbox: bills to charge, online orders, and
+/// (only where the branch routes fired rounds to the counter) the kitchen
+/// board, as segments with their counts in the label.
+///
+/// The Kitchen segment is gated on [tillShowsKitchen]: in `kds` mode the
+/// kitchen owns its own board, and a till bumping from here would clear a
+/// line off a screen a cook is still working from. Unknown mode hides it
+/// too — a device that has never reached the server does not get to guess.
 ///
 /// Both feeds are live: the screen reloads on the shell's `ticket.*` and
 /// `delivery.*` ticks, so a waiter's fire on another device and a new online
@@ -17,6 +22,7 @@ import 'package:feature_incoming/src/bills_segment.dart';
 import 'package:feature_incoming/src/incoming_provider.dart';
 import 'package:feature_incoming/src/online_segment.dart';
 import 'package:feature_incoming/src/queue_strings.dart';
+import 'package:feature_kds/feature_kds.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -71,7 +77,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       });
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
-    final segment =
+    var segment =
         ref.watch(incomingProvider.select((s) => s.segment)) ??
         widget.initialSegment;
     final billsCount = ref.watch(
@@ -80,6 +86,26 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     final onlineCount = ref.watch(
       incomingProvider.select((s) => s.deliveryOrders.length),
     );
+    // Null while the first read is in flight, and null forever on a device
+    // that has never reached the server — both hide the segment.
+    final showKitchen = tillShowsKitchen(
+      ref.watch(kitchenRoutingModeProvider),
+    );
+    // The mode can change under a teller who is standing on the segment.
+    // Fall back rather than leave the control pointing at an item it no
+    // longer has.
+    if (segment == QueueSegment.kitchen && !showKitchen) {
+      segment = QueueSegment.bills;
+    }
+    // Only counted when the segment exists: watching the board's family
+    // member mounts it, and an unrouted till has no business holding a feed.
+    final kitchenCount = showKitchen
+        ? ref.watch(
+            kdsProvider(null).select(
+              (s) => s.tickets.where((t) => t.status == 'firing').length,
+            ),
+          )
+        : 0;
     final toast = ref.watch(incomingProvider.select((s) => s.toast));
     final layout = context.madarLayout;
     final canPop = Navigator.of(context).canPop();
@@ -98,6 +124,13 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
           count: onlineCount,
           glyph: MadarGlyph.bike,
         ),
+        if (showKitchen)
+          MadarSegmentItem(
+            QueueSegment.kitchen,
+            bridge.trOr(QueueKeys.kitchen),
+            count: kitchenCount,
+            glyph: MadarGlyph.flame,
+          ),
       ],
       value: segment,
       onChanged: ref.read(incomingProvider.notifier).setSegment,
@@ -188,6 +221,13 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                       onOpenBill: widget.onOpenBill,
                     ),
                     QueueSegment.online => const OnlineSegment(),
+                    // The cook's own board, minus its header — one widget and
+                    // one provider family, so the counter and the kitchen
+                    // cannot disagree about a line. Falls back to Bills if the
+                    // mode changed out from under a selected segment.
+                    QueueSegment.kitchen => const KdsBoardBody(
+                      stationId: null,
+                    ),
                   },
                 ),
               ],

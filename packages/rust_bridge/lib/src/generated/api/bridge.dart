@@ -356,6 +356,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Un-bump a kitchen line (undo a mistaken bump). Same outbox-first path.
   Future<void> kdsUnbump({required String itemId});
 
+  /// Where the branch expects a fired round to be seen: `kds`, `till`,
+  /// `both`, or `off`. `null` means this device has never reached the
+  /// server — hide kitchen work rather than guess a mode.
+  Future<String?> kitchenRoutingMode();
+
   /// Whether the LAN relay is currently running.
   bool lanActive();
 
@@ -736,6 +741,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Bind the device's till (POS drawer). `None` = use the branch default till.
   Future<void> setDeviceTill({String? tillId});
+
+  /// Set the branch's routing mode; `null` clears the override back to auto.
+  /// Returns the effective mode the server resolved. Online-only.
+  Future<String> setKitchenRoutingMode({String? mode});
 
   void setLocale({required String locale});
 

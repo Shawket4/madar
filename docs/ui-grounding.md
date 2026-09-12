@@ -307,7 +307,7 @@ merged, effective value. There is no way to tell an org value from a branch over
 | **Org logo** | yes | `orgLogoUrl()`, `orgLogoLocalPath()` | checkout |
 | **Environment / server / versions** | yes | `environment()`, `baseUrl()`, `coreVersion()`, `version()` | settings |
 | **Loyalty enabled / programme mode** | **NO** | nothing on the bridge. `LoyaltyMemberView.mode` is per member, known only after a lookup. The wire has `loyalty_settings.enabled/mode/program_name` (`get_loyalty_settings`) — not exposed | — |
-| **Kitchen routing mode** (`off · till · kds`) | **NO** | nothing on the bridge. The wire has `get_routing_mode → {effective, mode}` — not exposed | — |
+| **Kitchen routing mode** (`off · till · kds · both`) | yes | `kitchenRoutingMode()` (null until first reach), `setKitchenRoutingMode(mode)`; `kitchenRoutingModeProvider` + `tillShowsKitchen`/`kitchenIsRouted` | Queue (segment gate), settings (Diagnostics) |
 | **Tips enabled** | **NO** | does not exist anywhere, wire included | — |
 | **Standard float / safe-drop suggestion** | **NO** | does not exist on the wire | — |
 | **Receipt footer / branding** | **NO** | on the org model server-side; the till never receives it | — |
@@ -325,7 +325,7 @@ today (`feature_*`); "floor" screens live in `feature_order` (`tables_screen.dar
 | Control | Call |
 |---|---|
 | Which shell | `currentSession()!.role`: `waiter` → Waiter; `kitchen` → KDS board; everything else → Teller shell; Manager = Teller shell + `role ∉ {teller}` widening on Till |
-| Which tabs | Floor tab iff `orderProvider.hasFloor`; Queue › Kitchen segment **hidden** (no routing flag, §4.7) |
+| Which tabs | Floor tab iff `orderProvider.hasFloor`; Queue › Kitchen segment iff `tillShowsKitchen(kitchenRoutingModeProvider)` (§4.7) |
 | Home tab | `requireTableForOrders && hasFloor` → Floor; else Sell; teller with no open shift → Till (`appRoute() == openShift`) |
 | Name · branch · till | `displayName`, `deviceConfig().branchName`, `listTills()` matched on `deviceConfig().tillId` (default till when null) |
 | Outbox pill | `syncStatus()`: `pending` → `◐ n`; `failed > 0` → danger `✕ n stuck` (`chrome.needs_attention`); `!online` → hollow `chrome.offline`; `authPaused` → banner `chrome.auth_paused` + `chrome.auth_paused_action` → reauth sheet (`feature_auth` `reauth_sheet.dart`); `blocked > 0` → included in the Sync screen |
@@ -432,10 +432,13 @@ collapsed; qty stepper → `qty`. Editing a line = remove + re-add configured (t
 | Accepting: in-mall ● outside ○ | `deliverySettings()` → `deliverySetAccepting(channel, mode)`; chips only for `*Enabled` channels; `pickup`/`umbrella` cannot be shown or toggled (not in the view) |
 | No channels enabled | hide the segment |
 
-**Kitchen segment — not-yet (hidden).** The gate is routing mode `till`, which the bridge cannot
-read (§3). The reads and writes exist (`kdsList(null)`, `kdsBump`, `kdsUnbump`) so the segment
-is one flag away; do not show it ungated — in KDS mode it would let a till bump behind the
-kitchen's back. §6.3.
+**Kitchen segment — fully.** Shown only when `tillShowsKitchen(kitchenRoutingModeProvider)` —
+modes `till` and `both`. It mounts `KdsBoardBody(stationId: null)`, the cook's own board minus
+its header, on the same `kdsProvider` family, so the counter and the kitchen cannot disagree
+about a line. `kds` hides it (bumping here would clear a line off a screen a cook is working
+from), `off` hides it (nothing is routed anywhere), and so does an unknown mode — a device that
+has never reached the server does not get to guess. A mode that changes under a teller standing
+on the segment falls back to Bills.
 
 ### 4.8 Charge (tender) + Done card — `feature_checkout` — counter **fully**, bill **partly**, online **partly**
 | Control | Counter cart | Bill | Online order |
@@ -447,7 +450,7 @@ kitchen's back. §6.3.
 | Member › / redeem a line | `classifyLoyaltyInput`, `loyaltyLookup` [online → offline says `loyalty.queued_hint`/`err.offline_no_setup`-style sentence]; `CheckoutInput.loyaltyCustomerId`, `loyaltyRedemptions[itemIndex, units]` | `settleTicket(loyaltyCustomerId, loyaltyRedemptions[ticketLineId])` (`startSettle(ticketLines:)` already builds `RedeemableLine`s) | hide (not on `deliveryFinalize`) |
 | Add tip › | `CheckoutInput.tipMinor / tipPaymentMethodId` | `settleTicket(tipMinor, tipPaymentMethodId)` | hide |
 | Method grid (≥ 2) / button names the one method | `listPaymentMethods()` | same | same (method only) |
-| Split | `CheckoutInput.splits` | **hide** — `settleTicket` has no splits (§6.5) | hide |
+| Split | `CheckoutInput.splits` | `settleTicket(splits:)` — same tender screen, same legs | hide (one method only) |
 | Cash tendered: Exact / presets / keypad / change | `amountTenderedMinor`; change from `ReceiptView.changeMinor` | `settleTicket(amountTenderedMinor)`; change computed locally against the subtotal — label it honestly ("against subtotal") or omit change for bills where `serviceChargeRate > 0 || !taxInclusive` | hide |
 | Charge button | `checkout(input)` → `ReceiptView` | `settleTicket(...)` → order id or `null` (queued) | `deliveryFinalize` → `{orderId, orderRef, warnings}` |
 | "Open the shift first" | `currentShift()?.isOpen != true` → disabled bar linking to Till | same | same |
@@ -586,11 +589,15 @@ substitutes above are what ships in the morning.
    `compute_system_cash` subtracting cash refunds. Largest item; the design's Refund/Void split is
    the books-are-honest story.
 2. **Line void** — server work first (no route). Not a core ask yet.
-3. **Kitchen routing mode** — expose `get_routing_mode → effective` (cache it in kv like
-   `require_table_for_orders`). Unblocks the Queue › Kitchen segment and the "no readiness anywhere"
-   rendering in `off` mode. Tiny.
+3. ~~**Kitchen routing mode**~~ — DONE. `kitchen_routing_mode()` reads `get_routing_mode →
+   effective` write-through cached in kv and refreshed on every `sync_now`;
+   `set_kitchen_routing_mode(mode)` writes it (online-only — a manager changing how the shop runs
+   must fail loudly, not queue). `off` needed no suppression: readiness is drawn from ticket
+   status, and in `off` no kitchen ticket is ever raised, so no ticket ever reads ready.
 4. **`order_type: takeaway`** — server rule + request field, then `checkout` passes it. Server work.
-5. **Splits on `settleTicket`** — add `splits: List<CheckoutSplit>` → `payment_splits`. Tiny.
+5. ~~**Splits on `settleTicket`**~~ — DONE. `settleTicket(splits:)` resolves each leg's method id
+   to the raw name, dropping a leg whose method no longer exists rather than 400-ing the settle.
+   `canSplit` is `!isOnline && methods >= 2`.
 6. **Delivery view: `confirmedAt`, `extraPrepMinutes`, `readyAt`** — projection only. Tiny.
 7. **Force-close** — `force_close_shift(shift_id, reason)` for the manager's drawer page. Small.
 8. **Cash movement `kind` + `corrects_id`** — `recordCashMovement(kind, correctsId)` and

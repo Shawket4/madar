@@ -18,6 +18,7 @@ abstract final class QueueKeys {
   static const title = ('queue.title', 'incoming.title');
   static const bills = ('queue.bills', 'waiter.tickets');
   static const online = ('queue.online', 'delivery.title');
+  static const kitchen = ('queue.kitchen', 'kds.title');
   static const accept = ('queue.accept', 'delivery.action.confirmed');
   static const decline = ('queue.decline', 'delivery.reject');
   static const declineReason = (
