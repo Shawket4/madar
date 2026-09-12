@@ -87,7 +87,10 @@ pub(crate) fn compute_recipe(
 
     // 2 + 3. Walk the selected addons: milk/coffee types swap the base line of
     //        the matching category; everything else is additive (× qty).
-    for sel in addons {
+    // One addon per swap family — a stray second milk must not describe a cup
+    // that has two (the later pick replaces the earlier, as in the cart).
+    let addons = crate::cart::normalize_swap_selections(addon_catalog, addons);
+    for sel in &addons {
         let Some(addon) = addon_catalog.iter().find(|a| a.id == sel.addon_item_id) else {
             continue; // unknown addon — skip (Flutter falls back to the API here)
         };

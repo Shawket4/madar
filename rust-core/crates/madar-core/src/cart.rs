@@ -411,6 +411,47 @@ pub(crate) fn is_swap_family(addon_type: &str) -> bool {
     SWAP_FAMILIES.contains(&addon_type)
 }
 
+/// Collapse a selection so each swap family carries at most ONE addon at qty 1.
+///
+/// A host that still sends the recipe's default milk beside the milk the
+/// teller picked (or a milk at qty 2) describes a cup that cannot exist. The
+/// LAST pick of a family wins — a later tap replaces, it never appends — and
+/// it keeps the position of the family's first entry. Additive addons and ids
+/// the catalog doesn't know pass through untouched.
+pub(crate) fn normalize_swap_selections(
+    addon_catalog: &[menu::AddonItemView],
+    addon_sels: &[AddonSelection],
+) -> Vec<AddonSelection> {
+    let family = |id: &str| {
+        addon_catalog
+            .iter()
+            .find(|a| a.id == id)
+            .map(|a| a.addon_type.as_str())
+            .filter(|t| is_swap_family(t))
+    };
+    let mut out: Vec<AddonSelection> = Vec::with_capacity(addon_sels.len());
+    let mut slot_of: Vec<(&str, usize)> = Vec::new();
+    for sel in addon_sels {
+        match family(&sel.addon_item_id) {
+            Some(fam) => {
+                let one = AddonSelection {
+                    addon_item_id: sel.addon_item_id.clone(),
+                    qty: 1,
+                };
+                match slot_of.iter().find(|(f, _)| *f == fam) {
+                    Some((_, i)) => out[*i] = one,
+                    None => {
+                        slot_of.push((fam, out.len()));
+                        out.push(one);
+                    }
+                }
+            }
+            None => out.push(sel.clone()),
+        }
+    }
+    out
+}
+
 /// Charged addon price: SWAP families (milk_type, coffee_type) pay only the delta
 /// over the item's default base for that family (clamped ≥0) — re-selecting the
 /// default costs 0; everything else (additive) pays the full default. The backend
@@ -499,7 +540,7 @@ fn resolve_addons(
         .map(|a| a.default_price_minor)
         .unwrap_or(0);
     let coffee_base = coffee_swap_base(item, addon_catalog);
-    addon_sels
+    normalize_swap_selections(addon_catalog, addon_sels)
         .iter()
         .filter_map(|sel| {
             let a = addon_catalog.iter().find(|x| x.id == sel.addon_item_id)?;
@@ -836,7 +877,32 @@ pub(crate) fn item_modifier_groups_unified(
             if options.is_empty() {
                 return None;
             }
-            let single = g.selection_type == "single" || g.max == Some(1);
+            // A swap family (milk, coffee) is ONE choice whatever the wire
+            // says. The backend backfill often writes a milk group as
+            // `multi` with no max, which rendered milk as a multi-select with
+            // a quantity stepper: the recipe's full-fat stayed selected, oat
+            // landed beside it, and the line carried two milks. Recognise the
+            // family by the group's legacy type OR by any option being a
+            // swap-family addon in the catalog (a renamed/custom milk group).
+            let swap = g.legacy_addon_type.as_deref().is_some_and(is_swap_family)
+                || g.options.iter().any(|o| {
+                    addon_catalog
+                        .iter()
+                        .any(|a| a.id == o.id && is_swap_family(&a.addon_type))
+                });
+            let single = swap || g.selection_type == "single" || g.max == Some(1);
+            let swap_type = if swap {
+                g.legacy_addon_type.clone().or_else(|| {
+                    g.options.iter().find_map(|o| {
+                        addon_catalog
+                            .iter()
+                            .find(|a| a.id == o.id && is_swap_family(&a.addon_type))
+                            .map(|a| a.addon_type.clone())
+                    })
+                })
+            } else {
+                g.legacy_addon_type.clone()
+            };
             Some(ModifierGroupView {
                 group_id: g.group_id.clone(),
                 // Custom groups carry an authored name; legacy-typed groups fall
@@ -850,10 +916,16 @@ pub(crate) fn item_modifier_groups_unified(
                     menu::resolve(&g.name_translations, &g.name, locale)
                 },
                 kind: ModifierGroupKind::Addon,
-                addon_type: g.legacy_addon_type.clone(),
+                addon_type: swap_type,
                 is_required: g.is_required,
-                min_selections: g.min.max(0),
-                max_selections: if single && g.max.is_none() {
+                min_selections: if swap {
+                    g.min.clamp(0, 1)
+                } else {
+                    g.min.max(0)
+                },
+                max_selections: if swap {
+                    Some(1)
+                } else if single && g.max.is_none() {
                     Some(1)
                 } else {
                     g.max
@@ -973,7 +1045,10 @@ pub(crate) fn remove(store: &Store, line_key: &str) -> CoreResult<Vec<CartLineVi
         .collect();
     lines.retain(|l| signature(l) != line_key);
     if !removed.is_empty() {
-        store.kv_put(&ctx_key(store, K_LAST_REMOVED)?, &serde_json::to_string(&removed)?)?;
+        store.kv_put(
+            &ctx_key(store, K_LAST_REMOVED)?,
+            &serde_json::to_string(&removed)?,
+        )?;
     }
     save(store, &lines)?;
     Ok(view(&lines))
@@ -1428,7 +1503,10 @@ mod tests {
         assert_eq!(names(&set_context(&s, None).unwrap()), vec!["Cookiex1"]);
 
         // Back to T1: its items and discount are exactly there.
-        assert_eq!(names(&set_context(&s, Some("t1")).unwrap()), vec!["Lattex2"]);
+        assert_eq!(
+            names(&set_context(&s, Some("t1")).unwrap()),
+            vec!["Lattex2"]
+        );
         assert_eq!(context(&s).unwrap().as_deref(), Some("t1"));
         assert_eq!(discount_id(&s).unwrap().as_deref(), Some("d1"));
 
@@ -1837,6 +1915,116 @@ mod tests {
             },
         ];
         assert!(validate_group_selections(&groups, &stray, &[]).is_empty());
+    }
+
+    fn uopt(id: &str) -> menu::UnifiedOption {
+        menu::UnifiedOption {
+            id: id.into(),
+            name: id.into(),
+            name_translations: serde_json::json!({}),
+            price: 0,
+            is_available: true,
+        }
+    }
+
+    #[test]
+    fn unified_multi_configured_milk_group_becomes_single() {
+        // What the backend backfill writes: milk as `multi`, max NULL — once by
+        // legacy type, once as a renamed group recognised only by its options.
+        let groups = item_modifier_groups_unified(
+            &item(),
+            &catalog(),
+            vec![
+                menu::UnifiedGroup {
+                    group_id: "g-milk".into(),
+                    name: "Milk".into(),
+                    name_translations: serde_json::json!({}),
+                    selection_type: "multi".into(),
+                    min: 0,
+                    max: None,
+                    is_required: false,
+                    legacy_addon_type: Some("milk_type".into()),
+                    options: vec![uopt("oat"), uopt("almond")],
+                },
+                menu::UnifiedGroup {
+                    group_id: "g-dairy".into(),
+                    name: "Dairy".into(),
+                    name_translations: serde_json::json!({}),
+                    selection_type: "multi".into(),
+                    min: 0,
+                    max: Some(3),
+                    is_required: false,
+                    legacy_addon_type: None,
+                    options: vec![uopt("whole"), uopt("almond")],
+                },
+                menu::UnifiedGroup {
+                    group_id: "g-extra".into(),
+                    name: "Extras".into(),
+                    name_translations: serde_json::json!({}),
+                    selection_type: "multi".into(),
+                    min: 0,
+                    max: None,
+                    is_required: false,
+                    legacy_addon_type: Some("extra".into()),
+                    options: vec![uopt("shot")],
+                },
+            ],
+            "en",
+        );
+        assert_eq!(groups[0].max_selections, Some(1));
+        assert_eq!(groups[1].max_selections, Some(1));
+        assert_eq!(groups[1].addon_type.as_deref(), Some("milk_type"));
+        assert_eq!(groups[2].max_selections, None); // additive stays multi
+
+        // Two milks (the default beside the pick) is a violation, one is not.
+        let two = [
+            AddonSelection {
+                addon_item_id: "oat".into(),
+                qty: 1,
+            },
+            AddonSelection {
+                addon_item_id: "almond".into(),
+                qty: 1,
+            },
+        ];
+        let v = validate_group_selections(&groups[..1], &two, &[]);
+        assert_eq!(v.len(), 1);
+        assert_eq!((v[0].selected, v[0].max_allowed), (2, Some(1)));
+        assert!(validate_group_selections(&groups[..1], &two[1..], &[]).is_empty());
+    }
+
+    #[test]
+    fn swap_family_selections_replace_not_append() {
+        let sels = [
+            AddonSelection {
+                addon_item_id: "oat".into(),
+                qty: 1,
+            },
+            AddonSelection {
+                addon_item_id: "shot".into(),
+                qty: 2,
+            },
+            AddonSelection {
+                addon_item_id: "almond".into(),
+                qty: 3,
+            },
+        ];
+        let n = normalize_swap_selections(&catalog(), &sels);
+        let got: Vec<(&str, i64)> = n
+            .iter()
+            .map(|s| (s.addon_item_id.as_str(), s.qty))
+            .collect();
+        assert_eq!(got, vec![("almond", 1), ("shot", 2)]);
+
+        let mut it = item();
+        it.default_milk_addon_id = Some("oat".into());
+        let line = resolve_line(&it, &catalog(), None, &sels, &[], 1, None);
+        let ids: Vec<&str> = line
+            .addons
+            .iter()
+            .map(|a| a.addon_item_id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["almond", "shot"]);
     }
 
     #[test]
