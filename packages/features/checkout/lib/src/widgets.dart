@@ -25,5 +25,10 @@ String payGlyph(String icon) => switch (icon.toLowerCase()) {
   'store' => 'storefront',
   'star' => 'star',
   'link' => 'link',
-  _ => 'banknote',
+  // An org's own custom method, unrecognised: 'tag', not 'banknote' — the
+  // old default drew every custom method with the CASH icon, which is
+  // exactly the "no way to tell them apart" complaint this mapping exists
+  // to answer. See `paymentGlyph` in charge_sheet.dart for the same fix on
+  // the newer glyph set.
+  _ => 'tag',
 };

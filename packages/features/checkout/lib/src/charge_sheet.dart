@@ -42,8 +42,12 @@ const int _presetFlex = 10;
 const List<int> _cashPresets = [5000, 10000, 20000, 50000, 100000];
 const int _cashPresetCount = 2;
 
-/// Below this width the method buttons stack two to a row.
-const double _methodsSingleRowMin = 480;
+/// A method tile's width band inside the [Wrap] — wide enough that "Cash"
+/// doesn't read as a stray chip, capped so one very long or Arabic name
+/// wraps its OWN text with an ellipsis rather than stretching the tile (and
+/// the row) past what should just flow to a second line.
+const double _methodTileMinWidth = 132;
+const double _methodTileMaxWidth = 208;
 
 /// Present Charge for [target] and, once money is taken, the Done card over
 /// whatever the caller is standing on.
@@ -730,6 +734,7 @@ class _QuietRows extends StatelessWidget {
                     for (final m in s.paymentMethods)
                       MadarChip(
                         label: m.name,
+                        glyph: paymentGlyph(m.icon),
                         selected:
                             (s.tipMethodId ?? s.effectiveMethodId) == m.id,
                         onTap: () => onTipMethod(m.id),
@@ -919,9 +924,18 @@ class _RewardLine extends StatelessWidget {
 
 // ── Methods ──────────────────────────────────────────────────────────────
 
-/// The branch's methods, 56 high, in one row on a tablet and two to a row
-/// on a phone; the chosen one fills with ink and carries a check. The
-/// Split chip rides at the end, only where the bridge carries splits.
+/// The branch's methods as self-sizing tiles in a [Wrap] — never a fixed
+/// row of equal-width buttons. That was the old shape (one `Expanded` row
+/// on a tablet, two per row on a phone), and it divided the row by COUNT: a
+/// shop with five or six methods, or one Arabic name that reads wider than
+/// its English counterpart, squeezed every tile under a legible width at
+/// once. A [Wrap] hands each tile only the width its name needs and drops
+/// the rest to a new line instead of shrinking all of them; a horizontal
+/// scroll was the other option and was rejected — a method that only
+/// appears after a swipe a teller doesn't know to try is worse than one
+/// that's merely a row down (the sheet already scrolls vertically). The
+/// Split chip rides in the same [Wrap], at the end, only where the bridge
+/// carries splits.
 class _MethodsRow extends StatelessWidget {
   const _MethodsRow({
     required this.state,
@@ -937,80 +951,174 @@ class _MethodsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final s = state;
     final selected = s.splitMode ? null : s.effectiveMethodId;
-    final buttons = [
-      for (final m in s.paymentMethods)
-        MadarButton(
-          label: m.name,
-          glyph: paymentGlyph(m.icon),
-          variant: m.id == selected
-              ? MadarButtonVariant.ink
-              : MadarButtonVariant.secondary,
-          trailing: m.id == selected
-              ? const MadarGlyphIcon(MadarGlyph.check, color: Colors.white)
-              : null,
-          onTap: () => onSelect(m.id),
-        ),
-    ];
-    final split = s.canSplit
-        ? MadarChip(
+    return Wrap(
+      spacing: Space.sm + 2,
+      runSpacing: Space.sm + 2,
+      children: [
+        for (final m in s.paymentMethods)
+          _MethodTile(
+            method: m,
+            tr: tr,
+            selected: m.id == selected,
+            onTap: () => onSelect(m.id),
+          ),
+        if (s.canSplit)
+          MadarChip(
             label: tr('order.split_payment'),
             glyph: MadarGlyph.split,
             selected: s.splitMode,
             onTap: onToggleSplit,
-          )
-        : null;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= _methodsSingleRowMin) {
-          return Row(
-            spacing: Space.sm + 2,
-            children: [
-              for (final b in buttons) Expanded(child: b),
-              ?split,
-            ],
-          );
-        }
-        // Phone: two to a row, the split chip on its own line.
-        final rows = <Widget>[];
-        for (var i = 0; i < buttons.length; i += 2) {
-          rows.add(
-            Row(
-              spacing: Space.sm + 2,
-              children: [
-                Expanded(child: buttons[i]),
-                if (i + 1 < buttons.length)
-                  Expanded(child: buttons[i + 1])
-                else
-                  const Expanded(child: SizedBox.shrink()),
-              ],
-            ),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.sm + 2,
-          children: [
-            ...rows,
-            if (split != null)
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: DefaultTextStyle(
-                  style: TextStyle(color: colors.textSecondary),
-                  child: split,
-                ),
-              ),
-          ],
-        );
-      },
+          ),
+      ],
     );
   }
 }
 
+/// One payment method. The org's own colour and icon are SUPPORT for its
+/// NAME, never a replacement for it — a custom method with a generic icon
+/// used to be identifiable only by that icon, indistinguishable from any
+/// other custom method that happened to share it. The muted line under the
+/// name flags what the method actually IS — cash, a card, a wallet, or the
+/// shop's own — so a branded name like "InstaPay" still reads as a wallet
+/// at a glance, not only by its colour (which a washed-out brand colour, or
+/// a colourblind teller, can't be relied on alone to carry).
+class _MethodTile extends StatelessWidget {
+  const _MethodTile({
+    required this.method,
+    required this.tr,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final PaymentMethodView method;
+  final String Function(String) tr;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final brand = hexColor(method.color);
+    final glyph = paymentGlyph(method.icon);
+    final fg = selected ? colors.textOnAccent : colors.textPrimary;
+    final kind = _kindLabel(method, tr);
+    // Skip the caption when the org just named the method after its own
+    // kind — "Cash" over a caption reading "Cash" repeats itself. It earns
+    // its place only when it tells the teller something the name doesn't.
+    final showKind = kind.toLowerCase() != method.name.trim().toLowerCase();
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: TactileScale(
+        onTap: onTap,
+        child: Container(
+          height: Metrics.buttonHeight,
+          constraints: const BoxConstraints(
+            minWidth: _methodTileMinWidth,
+            maxWidth: _methodTileMaxWidth,
+          ),
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.md),
+          decoration: BoxDecoration(
+            color: selected ? brand : colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(Radii.control),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: Space.sm,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: (selected ? colors.textOnAccent : brand).withValues(
+                    alpha: Opacities.subtle,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(Space.xs),
+                  child: MadarGlyphIcon(
+                    glyph,
+                    size: IconSize.md,
+                    color: selected ? colors.textOnAccent : brand,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      method.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: MadarType.buttonSm.copyWith(color: fg),
+                    ),
+                    if (showKind)
+                      Text(
+                        kind,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MadarType.labelSm.copyWith(
+                          color: selected
+                              ? colors.textOnAccent.withValues(alpha: 0.8)
+                              : colors.textMuted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (selected)
+                MadarGlyphIcon(
+                  MadarGlyph.check,
+                  size: IconSize.md,
+                  color: colors.textOnAccent,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cash vs card vs wallet vs the shop's own — the four ways a teller reads
+/// a method at a glance. `isCash` is authoritative for cash (it also gates
+/// the cash-tender section below, so the caption must never disagree with
+/// it); everything else follows the same icon family [paymentGlyph]
+/// resolves, so the caption never contradicts the glyph beside it. A token
+/// [paymentGlyph] doesn't recognise — an org's own, invented for a method
+/// it defined itself — falls to "the shop's own" rather than guessing Cash
+/// or Card.
+String _kindLabel(PaymentMethodView m, String Function(String) tr) {
+  if (m.isCash) return tr('charge.kind_cash');
+  return switch (m.icon.toLowerCase()) {
+    'credit_card' ||
+    'card' ||
+    'creditcard' ||
+    'visa' ||
+    'mastercard' ||
+    'debit' => tr('charge.kind_card'),
+    'wallet' ||
+    'ewallet' ||
+    'e_wallet' ||
+    'qr_code' ||
+    'qr' ||
+    'smartphone' ||
+    'phone' ||
+    'mobile' ||
+    'vodafone' ||
+    'instapay' => tr('charge.kind_wallet'),
+    _ => tr('charge.kind_custom'),
+  };
+}
+
 /// Map a backend payment-icon token to a glyph — the natives' payGlyph.
+/// Unknown tokens (an org's own custom method) fall to [MadarGlyph.tag], not
+/// [MadarGlyph.banknote] — the old default made every custom method LOOK
+/// like cash, which is the exact confusion this screen exists to fix.
 MadarGlyph paymentGlyph(String icon) => switch (icon.toLowerCase()) {
   'money' || 'cash' || 'banknote' => MadarGlyph.banknote,
   'credit_card' ||
@@ -1029,7 +1137,7 @@ MadarGlyph paymentGlyph(String icon) => switch (icon.toLowerCase()) {
   'delivery' => MadarGlyph.bike,
   'gift_card' => MadarGlyph.star,
   'link' => MadarGlyph.globe,
-  _ => MadarGlyph.banknote,
+  _ => MadarGlyph.tag,
 };
 
 // ── Split ────────────────────────────────────────────────────────────────

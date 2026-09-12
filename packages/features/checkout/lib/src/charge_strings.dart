@@ -47,6 +47,12 @@ const Map<String, ChargeString> chargeFallbackStrings = {
     ar: 'يُطبَّق عند التحصيل',
   ),
   'charge.free': (en: 'free', ar: 'مجاناً'),
+  // The method tiles' kind caption — cash / card / wallet / the shop's own,
+  // shown under the name so a branded custom method still says what it IS.
+  'charge.kind_cash': (en: 'Cash', ar: 'نقدي'),
+  'charge.kind_card': (en: 'Card', ar: 'بطاقة'),
+  'charge.kind_wallet': (en: 'Wallet', ar: 'محفظة'),
+  'charge.kind_custom': (en: 'Custom', ar: 'مخصص'),
   // The Done card.
   'charge.sale': (en: 'Sale', ar: 'بيع'),
   'charge.will_send': (

@@ -60,6 +60,55 @@ const _methods = [
   ),
 ];
 
+// A shop with many methods, some with long or Arabic names, and one with a
+// custom icon token the app has never seen — the exact shape the owner
+// described as unrenderable. Used only by the overflow/flagging test below;
+// every other test keeps the plain three-method fixture above.
+const _manyMethods = [
+  PaymentMethodView(
+    id: 'cash',
+    name: 'Cash',
+    isCash: true,
+    icon: 'cash',
+    color: '#178A4C',
+  ),
+  PaymentMethodView(
+    id: 'visa',
+    name: 'Visa / Mastercard',
+    isCash: false,
+    icon: 'card',
+    color: '#0F7A8A',
+  ),
+  PaymentMethodView(
+    id: 'instapay',
+    name: 'InstaPay',
+    isCash: false,
+    icon: 'instapay',
+    color: '#6C2BD9',
+  ),
+  PaymentMethodView(
+    id: 'vodafone',
+    name: 'فودافون كاش',
+    isCash: false,
+    icon: 'vodafone',
+    color: '#E4002B',
+  ),
+  PaymentMethodView(
+    id: 'giftcard',
+    name: 'Rue Zamalek Gift Card',
+    isCash: false,
+    icon: 'gift_card',
+    color: '#B08900',
+  ),
+  PaymentMethodView(
+    id: 'rue-pay',
+    name: 'برنامج رو للدفع الخاص بالفرع',
+    isCash: false,
+    icon: 'rue_pay_v2', // a token this app has never seen
+    color: '#2D6CDF',
+  ),
+];
+
 const _discounts = [
   DiscountView(
     id: 'staff',
@@ -205,7 +254,8 @@ class _FakeBridge implements MadarBridge {
     this.rtl = false,
     this.shiftOpen = true,
     this.loyaltyEnabled = true,
-  });
+    List<PaymentMethodView>? methods,
+  }) : methods = methods ?? _methods;
 
   /// The branch runs a loyalty programme. Off, every loyalty control leaves
   /// the tender screen.
@@ -213,6 +263,10 @@ class _FakeBridge implements MadarBridge {
 
   final bool rtl;
   final bool shiftOpen;
+
+  /// Defaults to the three-method fixture; overridden by the overflow test
+  /// to stand up a shop with many, long, and Arabic-named methods.
+  final List<PaymentMethodView> methods;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -236,7 +290,7 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #orgLogoLocalPath) return null;
     if (name == #listPaymentMethods) {
-      return Future<List<PaymentMethodView>>.value(_methods);
+      return Future<List<PaymentMethodView>>.value(methods);
     }
     if (name == #listDiscounts) {
       return Future<List<DiscountView>>.value(_discounts);
@@ -654,6 +708,43 @@ void main() {
     expect(find.text('Cash received'), findsNothing);
     expect(find.text('Add tip'), findsNothing);
     await _capture(tester, 'charge-online-tablet');
+  });
+
+  testWidgets('six methods, long English/Arabic names and an unknown icon: no '
+      'overflow, each still flagged by name', (tester) async {
+    await _mount(
+      tester,
+      size: _phone,
+      bridge: _FakeBridge(methods: _manyMethods),
+      hostTitle: 'Sell',
+    );
+    final host = tester.element(find.byType(_Host));
+    unawaited(
+      showCharge(host, const ChargeTarget.cart(), presentDoneCard: false),
+    );
+    await _settle(tester);
+    // Every name is on screen as its own widget, even the two Arabic
+    // ones and the longest English one — a Wrap never drops or hides a
+    // method behind a scroll, it only grows the number of rows.
+    expect(find.text('Cash'), findsOneWidget);
+    expect(find.text('Visa / Mastercard'), findsOneWidget);
+    expect(find.text('InstaPay'), findsOneWidget);
+    expect(find.text('فودافون كاش'), findsOneWidget);
+    expect(find.text('Rue Zamalek Gift Card'), findsOneWidget);
+    expect(find.text('برنامج رو للدفع الخاص بالفرع'), findsOneWidget);
+    // Flagged by kind, not just by name or icon: a branded name like
+    // "InstaPay" or "فودافون كاش" still says "Wallet" underneath, and
+    // both the gift card and the never-seen 'rue_pay_v2' icon token read
+    // as "Custom" rather than silently passing for Cash or a Card.
+    expect(find.text('Wallet'), findsNWidgets(2));
+    expect(find.text('Custom'), findsNWidgets(2));
+    // The one genuinely redundant caption — "Cash" named "Cash" — is
+    // skipped, so it does not double up with the name above it.
+    expect(find.text('Cash'), findsOneWidget);
+    // No RenderFlex overflow, no Flexible-under-unbounded-width assert:
+    // this is the layout exception CI is here to catch.
+    expect(tester.takeException(), isNull);
+    await _capture(tester, 'charge-cart-phone-many-methods');
   });
 
   testWidgets('a cart on a phone with no shift open says so on the bar', (
