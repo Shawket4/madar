@@ -13,7 +13,9 @@
 /// how many and in what words.
 library;
 
+import 'package:design_system/src/brand.dart';
 import 'package:design_system/src/glyphs.dart';
+import 'package:design_system/src/playful.dart';
 import 'package:design_system/src/responsive.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/dimens.dart';
@@ -36,6 +38,7 @@ class MadarTab {
     required this.label,
     required this.glyph,
     this.badge = 0,
+    this.ring = 0,
     this.key,
   });
 
@@ -44,6 +47,14 @@ class MadarTab {
 
   /// Things waiting behind this tab. Zero draws nothing.
   final int badge;
+
+  /// Monotonic counter; each increase rings the tab's glyph once.
+  ///
+  /// A COUNT is not this: the badge says how many are waiting and is read at
+  /// leisure, while the ring says one just arrived and is over in 800ms. A
+  /// teller looking at the Sell screen never sees the badge change, which is
+  /// the whole reason the ring exists.
+  final int ring;
 
   /// For tests and analytics; not shown.
   final String? key;
@@ -66,6 +77,10 @@ class MadarPerson {
   /// Draws a green ring when true; a dashed muted one when false.
   final bool online;
 }
+
+/// The symbol inside the rail's accent square, inset so the square reads as
+/// a plate rather than a crop.
+const double _railMarkArtwork = 26;
 
 /// The rail tab, exposed on its own for a screen that composes its own
 /// chrome. 72 × 68, 14px corners; active fills with the raised ink, turns
@@ -106,11 +121,18 @@ class MadarRailTab extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   spacing: 5,
                   children: [
-                    MadarGlyphIcon(
-                      tab.glyph,
-                      size: IconSize.xxl,
-                      color: fg,
-                      filled: selected,
+                    // Rings once each time `tab.ring` increases — a new online
+                    // order arriving while the teller is on another tab. The
+                    // rail had this until the rebuild dropped it; a badge
+                    // appearing in silence is a badge nobody looks up at.
+                    BellShake(
+                      trigger: tab.ring,
+                      child: MadarGlyphIcon(
+                        tab.glyph,
+                        size: IconSize.xxl,
+                        color: fg,
+                        filled: selected,
+                      ),
                     ),
                     Text(
                       tab.label,
@@ -317,6 +339,10 @@ class _Mark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    // The SYMBOL, not `MadarGlyph.mark`. That glyph is the path `M4 20V6l8
+    // 9 8-9v14` — a letter M, which is a placeholder for a logo rather than
+    // one. The rail carried the real mark until the till was rebuilt and it
+    // was quietly swapped for the letter.
     final mark = Container(
       width: Metrics.railMark,
       height: Metrics.railMark,
@@ -325,11 +351,10 @@ class _Mark extends StatelessWidget {
         color: colors.accent,
         borderRadius: BorderRadius.circular(Radii.control),
       ),
-      child: const MadarGlyphIcon(
-        MadarGlyph.mark,
-        size: IconSize.xxl,
-        color: Colors.white,
-      ),
+      // Reversed on the accent square, which is dark in both themes — the
+      // symbol picks its variant from the ambient brightness, and the square
+      // is not the ambient anything.
+      child: const MadarSymbol(size: _railMarkArtwork, reversed: true),
     );
     if (onTap == null) return ExcludeSemantics(child: mark);
     return TactileScale(onTap: onTap, child: mark);

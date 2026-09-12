@@ -17,6 +17,7 @@ export 'src/gallery.dart';
 export 'src/glyphs.dart';
 export 'src/header.dart';
 export 'src/icons.dart';
+export 'src/liquid_glass.dart';
 export 'src/modal.dart';
 export 'src/money.dart';
 export 'src/paper.dart';

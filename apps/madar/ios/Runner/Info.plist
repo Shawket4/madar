@@ -47,6 +47,15 @@
 	</array>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Madar connects to a paired Bluetooth thermal printer to print receipts.</string>
+	<!-- Camera: the loyalty card scanner (`mobile_scanner`, feature_checkout).
+	     iOS does not PROMPT for a permission whose purpose string is missing —
+	     it terminates the process the moment the camera is touched. So the
+	     absence of this key was not "the scanner asks and is refused", it was
+	     the crash on first tap, while Android asked at runtime and worked. The
+	     string is what the customer reads in the prompt, so it says what the
+	     camera is actually for rather than "to use the camera". -->
+	<key>NSCameraUsageDescription</key>
+	<string>Madar uses the camera to scan a customer's loyalty card so their points are added to this sale.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -49,7 +49,12 @@ class MadarLockup extends StatelessWidget {
 /// the ambient [Theme] brightness is dark.
 class MadarSymbol extends StatelessWidget {
   /// Creates the standalone Madar symbol at [size] logical pixels.
-  const MadarSymbol({super.key, this.size = 48, this.opacity = 1});
+  const MadarSymbol({
+    super.key,
+    this.size = 48,
+    this.opacity = 1,
+    this.reversed,
+  });
 
   /// Rendered width and height in logical pixels.
   final double size;
@@ -58,9 +63,17 @@ class MadarSymbol extends StatelessWidget {
   /// watermarks don't need an [Opacity] wrapper (which forces a saveLayer).
   final double opacity;
 
+  /// Force the light-on-dark artwork regardless of the ambient theme.
+  ///
+  /// For a mark sitting on a surface that is dark in BOTH themes — the rail's
+  /// accent plate — where the ambient brightness says nothing about what this
+  /// particular symbol is standing on. `null` reads the theme, which is right
+  /// everywhere else.
+  final bool? reversed;
+
   @override
   Widget build(BuildContext context) {
-    final variant = _isDark(context) ? 'reversed' : 'primary';
+    final variant = (reversed ?? _isDark(context)) ? 'reversed' : 'primary';
     return Image.asset(
       '$_brandPath/symbol_$variant.png',
       package: _package,

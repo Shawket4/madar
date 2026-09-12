@@ -95,6 +95,53 @@ Future<T?> showMadarModal<T>(
 ///   ),
 /// );
 /// ```
+/// Ask before destroying something. One call, so nobody hand-rolls it.
+///
+/// Every destructive act in the app goes through here — taking a line off a
+/// bill, discarding a parked order, clearing a table someone is sitting at.
+/// The pieces already existed ([showMadarModal] + [MadarModalBody] with its
+/// danger fill); what was missing was a single entry point, and the cost of
+/// that was six screens each deciding for themselves whether to ask.
+///
+/// Returns `true` only if the person actually confirmed. A dismissed sheet, a
+/// back gesture and a tapped Cancel are all `false`, never null, because at a
+/// till "they did not answer" and "they said no" must do the same thing.
+///
+/// [confirmLabel] is the VERB, not "OK" — "Remove", "Discard", "Clear". A
+/// person reading one line of a dialog reads the button, and a button that
+/// says OK tells them nothing about what is about to happen.
+Future<bool> showMadarConfirm(
+  BuildContext context, {
+  required String title,
+  required String confirmLabel,
+  required String cancelLabel,
+  String? body,
+
+  /// Off for a genuinely destructive act: the red fill is the warning, and a
+  /// dialog that can be dismissed by tapping past it is one a rushed hand
+  /// dismisses by accident.
+  bool dismissible = false,
+}) async {
+  final answer = await showMadarModal<bool>(
+    context,
+    dismissible: dismissible,
+    builder: (sheet) => MadarModalBody(
+      title: title,
+      body: body,
+      secondary: MadarModalAction(
+        cancelLabel,
+        () => Navigator.of(sheet).maybePop(false),
+      ),
+      primary: MadarModalAction(
+        confirmLabel,
+        () => Navigator.of(sheet).maybePop(true),
+        danger: true,
+      ),
+    ),
+  );
+  return answer ?? false;
+}
+
 class MadarModalBody extends StatelessWidget {
   const MadarModalBody({
     required this.title,
