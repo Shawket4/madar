@@ -149,7 +149,7 @@ fn alert_for(event_type: &str, data: &str, locale: &str, tz: &str) -> Option<Ale
         return Some(Alert {
             title: crate::i18n::tr(locale, key),
             body,
-            tag: format!("{event_type}:{id}"),
+            tag: alert_tag(event_type, &id),
         });
     }
     let id = pick(&["id", "order_id", "open_ticket_id", "msg_id"]).unwrap_or_default();
@@ -169,8 +169,16 @@ fn alert_for(event_type: &str, data: &str, locale: &str, tz: &str) -> Option<Ale
     Some(Alert {
         title: crate::i18n::tr(locale, key),
         body,
-        tag: format!("{event_type}:{id}"),
+        tag: alert_tag(event_type, &id),
     })
+}
+
+/// The tag an alert for `event_type` about `id` would carry.
+///
+/// A device writes this into the [AlertMemory] for work it is about to do, so
+/// the event coming back does not alert the person who caused it.
+pub(crate) fn alert_tag(event_type: &str, id: &str) -> String {
+    format!("{event_type}:{id}")
 }
 
 /// `HH:MM` of an RFC3339 instant in the branch zone (`None` when unparsable).
@@ -205,21 +213,34 @@ fn role_wants_alert(event_type: &str, role: &str) -> bool {
     }
 }
 
+/// The alert memory, shared with the core so a device can mute the echo of its
+/// OWN work before it comes back over the wire. See [AlertDedup].
+pub(crate) type AlertMemory = Arc<std::sync::Mutex<AlertDedup>>;
+
 /// Bounded recent-tag set so a re-delivered alert (LAN + cloud both carry it, or a
 /// quick reconnect) fires only once.
-struct AlertDedup {
+///
+/// It is also how a till stops alerting itself. `role_wants_alert` can only
+/// answer "is this the KIND of work my role does", and a teller both fires
+/// rounds and settles them — so on a shop that puts every sale on a table, the
+/// till pinged and buzzed at every round its own teller had just sent. Nothing
+/// in the event says which device produced it. So the device doing the work
+/// writes the tag it is about to hear into this set first, and the echo
+/// arrives already-seen. Bounded and FIFO, so a muted tag that never comes
+/// back (the request failed, the stream was down) ages out on its own.
+pub(crate) struct AlertDedup {
     seen: std::collections::HashSet<String>,
     order: std::collections::VecDeque<String>,
 }
 impl AlertDedup {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             seen: std::collections::HashSet::new(),
             order: std::collections::VecDeque::new(),
         }
     }
     /// `true` if `tag` was NOT seen before (→ raise the alert).
-    fn insert(&mut self, tag: &str) -> bool {
+    pub(crate) fn insert(&mut self, tag: &str) -> bool {
         if self.seen.contains(tag) {
             return false;
         }
@@ -247,7 +268,7 @@ pub(crate) struct AlertingListener {
     role: String,
     /// The branch's IANA zone, for times in alert bodies ("19:30").
     tz: String,
-    dedup: std::sync::Mutex<AlertDedup>,
+    dedup: AlertMemory,
 }
 
 impl AlertingListener {
@@ -257,6 +278,7 @@ impl AlertingListener {
         locale: Arc<RwLock<String>>,
         role: String,
         tz: String,
+        dedup: AlertMemory,
     ) -> Self {
         Self {
             inner,
@@ -264,7 +286,7 @@ impl AlertingListener {
             locale,
             role,
             tz,
-            dedup: std::sync::Mutex::new(AlertDedup::new()),
+            dedup,
         }
     }
 }
@@ -901,6 +923,49 @@ mod tests {
         assert!(
             d.insert("delivery.created:o2"),
             "a different order still alerts"
+        );
+    }
+
+    /// A till that fires a round hears it back over SSE within the second.
+    /// `role_wants_alert` cannot help: a teller both fires rounds and settles
+    /// them, so the role says "tickets are your work" either way, and nothing
+    /// on the event names the device that produced it. The device names it —
+    /// in advance — by writing the tag it is about to hear.
+    #[test]
+    fn a_device_does_not_ping_at_its_own_round() {
+        let mut d = AlertDedup::new();
+        // The till fires, and mutes the echo before it can arrive.
+        d.insert(&alert_tag("ticket.round_added", "tk-7"));
+
+        assert!(
+            !d.insert(&alert_tag("ticket.round_added", "tk-7")),
+            "the round this till just sent must not ping the teller who sent it"
+        );
+        assert!(
+            d.insert(&alert_tag("ticket.round_added", "tk-8")),
+            "a round from the OTHER till is still new work and still pings"
+        );
+        assert!(
+            d.insert(&alert_tag("ticket.ready", "tk-7")),
+            "the same ticket going READY is a different event and still pings \
+             — muting one kind of alert must not mute the rest of that \
+             ticket's life"
+        );
+    }
+
+    /// Muting is bounded like everything else in this set: a tag whose event
+    /// never arrives (the request failed, the stream was down) must age out
+    /// rather than deafen the till to that id forever.
+    #[test]
+    fn a_mute_that_is_never_claimed_ages_out() {
+        let mut d = AlertDedup::new();
+        d.insert(&alert_tag("ticket.fired", "stale"));
+        for i in 0..600 {
+            d.insert(&alert_tag("ticket.fired", &format!("other-{i}")));
+        }
+        assert!(
+            d.insert(&alert_tag("ticket.fired", "stale")),
+            "an unclaimed mute is forgotten, so the id can alert again later"
         );
     }
 }

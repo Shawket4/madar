@@ -269,6 +269,10 @@ pub struct MadarCore {
     /// the cloud SSE supervisor AND the LAN relay bridge so a cross-LAN event and its
     /// cloud twin reach the same sink (deduped by the host's snapshot-reload). Phase E.
     unified_listener: Arc<Mutex<Option<Arc<dyn realtime::EventListener>>>>,
+    /// What this device has already alerted about — and what it is about to
+    /// hear about its OWN work and must not alert for. Shared with the
+    /// realtime listener; see `realtime::AlertDedup`.
+    alert_memory: realtime::AlertMemory,
     /// The running LAN relay (`None` = not started). The second delivery path beside
     /// the cloud bus; outbox stays the source of truth. Phase E.
     lan: Arc<Mutex<Option<Arc<lan::LanRelay>>>>,
@@ -353,6 +357,7 @@ impl MadarCore {
             drain_lock: tokio::sync::Mutex::new(()),
             realtime: Mutex::new(None),
             unified_listener: Arc::new(Mutex::new(None)),
+            alert_memory: Arc::new(Mutex::new(realtime::AlertDedup::new())),
             lan: Arc::new(Mutex::new(None)),
             active_scope: RwLock::new(active_scope),
         }))
@@ -2211,6 +2216,7 @@ impl MadarCore {
             self.locale.clone(),
             session.role.clone(),
             self.branch_timezone(),
+            self.alert_memory.clone(),
         ));
         *self
             .unified_listener
@@ -6446,6 +6452,30 @@ impl MadarCore {
         Ok(())
     }
 
+    /// Mute the alert this device is about to cause.
+    ///
+    /// A teller who fires a round gets that round back over SSE moments
+    /// later, and `role_wants_alert` cannot tell it apart from a round some
+    /// other device sent: a till both fires and settles, so the ROLE says
+    /// "yes, tickets are your work" either way. Nothing on the event names
+    /// the device that produced it. So the device names it here, before the
+    /// echo arrives — the alert memory is already the thing that decides
+    /// whether a tag has been heard, and a tag heard in advance is exactly
+    /// what this is.
+    ///
+    /// The board still updates; only the ping, the buzz and the notification
+    /// are suppressed. Muting the wrong thing costs one missed ping, which is
+    /// why this is called with ids this device MINTED and nothing else.
+    fn mute_own_alert(&self, event_type: &str, id: &str) {
+        if id.is_empty() {
+            return;
+        }
+        if let Ok(mut d) = self.alert_memory.lock() {
+            d.insert(&realtime::alert_tag(event_type, id));
+        }
+    }
+
+
     /// Give a table back without a sale: the party left before ordering, or the
     /// teller seated the wrong one. Frees it outright — nobody ate, so there is
     /// nothing to bus.
@@ -6545,6 +6575,11 @@ impl MadarCore {
         let _ = self.drain_outbox().await;
 
         let tid = ticket_id.to_string();
+        // This till is about to hear its own fire come back over SSE. The
+        // board should update; the ping should not sound at the person who
+        // just pressed Fire.
+        self.mute_own_alert("ticket.fired", &tid);
+        self.mute_own_alert("kitchen.fired", &round_id.to_string());
         let queued_offline = self.store.pending()?.iter().any(|i| i.id == tid);
         Ok(tickets::TicketFiredView {
             ticket_id: tid,
@@ -6610,6 +6645,10 @@ impl MadarCore {
             .await;
         let _ = self.drain_outbox().await;
         let rid = round_id.to_string();
+        // Same as fire: the round this teller just sent comes straight back,
+        // and the ping belongs to whoever DIDN'T send it.
+        self.mute_own_alert("ticket.round_added", &ticket_id);
+        self.mute_own_alert("kitchen.fired", &rid);
         let queued_offline = self.store.pending()?.iter().any(|i| i.id == rid);
         Ok(tickets::TicketFiredView {
             ticket_id,
