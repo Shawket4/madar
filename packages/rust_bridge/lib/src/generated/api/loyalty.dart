@@ -197,6 +197,48 @@ class LoyaltyMemberView {
           balanceLabel == other.balanceLabel;
 }
 
+/// The branch's programme, as the till needs it. Three facts, not the
+/// dashboard's forty — everything else on the settings decides what the SERVER
+/// does when a sale settles.
+class LoyaltyProgrammeView {
+  /// Is a programme running here at all? `false` keeps every loyalty control
+  /// off the screen rather than offering a card that cannot exist.
+  final bool enabled;
+
+  /// `points` (earned on spend) or `visits` (a stamp an order).
+  final String mode;
+
+  /// What the shop calls it, in the till's language.
+  final String programName;
+
+  /// The customer's word for what it collects — "points" / "orders".
+  final String balanceLabel;
+
+  const LoyaltyProgrammeView({
+    required this.enabled,
+    required this.mode,
+    required this.programName,
+    required this.balanceLabel,
+  });
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^
+      mode.hashCode ^
+      programName.hashCode ^
+      balanceLabel.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoyaltyProgrammeView &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          mode == other.mode &&
+          programName == other.programName &&
+          balanceLabel == other.balanceLabel;
+}
+
 /// One reward the member could claim right now. Empty until they can — the
 /// screen must not offer what has not been earned.
 class LoyaltyRewardView {

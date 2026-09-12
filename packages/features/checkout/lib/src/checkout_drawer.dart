@@ -259,19 +259,22 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
                 ?widget.headerContent,
                 // WHO first. A card comes out at the start of a tender, not
                 // in the middle of it, and what it can cover changes the total
-                // the customer is about to be shown.
-                _CustomerSection(
-                  state: s,
-                  tr: tr,
-                  onScan: () => unawaited(
-                    showMadarSheet<void>(
-                      context,
-                      builder: (_) => const LoyaltyScanSheet(),
+                // the customer is about to be shown. Only where a programme
+                // runs: a shop with none has no card to scan, and a Scan card
+                // button that always fails reads as a broken till.
+                if (s.loyaltyOffered)
+                  _CustomerSection(
+                    state: s,
+                    tr: tr,
+                    onScan: () => unawaited(
+                      showMadarSheet<void>(
+                        context,
+                        builder: (_) => const LoyaltyScanSheet(),
+                      ),
                     ),
+                    onToggle: notifier.toggleReward,
+                    onClear: notifier.clearLoyalty,
                   ),
-                  onToggle: notifier.toggleReward,
-                  onClear: notifier.clearLoyalty,
-                ),
                 // Order summary card — subtotal/discount/tax light
                 // above, the grand total in a tinted teal block.
                 _SummaryCard(

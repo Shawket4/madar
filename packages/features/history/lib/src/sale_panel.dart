@@ -423,6 +423,7 @@ class _Actions extends ConsumerWidget {
     final state = SaleState.of(o);
     final canReprint = state != SaleState.queued && state != SaleState.failed;
     final canAward =
+        ref.watch(historyProvider.select((s) => s.loyaltyOffered)) &&
         state != SaleState.voided &&
         state != SaleState.failed &&
         bridge.loyaltyAwardWindowOpen(

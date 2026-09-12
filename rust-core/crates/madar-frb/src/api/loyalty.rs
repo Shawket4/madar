@@ -10,9 +10,25 @@ use crate::api::error::MadarError;
 use flutter_rust_bridge::frb;
 
 pub use madar_core::loyalty::{
-    LoyaltyAwardOutcome, LoyaltyLedgerView, LoyaltyMemberView, LoyaltyRewardView, LoyaltyScanInput,
-    LoyaltyScanView,
+    LoyaltyAwardOutcome, LoyaltyLedgerView, LoyaltyMemberView, LoyaltyProgrammeView,
+    LoyaltyRewardView, LoyaltyScanInput, LoyaltyScanView,
 };
+
+/// The branch's programme, as the till needs it. Three facts, not the
+/// dashboard's forty — everything else on the settings decides what the SERVER
+/// does when a sale settles.
+#[frb(mirror(LoyaltyProgrammeView))]
+pub struct _LoyaltyProgrammeView {
+    /// Is a programme running here at all? `false` keeps every loyalty control
+    /// off the screen rather than offering a card that cannot exist.
+    pub enabled: bool,
+    /// `points` (earned on spend) or `visits` (a stamp an order).
+    pub mode: String,
+    /// What the shop calls it, in the till's language.
+    pub program_name: String,
+    /// The customer's word for what it collects — "points" / "orders".
+    pub balance_label: String,
+}
 
 /// What a captured string is. The UI captures bytes — camera frames via the
 /// platform decoder, USB-wedge keystrokes via the OS text path, both of which
@@ -132,6 +148,15 @@ impl MadarBridge {
     #[frb(sync)]
     pub fn classify_loyalty_input(&self, raw: String) -> LoyaltyScanInput {
         madar_core::loyalty::classify_scan_input(&raw)
+    }
+
+    /// The branch's programme: whether one runs, what it collects, its name.
+    /// Cached, so an offline till still knows whether to draw the control.
+    pub async fn loyalty_settings(&self) -> Result<LoyaltyProgrammeView, MadarError> {
+        self.inner
+            .loyalty_settings()
+            .await
+            .map_err(MadarError::from)
     }
 
     /// Identify the member in front of the till, from a scanned pass barcode or

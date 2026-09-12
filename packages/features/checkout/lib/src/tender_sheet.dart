@@ -208,12 +208,15 @@ class _ReceiptConfirmation extends ConsumerWidget {
                     // next 24 hours, because "I left my card in the car" is
                     // answered by the customer coming back, not by the till
                     // holding the queue.
-                    if (ref
-                        .read(bridgeProvider)
-                        .loyaltyAwardWindowOpen(
-                          orderCreatedAt: receipt.createdAt,
-                          now: DateTime.now().toUtc().toIso8601String(),
-                        ))
+                    if (ref.watch(
+                          checkoutProvider.select((s) => s.loyaltyOffered),
+                        ) &&
+                        ref
+                            .read(bridgeProvider)
+                            .loyaltyAwardWindowOpen(
+                              orderCreatedAt: receipt.createdAt,
+                              now: DateTime.now().toUtc().toIso8601String(),
+                            ))
                       MadarButton(
                         label: tr('loyalty.add_points'),
                         icon: 'star',

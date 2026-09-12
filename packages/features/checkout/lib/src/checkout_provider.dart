@@ -147,6 +147,7 @@ class CheckoutState {
     this.redemptions = const {},
     this.loyaltyBusy = false,
     this.loyaltyError,
+    this.loyaltyProgramme,
   });
 
   // ── what is being charged ─────────────────────────────────────────────────
@@ -219,6 +220,16 @@ class CheckoutState {
 
   /// The member whose balance is being spent, once scanned.
   final LoyaltyMemberView? loyaltyMember;
+
+  /// The branch's programme — whether one runs at all, and what it is called.
+  /// Null until the read lands; [loyaltyOffered] treats that as "not yet".
+  final LoyaltyProgrammeView? loyaltyProgramme;
+
+  /// May the till offer to attach a member? Only where a programme actually
+  /// runs. A shop with none used to get a *Member ›* row that answered every
+  /// scan with a lookup failure, which reads as a broken till rather than as
+  /// a feature nobody bought.
+  bool get loyaltyOffered => loyaltyProgramme?.enabled ?? false;
 
   /// What that balance can actually afford here — the server filters by both
   /// the branch's catalogue and the member's balance, so anything in this list
@@ -469,11 +480,13 @@ class CheckoutState {
     Map<int, int>? redemptions,
     bool? loyaltyBusy,
     Object? loyaltyError = _unset,
+    LoyaltyProgrammeView? loyaltyProgramme,
   }) {
     return CheckoutState(
       target: target == _unset ? this.target : target as ChargeTarget?,
       paymentMethods: paymentMethods ?? this.paymentMethods,
       discounts: discounts ?? this.discounts,
+      loyaltyProgramme: loyaltyProgramme ?? this.loyaltyProgramme,
       cartDiscountId: cartDiscountId == _unset
           ? this.cartDiscountId
           : cartDiscountId as String?,
@@ -599,6 +612,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final discounts =
         await _quiet(bridge.listDiscounts) ?? const <DiscountView>[];
     final discountId = await _quiet<String?>(bridge.cartDiscountId);
+    final programme = await _quiet(bridge.loyaltySettings);
     final logo = bridge.orgLogoLocalPath();
     final totals = await _quiet(bridge.cartTotals);
     final lines = await _quiet(bridge.cartLines) ?? const <CartLineView>[];
@@ -615,6 +629,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       (s) => _withSession(s, bridge).copyWith(
         paymentMethods: methods,
         discounts: discounts,
+        loyaltyProgramme: programme,
         cartDiscountId: discountId,
         orgLogoPath: logo,
         redeemableLines: redeemable,
@@ -693,6 +708,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final discounts = loadDiscounts
         ? await _quiet(bridge.listDiscounts) ?? const <DiscountView>[]
         : const <DiscountView>[];
+    final programme = await _quiet(bridge.loyaltySettings);
     final redeemable = [
       for (final l in ticketLines)
         // A voided line is not on the bill, and one that has not synced has no
@@ -709,6 +725,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       (s) => _withSession(s, bridge).copyWith(
         paymentMethods: methods,
         discounts: discounts,
+        loyaltyProgramme: programme,
         orgLogoPath: bridge.orgLogoLocalPath(),
         summary: summary,
         redeemableLines: redeemable,

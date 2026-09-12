@@ -375,7 +375,7 @@ struct FullAddonIngredient {
 /// Pick the language for a value that ships as a plain pair rather than a
 /// translations map. An empty side falls back to the other, so a step typed in
 /// one language shows everywhere rather than rendering blank.
-fn pick_lang(base: &str, ar: &str, locale: &str) -> String {
+pub(crate) fn pick_lang(base: &str, ar: &str, locale: &str) -> String {
     let want_ar = locale.starts_with("ar");
     let chosen = if want_ar && !ar.is_empty() { ar } else { base };
     if chosen.is_empty() {

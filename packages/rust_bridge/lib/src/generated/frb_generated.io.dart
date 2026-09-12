@@ -441,6 +441,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   LoyaltyMemberView dco_decode_loyalty_member_view(dynamic raw);
 
   @protected
+  LoyaltyProgrammeView dco_decode_loyalty_programme_view(dynamic raw);
+
+  @protected
   LoyaltyRewardView dco_decode_loyalty_reward_view(dynamic raw);
 
   @protected
@@ -1120,6 +1123,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   LoyaltyMemberView sse_decode_loyalty_member_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LoyaltyProgrammeView sse_decode_loyalty_programme_view(
     SseDeserializer deserializer,
   );
 
@@ -1965,6 +1973,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_loyalty_member_view(
     LoyaltyMemberView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_loyalty_programme_view(
+    LoyaltyProgrammeView self,
     SseSerializer serializer,
   );
 

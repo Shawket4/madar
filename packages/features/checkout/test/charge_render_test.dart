@@ -200,7 +200,15 @@ const _session = SessionSnapshot(
 );
 
 class _FakeBridge implements MadarBridge {
-  _FakeBridge({this.rtl = false, this.shiftOpen = true});
+  _FakeBridge({
+    this.rtl = false,
+    this.shiftOpen = true,
+    this.loyaltyEnabled = true,
+  });
+
+  /// The branch runs a loyalty programme. Off, every loyalty control leaves
+  /// the tender screen.
+  final bool loyaltyEnabled;
 
   final bool rtl;
   final bool shiftOpen;
@@ -231,6 +239,16 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #listDiscounts) {
       return Future<List<DiscountView>>.value(_discounts);
+    }
+    if (name == #loyaltySettings) {
+      return Future<LoyaltyProgrammeView>.value(
+        LoyaltyProgrammeView(
+          enabled: loyaltyEnabled,
+          mode: 'points',
+          programName: rtl ? 'مكافآت رو' : 'Rue Rewards',
+          balanceLabel: 'points',
+        ),
+      );
     }
     if (name == #cartDiscountId) return Future<String?>.value();
     if (name == #cartTotals) {
@@ -511,6 +529,49 @@ void main() {
       expect(await pending, isNull);
     },
   );
+
+  testWidgets('a shop with no programme is offered no card to scan', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      size: _ipad,
+      bridge: _FakeBridge(loyaltyEnabled: false),
+    );
+    final host = tester.element(find.byType(_Host));
+    final pending = showCharge(
+      host,
+      ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+      presentDoneCard: false,
+    );
+    await _settle(tester);
+    // The tender screen is otherwise whole — this is a missing feature, not
+    // a broken screen.
+    expect(find.text('Cash'), findsOneWidget);
+    // Nothing loyalty anywhere on it: not the drawer's Scan card button, not
+    // the quiet row that names the programme.
+    expect(find.text('Scan card'), findsNothing);
+    expect(find.text('Rue Rewards'), findsNothing);
+    Navigator.of(tester.element(find.byType(ChargeSheet))).pop();
+    await _settle(tester);
+    expect(await pending, isNull);
+  });
+
+  testWidgets('the programme names its own row', (tester) async {
+    await _mount(tester, size: _ipad, bridge: _FakeBridge());
+    final host = tester.element(find.byType(_Host));
+    final pending = showCharge(
+      host,
+      ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+      presentDoneCard: false,
+    );
+    await _settle(tester);
+    // "Rue Rewards", not the generic "Member" — the shop named it.
+    expect(find.text('Rue Rewards'), findsOneWidget);
+    Navigator.of(tester.element(find.byType(ChargeSheet))).pop();
+    await _settle(tester);
+    expect(await pending, isNull);
+  });
 
   testWidgets('a bill on an iPad, in the dark', (tester) async {
     await _mount(

@@ -89,6 +89,7 @@ class HistoryState {
     this.detailLoading = false,
     this.toast,
     this.filtered = const [],
+    this.loyaltyOffered = false,
   });
 
   /// The active scope.
@@ -113,6 +114,11 @@ class HistoryState {
 
   /// A shift is open — the header names it, or says there is none.
   final bool hasShift;
+
+  /// The branch runs a loyalty programme. False keeps *Add points* off a
+  /// sale: in a shop with no programme the sheet has no card to scan, and
+  /// offering it reads as a broken button rather than an unsold feature.
+  final bool loyaltyOffered;
 
   /// Count + total for the header under This shift (voids excluded by the
   /// core).
@@ -188,6 +194,7 @@ class HistoryState {
     bool? detailLoading,
     Object? toast = _unset,
     List<OrderSummaryView>? filtered,
+    bool? loyaltyOffered,
   }) {
     return HistoryState(
       scope: scope ?? this.scope,
@@ -197,6 +204,7 @@ class HistoryState {
       error: error == _unset ? this.error : error as String?,
       online: online ?? this.online,
       hasShift: hasShift ?? this.hasShift,
+      loyaltyOffered: loyaltyOffered ?? this.loyaltyOffered,
       stats: stats == _unset ? this.stats : stats as ShiftStatsView?,
       serverTotal: serverTotal ?? this.serverTotal,
       hasMore: hasMore ?? this.hasMore,
@@ -231,10 +239,25 @@ class HistoryNotifier extends Notifier<HistoryState> {
     _alive = true;
     ref.onDispose(() => _alive = false);
     unawaited(Future.microtask(load));
+    unawaited(Future.microtask(_loadProgramme));
     return const HistoryState();
   }
 
   MadarBridge get _bridge => ref.read(bridgeProvider);
+
+  /// Whether the branch runs a loyalty programme. Cached in the core, so an
+  /// offline till still answers; a failure leaves the button hidden rather
+  /// than offering a scan that cannot land.
+  Future<void> _loadProgramme() async {
+    bool offered;
+    try {
+      offered = (await _bridge.loyaltySettings()).enabled;
+    } on MadarError {
+      return;
+    }
+    if (!_alive) return;
+    state = state.copyWith(loyaltyOffered: offered);
+  }
 
   /// Load the active scope from scratch.
   Future<void> load() => switch (state.scope) {

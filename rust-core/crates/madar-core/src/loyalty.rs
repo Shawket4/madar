@@ -314,6 +314,49 @@ pub fn balance_label(mode: &str) -> &'static str {
     }
 }
 
+/// The branch's programme, as the TILL needs it — three facts out of the
+/// dashboard's forty.
+///
+/// Everything else on `LoyaltySettings` decides what the SERVER does when a
+/// sale settles (the earn rate, the cap, the clawback rule). None of it is the
+/// till's to apply, and mirroring it here would only give a stale device a
+/// second opinion about a number the server already computed.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoyaltyProgrammeView {
+    /// Is a programme running here at all?
+    ///
+    /// `false` means every loyalty control stays off the screen. A till that
+    /// offers *Member ›* in a shop with no programme sends the teller looking
+    /// for a card that cannot exist, and answers them with a lookup failure.
+    pub enabled: bool,
+    /// `points` (earned on spend) or `visits` (a stamp an order) — what the
+    /// card collects, and so what the screen calls a balance BEFORE anyone has
+    /// been scanned. Until now the mode was known only from a member, which is
+    /// exactly too late to label the control that finds one.
+    pub mode: String,
+    /// What the shop calls it ("Rue Rewards"), in the till's language.
+    pub program_name: String,
+    /// The customer's word for what it collects — "points" / "orders".
+    pub balance_label: String,
+}
+
+pub fn programme_view(
+    s: &madar_api::models::LoyaltySettings,
+    locale: &str,
+) -> LoyaltyProgrammeView {
+    LoyaltyProgrammeView {
+        enabled: s.enabled,
+        mode: s.mode.clone(),
+        program_name: crate::menu::pick_lang(
+            &s.program_name,
+            s.program_name_ar.clone().flatten().unwrap_or_default().as_str(),
+            locale,
+        ),
+        balance_label: balance_label(&s.mode).to_string(),
+    }
+}
+
 pub fn member_view(m: &madar_api::models::MemberView) -> LoyaltyMemberView {
     let balance = m.balance as i64;
     let target = m.next_reward_cost as i64;
@@ -531,5 +574,36 @@ mod tests {
         assert_eq!(points_label(13), "+13");
         assert_eq!(points_label(-100), "−100");
         assert_eq!(points_label(0), "+0");
+    }
+
+    #[test]
+    fn a_programme_names_itself_in_the_tills_language() {
+        let mut s = madar_api::models::LoyaltySettings::default();
+        s.enabled = true;
+        s.mode = "visits".into();
+        s.program_name = "Rue Rewards".into();
+        s.program_name_ar = Some(Some("مكافآت رو".into()));
+        assert_eq!(programme_view(&s, "ar").program_name, "مكافآت رو");
+        assert_eq!(programme_view(&s, "en").program_name, "Rue Rewards");
+        // A stamp card counts orders, and says so before anyone is scanned.
+        assert_eq!(programme_view(&s, "en").balance_label, "orders");
+    }
+
+    #[test]
+    fn an_untranslated_name_still_shows_in_arabic() {
+        let mut s = madar_api::models::LoyaltySettings::default();
+        s.program_name = "Rue Rewards".into();
+        s.program_name_ar = Some(None);
+        assert_eq!(
+            programme_view(&s, "ar").program_name,
+            "Rue Rewards",
+            "a blank translation must not render as an empty title"
+        );
+    }
+
+    #[test]
+    fn a_shop_with_no_programme_says_so() {
+        let s = madar_api::models::LoyaltySettings::default();
+        assert!(!programme_view(&s, "en").enabled);
     }
 }

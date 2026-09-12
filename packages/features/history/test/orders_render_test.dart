@@ -287,6 +287,17 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #humanMessage) return 'Something went wrong';
     if (name == #clockSkewMinutes) return 0;
+    if (name == #loyaltySettings) {
+      // The branch runs a points programme, so *Add points* is offered.
+      return Future<LoyaltyProgrammeView>.value(
+        const LoyaltyProgrammeView(
+          enabled: true,
+          mode: 'points',
+          programName: 'Rue Rewards',
+          balanceLabel: 'points',
+        ),
+      );
+    }
     if (name == #loyaltyAwardWindowOpen) {
       final at = invocation.namedArguments[#orderCreatedAt] as String;
       // The fixture clock is 12 Sep 2026, 20:00 — this shift is inside the

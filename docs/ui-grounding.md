@@ -306,7 +306,7 @@ merged, effective value. There is no way to tell an org value from a branch over
 | **Bundles window** | yes | `availableBundles(now)` | order |
 | **Org logo** | yes | `orgLogoUrl()`, `orgLogoLocalPath()` | checkout |
 | **Environment / server / versions** | yes | `environment()`, `baseUrl()`, `coreVersion()`, `version()` | settings |
-| **Loyalty enabled / programme mode** | **NO** | nothing on the bridge. `LoyaltyMemberView.mode` is per member, known only after a lookup. The wire has `loyalty_settings.enabled/mode/program_name` (`get_loyalty_settings`) — not exposed | — |
+| **Loyalty enabled / programme mode** | yes | `loyaltySettings() → LoyaltyProgrammeView {enabled, mode, programName, balanceLabel}`, write-through cached | checkout (every loyalty control), history (*Add points*) |
 | **Kitchen routing mode** (`off · till · kds · both`) | yes | `kitchenRoutingMode()` (null until first reach), `setKitchenRoutingMode(mode)`; `kitchenRoutingModeProvider` + `tillShowsKitchen`/`kitchenIsRouted` | Queue (segment gate), settings (Diagnostics) |
 | **Tips enabled** | **NO** | does not exist anywhere, wire included | — |
 | **Standard float / safe-drop suggestion** | **NO** | does not exist on the wire | — |

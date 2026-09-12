@@ -4,6 +4,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/charge_strings.dart';
 import 'package:feature_checkout/src/charge_target.dart';
+import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/loyalty_award_sheet.dart';
 import 'package:feature_checkout/src/receipt_printing.dart';
 import 'package:flutter/gestures.dart';
@@ -336,7 +337,9 @@ class _DoneCardState extends ConsumerState<DoneCard> {
     );
 
     final actions = <Widget>[
-      if (o.canAwardPoints)
+      // Only where a programme runs — and the sale must name itself.
+      if (o.canAwardPoints &&
+          ref.watch(checkoutProvider.select((s) => s.loyaltyOffered)))
         MadarButton(
           label: bridge.tr(key: 'loyalty.add_points'),
           glyph: MadarGlyph.star,

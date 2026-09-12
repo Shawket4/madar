@@ -495,6 +495,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// number shown to a customer is worse than asking the teller to reconnect.
   Future<LoyaltyScanView> loyaltyLookup({String? token, String? phone});
 
+  /// The branch's programme: whether one runs, what it collects, its name.
+  /// Cached, so an offline till still knows whether to draw the control.
+  Future<LoyaltyProgrammeView> loyaltySettings();
+
   /// Reflect a status the server will derive anyway (dirty after checkout,
   /// free after a void or move) in the local canvas. Queues nothing.
   Future<void> mirrorTableStatus({

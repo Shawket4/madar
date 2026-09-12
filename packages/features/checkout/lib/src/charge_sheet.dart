@@ -632,23 +632,30 @@ class _QuietRows extends StatelessWidget {
     }
 
     // Member — attach from here; the member card is the rows under it.
-    rows.add(
-      _QuietRow(
-        label: tr('charge.member'),
-        value: member == null
-            ? bridge.tr(key: 'loyalty.scan_card')
-            : '${member.name} · ${member.balance} ${member.balanceLabel}',
-        onTap: member == null ? onMember : null,
-        trailing: member == null
-            ? null
-            : MadarGlyphTile(
-                glyph: MadarGlyph.close,
-                semanticLabel: bridge.tr(key: 'loyalty.remove'),
-                onTap: onRemoveMember,
-              ),
-      ),
-    );
-    if (member != null) {
+    // Only where a programme actually runs: in a shop with none, every scan
+    // answers "no member", which reads as a broken till. The row names the
+    // programme when the shop gave it a name.
+    if (s.loyaltyOffered) {
+      rows.add(
+        _QuietRow(
+          label: s.loyaltyProgramme?.programName.trim().isNotEmpty ?? false
+              ? s.loyaltyProgramme!.programName
+              : tr('charge.member'),
+          value: member == null
+              ? bridge.tr(key: 'loyalty.scan_card')
+              : '${member.name} · ${member.balance} ${member.balanceLabel}',
+          onTap: member == null ? onMember : null,
+          trailing: member == null
+              ? null
+              : MadarGlyphTile(
+                  glyph: MadarGlyph.close,
+                  semanticLabel: bridge.tr(key: 'loyalty.remove'),
+                  onTap: onRemoveMember,
+                ),
+        ),
+      );
+    }
+    if (s.loyaltyOffered && member != null) {
       final claimable = s.claimableLines;
       if (claimable.isEmpty) {
         rows.add(

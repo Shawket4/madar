@@ -1747,6 +1747,9 @@ fn cash_i32(v: i64, field: &str) -> Result<i32, CoreError> {
 /// shifts, cash, delivery) stay populated offline instead of collapsing to only
 /// the locally-queued rows. Free functions, not methods, because `#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]`
 /// can't carry a generic across the FFI. Best-effort: a write failure skips the cache.
+/// kv key for the branch's last-known loyalty programme.
+pub(crate) const K_LOYALTY_SETTINGS: &str = "cache:loyalty_settings";
+
 fn cache_views<T: serde::Serialize>(store: &store::Store, key: &str, views: &[T]) {
     if let Ok(json) = serde_json::to_string(views) {
         let _ = store.kv_put(key, &json);
@@ -5349,6 +5352,43 @@ impl MadarCore {
     // payload (`CheckoutInput::loyalty_customer_id`) and the server computes it
     // from the sale's totals, on the live path and on replay alike.
 
+    /// The branch's programme: is there one, what does it collect, what is it
+    /// called. Write-through cached, so a till that opens a tender screen
+    /// offline still knows whether to draw the *Member ›* control at all.
+    ///
+    /// Unlike a BALANCE this is safe to serve stale: a programme's name and
+    /// mode change about once, and drawing yesterday's name beats hiding a
+    /// working feature because the link is down. A shop that has never
+    /// reached the server since binding reads the wire default — disabled —
+    /// which errs towards showing nothing rather than a control that fails.
+    pub async fn loyalty_settings(&self) -> Result<loyalty::LoyaltyProgrammeView, CoreError> {
+        use madar_api::apis::loyalty_api;
+        let branch_id = self.session_branch_id()?;
+        // The BRANCH scope: it reports what the branch runs on, inherited or
+        // its own, so an override reaches the till it applies to.
+        let settings = match loyalty_api::get_loyalty_settings(
+            &self.api.config(),
+            loyalty_api::GetLoyaltySettingsParams {
+                branch_id: Some(branch_id),
+            },
+        )
+        .await
+        {
+            Ok(s) => {
+                cache_views(&self.store, K_LOYALTY_SETTINGS, std::slice::from_ref(&s));
+                s
+            }
+            Err(_) => cached_views::<madar_api::models::LoyaltySettings>(
+                &self.store,
+                K_LOYALTY_SETTINGS,
+            )
+            .into_iter()
+            .next()
+            .unwrap_or_default(),
+        };
+        Ok(loyalty::programme_view(&settings, &self.current_locale()))
+    }
+
     /// Look a member up from a scanned pass barcode, or by phone when their
     /// phone is dead.
     ///
@@ -6882,11 +6922,7 @@ impl MadarCore {
                 });
             }
         }
-        let branch_uuid =
-            uuid::Uuid::parse_str(&branch_id).map_err(|_| CoreError::Validation {
-                field: "branch_id".into(),
-                detail: "session branch is not a uuid".into(),
-            })?;
+        let branch_uuid = reservations::parse_uuid("branch_id", &branch_id)?;
         let resp = k::set_routing_mode(
             &self.api.config(),
             k::SetRoutingModeParams {
@@ -9201,26 +9237,11 @@ impl MadarCore {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    /// Move an open ticket to another table (the "switch table" action). Frees the
-    /// old table, occupies the new one, and keeps the booking assignment in sync.
-    pub async fn move_ticket_to_table(
-        &self,
-        ticket_id: String,
-        table_id: String,
-    ) -> Result<(), CoreError> {
-        use madar_api::apis::open_tickets_api;
-        let tid = reservations::parse_uuid("table_id", &table_id)?;
-        open_tickets_api::move_ticket_table(
-            &self.api.config(),
-            open_tickets_api::MoveTicketTableParams {
-                id: ticket_id,
-                move_ticket_table_request: madar_api::models::MoveTicketTableRequest::new(tid),
-            },
-        )
-        .await
-        .map_err(net::map_api_error)?;
-        Ok(())
-    }
+    // A ticket-addressed move (`PATCH /open-tickets/{id}/table`) lived here
+    // and reached nothing: the floor's gesture is table-to-table, and
+    // [`Self::swap_tables`] already covers it — one empty side IS a move, and
+    // it is optimistic-local + queued where the direct route is online-only.
+    // A till that moves a party while the link is down is the whole point.
 }
 
 // ── Bookings at service time ─────────────────────────────────────────────────
