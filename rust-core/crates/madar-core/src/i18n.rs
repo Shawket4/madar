@@ -244,6 +244,9 @@ fn en(key: &str) -> Option<&'static str> {
         "order.customer" => "Customer",
         "order.customer_hint" => "Customer name (optional)",
         "order.notes_hint" => "Order notes (optional)",
+        // Taking a line off a cart — not `loyalty.remove`, which is about
+        // unlinking a customer.
+        "order.remove_line" => "Remove",
         "order.notes" => "Note",
         "order.cash_received" => "Cash received",
         "order.change" => "Change",
@@ -483,6 +486,11 @@ fn en(key: &str) -> Option<&'static str> {
         "drafts.hold" => "Hold this order",
         "drafts.empty" => "No held orders.",
         "drafts.current" => "Current",
+        // Discarding a PARKED order, which is not the sync centre's
+        // "discard this stuck command" — same word, different thing, and
+        // the two were sharing a key.
+        "drafts.discard_title" => "Discard this order?",
+        "drafts.discard" => "Discard",
         // side-rail labels + section captions
         "nav.incoming" => "Incoming",
         "nav.section.orders" => "Orders",
@@ -1051,6 +1059,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "order.customer" => "العميل",
         "order.customer_hint" => "اسم العميل (اختياري)",
         "order.notes_hint" => "ملاحظات الطلب (اختياري)",
+        "order.remove_line" => "حذف الصنف",
         "order.notes" => "ملاحظة",
         "order.cash_received" => "النقد المستلم",
         "order.change" => "الباقي",
@@ -1296,6 +1305,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "drafts.hold" => "تعليق هذا الطلب",
         "drafts.empty" => "لا توجد طلبات معلّقة.",
         "drafts.current" => "الحالي",
+        "drafts.discard_title" => "هل تريد إلغاء هذا الطلب؟",
+        "drafts.discard" => "إلغاء الطلب",
         "nav.incoming" => "الوارد",
         "nav.section.orders" => "الطلبات",
         "nav.section.money" => "المالية",

@@ -93,13 +93,18 @@ class CartPanel extends ConsumerWidget {
         children: [
           _CartHeader(onClose: onClose),
           Container(height: 1, color: colors.border),
-          // Held-order strip — one shared component. The teller flips between
-          // parked carts (switching parks the current one first); a waiter
-          // gets a "New" tab + a tab per open ticket (round targets).
+          // Held-order strip — one shared component (also used by `SellCart`
+          // — see `TellerHeldStrip`'s doc). The teller flips between parked
+          // carts (switching parks the current one first); a waiter gets a
+          // "New" tab + a tab per open ticket (round targets).
+          //
+          // Shown once there's a live cart too, not only once something else
+          // is ALREADY parked — otherwise a first order has no rename
+          // affordance until a second one exists to keep it company.
           if (isWaiter && hasTickets)
             const _WaiterTicketStrip()
-          else if (!isWaiter && hasDrafts)
-            const _TellerHeldStrip(),
+          else if (!isWaiter && (hasDrafts || hasLines))
+            const TellerHeldStrip(),
           if (activeTicket != null) ...[
             // A ticket is selected — its fired items (read-only) ride above
             // the editable new round; everything scrolls together.
@@ -367,8 +372,15 @@ class _TicketHeader extends ConsumerWidget {
 
 /// Teller strip: a chip per parked draft PLUS, when the cart is non-empty,
 /// the live cart's own chip (the selected one).
-class _TellerHeldStrip extends ConsumerWidget {
-  const _TellerHeldStrip();
+///
+/// Public because `SellCart` (sell_cart.dart) draws the SAME strip in the
+/// newer counter/takeaway screen — that screen's cart column had no strip
+/// at all, which is most of why parking read as a dead end there: nothing
+/// showed what was already parked, and the live order's rename pencil
+/// (below) never appeared. One widget, so the two cart columns can't drift
+/// again the way they already had.
+class TellerHeldStrip extends ConsumerWidget {
+  const TellerHeldStrip({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -576,6 +588,18 @@ class CartLineRow extends ConsumerWidget {
       child: Dismissible(
         key: ValueKey('dismiss-${line.key}'),
         direction: DismissDirection.endToStart,
+        // Removing a line is destructive — ask first, via the shared confirm
+        // rather than a bare swipe. `confirmDismiss` holds the tile mid-swipe
+        // until the answer lands; `false` (Cancel, or a dismissed dialog)
+        // springs it back home instead of finishing the dismiss.
+        confirmDismiss: (_) => showMadarConfirm(
+          context,
+          title:
+              '${ref.read(bridgeProvider).tr(key: 'order.remove_line')} · '
+              '${line.name}',
+          confirmLabel: ref.read(bridgeProvider).tr(key: 'order.remove_line'),
+          cancelLabel: ref.read(bridgeProvider).tr(key: 'common.cancel'),
+        ),
         onDismissed: (_) => unawaited(
           ref.read(orderProvider.notifier).swipeRemoveCartLine(line),
         ),

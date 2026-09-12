@@ -274,14 +274,18 @@ void main() {
     await tester.tap(find.text('tables.free_it'));
     await tester.pumpAndSettle();
 
-    // The confirm dialog is up — not an immediate abandon — naming what is
-    // about to happen.
-    expect(find.text('tables.free_it_warning'), findsOneWidget);
-    expect(find.text('common.cancel'), findsOneWidget);
+    // The void sheet is up — not an immediate abandon. It IS the
+    // confirmation, and it asks the question a Yes/No cannot: why. (The
+    // plain confirm this used to show sat in front of a call that refuses
+    // outright when a live ticket is passed, so the teller confirmed an
+    // irreversible act and was then told to settle the bill instead.)
+    expect(find.text('void.title'), findsOneWidget);
+    expect(find.text('void.reason'), findsOneWidget);
+    expect(find.text('void.confirm'), findsOneWidget);
 
-    // Cancelling leaves it exactly there: the dialog closes, nothing fired.
-    await tester.tap(find.text('common.cancel'));
+    // Backing out leaves it exactly there: the sheet closes, nothing fired.
+    await tester.tap(find.text('void.cancel'));
     await tester.pumpAndSettle();
-    expect(find.text('tables.free_it_warning'), findsNothing);
+    expect(find.text('void.title'), findsNothing);
   });
 }

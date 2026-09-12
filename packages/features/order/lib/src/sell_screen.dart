@@ -9,11 +9,13 @@
 // On an iPad the cart is a column beside the catalog; on a phone it is a bar
 // at the bottom whose ▲ opens it as a sheet. Both draw `SellCart`.
 import 'dart:async';
+import 'dart:io';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_order/src/bundle_detail_sheet.dart';
+import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_cart.dart';
@@ -86,12 +88,49 @@ class _SellScreenState extends ConsumerState<SellScreen>
     return needs;
   }
 
-  Future<void> _onTileTap(MenuItemView item) async {
+  Future<void> _onTileTap(MenuItemView item, Offset origin) async {
     if (await _itemNeedsSheet(item)) {
       await _openItemSheet(item);
       return;
     }
-    await _notifier.addToCart(item);
+    await _quickAdd(item);
+    if (!mounted) return;
+    _flyToCart(origin);
+  }
+
+  /// The quick-add path skips the sheet, but a recipe's base modifier — full
+  /// -fat milk under a latte — must still land on the line: the owner's
+  /// report was that skipping the sheet silently skipped the default too.
+  /// `addConfigured` (not `addToCart`) is what carries an addon selection,
+  /// so an item with a default rides the exact same commit path — and so the
+  /// exact same "selected" chip / recipe BASE flag — a manual pick gets in
+  /// [ItemDetailSheet]; plain items keep the cheaper `addToCart`.
+  Future<void> _quickAdd(MenuItemView item) {
+    final milk = item.defaultMilkAddonId;
+    if (milk == null) return _notifier.addToCart(item);
+    return _notifier.addConfigured(
+      itemId: item.id,
+      addons: [AddonSelection(addonItemId: milk, qty: 1)],
+      optionalIds: const [],
+      qty: 1,
+      sizeLabel: item.sizes.firstOrNull?.label,
+    );
+  }
+
+  /// Mirrors `ItemDetailSheet._flyToCart` — the same dot arcing into the cart
+  /// anchor, just launched from the tapped tile instead of a sheet footer,
+  /// since quick-add skips the sheet the flight used to live behind entirely
+  /// (the reported bug: tapping a tile added the item with no motion at all).
+  void _flyToCart(Offset origin) {
+    if (MediaQuery.disableAnimationsOf(context)) return;
+    final to = cartAnchorCenter();
+    if (to == null) return;
+    playCartFlight(
+      context,
+      from: origin,
+      to: to,
+      onArrive: () => cartCatchTick.value++,
+    );
   }
 
   Future<void> _openItemSheet(MenuItemView item, {CartLineView? edit}) async {
@@ -174,80 +213,14 @@ class _SellScreenState extends ConsumerState<SellScreen>
     );
   }
 
-  /// Parked carts — counter only. Tap one to pick it up (the current cart
-  /// parks first), × to discard it.
-  Future<void> _openParked() async {
-    final bridge = ref.read(bridgeProvider);
-    await showMadarSheet<void>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (sheetContext) => Consumer(
-        builder: (context, sheetRef, _) {
-          final drafts = sheetRef.watch(orderProvider.select((s) => s.drafts));
-          final currency = sheetRef.watch(
-            orderProvider.select((s) => s.currency),
-          );
-          final colors = context.madarColors;
-          return Padding(
-            padding: const EdgeInsetsDirectional.all(Space.xl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  orderWord(bridge, 'sell.parked'),
-                  style: MadarType.h2.copyWith(color: colors.textPrimary),
-                ),
-                const SizedBox(height: Space.lg),
-                if (drafts.isEmpty)
-                  Text(
-                    orderWord(bridge, 'sell.parked_empty'),
-                    style: MadarType.body.copyWith(color: colors.textMuted),
-                  )
-                else
-                  Flexible(
-                    child: MadarCard(
-                      flush: true,
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: drafts.length,
-                        separatorBuilder: (_, _) =>
-                            const MadarHairline(light: true),
-                        itemBuilder: (context, i) {
-                          final d = drafts[i];
-                          final name = d.name.trim();
-                          return MadarRow(
-                            title: name.isEmpty
-                                ? formatHHMM(d.createdAt)
-                                : name,
-                            subtitle:
-                                '${d.itemCount} ${bridge.tr(key: 'waiter.items')}',
-                            glyph: MadarGlyph.bag,
-                            value: MoneyText(d.totalMinor, currency: currency),
-                            trailing: MadarGlyphTile(
-                              glyph: MadarGlyph.close,
-                              semanticLabel: bridge.tr(key: 'sync.discard'),
-                              onTap: () =>
-                                  unawaited(_notifier.discardDraft(d.id)),
-                            ),
-                            chevron: false,
-                            onTap: () {
-                              Navigator.of(sheetContext).maybePop();
-                              unawaited(_notifier.switchToHeldOrder(d.id));
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+  /// Parked carts — counter only, narrow layout only (see the header chip
+  /// below): opens the cart sheet, which now leads with `TellerHeldStrip` —
+  /// every parked draft, one tap to switch, × to discard, a pencil to
+  /// rename the live one. `DraftsScreen` would have been the obvious reach
+  /// here, but `feature_order.dart` is explicit that it — like `OrderScreen`
+  /// — is a screen the redesign REPLACED and "nothing new should reach for":
+  /// the strip is the redesign's own answer to the same list.
+  Future<void> _openParked() => _openCartSheet();
 
   // ── build ──────────────────────────────────────────────────────────────────
 
@@ -303,7 +276,12 @@ class _SellScreenState extends ConsumerState<SellScreen>
             if (!_searching) _search.clear();
           }),
         ),
-        if (counter)
+        // Wide layout keeps the cart column on-screen — its own
+        // `TellerHeldStrip` already shows every parked draft, so a second
+        // entry point here would just be a shortcut to something already
+        // visible. Narrow hides the cart behind a sheet, so this is that
+        // sheet's only door.
+        if (counter && !layout.isTablet)
           MadarChip(
             label: orderWord(bridge, 'sell.parked'),
             glyph: MadarGlyph.bag,
@@ -328,7 +306,7 @@ class _SellScreenState extends ConsumerState<SellScreen>
     final catalog = _Catalog(
       categoryId: _categoryId,
       query: _search.text,
-      onItemTap: (item) => unawaited(_onTileTap(item)),
+      onItemTap: (item, origin) => unawaited(_onTileTap(item, origin)),
       onItemLongPress: (item) => unawaited(_openItemSheet(item)),
       onBundleTap: (b) => unawaited(_openBundle(b)),
     );
@@ -472,7 +450,11 @@ class _Catalog extends ConsumerWidget {
 
   final String? categoryId;
   final String query;
-  final ValueChanged<MenuItemView> onItemTap;
+
+  /// `origin` is the tapped tile's on-screen center — the add-to-cart
+  /// flight's launch point, so it has to come from whichever tile was
+  /// actually hit, not a fixed spot on the screen.
+  final void Function(MenuItemView item, Offset origin) onItemTap;
   final ValueChanged<MenuItemView> onItemLongPress;
   final ValueChanged<BundleView> onBundleTap;
 
@@ -560,7 +542,7 @@ class _Catalog extends ConsumerWidget {
                 .categoryStyle(cat.isEmpty ? item.name : cat, dark: dark)
                 .accent,
           ),
-          onTap: () => onItemTap(item),
+          onTap: (origin) => onItemTap(item, origin),
           onLongPress: () => onItemLongPress(item),
         );
       },
@@ -568,9 +550,11 @@ class _Catalog extends ConsumerWidget {
   }
 }
 
-/// One item tile: flat surface, 16px corners, the name and a mono price, a
-/// teal count disc once the item is in the cart. A photo when the core has
-/// one on disk; otherwise a quiet wash in the category's colour.
+/// One item tile: flat surface, 16px corners, a leading thumbnail, the name
+/// and a mono price, a teal count disc once the item is in the cart. A photo
+/// when the core has one on disk; otherwise the thumbnail falls back to a
+/// quiet wash in the category's colour (never a network fetch either way —
+/// see [_TileThumb]).
 class SellTile extends StatelessWidget {
   const SellTile({
     required this.item,
@@ -586,7 +570,9 @@ class SellTile extends StatelessWidget {
   final String currency;
   final int inCart;
   final Color accent;
-  final VoidCallback onTap;
+
+  /// Called with the tile's on-screen center, for the add-to-cart flight.
+  final void Function(Offset origin) onTap;
   final VoidCallback onLongPress;
 
   @override
@@ -602,7 +588,13 @@ class SellTile extends StatelessWidget {
           onLongPress();
         },
         child: TactileScale(
-          onTap: onTap,
+          onTap: () {
+            final box = context.findRenderObject();
+            final origin = box is RenderBox && box.hasSize
+                ? box.localToGlobal(box.size.center(Offset.zero))
+                : Offset.zero;
+            onTap(origin);
+          },
           child: AnimatedContainer(
             duration: MotionSpec.standardDuration,
             curve: MotionSpec.standardCurve,
@@ -617,47 +609,47 @@ class SellTile extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             child: Stack(
               children: [
-                // The category's colour as a flat band across the top — the
-                // eye finds the hot drinks before it reads a word.
-                PositionedDirectional(
-                  top: 0,
-                  start: 0,
-                  end: 0,
-                  height: 6,
-                  child: ColoredBox(color: accent.withValues(alpha: 0.9)),
-                ),
                 Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(
-                    Space.md,
-                    Space.lg,
-                    Space.md,
-                    Space.md,
+                  padding: const EdgeInsetsDirectional.symmetric(
+                    horizontal: Space.md,
+                    vertical: Space.sm,
                   ),
-                  child: Column(
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _TileThumb(item: item, accent: accent),
+                      const SizedBox(width: Space.sm),
                       Expanded(
-                        child: Text(
-                          item.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: MadarType.title.copyWith(
-                            color: colors.textPrimary,
-                          ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                item.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: MadarType.title.copyWith(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: Space.xs),
+                            MoneyText(
+                              item.basePriceMinor,
+                              currency: currency,
+                              color: colors.textPrimary,
+                            ),
+                          ],
                         ),
-                      ),
-                      MoneyText(
-                        item.basePriceMinor,
-                        currency: currency,
-                        color: colors.textPrimary,
                       ),
                     ],
                   ),
                 ),
                 if (inCart > 0)
                   PositionedDirectional(
-                    top: Space.md,
-                    end: Space.md,
+                    top: Space.sm,
+                    end: Space.sm,
                     child: Container(
                       constraints: const BoxConstraints(minWidth: 26),
                       height: 26,
@@ -682,6 +674,53 @@ class SellTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Fixed leading thumbnail — the core-cached local photo when one has
+/// synced, else the item's monogram over a quiet wash of the category's
+/// accent. Same contract as `MenuItemCard`'s hero in `catalog_column.dart`:
+/// LOCAL-ONLY (the core downloads + caches during `refresh_catalog`; this
+/// never fetches), and a decode failure falls back rather than showing a
+/// broken-image glyph.
+class _TileThumb extends StatelessWidget {
+  const _TileThumb({required this.item, required this.accent});
+
+  final MenuItemView item;
+  final Color accent;
+
+  static const double _size = 44;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = item.localImagePath;
+    final fallback = Text(
+      monogram(item.name),
+      style: MadarType.title.copyWith(
+        fontWeight: FontWeight.w700,
+        color: accent,
+      ),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(Radii.sm),
+      child: Container(
+        width: _size,
+        height: _size,
+        color: accent.withValues(alpha: 0.14),
+        alignment: Alignment.center,
+        child: path == null
+            ? fallback
+            : Image(
+                image: ResizeImage(
+                  FileImage(File(path)),
+                  width: (_size * MediaQuery.devicePixelRatioOf(context))
+                      .round(),
+                ),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => fallback,
+              ),
       ),
     );
   }

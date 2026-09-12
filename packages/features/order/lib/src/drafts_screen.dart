@@ -15,6 +15,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/tables_screen.dart';
+import 'package:feature_order/src/widgets.dart' show formatHHMM;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -88,15 +89,22 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
     await Navigator.of(context).maybePop(true);
   }
 
-  /// Discard after an explicit confirm (a parked cart is real work).
+  /// Discard after an explicit confirm (a parked cart is real work) — the
+  /// shared confirm, not a hand-rolled sheet: every destructive act in the
+  /// app asks the same way now.
   Future<void> _discard(DraftView draft) async {
-    final ok = await showMadarSheet<bool>(
+    final bridge = ref.read(bridgeProvider);
+    final name = draft.name.trim().isEmpty
+        ? formatHHMM(draft.createdAt)
+        : draft.name.trim();
+    final ok = await showMadarConfirm(
       context,
-      size: SheetSize.hug,
-      maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (_) => _DiscardDraftSheet(draft: draft),
+      title: '${bridge.tr(key: 'drafts.discard_title')} · $name',
+      body: '${draft.itemCount} ${bridge.tr(key: 'chrome.orders')}',
+      confirmLabel: bridge.tr(key: 'drafts.discard'),
+      cancelLabel: bridge.tr(key: 'common.cancel'),
     );
-    if (ok ?? false) {
+    if (ok) {
       MadarHaptics.impact();
       await ref.read(orderProvider.notifier).discardDraft(draft.id);
     }
@@ -320,7 +328,7 @@ class _DraftCard extends ConsumerWidget {
               ),
             Semantics(
               button: true,
-              label: bridge.tr(key: 'sync.discard'),
+              label: bridge.tr(key: 'drafts.discard'),
               child: TactileScale(
                 onTap: onDiscard,
                 child: Container(
@@ -337,71 +345,6 @@ class _DraftCard extends ConsumerWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Compact discard confirmation — the parked cart's name + size, then a
-/// Cancel / danger-Discard pair. Pops `true` on confirm.
-class _DiscardDraftSheet extends ConsumerWidget {
-  const _DiscardDraftSheet({required this.draft});
-
-  final DraftView draft;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
-    return SingleChildScrollView(
-      padding: const EdgeInsetsDirectional.all(Space.lg),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  bridge.tr(key: 'drafts.title'),
-                  style: MadarType.h2.copyWith(color: colors.textPrimary),
-                ),
-              ),
-              GestureDetector(
-                onTap: () => Navigator.of(context).maybePop(),
-                behavior: HitTestBehavior.opaque,
-                child: MadarIcon('xmark', tint: colors.textMuted),
-              ),
-            ],
-          ),
-          const SizedBox(height: Space.xs),
-          Text(
-            '${draft.name} · ${draft.itemCount} '
-            '${bridge.tr(key: 'chrome.orders')}',
-            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: Space.md),
-          Row(
-            children: [
-              Expanded(
-                child: MadarButton(
-                  label: bridge.tr(key: 'common.cancel'),
-                  variant: MadarButtonVariant.outline,
-                  onTap: () => Navigator.of(context).maybePop(),
-                ),
-              ),
-              const SizedBox(width: Space.sm),
-              Expanded(
-                child: MadarButton(
-                  label: bridge.tr(key: 'sync.discard'),
-                  variant: MadarButtonVariant.danger,
-                  icon: 'trash',
-                  onTap: () => Navigator.of(context).maybePop(true),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

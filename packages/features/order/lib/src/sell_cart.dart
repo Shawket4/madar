@@ -15,6 +15,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_order/src/cart_panel.dart' show TellerHeldStrip;
 import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/words.dart';
@@ -115,6 +116,12 @@ class SellCart extends ConsumerWidget {
     final ticket = state.activeTicket;
     final lines = state.cartLines;
     final tableLabel = _tableLabel(state, ticket);
+    // Parking is a teller's counter/takeaway move only (see CLAUDE.md's role
+    // table) — never with a table or a bill already targeted, and never for
+    // a waiter, whose "parking" is the open ticket.
+    final isCounterFlow =
+        !state.isWaiter && state.cartTableId == null && ticket == null;
+    final canPark = isCounterFlow && lines.isNotEmpty;
 
     return ColoredBox(
       color: colors.bg,
@@ -127,6 +134,14 @@ class SellCart extends ConsumerWidget {
             onClose: onClose,
           ),
           const MadarHairline(),
+          // The parked-orders strip — dropped when this screen replaced the
+          // older CartPanel and never rebuilt, which is most of why parking
+          // read as a dead end: nothing showed what was already parked, and
+          // nothing offered to rename it. `TellerHeldStrip` is the SAME
+          // widget `CartPanel` still uses; wiring it in here just restores
+          // parity between the two cart columns.
+          if (isCounterFlow && (state.drafts.isNotEmpty || lines.isNotEmpty))
+            const TellerHeldStrip(),
           Expanded(
             child: lines.isEmpty && ticket == null
                 ? EmptyState(
@@ -200,7 +215,14 @@ class SellCart extends ConsumerWidget {
                   ),
           ),
           if (lines.isNotEmpty)
-            _CartFooter(cta: cta, ticket: ticket, onTerminal: onTerminal),
+            _CartFooter(
+              cta: cta,
+              ticket: ticket,
+              onTerminal: onTerminal,
+              canPark: canPark,
+              onHold: () =>
+                  unawaited(ref.read(orderProvider.notifier).holdCart()),
+            ),
           // A round with nothing in it yet still needs a way to be built; the
           // empty-state above says so. Nothing else to draw.
           if (lines.isEmpty && ticket != null) const SizedBox(height: Space.lg),
@@ -241,7 +263,10 @@ class SellCart extends ConsumerWidget {
         s.cartTableLabel;
   }
 
-  /// Park (counter only) and Clear — the ⋯.
+  /// Clear — the ⋯. Park used to live here too, buried behind a menu icon
+  /// that gave a teller no reason to ever open it; it's now the persistent
+  /// tile on the footer beside Charge (see [_CartFooter]), so this sheet is
+  /// just the one genuinely rare, no-undo action.
   Future<void> _moreSheet(
     BuildContext context,
     WidgetRef ref,
@@ -249,11 +274,6 @@ class SellCart extends ConsumerWidget {
   ) async {
     final bridge = ref.read(bridgeProvider);
     final notifier = ref.read(orderProvider.notifier);
-    final canPark =
-        !s.isWaiter &&
-        s.cartTableId == null &&
-        s.activeTicketId == null &&
-        s.cartLines.isNotEmpty;
     await showMadarSheet<void>(
       context,
       size: SheetSize.hug,
@@ -265,16 +285,6 @@ class SellCart extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.sm,
           children: [
-            if (canPark)
-              MadarButton(
-                label: orderWord(bridge, 'sell.park'),
-                glyph: MadarGlyph.bag,
-                variant: MadarButtonVariant.secondary,
-                onTap: () {
-                  Navigator.of(sheetContext).maybePop();
-                  unawaited(notifier.holdCart());
-                },
-              ),
             MadarButton(
               label: bridge.tr(key: 'order.clear'),
               glyph: MadarGlyph.trash,
@@ -480,6 +490,17 @@ class _RoundLine extends ConsumerWidget {
         child: Dismissible(
           key: ValueKey('dismiss-${line.key}'),
           direction: DismissDirection.endToStart,
+          // Removing a line is destructive — the shared confirm, not a swipe
+          // that fires on a mis-drag. `confirmDismiss` holds the tile mid-
+          // swipe until the answer comes back; `false` springs it home.
+          confirmDismiss: (_) => showMadarConfirm(
+            context,
+            title:
+                '${ref.read(bridgeProvider).tr(key: 'order.remove_line')} · '
+                '${line.name}',
+            confirmLabel: ref.read(bridgeProvider).tr(key: 'order.remove_line'),
+            cancelLabel: ref.read(bridgeProvider).tr(key: 'common.cancel'),
+          ),
           onDismissed: (_) => unawaited(notifier.swipeRemoveCartLine(line)),
           background: Container(
             alignment: AlignmentDirectional.centerEnd,
@@ -511,11 +532,18 @@ class _CartFooter extends ConsumerWidget {
     required this.cta,
     required this.ticket,
     required this.onTerminal,
+    required this.canPark,
+    required this.onHold,
   });
 
   final SellCta cta;
   final TicketView? ticket;
   final VoidCallback onTerminal;
+
+  /// Whether this cart may be parked right now (counter/takeaway, not a
+  /// table or bill round).
+  final bool canPark;
+  final VoidCallback onHold;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -557,14 +585,32 @@ class _CartFooter extends ConsumerWidget {
                 onTap: onTerminal,
               ),
             ] else
-              MadarMoneyBar(
-                label: cta.label,
-                amountMinor: cta.amountMinor,
-                currency: currency,
-                enabled: cta.enabled,
-                reason: cta.reason,
-                loading: isBusy,
-                onTap: onTerminal,
+              Row(
+                spacing: Space.sm,
+                children: [
+                  // Park, right beside Charge — not a tap buried in the ⋯
+                  // menu. The owner's report was that parking read as a dead
+                  // end; a control nobody finds might as well not exist.
+                  if (canPark)
+                    MadarGlyphTile(
+                      glyph: MadarGlyph.bag,
+                      tint: colors.accent,
+                      background: colors.accentBg,
+                      semanticLabel: bridge.tr(key: 'drafts.hold'),
+                      onTap: onHold,
+                    ),
+                  Expanded(
+                    child: MadarMoneyBar(
+                      label: cta.label,
+                      amountMinor: cta.amountMinor,
+                      currency: currency,
+                      enabled: cta.enabled,
+                      reason: cta.reason,
+                      loading: isBusy,
+                      onTap: onTerminal,
+                    ),
+                  ),
+                ],
               ),
           ],
         ),

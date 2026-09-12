@@ -625,8 +625,9 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
 
   /// Fly the add-to-cart dot from the footer CTA to the mounted cart anchor
   /// — pure chrome on top of the already-committed add; skipped when either
-  /// end is missing.
+  /// end is missing, or when the platform asked for no motion.
   void _flyToCart() {
+    if (MediaQuery.disableAnimationsOf(context)) return;
     final render = _footerKey.currentContext?.findRenderObject();
     final to = cartAnchorCenter();
     if (render is! RenderBox || !render.hasSize || to == null) return;
