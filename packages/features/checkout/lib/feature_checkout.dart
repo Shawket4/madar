@@ -7,8 +7,7 @@
 /// down over the host. State lives in `checkoutProvider`; the session
 /// starts itself.
 ///
-/// Still exported for the screens that have not migrated: `TenderSheet` and
-/// `CheckoutDrawer` (the previous checkout / settle / finalize drawer),
+/// Still exported for the screens that have not migrated: `CheckoutDrawer` (the previous checkout / settle / finalize drawer),
 /// `ReceiptSheet` (a receipt preview with Print + Done), `ReceiptPaper`.
 library;
 
@@ -44,4 +43,3 @@ export 'src/receipt_sheet.dart'
         ReceiptPreviewState,
         ReceiptSheet,
         receiptPreviewProvider;
-export 'src/tender_sheet.dart' show TenderSheet;

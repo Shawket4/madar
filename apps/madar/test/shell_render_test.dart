@@ -1055,18 +1055,18 @@ void main() {
     });
 
     // Every page pushed over the shell, the way the app pushes it. A table's
-    // Sell (and the legacy order screen) is a waiter's errand: pushed over a
-    // shell that has no Sell tab of its own.
+    // Sell is pushed over a waiter's shell (no Sell tab of its own) AND over
+    // a teller's, whose Sell tab stays mounted underneath it.
     final pushed = <String, (bool, Widget Function())>{
       'sell for a table': (true, () => const SellScreen.forTable()),
-      'order': (true, OrderScreen.new),
+      'sell for a table over the Sell tab': (
+        false,
+        () => const SellScreen.forTable(),
+      ),
       'bill': (
         false,
         () => const BillScreen(ticketId: 'tk-1', canCharge: true),
       ),
-      'open tickets': (false, OpenTicketsScreen.new),
-      'tables': (false, TablesScreen.new),
-      'drafts': (false, DraftsScreen.new),
       'sync': (false, SyncScreen.new),
       'settings': (false, SettingsScreen.new),
       'order history': (false, OrderHistoryScreen.new),

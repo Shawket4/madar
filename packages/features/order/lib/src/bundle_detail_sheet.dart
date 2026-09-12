@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/cart_anchor.dart';
-import 'package:feature_order/src/cart_panel.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:flutter/material.dart';

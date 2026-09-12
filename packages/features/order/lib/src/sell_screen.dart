@@ -305,10 +305,8 @@ class _SellScreenState extends ConsumerState<SellScreen>
   /// Parked carts — counter only, narrow layout only (see the header chip
   /// below): opens the cart sheet, which now leads with `TellerHeldStrip` —
   /// every parked draft, one tap to switch, × to discard, a pencil to
-  /// rename the live one. `DraftsScreen` would have been the obvious reach
-  /// here, but `feature_order.dart` is explicit that it — like `OrderScreen`
-  /// — is a screen the redesign REPLACED and "nothing new should reach for":
-  /// the strip is the redesign's own answer to the same list.
+  /// rename the live one. The strip is the redesign's answer to the old
+  /// drafts list.
   Future<void> _openParked() => _openCartSheet();
 
   // ── build ──────────────────────────────────────────────────────────────────

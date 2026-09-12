@@ -55,7 +55,7 @@ enum SheetSize {
 /// final tender = await showMadarSheet<Tender>(
 ///   context,
 ///   size: SheetSize.large,
-///   builder: (context) => const TenderSheet(),
+///   builder: (context) => const LoyaltyAwardSheet(),
 /// );
 /// ```
 Future<T?> showMadarSheet<T>(

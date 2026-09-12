@@ -152,12 +152,8 @@ class SellCart extends ConsumerWidget {
             onClose: onClose,
           ),
           const MadarHairline(),
-          // The parked-orders strip — dropped when this screen replaced the
-          // older CartPanel and never rebuilt, which is most of why parking
-          // read as a dead end: nothing showed what was already parked, and
-          // nothing offered to rename it. `TellerHeldStrip` is the SAME
-          // widget `CartPanel` still uses; wiring it in here just restores
-          // parity between the two cart columns.
+          // The parked-orders strip: what is already parked, and the pencil
+          // to rename it. Without it parking reads as a dead end.
           if (isCounterFlow && (state.drafts.isNotEmpty || lines.isNotEmpty))
             const TellerHeldStrip(),
           Expanded(

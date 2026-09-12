@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/cart_anchor.dart';
-import 'package:feature_order/src/cart_panel.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -2087,6 +2086,105 @@ class _StepRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Shared pieces (the item and bundle sheets) ─────────────────────────────
+
+/// A circular stepper button (natives: 30.dp, [MotionSpec.pressScaleKey]-deep
+/// press).
+class StepButton extends StatelessWidget {
+  const StepButton({
+    required this.glyph,
+    required this.onTap,
+    this.danger = false,
+    super.key,
+  });
+
+  final String glyph;
+  final bool danger;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return TactileScale(
+      scale: 0.9,
+      onTap: () {
+        MadarHaptics.selection();
+        onTap();
+      },
+      child: Container(
+        width: Metrics.stepper,
+        height: Metrics.stepper,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          shape: BoxShape.circle,
+          border: Border.all(color: colors.border),
+        ),
+        child: MadarIcon(
+          glyph,
+          tint: danger ? colors.danger : colors.textPrimary,
+          size: IconSize.sm,
+        ),
+      ),
+    );
+  }
+}
+
+/// Prominent tinted-teal total block — the figure tellers look at. The
+/// amount cross-fades on change (the natives' Crossfade).
+class GrandTotalBlock extends StatelessWidget {
+  const GrandTotalBlock({
+    required this.label,
+    required this.totalMinor,
+    required this.currency,
+    super.key,
+  });
+
+  final String label;
+  final int totalMinor;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final formatted = Money.format(totalMinor, currency: currency);
+    return Container(
+      padding: const EdgeInsetsDirectional.all(Space.md),
+      decoration: BoxDecoration(
+        color: colors.accentBg,
+        borderRadius: BorderRadius.circular(Radii.md),
+      ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: MadarType.body.copyWith(
+              fontWeight: FontWeight.w700,
+              color: colors.accent,
+            ),
+          ),
+          const Spacer(),
+          AnimatedSwitcher(
+            duration: MotionSpec.standardDuration,
+            switchInCurve: MotionSpec.standardCurve,
+            switchOutCurve: MotionSpec.standardCurve,
+            child: Text(
+              formatted,
+              key: ValueKey(formatted),
+              textDirection: TextDirection.ltr,
+              style: MadarType.moneyLg.copyWith(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: colors.accent,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
