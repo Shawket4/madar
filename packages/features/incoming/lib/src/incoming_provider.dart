@@ -546,6 +546,7 @@ class IncomingNotifier extends Notifier<IncomingState> {
       state = state.copyWith(isBusy: false);
       // A settled bill books a real sale on the open shift.
       ref.read(shellProvider.notifier).refresh();
+      ref.read(drawerTickProvider.notifier).bump();
       return true;
     } on MadarError catch (e) {
       state = state.copyWith(error: _fail(e), isBusy: false);

@@ -246,6 +246,16 @@ final bookingTickProvider = NotifierProvider<TickNotifier, int>(
   TickNotifier.new,
 );
 
+/// Bumped whenever the drawer's figures may have moved: a pay in / pay out
+/// recorded here, a cash sale, refund, void or settle, or a realtime event
+/// that can carry another till's sale. The Till and close-shift surfaces
+/// re-read the core's shift report on it. A shell refresh is NOT that
+/// signal — it only emits when the route or session changes, which a cash
+/// movement never does.
+final drawerTickProvider = NotifierProvider<TickNotifier, int>(
+  TickNotifier.new,
+);
+
 /// Where this branch expects a fired round to be SEEN: `kds` (a screen in the
 /// kitchen), `till` (the counter bumps it itself), `both`, or `off` (nothing
 /// is routed at all). `null` until this device has reached the server once.

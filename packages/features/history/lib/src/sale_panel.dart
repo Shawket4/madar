@@ -761,6 +761,7 @@ class SaleScreen extends ConsumerWidget {
     final selected = ref.watch(historyProvider.select((s) => s.selected));
     if (selected == null) {
       return MadarPageScaffold(
+        title: historyTr(bridge, 'history.title'),
         body: EmptyState(
           icon: 'receipt',
           title: historyTr(bridge, 'history.select_prompt'),
@@ -769,7 +770,6 @@ class SaleScreen extends ConsumerWidget {
     }
     return MadarPageScaffold(
       title: saleTitle(bridge, selected),
-      onBack: () => Navigator.maybePop(context),
       actions: [MoreTile(order: selected)],
       body: SalePanel(order: selected),
     );
@@ -962,6 +962,7 @@ class _VoidFormNotifier extends Notifier<_VoidFormState> {
         restoreInventory: state.restock,
       );
       ref.read(shellProvider.notifier).refresh();
+      ref.read(drawerTickProvider.notifier).bump();
       return true;
     } on MadarError catch (e) {
       if (e is MadarError_Unauthenticated &&
@@ -1068,6 +1069,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       );
       ref.read(shellProvider.notifier).refresh();
+      ref.read(drawerTickProvider.notifier).bump();
       if (mounted) Navigator.of(context).maybePop(true);
     } on MadarError catch (e) {
       if (e is MadarError_Unauthenticated &&

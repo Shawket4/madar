@@ -187,7 +187,11 @@ class TillNotifier extends Notifier<TillState> {
       // call (open, close, sign-in). Each of those changes what this tab
       // shows, so it is the one signal to reload on.
       ..listen(shellProvider, (_, _) => unawaited(refresh()))
-      ..listen(connectivityPulseProvider, (_, _) => unawaited(refresh()));
+      ..listen(connectivityPulseProvider, (_, _) => unawaited(refresh()))
+      // The drawer moved (a pay in/out, a sale, refund, void) without the
+      // route or session changing — the shell listener above never fires
+      // for it, which left expected cash stale until a screen change.
+      ..listen(drawerTickProvider, (_, _) => unawaited(refresh()));
     unawaited(Future<void>.microtask(refresh));
     return TillState(isManager: isManagerRole(_bridge.currentSession()?.role));
   }
@@ -679,7 +683,10 @@ class CloseShiftNotifier extends Notifier<CloseShiftState> {
   @override
   CloseShiftState build() {
     _bridge = ref.read(bridgeProvider);
-    ref.onDispose(() => _disposed = true);
+    ref
+      ..onDispose(() => _disposed = true)
+      // Same drawer signal as the Till, so both read one expected figure.
+      ..listen(drawerTickProvider, (_, _) => unawaited(_load()));
     unawaited(Future<void>.microtask(_load));
     return const CloseShiftState();
   }
@@ -908,6 +915,9 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
       if (_disposed) return false;
       state = state.copyWith(busy: false, amountMinor: 0, note: '');
       shell.refresh();
+      // The core's report already counts the movement (acked, or still
+      // queued in the outbox) — tell every drawer surface to re-read it.
+      ref.read(drawerTickProvider.notifier).bump();
       return true;
     } on MadarError catch (e) {
       if (_disposed) return false;

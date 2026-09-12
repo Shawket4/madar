@@ -1738,6 +1738,7 @@ class OrderNotifier extends Notifier<OrderState> {
       unawaited(_printSettledReceipt(orderId));
       showToast(_tr('waiter.settled'), tone: ChipTone.success);
       _refreshShell();
+      ref.read(drawerTickProvider.notifier).bump();
       return true;
     } on MadarError catch (e) {
       state = state.copyWith(error: UiText.error(e));

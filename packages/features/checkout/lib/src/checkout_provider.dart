@@ -907,6 +907,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       );
       MadarHaptics.success();
       ref.read(shellProvider.notifier).refresh();
+      ref.read(drawerTickProvider.notifier).bump();
       // Auto-print — the Done card's Reprint is for REPRINTS. Never fails
       // the sale: it reports a state and the card shows it.
       await printReceipt();
@@ -1072,6 +1073,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       _update((s) => s.copyWith(receipt: receipt, printState: PrintState.idle));
       MadarHaptics.success();
       ref.read(shellProvider.notifier).refresh();
+      ref.read(drawerTickProvider.notifier).bump();
       await printReceipt();
     } on MadarError catch (e) {
       _raise(bridge, e);
