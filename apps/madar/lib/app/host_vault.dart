@@ -25,6 +25,12 @@ class HostVault {
     unawaited(_prefs.setString('madar.theme', value));
   }
 
+  /// Animations setting: 'full' (default), 'reduced' or 'system'.
+  String get motion => _prefs.getString('madar.motion') ?? 'full';
+  set motion(String value) {
+    unawaited(_prefs.setString('madar.motion', value));
+  }
+
   /// Last chosen locale ('' = follow the core's default).
   String get locale => _prefs.getString('madar.locale') ?? '';
   set locale(String value) {

@@ -493,6 +493,40 @@ void main() {
     expect(find.text('Close the shift before signing out'), findsOneWidget);
   });
 
+  testWidgets('the Animations setting switches and persists', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = _ipad;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final saved = <MotionChoice>[];
+    final container = ProviderContainer(
+      overrides: [
+        bridgeProvider.overrideWithValue(_FakeBridge()),
+        motionChoicePersisterProvider.overrideWithValue(saved.add),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: MadarTheme.light(),
+          home: const Scaffold(body: Center(child: MotionSegment())),
+        ),
+      ),
+    );
+    expect(container.read(motionChoiceProvider), MotionChoice.full);
+    await tester.tap(find.text('motion reduced'));
+    await tester.pump();
+    expect(container.read(motionChoiceProvider), MotionChoice.reduced);
+    await tester.tap(find.text('motion system'));
+    await tester.pump();
+    expect(saved, [MotionChoice.reduced, MotionChoice.system]);
+    expect(MotionChoice.parse('nonsense'), MotionChoice.full);
+  });
+
   testWidgets('settings on the iPad, dark', (tester) async {
     await _shoot(
       tester,

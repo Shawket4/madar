@@ -19,9 +19,11 @@ import 'package:flutter/material.dart';
 //   [Nudge]         — badge pop / cart-catch dip on a counter change
 //   [playCartFlight] — the add-to-cart dot arcing into the cart
 
-/// Whether the platform asked for reduced motion
-/// (`MediaQuery.disableAnimations`). Every playful animation lands on its
-/// final frame instead of playing, and nothing loops.
+/// Whether reduced motion is in force (`MediaQuery.disableAnimations` — the
+/// app's Animations setting overrides it at the root, "Follow system" leaves
+/// the platform's flag). Reduced motion TONES DOWN, never removes, the
+/// feedback: nothing loops, a celebration fades in, the cart flight becomes
+/// a short pulse at the cart and a nudge plays short and small.
 bool motionReduced(BuildContext context) =>
     MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
@@ -299,21 +301,34 @@ class SettleMark extends StatefulWidget {
 }
 
 class _SettleMarkState extends State<SettleMark>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _play = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1300),
   )..forward();
 
+  /// Reduced motion: the finished mark fades in quickly instead of playing.
+  late final AnimationController _fade = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+    value: 1,
+  );
+  bool _reducedApplied = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (motionReduced(context)) _play.value = 1;
+    if (motionReduced(context) && !_reducedApplied) {
+      _reducedApplied = true;
+      _play.value = 1;
+      _fade.forward(from: 0);
+    }
   }
 
   @override
   void dispose() {
     _play.dispose();
+    _fade.dispose();
     super.dispose();
   }
 
@@ -325,54 +340,57 @@ class _SettleMarkState extends State<SettleMark>
       curve: const Interval(0.677, 0.985, curve: Cubic(0.2, 0.8, 0.2, 1)),
     );
     return RepaintBoundary(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedBuilder(
-            animation: _play,
-            builder: (context, _) => CustomPaint(
-              size: Size.square(widget.size),
-              painter: _SettleMarkPainter(
-                p: _play.value,
-                accent: colors.accent,
-                accentBg: colors.accentBg,
-                success: colors.success,
-                onAccent: colors.textOnAccent,
+      child: FadeTransition(
+        opacity: _fade,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: _play,
+              builder: (context, _) => CustomPaint(
+                size: Size.square(widget.size),
+                painter: _SettleMarkPainter(
+                  p: _play.value,
+                  accent: colors.accent,
+                  accentBg: colors.accentBg,
+                  success: colors.success,
+                  onAccent: colors.textOnAccent,
+                ),
               ),
             ),
-          ),
-          if (widget.label case final label?) ...[
-            SizedBox(height: widget.size * 0.1),
-            FadeTransition(
-              opacity: chipT,
-              child: AnimatedBuilder(
-                animation: chipT,
-                builder: (context, child) => Transform.translate(
-                  offset: Offset(0, 8 * (1 - chipT.value)),
-                  child: child,
-                ),
-                child: Container(
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: 14,
-                    vertical: 5,
+            if (widget.label case final label?) ...[
+              SizedBox(height: widget.size * 0.1),
+              FadeTransition(
+                opacity: chipT,
+                child: AnimatedBuilder(
+                  animation: chipT,
+                  builder: (context, child) => Transform.translate(
+                    offset: Offset(0, 8 * (1 - chipT.value)),
+                    child: child,
                   ),
-                  decoration: BoxDecoration(
-                    color: colors.accentBg,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.accent,
+                  child: Container(
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: 14,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.accentBg,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: colors.accent,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -751,6 +769,8 @@ class Nudge extends StatefulWidget {
 }
 
 class _NudgeState extends State<Nudge> with SingleTickerProviderStateMixin {
+  bool _reduced = false;
+
   late final AnimationController _play = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 400),
@@ -759,7 +779,10 @@ class _NudgeState extends State<Nudge> with SingleTickerProviderStateMixin {
   @override
   void didUpdateWidget(Nudge oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.trigger > oldWidget.trigger && !motionReduced(context)) {
+    if (widget.trigger > oldWidget.trigger) {
+      // Reduced motion keeps the acknowledgement, short and small.
+      _reduced = motionReduced(context);
+      _play.duration = Duration(milliseconds: _reduced ? 160 : 400);
       _play.forward(from: 0);
     }
   }
@@ -779,11 +802,11 @@ class _NudgeState extends State<Nudge> with SingleTickerProviderStateMixin {
         final wave = math.sin(math.pi * Curves.easeOut.transform(_play.value));
         return switch (widget.kind) {
           NudgeKind.pop => Transform.scale(
-            scale: 1 + 0.22 * wave,
+            scale: 1 + (_reduced ? 0.08 : 0.22) * wave,
             child: child,
           ),
           NudgeKind.dip => Transform.translate(
-            offset: Offset(0, 3 * wave),
+            offset: Offset(0, (_reduced ? 1.5 : 3) * wave),
             child: child,
           ),
         };
@@ -814,6 +837,10 @@ void playCartFlight(
     return;
   }
   final dotColor = color ?? context.madarColors.accent;
+  if (motionReduced(context)) {
+    _playCartPulse(overlay, at: to, color: dotColor, onArrive: onArrive);
+    return;
+  }
   final controller = AnimationController(
     vsync: overlay,
     duration: const Duration(milliseconds: 450),
@@ -839,6 +866,56 @@ void playCartFlight(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: dotColor.withValues(alpha: opacity),
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+  overlay.insert(entry);
+  unawaited(
+    controller.forward().whenComplete(() {
+      entry.remove();
+      controller.dispose();
+      onArrive?.call();
+    }),
+  );
+}
+
+/// Reduced motion's flight: no travel, a ~150ms pulse ON the cart — a dot
+/// that swells and fades where it would have landed — then [onArrive], so
+/// the cart's catch still plays.
+void _playCartPulse(
+  OverlayState overlay, {
+  required Offset at,
+  required Color color,
+  VoidCallback? onArrive,
+}) {
+  final controller = AnimationController(
+    vsync: overlay,
+    duration: const Duration(milliseconds: 150),
+  );
+  const size = 22.0;
+  final entry = OverlayEntry(
+    builder: (context) => AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final t = Curves.easeOut.transform(controller.value);
+        return Positioned(
+          left: at.dx - size / 2,
+          top: at.dy - size / 2,
+          child: IgnorePointer(
+            child: Transform.scale(
+              scale: 0.5 + 0.7 * t,
+              child: Container(
+                key: cartFlightDotKey,
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withValues(alpha: 0.45 * (1 - t)),
+                ),
               ),
             ),
           ),

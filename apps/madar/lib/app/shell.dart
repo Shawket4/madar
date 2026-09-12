@@ -20,6 +20,7 @@ class MadarShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final choice = ref.watch(themeChoiceProvider);
+    final motion = ref.watch(motionChoiceProvider);
     final rtl = ref.watch(localeProvider.select((s) => s.rtl));
     final lang = ref.watch(
       localeProvider.select((s) => s.locale.split(RegExp('[-_]')).first),
@@ -43,7 +44,7 @@ class MadarShell extends ConsumerWidget {
       // and modal mirrors with the locale — not only the home route.
       builder: (context, child) => Directionality(
         textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-        child: orientationProbe(context, child),
+        child: motionScope(context, motion, orientationProbe(context, child)),
       ),
       home: const _RouteHost(),
     );
@@ -113,4 +114,17 @@ class _RouteHostState extends ConsumerState<_RouteHost> {
       ),
     };
   }
+}
+
+/// The Animations setting, applied ABOVE the navigator: Full and Reduced
+/// override `MediaQuery.disableAnimations` (which `motionReduced` and every
+/// gated widget read), Follow system leaves the platform's flag alone.
+Widget motionScope(BuildContext context, MotionChoice choice, Widget child) {
+  if (choice == MotionChoice.system) return child;
+  return MediaQuery(
+    data: MediaQuery.of(
+      context,
+    ).copyWith(disableAnimations: choice == MotionChoice.reduced),
+    child: child,
+  );
 }

@@ -216,6 +216,49 @@ final themeChoicePersisterProvider = Provider<void Function(ThemeChoice)>(
   (_) => (_) {},
 );
 
+/// How much the app animates: follow the device's reduced-motion flag, or
+/// force full or reduced. Full is the default — the macOS engine never
+/// reports the system's Reduce Motion, and a till that silently dropped its
+/// add-to-cart feedback read as broken. Persisted through the host hook.
+enum MotionChoice {
+  system,
+  full,
+  reduced;
+
+  /// The persisted name back to a choice; anything unknown is full.
+  static MotionChoice parse(String? name) => switch (name) {
+    'system' => MotionChoice.system,
+    'reduced' => MotionChoice.reduced,
+    _ => MotionChoice.full,
+  };
+}
+
+class MotionChoiceNotifier extends Notifier<MotionChoice> {
+  MotionChoiceNotifier({this.initial = MotionChoice.full});
+
+  /// The vault-persisted value the ready scope boots with.
+  final MotionChoice initial;
+
+  @override
+  MotionChoice build() => initial;
+
+  /// User pick — updates + persists through the host hook.
+  void set(MotionChoice choice) {
+    state = choice;
+    ref.read(motionChoicePersisterProvider)(choice);
+  }
+}
+
+final motionChoiceProvider =
+    NotifierProvider<MotionChoiceNotifier, MotionChoice>(
+      MotionChoiceNotifier.new,
+    );
+
+/// Host hook the APP overrides at boot; a no-op so tests run bare.
+final motionChoicePersisterProvider = Provider<void Function(MotionChoice)>(
+  (_) => (_) {},
+);
+
 /// Per-board realtime ticks — bumped by the app's SSE listener; boards
 /// watch and reload. The natives' tick counters.
 class TickNotifier extends Notifier<int> {

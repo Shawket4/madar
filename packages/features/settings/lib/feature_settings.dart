@@ -13,7 +13,7 @@ export 'src/me_screen.dart' show MeBillsNotifier, MeScreen, meBillsProvider;
 export 'src/settings_provider.dart'
     show SettingsNotifier, SettingsState, settingsProvider;
 export 'src/settings_screen.dart'
-    show LanguageSegment, SettingsScreen, ThemeSegment;
+    show LanguageSegment, MotionSegment, SettingsScreen, ThemeSegment;
 export 'src/settings_sheets.dart'
     show
         showDeviceSheet,

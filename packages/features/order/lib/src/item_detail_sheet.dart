@@ -750,9 +750,8 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
 
   /// Fly the add-to-cart dot from the footer CTA to the mounted cart anchor
   /// — pure chrome on top of the already-committed add; skipped when either
-  /// end is missing, or when the platform asked for no motion.
+  /// end is missing (reduced motion gets the short pulse at the cart).
   void _flyToCart() {
-    if (MediaQuery.disableAnimationsOf(context)) return;
     final render = _footerKey.currentContext?.findRenderObject();
     final anchors = CartAnchors.maybeOf(context);
     final to = anchors?.center();
@@ -2040,10 +2039,11 @@ class _StepRow extends StatelessWidget {
                       )
                     : Lottie.file(
                         File(path),
-                        // Only the spotlit row animates, and never when the
-                        // device asks for reduced motion.
-                        animate: playing && !reduceMotion,
-                        repeat: true,
+                        // Only the spotlit row animates. Reduced motion plays
+                        // it ONCE and holds the last frame — the step still
+                        // shows how it's done, it just doesn't loop.
+                        animate: playing,
+                        repeat: !reduceMotion,
                         fit: BoxFit.contain,
                         // A file that went missing between the sync and now
                         // must not take the sheet down with it.

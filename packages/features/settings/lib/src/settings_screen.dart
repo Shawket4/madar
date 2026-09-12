@@ -173,6 +173,8 @@ class _Preferences extends ConsumerWidget {
         const LanguageSegment(),
         MadarSectionHeader(text: t('settings.theme')),
         const ThemeSegment(),
+        MadarSectionHeader(text: t('settings.motion')),
+        const MotionSegment(),
         const _RowList(),
         MadarButton(
           label: t('settings.sign_out'),
@@ -308,6 +310,36 @@ class ThemeSegment extends ConsumerWidget {
       ],
       value: choice,
       onChanged: ref.read(themeChoiceProvider.notifier).set,
+    );
+  }
+}
+
+/// Animations: Full · Reduced · System. Reduced tones feedback down (a
+/// pulse at the cart instead of a flight, no loops) rather than removing it;
+/// System follows the device's reduced-motion flag. Shared with the Me tab.
+class MotionSegment extends ConsumerWidget {
+  const MotionSegment({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
+    return MadarSegmented<MotionChoice>(
+      items: [
+        MadarSegmentItem(
+          MotionChoice.full,
+          bridge.tr(key: 'settings.motion_full'),
+        ),
+        MadarSegmentItem(
+          MotionChoice.reduced,
+          bridge.tr(key: 'settings.motion_reduced'),
+        ),
+        MadarSegmentItem(
+          MotionChoice.system,
+          bridge.tr(key: 'settings.motion_system'),
+        ),
+      ],
+      value: ref.watch(motionChoiceProvider),
+      onChanged: ref.read(motionChoiceProvider.notifier).set,
     );
   }
 }

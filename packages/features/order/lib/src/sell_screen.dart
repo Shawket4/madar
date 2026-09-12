@@ -201,7 +201,6 @@ class _SellScreenState extends ConsumerState<SellScreen>
   /// since quick-add skips the sheet the flight used to live behind entirely
   /// (the reported bug: tapping a tile added the item with no motion at all).
   void _flyToCart(Offset origin) {
-    if (MediaQuery.disableAnimationsOf(context)) return;
     // `_anchors` directly, NOT `CartAnchors.maybeOf(context)`: this State's
     // context sits ABOVE the `CartAnchorScope` its own build() provides, so
     // the lookup always came back null and every quick-add silently skipped

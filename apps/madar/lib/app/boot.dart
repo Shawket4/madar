@@ -122,6 +122,13 @@ List<Override> readyScopeOverrides(BootData boot) {
       () =>
           ThemeChoiceNotifier(initial: ThemeChoice.parse(boot.vault.themeMode)),
     ),
+    motionChoiceProvider.overrideWith(
+      () =>
+          MotionChoiceNotifier(initial: MotionChoice.parse(boot.vault.motion)),
+    ),
+    motionChoicePersisterProvider.overrideWithValue((choice) {
+      boot.vault.motion = choice.name;
+    }),
     localePersisterProvider.overrideWithValue((locale) {
       boot.vault.locale = locale;
     }),
