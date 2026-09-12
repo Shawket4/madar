@@ -122,7 +122,7 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     return Column(
       mainAxisSize: MainAxisSize.min,

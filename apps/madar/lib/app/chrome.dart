@@ -186,7 +186,7 @@ final outboxProvider = NotifierProvider<OutboxNotifier, OutboxSnapshot>(
 /// write-through cached, so this resolves offline too; null when the device
 /// has no till (a waiter's phone) and the top bar shows the branch alone.
 final tillNameProvider = FutureProvider<String?>((ref) async {
-  final bridge = ref.watch(bridgeProvider);
+  final bridge = ref.localizedBridge;
   // Re-resolve when the session moves (a reconfigure lands here too).
   ref.watch(shellProvider.select((s) => s.session?.userId));
   final tillId = bridge.deviceConfig().tillId;
@@ -582,7 +582,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       });
     // Locale switches must re-resolve every chrome string.
     ref.watch(localeProvider);
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final session = ref.watch(shellProvider.select((s) => s.session));
     final route = ref.watch(shellProvider.select((s) => s.route));
     final kind = ShellKind.of(session?.role);
@@ -749,7 +749,7 @@ class _PersonSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final session = ref.watch(shellProvider.select((s) => s.session));
     final online = ref.watch(outboxProvider.select((s) => s.online));
     final shiftOpen = ref.watch(orderProvider.select((s) => s.shiftOpen));

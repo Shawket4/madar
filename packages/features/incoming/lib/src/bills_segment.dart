@@ -99,7 +99,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final bills = ref.watch(
       incomingProvider.select((s) => s.settleableTickets),
     );
@@ -199,7 +199,7 @@ class _BillRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final t = ticket;
     final tone = ticketTone(t.status);
     final guest = t.customerName;

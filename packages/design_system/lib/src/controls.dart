@@ -1503,9 +1503,19 @@ class MadarTag extends StatelessWidget {
         children: [
           if (glyph != null)
             MadarGlyphIcon(glyph!, size: IconSize.xs, color: fg),
-          Text(
-            label.toUpperCase(),
-            style: MadarType.label.copyWith(color: fg, letterSpacing: 0.3),
+          // Flexible, because a tag is a LABEL and a label has no say in how
+          // much room the column it lands in can spare. "OFFLINE PRICE" in a
+          // 144px column wanted 172 and overflowed the sale panel — the tag
+          // is not the thing that should win that argument, and clipping a
+          // word beats a black-and-yellow stripe across a real screen.
+          Flexible(
+            child: Text(
+              label.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+              style: MadarType.label.copyWith(color: fg, letterSpacing: 0.3),
+            ),
           ),
         ],
       ),

@@ -182,7 +182,7 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     // The drawer renders nearly every session field — the one legitimate
     // whole-state watch; the leaf chips receive plain data below.
     final s = ref.watch(checkoutProvider);

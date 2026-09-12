@@ -55,7 +55,7 @@ class KdsTicketCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     // The server flips a ticket to `ready` once every line is bumped; the
     // pending-bump overlay may get there first. Either way the card is done.
     final ready =
@@ -136,7 +136,7 @@ class _Header extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final colors = context.madarColors;
     final fg = tone.color(colors);
     final label = ticket.tableLabel ?? ticket.kitchenRef;

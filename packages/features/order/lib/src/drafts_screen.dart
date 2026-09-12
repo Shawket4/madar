@@ -112,7 +112,7 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final drafts = ref.watch(orderProvider.select((s) => s.drafts));
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     return MadarPageScaffold(
@@ -183,7 +183,7 @@ class _DraftCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return TactileScale(
       scale: 0.99,
       onTap: onRestore,

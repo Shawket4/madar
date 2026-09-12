@@ -424,7 +424,7 @@ class _OrderTopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final isWaiter = ref.watch(orderProvider.select((s) => s.isWaiter));
     final shift = ref.watch(orderProvider.select((s) => s.shift));
     final topInset = MediaQuery.viewPaddingOf(context).top;
@@ -502,7 +502,7 @@ class _TablesButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final hasFloor = ref.watch(orderProvider.select((s) => s.hasFloor));
     final waiting = ref.watch(
       orderProvider.select((s) => s.transferQueue.length),
@@ -572,7 +572,7 @@ class _ShiftStatsPill extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final (salesMinor, orderCount, currency) = ref.watch(
       orderProvider.select(
         (s) => (s.shiftSalesMinor, s.shiftOrderCount, s.currency),
@@ -626,7 +626,7 @@ class _SyncChip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final (isOnline, syncFailed, pendingCount) = ref.watch(
       orderProvider.select((s) => (s.isOnline, s.syncFailed, s.pendingCount)),
     );
@@ -685,7 +685,7 @@ class _NavDrawerButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return Semantics(
       button: true,
       label: bridge.tr(key: 'chrome.more'),
@@ -717,7 +717,7 @@ class _SyncDataButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final isSyncing = ref.watch(orderProvider.select((s) => s.isSyncingData));
     final box = Container(
       width: kSquareControl,
@@ -764,7 +764,7 @@ class _ChromeBanners extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final (isOnline, authPaused, skewMinutes, error) = ref.watch(
       orderProvider.select(
         (s) => (s.isOnline, s.syncAuthPaused, s.clockSkewMinutes, s.error),

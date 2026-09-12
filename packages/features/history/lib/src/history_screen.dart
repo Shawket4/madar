@@ -8,7 +8,7 @@
 /// the sale ([SaleScreen]). The two paths are the same [SalePanel].
 ///
 /// State lives in [historyProvider]. The screen is paramless beyond an
-/// optional starting scope and bridges via `ref.watch(bridgeProvider)`.
+/// optional starting scope and bridges via `ref.bridge`.
 library;
 
 import 'dart:async';
@@ -118,7 +118,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final layout = context.madarLayout;
     final notifier = ref.read(historyProvider.notifier);
     String t(String key) => historyTr(bridge, key);
@@ -240,7 +240,7 @@ class _SaleCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final selected = ref.watch(historyProvider.select((s) => s.selected));
     return MadarCard(
       padding: EdgeInsetsDirectional.zero,
@@ -264,7 +264,7 @@ class _ListColumn extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final notifier = ref.read(historyProvider.notifier);
     final scope = ref.watch(historyProvider.select((s) => s.scope));
     final filter = ref.watch(historyProvider.select((s) => s.filter));
@@ -317,7 +317,7 @@ class _Rows extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final notifier = ref.read(historyProvider.notifier);
     final scope = ref.watch(historyProvider.select((s) => s.scope));
     final loading = ref.watch(historyProvider.select((s) => s.loading));

@@ -11,9 +11,61 @@ final coreProvider = Provider<MadarCore>(
 );
 
 /// Convenience: the bridge handle (every screen's call surface).
+///
+/// Watching this alone does NOT re-render on a language change — the handle
+/// is one long-lived object, so the provider recomputes to the same value and
+/// Riverpod correctly decides nobody needs telling. Use [BridgeRef.bridge]
+/// from a widget that shows strings.
 final bridgeProvider = Provider<MadarBridge>(
   (ref) => ref.watch(coreProvider).bridge,
 );
+
+/// The bridge, plus a dependency on the language it will answer in.
+///
+/// `bridge.tr(key:)` is an imperative call, not a provider read: a screen
+/// pulls its strings once while building and then sits there holding them.
+/// Nothing about switching language invalidated those screens, so a teller
+/// who changed to Arabic got an Arabic settings sheet on top of a stack of
+/// English ones — which reads as missing translations, and was reported as
+/// exactly that.
+///
+/// So a screen that renders strings reads the bridge through here, and a
+/// language switch rebuilds it like any other state change.
+extension BridgeRef on WidgetRef {
+  /// The bridge, re-read whenever the language changes.
+  MadarBridge get bridge {
+    watch(localeGenerationProvider);
+    return watch(bridgeProvider);
+  }
+}
+
+/// The same, for a Notifier or any other non-widget [Ref].
+extension BridgeRefBase on Ref {
+  /// The bridge, re-read whenever the language changes.
+  MadarBridge get localizedBridge {
+    watch(localeGenerationProvider);
+    return watch(bridgeProvider);
+  }
+}
+
+/// Bumped once per language switch. Its only job is to be watched.
+///
+/// A counter rather than the locale string so that re-selecting the language
+/// already in force still rebuilds — the core may have loaded a different
+/// set of strings underneath (a catalogue refresh re-keys item names by
+/// locale) even when the tag has not moved.
+final localeGenerationProvider = NotifierProvider<LocaleGeneration, int>(
+  LocaleGeneration.new,
+);
+
+/// See [localeGenerationProvider].
+class LocaleGeneration extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  /// Marks the strings stale for every screen.
+  void bump() => state = state + 1;
+}
 
 /// The shell truth: the core-derived route + the session snapshot.
 /// [ShellNotifier.refresh] is the old `onStateChanged` — call it after any
@@ -73,6 +125,11 @@ class LocaleNotifier extends Notifier<LocaleState> {
     final bridge = ref.read(bridgeProvider)..setLocale(locale: locale);
     ref.read(localePersisterProvider)(locale);
     state = LocaleState(locale: bridge.locale(), rtl: bridge.isRtl());
+    // Every screen already on stage is holding strings it pulled in the old
+    // language. Nothing else invalidates them — `tr` is a plain call, not a
+    // provider read — so this is what makes a language switch reach the
+    // screens BEHIND the settings sheet rather than only the one in front.
+    ref.read(localeGenerationProvider.notifier).bump();
   }
 }
 

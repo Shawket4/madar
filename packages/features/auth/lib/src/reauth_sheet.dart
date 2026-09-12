@@ -98,7 +98,7 @@ class ReauthSheet extends ConsumerWidget {
     final error = ref.watch(authProvider.select((s) => s.error));
 
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final tellerName = bridge.currentSession()?.displayName ?? '';
 

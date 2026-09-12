@@ -117,7 +117,7 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
 
     // Awarding to the card scanned at the till: no scanner, just the outcome.

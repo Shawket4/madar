@@ -348,6 +348,21 @@ class _FakeBridge implements MadarBridge {
 // the Charge surfaces ask the core for; the feature's own new keys come
 // from its fallback table, which is what ships until the core has them.
 const _en = {
+  'charge.change_short': 'change',
+  'charge.cleared_q': 'cleared?',
+  'charge.not_printed': 'Not printed — no printer',
+  'charge.not_yet': 'Not yet',
+  'charge.printed': 'Printed',
+  'charge.reprint': 'Reprint',
+  'charge.sale': 'Sale',
+  'charge.will_send': 'Will send when back online',
+  // These five moved out of the feature's own fallback table and into the
+  // core, so the fake has to answer them like the core does.
+  'charge.kind_cash': 'Cash',
+  'charge.kind_card': 'Card',
+  'charge.kind_wallet': 'Wallet',
+  'charge.kind_custom': 'Custom',
+  'charge.cleared': 'Cleared',
   'order.total': 'Total',
   'order.subtotal': 'Subtotal',
   'order.discount': 'Discount',
@@ -376,6 +391,19 @@ const _en = {
 };
 
 const _ar = {
+  'charge.change_short': 'الباقي',
+  'charge.cleared_q': 'تم تنظيفها؟',
+  'charge.not_printed': 'لم تُطبع — لا توجد طابعة',
+  'charge.not_yet': 'ليس بعد',
+  'charge.printed': 'طُبع',
+  'charge.reprint': 'إعادة طباعة',
+  'charge.sale': 'بيع',
+  'charge.will_send': 'سيُرسل عند عودة الاتصال',
+  'charge.kind_cash': 'نقدي',
+  'charge.kind_card': 'بطاقة',
+  'charge.kind_wallet': 'محفظة',
+  'charge.kind_custom': 'مخصص',
+  'charge.cleared': 'تم التنظيف',
   'order.total': 'الإجمالي',
   'order.subtotal': 'المجموع الفرعي',
   'order.discount': 'خصم',

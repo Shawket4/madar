@@ -576,7 +576,7 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final state = ref.watch(shiftReportProvider(_request));
     final report = state.report;

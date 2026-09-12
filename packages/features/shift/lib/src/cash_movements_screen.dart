@@ -20,7 +20,7 @@ class CashMovementsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final layout = context.madarLayout;
     // Scaffold: every screen root owns its own Scaffold in this app.
     return MadarPageScaffold(

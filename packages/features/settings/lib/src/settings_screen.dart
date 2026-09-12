@@ -56,7 +56,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final layout = context.madarLayout;
     // Pushed as its own route, so it re-derives direction from the locale
     // provider — the live en↔ar switch below re-flips it in place.
@@ -135,7 +135,7 @@ class _Preferences extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final error = ref.watch(settingsProvider.select((s) => s.error));
     final hasOpenShift = ref.watch(
@@ -179,7 +179,7 @@ class _AccountCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final session = ref.watch(shellProvider.select((s) => s.session));
     final tellerName = ref.watch(
       settingsProvider.select((s) => s.shift?.tellerName),
@@ -266,7 +266,7 @@ class ThemeSegment extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final choice = ref.watch(themeChoiceProvider);
     // Light · Dark · Auto — the third cell follows the device and, because
     // the choice is persisted by name, still does after a relaunch.
@@ -298,7 +298,7 @@ class _RowList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final config = ref.watch(settingsProvider.select((s) => s.config));
     final tills = ref.watch(settingsProvider.select((s) => s.tills));

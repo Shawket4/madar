@@ -39,7 +39,7 @@ class TicketDetailsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
@@ -113,7 +113,7 @@ class DeliveryDetailsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );

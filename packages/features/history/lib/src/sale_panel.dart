@@ -54,7 +54,7 @@ class SalePanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final detail = ref.watch(historyProvider.select((s) => s.detail));
     final receipt = ref.watch(historyProvider.select((s) => s.receipt));
     final loading = ref.watch(historyProvider.select((s) => s.detailLoading));
@@ -187,7 +187,7 @@ class MoreTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return MadarGlyphTile(
       glyph: MadarGlyph.more,
       semanticLabel: historyTr(bridge, 'history.more'),
@@ -525,7 +525,7 @@ class _Actions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final o = order;
     final state = SaleState.of(o);
     final canReprint = state != SaleState.queued && state != SaleState.failed;
@@ -727,7 +727,7 @@ class _ReprintButtonState extends ConsumerState<_ReprintButton> {
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => historyTr(bridge, key);
     return GestureDetector(
       onLongPress: _busy
@@ -760,7 +760,7 @@ class SaleScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final selected = ref.watch(historyProvider.select((s) => s.selected));
     if (selected == null) {
       return MadarPageScaffold(
@@ -794,7 +794,7 @@ class _MoreSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
@@ -1089,7 +1089,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
@@ -1255,7 +1255,7 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final form = ref.watch(_voidFormProvider);
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),

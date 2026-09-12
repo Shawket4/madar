@@ -18,7 +18,7 @@ class SyncScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final layout = context.madarLayout;
     // Pushed as its own route — re-derive direction from the locale
     // provider so the screen is RTL-correct wherever it's presented.

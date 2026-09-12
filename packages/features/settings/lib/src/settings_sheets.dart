@@ -243,7 +243,7 @@ class _PrinterSheetState extends ConsumerState<_PrinterSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final notifier = ref.read(settingsProvider.notifier);
     final config = ref.watch(settingsProvider.select((s) => s.config));
@@ -327,7 +327,7 @@ class _BluetoothPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final notifier = ref.read(settingsProvider.notifier);
     final devices = ref.watch(settingsProvider.select((s) => s.pairedDevices));
     final scanning = ref.watch(settingsProvider.select((s) => s.scanningBt));
@@ -415,7 +415,7 @@ class _TillSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final notifier = ref.read(settingsProvider.notifier);
     final tills = ref.watch(settingsProvider.select((s) => s.tills));
     final tillId = ref.watch(settingsProvider.select((s) => s.config.tillId));
@@ -455,7 +455,7 @@ class _StationSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final notifier = ref.read(settingsProvider.notifier);
     final stations = ref.watch(settingsProvider.select((s) => s.stations));
     final stationId = ref.watch(
@@ -531,7 +531,7 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final notifier = ref.read(settingsProvider.notifier);
     final config = ref.watch(settingsProvider.select((s) => s.config));
@@ -600,7 +600,7 @@ class _DiagnosticsSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final pending = ref.watch(settingsProvider.select((s) => s.pending));
     final floorAuthored = ref.watch(
@@ -719,7 +719,7 @@ class _OrientationFlipRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return ListenableBuilder(
       listenable: OrientationController.instance,
       builder: (context, _) {
@@ -753,7 +753,7 @@ class _TabletThresholdRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return ListenableBuilder(
       listenable: OrientationController.instance,
       builder: (context, _) {
@@ -811,7 +811,7 @@ class _LegalSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     Widget row(String labelKey, String url) => MadarRow(
       title: bridge.tr(key: labelKey),
       subtitle: url.replaceFirst('https://', ''),

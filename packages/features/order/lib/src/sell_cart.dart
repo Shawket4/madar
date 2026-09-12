@@ -110,7 +110,7 @@ class SellCart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final state = ref.watch(orderProvider);
     final cta = sellCtaFor(state, bridge);
     final ticket = state.activeTicket;
@@ -548,7 +548,7 @@ class _CartFooter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final totals = ref.watch(orderProvider.select((s) => s.cartTotals));
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final isBusy = ref.watch(orderProvider.select((s) => s.isBusy));
@@ -671,7 +671,7 @@ class SellBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final state = ref.watch(orderProvider);
     final cta = sellCtaFor(state, bridge);
     if (cta.itemCount <= 0) return const SizedBox.shrink();

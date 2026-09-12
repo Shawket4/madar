@@ -195,7 +195,7 @@ class _BillScreenState extends ConsumerState<BillScreen>
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     ref
       ..listen(ticketTickProvider, (_, _) {
         unawaited(_notifier.loadOpenTickets());

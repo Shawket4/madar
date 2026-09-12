@@ -149,7 +149,7 @@ class _Identity extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final session = ref.watch(shellProvider.select((s) => s.session));
     final branch =
         ref.watch(settingsProvider.select((s) => s.config.branchName)) ?? '';
@@ -206,7 +206,7 @@ class _PrinterRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final config = ref.watch(settingsProvider.select((s) => s.config));
     return MadarCard(
       flush: true,
@@ -229,7 +229,7 @@ class _MyBills extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final bills = ref.watch(meBillsProvider);
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
@@ -287,7 +287,7 @@ class _BillRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final ready = bill.status == 'ready';
     // The latest round is the highest round number on the bill; a bill with
     // no lines yet has no round.
@@ -342,7 +342,7 @@ class _Preferences extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final error = ref.watch(settingsProvider.select((s) => s.error));
     final hasOpenShift = ref.watch(

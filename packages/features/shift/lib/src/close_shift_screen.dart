@@ -81,7 +81,7 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final currency = bridge.currentSession()?.currencyCode ?? '';
     final layout = context.madarLayout;

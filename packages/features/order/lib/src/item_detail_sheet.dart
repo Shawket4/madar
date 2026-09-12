@@ -642,7 +642,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final config = ref.watch(itemConfigProvider(_args));
     final notifier = ref.read(itemConfigProvider(_args).notifier);
@@ -895,7 +895,7 @@ class _OptionalsSectionState extends ConsumerState<_OptionalsSection> {
   Widget build(BuildContext context) {
     final fields = widget.fields;
     if (fields.isEmpty) return const SizedBox.shrink();
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1110,7 +1110,7 @@ class _SheetFooter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return ColoredBox(
       color: colors.surface,
       child: Padding(
@@ -1294,7 +1294,7 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final g = widget.group;
     final count = g.isMulti
         ? widget.selectedMulti.length

@@ -144,7 +144,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
 
   @override
   SettingsState build() {
-    final config = ref.watch(bridgeProvider).deviceConfig();
+    final config = ref.localizedBridge.deviceConfig();
     return SettingsState(config: config, brand: _brandOf(config.printerBrand));
   }
 

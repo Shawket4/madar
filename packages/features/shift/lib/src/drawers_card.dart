@@ -99,7 +99,7 @@ class DrawersCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final currency = bridge.currentSession()?.currencyCode ?? '';
     final drawers = ref.watch(tillProvider.select((s) => s.drawers));

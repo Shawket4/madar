@@ -41,7 +41,7 @@ class LoginScreen extends ConsumerWidget {
     ref
       ..watch(shellProvider.select((s) => s.route))
       ..watch(authProvider.select((s) => s.configVersion));
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return AuthSplitScaffold(
       formBuilder: (context, {required showLogo}) {
         final config = bridge.deviceConfig();
@@ -120,7 +120,7 @@ class _TellerFormState extends ConsumerState<_TellerForm>
     final error = ref.watch(authProvider.select((s) => s.error));
 
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final config = bridge.deviceConfig();
     final branchName = config.branchName ?? '';

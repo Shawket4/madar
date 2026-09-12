@@ -59,7 +59,7 @@ class _TenderSheetState extends ConsumerState<TenderSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     // The settle edge: the receipt appearing IS the order landing in the
     // core (cart already cleared there) — notify the host now, not when the
     // teller eventually dismisses the confirmation.
@@ -103,7 +103,7 @@ class _ReceiptConfirmation extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String tr(String key) => bridge.tr(key: key);
     final printState = ref.watch(checkoutProvider.select((s) => s.printState));
     final branchName = ref.watch(checkoutProvider.select((s) => s.branchName));

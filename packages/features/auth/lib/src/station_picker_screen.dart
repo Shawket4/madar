@@ -67,7 +67,7 @@ class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
     final loading = ref.watch(authProvider.select((s) => s.stationsLoading));
     final stations = ref.watch(authProvider.select((s) => s.stations));
     final error = ref.watch(authProvider.select((s) => s.error));
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
 
     return Column(

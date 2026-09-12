@@ -37,6 +37,56 @@ const Size _phone = Size(390, 844);
 // package's fallback table) ─────────────────────────────────────────────
 
 const _en = <String, String>{
+  'history.failed_hint': 'The server refused this sale — see Sync.',
+  'history.price_flagged': 'Offline price',
+  'history.queued_hint': 'Will send when back online.',
+  'history.refund_reason_customer': 'Customer asked',
+  'history.refund_reason_other': 'Something else',
+  'history.refund_reason_overcharged': 'Overcharged',
+  'history.refund_reason_quality': 'Quality',
+  'history.refund_reason_wrong': 'Wrong order',
+  'history.sales_count': '{count} sales',
+  'history.voided_hint': 'This sale was voided.',
+  'chrome.view': 'View',
+  'history.found_count': '{count} found',
+  'history.more': 'More',
+  'history.no_shift': 'No shift open',
+  'history.offline_cached': 'Offline — showing what was loaded.',
+  'history.offline_search': 'Searching past shifts needs a connection.',
+  'history.paid_at': 'Paid {time}',
+  'history.price_flagged_hint':
+      'Rung offline against an older menu — the price differs from the menu today.',
+  'history.refund_all': 'Already refunded in full.',
+  'history.refund_amount': 'Amount to return',
+  'history.refund_confirm': 'Refund',
+  'history.refund_left': '{amount} left to refund',
+  'history.refund_over': 'More than the sale was for.',
+  'history.refund_queued': 'Waiting to send',
+  'history.refund_reason': 'Why',
+  'history.refund_sale': 'Refund',
+  'history.refund_teach': 'Refund returns money on a sale that stands.',
+  'history.refunded': 'Refunded',
+  'history.reprint': 'Reprint',
+  'history.retry': 'Try again',
+  'history.sale': 'Sale',
+  'history.search_hint': 'Number, customer or amount',
+  'history.select_prompt': 'Tap a sale to see it here.',
+  'history.service': 'Service',
+  'history.this_shift': 'This shift',
+  'history.tip': 'Tip',
+  'history.type.online': 'Online',
+  'history.type.takeaway': 'Takeaway',
+  'history.vat_included': 'VAT included',
+  'history.void_cannot_failed':
+      'This sale never reached the server; there is nothing to void.',
+  'history.void_cannot_queued':
+      'A queued sale cannot be voided until it reaches the server.',
+  'history.void_cannot_voided': 'Already voided.',
+  'history.void_sale': 'Void sale',
+  'history.void_teach': 'Void removes a mistaken sale as if it never happened.',
+  'receipt.no_printer': 'Set a printer in Settings',
+  'receipt.print_failed': "Couldn't reach the printer",
+  'receipt.printed': 'Sent to printer',
   'history.title': 'Orders',
   'history.empty': 'No orders this shift yet.',
   'history.queued': 'Queued',
@@ -67,6 +117,56 @@ const _en = <String, String>{
 };
 
 const _ar = <String, String>{
+  'chrome.view': 'عرض',
+  'history.found_count': 'عدد النتائج: {count}',
+  'history.more': 'المزيد',
+  'history.no_shift': 'لا توجد وردية مفتوحة',
+  'history.offline_cached': 'غير متصل — تُعرض النتائج المحمّلة سابقاً.',
+  'history.offline_search': 'البحث في الورديات السابقة يحتاج اتصالاً بالخادم.',
+  'history.paid_at': 'دُفعت {time}',
+  'history.price_flagged_hint':
+      'سُجّلت دون اتصال بأسعار قائمة أقدم — السعر يختلف عن القائمة الحالية.',
+  'history.refund_all': 'تم استرداد المبلغ بالكامل.',
+  'history.refund_amount': 'المبلغ المسترد',
+  'history.refund_confirm': 'استرداد',
+  'history.refund_left': 'متبقٍ للاسترداد {amount}',
+  'history.refund_over': 'أكبر من قيمة عملية البيع.',
+  'history.refund_queued': 'بانتظار الإرسال',
+  'history.refund_reason': 'السبب',
+  'history.refund_sale': 'استرداد',
+  'history.refund_teach': 'الاسترداد يرجع المال مع بقاء عملية البيع.',
+  'history.refunded': 'مُسترد',
+  'history.reprint': 'إعادة طباعة',
+  'history.retry': 'أعد المحاولة',
+  'history.sale': 'بيع',
+  'history.search_hint': 'الرقم أو العميل أو المبلغ',
+  'history.select_prompt': 'اختر عملية بيع لعرضها هنا.',
+  'history.service': 'الخدمة',
+  'history.this_shift': 'هذه الوردية',
+  'history.tip': 'بقشيش',
+  'history.type.online': 'أونلاين',
+  'history.type.takeaway': 'تيك أواي',
+  'history.vat_included': 'شامل الضريبة',
+  'history.void_cannot_failed':
+      'لم تصل عملية البيع هذه إلى الخادم؛ لا شيء لإبطاله.',
+  'history.void_cannot_queued':
+      'لا يمكن إبطال عملية في الانتظار قبل وصولها إلى الخادم.',
+  'history.void_cannot_voided': 'أُبطلت بالفعل.',
+  'history.void_sale': 'إبطال البيع',
+  'history.void_teach': 'الإبطال يزيل عملية بيع خاطئة كأنها لم تحدث.',
+  'receipt.no_printer': 'اضبط الطابعة في الإعدادات',
+  'receipt.print_failed': 'تعذّر الوصول إلى الطابعة',
+  'receipt.printed': 'تم الإرسال إلى الطابعة',
+  'history.failed_hint': 'رفض الخادم عملية البيع هذه — راجع المزامنة.',
+  'history.price_flagged': 'سعر غير محدّث',
+  'history.queued_hint': 'سيُرسل عند عودة الاتصال.',
+  'history.refund_reason_customer': 'طلب العميل',
+  'history.refund_reason_other': 'سبب آخر',
+  'history.refund_reason_overcharged': 'زيادة في الحساب',
+  'history.refund_reason_quality': 'الجودة',
+  'history.refund_reason_wrong': 'طلب خاطئ',
+  'history.sales_count': 'عدد المبيعات: {count}',
+  'history.voided_hint': 'أُبطلت عملية البيع هذه.',
   'history.title': 'الطلبات',
   'history.empty': 'لا توجد طلبات في هذه الوردية بعد.',
   'history.queued': 'في الانتظار',
@@ -269,9 +369,11 @@ class _FakeBridge implements MadarBridge {
     final name = invocation.memberName;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
-      // Unknown keys come back as the key, exactly like the core, so the
-      // package's fallback table is what the picture exercises.
-      return (arabic ? _ar[key] : null) ?? _en[key] ?? key;
+      // Unknown keys come back as the key, exactly like the core. No
+      // English fallback in the Arabic run: falling back is how a missing
+      // Arabic string renders as English and goes unnoticed, which is the
+      // bug these pictures exist to catch.
+      return (arabic ? _ar[key] : _en[key]) ?? key;
     }
     if (name == #locale) return arabic ? 'ar' : 'en';
     if (name == #isRtl) return arabic;
@@ -763,7 +865,13 @@ void main() {
     );
     expect(find.text('الطلبات'), findsOneWidget);
     expect(
-      find.text('هذه الوردية · \u206642\u2069 مبيعات · EGP 6230.00'),
+      // "عدد المبيعات: 42", not "42 مبيعات" — Arabic has six plural forms
+      // and `tr` carries no count to choose between them, so the count is
+      // named rather than agreed with. See i18n.rs.
+      // "عدد المبيعات: 42", not "42 مبيعات" — Arabic has six plural forms
+      // and `tr` carries no count to choose between them, so the count is
+      // named rather than agreed with. See i18n.rs.
+      find.text('هذه الوردية · عدد المبيعات: \u206642\u2069 · EGP 6230.00'),
       findsOneWidget,
     );
     // Figures stay LTR islands inside the Arabic row.

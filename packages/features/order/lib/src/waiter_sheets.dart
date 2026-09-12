@@ -104,7 +104,7 @@ class _FireDetailsSheetState extends ConsumerState<FireDetailsSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final covers = ref.watch(_coversProvider(_coversKey));
     final coversNotifier = ref.read(_coversProvider(_coversKey).notifier);
     final isBusy = ref.watch(orderProvider.select((s) => s.isBusy));
@@ -300,7 +300,7 @@ class _WaiterVoidSheetState extends ConsumerState<WaiterVoidSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final reasonKey = ref.watch(_voidReasonProvider(_reasonStateKey));
     final reasonNotifier = ref.read(
       _voidReasonProvider(_reasonStateKey).notifier,

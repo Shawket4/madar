@@ -76,7 +76,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
         unawaited(ref.read(incomingProvider.notifier).loadOpenTickets());
       });
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     var segment =
         ref.watch(incomingProvider.select((s) => s.segment)) ??
         widget.initialSegment;

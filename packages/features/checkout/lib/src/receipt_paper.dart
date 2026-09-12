@@ -64,7 +64,7 @@ class ReceiptPaper extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String tr(String key) => bridge.tr(key: key);
     final r = receipt;
     final logo = orgLogoPath;

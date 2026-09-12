@@ -227,7 +227,7 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
       (_, _) => _revealFoot(),
     );
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     // The drawer renders nearly every session field — the one legitimate
     // whole-state watch; the leaf widgets receive plain data below.
     final s = ref.watch(checkoutProvider);
@@ -1392,7 +1392,7 @@ class _DiscountSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final colors = context.madarColors;
     return Padding(
       padding: const EdgeInsetsDirectional.all(Space.xl),

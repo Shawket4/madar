@@ -120,7 +120,7 @@ class _SyncSectionState extends ConsumerState<SyncSection> {
     ref.listen(connectivityPulseProvider, (_, _) {
       unawaited(ref.read(syncProvider.notifier).load());
     });
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final state = ref.watch(syncProvider);
     final waiting = widget.waiterOnly
         ? state.waiting.where((i) => waiterOutboxOps.contains(i.opType))
@@ -231,7 +231,7 @@ class _HealthCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final status = ref.watch(syncProvider.select((s) => s.status));
     final pushing = ref.watch(syncProvider.select((s) => s.pushing));
     // The realtime flag flips on the SSE edge; the bridge answers whether
@@ -353,7 +353,7 @@ class _WaitingRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final sending = item.status == 'inflight';
     final tries = item.attempts;
     // A first try is not news; a second one is.
@@ -411,7 +411,7 @@ class _StuckRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final sentence = item.lastError?.trim() ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -483,7 +483,7 @@ class _BlockedCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final hasShift = ref.watch(syncProvider.select((s) => s.hasOpenShift));
     final recovering = ref.watch(syncProvider.select((s) => s.recovering));
     final recovered = ref.watch(syncProvider.select((s) => s.recovered));

@@ -68,7 +68,7 @@ class _OpenShiftScreenState extends ConsumerState<OpenShiftScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     // Narrow slices: the heartbeat chrome repaints alone every 15s.
     final online = ref.watch(openShiftProvider.select((s) => s.online));
@@ -180,7 +180,7 @@ class _FormColumn extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     // Narrow slices — the count keystrokes must not repaint the chrome
     // banners above, and the heartbeat must not repaint this form.

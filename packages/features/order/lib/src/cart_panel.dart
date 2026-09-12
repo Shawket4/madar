@@ -51,7 +51,7 @@ class CartPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String tr(String key) => bridge.tr(key: key);
     final isWaiter = ref.watch(orderProvider.select((s) => s.isWaiter));
     final currency = ref.watch(orderProvider.select((s) => s.currency));
@@ -199,7 +199,7 @@ class _CartHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final itemCount = ref.watch(
       orderProvider.select((s) => s.cartTotals.itemCount),
     );
@@ -294,7 +294,7 @@ class _TicketHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     return Row(
       children: [
@@ -384,7 +384,7 @@ class TellerHeldStrip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final notifier = ref.read(orderProvider.notifier);
     final drafts = ref.watch(orderProvider.select((s) => s.drafts));
     final cartStartedAtIso = ref.watch(
@@ -534,7 +534,7 @@ class _WaiterTicketStrip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final notifier = ref.read(orderProvider.notifier);
     final openTickets = ref.watch(orderProvider.select((s) => s.openTickets));
     final activeTicketId = ref.watch(
@@ -632,7 +632,7 @@ class _CartLineBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final notifier = ref.read(orderProvider.notifier);
     final isBundle = line.bundleId != null;
@@ -971,7 +971,7 @@ class _CartFooter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final totals = ref.watch(orderProvider.select((s) => s.cartTotals));
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final isBusy = ref.watch(orderProvider.select((s) => s.isBusy));
@@ -1142,7 +1142,7 @@ class CartBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final totals = ref.watch(orderProvider.select((s) => s.cartTotals));
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     if (totals.itemCount <= 0) return const SizedBox.shrink();

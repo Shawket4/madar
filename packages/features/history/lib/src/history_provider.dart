@@ -255,7 +255,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
 
   @override
   HistoryState build() {
-    ref.watch(bridgeProvider);
+    ref.localizedBridge;
     _alive = true;
     ref.onDispose(() => _alive = false);
     unawaited(Future.microtask(load));

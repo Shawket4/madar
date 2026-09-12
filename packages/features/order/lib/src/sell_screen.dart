@@ -226,7 +226,7 @@ class _SellScreenState extends ConsumerState<SellScreen>
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     listenForTableClear(context, ref);
     // Back to where the round came from once it is in — only when this
     // screen was PUSHED (from a table, from a bill). As a tab it stays.
@@ -401,7 +401,7 @@ class _CategoryChips extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final categories = ref.watch(orderProvider.select((s) => s.categories));
     final hasBundles = ref.watch(
       orderProvider.select((s) => s.bundles.isNotEmpty),
@@ -460,7 +460,7 @@ class _Catalog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final notifier = ref.read(orderProvider.notifier);
     final loading = ref.watch(orderProvider.select((s) => s.isLoadingCatalog));
     final currency = ref.watch(orderProvider.select((s) => s.currency));

@@ -209,7 +209,7 @@ class _OpenTicketsScreenState extends ConsumerState<OpenTicketsScreen> {
   // ── build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     // A settled ticket leaves its table needing a bus — ask once, here, while
     // the teller is still holding the bill.
     listenForTableClear(context, ref);
@@ -330,7 +330,7 @@ class _SettleDrawerState extends ConsumerState<_SettleDrawer> {
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final isBusy = ref.watch(orderProvider.select((s) => s.isBusy));
     // A failed settle surfaces INSIDE the drawer (the natives' model.error)
     // — rendered above the line-item review.
@@ -385,7 +385,7 @@ class _TicketStatusChip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return StatusChip(
       label: bridge.tr(key: 'ticket.status.$status'),
       tone: _ticketTone(status),
@@ -414,7 +414,7 @@ class _SettleTicketCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final (statusFg, statusBg) = _ticketTint(ticket.status, colors);
     final customer = ticket.customerName;
@@ -603,7 +603,7 @@ class _TicketDetailsSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final waiter = ticket.waiterName;
     final customer = ticket.customerName;
@@ -832,8 +832,7 @@ class _TicketSettleHeader extends ConsumerWidget {
             children: [
               Flexible(
                 child: Text(
-                  ticket.ticketRef ??
-                      ref.watch(bridgeProvider).tr(key: 'waiter.ticket'),
+                  ticket.ticketRef ?? ref.bridge.tr(key: 'waiter.ticket'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: MadarType.title.copyWith(color: colors.textPrimary),

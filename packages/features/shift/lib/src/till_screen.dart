@@ -122,7 +122,7 @@ class _DrawerHome extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final layout = context.madarLayout;
     final shift = ref.watch(tillProvider.select((s) => s.shift))!;
@@ -243,7 +243,7 @@ class _StatCards extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final currency = bridge.currentSession()?.currencyCode ?? '';
     final report = ref.watch(tillProvider.select((s) => s.report));
@@ -420,7 +420,7 @@ class _ShiftRows extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final orderCount = ref.watch(
       tillProvider.select((s) => s.stats?.orderCount),

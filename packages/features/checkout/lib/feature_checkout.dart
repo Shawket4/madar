@@ -14,7 +14,7 @@ library;
 
 export 'src/charge_sheet.dart'
     show ChargeSheet, DoneCardCallback, discountLabel, paymentGlyph, showCharge;
-export 'src/charge_strings.dart' show chargeFallbackStrings, chargeTr;
+export 'src/charge_strings.dart' show chargeTr;
 export 'src/charge_target.dart'
     show
         BillChargeTarget,

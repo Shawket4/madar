@@ -49,7 +49,7 @@ class ShiftHistoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     // Narrow slice: only the toast layer repaints on toast churn.
     final toast = ref.watch(shiftHistoryProvider.select((s) => s.toast));
@@ -99,7 +99,7 @@ class _HistoryBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final shifts = ref.watch(shiftHistoryProvider.select((s) => s.shifts));
     final live = ref.watch(shiftHistoryProvider.select((s) => s.live));

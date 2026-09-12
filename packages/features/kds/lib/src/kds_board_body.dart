@@ -81,7 +81,7 @@ class _KdsBoardBodyState extends ConsumerState<KdsBoardBody>
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final layout = context.madarLayout;
     // Fallback poll ONLY while realtime is down (connected → ticks cover it;
     // the notifier itself listens to the ticks).

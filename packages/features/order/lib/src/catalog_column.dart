@@ -64,7 +64,7 @@ class _CatalogColumnState extends ConsumerState<CatalogColumn> {
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final selectedCategory = ref.watch(catalogTabProvider);
     final isLoadingCatalog = ref.watch(
       orderProvider.select((s) => s.isLoadingCatalog),
@@ -145,7 +145,7 @@ class _CategoryTabs extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final notifier = ref.read(orderProvider.notifier);
     final categories = ref.watch(orderProvider.select((s) => s.categories));
     final showCombos = ref.watch(
@@ -344,7 +344,7 @@ class _ItemGridOrEmpty extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final notifier = ref.read(orderProvider.notifier);
     if (items.isEmpty) {
       // A no-match search animates (the natives' Lottie). A genuinely empty
@@ -674,7 +674,7 @@ class _BundleGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final bundles = ref.watch(orderProvider.select((s) => s.bundles));
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     return GridView.builder(

@@ -13,7 +13,7 @@
 /// because the core has no refund yet.
 ///
 /// State lives in Riverpod (`historyProvider`). Screens are paramless —
-/// they bridge via `ref.watch(bridgeProvider)`. New words this screen
+/// they bridge via `ref.bridge`. New words this screen
 /// needed are in `historyFallbackStrings`, ready to paste into the core.
 library;
 
@@ -26,5 +26,5 @@ export 'src/history_provider.dart'
         historyProvider,
         kHistoryPageSize;
 export 'src/history_screen.dart' show OrderHistoryScreen, OrderSearchScreen;
-export 'src/history_strings.dart' show historyFallbackStrings, historyTr;
+export 'src/history_strings.dart' show historyTr;
 export 'src/sale_panel.dart' show MoreTile, SalePanel, SaleScreen;

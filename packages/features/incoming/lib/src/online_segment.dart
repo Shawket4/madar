@@ -107,7 +107,7 @@ class _OnlineSegmentState extends ConsumerState<OnlineSegment>
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     // Backstop poll ONLY while realtime is down; connected relies on ticks.
     realtimeGatedPoll(interval: _pollPeriod, onPoll: _reload);
     final orders = ref.watch(incomingProvider.select((s) => s.deliveryOrders));
@@ -279,7 +279,7 @@ class _OnlineCardState extends ConsumerState<_OnlineCard> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
@@ -497,7 +497,7 @@ class _LinesBlock extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final o = order;
     final hint = o.paymentHint;
     // The code and the figure are one word: never split across a wrap.
@@ -611,7 +611,7 @@ class _Actions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final o = order;
     final next = nextDeliveryStatus(o.status);
     final primaryLabel = switch (o.status) {
@@ -666,7 +666,7 @@ class _More extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return MenuAnchor(
       style: MenuStyle(
         backgroundColor: WidgetStatePropertyAll(colors.surface),
@@ -720,7 +720,7 @@ class AcceptingRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final settings = ref.watch(
       incomingProvider.select((s) => s.deliverySettings),
     );
@@ -771,7 +771,7 @@ class _AcceptingChip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final tone = switch (mode) {
       'closed' => MadarTone.danger,
       'open' => MadarTone.success,
@@ -848,7 +848,7 @@ class _DeclineSheetState extends ConsumerState<_DeclineSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final error = ref.watch(incomingProvider.select((s) => s.error));
     final busy = ref.watch(incomingProvider.select((s) => s.isBusy));
     final o = widget.order;
@@ -950,7 +950,7 @@ class _CancelSheetState extends ConsumerState<_CancelSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final error = ref.watch(incomingProvider.select((s) => s.error));
     final busy = ref.watch(incomingProvider.select((s) => s.isBusy));
     return Padding(

@@ -114,7 +114,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     ref.listen(ticketTickProvider, (_, _) {
       unawaited(_notifier.loadOpenTickets());
     });

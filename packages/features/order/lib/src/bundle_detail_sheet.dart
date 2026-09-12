@@ -184,7 +184,7 @@ class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final config = ref.watch(bundleConfigProvider(_args));
     final bundle = widget.bundle;
@@ -384,7 +384,7 @@ class _BundleFooter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     return ColoredBox(
       color: colors.surface,
       child: Column(
@@ -486,7 +486,7 @@ class _ComponentTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final draft = this.draft;
     final configured = draft != null;
 

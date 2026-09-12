@@ -63,7 +63,7 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
     final error = ref.watch(authProvider.select((s) => s.error));
     final branches = ref.watch(authProvider.select((s) => s.branches));
 
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final picking = phase == SetupPhase.pickBranch;
     final isBranchConfigured =

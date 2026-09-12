@@ -43,7 +43,7 @@ class KitchenDisplayScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
+    final bridge = ref.bridge;
     final board = kdsProvider(stationId);
     final stationName =
         ref.watch(board.select((s) => s.stationName(stationId))) ??
