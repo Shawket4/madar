@@ -23,10 +23,21 @@ pub struct CashMovement {
         skip_serializing_if = "Option::is_none"
     )]
     pub client_ref: Option<Option<uuid::Uuid>>,
+    /// For a `correction`: the movement it reverses. NULL for every other kind, and for a correction of something never recorded as a row.
+    #[serde(
+        rename = "corrects_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub corrects_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// One of `pay_in` / `pay_out` / `safe_drop` / `correction` — see [`CashMovementKind`].
+    #[serde(rename = "kind")]
+    pub kind: String,
     #[serde(rename = "moved_by")]
     pub moved_by: uuid::Uuid,
     #[serde(rename = "moved_by_name")]
@@ -42,6 +53,7 @@ impl CashMovement {
         amount: i32,
         created_at: chrono::DateTime<chrono::FixedOffset>,
         id: uuid::Uuid,
+        kind: String,
         moved_by: uuid::Uuid,
         moved_by_name: String,
         note: String,
@@ -50,8 +62,10 @@ impl CashMovement {
         CashMovement {
             amount,
             client_ref: None,
+            corrects_id: None,
             created_at,
             id,
+            kind,
             moved_by,
             moved_by_name,
             note,

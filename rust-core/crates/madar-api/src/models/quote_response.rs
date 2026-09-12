@@ -30,6 +30,9 @@ pub struct QuoteResponse {
     /// \"ok\" | \"out_of_range\" | \"unavailable\"
     #[serde(rename = "status")]
     pub status: String,
+    /// The tax the cart will be priced under at this branch. A quote is a fee quote — it has no cart, so no tax amount — but the page rendering the checkout total needs the rate and the inclusivity beside the fee, or it shows the customer one number and intake records another. Present on every outcome: the policy is the branch's, not the address's.
+    #[serde(rename = "tax_policy")]
+    pub tax_policy: Box<models::OnlineTaxPolicy>,
     #[serde(
         rename = "zone_id",
         default,
@@ -47,11 +50,12 @@ pub struct QuoteResponse {
 }
 
 impl QuoteResponse {
-    pub fn new(status: String) -> QuoteResponse {
+    pub fn new(status: String, tax_policy: models::OnlineTaxPolicy) -> QuoteResponse {
         QuoteResponse {
             distance_meters: None,
             fee: None,
             status,
+            tax_policy: Box::new(tax_policy),
             zone_id: None,
             zone_name: None,
         }

@@ -71,6 +71,11 @@ pub struct OrderHistorySummary {
     pub status: String,
     #[serde(rename = "subtotal")]
     pub subtotal: i32,
+    /// Tax as frozen at intake: inside `total` when `tax_inclusive`, added to it otherwise.
+    #[serde(rename = "tax_amount")]
+    pub tax_amount: i32,
+    #[serde(rename = "tax_inclusive")]
+    pub tax_inclusive: bool,
     #[serde(rename = "total")]
     pub total: i32,
 }
@@ -88,6 +93,8 @@ impl OrderHistorySummary {
         items: Option<serde_json::Value>,
         status: String,
         subtotal: i32,
+        tax_amount: i32,
+        tax_inclusive: bool,
         total: i32,
     ) -> OrderHistorySummary {
         OrderHistorySummary {
@@ -107,6 +114,8 @@ impl OrderHistorySummary {
             place_name: None,
             status,
             subtotal,
+            tax_amount,
+            tax_inclusive,
             total,
         }
     }

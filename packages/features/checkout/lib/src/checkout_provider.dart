@@ -1,21 +1,22 @@
+import 'dart:math' as math;
+
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/src/charge_target.dart';
+import 'package:feature_checkout/src/receipt_printing.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// Thermal receipt width in characters — the natives' `32u` raster width.
-const int kReceiptChars = 32;
-
-/// Print lifecycle of the receipt confirmation — the natives' `PrintState`.
-enum PrintState { idle, printing, printed, failed, noPrinter }
+export 'package:feature_checkout/src/receipt_printing.dart'
+    show PrintState, kReceiptChars, printerBrandOf;
 
 /// Sentinel for [CheckoutState.copyWith]'s nullable fields.
 const Object _unset = Object();
 
-/// The money breakdown the checkout drawer renders in its summary card +
-/// hero total. The cart tender session feeds it from the live cart totals;
-/// a ticket settle / delivery finalize feeds it from the ticket's subtotal.
+/// The money breakdown the drawer renders in its hero + summary line. The
+/// cart session feeds it from the live cart totals; a bill from the ticket's
+/// subtotal; an online order from its frozen totals.
 @immutable
 class CheckoutSummary {
   const CheckoutSummary({
@@ -23,19 +24,21 @@ class CheckoutSummary {
     required this.totalMinor,
     this.discountMinor = 0,
     this.taxMinor = 0,
+    this.serviceChargeMinor = 0,
+    this.deliveryFeeMinor = 0,
   });
 
   final int subtotalMinor;
   final int discountMinor;
   final int taxMinor;
+  final int serviceChargeMinor;
+  final int deliveryFeeMinor;
   final int totalMinor;
 }
 
-/// The tender the teller collected, handed to `CheckoutDrawer`'s terminal
-/// action. For a normal (non-split) charge [splits] is empty and
-/// [primaryMethodId] is the chosen method; for a split, [splits] carries the
-/// legs and [primaryMethodId] is the largest leg (the method the checkout
-/// books against).
+/// The tender the teller collected, handed to the legacy `CheckoutDrawer`'s
+/// terminal action. The new Charge sheet reads the same picks straight off
+/// [CheckoutState] and calls [CheckoutNotifier.charge].
 @immutable
 class CheckoutResult {
   const CheckoutResult({
@@ -88,26 +91,50 @@ class RedeemableLine {
   final String? ticketLineId;
 }
 
+/// Why the Charge bar is dimmed, if it is. The sheet turns it into words.
+enum ChargeBlock {
+  /// Ready — the bar is lit.
+  none,
+
+  /// No open shift on this till. The bar says so instead of the figure.
+  noShift,
+
+  /// Cash needs an amount, a card needs a tap, a split needs to reach zero.
+  needTender,
+
+  /// The call is in flight.
+  charging,
+}
+
 /// One tender session's state: org config (payment methods + discounts),
 /// the money summary under charge, the teller's in-progress tender picks
-/// (method / cash / tip / splits), and the checkout + print lifecycle.
-/// All money math and order assembly live in the core.
+/// (method / cash / tip / splits / discount / member), and the charge +
+/// print lifecycle. All money math and order assembly live in the core.
 @immutable
 class CheckoutState {
   const CheckoutState({
+    this.target,
     this.paymentMethods = const [],
     this.discounts = const [],
     this.cartDiscountId,
+    this.billDiscount,
     this.orgLogoPath,
     this.currency = '',
     this.branchName = '',
     this.summary = const CheckoutSummary(subtotalMinor: 0, totalMinor: 0),
+    this.taxInclusive = true,
+    this.serviceChargeRate = 0,
+    this.taxRate = 0,
+    this.shiftId,
+    this.shiftKnown = false,
     this.receipt,
+    this.outcome,
     this.isPlacingOrder = false,
     this.printState = PrintState.idle,
     this.error,
     this.selectedMethodId,
     this.tenderedMinor = 0,
+    this.tipOpen = false,
     this.tipMinor = 0,
     this.tipMethodId,
     this.splitMode = false,
@@ -122,10 +149,21 @@ class CheckoutState {
     this.loyaltyError,
   });
 
+  // ── what is being charged ─────────────────────────────────────────────────
+  /// Null until a session starts (the legacy drawer's `startSettle` path
+  /// leaves it null too and behaves as a bill without a ticket).
+  final ChargeTarget? target;
+
   // ── org config + session mirrors ──────────────────────────────────────────
   final List<PaymentMethodView> paymentMethods;
   final List<DiscountView> discounts;
+
+  /// The discount the CART carries (the core prices it live).
   final String? cartDiscountId;
+
+  /// The discount picked for a BILL. The server applies it at settle; the
+  /// till has no preview, which is why it is a pick and not a priced total.
+  final DiscountView? billDiscount;
 
   /// Local file path of the core-cached org logo (offline-safe).
   final String? orgLogoPath;
@@ -133,19 +171,38 @@ class CheckoutState {
   final String branchName;
 
   /// What's being charged — live cart totals in a cart session, the ticket
-  /// subtotal in a settle session.
+  /// subtotal for a bill, the frozen totals for an online order.
   final CheckoutSummary summary;
 
-  // ── checkout lifecycle ─────────────────────────────────────────────────────
+  /// The session's tax policy, for the wording under the hero.
+  final bool taxInclusive;
+  final double serviceChargeRate;
+  final double taxRate;
+
+  /// The open shift's id, or null when there is none. [shiftKnown] flips
+  /// once the lookup has answered, so the bar does not flash "no shift"
+  /// during the first frame.
+  final String? shiftId;
+  final bool shiftKnown;
+
+  // ── charge lifecycle ──────────────────────────────────────────────────────
   final ReceiptView? receipt;
+
+  /// Set the moment money is taken. The sheet resolves with it.
+  final ChargeOutcome? outcome;
   final bool isPlacingOrder;
   final PrintState printState;
   final String? error;
 
   // ── the teller's in-progress tender ───────────────────────────────────────
-  /// Explicit method pick; null falls back to cash-first.
+  /// Explicit method pick; null falls back to cash-first for a cart or a
+  /// bill. An online order has no cash section, so there nothing is picked
+  /// until the teller taps.
   final String? selectedMethodId;
   final int tenderedMinor;
+
+  /// "Add tip" was tapped — the amount row is showing.
+  final bool tipOpen;
   final int tipMinor;
   final String? tipMethodId;
   final bool splitMode;
@@ -157,7 +214,7 @@ class CheckoutState {
   // 24 hours. Pay less now, collect after.
 
   /// What this session's rewards could cover: the cart's lines in a cart
-  /// session, the ticket's lines in a settle. Empty when neither applies.
+  /// session, the ticket's lines in a bill. Empty for an online order.
   final List<RedeemableLine> redeemableLines;
 
   /// The member whose balance is being spent, once scanned.
@@ -179,7 +236,7 @@ class CheckoutState {
   /// What one line costs in that mode. Meaningless unless [loyaltyAnyItem].
   final int loyaltyAnyItemCost;
 
-  /// Cart line index → units covered by a reward.
+  /// Redeemable-line index → units covered by a reward.
   final Map<int, int> redemptions;
 
   final bool loyaltyBusy;
@@ -187,6 +244,133 @@ class CheckoutState {
   /// Why the last scan failed. Never blocks the sale — a card that will not
   /// scan must not stop a customer from paying.
   final String? loyaltyError;
+
+  // ── derived: which caller ─────────────────────────────────────────────────
+
+  bool get isCart => target is CartChargeTarget;
+  bool get isBill => target is BillChargeTarget;
+  bool get isOnline => target is OnlineChargeTarget;
+
+  /// Cash tendered, tip, discount and member exist only where the bridge
+  /// call can carry them; an online finalize takes a method and nothing
+  /// else.
+  bool get takesTender => !isOnline;
+
+  /// Split legs ride only on `checkout()`. `settleTicket` has no splits
+  /// although the wire accepts `payment_splits` — the toggle is hidden on a
+  /// bill until the bridge carries them.
+  bool get canSplit => isCart && paymentMethods.length >= 2;
+
+  bool get shiftOpen => shiftId != null;
+
+  // ── derived: the money ────────────────────────────────────────────────────
+
+  /// The figure in the hero. A bill's is its SUBTOTAL — `TicketView` carries
+  /// nothing else — and is labelled so.
+  int get dueMinor => summary.totalMinor;
+  bool get heroIsSubtotal => isBill;
+
+  /// A bill's change is only honest when nothing is added on top of the
+  /// subtotal the till can see: no service charge, and tax already inside
+  /// the prices.
+  bool get showsChange => !isBill || (serviceChargeRate == 0 && taxInclusive);
+
+  /// The method that would charge if the teller tapped the bar now.
+  String? get effectiveMethodId {
+    final picked = selectedMethodId;
+    if (picked != null && paymentMethods.any((m) => m.id == picked)) {
+      return picked;
+    }
+    if (isOnline) {
+      // Nothing to type, so the tap IS the pick — unless there is only one
+      // method, where the bar simply names it.
+      return paymentMethods.length == 1 ? paymentMethods.first.id : null;
+    }
+    final cash = paymentMethods.where((m) => m.isCash).firstOrNull;
+    return (cash ?? paymentMethods.firstOrNull)?.id;
+  }
+
+  PaymentMethodView? get effectiveMethod =>
+      paymentMethods.where((m) => m.id == effectiveMethodId).firstOrNull;
+
+  bool get isCash => effectiveMethod?.isCash ?? false;
+
+  /// A tip paid by cash comes out of the same drawer, so it is due with the
+  /// bill. The tip can ride a DIFFERENT method than the order (card order +
+  /// cash tip), so this gates on the TIP method's isCash.
+  int get tipCashMinor {
+    if (tipMinor <= 0) return 0;
+    final tipMethod = paymentMethods
+        .where((m) => m.id == (tipMethodId ?? effectiveMethodId))
+        .firstOrNull;
+    return (tipMethod?.isCash ?? isCash) ? tipMinor : 0;
+  }
+
+  /// What the cash in hand must reach.
+  int get dueCashMinor => dueMinor + tipCashMinor;
+  int get changeMinor => math.max(tenderedMinor - dueCashMinor, 0);
+  int get shortMinor => math.max(dueCashMinor - tenderedMinor, 0);
+
+  int get splitAllocated => splitAmounts.values.fold(0, (a, b) => a + b);
+  int get splitRemaining => dueMinor - splitAllocated;
+
+  List<CheckoutSplit> get splitLegs => [
+    for (final e in splitAmounts.entries)
+      if (e.value > 0)
+        CheckoutSplit(paymentMethodId: e.key, amountMinor: e.value),
+  ];
+
+  /// The largest leg — the method the sale is booked against.
+  String? get splitPrimary {
+    String? id;
+    var largest = 0;
+    for (final e in splitAmounts.entries) {
+      if (e.value > largest) {
+        largest = e.value;
+        id = e.key;
+      }
+    }
+    return id;
+  }
+
+  /// Whether the bar is lit, and if not, why. The bar stays dimmed until a
+  /// tender is picked or typed: cash needs an amount that covers the due,
+  /// a card needs an explicit tap (or to be the only method), a split needs
+  /// its legs to reach the due.
+  ChargeBlock get block {
+    if (isPlacingOrder) return ChargeBlock.charging;
+    if (shiftKnown && !shiftOpen) return ChargeBlock.noShift;
+    if (splitMode) {
+      return splitRemaining == 0 && splitLegs.isNotEmpty
+          ? ChargeBlock.none
+          : ChargeBlock.needTender;
+    }
+    final method = effectiveMethod;
+    if (method == null) return ChargeBlock.needTender;
+    if (isOnline) return ChargeBlock.none;
+    if (method.isCash) {
+      return tenderedMinor >= dueCashMinor && dueCashMinor >= 0
+          ? ChargeBlock.none
+          : ChargeBlock.needTender;
+    }
+    // A non-cash method counts as picked only when the teller tapped it —
+    // or there is nothing else it could be.
+    final picked = selectedMethodId == method.id || paymentMethods.length == 1;
+    return picked ? ChargeBlock.none : ChargeBlock.needTender;
+  }
+
+  bool get canCharge => block == ChargeBlock.none;
+
+  /// Exact cash is the lit primary: it needs only a shift and cash to be
+  /// the method.
+  bool get canChargeExact =>
+      !isPlacingOrder &&
+      !(shiftKnown && !shiftOpen) &&
+      !splitMode &&
+      takesTender &&
+      isCash;
+
+  // ── derived: rewards ──────────────────────────────────────────────────────
 
   /// The reward priced for a line, when that line has one the balance affords.
   LoyaltyRewardView? rewardForLine(int index) {
@@ -211,6 +395,13 @@ class CheckoutState {
     }
     return null;
   }
+
+  /// Indexes of the lines this balance could pay for. A basket of four
+  /// coffees and a steak offers the coffees.
+  List<int> get claimableLines => [
+    for (var i = 0; i < redeemableLines.length; i++)
+      if (rewardForLine(i) != null) i,
+  ];
 
   /// What the ticked rewards cost in total, in the member's currency.
   int get redemptionCost {
@@ -241,19 +432,28 @@ class CheckoutState {
   ];
 
   CheckoutState copyWith({
+    Object? target = _unset,
     List<PaymentMethodView>? paymentMethods,
     List<DiscountView>? discounts,
     Object? cartDiscountId = _unset,
+    Object? billDiscount = _unset,
     Object? orgLogoPath = _unset,
     String? currency,
     String? branchName,
     CheckoutSummary? summary,
+    bool? taxInclusive,
+    double? serviceChargeRate,
+    double? taxRate,
+    Object? shiftId = _unset,
+    bool? shiftKnown,
     Object? receipt = _unset,
+    Object? outcome = _unset,
     bool? isPlacingOrder,
     PrintState? printState,
     Object? error = _unset,
     Object? selectedMethodId = _unset,
     int? tenderedMinor,
+    bool? tipOpen,
     int? tipMinor,
     Object? tipMethodId = _unset,
     bool? splitMode,
@@ -268,18 +468,28 @@ class CheckoutState {
     Object? loyaltyError = _unset,
   }) {
     return CheckoutState(
+      target: target == _unset ? this.target : target as ChargeTarget?,
       paymentMethods: paymentMethods ?? this.paymentMethods,
       discounts: discounts ?? this.discounts,
       cartDiscountId: cartDiscountId == _unset
           ? this.cartDiscountId
           : cartDiscountId as String?,
+      billDiscount: billDiscount == _unset
+          ? this.billDiscount
+          : billDiscount as DiscountView?,
       orgLogoPath: orgLogoPath == _unset
           ? this.orgLogoPath
           : orgLogoPath as String?,
       currency: currency ?? this.currency,
       branchName: branchName ?? this.branchName,
       summary: summary ?? this.summary,
+      taxInclusive: taxInclusive ?? this.taxInclusive,
+      serviceChargeRate: serviceChargeRate ?? this.serviceChargeRate,
+      taxRate: taxRate ?? this.taxRate,
+      shiftId: shiftId == _unset ? this.shiftId : shiftId as String?,
+      shiftKnown: shiftKnown ?? this.shiftKnown,
       receipt: receipt == _unset ? this.receipt : receipt as ReceiptView?,
+      outcome: outcome == _unset ? this.outcome : outcome as ChargeOutcome?,
       isPlacingOrder: isPlacingOrder ?? this.isPlacingOrder,
       printState: printState ?? this.printState,
       error: error == _unset ? this.error : error as String?,
@@ -287,6 +497,7 @@ class CheckoutState {
           ? this.selectedMethodId
           : selectedMethodId as String?,
       tenderedMinor: tenderedMinor ?? this.tenderedMinor,
+      tipOpen: tipOpen ?? this.tipOpen,
       tipMinor: tipMinor ?? this.tipMinor,
       tipMethodId: tipMethodId == _unset
           ? this.tipMethodId
@@ -309,13 +520,9 @@ class CheckoutState {
   }
 }
 
-/// The checkout state holder — one autoDispose session per presented tender
-/// drawer, so every checkout / settle starts fresh. The presenting sheet
-/// kicks the session in `initState`:
-///
-/// - the cashier tender: `ref.read(checkoutProvider.notifier).startCart()`
-/// - a ticket settle:
-///   `ref.read(checkoutProvider.notifier).startSettle(CheckoutSummary(...))`
+/// The Charge session — one autoDispose session per presented drawer, so
+/// every charge starts fresh. The sheet kicks it in `initState` with
+/// [start]; the legacy drawer's `startCart` / `startSettle` still work.
 ///
 /// Mirrors the natives' AppModel checkout slice: all money math and order
 /// assembly live in the core; this only sequences bridge calls.
@@ -339,21 +546,51 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     if (_live) state = transform(state);
   }
 
-  /// Session snapshot fields shared by both session starters.
+  /// Session snapshot fields shared by every session starter: currency,
+  /// branch, the tax policy that decides the wording under the hero.
   CheckoutState _withSession(CheckoutState base, MadarBridge bridge) {
+    final session = bridge.currentSession();
     return base.copyWith(
-      currency: bridge.currentSession()?.currencyCode ?? '',
+      currency: session?.currencyCode ?? '',
       branchName: bridge.deviceConfig().branchName ?? '',
+      taxInclusive: session?.taxInclusive ?? true,
+      serviceChargeRate: session?.serviceChargeRate ?? 0,
+      taxRate: session?.taxRate ?? 0,
+    );
+  }
+
+  /// The one honest gate on Charge: is there an open shift on this till.
+  /// Answered after the first frame so the bar never flashes "no shift"
+  /// while the lookup is in flight.
+  Future<void> _loadShift() async {
+    final shift = await _quiet(_bridge.currentShift);
+    _update(
+      (s) => s.copyWith(
+        shiftId: (shift?.isOpen ?? false) ? shift!.id : null,
+        shiftKnown: true,
+      ),
     );
   }
 
   // ── session starters ─────────────────────────────────────────────────────
 
-  /// The cashier tender session — mirror of the natives' on-appear load:
-  /// payment methods, discounts, the applied cart discount, the org logo,
-  /// and the live cart totals as the summary.
-  Future<void> startCart() async {
+  /// Start the session for [target]. The one entry point the Charge sheet
+  /// uses; the three below are what it dispatches to.
+  Future<void> start(ChargeTarget target) => switch (target) {
+    CartChargeTarget() => startCart(target: target),
+    BillChargeTarget(:final ticket) => startBill(ticket, target: target),
+    OnlineChargeTarget(:final order) => startOnline(order, target: target),
+  };
+
+  /// The cart session — payment methods, discounts, the applied cart
+  /// discount, the org logo, the live cart totals as the summary, and the
+  /// lines in the order the server indexes them (a reward names a line by
+  /// its position, so this list and the wire order must be the same list).
+  Future<void> startCart({
+    ChargeTarget target = const CartChargeTarget(),
+  }) async {
     final bridge = _bridge;
+    _update((s) => s.copyWith(target: target));
     final methods =
         await _quiet(bridge.listPaymentMethods) ?? const <PaymentMethodView>[];
     final discounts =
@@ -361,8 +598,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final discountId = await _quiet<String?>(bridge.cartDiscountId);
     final logo = bridge.orgLogoLocalPath();
     final totals = await _quiet(bridge.cartTotals);
-    // The lines in the order the server indexes them — a reward names a line by
-    // its position, so this list and the wire order must be the same list.
     final lines = await _quiet(bridge.cartLines) ?? const <CartLineView>[];
     final redeemable = [
       for (var i = 0; i < lines.length; i++)
@@ -383,6 +618,82 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         summary: totals == null ? null : _summaryOf(totals),
       ),
     );
+    await _loadShift();
+  }
+
+  /// A bill: the ticket's subtotal is the hero (labelled so — `TicketView`
+  /// carries no total), its live lines can carry rewards by id, and the
+  /// discount is a pick the server applies at settle.
+  Future<void> startBill(TicketView ticket, {ChargeTarget? target}) async {
+    _update((s) => s.copyWith(target: target ?? BillChargeTarget(ticket)));
+    await startSettle(
+      CheckoutSummary(
+        subtotalMinor: ticket.subtotalMinor,
+        totalMinor: ticket.subtotalMinor,
+      ),
+      ticketLines: ticket.lines,
+      loadDiscounts: true,
+    );
+  }
+
+  /// An online order: the frozen totals, and the methods. Nothing else —
+  /// `deliveryFinalize` takes a method id and no more.
+  Future<void> startOnline(
+    DeliveryOrderView order, {
+    ChargeTarget? target,
+  }) async {
+    _update((s) => s.copyWith(target: target ?? OnlineChargeTarget(order)));
+    await startSettle(
+      CheckoutSummary(
+        subtotalMinor: order.subtotalMinor,
+        discountMinor: order.discountMinor,
+        deliveryFeeMinor: order.deliveryFeeMinor,
+        totalMinor: order.totalMinor,
+      ),
+    );
+  }
+
+  /// A settle session over a FIXED [summary] — loads the payment methods
+  /// (and, for a bill, the discounts) and leaves the cart's discount slice
+  /// untouched. The legacy drawer's entry point; [startBill] and
+  /// [startOnline] go through it.
+  Future<void> startSettle(
+    CheckoutSummary summary, {
+
+    /// The ticket's live lines, so its bill can carry rewards too. Dine-in is
+    /// an open ticket now, so without these a table order could never redeem —
+    /// which would be most of them.
+    List<TicketLineView> ticketLines = const [],
+    bool loadDiscounts = false,
+  }) async {
+    final bridge = _bridge;
+    final methods =
+        await _quiet(bridge.listPaymentMethods) ?? const <PaymentMethodView>[];
+    final discounts = loadDiscounts
+        ? await _quiet(bridge.listDiscounts) ?? const <DiscountView>[]
+        : const <DiscountView>[];
+    final redeemable = [
+      for (final l in ticketLines)
+        // A voided line is not on the bill, and one that has not synced has no
+        // id for the server to resolve — neither can be covered.
+        if (!l.voided && l.id.isNotEmpty && l.menuItemId != null)
+          RedeemableLine(
+            itemId: l.menuItemId!,
+            name: l.name,
+            qty: l.qty,
+            ticketLineId: l.id,
+          ),
+    ];
+    _update(
+      (s) => _withSession(s, bridge).copyWith(
+        paymentMethods: methods,
+        discounts: discounts,
+        orgLogoPath: bridge.orgLogoLocalPath(),
+        summary: summary,
+        redeemableLines: redeemable,
+      ),
+    );
+    await _loadShift();
   }
 
   // ── Loyalty ───────────────────────────────────────────────────────────────
@@ -404,8 +715,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
           loyaltyMember: scan.member,
           loyaltyRewards: scan.rewards,
           loyaltyAnyItem: scan.anyItem,
-          // `PlatformInt64` is `int` on every platform this app ships to, so
-          // the conversion the analyzer flags here would be a no-op.
           loyaltyAnyItemCost: scan.anyItemCost,
           loyaltyError: null,
         ),
@@ -421,7 +730,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     }
   }
 
-  /// Cover one more unit of a cart line with a reward, or take the cover off.
+  /// Cover one more unit of a line with a reward, or take the cover off.
   ///
   /// Refuses to tick past the balance — the server would reject the whole sale,
   /// and finding that out at the moment of payment is the worst time.
@@ -435,8 +744,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     if (current >= qty) {
       next.remove(lineIndex);
     } else {
-      final wouldCost = reward.costAmount;
-      if (s.balanceAfterRedemptions < wouldCost) return;
+      if (s.balanceAfterRedemptions < reward.costAmount) return;
       next[lineIndex] = current + 1;
     }
     _update((st) => st.copyWith(redemptions: next));
@@ -452,41 +760,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     ),
   );
 
-  /// A settle / finalize session over a FIXED [summary] (e.g. a ticket's
-  /// subtotal) — loads the payment methods only; the discount is frozen at
-  /// fire time so the cart discount slice stays untouched.
-  Future<void> startSettle(
-    CheckoutSummary summary, {
-
-    /// The ticket's live lines, so its bill can carry rewards too. Dine-in is
-    /// an open ticket now, so without these a table order could never redeem —
-    /// which would be most of them.
-    List<TicketLineView> ticketLines = const [],
-  }) async {
-    final bridge = _bridge;
-    final methods =
-        await _quiet(bridge.listPaymentMethods) ?? const <PaymentMethodView>[];
-    final redeemable = [
-      for (final l in ticketLines)
-        // A voided line is not on the bill, and one that has not synced has no
-        // id for the server to resolve — neither can be covered.
-        if (!l.voided && l.id.isNotEmpty && l.menuItemId != null)
-          RedeemableLine(
-            itemId: l.menuItemId!,
-            name: l.name,
-            qty: l.qty,
-            ticketLineId: l.id,
-          ),
-    ];
-    _update(
-      (s) => _withSession(s, bridge).copyWith(
-        paymentMethods: methods,
-        summary: summary,
-        redeemableLines: redeemable,
-      ),
-    );
-  }
-
   // ── tender picks (the drawer's collection state) ─────────────────────────
 
   void selectMethod(String id) =>
@@ -494,6 +767,13 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
   void setTendered(int minor) =>
       _update((s) => s.copyWith(tenderedMinor: minor));
+
+  /// "Add tip ›" — reveal the amount row. Closing it drops the tip.
+  void openTip() => _update((s) => s.copyWith(tipOpen: true));
+
+  void closeTip() => _update(
+    (s) => s.copyWith(tipOpen: false, tipMinor: 0, tipMethodId: null),
+  );
 
   void setTip(int minor) => _update((s) => s.copyWith(tipMinor: minor));
 
@@ -509,10 +789,10 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// their own op errors here so they present above the terminal button.
   void setError(String? message) => _update((s) => s.copyWith(error: message));
 
-  // ── cart ops ─────────────────────────────────────────────────────────────
+  // ── discount ─────────────────────────────────────────────────────────────
 
-  /// Apply or clear the cart discount, then re-read the applied id and the
-  /// totals so the summary + hero total update live (natives' setDiscount).
+  /// Apply or clear the CART discount, then re-read the applied id and the
+  /// totals so the hero updates live (natives' setDiscount).
   Future<void> setDiscount(String? id) async {
     final bridge = _bridge;
     await _quiet(() async {
@@ -535,44 +815,224 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     ref.read(shellProvider.notifier).refresh();
   }
 
-  /// Place the cart as an order via the core (online or queued offline). On
-  /// success the core has emptied the cart; the receipt flips the sheet to
-  /// the confirmation and the shell refreshes. Mirrors the natives'
-  /// placeOrder split/tendered mapping: split legs zero the tendered amount,
-  /// a non-cash single payment tenders 0.
-  Future<void> placeOrder(CheckoutResult result) async {
+  /// Pick the discount for a BILL. Nothing is priced here — the server
+  /// applies it at settle and the hero keeps showing the subtotal, with the
+  /// row saying "applied at charge" so nobody expects the figure to move.
+  void setBillDiscount(DiscountView? discount) =>
+      _update((s) => s.copyWith(billDiscount: discount));
+
+  /// Either kind, for the row: the cart's applied discount or the bill's pick.
+  DiscountView? get pickedDiscount {
+    final s = state;
+    if (s.isBill) return s.billDiscount;
+    return s.discounts.where((d) => d.id == s.cartDiscountId).firstOrNull;
+  }
+
+  // ── the one terminal act ─────────────────────────────────────────────────
+
+  /// Exact cash: fill the tendered amount with the due and charge in the
+  /// same tap. The 3-tap counter sale is tile → Charge → Exact.
+  Future<void> chargeExact() async {
+    if (!state.canChargeExact) return;
+    setTendered(state.dueCashMinor);
+    await charge();
+  }
+
+  /// Take the money, whichever caller this is. On success [CheckoutState
+  /// .outcome] is set (the sheet resolves with it) and the receipt prints;
+  /// on refusal the server's sentence lands in [CheckoutState.error] and
+  /// the drawer stays open.
+  Future<void> charge() async {
+    final s = state;
+    if (!s.canCharge) return;
+    final method = s.splitMode ? s.splitPrimary : s.effectiveMethodId;
+    if (method == null) return;
     final bridge = _bridge;
-    _update((s) => s.copyWith(isPlacingOrder: true, error: null));
+    _update((st) => st.copyWith(isPlacingOrder: true, error: null));
     try {
-      final input = CheckoutInput(
-        paymentMethodId: result.primaryMethodId,
-        amountTenderedMinor: result.splits.isEmpty && result.isCash
-            ? result.tenderedMinor
-            : 0,
-        tipMinor: result.tipMinor,
-        tipPaymentMethodId: result.tipPaymentMethodId,
-        customerName: result.customerName,
-        notes: result.notes,
-        splits: result.splits,
+      final outcome = await switch (s.target) {
+        OnlineChargeTarget(:final order) => _chargeOnline(order, method),
+        BillChargeTarget(:final ticket, :final tableLabel) => _chargeBill(
+          ticket,
+          method,
+          tableLabel: tableLabel,
+        ),
+        CartChargeTarget() || null => _chargeCart(method),
+      };
+      if (!_live) return;
+      _update(
+        (st) => st.copyWith(
+          outcome: outcome,
+          receipt: outcome.receipt,
+          printState: PrintState.idle,
+        ),
+      );
+      MadarHaptics.success();
+      ref.read(shellProvider.notifier).refresh();
+      // Auto-print — the Done card's Reprint is for REPRINTS. Never fails
+      // the sale: it reports a state and the card shows it.
+      await printReceipt();
+    } on MadarError catch (e) {
+      _raise(bridge, e);
+    } finally {
+      if (_live) _update((st) => st.copyWith(isPlacingOrder: false));
+    }
+  }
+
+  /// Place the cart as an order via the core (online or queued offline).
+  /// Mirrors the natives' placeOrder split/tendered mapping: split legs
+  /// zero the tendered amount, a non-cash single payment tenders 0.
+  Future<ChargeOutcome> _chargeCart(String method) async {
+    final s = state;
+    final receipt = await _bridge.checkout(
+      input: CheckoutInput(
+        paymentMethodId: method,
+        amountTenderedMinor: !s.splitMode && s.isCash ? s.tenderedMinor : 0,
+        tipMinor: s.tipMinor,
+        tipPaymentMethodId: s.tipMinor > 0 ? s.tipMethodId : null,
+        splits: s.splitMode ? s.splitLegs : const [],
         // WHICH lines, never a price. The server looks each reward up in the
         // branch's catalogue, checks the balance against the whole basket, and
         // refuses the sale outright if it does not cover it.
-        loyaltyCustomerId: state.redemptions.isEmpty
-            ? null
-            : state.loyaltyMember?.id,
-        loyaltyRedemptions: state.redemptions.entries
-            .map((e) => CheckoutRedemption(itemIndex: e.key, units: e.value))
-            .toList(growable: false),
+        loyaltyCustomerId: s.redemptions.isEmpty ? null : s.loyaltyMember?.id,
+        loyaltyRedemptions: s.redemptionInputs,
+      ),
+    );
+    return ChargeOutcome(
+      target: s.target ?? const CartChargeTarget(),
+      queued: receipt.queuedOffline,
+      amountMinor: receipt.totalMinor + receipt.tipMinor,
+      methodLabel: receipt.paymentLabel,
+      isCash: receipt.isCash,
+      currency: s.currency,
+      createdAt: receipt.createdAt,
+      receipt: receipt,
+      orderKey: receipt.localOrderId,
+      orderNumber: receipt.orderNumber,
+      changeMinor: receipt.changeMinor,
+      loyaltyCustomerId: s.loyaltyMember?.id,
+    );
+  }
+
+  /// Settle the ticket into a paid order on this shift. The order id comes
+  /// back once the server acked — then its receipt is fetched and printed;
+  /// null means queued offline, where no order exists yet.
+  Future<ChargeOutcome> _chargeBill(
+    TicketView ticket,
+    String method, {
+    String? tableLabel,
+  }) async {
+    final s = state;
+    final bridge = _bridge;
+    final shiftId = s.shiftId!;
+    final tendered = s.isCash && s.tenderedMinor > 0 ? s.tenderedMinor : null;
+    final discount = s.billDiscount;
+    final orderId = await bridge.settleTicket(
+      ticketId: ticket.id,
+      shiftId: shiftId,
+      paymentMethodId: method,
+      amountTenderedMinor: tendered,
+      tipMinor: s.tipMinor > 0 ? s.tipMinor : null,
+      tipPaymentMethodId: s.tipMinor > 0 ? (s.tipMethodId ?? method) : null,
+      discountId: discount?.id,
+      discountType: discount?.dtype,
+      discountValue: discount?.value,
+      loyaltyCustomerId: s.redemptions.isEmpty ? null : s.loyaltyMember?.id,
+      loyaltyRedemptions: s.redemptionInputs,
+    );
+    ReceiptView? receipt;
+    if (orderId != null) {
+      // Best-effort: the money is taken; a receipt that cannot be fetched is
+      // a reprint from history, not a failed charge.
+      receipt = await _quiet(() => bridge.orderReceiptView(orderId: orderId));
+    }
+    final total = receipt?.totalMinor ?? s.dueMinor;
+    return ChargeOutcome(
+      target: s.target!,
+      queued: orderId == null,
+      amountMinor: total + (receipt?.tipMinor ?? s.tipMinor),
+      methodLabel: receipt?.paymentLabel ?? (s.effectiveMethod?.name ?? ''),
+      isCash: receipt?.isCash ?? s.isCash,
+      currency: s.currency,
+      createdAt: receipt?.createdAt ?? DateTime.now().toUtc().toIso8601String(),
+      receipt: receipt,
+      orderId: orderId,
+      orderNumber: receipt?.orderNumber,
+      changeMinor: receipt?.changeMinor ?? (s.showsChange ? s.changeMinor : 0),
+      tableId: ticket.tableId,
+      tableLabel: tableLabel,
+      loyaltyCustomerId: s.loyaltyMember?.id,
+    );
+  }
+
+  /// Finalize the online order into a real sale on this shift — a method
+  /// and nothing else, then the new order's receipt.
+  Future<ChargeOutcome> _chargeOnline(
+    DeliveryOrderView order,
+    String method,
+  ) async {
+    final s = state;
+    final bridge = _bridge;
+    final res = await bridge.deliveryFinalize(
+      id: order.id,
+      paymentMethodId: method,
+    );
+    final receipt = await _quiet(
+      () => bridge.orderReceiptView(orderId: res.orderId),
+    );
+    return ChargeOutcome(
+      target: s.target!,
+      queued: false,
+      amountMinor: receipt?.totalMinor ?? order.totalMinor,
+      methodLabel: receipt?.paymentLabel ?? (s.effectiveMethod?.name ?? ''),
+      isCash: receipt?.isCash ?? s.isCash,
+      currency: s.currency,
+      createdAt: receipt?.createdAt ?? order.createdAt,
+      receipt: receipt,
+      orderId: res.orderId,
+      orderNumber: receipt?.orderNumber,
+    );
+  }
+
+  /// The legacy drawer's terminal action: a cart checkout from a
+  /// [CheckoutResult]. New callers use [charge].
+  Future<void> placeOrder(CheckoutResult result) async {
+    _update(
+      (s) => s.copyWith(
+        selectedMethodId: result.primaryMethodId,
+        tenderedMinor: result.tenderedMinor,
+        tipMinor: result.tipMinor,
+        tipMethodId: result.tipPaymentMethodId,
+        splitMode: result.splits.isNotEmpty,
+        splitAmounts: {
+          for (final leg in result.splits) leg.paymentMethodId: leg.amountMinor,
+        },
+      ),
+    );
+    final bridge = _bridge;
+    _update((s) => s.copyWith(isPlacingOrder: true, error: null));
+    try {
+      final receipt = await bridge.checkout(
+        input: CheckoutInput(
+          paymentMethodId: result.primaryMethodId,
+          amountTenderedMinor: result.splits.isEmpty && result.isCash
+              ? result.tenderedMinor
+              : 0,
+          tipMinor: result.tipMinor,
+          tipPaymentMethodId: result.tipPaymentMethodId,
+          customerName: result.customerName,
+          notes: result.notes,
+          splits: result.splits,
+          loyaltyCustomerId: state.redemptions.isEmpty
+              ? null
+              : state.loyaltyMember?.id,
+          loyaltyRedemptions: state.redemptionInputs,
+        ),
       );
-      final receipt = await bridge.checkout(input: input);
       if (!_live) return;
       _update((s) => s.copyWith(receipt: receipt, printState: PrintState.idle));
       MadarHaptics.success();
       ref.read(shellProvider.notifier).refresh();
-      // Auto-print the receipt on checkout — the confirmation's Print button
-      // is for REPRINTS. `printReceipt` no-ops with no printer configured and
-      // swallows its own errors (sets PrintState.failed), so it can never
-      // fail the placed order.
       await printReceipt();
     } on MadarError catch (e) {
       _raise(bridge, e);
@@ -581,45 +1041,19 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     }
   }
 
-  /// Render the placed receipt in the core and stream it to the configured
-  /// network printer (best-effort). Pops the till on a cash sale — only on
-  /// the original auto-print; a reprint passes [kickDrawer] = false.
+  /// Print the session's receipt (best-effort). Pops the till on a cash sale
+  /// — only on the original auto-print; a reprint passes [kickDrawer] false.
   Future<void> printReceipt({bool kickDrawer = true}) async {
-    final bridge = _bridge;
     final r = state.receipt;
     if (r == null) return;
-    // Resolve the device's transport (Bluetooth or raw-TCP) up front; null
-    // means no printer is bound yet.
-    final tx = ref.read(printerServiceProvider).activeTransport();
-    if (tx == null) {
-      _update((s) => s.copyWith(printState: PrintState.noPrinter));
-      return;
-    }
-    final brand = printerBrandOf(bridge.deviceConfig().printerBrand);
     _update((s) => s.copyWith(printState: PrintState.printing));
-    try {
-      final bytes = await bridge.renderReceipt(
-        receipt: r,
-        storeName: state.branchName,
-        currency: state.currency,
-        width: kReceiptChars,
-        brand: brand,
-      );
-      await tx.send(bytes);
-      if (kickDrawer && r.isCash) {
-        // Best-effort — a drawer that fails to open must not mark the receipt
-        // (already printed) as failed, whatever the transport throws.
-        try {
-          final kick = await bridge.cashDrawerKick(brand: brand);
-          await tx.send(kick);
-        } on Exception {
-          // ignored: the receipt printed; the kick is a bonus.
-        }
-      }
-      _update((s) => s.copyWith(printState: PrintState.printed));
-    } on Exception {
-      _update((s) => s.copyWith(printState: PrintState.failed));
-    }
+    final result = await printReceiptView(
+      _bridge,
+      ref.read(printerServiceProvider),
+      r,
+      kickDrawer: kickDrawer,
+    );
+    _update((s) => s.copyWith(printState: result));
   }
 
   // ── helpers ──────────────────────────────────────────────────────────────
@@ -629,6 +1063,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       subtotalMinor: totals.subtotalMinor,
       discountMinor: totals.discountMinor,
       taxMinor: totals.taxMinor,
+      serviceChargeMinor: totals.serviceChargeMinor,
       totalMinor: totals.totalMinor,
     );
   }
@@ -657,12 +1092,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   }
 }
 
-/// THE checkout session — autoDispose so every presented tender/settle
-/// drawer starts fresh.
+/// THE charge session — autoDispose so every presented drawer starts fresh.
 final NotifierProvider<CheckoutNotifier, CheckoutState> checkoutProvider =
     NotifierProvider.autoDispose(CheckoutNotifier.new);
-
-/// Device-config brand string (`epson`/`star`) → [PrinterBrand]; anything
-/// else falls back to Epson (the natives' default dialect).
-PrinterBrand printerBrandOf(String? brand) =>
-    brand == 'star' ? PrinterBrand.star : PrinterBrand.epson;

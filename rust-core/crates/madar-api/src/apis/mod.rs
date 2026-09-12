@@ -142,6 +142,7 @@ pub mod purchasing_api;
 pub mod qr_api;
 pub mod realtime_api;
 pub mod recipes_api;
+pub mod refunds_api;
 pub mod reports_api;
 pub mod reservations_api;
 pub mod shifts_api;

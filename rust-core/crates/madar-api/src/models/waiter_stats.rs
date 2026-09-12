@@ -17,6 +17,7 @@ pub struct WaiterStats {
     /// line_items / orders; 0 when the waiter has no non-voided orders.
     #[serde(rename = "avg_items_per_order")]
     pub avg_items_per_order: f64,
+    /// Average bill as rung up — a refund does not shrink what was ordered.
     #[serde(rename = "avg_order_value")]
     pub avg_order_value: i64,
     /// Units sold (SUM of order_items.quantity) on this waiter's non-voided orders — the upsell signal behind avg_items_per_order.
@@ -24,6 +25,7 @@ pub struct WaiterStats {
     pub line_items: i64,
     #[serde(rename = "orders")]
     pub orders: i64,
+    /// Net of refunds against this waiter's sales.
     #[serde(rename = "revenue")]
     pub revenue: i64,
     #[serde(rename = "voided")]

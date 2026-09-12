@@ -128,6 +128,13 @@ pub struct DeliveryTracking {
     pub status: String,
     #[serde(rename = "subtotal")]
     pub subtotal: i32,
+    /// The tax line, frozen at intake. Inside `total` when `tax_inclusive` (render \"includes VAT\"), added to it otherwise (render a tax line).
+    #[serde(rename = "tax_amount")]
+    pub tax_amount: i32,
+    #[serde(rename = "tax_inclusive")]
+    pub tax_inclusive: bool,
+    #[serde(rename = "tax_rate_applied")]
+    pub tax_rate_applied: f64,
     #[serde(rename = "total")]
     pub total: i32,
     #[serde(
@@ -153,6 +160,9 @@ impl DeliveryTracking {
         org_id: uuid::Uuid,
         status: String,
         subtotal: i32,
+        tax_amount: i32,
+        tax_inclusive: bool,
+        tax_rate_applied: f64,
         total: i32,
     ) -> DeliveryTracking {
         DeliveryTracking {
@@ -180,6 +190,9 @@ impl DeliveryTracking {
             rejected_at: None,
             status,
             subtotal,
+            tax_amount,
+            tax_inclusive,
+            tax_rate_applied,
             total,
             unit_number: None,
         }

@@ -82,6 +82,7 @@ pub struct BookingView {
         skip_serializing_if = "Option::is_none"
     )]
     pub notes: Option<Option<String>>,
+    /// The ticket this party is (or was) eating on. DERIVED from `open_tickets.booking_id` — the live one if there is one, else the latest — never stored on the booking.
     #[serde(
         rename = "open_ticket_id",
         default,

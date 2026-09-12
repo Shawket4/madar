@@ -1,201 +1,94 @@
-/// History-feature widget kit — the Flutter mirror of the natives' shared
-/// pieces the history screens use (Components.kt / SharedComponents.kt:
-/// MadarButton, MadarTextField, SelectableChip, the history filter chip
-/// and payment badge; screen headers are the design system's MadarHeader).
-/// Tokens-only, plus a few native component metrics that fall between the
-/// 4-pt Space steps, kept verbatim (the design system's banners.dart
-/// pattern) so the Flutter chrome measures identically to the Kotlin/Swift
-/// natives.
+/// The small pieces both halves of the Orders screen share: what a row's
+/// state is called, what an origin is called, and the state tag itself.
+/// Tokens-only; every word arrives through [historyTr].
 library;
 
 import 'package:design_system/design_system.dart';
-import 'package:flutter/material.dart';
+import 'package:feature_history/src/history_strings.dart';
+import 'package:flutter/widgets.dart';
+import 'package:rust_bridge/rust_bridge.dart';
 
-/// History filter chip insets / gap (natives: 12/6/5.dp) and press scale.
-const double _chipHPad = 12;
-const double _chipVPad = 6;
-const double _chipGap = 5;
-const double kChipPressScale = 0.96;
+/// "dine-in" / "Online" / "Takeaway" for a summary's `orderType`. The wire
+/// carries no takeaway value today; the label is ready for the day it does,
+/// and anything unmapped shows as the server sent it rather than as a key.
+String orderTypeLabel(MadarBridge bridge, String orderType) =>
+    switch (orderType) {
+      'dine_in' => historyTr(bridge, 'history.type.dine_in'),
+      'delivery' => historyTr(bridge, 'history.type.online'),
+      'takeaway' => historyTr(bridge, 'history.type.takeaway'),
+      _ => orderType,
+    };
 
-/// Payment badge insets (natives: 8/3.dp).
-const double _badgeHPad = 8;
-const double _badgeVPad = 3;
+/// "#1042", or the word for a sale that has no number yet.
+String saleNumber(MadarBridge bridge, OrderSummaryView o) =>
+    o.orderNumber != null
+    ? '#${o.orderNumber}'
+    : historyTr(bridge, 'history.order');
 
-/// The natives' card-payment purple (OrderHistoryScreen.kt `paymentTint`) —
-/// hardcoded there too, so it is kept verbatim rather than tokenized.
-const Color _cardPurple = Color(0xFF7C3AED);
-
-bool _isDark(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark;
-
-/// Tone → background tint (the `*Bg` roles) — the natives' `ChipTone.bg`.
-Color toneBg(ChipTone tone, MadarColors colors) => switch (tone) {
-  ChipTone.info => colors.navyBg,
-  ChipTone.accent => colors.accentBg,
-  ChipTone.success => colors.successBg,
-  ChipTone.warning => colors.warningBg,
-  ChipTone.danger => colors.dangerBg,
-  ChipTone.neutral => colors.surfaceAlt,
-};
-
-/// Status → a tone-paired chip color (voided/failed = danger, completed =
-/// success, queued = warning, else neutral) — the natives' `statusTone`.
-ChipTone statusToneOf(String status) => switch (status) {
-  'voided' || 'failed' => ChipTone.danger,
-  'completed' => ChipTone.success,
-  'queued' => ChipTone.warning,
-  _ => ChipTone.neutral,
-};
-
-/// A colored payment tint keyed off the label text — cash = success,
-/// card = the natives' purple, mixed = warning, else navy.
-Color paymentTint(String label, MadarColors colors) {
-  final l = label.toLowerCase();
-  if (l.contains('cash') || l.contains('نقد')) return colors.success;
-  if (l.contains('card') || l.contains('بطاق')) return _cardPurple;
-  if (l.contains('mixed') || l.contains('مختلط')) return colors.warning;
-  return colors.navy;
+/// "Sale #1042" for a title — or just "Sale" while the server has not
+/// numbered it yet; the QUEUED tag under the title says the rest.
+String saleTitle(MadarBridge bridge, OrderSummaryView o) {
+  final sale = historyTr(bridge, 'history.sale');
+  final n = o.orderNumber;
+  return n == null ? sale : '$sale ${ltrIsland('#$n')}';
 }
 
-/// The history screen's filter chip — filled in its active tone, neutral
-/// when off (OrderHistoryScreen.kt `HistoryChip` / the Swift `chip`).
-class HistoryFilterChip extends StatelessWidget {
-  const HistoryFilterChip({
-    required this.glyph,
-    required this.label,
-    required this.active,
-    required this.onTap,
-    this.tone = ChipTone.accent,
-    super.key,
-  });
+/// Wraps a figure so it reads left-to-right inside Arabic text: the bidi
+/// algorithm otherwise floats a "#" or a "%" to the far side of its number.
+/// (LRI … PDI — the isolate pair, invisible.)
+String ltrIsland(String figure) => '\u2066$figure\u2069';
 
-  final String glyph;
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-  final ChipTone tone;
+/// The one state a row may be in beyond "settled", or null. Voided beats
+/// failed beats queued, which is the order the core resolves them in.
+enum SaleState {
+  voided,
+  failed,
+  queued;
 
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final fg = active ? tone.resolve(colors) : colors.textSecondary;
-    final bg = active ? toneBg(tone, colors) : colors.surfaceAlt;
-    return Semantics(
-      button: true,
-      selected: active,
-      child: TactileScale(
-        scale: kChipPressScale,
-        onTap: onTap,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(Radii.pill),
-            border: Border.all(
-              color: active
-                  ? fg.withValues(alpha: Opacities.border)
-                  : Colors.transparent,
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: _chipHPad,
-              vertical: _chipVPad,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: _chipGap,
-              children: [
-                MadarIcon(glyph, tint: fg, size: IconSize.xs),
-                Text(label, style: MadarType.label.copyWith(color: fg)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  static SaleState? of(OrderSummaryView o) {
+    if (o.status == 'voided') return SaleState.voided;
+    if (o.status == 'failed') return SaleState.failed;
+    if (o.queued) return SaleState.queued;
+    return null;
   }
+
+  String label(MadarBridge bridge) => switch (this) {
+    SaleState.voided => historyTr(bridge, 'history.voided'),
+    SaleState.failed => historyTr(bridge, 'history.failed'),
+    SaleState.queued => historyTr(bridge, 'history.queued'),
+  };
+
+  /// The sentence under the tag on the sale itself.
+  String hint(MadarBridge bridge) => switch (this) {
+    SaleState.voided => historyTr(bridge, 'history.voided_hint'),
+    SaleState.failed => historyTr(bridge, 'history.failed_hint'),
+    SaleState.queued => historyTr(bridge, 'history.queued_hint'),
+  };
+
+  MadarTone get tone => switch (this) {
+    SaleState.voided => MadarTone.danger,
+    SaleState.failed => MadarTone.danger,
+    SaleState.queued => MadarTone.warning,
+  };
+
+  MadarGlyph get glyph => switch (this) {
+    SaleState.voided => MadarGlyph.xCircle,
+    SaleState.failed => MadarGlyph.alertCircle,
+    SaleState.queued => MadarGlyph.half,
+  };
 }
 
-/// The natives' `SelectableChip` (SharedComponents.kt): a toggle pill that
-/// fills with its tone (+ soft accent glow) while selected — the search
-/// screen's date/status filters.
-class SelectChip extends StatelessWidget {
-  const SelectChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.tone = ChipTone.accent,
-    super.key,
-  });
+/// The uppercase state tag for a row or the sale header.
+class SaleStateTag extends StatelessWidget {
+  const SaleStateTag({required this.state, required this.bridge, super.key});
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final ChipTone tone;
+  final SaleState state;
+  final MadarBridge bridge;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final fg = selected ? colors.textOnAccent : colors.textSecondary;
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: TactileScale(
-        onTap: onTap,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: selected ? tone.resolve(colors) : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(Radii.pill),
-            border: selected ? null : Border.all(color: colors.border),
-            boxShadow: selected
-                ? MadarElevation.glow.shadows(colors, dark: _isDark(context))
-                : null,
-          ),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.md,
-              vertical: Space.sm,
-            ),
-            child: Text(label, style: MadarType.title.copyWith(color: fg)),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A colored payment pill (not a StatusChip): tinted bg @ ~14%, colored
-/// label; voided → muted on surfaceAlt (OrderHistoryScreen.kt PaymentBadge).
-class PaymentBadge extends StatelessWidget {
-  const PaymentBadge({required this.label, this.voided = false, super.key});
-
-  final String label;
-  final bool voided;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final tint = paymentTint(label, colors);
-    final fg = voided ? colors.textMuted : tint;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: voided
-            ? colors.surfaceAlt
-            : tint.withValues(alpha: Opacities.subtle),
-        borderRadius: BorderRadius.circular(Radii.pill),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: _badgeHPad,
-          vertical: _badgeVPad,
-        ),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: MadarType.labelSm.copyWith(color: fg),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => MadarTag(
+    label: state.label(bridge),
+    tone: state.tone,
+    glyph: state.glyph,
+  );
 }

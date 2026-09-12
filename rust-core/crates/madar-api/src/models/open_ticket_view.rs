@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OpenTicketView {
+    /// The bill as the SERVER prices it — see [`TicketBill`]. This is the figure the till shows and the drawer collects, because it is the figure the settle will book; `subtotal` above is only its first line.
+    #[serde(rename = "bill", skip_serializing_if = "Option::is_none")]
+    pub bill: Option<Box<models::TicketBill>>,
     /// The booking this ticket seated, if the party had one.
     #[serde(
         rename = "booking_id",
@@ -30,6 +33,28 @@ pub struct OpenTicketView {
         skip_serializing_if = "Option::is_none"
     )]
     pub customer_name: Option<Option<String>>,
+    /// The discount the waiter put on the bill at fire time, if any. Shown so the cashier can SEE what a settle will inherit — and clear it with an explicit `discount_type: \"none\"` rather than have it applied silently.
+    #[serde(
+        rename = "discount_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_id: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "discount_type",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_type: Option<Option<String>>,
+    #[serde(
+        rename = "discount_value",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discount_value: Option<Option<f64>>,
     #[serde(
         rename = "guest_count",
         default,
@@ -66,6 +91,10 @@ pub struct OpenTicketView {
         skip_serializing_if = "Option::is_none"
     )]
     pub order_id: Option<Option<uuid::Uuid>>,
+    /// The kitchen has plated every line of every round. DERIVED from the ticket's `kitchen_tickets` at read time, so it is always what the KDS says now. `false` for a ticket nothing was ever fired to the kitchen for (routing mode `off`): there is nothing to be ready.
+    #[serde(rename = "ready", skip_serializing_if = "Option::is_none")]
+    pub ready: Option<bool>,
+    /// The last moment the kitchen had the whole ticket plated. History for the timing reports; `ready` is the live fact.
     #[serde(
         rename = "ready_at",
         default,
@@ -80,6 +109,7 @@ pub struct OpenTicketView {
         skip_serializing_if = "Option::is_none"
     )]
     pub settled_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// The bill: `open`, `settled` or `voided`. Never `ready` — see [`Self::ready`].
     #[serde(rename = "status")]
     pub status: String,
     #[serde(rename = "subtotal")]
@@ -98,6 +128,28 @@ pub struct OpenTicketView {
         skip_serializing_if = "Option::is_none"
     )]
     pub ticket_ref: Option<Option<String>>,
+    #[serde(
+        rename = "void_note",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub void_note: Option<Option<String>>,
+    /// Categorised like an order void, so void-rate reports read dine-in and counter alike.
+    #[serde(
+        rename = "void_reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub void_reason: Option<Option<String>>,
+    #[serde(
+        rename = "voided_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub voided_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
 }
 
 impl OpenTicketView {
@@ -111,9 +163,13 @@ impl OpenTicketView {
         subtotal: i32,
     ) -> OpenTicketView {
         OpenTicketView {
+            bill: None,
             booking_id: None,
             branch_id,
             customer_name: None,
+            discount_id: None,
+            discount_type: None,
+            discount_value: None,
             guest_count: None,
             id,
             items,
@@ -122,12 +178,16 @@ impl OpenTicketView {
             opened_by,
             opened_by_name: None,
             order_id: None,
+            ready: None,
             ready_at: None,
             settled_at: None,
             status,
             subtotal,
             table_id: None,
             ticket_ref: None,
+            void_note: None,
+            void_reason: None,
+            voided_at: None,
         }
     }
 }

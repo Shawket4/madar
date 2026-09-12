@@ -1669,14 +1669,14 @@ fn classify_send(err: CoreError, idem: Idem) -> SendOutcome {
 /// pass through unchanged, and anything unrecognized falls back to `other` (always
 /// accepted) so a void never dead-letters on a reason-vocabulary mismatch — which
 /// would silently keep a refunded sale as revenue.
-fn map_void_reason(reason: &str) -> String {
+fn map_void_reason(reason: &str) -> madar_api::models::VoidReason {
+    use madar_api::models::VoidReason as R;
     match reason {
-        "customer" | "customer_request" => "customer_request",
-        "mistake" | "wrong_order" => "wrong_order",
-        "quality" | "quality_issue" => "quality_issue",
-        _ => "other",
+        "customer" | "customer_request" => R::CustomerRequest,
+        "mistake" | "wrong_order" => R::WrongOrder,
+        "quality" | "quality_issue" => R::QualityIssue,
+        _ => R::Other,
     }
-    .to_string()
 }
 
 /// Narrow a minor-unit cash amount to the i32 the wire expects, REJECTING a value
@@ -5706,7 +5706,8 @@ impl MadarCore {
         // Translate the host reason key to the backend's accepted vocabulary — an
         // unmapped value (e.g. the old "mistake"/"customer"/"quality") would 400 and
         // dead-letter the void, leaving the refunded order counted as revenue.
-        let mut request = madar_api::models::VoidOrderRequest::new(map_void_reason(&reason));
+        let mut request =
+            madar_api::models::VoidOrderRequest::new(map_void_reason(&reason).to_string());
         request.note = Some(note);
         request.restore_inventory = Some(Some(restore_inventory));
         request.voided_at = Some(Some(voided_at));
@@ -6238,7 +6239,17 @@ impl MadarCore {
         reason: Option<String>,
     ) -> Result<bool, CoreError> {
         let mut request = madar_api::models::VoidOpenTicketRequest::new();
-        request.reason = reason.filter(|s| !s.trim().is_empty()).map(Some);
+        // The wire takes the backend's enum now; the host's friendlier keys go
+        // through the same map as an order void. A key that maps to `other`
+        // keeps its original wording as the note — the backend requires one
+        // with `other`, and the wording is the only thing that says why.
+        if let Some(raw) = reason.filter(|s| !s.trim().is_empty()) {
+            let mapped = map_void_reason(raw.trim());
+            if mapped == madar_api::models::VoidReason::Other && raw.trim() != "other" {
+                request.note = Some(Some(raw.trim().to_string()));
+            }
+            request.reason = Some(Some(mapped));
+        }
         let cmd = tickets::VoidTicketCommand {
             ticket_id: ticket_id.clone(),
             request,

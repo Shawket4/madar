@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BranchSettingsInput {
+    /// Minutes before an unaccepted order is rejected automatically. `null` (and omitted, for older clients) = never.
+    #[serde(
+        rename = "auto_reject_minutes",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub auto_reject_minutes: Option<Option<i32>>,
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
     #[serde(
@@ -143,6 +151,7 @@ impl BranchSettingsInput {
         prep_time_minutes: i32,
     ) -> BranchSettingsInput {
         BranchSettingsInput {
+            auto_reject_minutes: None,
             branch_id,
             in_mall_close_time: None,
             in_mall_discount_id: None,

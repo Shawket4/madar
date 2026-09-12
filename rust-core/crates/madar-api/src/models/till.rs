@@ -27,6 +27,14 @@ pub struct Till {
     pub name: String,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// The cash that should be in this drawer at the start of a shift, in minor units. The shift report proposes closing at it (\"leave the float, drop the rest into the safe\"); `None` means the shop has not decided and nothing is proposed.
+    #[serde(
+        rename = "standard_float",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub standard_float: Option<Option<i32>>,
     #[serde(rename = "updated_at")]
     pub updated_at: chrono::DateTime<chrono::FixedOffset>,
 }
@@ -50,6 +58,7 @@ impl Till {
             is_default,
             name,
             org_id,
+            standard_float: None,
             updated_at,
         }
     }

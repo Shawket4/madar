@@ -482,6 +482,7 @@ pub async fn delete_station(
     }
 }
 
+/// \"Live\" is `closed_at IS NULL`, not \"has an un-bumped line\": a ticket at a branch that never bumps stays on the till queue until its bill settles or the shift closes, and a ticket the kitchen finished is closed `bumped` the moment its last line is.
 pub async fn feed(
     configuration: &configuration::Configuration,
     params: FeedParams,

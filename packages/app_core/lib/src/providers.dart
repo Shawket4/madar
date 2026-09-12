@@ -114,6 +114,49 @@ final darkModeProvider = NotifierProvider<DarkModeNotifier, bool>(
   DarkModeNotifier.new,
 );
 
+/// The theme a person chose: light, dark, or the device's own setting.
+/// Persisted through the host hook like the locale, so "Auto" survives a
+/// relaunch instead of quietly becoming light. The boolean
+/// [darkModeProvider] stays for the surfaces that still read it.
+enum ThemeChoice {
+  light,
+  dark,
+  system;
+
+  /// The persisted name back to a choice; anything unknown is light, the
+  /// default the till has always booted with.
+  static ThemeChoice parse(String? name) => switch (name) {
+    'dark' => ThemeChoice.dark,
+    'system' => ThemeChoice.system,
+    _ => ThemeChoice.light,
+  };
+}
+
+class ThemeChoiceNotifier extends Notifier<ThemeChoice> {
+  ThemeChoiceNotifier({this.initial = ThemeChoice.light});
+
+  /// The vault-persisted value the ready scope boots with.
+  final ThemeChoice initial;
+
+  @override
+  ThemeChoice build() => initial;
+
+  /// User pick — updates + persists through the host hook.
+  void set(ThemeChoice choice) {
+    state = choice;
+    ref.read(themeChoicePersisterProvider)(choice);
+  }
+}
+
+final themeChoiceProvider = NotifierProvider<ThemeChoiceNotifier, ThemeChoice>(
+  ThemeChoiceNotifier.new,
+);
+
+/// Host hook the APP overrides at boot; a no-op so tests run bare.
+final themeChoicePersisterProvider = Provider<void Function(ThemeChoice)>(
+  (_) => (_) {},
+);
+
 /// Per-board realtime ticks — bumped by the app's SSE listener; boards
 /// watch and reload. The natives' tick counters.
 class TickNotifier extends Notifier<int> {

@@ -1,32 +1,30 @@
-/// THE shared control kit — one button, one field, one card, one section
-/// header, one hairline, for the whole app.
+/// THE shared control kit — system v2.
 ///
-/// These lived as six near-identical copies, one per feature package
-/// (`ActionButton` in order AND checkout, `MadarButton` in auth,
-/// `HistoryButton`, `IncomingButton`, `ShiftButton`), each carrying its own
-/// variant enum. They were not merely redundant: they had drifted apart, and
-/// every fork was missing a fix made in one of its siblings —
+/// One button, one field, one card, one row, one chip, one segment, for the
+/// whole app. Flat teal primary on a paper surface; an ink-tinted (sunk)
+/// secondary; a filled danger. No gradients, no glows, no hairline-outline
+/// buttons — the old kit had all three and they are gone. Four heights carry
+/// everything: 44 for small things, 52–56 for the things you press all day,
+/// 64 for a row or the money bar, 72 for the amount you are about to take.
 ///
-///   * checkout's button never got order's unbounded-width guard, so putting
-///     one in a bare `Row` threw and blanked the whole subtree;
-///   * checkout's amount field never got shift's `EntranceFocus`, the fix for
-///     the iPad race that wedges the text-input connection;
-///   * order's and checkout's buttons were flat 50pt/`Radii.sm` while the
-///     other four were lifted 54pt/`Radii.md`, so the same "confirm" read two
-///     different ways depending on which screen you were standing on.
+/// Every string a control shows arrives ALREADY LOCALISED. Translation is
+/// `bridge.tr`, which this package cannot see; nothing in here carries a
+/// user-visible literal.
 ///
-/// The design here is the one four of the six already followed, which is also
-/// the natives' spec (`Components.kt` / `SharedComponents.swift`): a top-lit
-/// gradient with an accent glow on the primary action, a neutral hairline on
-/// the secondary, and a tactile press scale on both.
+/// Compatibility. The old kit's names still compile — `MadarButtonVariant
+/// .outline` draws the new secondary, `MadarButtonSize.compact` is the 44
+/// small button, `MadarSectionHeader.tick` is accepted and ignored — so the
+/// feature packages keep building while they migrate screen by screen.
 ///
-/// A control that is genuinely one screen's own — a PIN pad, a payment badge,
-/// a floor-plan table — still belongs to that feature. Only the things every
-/// screen needs live here.
+/// A control that is genuinely one screen's own — a PIN pad, a floor-plan
+/// table — still belongs to that feature. Only the things every screen needs
+/// live here.
 library;
 
 import 'package:design_system/src/focus.dart';
+import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/icons.dart';
+import 'package:design_system/src/money.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/dimens.dart';
 import 'package:design_system/src/tokens/elevation.dart';
@@ -35,36 +33,20 @@ import 'package:design_system/src/tokens/typography.dart';
 import 'package:design_system/src/touch.dart';
 import 'package:flutter/material.dart';
 
-// Native component metrics that fall between the 4-pt Space steps, kept
-// verbatim so the Flutter chrome measures identically to the natives.
-
-/// Primary-CTA top-lit gradient: a hint of white along the top edge so the
-/// filled button reads lifted rather than flat (natives: lerp(accent, white,
-/// 0.16)).
-const double _ctaTopLight = 0.16;
-
-/// Button label letter-spacing (natives: 0.2.sp).
-const double _buttonTracking = 0.2;
-
-/// Loading spinner diameter / stroke (natives: 20.dp / 2.5.dp).
+/// Loading spinner diameter / stroke.
 const double _spinnerSize = 20;
 const double _spinnerStroke = 2.5;
 
-/// Outline button border width (natives: 1.5.dp).
-const double _outlineBorder = 1.5;
+/// A field's edge at rest, and the focus ring's spread.
+const double _fieldBorder = 1.5;
+const double _focusRing = 3;
 
-/// Dense-toolbar button height (natives: 50.dp) — see [MadarButtonSize].
-const double _compactHeight = 50;
+/// A segmented control's inner padding and its thumb's radius.
+const double _segmentPad = 4;
+const double _segmentThumbRadius = 9;
 
-/// Text-field vertical inset (natives: 16.dp) and icon-to-text gap (10.dp).
-const double _fieldVPad = 16;
-const double _fieldGap = 10;
-
-/// Focus glow blur on text fields (natives: shadow(8.dp, accent)).
-const double _fieldGlowBlur = 8;
-
-/// Section-header accent capsule (natives: 3x12dp).
-const Size _sectionTick = Size(3, 12);
+/// The state bar at the start of a row ("▌T5").
+const double _rowBarWidth = 4;
 
 bool _isDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
@@ -73,77 +55,114 @@ bool _isDark(BuildContext context) =>
 List<BoxShadow> elevationShadows(BuildContext context, MadarElevation level) =>
     level.shadows(context.madarColors, dark: _isDark(context));
 
+/// A colour role for a tag, a chip's count, a row's state bar.
+enum MadarTone { neutral, accent, success, warning, danger }
+
+extension MadarToneX on MadarTone {
+  /// The solid colour.
+  Color color(MadarColors c) => switch (this) {
+    MadarTone.neutral => c.textSecondary,
+    MadarTone.accent => c.accent,
+    MadarTone.success => c.success,
+    MadarTone.warning => c.warning,
+    MadarTone.danger => c.danger,
+  };
+
+  /// The wash behind it.
+  Color tint(MadarColors c) => switch (this) {
+    MadarTone.neutral => c.surfaceAlt,
+    MadarTone.accent => c.accentBg,
+    MadarTone.success => c.successBg,
+    MadarTone.warning => c.warningBg,
+    MadarTone.danger => c.dangerBg,
+  };
+}
+
 // ── Button ───────────────────────────────────────────────────────────────
 
-/// Emphasis of a [MadarButton] — the natives' `BtnVariant`.
+/// Emphasis of a [MadarButton].
 enum MadarButtonVariant {
-  /// The one terminal action on the surface: accent fill, top-lit gradient,
-  /// accent glow. At most one per screen or sheet.
+  /// The one terminal action on the surface: flat teal. At most one per
+  /// screen or sheet.
   primary,
 
-  /// The alternative to the primary: hairline border on surface, plain label.
-  ///
-  /// Deliberately NEUTRAL rather than accent-tinted. Two accent-coloured
-  /// buttons side by side make the reader stop and choose, which is exactly
-  /// what a secondary action must not do.
+  /// The alternative to the primary: the sunk grey with ink text. Quiet on
+  /// purpose — two teal buttons side by side make the reader stop and choose,
+  /// which is exactly what a secondary action must not do.
+  secondary,
+
+  /// Legacy name for [secondary]. The hairline outline it used to draw is
+  /// gone; it renders the sunk fill.
   outline,
 
-  /// Recessive exit — cancel, sign out, "not now". No fill, no border.
+  /// A link-weight action: no fill, teal text. "Add tip", "Not now".
   ghost,
 
   /// Destructive confirm. Reads as loud as primary, on purpose.
   danger,
+
+  /// An ink fill — the chrome's own button, for a dark surface (the done
+  /// card's "New sale").
+  ink,
 }
 
-/// Height/rhythm of a [MadarButton].
+/// Height of a [MadarButton].
+/// The ink variant's fill. Light: the chrome's own ink, a dark button on
+/// paper. Dark: the RAISED ink — the plain chrome is within a shade of the
+/// dark page ground and a button painted in it disappears (the Till's
+/// "Close shift" did).
+Color _inkFill(BuildContext context, MadarColors colors) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? colors.chromeRaised
+    : colors.chromeAlt;
+
 enum MadarButtonSize {
-  /// The default: 54pt, [Radii.md], [MadarType.title]. Every full-width CTA
-  /// and every sheet's confirm.
+  /// 56 — every full-width action and every sheet's confirm.
   regular,
 
-  /// 50pt, [Radii.sm], [MadarType.body], no glow — for a dense toolbar row
-  /// where several buttons sit shoulder to shoulder and a halo on each would
-  /// be noise (the floor's arrivals/waitlist/view controls, the cart's row of
-  /// verbs).
+  /// 44 — a dense row where several buttons stand shoulder to shoulder (a
+  /// card's Accept / Decline, a row's Retry / Discard).
   compact,
 }
 
-/// THE button. Tactile press scale, impact haptic, optional leading icon,
-/// spinner while [loading], 45%-alpha when disabled.
+/// THE button. Flat fill, 12px corners, a 17-bold label, a tactile press
+/// scale and an impact haptic; a spinner while [loading]; 40% when disabled.
 ///
 /// Width adapts to the parent: it fills and ellipsizes when the parent bounds
-/// it (a Column with stretch, the common case) and shrink-wraps when it does
-/// not (a bare child of a Row). A `Flexible` under unbounded width is illegal
-/// and the assertion does not merely break the button — it fails the whole
-/// subtree's layout and blanks the screen hosting it.
+/// it (a stretched Column, an `Expanded`) and shrink-wraps when it does not
+/// (a bare child of a Row or a Wrap).
 class MadarButton extends StatelessWidget {
-  /// Creates a button.
   const MadarButton({
     required this.label,
     required this.onTap,
     this.variant = MadarButtonVariant.primary,
     this.size = MadarButtonSize.regular,
+    this.glyph,
     this.icon,
+    this.trailing,
     this.loading = false,
     this.enabled = true,
     this.tooltip,
     super.key,
   });
 
-  /// Already-localized label.
+  /// Already-localized label. Empty for a glyph-only square.
   final String label;
 
   /// Tap handler; fires after the impact haptic.
   final VoidCallback onTap;
 
-  /// Visual emphasis.
   final MadarButtonVariant variant;
-
-  /// Height/rhythm.
   final MadarButtonSize size;
 
-  /// Optional leading [MadarIcon] name.
+  /// Leading glyph from the v2 set.
+  final MadarGlyph? glyph;
+
+  /// Legacy leading icon by SF-Symbol name. Prefer [glyph].
   final String? icon;
+
+  /// An end-aligned figure or glyph — a count, an amount.
+  final Widget? trailing;
 
   /// Replaces the label with a spinner and blocks taps.
   final bool loading;
@@ -161,92 +180,53 @@ class MadarButton extends StatelessWidget {
     final active = enabled && !loading;
     final compact = size == MadarButtonSize.compact;
 
-    final fg = switch (variant) {
-      MadarButtonVariant.primary => colors.textOnAccent,
-      MadarButtonVariant.danger => colors.textOnAccent,
-      MadarButtonVariant.outline => colors.textPrimary,
-      MadarButtonVariant.ghost => colors.textSecondary,
+    final (Color? fill, Color fg) = switch (variant) {
+      MadarButtonVariant.primary => (colors.accent, colors.textOnAccent),
+      MadarButtonVariant.secondary ||
+      MadarButtonVariant.outline => (colors.surfaceAlt, colors.textPrimary),
+      MadarButtonVariant.ghost => (null, colors.accent),
+      MadarButtonVariant.danger => (colors.danger, Colors.white),
+      MadarButtonVariant.ink => (_inkFill(context, colors), Colors.white),
     };
 
-    // The lift: a primary action is the only thing on the surface that
-    // catches light. `gradient` REPLACES `color` in a BoxDecoration, so the
-    // two are never both set.
-    final lit = variant == MadarButtonVariant.primary && active;
-    final gradient = lit
-        ? LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color.lerp(colors.accent, Colors.white, _ctaTopLight)!,
-              colors.accent,
-            ],
-          )
-        : null;
-    final fill = switch (variant) {
-      MadarButtonVariant.primary =>
-        active ? null : colors.accent.withValues(alpha: Opacities.disabled),
-      MadarButtonVariant.danger =>
-        active
-            ? colors.danger
-            : colors.danger.withValues(alpha: Opacities.disabled),
-      MadarButtonVariant.outline => colors.surface,
-      MadarButtonVariant.ghost => null,
-    };
-
-    final labelStyle = (compact ? MadarType.body : MadarType.title).copyWith(
-      fontWeight: FontWeight.w700,
-      letterSpacing: compact ? null : _buttonTracking,
-      color: active ? fg : fg.withValues(alpha: Opacities.disabled),
-    );
-
-    final text = Text(
-      label,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: labelStyle,
-    );
+    final labelStyle = (compact ? MadarType.buttonSm : MadarType.button)
+        .copyWith(color: fg);
+    final glyphSize = compact ? IconSize.md : IconSize.lg;
+    final hPad = variant == MadarButtonVariant.ghost
+        ? Space.md
+        : (compact ? Space.lg : 22.0);
 
     Widget button = Container(
-      height: compact ? _compactHeight : Metrics.buttonHeight,
+      height: compact ? Metrics.buttonSmallHeight : Metrics.buttonHeight,
+      constraints: BoxConstraints(
+        minWidth: compact ? Metrics.buttonSmallHeight : Metrics.buttonHeight,
+      ),
       padding: EdgeInsetsDirectional.symmetric(
-        horizontal: compact ? Space.md : Space.lg,
+        horizontal: label.isEmpty ? 0 : hPad,
       ),
       decoration: BoxDecoration(
-        color: gradient == null ? fill : null,
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(compact ? Radii.sm : Radii.md),
-        border: variant == MadarButtonVariant.outline
-            ? Border.all(
-                color: colors.border,
-                width: compact ? 1 : _outlineBorder,
-              )
-            : null,
-        // A halo belongs to the one action that owns the screen, not to a row
-        // of toolbar buttons.
-        boxShadow: lit && !compact
-            ? elevationShadows(context, MadarElevation.glow)
-            : null,
+        color: fill,
+        borderRadius: BorderRadius.circular(compact ? Radii.sm : Radii.control),
       ),
-      // NO `alignment:` here. A Container with an alignment wraps its child in
-      // an Align, which EXPANDS to fill loose constraints — which turned a
-      // toolbar of four compact buttons into four full-width bars stacked down
-      // the page. The Row below does the centring instead.
+      // NO `alignment:` here. A Container with an alignment wraps its child
+      // in an Align, which EXPANDS to fill loose constraints — which turned a
+      // toolbar of four compact buttons into four full-width bars stacked
+      // down the page. The Row below does the centring instead.
       child: LayoutBuilder(
         builder: (context, constraints) {
           // TIGHT, not merely bounded. A button fills its line only when the
           // parent actually dictates the width — `Expanded`, a stretched
-          // Column, a `SizedBox(width:)`. A `Wrap` or a bare `Row` child hands
-          // down LOOSE constraints, and filling those turns a toolbar of four
-          // buttons into four full-width bars stacked down the page.
-          final fill = constraints.hasTightWidth;
+          // Column, a `SizedBox(width:)`. A `Wrap` or a bare `Row` child
+          // hands down LOOSE constraints, and filling those turns a row of
+          // buttons into a stack of bars.
+          final fillLine = constraints.hasTightWidth;
           // Ellipsis needs a bound; a `Flexible` under an UNBOUNDED width is
-          // illegal and its assertion blanks the whole subtree, not just the
-          // button.
+          // illegal and its assertion blanks the whole subtree.
           final bounded = constraints.hasBoundedWidth;
           if (loading) {
             return Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
+              mainAxisSize: fillLine ? MainAxisSize.max : MainAxisSize.min,
               children: [
                 SizedBox.square(
                   dimension: _spinnerSize,
@@ -258,29 +238,42 @@ class MadarButton extends StatelessWidget {
               ],
             );
           }
+          final text = Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: labelStyle,
+          );
           return Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: trailing == null
+                ? MainAxisAlignment.center
+                : MainAxisAlignment.spaceBetween,
+            mainAxisSize: fillLine ? MainAxisSize.max : MainAxisSize.min,
+            spacing: compact ? Space.sm : 10,
             children: [
-              if (icon != null) ...[
-                MadarIcon(
-                  icon,
-                  tint: active ? fg : fg.withValues(alpha: Opacities.disabled),
-                  size: IconSize.lg,
-                ),
-                // A button with an icon and NO label is a square glyph tile;
-                // it must not carry a gap that pushes the glyph off centre.
-                if (label.isNotEmpty) const SizedBox(width: Space.sm),
-              ],
+              if (glyph != null)
+                MadarGlyphIcon(glyph!, size: glyphSize, color: fg)
+              else if (icon != null)
+                MadarIcon(icon, tint: fg, size: glyphSize),
               if (label.isNotEmpty)
                 if (bounded) Flexible(child: text) else text,
+              if (trailing != null)
+                DefaultTextStyle.merge(
+                  style: labelStyle,
+                  child: IconTheme.merge(
+                    data: IconThemeData(color: fg),
+                    child: trailing!,
+                  ),
+                ),
             ],
           );
         },
       ),
     );
 
-    if (active) {
+    if (!active) {
+      button = Opacity(opacity: Opacities.disabled, child: button);
+    } else {
       button = TactileScale(
         haptic: false,
         onTap: () {
@@ -296,86 +289,216 @@ class MadarButton extends StatelessWidget {
   }
 }
 
-/// A square glyph tile — a verb with no room for a word, standing beside a
-/// [MadarButton] in the same row.
+/// THE money bar — the 64px primary that carries an amount: *Charge ·
+/// EGP 196.00*, *Record · 60.00*. The verb sits at the start, the figure at
+/// the end in Plex Mono, an LTR island in both scripts.
 ///
-/// It matches the button's height and corner radius at the same [size], which
-/// is the whole point: the pair used to be a 50pt tile beside a 54pt button,
-/// and a row of controls that do not line up is the cheapest way to make a
-/// screen look unfinished.
-class MadarGlyphTile extends StatelessWidget {
-  /// Creates a glyph tile.
-  const MadarGlyphTile({
-    required this.icon,
+/// The one control on a screen that is allowed to be taller than a button,
+/// because it is the one that takes money. When [enabled] is false pass
+/// [reason] — "Open the shift first" — and it is shown in place of the
+/// figure, which is the only honest way to disable it.
+class MadarMoneyBar extends StatelessWidget {
+  const MadarMoneyBar({
+    required this.label,
+    required this.amountMinor,
     required this.onTap,
-    required this.tint,
-    required this.background,
-    this.semanticLabel,
-    this.size = MadarButtonSize.regular,
+    this.currency = '',
+    this.enabled = true,
+    this.loading = false,
+    this.reason,
+    this.variant = MadarButtonVariant.primary,
     super.key,
   });
 
-  /// [MadarIcon] name.
-  final String icon;
-
-  /// Tap handler; fires after the impact haptic.
+  final String label;
+  final int amountMinor;
   final VoidCallback onTap;
 
-  /// Glyph colour.
-  final Color tint;
+  /// ISO code shown before the figure; empty hides it.
+  final String currency;
+  final bool enabled;
+  final bool loading;
 
-  /// Tile fill — usually the tint's `*Bg` companion.
-  final Color background;
+  /// Why the bar is disabled, already localised. Shown instead of the figure.
+  final String? reason;
 
-  /// What the tile does, for a screen reader. A glyph alone says nothing.
-  final String? semanticLabel;
-
-  /// Matches the [MadarButton] it stands beside.
-  final MadarButtonSize size;
+  /// [MadarButtonVariant.primary] or [MadarButtonVariant.danger] (a refund).
+  final MadarButtonVariant variant;
 
   @override
   Widget build(BuildContext context) {
-    final compact = size == MadarButtonSize.compact;
-    final side = compact ? _compactHeight : Metrics.buttonHeight;
-    return Semantics(
-      button: true,
-      label: semanticLabel,
-      child: TactileScale(
+    final colors = context.madarColors;
+    final active = enabled && !loading;
+    final (Color fill, Color fg) = switch (variant) {
+      MadarButtonVariant.danger => (colors.danger, Colors.white),
+      MadarButtonVariant.ink => (_inkFill(context, colors), Colors.white),
+      MadarButtonVariant.secondary ||
+      MadarButtonVariant.outline => (colors.surfaceAlt, colors.textPrimary),
+      _ => (colors.accent, colors.textOnAccent),
+    };
+    final showReason = !enabled && reason != null;
+
+    Widget bar = Container(
+      height: Metrics.moneyBarHeight,
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.xl),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(Radii.control),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Same rule as the button: fill a dictated width, shrink-wrap a
+          // loose one, and never put a Flexible under an unbounded one.
+          final bounded = constraints.hasBoundedWidth;
+          final text = Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: MadarType.button.copyWith(fontSize: 18, color: fg),
+          );
+          return Row(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            spacing: Space.lg,
+            children: [
+              if (bounded) Expanded(child: text) else text,
+              if (loading)
+                SizedBox.square(
+                  dimension: _spinnerSize,
+                  child: CircularProgressIndicator(
+                    color: fg,
+                    strokeWidth: _spinnerStroke,
+                  ),
+                )
+              else if (showReason)
+                Flexible(
+                  child: Text(
+                    reason!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.bodySm.copyWith(color: fg),
+                  ),
+                )
+              else
+                MoneyText(
+                  amountMinor,
+                  currency: currency,
+                  style: MadarType.moneyMd,
+                  color: fg,
+                ),
+            ],
+          );
+        },
+      ),
+    );
+    if (!active) {
+      bar = Opacity(opacity: Opacities.disabled, child: bar);
+    } else {
+      bar = TactileScale(
         haptic: false,
         onTap: () {
           MadarHaptics.impact();
           onTap();
         },
-        child: Container(
-          width: side,
-          height: side,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(compact ? Radii.sm : Radii.md),
-          ),
-          child: MadarIcon(icon, tint: tint, size: IconSize.lg),
-        ),
+        child: bar,
+      );
+    }
+    return Semantics(button: true, enabled: active, child: bar);
+  }
+}
+
+/// A square glyph tile — a verb with no room for a word: the header's back
+/// tile, a row's ⋯, a field's clear. 44 square on the sunk grey; 56 beside
+/// a regular button so the pair lines up.
+class MadarGlyphTile extends StatelessWidget {
+  const MadarGlyphTile({
+    required this.onTap,
+    this.glyph,
+    this.icon,
+    this.tint,
+    this.background,
+    this.semanticLabel,
+    this.size = MadarButtonSize.compact,
+    this.enabled = true,
+    super.key,
+  }) : assert(glyph != null || icon != null, 'a tile needs a glyph');
+
+  /// The v2 glyph.
+  final MadarGlyph? glyph;
+
+  /// Legacy SF-Symbol name. Prefer [glyph].
+  final String? icon;
+
+  /// Tap handler; fires after the impact haptic.
+  final VoidCallback onTap;
+
+  /// Glyph colour. Defaults to the primary text.
+  final Color? tint;
+
+  /// Tile fill. Defaults to the sunk grey.
+  final Color? background;
+
+  /// What the tile does, for a screen reader. A glyph alone says nothing.
+  final String? semanticLabel;
+
+  /// [MadarButtonSize.compact] is 44; [MadarButtonSize.regular] is 56.
+  final MadarButtonSize size;
+
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final compact = size == MadarButtonSize.compact;
+    final side = compact ? Metrics.glyphTile : Metrics.glyphTileLarge;
+    final fg = tint ?? colors.textPrimary;
+    Widget tile = Container(
+      width: side,
+      height: side,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: background ?? colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(compact ? Radii.sm : Radii.control),
       ),
+      child: glyph != null
+          ? MadarGlyphIcon(glyph!, size: IconSize.xl, color: fg)
+          : MadarIcon(icon, tint: fg, size: IconSize.xl),
+    );
+    if (!enabled) {
+      tile = Opacity(opacity: Opacities.disabled, child: tile);
+    } else {
+      tile = TactileScale(
+        haptic: false,
+        onTap: () {
+          MadarHaptics.impact();
+          onTap();
+        },
+        child: tile,
+      );
+    }
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: semanticLabel,
+      child: tile,
     );
   }
 }
 
 // ── Text field ───────────────────────────────────────────────────────────
 
-/// THE text field: rounded fill with an animated focus ring — accent border,
-/// soft accent glow, `surfaceAlt` warming to `surface` — and a leading icon
-/// that tints accent while focused.
+/// THE text field: 52 tall on the surface with a 1.5px edge; focused, the
+/// edge turns teal and a 3px teal-wash ring sits outside it. A leading
+/// glyph tints teal while focused.
 ///
 /// The ring repaints off the [FocusNode] through a [ListenableBuilder], never
 /// `setState`: focus changes on every keystroke's worth of caret work and
 /// rebuilding the enclosing screen for a border colour is how a POS starts
 /// dropping frames on a cheap tablet.
 class MadarField extends StatefulWidget {
-  /// Creates a field.
   const MadarField({
     required this.controller,
     required this.placeholder,
+    this.glyph,
     this.icon,
     this.onChanged,
     this.onSubmitted,
@@ -386,25 +509,23 @@ class MadarField extends StatefulWidget {
     this.textInputAction,
     this.maxLines = 1,
     this.trailing,
+    this.focusNode,
     super.key,
   });
 
-  /// Text being edited.
   final TextEditingController controller;
 
   /// Already-localized placeholder.
   final String placeholder;
 
-  /// Optional leading [MadarIcon] name.
+  /// Leading v2 glyph.
+  final MadarGlyph? glyph;
+
+  /// Legacy leading icon by SF-Symbol name. Prefer [glyph].
   final String? icon;
 
-  /// Live edits.
   final ValueChanged<String>? onChanged;
-
-  /// Keyboard "done"/"next".
   final ValueChanged<String>? onSubmitted;
-
-  /// Greys the field and blocks editing when false.
   final bool enabled;
 
   /// Masks the text (a PIN, a password).
@@ -414,17 +535,17 @@ class MadarField extends StatefulWidget {
   /// raw `autofocus: true` — see [EntranceFocus].
   final bool autofocus;
 
-  /// Keyboard type.
   final TextInputType? keyboardType;
-
-  /// Keyboard action button.
   final TextInputAction? textInputAction;
 
-  /// Lines; `null` grows without bound.
+  /// Lines; `null` grows without bound. A multi-line field grows past 52.
   final int? maxLines;
 
   /// Optional trailing affordance (a clear button, a unit).
   final Widget? trailing;
+
+  /// An external focus node, for a screen that moves focus itself.
+  final FocusNode? focusNode;
 
   @override
   State<MadarField> createState() => _MadarFieldState();
@@ -432,7 +553,8 @@ class MadarField extends StatefulWidget {
 
 class _MadarFieldState extends State<MadarField>
     with EntranceFocus<MadarField> {
-  final FocusNode _focus = FocusNode();
+  FocusNode? _own;
+  FocusNode get _focus => widget.focusNode ?? (_own ??= FocusNode());
 
   @override
   void initState() {
@@ -442,46 +564,57 @@ class _MadarFieldState extends State<MadarField>
 
   @override
   void dispose() {
-    _focus.dispose();
+    _own?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    final single = widget.obscure || widget.maxLines == 1;
     return ListenableBuilder(
       listenable: _focus,
       builder: (context, _) {
         final focused = _focus.hasFocus && widget.enabled;
+        final textStyle = MadarType.title.copyWith(
+          fontWeight: FontWeight.w500,
+          color: widget.enabled ? colors.textPrimary : colors.textMuted,
+        );
         return AnimatedContainer(
           duration: MotionSpec.standardDuration,
           curve: MotionSpec.standardCurve,
-          padding: const EdgeInsetsDirectional.symmetric(
+          constraints: BoxConstraints(
+            minHeight: Metrics.inputHeight,
+            maxHeight: single ? Metrics.inputHeight : double.infinity,
+          ),
+          padding: EdgeInsetsDirectional.symmetric(
             horizontal: Space.lg,
-            vertical: _fieldVPad,
+            vertical: single ? 0 : Space.md,
           ),
           decoration: BoxDecoration(
-            color: focused ? colors.surface : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(Radii.md),
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(Radii.control),
             border: Border.all(
               color: focused ? colors.accent : colors.border,
-              width: focused ? 2 : 1,
+              width: _fieldBorder,
             ),
+            // A hard ring, not a glow: zero blur, a 3px spread of the wash.
             boxShadow: focused
-                ? [
-                    BoxShadow(
-                      color: colors.accent.withValues(
-                        alpha: Opacities.focusGlow,
-                      ),
-                      blurRadius: _fieldGlowBlur,
-                    ),
-                  ]
+                ? [BoxShadow(color: colors.accentBg, spreadRadius: _focusRing)]
                 : null,
           ),
           child: Row(
-            spacing: _fieldGap,
+            crossAxisAlignment: single
+                ? CrossAxisAlignment.center
+                : CrossAxisAlignment.start,
+            spacing: Space.md,
             children: [
-              if (widget.icon != null)
+              if (widget.glyph != null)
+                MadarGlyphIcon(
+                  widget.glyph!,
+                  color: focused ? colors.accent : colors.textMuted,
+                )
+              else if (widget.icon != null)
                 MadarIcon(
                   widget.icon,
                   tint: focused ? colors.accent : colors.textMuted,
@@ -499,20 +632,12 @@ class _MadarFieldState extends State<MadarField>
                     obscureText: widget.obscure,
                     keyboardType: widget.keyboardType,
                     textInputAction: widget.textInputAction,
-                    maxLines: widget.obscure ? 1 : widget.maxLines,
+                    maxLines: single ? 1 : widget.maxLines,
                     cursorColor: colors.accent,
-                    style: MadarType.title.copyWith(
-                      fontWeight: FontWeight.w400,
-                      color: widget.enabled
-                          ? colors.textPrimary
-                          : colors.textMuted,
-                    ),
+                    style: textStyle,
                     decoration: InputDecoration.collapsed(
                       hintText: widget.placeholder,
-                      hintStyle: MadarType.title.copyWith(
-                        fontWeight: FontWeight.w400,
-                        color: colors.textMuted,
-                      ),
+                      hintStyle: textStyle.copyWith(color: colors.textMuted),
                     ),
                   ),
                 ),
@@ -526,15 +651,15 @@ class _MadarFieldState extends State<MadarField>
   }
 }
 
-/// THE amount field: a hero money input with the currency code set quietly
-/// ahead of a large tabular figure.
+/// THE amount field: 72 tall, the currency code set quietly ahead of a large
+/// tabular figure. Same edge and ring as [MadarField].
 class MadarAmountField extends StatefulWidget {
-  /// Creates an amount field.
   const MadarAmountField({
     required this.amountMinor,
     required this.onAmountMinor,
     required this.currencyCode,
     this.autofocus = false,
+    this.onSubmitted,
     super.key,
   });
 
@@ -550,6 +675,9 @@ class MadarAmountField extends StatefulWidget {
   /// Focuses once the route's entrance settles (never raw `autofocus`).
   final bool autofocus;
 
+  /// The keyboard's done key.
+  final ValueChanged<int>? onSubmitted;
+
   @override
   State<MadarAmountField> createState() => _MadarAmountFieldState();
 }
@@ -560,11 +688,18 @@ class _MadarAmountFieldState extends State<MadarAmountField>
     text: widget.amountMinor == 0 ? '' : minorToText(widget.amountMinor),
   );
   final FocusNode _focus = FocusNode();
-  late int _lastEmitted = widget.amountMinor;
+
+  /// The last amount this field and its owner agreed on. Set in initState,
+  /// never lazily: a `late` initialiser here is first evaluated inside
+  /// didUpdateWidget, where `widget` is already the NEW widget, so a value
+  /// that arrives after mount (the open-shift carry-over) compares equal to
+  /// itself and never reaches the text.
+  late int _lastEmitted;
 
   @override
   void initState() {
     super.initState();
+    _lastEmitted = widget.amountMinor;
     // Never raw `autofocus: true` — on iPad it races the route transition and
     // wedges the text-input connection, after which EVERY later tap on ANY
     // field does nothing.
@@ -602,26 +737,30 @@ class _MadarAmountFieldState extends State<MadarAmountField>
       listenable: _focus,
       builder: (context, _) {
         final focused = _focus.hasFocus;
-        return Container(
+        return AnimatedContainer(
+          duration: MotionSpec.standardDuration,
+          curve: MotionSpec.standardCurve,
           height: Metrics.amountFieldHeight,
-          padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.lg),
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Space.card,
+          ),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(Radii.md),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: focused ? colors.accent : colors.border,
-              width: focused ? 2 : 1,
+              width: _fieldBorder,
             ),
+            boxShadow: focused
+                ? [BoxShadow(color: colors.accentBg, spreadRadius: _focusRing)]
+                : null,
           ),
           child: Row(
-            spacing: Space.sm,
+            spacing: Space.md,
             children: [
               Text(
                 widget.currencyCode.toUpperCase(),
-                style: MadarType.title.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: colors.textMuted,
-                ),
+                style: MadarType.title.copyWith(color: colors.textMuted),
               ),
               Expanded(
                 child: Material(
@@ -630,16 +769,22 @@ class _MadarAmountFieldState extends State<MadarAmountField>
                     controller: _controller,
                     focusNode: _focus,
                     onChanged: _changed,
+                    onSubmitted: (v) =>
+                        widget.onSubmitted?.call(textToMinor(v)),
                     cursorColor: colors.accent,
+                    // Figures are LTR islands, whatever the script around them.
+                    textDirection: TextDirection.ltr,
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    style: MadarType.moneyLg.copyWith(
+                    style: MadarType.moneyDisplay.copyWith(
+                      fontSize: 28,
                       color: colors.textPrimary,
                     ),
                     decoration: InputDecoration.collapsed(
                       hintText: '0.00',
-                      hintStyle: MadarType.moneyLg.copyWith(
+                      hintStyle: MadarType.moneyDisplay.copyWith(
+                        fontSize: 28,
                         color: colors.textMuted,
                       ),
                     ),
@@ -671,46 +816,45 @@ String minorToText(int minor) {
   return (minor / 100).toStringAsFixed(2);
 }
 
-// ── Card, section header, hairline ───────────────────────────────────────
+// ── Card, row, section header, hairline ──────────────────────────────────
 
-/// THE card: surface fill, hairline border, soft card elevation, [Radii.lg]
-/// corners.
+/// THE card: surface fill, a 1px light edge, 16px corners, a 20px inset. No
+/// shadow — the edge does the work.
 ///
 /// Takes either a single [child] or a stacked [children] list. Pass [flush]
-/// for a zero-inset card whose children own their own padding — list rows and
-/// table headers whose separators must reach the edge — which also clips them
-/// to the corner radius so a row's fill cannot square off the card.
+/// for a zero-inset card whose children own their own padding — a list of
+/// [MadarRow]s whose hairlines must reach the edge — which also clips them to
+/// the corner radius so a row's fill cannot square off the card.
 class MadarCard extends StatelessWidget {
-  /// Creates a card around one [child].
   const MadarCard({
     required Widget this.child,
     this.padding,
     this.flush = false,
     this.clip = false,
+    this.onTap,
+    this.selected = false,
     super.key,
   }) : children = null,
        spacing = 0;
 
-  /// Creates a card around a stacked [children] list.
   const MadarCard.column({
     required List<Widget> this.children,
     this.spacing = Space.md,
     this.padding,
     this.flush = false,
     this.clip = false,
+    this.onTap,
+    this.selected = false,
     super.key,
   }) : child = null;
 
-  /// The single child, when built with the default constructor.
   final Widget? child;
-
-  /// Stacked children, when built with [MadarCard.column].
   final List<Widget>? children;
 
   /// Gap between [children]. Ignored when [flush].
   final double spacing;
 
-  /// Inset override. Defaults to [Space.lg], or zero when [flush].
+  /// Inset override. Defaults to [Space.card], or zero when [flush].
   final EdgeInsetsGeometry? padding;
 
   /// Zero inset, zero spacing, clipped — the children own both.
@@ -719,10 +863,17 @@ class MadarCard extends StatelessWidget {
   /// Clip the content to the corner radius (implied by [flush]).
   final bool clip;
 
+  /// Makes the whole card a press target (a queue card, a menu tile).
+  final VoidCallback? onTap;
+
+  /// A 2px teal edge — the tile that is in the cart, the method that is
+  /// chosen.
+  final bool selected;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final radius = BorderRadius.circular(Radii.lg);
+    final radius = BorderRadius.circular(Radii.card);
     final list = children;
     var content = list == null
         ? child!
@@ -736,32 +887,203 @@ class MadarCard extends StatelessWidget {
         padding ??
         (flush
             ? EdgeInsetsDirectional.zero
-            : const EdgeInsetsDirectional.all(Space.lg));
+            : const EdgeInsetsDirectional.all(Space.card));
     if (inset != EdgeInsetsDirectional.zero) {
       content = Padding(padding: inset, child: content);
     }
     if (flush || clip) {
       content = ClipRRect(borderRadius: radius, child: content);
     }
-    return DecoratedBox(
+    Widget card = DecoratedBox(
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: radius,
-        border: Border.all(color: colors.borderLight),
-        boxShadow: elevationShadows(context, MadarElevation.card),
+        border: Border.all(
+          color: selected ? colors.accent : colors.borderLight,
+          width: selected ? 2 : 1,
+        ),
       ),
       child: content,
+    );
+    if (onTap != null) {
+      card = TactileScale(onTap: onTap, child: card);
+    }
+    return card;
+  }
+}
+
+/// THE row: 64 tall, a title with an optional second line, an optional
+/// leading glyph or state bar, an optional trailing figure and a disclosure
+/// chevron when it goes somewhere. Rows stack inside a flush [MadarCard]
+/// with a [MadarHairline] between them.
+///
+/// The [bar] is the 4px stripe at the start edge that carries a table's or
+/// a bill's state ("▌T5") — the row's colour lives there and nowhere else,
+/// so a list of twenty rows is not twenty tinted cards.
+class MadarRow extends StatelessWidget {
+  const MadarRow({
+    required this.title,
+    this.subtitle,
+    this.glyph,
+    this.leading,
+    this.bar,
+    this.value,
+    this.trailing,
+    this.onTap,
+    this.chevron,
+    this.dense = false,
+    this.titleStyle,
+    super.key,
+  });
+
+  /// Already-localised. Ellipsised on one line.
+  final String title;
+
+  /// Meta under the title — who, when, how much.
+  final String? subtitle;
+
+  /// A leading glyph in the secondary text colour.
+  final MadarGlyph? glyph;
+
+  /// Any leading widget (an avatar, a count disc) when a glyph is not it.
+  final Widget? leading;
+
+  /// The state stripe's colour. `null` draws none.
+  final Color? bar;
+
+  /// A figure at the end — an amount, a time — set as given. Use [MoneyText]
+  /// for money.
+  final Widget? value;
+
+  /// Anything else at the end (a chip, a small button). After [value].
+  final Widget? trailing;
+
+  /// Makes the row a press target. A tappable row shows a chevron unless
+  /// [chevron] says otherwise.
+  final VoidCallback? onTap;
+
+  /// Force the disclosure chevron on or off.
+  final bool? chevron;
+
+  /// 56 tall instead of 64 — a settings list, a receipt's lines.
+  final bool dense;
+
+  /// Override the title style (a mono ref, a struck-through voided line).
+  final TextStyle? titleStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final showChevron = chevron ?? onTap != null;
+    Widget row = ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: dense ? Metrics.tableRowHeight : Metrics.rowHeight,
+      ),
+      child: Row(
+        children: [
+          // The stripe itself is painted by the Stack below so it spans the
+          // row's full height without an IntrinsicHeight — which a row
+          // holding a MadarButton (a LayoutBuilder) cannot answer.
+          SizedBox(width: bar != null ? Space.lg : Space.card),
+          if (glyph != null) ...[
+            MadarGlyphIcon(
+              glyph!,
+              size: IconSize.xl,
+              color: colors.textSecondary,
+            ),
+            const SizedBox(width: Space.lg),
+          ] else if (leading != null) ...[
+            leading!,
+            const SizedBox(width: Space.lg),
+          ],
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.symmetric(
+                vertical: Space.sm,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        titleStyle ??
+                        MadarType.title.copyWith(color: colors.textPrimary),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: MadarType.bodySm.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (value != null) ...[
+            const SizedBox(width: Space.lg),
+            DefaultTextStyle.merge(
+              style: MadarType.money.copyWith(color: colors.textPrimary),
+              child: value!,
+            ),
+          ],
+          if (trailing != null) ...[const SizedBox(width: Space.lg), trailing!],
+          if (showChevron) ...[
+            const SizedBox(width: Space.md),
+            MadarGlyphIcon(
+              MadarGlyph.chevronForward,
+              size: IconSize.md,
+              color: colors.textMuted,
+            ),
+          ],
+          const SizedBox(width: Space.card),
+        ],
+      ),
+    );
+    if (bar != null) {
+      row = Stack(
+        children: [
+          PositionedDirectional(
+            start: 0,
+            top: 0,
+            bottom: 0,
+            child: SizedBox(
+              width: _rowBarWidth,
+              child: ColoredBox(color: bar!),
+            ),
+          ),
+          row,
+        ],
+      );
+    }
+    if (onTap == null) return row;
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          MadarHaptics.selection();
+          onTap!();
+        },
+        child: row,
+      ),
     );
   }
 }
 
-/// THE section header: an accent tick (or a small accent glyph) ahead of an
-/// uppercase, tracked label.
+/// THE section header: a 12-bold tracked uppercase label in the secondary
+/// colour, with an optional end-aligned affordance.
 class MadarSectionHeader extends StatelessWidget {
-  /// Creates a section header.
   const MadarSectionHeader({
     required this.text,
     this.icon,
+    this.glyph,
     this.trailing,
     this.tick = true,
     super.key,
@@ -770,52 +1092,60 @@ class MadarSectionHeader extends StatelessWidget {
   /// Label; uppercased for display.
   final String text;
 
-  /// Optional [MadarIcon] name replacing the accent tick.
+  /// Legacy SF-Symbol glyph ahead of the label.
   final String? icon;
+
+  /// A small glyph ahead of the label.
+  final MadarGlyph? glyph;
 
   /// Optional end-aligned affordance (a count, a "see all").
   final Widget? trailing;
 
-  /// Draws the accent tick ahead of the label. Clear it for a label that
-  /// merely names a block INSIDE a card — a tick there competes with the
-  /// section header that already opened the page.
+  /// Accepted for compatibility; the v2 header draws no tick.
   final bool tick;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return Row(
-      spacing: Space.sm,
-      children: [
-        if (icon != null)
-          MadarIcon(icon, tint: colors.accent, size: IconSize.xs)
-        else if (tick)
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.accent,
-              borderRadius: BorderRadius.circular(Radii.pill),
-            ),
-            child: SizedBox.fromSize(size: _sectionTick),
-          ),
-        Expanded(
-          child: Text(
-            text.toUpperCase(),
-            style: MadarType.label.copyWith(
+    return SizedBox(
+      height: 20,
+      child: Row(
+        spacing: 10,
+        children: [
+          if (glyph != null)
+            MadarGlyphIcon(
+              glyph!,
+              size: IconSize.xs,
               color: colors.textSecondary,
-              letterSpacing: MadarType.tracking,
+            )
+          else if (icon != null)
+            MadarIcon(icon, tint: colors.textSecondary, size: IconSize.xs),
+          Expanded(
+            child: Text(
+              text.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.label.copyWith(
+                color: colors.textSecondary,
+                letterSpacing: MadarType.tracking,
+              ),
             ),
           ),
-        ),
-        ?trailing,
-      ],
+          ?trailing,
+        ],
+      ),
     );
   }
 }
 
-/// THE hairline: a one-pixel rule in the border tone.
+/// THE hairline: a one-pixel rule. [MadarHairline.row] is the light one
+/// between rows inside a card; the default is the full border weight between
+/// blocks on the paper.
 class MadarHairline extends StatelessWidget {
-  /// Creates a hairline.
   const MadarHairline({this.inset = 0, this.light = false, super.key});
+
+  /// The light rule between two [MadarRow]s in a flush card.
+  const MadarHairline.row({this.inset = 0, super.key}) : light = true;
 
   /// Start/end inset, for a rule that stops short of a card's edge.
   final double inset;
@@ -833,6 +1163,358 @@ class MadarHairline extends StatelessWidget {
             ? context.madarColors.borderLight
             : context.madarColors.border,
         child: const SizedBox(height: 1, width: double.infinity),
+      ),
+    );
+  }
+}
+
+// ── Chip, segment, tag, stepper ──────────────────────────────────────────
+
+/// THE chip: a 44 pill on the sunk grey; on, it fills with ink. A category,
+/// a filter, a reason. [MadarChip.tile] is the squarer 52 version that
+/// carries a figure — a party size, a minute count — and fills TEAL when on,
+/// because choosing a number is choosing, not filtering.
+class MadarChip extends StatelessWidget {
+  const MadarChip({
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    this.glyph,
+    this.count,
+    this.enabled = true,
+    super.key,
+  }) : _tile = false;
+
+  const MadarChip.tile({
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    this.enabled = true,
+    super.key,
+  }) : glyph = null,
+       count = null,
+       _tile = true;
+
+  final String label;
+  final VoidCallback onTap;
+  final bool selected;
+
+  /// Leading glyph (a bag on "Parked").
+  final MadarGlyph? glyph;
+
+  /// A trailing figure, mono ("Parked 2").
+  final int? count;
+  final bool enabled;
+  final bool _tile;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final (Color fill, Color fg) = _tile
+        ? (
+            selected ? colors.accent : colors.surfaceAlt,
+            selected ? colors.textOnAccent : colors.textSecondary,
+          )
+        : (
+            selected ? _inkFill(context, colors) : colors.surfaceAlt,
+            selected ? Colors.white : colors.textSecondary,
+          );
+    final style = _tile
+        ? MadarType.numLg.copyWith(fontSize: 17, color: fg)
+        : MadarType.buttonSm.copyWith(color: fg);
+
+    Widget chip = AnimatedContainer(
+      duration: MotionSpec.standardDuration,
+      curve: MotionSpec.standardCurve,
+      height: _tile ? Metrics.chipTileHeight : Metrics.chipHeight,
+      constraints: BoxConstraints(
+        minWidth: _tile ? Metrics.chipTileMinWidth : 0,
+      ),
+      padding: EdgeInsetsDirectional.symmetric(horizontal: _tile ? 14 : 18),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(_tile ? Radii.control : Radii.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        spacing: Space.sm,
+        children: [
+          if (glyph != null)
+            MadarGlyphIcon(glyph!, size: IconSize.md, color: fg),
+          Text(label, maxLines: 1, style: style),
+          if (count != null)
+            Text(
+              '$count',
+              textDirection: TextDirection.ltr,
+              style: MadarType.numMd.copyWith(color: fg),
+            ),
+        ],
+      ),
+    );
+    if (!enabled) {
+      chip = Opacity(opacity: Opacities.disabled, child: chip);
+    } else {
+      chip = TactileScale(onTap: onTap, child: chip);
+    }
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      child: chip,
+    );
+  }
+}
+
+/// One option in a [MadarSegmented].
+@immutable
+class MadarSegmentItem<T> {
+  const MadarSegmentItem(this.value, this.label, {this.count, this.glyph});
+
+  final T value;
+  final String label;
+
+  /// A count in the label ("Bills 3"), mono.
+  final int? count;
+  final MadarGlyph? glyph;
+}
+
+/// THE segmented control: a 48 sunk track holding equal cells; the chosen
+/// one is a white thumb with a 1px lift. Plan / List; Bills / Online /
+/// Kitchen. The whole thing is one widget so every screen's segment has the
+/// same cell width rule: equal, filling the track.
+class MadarSegmented<T> extends StatelessWidget {
+  const MadarSegmented({
+    required this.items,
+    required this.value,
+    required this.onChanged,
+    super.key,
+  });
+
+  final List<MadarSegmentItem<T>> items;
+  final T value;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Container(
+      height: Metrics.segmentHeight,
+      padding: const EdgeInsets.all(_segmentPad),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(Radii.control),
+      ),
+      child: Row(
+        children: [
+          for (final item in items)
+            Expanded(
+              child: _SegmentCell<T>(
+                item: item,
+                on: item.value == value,
+                onTap: () {
+                  if (item.value == value) return;
+                  MadarHaptics.selection();
+                  onChanged(item.value);
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SegmentCell<T> extends StatelessWidget {
+  const _SegmentCell({
+    required this.item,
+    required this.on,
+    required this.onTap,
+  });
+
+  final MadarSegmentItem<T> item;
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final fg = on ? colors.textPrimary : colors.textSecondary;
+    return Semantics(
+      button: true,
+      selected: on,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: MotionSpec.standardDuration,
+          curve: MotionSpec.standardCurve,
+          decoration: BoxDecoration(
+            color: on ? colors.surface : null,
+            borderRadius: BorderRadius.circular(_segmentThumbRadius),
+            boxShadow: on
+                ? elevationShadows(context, MadarElevation.thumb)
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            spacing: Space.sm,
+            children: [
+              if (item.glyph != null)
+                MadarGlyphIcon(item.glyph!, size: IconSize.md, color: fg),
+              Flexible(
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MadarType.buttonSm.copyWith(color: fg),
+                ),
+              ),
+              if (item.count != null)
+                Text(
+                  '${item.count}',
+                  textDirection: TextDirection.ltr,
+                  style: MadarType.numMd.copyWith(color: fg),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// THE tag: a 26px uppercase state word on its tone's wash — NEW, READY,
+/// QUEUED, VOIDED — with an optional glyph. It names a state; it is not
+/// pressed.
+class MadarTag extends StatelessWidget {
+  const MadarTag({
+    required this.label,
+    this.tone = MadarTone.neutral,
+    this.glyph,
+    super.key,
+  });
+
+  final String label;
+  final MadarTone tone;
+  final MadarGlyph? glyph;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final fg = tone.color(colors);
+    return Container(
+      height: Metrics.tagHeight,
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: tone.tint(colors),
+        borderRadius: BorderRadius.circular(Radii.xs),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 6,
+        children: [
+          if (glyph != null)
+            MadarGlyphIcon(glyph!, size: IconSize.xs, color: fg),
+          Text(
+            label.toUpperCase(),
+            style: MadarType.label.copyWith(color: fg, letterSpacing: 0.3),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// THE stepper: − figure + on a 40 sunk track. A line's quantity.
+class MadarStepper extends StatelessWidget {
+  const MadarStepper({
+    required this.value,
+    required this.onChanged,
+    this.min = 0,
+    this.max,
+    this.decrementLabel,
+    this.incrementLabel,
+    super.key,
+  });
+
+  final int value;
+  final ValueChanged<int> onChanged;
+  final int min;
+  final int? max;
+
+  /// Screen-reader labels for the two keys, already localised.
+  final String? decrementLabel;
+  final String? incrementLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final canDown = value > min;
+    final canUp = max == null || value < max!;
+    Widget key(
+      MadarGlyph glyph, {
+      required bool enabled,
+      required VoidCallback onTap,
+      String? label,
+    }) {
+      return Semantics(
+        button: true,
+        enabled: enabled,
+        label: label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: enabled
+              ? () {
+                  MadarHaptics.selection();
+                  onTap();
+                }
+              : null,
+          child: SizedBox.square(
+            dimension: Metrics.stepper,
+            child: Center(
+              child: MadarGlyphIcon(
+                glyph,
+                size: IconSize.md,
+                color: enabled ? colors.textPrimary : colors.textMuted,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      height: Metrics.stepper,
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(Radii.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          key(
+            MadarGlyph.minus,
+            enabled: canDown,
+            onTap: () => onChanged(value - 1),
+            label: decrementLabel,
+          ),
+          SizedBox(
+            width: 32,
+            child: Text(
+              '$value',
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.ltr,
+              style: MadarType.numLg.copyWith(color: colors.textPrimary),
+            ),
+          ),
+          key(
+            MadarGlyph.plus,
+            enabled: canUp,
+            onTap: () => onChanged(value + 1),
+            label: incrementLabel,
+          ),
+        ],
       ),
     );
   }

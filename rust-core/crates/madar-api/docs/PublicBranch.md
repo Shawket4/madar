@@ -15,6 +15,7 @@ Name | Type | Description | Notes
 **outside_open_now** | **bool** |  | 
 **pickup_enabled** | **bool** |  | 
 **pickup_open_now** | **bool** |  | 
+**tax_policy** | [**models::OnlineTaxPolicy**](OnlineTaxPolicy.md) | The tax this branch prices online orders under. The storefront renders a tax line from it (exclusive) or an \"includes VAT\" note (inclusive) — the same policy intake will freeze onto the order. | 
 **umbrella_enabled** | **bool** |  | 
 **umbrella_open_now** | **bool** |  | 
 

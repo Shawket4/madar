@@ -33,10 +33,11 @@ enum SheetSize {
 /// Presents [builder] in the Madar modal bottom sheet — THE shared
 /// presenter every sheet in the app uses.
 ///
-/// Anatomy (matching the natives): a bottom-anchored surface card with
-/// [Radii.xl] top corners, a 1px `borderLight` border, a raised shadow,
-/// a centered width cap, and a drag handle; behind it a black scrim at
-/// [Opacities.scrim]. The card slides in on the sheet spring while the
+/// Anatomy: a bottom-anchored surface card with [Radii.sheet] top corners,
+/// a 1px `borderLight` border, the modal shadow, a centered width cap (600
+/// on a tablet — the sheet never spans an iPad), and a drag handle; behind
+/// it a black scrim at [Opacities.scrim]. On a phone the cap is moot and
+/// the sheet is full width. The card slides in on the sheet spring while the
 /// scrim fades in over [MotionSpec.standardDuration].
 ///
 /// Dismissal — tap the scrim, drag the handle down past 28% of the
@@ -139,8 +140,9 @@ const Color _scrimColor = Color.from(
   blue: 0,
 );
 
+/// System v2: a sheet's top corners are the sheet radius, 20.
 const BorderRadius _cardRadius = BorderRadius.vertical(
-  top: Radius.circular(Radii.xl),
+  top: Radius.circular(Radii.sheet),
 );
 
 class _MadarSheetPage<T> extends StatefulWidget {

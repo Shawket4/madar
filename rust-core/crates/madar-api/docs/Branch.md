@@ -19,6 +19,7 @@ Name | Type | Description | Notes
 **printer_brand** | Option<[**models::PrinterBrand**](PrinterBrand.md)> |  | [optional]
 **printer_ip** | Option<**String**> |  | [optional]
 **printer_port** | Option<**i32**> |  | [optional]
+**require_table_for_orders** | Option<**bool**> | Whether every dine-in sale here must belong to a table. Same shape as the tax overrides: `null` inherits the organisation, which is not the same as `false`. An explicit `false` lets a counter with two stools by the window keep ringing walk-ups while the org's dining rooms seat everyone; an explicit `true` does the reverse. This is the OVERRIDE — the resolved answer is `branches::policy::require_table_for_orders`. | [optional]
 **service_charge_rate** | Option<**f64**> |  | [optional]
 **service_charge_taxable** | Option<**bool**> |  | [optional]
 **tax_inclusive** | Option<**bool**> |  | [optional]

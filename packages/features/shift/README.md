@@ -1,39 +1,30 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# feature_shift — the Till
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+Where the drawer lives. `TillScreen` is the teller shell's fourth tab (and
+the manager's, listing every drawer at the branch). With no shift it is the
+open-shift card; with one it shows the drawer's figures, the shift's rows,
+cash in / out (inline on an iPad, pushed on a phone) and Close shift.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
+| Screen | Backed by |
+|---|---|
+| `TillScreen` | `currentShift/refreshShift`, `listTills` + `deviceConfig().tillId`, `shiftReport`, `listShiftOrders` + `shiftStats`, `listCashMovements`, `syncStatus`, `listShifts` (managers) |
+| `CashInOutPanel` / `CashMovementsScreen` | `recordCashMovement(signed, note)`, `listCashMovements` |
+| `CloseShiftScreen` | `shiftReport` (expected cash + its arithmetic), `closeShift(counted, note)` |
+| `OpenShiftScreen` | `suggestedOpeningCashMinor`, `openShift` |
+| `ShiftReportSheet` | `shiftReport` / `shiftReportFor`, `renderShiftReport` |
+| `ShiftHistoryScreen` | `listShifts`, `shiftReportFor`, `listOrdersForShift` |
+| `DrawersCard` | `listShifts`, `shiftReportFor` — read-only |
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+Not built because the bridge cannot back it: a refunds card, a tips word, a
+Safe drop chip, Correct › (linked reversal), Suggested safe drop,
+Force-close. Each is noted where it would have been.
 
-## Features
+## Seeing it
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
-
-## Getting started
-
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
-
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
-
-```dart
-const like = 'sample';
+```
+flutter test test/till_render_test.dart --dart-define=MADAR_RENDER=true
 ```
 
-## Additional information
-
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+writes `build/render/till-*.png`: the iPad Till (light, and offline in the
+dark), a manager's Till, the no-shift home, the close screen (short, and
+matching), and the phone in Arabic. Look before you ship.

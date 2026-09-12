@@ -20,6 +20,8 @@ Name | Type | Description | Notes
 **place_name** | Option<**String**> |  | [optional]
 **status** | **String** |  | 
 **subtotal** | **i32** |  | 
+**tax_amount** | **i32** | Tax as frozen at intake: inside `total` when `tax_inclusive`, added to it otherwise. | 
+**tax_inclusive** | **bool** |  | 
 **total** | **i32** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

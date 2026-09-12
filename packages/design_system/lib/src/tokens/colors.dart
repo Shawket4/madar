@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 
-/// The Madar color roles — exact values from the natives' Theme.kt /
-/// Tokens.swift (ink-on-paper light, paper-on-ink dark, teal accent).
+/// The Madar colour roles — system v2, the values on the approved canvas.
+///
+/// Two families. The WORK SURFACE is paper: a light ground, white cards, a
+/// sunk grey for secondary controls, ink text. The CHROME is ink: the rail,
+/// the top bar, the active tab, the outbox pill — dark in both themes, so the
+/// frame around the work never changes colour when the room does. Teal is
+/// the one primary; amber is attention; green is ready; red is money going
+/// the wrong way.
+///
 /// Access via `context.madarColors` or `MadarColors.of(context)`.
 @immutable
 class MadarColors extends ThemeExtension<MadarColors> {
@@ -17,6 +24,7 @@ class MadarColors extends ThemeExtension<MadarColors> {
     required this.textMuted,
     required this.textOnAccent,
     required this.accent,
+    required this.accentDeep,
     required this.accentBg,
     required this.navy,
     required this.navyBg,
@@ -26,22 +34,59 @@ class MadarColors extends ThemeExtension<MadarColors> {
     required this.dangerBg,
     required this.warning,
     required this.warningBg,
+    required this.chrome,
+    required this.chromeAlt,
+    required this.chromeRaised,
+    required this.onChrome,
+    required this.onChromeMuted,
   });
 
+  // ── Work surface ──────────────────────────────────────────────────────
+
+  /// The paper the screen is printed on.
   final Color bg;
+
+  /// A card, a field, a row.
   final Color surface;
+
+  /// The sunk grey: secondary buttons, chips at rest, segment tracks.
   final Color surfaceAlt;
+
+  /// Kept for callers that ask for it; the flat system has no third level,
+  /// so it is [surface].
   final Color surfaceRaised;
+
+  /// A field's edge.
   final Color border;
+
+  /// A card's edge, a hairline between rows.
   final Color borderLight;
+
   final Color textPrimary;
   final Color textSecondary;
   final Color textMuted;
+
+  /// Text on a teal fill. Near-black in dark mode, where the teal is light
+  /// enough that white would not read.
   final Color textOnAccent;
+
+  // ── Roles ────────────────────────────────────────────────────────────
+
+  /// Teal — the one primary. One per screen.
   final Color accent;
+
+  /// Teal, pressed.
+  final Color accentDeep;
+
+  /// Teal wash: the focus ring, a "new" tag, a selected tile's tint.
   final Color accentBg;
+
+  /// Legacy alias of [accentDeep]. New work says what it means.
   final Color navy;
+
+  /// Legacy alias of [accentBg].
   final Color navyBg;
+
   final Color success;
   final Color successBg;
   final Color danger;
@@ -49,52 +94,83 @@ class MadarColors extends ThemeExtension<MadarColors> {
   final Color warning;
   final Color warningBg;
 
-  /// Light: ink on paper, teal deep accent.
+  // ── Chrome ───────────────────────────────────────────────────────────
+
+  /// The rail and the top bar.
+  final Color chrome;
+
+  /// An ink-filled control: a chip that is on, the "ink" button.
+  final Color chromeAlt;
+
+  /// A raised patch on the chrome: the active tab, the outbox pill, the
+  /// avatar disc.
+  final Color chromeRaised;
+
+  /// Text and glyphs on the chrome.
+  final Color onChrome;
+
+  /// Quieter text on the chrome: the inactive tab, the till number.
+  final Color onChromeMuted;
+
+  /// Light: ink on paper.
   static const light = MadarColors(
-    bg: Color(0xFFEFF3F4),
+    bg: Color(0xFFF1F3F3),
     surface: Color(0xFFFFFFFF),
-    surfaceAlt: Color(0xFFE7EEEF),
+    surfaceAlt: Color(0xFFE4E9EA),
     surfaceRaised: Color(0xFFFFFFFF),
-    border: Color(0xFFD7E0E1),
-    borderLight: Color(0xFFE7EEEF),
-    textPrimary: Color(0xFF14181E),
-    textSecondary: Color(0xFF54636B),
-    textMuted: Color(0xFF76828B),
+    border: Color(0xFFD3DADB),
+    borderLight: Color(0xFFE6EBEC),
+    textPrimary: Color(0xFF101820),
+    textSecondary: Color(0xFF4F5F66),
+    textMuted: Color(0xFF7A8890),
     textOnAccent: Color(0xFFFFFFFF),
-    accent: Color(0xFF0D6273),
-    accentBg: Color(0xFFDCE9EB),
-    navy: Color(0xFF0D6273),
-    navyBg: Color(0xFFDCE9EB),
-    success: Color(0xFF16A34A),
-    successBg: Color(0xFFE7F6EC),
-    danger: Color(0xFFDC2626),
-    dangerBg: Color(0xFFFBEAEA),
-    warning: Color(0xFFB45309),
-    warningBg: Color(0xFFF7ECDD),
+    accent: Color(0xFF0F7A8A),
+    accentDeep: Color(0xFF0B5E6B),
+    accentBg: Color(0xFFD6EBEE),
+    navy: Color(0xFF0B5E6B),
+    navyBg: Color(0xFFD6EBEE),
+    success: Color(0xFF178A4C),
+    successBg: Color(0xFFDCF2E4),
+    danger: Color(0xFFD0392C),
+    dangerBg: Color(0xFFFBE3E0),
+    warning: Color(0xFFBF5F07),
+    warningBg: Color(0xFFFBEBD5),
+    chrome: Color(0xFF0D1A1E),
+    chromeAlt: Color(0xFF15272C),
+    chromeRaised: Color(0xFF1E353B),
+    onChrome: Color(0xFFEAF0F1),
+    onChromeMuted: Color(0xFF9DB0B6),
   );
 
-  /// Dark: paper on ink, brighter teal accent.
+  /// Dark: paper on ink, for a dim room. The chrome goes a shade deeper so
+  /// it still frames the work.
   static const dark = MadarColors(
-    bg: Color(0xFF14181E),
-    surface: Color(0xFF1B2128),
-    surfaceAlt: Color(0xFF222A32),
-    surfaceRaised: Color(0xFF262F38),
-    border: Color(0xFF313B45),
-    borderLight: Color(0xFF232C35),
-    textPrimary: Color(0xFFEFF3F4),
-    textSecondary: Color(0xFFAEB9C0),
-    textMuted: Color(0xFF76828B),
-    textOnAccent: Color(0xFFFFFFFF),
-    accent: Color(0xFF2E94A6),
-    accentBg: Color(0xFF123038),
-    navy: Color(0xFF5FB6C7),
-    navyBg: Color(0xFF15333B),
-    success: Color(0xFF3BCE7E),
-    successBg: Color(0xFF13291D),
-    danger: Color(0xFFF4655A),
-    dangerBg: Color(0xFF33191B),
+    bg: Color(0xFF0F1A1E),
+    surface: Color(0xFF16252A),
+    surfaceAlt: Color(0xFF213238),
+    surfaceRaised: Color(0xFF16252A),
+    border: Color(0xFF2C4048),
+    borderLight: Color(0xFF243740),
+    textPrimary: Color(0xFFEEF3F4),
+    textSecondary: Color(0xFFB3C2C7),
+    textMuted: Color(0xFF7E929A),
+    textOnAccent: Color(0xFF06191D),
+    accent: Color(0xFF2AA7B8),
+    accentDeep: Color(0xFF1F8896),
+    accentBg: Color(0xFF123840),
+    navy: Color(0xFF1F8896),
+    navyBg: Color(0xFF123840),
+    success: Color(0xFF3BCB7E),
+    successBg: Color(0xFF123324),
+    danger: Color(0xFFF26B5E),
+    dangerBg: Color(0xFF3D1C1C),
     warning: Color(0xFFF0A23F),
-    warningBg: Color(0xFF332512),
+    warningBg: Color(0xFF3A2A12),
+    chrome: Color(0xFF0A1417),
+    chromeAlt: Color(0xFF0F1D21),
+    chromeRaised: Color(0xFF173036),
+    onChrome: Color(0xFFEAF0F1),
+    onChromeMuted: Color(0xFF8FA4AB),
   );
 
   static MadarColors of(BuildContext context) =>
@@ -119,6 +195,7 @@ class MadarColors extends ThemeExtension<MadarColors> {
       textMuted: l(textMuted, other.textMuted),
       textOnAccent: l(textOnAccent, other.textOnAccent),
       accent: l(accent, other.accent),
+      accentDeep: l(accentDeep, other.accentDeep),
       accentBg: l(accentBg, other.accentBg),
       navy: l(navy, other.navy),
       navyBg: l(navyBg, other.navyBg),
@@ -128,6 +205,11 @@ class MadarColors extends ThemeExtension<MadarColors> {
       dangerBg: l(dangerBg, other.dangerBg),
       warning: l(warning, other.warning),
       warningBg: l(warningBg, other.warningBg),
+      chrome: l(chrome, other.chrome),
+      chromeAlt: l(chromeAlt, other.chromeAlt),
+      chromeRaised: l(chromeRaised, other.chromeRaised),
+      onChrome: l(onChrome, other.onChrome),
+      onChromeMuted: l(onChromeMuted, other.onChromeMuted),
     );
   }
 }

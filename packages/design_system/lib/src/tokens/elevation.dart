@@ -1,40 +1,52 @@
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:flutter/widgets.dart';
 
-/// Soft layered shadows — the natives' Elevation levels. Light mode tints
-/// with the Madar ink, dark mode with pure black; GLOW radiates the accent.
-enum MadarElevation { none, card, raised, glow }
+/// Depth in a flat system.
+///
+/// The canvas draws no gradients and no glows; a card is a border, not a
+/// shadow. Only two things cast one: a segment's thumb (a 1px lift, so it
+/// reads as sitting ON the track) and a modal (a deep soft shadow, so it
+/// reads as floating OVER the page). The other levels exist so that call
+/// sites written against the old kit keep compiling; they draw nothing.
+enum MadarElevation {
+  none,
+
+  /// A card. Flat — the border does the work. Draws nothing.
+  card,
+
+  /// A modal, a floating done-card, a toast.
+  raised,
+
+  /// Legacy: the old primary-button halo. Draws nothing; glows are gone.
+  glow,
+
+  /// A segmented control's selected thumb.
+  thumb,
+}
 
 extension MadarElevationX on MadarElevation {
-  /// Shadow list for this level. [colors] picks the ink/black/accent tint;
-  /// [dark] switches the blur radii the natives use per theme.
+  /// Shadow list for this level. [dark] deepens the alpha so the lift still
+  /// reads on a dark ground.
   List<BoxShadow> shadows(MadarColors colors, {required bool dark}) {
-    const ink = Color(0xFF14181E);
-    final base = dark ? const Color(0xFF000000) : ink;
     switch (this) {
       case MadarElevation.none:
-        return const [];
       case MadarElevation.card:
-        return [
-          BoxShadow(
-            color: base.withValues(alpha: dark ? 0.45 : 0.07),
-            blurRadius: dark ? 14 : 10,
-            offset: const Offset(0, 4),
-          ),
-        ];
+      case MadarElevation.glow:
+        return const [];
       case MadarElevation.raised:
         return [
           BoxShadow(
-            color: base.withValues(alpha: dark ? 0.55 : 0.13),
-            blurRadius: dark ? 30 : 22,
-            offset: const Offset(0, 10),
+            color: const Color(0xFF000000).withValues(alpha: dark ? 0.6 : 0.35),
+            blurRadius: 60,
+            offset: const Offset(0, 24),
           ),
         ];
-      case MadarElevation.glow:
+      case MadarElevation.thumb:
         return [
           BoxShadow(
-            color: colors.accent.withValues(alpha: dark ? 0.55 : 0.38),
-            blurRadius: 18,
+            color: const Color(0xFF000000).withValues(alpha: dark ? 0.3 : 0.08),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
           ),
         ];
     }

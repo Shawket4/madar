@@ -13,10 +13,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TellerStats {
+    /// Average bill as rung up — a refund does not shrink what was ordered.
     #[serde(rename = "avg_order_value")]
     pub avg_order_value: i64,
     #[serde(rename = "orders")]
     pub orders: i64,
+    /// Net of refunds against this teller's sales.
     #[serde(rename = "revenue")]
     pub revenue: i64,
     #[serde(rename = "shifts")]

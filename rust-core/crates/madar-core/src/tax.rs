@@ -179,6 +179,42 @@ pub fn compute(subtotal: Minor, discount: Minor, policy: &TaxPolicy) -> Breakdow
     }
 }
 
+/// How a bill is discounted, as the policy states it — before it is an amount.
+///
+/// `compute` takes the amount, because discount policy is not its business.
+/// But TURNING a rate into an amount is the other place a bill rounds, and it
+/// went unpinned: `tax_vectors.json` carried the amount ready-made, so the till
+/// could derive it in `f64` while the server derived it in `Decimal` and the
+/// conformance test on each side stayed green. At 14.5% of 1.00 the two
+/// answers differ — `100.0 * 0.145` is 14.499999999999998 and rounds to 14,
+/// while the decimal 14.5 rounds to 15 — and the server refuses the till's
+/// order over that piastre. So the derivation lives here, next to the rounding
+/// it has to match, and the fixture states the rate rather than the result.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Discount {
+    None,
+    /// A fraction of the subtotal, like every rate in this system: `0.10` is
+    /// 10% off. Anything above `1` takes the whole bill and no more.
+    Percentage(Decimal),
+    /// An amount off, in minor units. Never more than the bill.
+    Fixed(Decimal),
+}
+
+/// The amount a discount takes off `subtotal`, in minor units.
+///
+/// Rounded half-away-from-zero like everything else on the bill, and clamped to
+/// `[0, subtotal]`: a discount can neither inflate a bill nor drive it below
+/// nothing. `compute` clamps again, but this is the figure the receipt prints
+/// on its discount line, so it has to be right on its own.
+pub fn discount_amount(subtotal: Minor, discount: Discount) -> Minor {
+    let raw = match discount {
+        Discount::None => 0,
+        Discount::Percentage(rate) => round_minor(minor(subtotal) * rate),
+        Discount::Fixed(amount) => round_minor(amount),
+    };
+    raw.clamp(0, subtotal.max(0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,6 +411,58 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn a_percentage_discount_rounds_the_decimal_not_the_binary_float() {
+        // 14.5% off 1.00 is exactly 14.5 piastres, which rounds to 15. The
+        // till used to compute this as `subtotal as f64 * 0.145`, which is
+        // 14.499999999999998 and rounds to 14 — one piastre more for the
+        // customer than the server charged, and a refused order.
+        assert_eq!(discount_amount(100, Discount::Percentage(dec!(0.145))), 15);
+        assert_eq!(
+            (100.0_f64 * 0.145).round() as i64,
+            14,
+            "the f64 derivation this replaces really did lose the piastre"
+        );
+        // The classic halves, for good measure.
+        assert_eq!(discount_amount(5, Discount::Percentage(dec!(0.10))), 1);
+        assert_eq!(discount_amount(25, Discount::Percentage(dec!(0.10))), 3);
+        assert_eq!(discount_amount(105, Discount::Percentage(dec!(0.10))), 11);
+    }
+
+    #[test]
+    fn a_half_percent_is_expressible() {
+        // The reason the value is a fraction: an integer percentage could not
+        // say 12.5% at all.
+        assert_eq!(discount_amount(1000, Discount::Percentage(dec!(0.125))), 125);
+    }
+
+    #[test]
+    fn a_discount_takes_at_most_the_whole_bill() {
+        assert_eq!(discount_amount(5000, Discount::Percentage(dec!(1))), 5000);
+        assert_eq!(discount_amount(5000, Discount::Percentage(dec!(1.5))), 5000);
+        assert_eq!(discount_amount(5000, Discount::Fixed(dec!(99_999))), 5000);
+        assert_eq!(discount_amount(1, Discount::Fixed(dec!(1))), 1);
+        // Half a piastre off a one-piastre bill swallows it.
+        assert_eq!(discount_amount(1, Discount::Percentage(dec!(0.5))), 1);
+    }
+
+    #[test]
+    fn a_negative_discount_is_no_discount() {
+        // A discount that ADDS to the bill is the sign flipped somewhere
+        // upstream, and the books must not inherit it.
+        assert_eq!(discount_amount(1000, Discount::Percentage(dec!(-0.10))), 0);
+        assert_eq!(discount_amount(1000, Discount::Fixed(dec!(-50))), 0);
+        assert_eq!(discount_amount(-7, Discount::Fixed(dec!(50))), 0);
+        assert_eq!(discount_amount(1000, Discount::None), 0);
+    }
+
+    #[test]
+    fn a_fixed_amount_with_a_fraction_rounds_like_the_rest_of_the_bill() {
+        // The column is NUMERIC, so a fraction of a piastre can arrive.
+        assert_eq!(discount_amount(5000, Discount::Fixed(dec!(250.5))), 251);
+        assert_eq!(discount_amount(5000, Discount::Fixed(dec!(250.4))), 250);
+    }
 }
 
 /// The contract with the server's engine.
@@ -385,6 +473,11 @@ mod tests {
 /// with its own, that divergence is a till that cannot sell. Fix the maths
 /// rather than the fixture; regenerate the fixture only when the change is
 /// deliberate and has been made on BOTH sides.
+///
+/// The discount arrives as the policy states it — a kind and a value — and the
+/// amount is one of the figures under test. It used to arrive ready-made, which
+/// left this till free to derive it in `f64` while the server used `Decimal`,
+/// and 100 at 14.5% came to 14 here and 15 there with both tests green.
 #[cfg(test)]
 mod conformance {
     use super::*;
@@ -393,15 +486,32 @@ mod conformance {
     #[derive(Debug, Deserialize)]
     struct Vector {
         subtotal: i64,
-        discount: i64,
+        discount_kind: String,
+        discount_value: String,
         tax_rate: String,
         tax_inclusive: bool,
         service_charge_rate: String,
         service_charge_taxable: bool,
+        discount: i64,
         service_charge: i64,
         tax: i64,
         total: i64,
         net: i64,
+    }
+
+    /// The fixture's words for a discount, as the engine's type. Mirrors
+    /// `tax::vectors::discount_from_wire` on the server; an unknown kind is a
+    /// fixture bug, not a bill.
+    fn discount_from_wire(kind: &str, value: &str) -> Discount {
+        let value = value
+            .parse::<Decimal>()
+            .unwrap_or_else(|e| panic!("discount_value {value:?} is not a decimal: {e}"));
+        match kind {
+            "none" => Discount::None,
+            "percentage" => Discount::Percentage(value),
+            "fixed" => Discount::Fixed(value),
+            other => panic!("unknown discount_kind {other:?} in tax_vectors.json"),
+        }
     }
 
     #[test]
@@ -413,6 +523,12 @@ mod conformance {
             "the shared fixture looks truncated ({} vectors)",
             vectors.len()
         );
+        // The fixture must actually exercise the derivation, or this test is
+        // back to trusting a ready-made amount.
+        assert!(
+            vectors.iter().any(|v| v.discount_kind == "percentage" && v.discount_value == "0.145"),
+            "the shared fixture no longer carries the 14.5% discount that bit"
+        );
 
         let mut drift = Vec::new();
         for v in &vectors {
@@ -422,25 +538,31 @@ mod conformance {
                 service_charge_rate: v.service_charge_rate.parse().unwrap(),
                 service_charge_taxable: v.service_charge_taxable,
             };
-            let got = compute(v.subtotal, v.discount, &policy);
-            if got.service_charge != v.service_charge
+            let discount =
+                discount_amount(v.subtotal, discount_from_wire(&v.discount_kind, &v.discount_value));
+            let got = compute(v.subtotal, discount, &policy);
+            if got.discount != v.discount
+                || got.service_charge != v.service_charge
                 || got.tax != v.tax
                 || got.total != v.total
                 || got.net != v.net
             {
                 drift.push(format!(
-                    "  subtotal {} discount {} rate {} incl {} sc {} sc_taxable {}\n    \
-                     got  sc={} tax={} total={} net={}\n    want sc={} tax={} total={} net={}",
+                    "  subtotal {} discount {} {} rate {} incl {} sc {} sc_taxable {}\n    \
+                     got  discount={} sc={} tax={} total={} net={}\n    want discount={} sc={} tax={} total={} net={}",
                     v.subtotal,
-                    v.discount,
+                    v.discount_kind,
+                    v.discount_value,
                     v.tax_rate,
                     v.tax_inclusive,
                     v.service_charge_rate,
                     v.service_charge_taxable,
+                    got.discount,
                     got.service_charge,
                     got.tax,
                     got.total,
                     got.net,
+                    v.discount,
                     v.service_charge,
                     v.tax,
                     v.total,

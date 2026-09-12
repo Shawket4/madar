@@ -16,6 +16,22 @@ use serde::{Deserialize, Serialize};
 pub struct KitchenTicketView {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
+    /// `bumped`, `settled`, `voided` or `retired` — see [`CloseReason`].
+    #[serde(
+        rename = "close_reason",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub close_reason: Option<Option<String>>,
+    /// When the ticket left the kitchen's attention for good; `null` while it is live. A till queue that shows history renders closed tickets greyed; the KDS feed never returns them.
+    #[serde(
+        rename = "closed_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub closed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "id")]
@@ -35,6 +51,7 @@ pub struct KitchenTicketView {
     pub source_id: uuid::Uuid,
     #[serde(rename = "source_type")]
     pub source_type: String,
+    /// The state of the cooking: `firing`, `ready`, `voided`.
     #[serde(rename = "status")]
     pub status: String,
     #[serde(
@@ -60,6 +77,8 @@ impl KitchenTicketView {
     ) -> KitchenTicketView {
         KitchenTicketView {
             branch_id,
+            close_reason: None,
+            closed_at: None,
             created_at,
             id,
             items,

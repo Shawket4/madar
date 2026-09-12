@@ -1,69 +1,94 @@
-/// Order history — the current shift's orders: still-queued sales
-/// (Queued/Failed chip) plus the server's synced orders. Responsive: a
-/// sortable data TABLE at container width ≥ [Responsive.wideTable],
-/// stacked expandable CARDS below it. Tap a row to expand line detail
-/// (totals + Print + Void). The full shift stays in memory; only
-/// `visibleLimit` rows paint (client-side "show more"). A
-/// pixel-and-behavior port of the Kotlin OrderHistoryScreen.kt (+ its
-/// VoidOverlay) over the shared Rust core; state lives in [historyProvider],
-/// reprints reuse feature_checkout's ReceiptSheet.
+/// Orders — this shift's sales, and every shift's when online, with the
+/// selected sale beside the list.
+///
+/// One screen replaces the old History page and the cross-shift Search
+/// page: a This shift / All segment, one search box, one chip row. On a
+/// tablet the list takes the start half and the sale opens beside it as a
+/// card (master-detail); on a phone the list is the screen and a row pushes
+/// the sale ([SaleScreen]). The two paths are the same [SalePanel].
+///
+/// State lives in [historyProvider]. The screen is paramless beyond an
+/// optional starting scope and bridges via `ref.watch(bridgeProvider)`.
 library;
 
 import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_history/src/history_provider.dart';
+import 'package:feature_history/src/history_strings.dart';
+import 'package:feature_history/src/sale_panel.dart';
 import 'package:feature_history/src/widgets.dart';
-import 'package:flutter/material.dart'
-    show CircularProgressIndicator, Colors, Scaffold, Theme;
+import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-// Native metrics (OrderHistoryScreen.kt) that fall between the 4-pt Space
-// steps — kept verbatim so the Flutter chrome measures identically.
+/// The list column beside the sale on a tablet (canvas: 560 of 1194). It
+/// gives way on a narrower tablet so the sale keeps a readable width.
+const double _listColumnWidth = 560;
+const double _listColumnMinWidth = 380;
 
-/// Content column cap (natives: widthIn(max = 960.dp)).
-const double _contentMaxWidth = 960;
+/// Below this body width the sale is pushed over the list rather than
+/// drawn beside it — an iPad in portrait behind its rail is about here.
+const double _splitMinWidth = Responsive.wide;
 
-/// Table column widths (natives: 104 / 110 / 44.dp) and sort arrow (9.dp).
-const double _numberColWidth = 104;
-const double _amountColWidth = 110;
-const double _disclosureColWidth = 44;
-const double _sortArrowSize = 9;
+/// The search box at the header's end on a tablet (canvas: 360).
+const double _searchWidth = 360;
 
-/// Header/inline spinner diameters (natives: 18 / 16.dp).
-const double _headerSpinner = 18;
-const double _rowSpinner = 16;
+/// Row cells (canvas grid: 70 / 52 / 1fr / 64 / 80, 12 gaps).
+const double _numberColWidth = 76;
+const double _timeColWidth = 56;
+const double _paymentColWidth = 60;
+const double _amountColWidth = 124;
 
-/// Stat divider height (natives: 28.dp) and orderRef size (9.sp).
-const double _statDividerHeight = 28;
-const double _orderRefSize = 9;
+/// The selected row's start-edge bar.
+const double _selectBarWidth = 4;
 
-/// Voided rows dim to 55% (natives: alpha 0.55).
-const double _voidedAlpha = 0.55;
-
-/// Void sheet width cap (natives: maxWidth = 520.dp).
-const double _voidSheetMaxWidth = 520;
-
-/// Restock switch track (44×26) and thumb (20) — a tokens-only stand-in
-/// for the natives' material Switch.
-const Size _switchTrack = Size(44, 26);
-const double _switchThumb = 20;
-
-/// The current shift's order history (full-screen over the order screen).
+/// The Orders screen — This shift / All, search, and the sale beside it.
 class OrderHistoryScreen extends ConsumerStatefulWidget {
-  /// Creates the history screen.
-  const OrderHistoryScreen({super.key});
+  /// Creates the screen, opening on [initialScope].
+  const OrderHistoryScreen({
+    super.key,
+    this.initialScope = OrdersScope.thisShift,
+  });
+
+  /// Which segment is selected on open. The Till's "Orders this shift" row
+  /// leaves it; the old Search entry opens on every shift.
+  final OrdersScope initialScope;
 
   @override
   ConsumerState<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
 }
 
+/// The old cross-shift Search page, kept as a name so the shell still
+/// compiles: it is the Orders screen opened on All.
+class OrderSearchScreen extends StatelessWidget {
+  /// Creates the Orders screen opened on every shift.
+  const OrderSearchScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const OrderHistoryScreen(initialScope: OrdersScope.all);
+}
+
 class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
   final TextEditingController _searchField = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialScope != OrdersScope.thisShift) {
+      // The notifier builds on This shift; flip it before the first frame's
+      // load lands so the screen never flashes the wrong list.
+      unawaited(
+        Future.microtask(() {
+          if (!mounted) return;
+          ref.read(historyProvider.notifier).setScope(widget.initialScope);
+        }),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -71,102 +96,141 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     super.dispose();
   }
 
-  /// Reprint entry — project the past order to a ReceiptView (cached,
-  /// offline-durable) and present the shared checkout ReceiptSheet
-  /// (paper preview + Print), the natives' openOrderReceiptPreview →
-  /// ReceiptPreviewScreen flow.
-  Future<void> _openReceipt(OrderSummaryView o) async {
-    ReceiptView receipt;
-    try {
-      receipt = await ref.read(bridgeProvider).orderReceiptView(orderId: o.id);
-    } on MadarError catch (e) {
-      ref.read(historyProvider.notifier).surfaceError(e);
-      return;
-    }
-    if (!mounted) return;
-    await showMadarSheet<void>(
-      context,
-      size: SheetSize.large,
-      builder: (_) => ReceiptSheet(receipt: receipt),
+  /// A row tap on a phone: select, then push the sale over the list. The
+  /// provider stays alive underneath, so the pushed screen reads the same
+  /// selection and the list is exactly where it was on the way back.
+  void _openOnPhone(BuildContext context, OrderSummaryView order) {
+    ref.read(historyProvider.notifier).select(order);
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        pageBuilder: (_, _, _) => const SaleScreen(),
+        transitionsBuilder: (_, animation, _, child) => SlideTransition(
+          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+              .animate(
+                CurvedAnimation(parent: animation, curve: MotionSpec.springOut),
+              ),
+          child: child,
+        ),
+        transitionDuration: MotionSpec.standardDuration,
+        reverseTransitionDuration: MotionSpec.standardDuration,
+      ),
     );
-  }
-
-  /// Void flow — the natives' VoidOverlay as a Madar sheet. On success the
-  /// history reloads (the row flips to Voided); the shell refresh happens
-  /// inside the sheet's confirm.
-  Future<void> _openVoid(OrderSummaryView o) async {
-    final voided = await showMadarSheet<bool>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: _voidSheetMaxWidth,
-      builder: (_) => _VoidSheet(order: o),
-    );
-    if (voided ?? false) await ref.read(historyProvider.notifier).load();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
-    final hasShift = ref.watch(historyProvider.select((s) => s.hasShift));
-    final historyEmpty = ref.watch(
-      historyProvider.select((s) => s.history.isEmpty),
+    final layout = context.madarLayout;
+    final notifier = ref.read(historyProvider.notifier);
+    String t(String key) => historyTr(bridge, key);
+
+    final search = MadarField(
+      controller: _searchField,
+      placeholder: t('history.search_hint'),
+      glyph: MadarGlyph.search,
+      onChanged: notifier.setSearch,
     );
+
     return Scaffold(
       backgroundColor: colors.bg,
       body: Stack(
         children: [
-          Column(
-            children: [
-              MadarHeader(
-                title: bridge.tr(key: 'history.title'),
-                subtitle: hasShift
-                    ? bridge.tr(key: 'history.current_shift')
-                    : null,
-                onBack: () => Navigator.maybePop(context),
-                actions: const [_HeaderSpinner()],
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsetsDirectional.only(
+                start: layout.gutter,
+                end: layout.gutter,
+                top: layout.isTablet ? Space.card : Space.lg,
+                bottom: layout.gutter,
               ),
-              Expanded(
-                child: SafeArea(
-                  top: false,
-                  child: Column(
-                    children: [
-                      if (!historyEmpty) _FilterBar(controller: _searchField),
-                      Expanded(
-                        child: _HistoryContent(
-                          onPrint: (o) => unawaited(_openReceipt(o)),
-                          onVoid: (o) => unawaited(_openVoid(o)),
-                        ),
-                      ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.lg,
+                children: [
+                  MadarHeader(
+                    title: t('history.title'),
+                    subtitle: _scopeLine(ref, bridge),
+                    onBack: () => Navigator.maybePop(context),
+                    actions: [
+                      if (layout.isTablet)
+                        SizedBox(width: _searchWidth, child: search),
                     ],
+                    below: layout.isPhone ? search : null,
                   ),
-                ),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final split = constraints.maxWidth >= _splitMinWidth;
+                        if (!split) {
+                          return _ListColumn(
+                            onOpen: (o) => _openOnPhone(context, o),
+                          );
+                        }
+                        final listWidth = (constraints.maxWidth * 0.52).clamp(
+                          _listColumnMinWidth,
+                          _listColumnWidth,
+                        );
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          spacing: Space.lg,
+                          children: [
+                            SizedBox(
+                              width: listWidth,
+                              child: _ListColumn(onOpen: notifier.select),
+                            ),
+                            const Expanded(child: _SaleCard()),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           const _HistoryToastHost(),
         ],
       ),
     );
   }
-}
 
-/// The header's trailing refresh spinner — shown only while a reload runs
-/// over an already-populated list.
-class _HeaderSpinner extends ConsumerWidget {
-  const _HeaderSpinner();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final show = ref.watch(
-      historyProvider.select((s) => s.loading && s.history.isNotEmpty),
+  /// The header's second line: "this shift · 42 sales · EGP 6230.00", or
+  /// "All · 318 found", or the honest "No shift open".
+  String? _scopeLine(WidgetRef ref, MadarBridge bridge) {
+    final scope = ref.watch(historyProvider.select((s) => s.scope));
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
-    if (!show) return const SizedBox.shrink();
-    return SizedBox.square(
-      dimension: _headerSpinner,
-      child: CircularProgressIndicator(color: colors.accent, strokeWidth: 2),
-    );
+    String t(String key) => historyTr(bridge, key);
+    switch (scope) {
+      case OrdersScope.thisShift:
+        final hasShift = ref.watch(historyProvider.select((s) => s.hasShift));
+        final stats = ref.watch(historyProvider.select((s) => s.stats));
+        final loading = ref.watch(historyProvider.select((s) => s.loading));
+        if (!hasShift && !loading) return t('history.no_shift');
+        final parts = <String>[t('history.this_shift')];
+        if (stats != null) {
+          parts
+            ..add(
+              t(
+                'history.sales_count',
+              ).replaceAll('{count}', ltrIsland('${stats.orderCount}')),
+            )
+            ..add(Money.format(stats.salesMinor, currency: currency));
+        }
+        return parts.join(' · ');
+      case OrdersScope.all:
+        final total = ref.watch(historyProvider.select((s) => s.serverTotal));
+        final parts = <String>[t('order.all')];
+        if (total > 0) {
+          parts.add(
+            t('history.found_count').replaceAll('{count}', ltrIsland('$total')),
+          );
+        }
+        return parts.join(' · ');
+    }
   }
 }
 
@@ -184,1591 +248,234 @@ class _HistoryToastHost extends ConsumerWidget {
   }
 }
 
-// ── Filter bar (search + two filter-chip rows with counts) ──────────────────
-class _FilterBar extends ConsumerWidget {
-  const _FilterBar({required this.controller});
-
-  final TextEditingController controller;
+/// The sale beside the list on a tablet: a card holding the panel, or the
+/// prompt to pick one.
+class _SaleCard extends ConsumerWidget {
+  const _SaleCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final selected = ref.watch(historyProvider.select((s) => s.selected));
+    return MadarCard(
+      padding: EdgeInsetsDirectional.zero,
+      child: selected == null
+          ? EmptyState(
+              icon: 'receipt',
+              title: historyTr(bridge, 'history.select_prompt'),
+            )
+          : SalePanel(order: selected),
+    );
+  }
+}
+
+// ── The list column: segment, chips, rows ────────────────────────────────
+
+class _ListColumn extends ConsumerWidget {
+  const _ListColumn({required this.onOpen});
+
+  /// A row tap. Selects beside the list on a tablet; pushes on a phone.
+  final void Function(OrderSummaryView) onOpen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.watch(bridgeProvider);
     final notifier = ref.read(historyProvider.notifier);
-    final type = ref.watch(historyProvider.select((s) => s.type));
-    final sync = ref.watch(historyProvider.select((s) => s.sync));
-    final typeCounts = ref.watch(historyProvider.select((s) => s.typeCounts));
-    final syncCounts = ref.watch(historyProvider.select((s) => s.syncCounts));
-    String t(String key) => bridge.tr(key: key);
+    final scope = ref.watch(historyProvider.select((s) => s.scope));
+    final filter = ref.watch(historyProvider.select((s) => s.filter));
+    String t(String key) => historyTr(bridge, key);
 
-    Widget typeChip(HistoryTypeFilter f, String glyph, String label) {
-      return HistoryFilterChip(
-        glyph: glyph,
-        label: '$label · ${typeCounts[f] ?? 0}',
-        active: type == f,
-        onTap: () => notifier.setType(f),
-      );
-    }
-
-    Widget syncChip(
-      HistorySyncFilter f,
-      String glyph,
-      String label,
-      ChipTone tone,
-    ) {
-      return HistoryFilterChip(
-        glyph: glyph,
-        label: '$label · ${syncCounts[f] ?? 0}',
-        active: sync == f,
-        tone: tone,
-        onTap: () => notifier.setSync(f),
-      );
-    }
+    Widget chip(OrdersFilter f, String label) => MadarChip(
+      label: label,
+      selected: filter == f,
+      onTap: () => notifier.setFilter(f),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
       children: [
-        ColoredBox(
-          color: colors.surface,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.lg,
-              vertical: Space.sm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.sm,
-              children: [
-                MadarField(
-                  controller: controller,
-                  placeholder: t('history.search'),
-                  icon: 'magnifyingglass',
-                  onChanged: notifier.setSearch,
-                ),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    spacing: Space.sm,
-                    children: [
-                      typeChip(
-                        HistoryTypeFilter.all,
-                        'slider.horizontal.3',
-                        t('history.type.all'),
-                      ),
-                      typeChip(
-                        HistoryTypeFilter.dineIn,
-                        'fork.knife',
-                        t('history.type.dine_in'),
-                      ),
-                      typeChip(
-                        HistoryTypeFilter.delivery,
-                        'shippingbox',
-                        t('history.type.delivery'),
-                      ),
-                    ],
-                  ),
-                ),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    spacing: Space.sm,
-                    children: [
-                      syncChip(
-                        HistorySyncFilter.all,
-                        'list.bullet',
-                        t('order.all'),
-                        ChipTone.accent,
-                      ),
-                      syncChip(
-                        HistorySyncFilter.synced,
-                        'checkmark.icloud',
-                        t('history.synced'),
-                        ChipTone.success,
-                      ),
-                      syncChip(
-                        HistorySyncFilter.pending,
-                        'icloud.and.arrow.up',
-                        t('history.queued'),
-                        ChipTone.warning,
-                      ),
-                      syncChip(
-                        HistorySyncFilter.voided,
-                        'xmark.circle',
-                        t('history.voided'),
-                        ChipTone.danger,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+        MadarSegmented<OrdersScope>(
+          items: [
+            MadarSegmentItem(OrdersScope.thisShift, t('history.this_shift')),
+            MadarSegmentItem(OrdersScope.all, t('order.all')),
+          ],
+          value: scope,
+          onChanged: notifier.setScope,
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          // The chips must not clip their tactile press, and the last chip
+          // must not kiss the column's edge when it scrolls.
+          clipBehavior: Clip.none,
+          child: Row(
+            spacing: Space.sm,
+            children: [
+              chip(OrdersFilter.all, t('history.type.all')),
+              chip(OrdersFilter.dineIn, t('history.type.dine_in')),
+              chip(OrdersFilter.online, t('history.type.online')),
+              chip(OrdersFilter.voided, t('history.voided')),
+            ],
           ),
         ),
-        const MadarHairline(light: true),
+        Expanded(child: _Rows(onOpen: onOpen)),
       ],
     );
   }
 }
 
-// ── Content ──────────────────────────────────────────────────────────────────
-class _HistoryContent extends ConsumerWidget {
-  const _HistoryContent({required this.onPrint, required this.onVoid});
+class _Rows extends ConsumerWidget {
+  const _Rows({required this.onOpen});
 
-  final void Function(OrderSummaryView) onPrint;
-  final void Function(OrderSummaryView) onVoid;
+  final void Function(OrderSummaryView) onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.watch(bridgeProvider);
     final notifier = ref.read(historyProvider.notifier);
+    final scope = ref.watch(historyProvider.select((s) => s.scope));
     final loading = ref.watch(historyProvider.select((s) => s.loading));
-    final history = ref.watch(historyProvider.select((s) => s.history));
+    final loadingMore = ref.watch(historyProvider.select((s) => s.loadingMore));
+    final error = ref.watch(historyProvider.select((s) => s.error));
+    final online = ref.watch(historyProvider.select((s) => s.online));
+    final rowsEmpty = ref.watch(historyProvider.select((s) => s.rows.isEmpty));
     final filtered = ref.watch(historyProvider.select((s) => s.filtered));
     final visibleLimit = ref.watch(
       historyProvider.select((s) => s.visibleLimit),
     );
-    final report = ref.watch(historyProvider.select((s) => s.report));
-    final expandedId = ref.watch(historyProvider.select((s) => s.expandedId));
-    final detail = ref.watch(historyProvider.select((s) => s.detail));
-    final sortCol = ref.watch(historyProvider.select((s) => s.sortCol));
-    final sortAscending = ref.watch(
-      historyProvider.select((s) => s.sortAscending),
-    );
+    final hasMore = ref.watch(historyProvider.select((s) => s.hasMore));
+    final selectedId = ref.watch(historyProvider.select((s) => s.selectedId));
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
-    String t(String key) => bridge.tr(key: key);
+    final compact = context.isPhone;
+    String t(String key) => historyTr(bridge, key);
 
-    if (loading && history.isEmpty) {
+    // The honest states first: a first load, a refusal, no network.
+    if (loading && rowsEmpty) {
       return const Align(alignment: Alignment.topCenter, child: SkeletonList());
+    }
+    if (error != null && rowsEmpty) {
+      return ErrorState(
+        message: error,
+        retryLabel: t('history.retry'),
+        onRetry: notifier.load,
+      );
+    }
+    if (scope == OrdersScope.all && !online && rowsEmpty) {
+      return EmptyState(
+        icon: 'wifi.slash',
+        title: t('history.offline_search'),
+        actionLabel: t('history.retry'),
+        onAction: notifier.load,
+      );
     }
     if (filtered.isEmpty) {
       return EmptyState(
-        icon: history.isEmpty ? 'tray' : 'line.3.horizontal.decrease.circle',
-        title: history.isEmpty ? t('history.empty') : t('history.no_match'),
+        icon: rowsEmpty ? 'tray' : 'line.3.horizontal.decrease.circle',
+        title: rowsEmpty ? t('history.empty') : t('history.no_match'),
       );
     }
-    final visible = filtered.take(visibleLimit).toList();
-    return ResponsiveBuilder(
-      builder: (context, info) {
-        final wide = info.isWideTable;
-        return Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
-            // Slivers so only on-screen rows are built — 'show more' grows
-            // `visible` without bound, so the card path must stay lazy.
-            child: CustomScrollView(
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsetsDirectional.all(Space.lg),
-                  sliver: SliverMainAxisGroup(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsetsDirectional.only(
-                            bottom: Space.lg,
-                          ),
-                          child: _StatsHeader(
-                            history: history,
-                            report: report,
-                            currency: currency,
-                            tr: t,
-                          ),
-                        ),
-                      ),
-                      if (wide)
-                        SliverToBoxAdapter(
-                          child: _OrderTable(
-                            visible: visible,
-                            currency: currency,
-                            expandedId: expandedId,
-                            detail: detail,
-                            sortCol: sortCol,
-                            sortAscending: sortAscending,
-                            bridge: bridge,
-                            onSort: notifier.setSort,
-                            onToggle: notifier.toggle,
-                            onPrint: onPrint,
-                            onVoid: onVoid,
-                          ),
-                        )
-                      else
-                        SliverList.builder(
-                          itemCount: visible.length,
-                          itemBuilder: (context, index) {
-                            final o = visible[index];
-                            return Padding(
-                              padding: const EdgeInsetsDirectional.only(
-                                bottom: Space.lg,
-                              ),
-                              child: _OrderCard(
-                                order: o,
-                                currency: currency,
-                                expanded: expandedId == o.id,
-                                detail: detail,
-                                bridge: bridge,
-                                onToggle: () => notifier.toggle(o),
-                                onPrint: () => onPrint(o),
-                                onVoid: () => onVoid(o),
-                              ),
-                            );
-                          },
-                        ),
-                      SliverToBoxAdapter(
-                        child: _ShowMoreFooter(
-                          remaining: filtered.length - visible.length,
-                          label: t('history.show_more'),
-                          onShowMore: notifier.showMore,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
 
-// ── Stats header ─────────────────────────────────────────────────────────────
-// `[orders count] | [Total (success)] [· one chip per payment method]`.
-// Prefers the live shift report; folds over local (non-voided) history
-// otherwise.
-class _StatsHeader extends StatelessWidget {
-  const _StatsHeader({
-    required this.history,
-    required this.report,
-    required this.currency,
-    required this.tr,
-  });
+    final visible = scope == OrdersScope.thisShift
+        ? filtered.take(visibleLimit).toList()
+        : filtered;
+    final remaining = scope == OrdersScope.thisShift
+        ? filtered.length - visible.length
+        : (hasMore ? 1 : 0);
 
-  final List<OrderSummaryView> history;
-  final ShiftReportView? report;
-  final String currency;
-  final String Function(String) tr;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final nonVoided = history.where((o) => o.status != 'voided').toList();
-    final total =
-        report?.netPaymentsMinor ??
-        nonVoided.fold<int>(0, (sum, o) => sum + o.totalMinor);
-    final denom = total > 1 ? total : 1;
-
-    final breakdown = <(String, int, ChipTone)>[];
-    final lines = report?.paymentLines;
-    if (lines != null && lines.isNotEmpty) {
-      for (final l in lines) {
-        breakdown.add((
-          l.method,
-          l.totalMinor,
-          l.isCash ? ChipTone.success : ChipTone.info,
-        ));
-      }
-    } else {
-      final sums = <String, int>{};
-      for (final o in nonVoided) {
-        sums[o.paymentLabel] = (sums[o.paymentLabel] ?? 0) + o.totalMinor;
-      }
-      for (final MapEntry(key: label, value: amount) in sums.entries) {
-        breakdown.add((
-          label,
-          amount,
-          label.toLowerCase().contains('cash')
-              ? ChipTone.success
-              : ChipTone.info,
-        ));
-      }
-    }
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(color: colors.border),
+    // A notice above the rows when the list is stale or partial, in words.
+    final Widget? notice = switch ((scope, online, error)) {
+      (OrdersScope.all, false, _) => NoticeBanner(
+        text: t('history.offline_cached'),
+        icon: 'wifi.slash',
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Space.lg,
-          vertical: Space.md,
-        ),
-        child: Row(
-          spacing: Space.md,
-          children: [
-            _StatCell(
-              label: tr('history.stat.orders'),
-              value: '${nonVoided.length}',
-              color: colors.textPrimary,
-            ),
-            Container(
-              width: 1,
-              height: _statDividerHeight,
-              color: colors.border,
-            ),
-            _StatCell(
-              label: tr('order.total'),
-              value: Money.format(total, currency: currency),
-              color: colors.success,
-            ),
-            for (final (label, amount, tone) in breakdown)
-              StatusChip(
-                label:
-                    '$label · ${Money.format(amount, currency: currency)}'
-                    ' · ${amount * 100 ~/ denom}%',
-                tone: tone,
-              ),
-          ],
-        ),
+      (OrdersScope.all, true, final String message) => NoticeBanner(
+        text: message,
+        tone: ChipTone.danger,
+        icon: 'exclamationmark.triangle',
+        onTap: notifier.load,
       ),
-    );
-  }
-}
+      _ => null,
+    };
 
-class _StatCell extends StatelessWidget {
-  const _StatCell({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 2,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: MadarType.labelSm.copyWith(color: colors.textMuted),
-        ),
-        Text(
-          value,
-          textDirection: TextDirection.ltr,
-          style: MadarType.money.copyWith(fontSize: 16, color: color),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Wide TABLE ───────────────────────────────────────────────────────────────
-class _OrderTable extends StatelessWidget {
-  const _OrderTable({
-    required this.visible,
-    required this.currency,
-    required this.expandedId,
-    required this.detail,
-    required this.sortCol,
-    required this.sortAscending,
-    required this.bridge,
-    required this.onSort,
-    required this.onToggle,
-    required this.onPrint,
-    required this.onVoid,
-  });
-
-  final List<OrderSummaryView> visible;
-  final String currency;
-  final String? expandedId;
-  final OrderDetailView? detail;
-  final HistorySortCol sortCol;
-  final bool sortAscending;
-  final MadarBridge bridge;
-  final void Function(HistorySortCol) onSort;
-  final void Function(OrderSummaryView) onToggle;
-  final void Function(OrderSummaryView) onPrint;
-  final void Function(OrderSummaryView) onVoid;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    String t(String key) => bridge.tr(key: key);
-    Widget headerCell(
-      String label,
-      HistorySortCol col, {
-      double? width,
-      bool trailing = false,
-    }) {
-      final cell = _HeaderCell(
-        label: label,
-        active: sortCol == col,
-        ascending: sortAscending,
-        trailing: trailing,
-        onTap: () => onSort(col),
-      );
-      return width != null
-          ? SizedBox(width: width, child: cell)
-          : Expanded(child: cell);
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(Radii.md),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(Radii.md),
-          border: Border.all(color: colors.border),
-        ),
-        child: Column(
-          children: [
-            ColoredBox(
-              color: colors.surfaceAlt,
-              child: Padding(
-                padding: const EdgeInsetsDirectional.symmetric(
-                  horizontal: Space.md,
-                  vertical: Space.sm,
-                ),
-                child: Row(
-                  spacing: Space.md,
-                  children: [
-                    headerCell(
-                      '#',
-                      HistorySortCol.number,
-                      width: _numberColWidth,
-                    ),
-                    headerCell(t('order.payment'), HistorySortCol.payment),
-                    headerCell(t('history.col.time'), HistorySortCol.time),
-                    headerCell(t('history.col.teller'), HistorySortCol.teller),
-                    headerCell(
-                      t('history.col.amount'),
-                      HistorySortCol.amount,
-                      width: _amountColWidth,
-                      trailing: true,
-                    ),
-                    const SizedBox(width: _disclosureColWidth),
-                  ],
-                ),
-              ),
-            ),
-            const MadarHairline(),
-            for (final (idx, o) in visible.indexed) ...[
-              _TableRow(
-                order: o,
-                currency: currency,
-                zebra: idx.isOdd,
-                expanded: expandedId == o.id,
-                detail: detail,
-                bridge: bridge,
-                onToggle: () => onToggle(o),
-                onPrint: () => onPrint(o),
-                onVoid: () => onVoid(o),
-              ),
-              if (idx < visible.length - 1) const MadarHairline(light: true),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HeaderCell extends StatelessWidget {
-  const _HeaderCell({
-    required this.label,
-    required this.active,
-    required this.ascending,
-    required this.trailing,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool active;
-  final bool ascending;
-  final bool trailing;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final fg = active ? colors.accent : colors.textMuted;
-    final arrow = active
-        ? MadarIcon(
-            ascending ? 'arrow.up' : 'arrow.down',
-            tint: fg,
-            size: _sortArrowSize,
-          )
-        : null;
-    return Semantics(
-      button: true,
-      child: TactileScale(
-        onTap: onTap,
-        child: Row(
-          mainAxisAlignment: trailing
-              ? MainAxisAlignment.end
-              : MainAxisAlignment.start,
-          spacing: 3,
-          children: [
-            if (trailing && arrow != null) arrow,
-            Flexible(
-              child: Text(
-                label.toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.labelSm.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: fg,
-                ),
-              ),
-            ),
-            if (!trailing && arrow != null) arrow,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TableRow extends StatelessWidget {
-  const _TableRow({
-    required this.order,
-    required this.currency,
-    required this.zebra,
-    required this.expanded,
-    required this.detail,
-    required this.bridge,
-    required this.onToggle,
-    required this.onPrint,
-    required this.onVoid,
-  });
-
-  final OrderSummaryView order;
-  final String currency;
-  final bool zebra;
-  final bool expanded;
-  final OrderDetailView? detail;
-  final MadarBridge bridge;
-  final VoidCallback onToggle;
-  final VoidCallback onPrint;
-  final VoidCallback onVoid;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final o = order;
-    final voided = o.status == 'voided';
-    final rowDetail = detail?.id == o.id ? detail : null;
-    final loadingDetail = expanded && !o.queued && rowDetail == null;
-    final rowBg = expanded
-        ? colors.navyBg
-        : zebra
-        ? colors.surfaceAlt
-        : Colors.transparent;
-    return ColoredBox(
-      color: rowBg,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggle,
-            child: Opacity(
-              opacity: voided ? _voidedAlpha : 1,
-              child: Container(
-                constraints: const BoxConstraints(
-                  minHeight: Metrics.tableRowHeight,
-                ),
-                padding: const EdgeInsetsDirectional.symmetric(
-                  horizontal: Space.md,
-                ),
-                child: Row(
-                  spacing: Space.md,
-                  children: [
-                    // # cell — queued cloud icon, else number (+ optional ref).
-                    SizedBox(
-                      width: _numberColWidth,
-                      child: o.queued
-                          ? Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: MadarIcon(
-                                'icloud.and.arrow.up',
-                                tint: colors.warning,
-                              ),
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              spacing: 1,
-                              children: [
-                                Text(
-                                  o.orderNumber != null
-                                      ? '#${o.orderNumber}'
-                                      : bridge.tr(key: 'history.order'),
-                                  style: MadarType.body.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: colors.navy,
-                                  ),
-                                ),
-                                if (o.orderRef case final ref?)
-                                  Text(
-                                    ref,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: MadarType.labelSm.copyWith(
-                                      fontSize: _orderRefSize,
-                                      fontWeight: FontWeight.w400,
-                                      color: colors.textMuted,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                    ),
-                    Expanded(
-                      child: _PaymentCell(
-                        order: o,
-                        voided: voided,
-                        bridge: bridge,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        bridge.formatTime(
-                          rfc3339: o.createdAt,
-                          style: TimeStyle.time,
-                        ),
-                        style: MadarType.bodySm.copyWith(
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    Expanded(child: _TellerCell(order: o, fontSize: 12)),
-                    SizedBox(
-                      width: _amountColWidth,
-                      child: Text(
-                        Money.format(o.totalMinor, currency: currency),
-                        textDirection: TextDirection.ltr,
-                        style: MadarType.money.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: voided ? colors.textMuted : colors.textPrimary,
-                          decoration: voided
-                              ? TextDecoration.lineThrough
-                              : null,
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: _disclosureColWidth,
-                      child: Center(
-                        child: _DisclosureIndicator(
-                          expanded: expanded,
-                          loading: loadingDetail,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          if (expanded)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(
-                start: Space.md,
-                end: Space.md,
-                bottom: Space.md,
-              ),
-              child: _OrderDetailPanel(
-                order: o,
-                detail: rowDetail,
-                currency: currency,
-                bridge: bridge,
-                onPrint: onPrint,
-                onVoid: onVoid,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The trailing chevron that rotates open, or the row's detail spinner.
-class _DisclosureIndicator extends StatelessWidget {
-  const _DisclosureIndicator({required this.expanded, required this.loading});
-
-  final bool expanded;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    if (loading) {
-      return SizedBox.square(
-        dimension: _rowSpinner,
-        child: CircularProgressIndicator(
-          color: colors.textMuted,
-          strokeWidth: 2,
-        ),
-      );
-    }
-    return AnimatedRotation(
-      turns: expanded ? 0.5 : 0,
-      duration: MotionSpec.standardDuration,
-      curve: MotionSpec.standardCurve,
-      child: MadarIcon('chevron.down', tint: colors.textMuted, size: 13),
-    );
-  }
-}
-
-class _PaymentCell extends StatelessWidget {
-  const _PaymentCell({
-    required this.order,
-    required this.voided,
-    required this.bridge,
-  });
-
-  final OrderSummaryView order;
-  final bool voided;
-  final MadarBridge bridge;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final o = order;
-    String t(String key) => bridge.tr(key: key);
-    return Row(
-      spacing: 6,
-      children: [
-        Flexible(
-          child: PaymentBadge(label: o.paymentLabel, voided: voided),
-        ),
-        if (voided)
-          StatusChip(label: t('history.voided'), tone: ChipTone.danger)
-        else if (o.status == 'failed')
-          StatusChip(label: t('history.failed'), tone: ChipTone.danger)
-        else if (o.queued)
-          StatusChip(
-            label: t('history.queued'),
-            tone: ChipTone.warning,
-            icon: 'arrow.triangle.2.circlepath',
-          ),
-        if (o.customerName case final customer?)
-          Flexible(
-            child: Text(
-              customer,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: MadarType.label.copyWith(
-                fontWeight: FontWeight.w400,
-                color: colors.textMuted,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _TellerCell extends StatelessWidget {
-  const _TellerCell({required this.order, required this.fontSize});
-
-  final OrderSummaryView order;
-  final double fontSize;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Row(
-      spacing: Space.xs,
-      children: [
-        MadarIcon('person', tint: colors.textMuted, size: IconSize.xs),
-        Flexible(
-          child: Text(
-            order.tellerName ?? '—',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: MadarType.label.copyWith(
-              fontSize: fontSize,
-              fontWeight: FontWeight.w400,
-              color: colors.textSecondary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Narrow CARD ──────────────────────────────────────────────────────────────
-class _OrderCard extends StatelessWidget {
-  const _OrderCard({
-    required this.order,
-    required this.currency,
-    required this.expanded,
-    required this.detail,
-    required this.bridge,
-    required this.onToggle,
-    required this.onPrint,
-    required this.onVoid,
-  });
-
-  final OrderSummaryView order;
-  final String currency;
-  final bool expanded;
-  final OrderDetailView? detail;
-  final MadarBridge bridge;
-  final VoidCallback onToggle;
-  final VoidCallback onPrint;
-  final VoidCallback onVoid;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final o = order;
-    final voided = o.status == 'voided';
-    final rowDetail = detail?.id == o.id ? detail : null;
-    final loadingDetail = expanded && !o.queued && rowDetail == null;
-    String t(String key) => bridge.tr(key: key);
-    return Container(
-      decoration: BoxDecoration(
-        color: expanded ? colors.navyBg : colors.surface,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(color: colors.border),
-      ),
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Space.lg,
-        vertical: Space.md,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.sm,
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggle,
-            child: Opacity(
-              opacity: voided ? _voidedAlpha : 1,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: Space.sm,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      spacing: Space.xs,
-                      children: [
-                        Row(
-                          spacing: 6,
-                          children: [
-                            if (o.queued)
-                              MadarIcon(
-                                'icloud.and.arrow.up',
-                                tint: colors.warning,
-                                size: IconSize.sm,
-                              ),
-                            Text(
-                              o.orderNumber != null
-                                  ? '#${o.orderNumber}'
-                                  : t('history.order'),
-                              style: MadarType.body.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: colors.navy,
-                              ),
-                            ),
-                            Text(
-                              bridge.formatTime(
-                                rfc3339: o.createdAt,
-                                style: TimeStyle.time,
-                              ),
-                              style: MadarType.labelSm.copyWith(
-                                fontWeight: FontWeight.w400,
-                                color: colors.textMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          spacing: 6,
-                          children: [
-                            Flexible(
-                              child: PaymentBadge(
-                                label: o.paymentLabel,
-                                voided: voided,
-                              ),
-                            ),
-                            if (voided)
-                              StatusChip(
-                                label: t('history.voided'),
-                                tone: ChipTone.danger,
-                              )
-                            else if (o.status == 'failed')
-                              StatusChip(
-                                label: t('history.failed'),
-                                tone: ChipTone.danger,
-                              )
-                            else if (o.queued)
-                              StatusChip(
-                                label: t('history.queued'),
-                                tone: ChipTone.warning,
-                              ),
-                          ],
-                        ),
-                        if (o.customerName case final customer?)
-                          Text(
-                            customer,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: MadarType.label.copyWith(
-                              fontWeight: FontWeight.w400,
-                              color: colors.textMuted,
-                            ),
-                          ),
-                        _TellerCell(order: o, fontSize: 11),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    spacing: Space.xs,
-                    children: [
-                      Text(
-                        Money.format(o.totalMinor, currency: currency),
-                        textDirection: TextDirection.ltr,
-                        style: MadarType.money.copyWith(
-                          fontSize: 15,
-                          color: voided ? colors.textMuted : colors.textPrimary,
-                          decoration: voided
-                              ? TextDecoration.lineThrough
-                              : null,
-                        ),
-                      ),
-                      _DisclosureIndicator(
-                        expanded: expanded,
-                        loading: loadingDetail,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (expanded) ...[
-            const MadarHairline(),
-            _OrderDetailPanel(
-              order: o,
-              detail: rowDetail,
-              currency: currency,
-              bridge: bridge,
-              onPrint: onPrint,
-              onVoid: onVoid,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── Shared expanded detail (line items + totals + Print/Void) ────────────────
-class _OrderDetailPanel extends StatelessWidget {
-  const _OrderDetailPanel({
-    required this.order,
-    required this.detail,
-    required this.currency,
-    required this.bridge,
-    required this.onPrint,
-    required this.onVoid,
-  });
-
-  final OrderSummaryView order;
-  final OrderDetailView? detail;
-  final String currency;
-  final MadarBridge bridge;
-  final VoidCallback onPrint;
-  final VoidCallback onVoid;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final o = order;
-    final d = detail;
-    final canAct = !o.queued && o.status != 'voided';
-    String t(String key) => bridge.tr(key: key);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.sm,
+      spacing: Space.md,
       children: [
-        if (d != null) ...[
-          for (final line in d.lines) _LineRow(line: line, currency: currency),
-          const MadarHairline(light: true),
-          _DetailRow(
-            label: t('order.subtotal'),
-            value: Money.format(d.subtotalMinor, currency: currency),
-          ),
-          if (d.discountMinor > 0)
-            _DetailRow(
-              label: t('order.discount'),
-              value: '− ${Money.format(d.discountMinor, currency: currency)}',
-              color: colors.success,
-            ),
-          _DetailRow(
-            label: t('order.tax'),
-            value: Money.format(d.taxMinor, currency: currency),
-          ),
-        ] else ...[
-          // Queued/offline order, or detail not yet loaded — summary totals.
-          _DetailRow(
-            label: t('order.subtotal'),
-            value: Money.format(o.subtotalMinor, currency: currency),
-          ),
-          _DetailRow(
-            label: t('order.tax'),
-            value: Money.format(o.taxMinor, currency: currency),
-          ),
-        ],
-        // Grand-total block — tinted teal, money as the hero (mirrors the
-        // cart's CartFooter total).
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.accentBg,
-            borderRadius: BorderRadius.circular(Radii.md),
-          ),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.md,
-              vertical: Space.sm,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    t('order.total'),
-                    style: MadarType.body.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colors.accent,
-                    ),
-                  ),
-                ),
-                MoneyText(
-                  o.totalMinor,
-                  currency: currency,
-                  style: MadarType.money.copyWith(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // A third action joined Print and Void here, so the group WRAPS: on a
-        // narrow card three labels in Arabic no longer fit beside the payment
-        // method, and an action a teller cannot reach is worse than one on its
-        // own line.
-        Row(
-          spacing: Space.md,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Text(
-                o.paymentLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.label.copyWith(
-                  fontWeight: FontWeight.w400,
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-            Flexible(
-              child: Wrap(
-                spacing: Space.md,
-                runSpacing: Space.sm,
-                alignment: WrapAlignment.end,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  // Adding points is claimable for 24 hours after the sale, so a
-                  // customer who produced their card only after paying — which is
-                  // most of the time — still gets their stamp. The window is the
-                  // core's rule (and the server re-checks it against this order's own
-                  // timestamp), so the action disappears on its own: no timer, no
-                  // stale state. A voided sale earns nothing, so it never appears
-                  // there. Unlike Print and Void this is offered on a still-QUEUED
-                  // sale too — the award names it by the client key it was rung
-                  // under, and the server resolves the two to one order.
-                  if (o.status != 'voided' &&
-                      bridge.loyaltyAwardWindowOpen(
-                        orderCreatedAt: o.createdAt,
-                        now: DateTime.now().toUtc().toIso8601String(),
-                      ))
-                    _DetailAction(
-                      label: t('loyalty.add_points'),
-                      glyph: 'star',
-                      color: colors.accent,
-                      onTap: () => unawaited(
-                        showMadarSheet<bool>(
-                          context,
-                          builder: (_) => LoyaltyAwardSheet(
-                            // A queued sale has no server id yet — it is known by the
-                            // client key it was rung under.
-                            orderId: o.queued ? null : o.id,
-                            orderKey: o.queued ? o.id : null,
-                            orderCreatedAt: o.createdAt,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (canAct) ...[
-                    _DetailAction(
-                      label: t('receipt.print'),
-                      glyph: 'printer',
-                      color: colors.accent,
-                      onTap: onPrint,
-                    ),
-                    _DetailAction(
-                      label: t('void.action'),
-                      glyph: 'trash',
-                      color: colors.danger,
-                      onTap: onVoid,
+        ?notice,
+        Expanded(
+          child: MadarCard(
+            flush: true,
+            // Lazy on purpose: "Show more" grows the list without bound.
+            child: ListView.builder(
+              padding: EdgeInsetsDirectional.zero,
+              itemCount: visible.length + (remaining > 0 ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index >= visible.length) {
+                  return _MoreRow(
+                    label: scope == OrdersScope.thisShift
+                        ? t('history.show_more').replaceAll(
+                            '{count}',
+                            '${remaining < kHistoryPageSize ? remaining : kHistoryPageSize}',
+                          )
+                        : t('search.load_more'),
+                    loading: loadingMore,
+                    onTap: notifier.showMore,
+                  );
+                }
+                final o = visible[index];
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (index > 0) const MadarHairline(light: true),
+                    _SaleRow(
+                      order: o,
+                      bridge: bridge,
+                      currency: currency,
+                      selected: o.id == selectedId,
+                      compact: compact,
+                      showDate: scope == OrdersScope.all,
+                      onTap: () => onOpen(o),
                     ),
                   ],
-                ],
-              ),
+                );
+              },
             ),
-          ],
+          ),
         ),
       ],
     );
   }
 }
 
-/// A leading-icon text action in the expanded detail panel (Add points /
-/// Print / Void).
-class _DetailAction extends StatelessWidget {
-  const _DetailAction({
+/// The last row of the card: one more page.
+class _MoreRow extends StatelessWidget {
+  const _MoreRow({
     required this.label,
-    required this.glyph,
-    required this.color,
+    required this.loading,
     required this.onTap,
   });
 
   final String label;
-  final String glyph;
-  final Color color;
+  final bool loading;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      child: TactileScale(
-        onTap: onTap,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: Space.xs,
-          children: [
-            MadarIcon(glyph, tint: color, size: IconSize.xs),
-            Text(label, style: MadarType.label.copyWith(color: color)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value, this.color});
-
-  final String label;
-  final String value;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-          ),
-        ),
-        Text(
-          value,
-          textDirection: TextDirection.ltr,
-          style: MadarType.money.copyWith(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: color ?? colors.textPrimary,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// One fetched order line — "qty× name" + its modifiers on the left, the
-/// line total on the right.
-class _LineRow extends StatelessWidget {
-  const _LineRow({required this.line, required this.currency});
-
-  final OrderDetailLineView line;
-  final String currency;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final mods = <String>[?line.sizeLabel, ...line.addons, ...line.optionals];
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Space.sm,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 1,
-            children: [
-              Text(
-                '${line.qty}× ${line.name}',
-                style: MadarType.bodySm.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
-              ),
-              if (mods.isNotEmpty)
-                Text(
-                  mods.join(' · '),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.labelSm.copyWith(
-                    fontWeight: FontWeight.w400,
-                    color: colors.textMuted,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        MoneyText(
-          line.lineTotalMinor,
-          currency: currency,
-          style: MadarType.money.copyWith(fontSize: 13),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Pagination footer ────────────────────────────────────────────────────────
-class _ShowMoreFooter extends StatelessWidget {
-  const _ShowMoreFooter({
-    required this.remaining,
-    required this.label,
-    required this.onShowMore,
-  });
-
-  final int remaining;
-
-  /// The `history.show_more` template carrying a `{count}` placeholder.
-  final String label;
-  final VoidCallback onShowMore;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    if (remaining <= 0) return const SizedBox.shrink();
-    final count = remaining < kHistoryPageSize ? remaining : kHistoryPageSize;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: Space.lg),
-      child: Semantics(
-        button: true,
-        child: TactileScale(
-          scale: 0.98,
-          onTap: onShowMore,
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(Radii.sm),
-              border: Border.all(color: colors.border),
-            ),
-            padding: const EdgeInsetsDirectional.symmetric(vertical: Space.md),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              spacing: 6,
-              children: [
-                MadarIcon(
-                  'chevron.down',
-                  tint: colors.accent,
-                  size: IconSize.xs,
-                ),
-                Text(
-                  label.replaceAll('{count}', '$count'),
-                  style: MadarType.bodySm.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: colors.accent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Void sheet ───────────────────────────────────────────────────────────────
-
-/// The void form's state (reason radios / restock toggle / busy / error).
-class _VoidFormState {
-  const _VoidFormState({
-    this.reason = 'mistake',
-    this.restock = true,
-    this.busy = false,
-    this.error,
-  });
-
-  final String reason;
-  final bool restock;
-  final bool busy;
-  final String? error;
-
-  static const Object _unset = Object();
-
-  _VoidFormState copyWith({
-    String? reason,
-    bool? restock,
-    bool? busy,
-    Object? error = _unset,
-  }) {
-    return _VoidFormState(
-      reason: reason ?? this.reason,
-      restock: restock ?? this.restock,
-      busy: busy ?? this.busy,
-      error: error == _unset ? this.error : error as String?,
-    );
-  }
-}
-
-class _VoidFormNotifier extends Notifier<_VoidFormState> {
-  bool _alive = true;
-
-  @override
-  _VoidFormState build() {
-    _alive = true;
-    ref.onDispose(() => _alive = false);
-    return const _VoidFormState();
-  }
-
-  void selectReason(String reason) => state = state.copyWith(reason: reason);
-
-  void toggleRestock({required bool on}) => state = state.copyWith(restock: on);
-
-  /// Void the order — true on success (the sheet pops). A void moves the
-  /// shift stats, so the shell refreshes here; failures land in
-  /// [_VoidFormState.error].
-  Future<bool> confirm({required String orderId, required String note}) async {
-    final bridge = ref.read(bridgeProvider);
-    state = state.copyWith(busy: true, error: null);
-    try {
-      await bridge.voidOrder(
-        orderId: orderId,
-        reason: state.reason,
-        note: note.isEmpty ? null : note,
-        restoreInventory: state.restock,
-      );
-      ref.read(shellProvider.notifier).refresh();
-      return true;
-    } on MadarError catch (e) {
-      if (e is MadarError_Unauthenticated &&
-          ref.read(shellProvider).session != null) {
-        ref.read(reauthRequestProvider.notifier).request();
-      }
-      if (_alive) {
-        state = state.copyWith(busy: false, error: bridge.humanMessage(e));
-      }
-      return false;
-    }
-  }
-}
-
-final NotifierProvider<_VoidFormNotifier, _VoidFormState> _voidFormProvider =
-    NotifierProvider.autoDispose<_VoidFormNotifier, _VoidFormState>(
-      _VoidFormNotifier.new,
-    );
-
-/// The natives' VoidOverlay: reason radios, an optional note, the restock
-/// toggle, and one danger CTA. Pops `true` after a successful void.
-class _VoidSheet extends ConsumerStatefulWidget {
-  const _VoidSheet({required this.order});
-
-  final OrderSummaryView order;
-
-  @override
-  ConsumerState<_VoidSheet> createState() => _VoidSheetState();
-}
-
-class _VoidSheetState extends ConsumerState<_VoidSheet> {
-  final TextEditingController _note = TextEditingController();
-
-  static const List<(String, String)> _reasons = [
-    ('mistake', 'void.reason_mistake'),
-    ('customer', 'void.reason_customer'),
-    ('quality', 'void.reason_quality'),
-    ('other', 'void.reason_other'),
-  ];
-
-  @override
-  void dispose() {
-    _note.dispose();
-    super.dispose();
-  }
-
-  Future<void> _confirm() async {
-    final ok = await ref
-        .read(_voidFormProvider.notifier)
-        .confirm(orderId: widget.order.id, note: _note.text.trim());
-    if (ok && mounted) await Navigator.of(context).maybePop(true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
-    final form = ref.watch(_voidFormProvider);
-    final currency = ref.watch(
-      shellProvider.select((s) => s.session?.currencyCode ?? ''),
-    );
-    final o = widget.order;
-    String t(String key) => bridge.tr(key: key);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Flexible(
-          child: SingleChildScrollView(
-            padding: const EdgeInsetsDirectional.all(Space.xl),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.lg,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        t('void.title'),
-                        style: MadarType.h2.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    TactileScale(
-                      onTap: () => Navigator.of(context).maybePop(false),
-                      child: MadarIcon('xmark', tint: colors.textMuted),
-                    ),
-                  ],
-                ),
-                // The order being voided — number + total.
-                Container(
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(Radii.sm),
-                    border: Border.all(color: colors.borderLight),
-                    boxShadow: MadarElevation.card.shadows(
-                      colors,
-                      dark: Theme.of(context).brightness == Brightness.dark,
-                    ),
-                  ),
-                  padding: const EdgeInsetsDirectional.all(Space.md),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          o.orderNumber != null
-                              ? '#${o.orderNumber}'
-                              : t('history.order'),
-                          style: MadarType.body.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      MoneyText(
-                        o.totalMinor,
-                        currency: currency,
-                        style: MadarType.money.copyWith(fontSize: 15),
-                        color: colors.textPrimary,
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  t('void.reason'),
-                  style: MadarType.label.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: MadarType.tracking,
-                    color: colors.textMuted,
-                  ),
-                ),
-                for (final (key, label) in _reasons)
-                  _ReasonRow(
-                    label: t(label),
-                    active: form.reason == key,
-                    onTap: () =>
-                        ref.read(_voidFormProvider.notifier).selectReason(key),
-                  ),
-                MadarField(
-                  controller: _note,
-                  placeholder: t('void.note'),
-                  icon: 'note.text',
-                  enabled: !form.busy,
-                ),
-                const MadarHairline(),
-                Row(
-                  spacing: Space.sm,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        t('void.restock'),
-                        style: MadarType.body.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    _RestockSwitch(
-                      value: form.restock,
-                      onChanged: (v) => ref
-                          .read(_voidFormProvider.notifier)
-                          .toggleRestock(on: v),
-                    ),
-                  ],
-                ),
-                if (form.error case final error?)
-                  NoticeBanner(text: error, tone: ChipTone.danger),
-                Row(
-                  spacing: Space.md,
-                  children: [
-                    Expanded(
-                      child: MadarButton(
-                        label: t('void.cancel'),
-                        variant: MadarButtonVariant.outline,
-                        onTap: () => Navigator.of(context).maybePop(false),
-                      ),
-                    ),
-                    Expanded(
-                      child: MadarButton(
-                        label: t('void.confirm'),
-                        variant: MadarButtonVariant.danger,
-                        icon: 'trash',
-                        loading: form.busy,
-                        onTap: () => unawaited(_confirm()),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+        const MadarHairline(light: true),
+        Padding(
+          padding: const EdgeInsetsDirectional.all(Space.md),
+          child: MadarButton(
+            label: label,
+            variant: MadarButtonVariant.ghost,
+            size: MadarButtonSize.compact,
+            glyph: MadarGlyph.chevronDown,
+            loading: loading,
+            onTap: onTap,
           ),
         ),
       ],
@@ -1776,102 +483,198 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
   }
 }
 
-class _ReasonRow extends StatelessWidget {
-  const _ReasonRow({
-    required this.label,
-    required this.active,
+/// One sale in the list. 64 tall; the number and the time are mono, the
+/// origin and who bought it are words, the payment method is quiet and the
+/// money sits at the end. The selected row carries a teal bar on its start
+/// edge and the accent wash — the row's colour lives there and nowhere else.
+///
+/// [compact] is the phone's two-line arrangement: the five columns do not
+/// fit in 358 points, and a wrapped money figure is a misread figure.
+class _SaleRow extends StatelessWidget {
+  const _SaleRow({
+    required this.order,
+    required this.bridge,
+    required this.currency,
+    required this.selected,
+    required this.compact,
+    required this.showDate,
     required this.onTap,
   });
 
-  final String label;
-  final bool active;
+  final OrderSummaryView order;
+  final MadarBridge bridge;
+  final String currency;
+  final bool selected;
+  final bool compact;
+
+  /// Under All the day matters; under This shift it is today.
+  final bool showDate;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return Semantics(
-      button: true,
-      selected: active,
-      child: TactileScale(
-        scale: 0.99,
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: active ? colors.dangerBg : colors.surface,
-            borderRadius: BorderRadius.circular(Radii.sm),
-            border: Border.all(
-              color: active
-                  ? colors.danger.withValues(alpha: Opacities.disabled)
-                  : colors.border,
+    final o = order;
+    final state = SaleState.of(o);
+    final voided = state == SaleState.voided;
+    final time = bridge.formatTime(rfc3339: o.createdAt, style: TimeStyle.time);
+    final date = showDate
+        ? bridge.formatTime(rfc3339: o.createdAt, style: TimeStyle.dateShort)
+        : null;
+
+    // "T5 · dine-in" in the design; the table is not on the view, so the
+    // origin leads and the ref (an online order's) or the customer follows.
+    final meta = <String>[
+      if (o.orderRef case final ref?) ltrIsland(ref),
+      orderTypeLabel(bridge, o.orderType),
+      ?o.customerName,
+      ?date,
+    ].join(' · ');
+
+    final number = state == SaleState.queued
+        ? MadarGlyphIcon(
+            MadarGlyph.half,
+            size: IconSize.xl,
+            color: colors.warning,
+          )
+        : Text(
+            saleNumber(bridge, o),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textDirection: TextDirection.ltr,
+            style: MadarType.numLg.copyWith(
+              fontWeight: FontWeight.w700,
+              color: voided ? colors.textMuted : colors.textPrimary,
             ),
-          ),
-          padding: const EdgeInsetsDirectional.all(Space.md),
-          child: Row(
-            spacing: Space.md,
-            children: [
-              MadarIcon(
-                active ? 'largecircle.fill.circle' : 'circle',
-                tint: active ? colors.danger : colors.textMuted,
-                size: IconSize.lg,
-              ),
-              Expanded(
-                child: Text(
-                  label,
-                  style: MadarType.body.copyWith(
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                    color: colors.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+          );
+    final timeText = Text(
+      time,
+      textDirection: TextDirection.ltr,
+      style: MadarType.num.copyWith(
+        fontWeight: FontWeight.w500,
+        color: colors.textSecondary,
       ),
     );
-  }
-}
+    final metaText = Text(
+      meta,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: MadarType.body.copyWith(
+        color: voided ? colors.textMuted : colors.textPrimary,
+      ),
+    );
+    final payment = Text(
+      o.paymentLabel,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+    );
+    final money = Text(
+      Money.format(o.totalMinor, currency: currency),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.end,
+      style: MadarType.money.copyWith(
+        fontSize: 16,
+        color: voided ? colors.textMuted : colors.textPrimary,
+        decoration: voided ? TextDecoration.lineThrough : null,
+      ),
+    );
+    final tag = state != null
+        ? SaleStateTag(state: state, bridge: bridge)
+        : null;
 
-/// A tokens-only toggle standing in for the natives' material Switch —
-/// accent track when on, bordered surfaceAlt when off, animated thumb.
-class _RestockSwitch extends StatelessWidget {
-  const _RestockSwitch({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Semantics(
-      toggled: value,
-      child: TactileScale(
-        onTap: () => onChanged(!value),
-        child: AnimatedContainer(
-          duration: MotionSpec.standardDuration,
-          curve: MotionSpec.standardCurve,
-          width: _switchTrack.width,
-          height: _switchTrack.height,
-          padding: const EdgeInsetsDirectional.all((26 - _switchThumb) / 2),
-          decoration: BoxDecoration(
-            color: value ? colors.accent : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(Radii.pill),
-            border: value ? null : Border.all(color: colors.border),
-          ),
-          child: AnimatedAlign(
-            duration: MotionSpec.standardDuration,
-            curve: MotionSpec.standardCurve,
-            alignment: value
-                ? AlignmentDirectional.centerEnd
-                : AlignmentDirectional.centerStart,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: value ? colors.textOnAccent : colors.textMuted,
-                shape: BoxShape.circle,
-              ),
-              child: const SizedBox.square(dimension: _switchThumb),
+    final Widget content;
+    if (compact) {
+      content = Row(
+        spacing: Space.md,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: [
+                Row(
+                  spacing: Space.sm,
+                  children: [
+                    number,
+                    timeText,
+                    if (tag != null) Flexible(child: tag),
+                  ],
+                ),
+                metaText,
+              ],
             ),
           ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            spacing: 2,
+            children: [money, payment],
+          ),
+        ],
+      );
+    } else {
+      content = Row(
+        spacing: Space.md,
+        children: [
+          SizedBox(
+            width: _numberColWidth,
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: number,
+            ),
+          ),
+          SizedBox(width: _timeColWidth, child: timeText),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: [metaText, ?tag],
+            ),
+          ),
+          SizedBox(width: _paymentColWidth, child: payment),
+          SizedBox(width: _amountColWidth, child: money),
+        ],
+      );
+    }
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          MadarHaptics.selection();
+          onTap();
+        },
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: AnimatedContainer(
+                duration: MotionSpec.standardDuration,
+                curve: MotionSpec.standardCurve,
+                color: selected ? colors.accentBg : colors.surface,
+              ),
+            ),
+            if (selected)
+              PositionedDirectional(
+                start: 0,
+                top: 0,
+                bottom: 0,
+                child: SizedBox(
+                  width: _selectBarWidth,
+                  child: ColoredBox(color: colors.accent),
+                ),
+              ),
+            Container(
+              constraints: const BoxConstraints(minHeight: Metrics.rowHeight),
+              padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: Space.lg,
+                vertical: Space.sm,
+              ),
+              alignment: AlignmentDirectional.centerStart,
+              child: content,
+            ),
+          ],
         ),
       ),
     );

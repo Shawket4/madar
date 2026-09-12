@@ -1,57 +1,34 @@
-/// Settings — a pixel-and-behavior port of the Kotlin SettingsScreen.kt:
-/// account card, appearance + language (provider-owned prefs), printer
-/// (host:port + brand + test print), till/station binding, LAN relay,
-/// device reconfigure, diagnostics (versions, server, pending, realtime,
-/// recent warnings), and sign-out. Full-screen over the order screen; the
-/// header's back pops it via `Navigator.maybePop`.
+/// Settings — reached from the name sheet. Language and theme are one tap
+/// each (they used to be three, deep in a rail footer); the rest is a list
+/// of rows that open their own sheet: Printer, Till, Device, Diagnostics,
+/// Legal. Sync is a SECTION of this screen, not a rail entry: on a tablet it
+/// is the start column beside the preferences, on a phone it leads the
+/// list, because what is queued matters more than which paper the printer
+/// takes. Sign out is disabled with its reason while a drawer is open.
+///
+/// Pushed as its own route over the shell; the header's back pops it.
 library;
 
 import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_checkout/feature_checkout.dart' show PrintState;
+import 'package:feature_settings/src/labels.dart';
 import 'package:feature_settings/src/settings_provider.dart';
-import 'package:flutter/material.dart'
-    show
-        Brightness,
-        CircularProgressIndicator,
-        InputDecoration,
-        Material,
-        MaterialType,
-        Scaffold,
-        TextField,
-        Theme;
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:feature_settings/src/settings_sheets.dart';
+import 'package:feature_settings/src/sync_provider.dart';
+import 'package:feature_settings/src/sync_screen.dart';
+import 'package:feature_settings/src/sync_section.dart';
+import 'package:flutter/material.dart' show MaterialPageRoute, Scaffold;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:rust_bridge/rust_bridge.dart';
 
-// Native metrics (SettingsScreen.kt) that fall between the 4-pt Space
-// steps — kept verbatim so the Flutter chrome measures identically.
+/// The two-column split on a tablet: Sync takes the narrower start column.
+const int _syncFlex = 5;
+const int _prefsFlex = 6;
 
-/// Content column cap (natives: widthIn(max = 640.dp)).
-const double _contentMaxWidth = 640;
-
-/// Account avatar tile (natives: 48.dp, Radii.sm) and initial size (16.sp).
-const double _avatarSize = 48;
-const double _avatarInitialSize = 16;
-
-/// Chip label size (natives: 13.sp SemiBold).
-const double _chipLabelSize = 13;
-
-/// CTA button spinner (natives: 20.dp / 2.5.dp) and outline width (1.5.dp).
-const double _spinnerSize = 20;
-const double _spinnerStroke = 2.5;
-const double _outlineBorder = 1.5;
-
-/// Text-field vertical inset (natives: 16.dp) and icon↔text gap (10.dp).
-const double _fieldVPad = 16;
-const double _fieldGap = 10;
-
-/// The settings overlay. All state flows from [settingsProvider] (plus the
-/// app-core locale/dark-mode providers); the screen owns only its text
-/// controllers.
+/// The settings screen. All state flows from [settingsProvider] (plus the
+/// app-core locale / dark-mode providers) and `syncProvider`.
 class SettingsScreen extends ConsumerStatefulWidget {
   /// Creates the settings screen.
   const SettingsScreen({super.key});
@@ -61,18 +38,9 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  late final TextEditingController _deviceCode;
-  late final TextEditingController _printerHost;
-  late final TextEditingController _lanHub;
-
   @override
   void initState() {
     super.initState();
-    final bridge = ref.read(bridgeProvider);
-    final config = bridge.deviceConfig();
-    _deviceCode = TextEditingController(text: bridge.deviceCode());
-    _printerHost = TextEditingController(text: printerAddressOf(config));
-    _lanHub = TextEditingController(text: config.lanHub ?? '');
     // Post-frame: notifier writes during initState land mid-build (crash).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -80,731 +48,101 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
-  @override
-  void dispose() {
-    _deviceCode.dispose();
-    _printerHost.dispose();
-    _lanHub.dispose();
-    super.dispose();
-  }
-
-  /// Sign-out (guarded in the notifier): pop first, then refresh the shell
-  /// so the route flip lands on the shell subtree, not this overlay.
-  Future<void> _signOut() async {
-    final shell = ref.read(shellProvider.notifier);
-    final ok = await ref.read(settingsProvider.notifier).signOut();
-    if (!ok || !mounted) return;
-    await Navigator.of(context).maybePop();
-    shell.refresh();
+  void _openSync() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SyncScreen()));
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
+    final layout = context.madarLayout;
     // Pushed as its own route, so it re-derives direction from the locale
     // provider — the live en↔ar switch below re-flips it in place.
     final locale = ref.watch(localeProvider);
-    final error = ref.watch(settingsProvider.select((s) => s.error));
-    final isKitchen = ref.watch(
-      shellProvider.select((s) => s.session?.role == 'kitchen'),
+    final sync = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.lg,
+      children: [
+        MadarSectionHeader(
+          text: bridge.tr(key: 'sync.title'),
+          trailing: MadarButton(
+            label: bridge.tr(key: 'sync.see_all'),
+            variant: MadarButtonVariant.ghost,
+            size: MadarButtonSize.compact,
+            onTap: _openSync,
+          ),
+        ),
+        SyncSection(compact: true, onSeeAll: _openSync),
+      ],
     );
-    final hasTills = ref.watch(
-      settingsProvider.select((s) => s.tills.isNotEmpty),
-    );
-    final hasStations = ref.watch(
-      settingsProvider.select((s) => s.stations.isNotEmpty),
-    );
+    const prefs = _Preferences();
     return Directionality(
       textDirection: locale.rtl ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
         backgroundColor: colors.bg,
         body: Column(
           children: [
-            MadarHeader(
-              title: bridge.tr(key: 'settings.title'),
-              onBack: () => Navigator.of(context).maybePop(),
+            Padding(
+              padding: EdgeInsetsDirectional.symmetric(
+                horizontal: layout.gutter,
+              ),
+              child: MadarHeader(
+                title: bridge.tr(key: 'settings.title'),
+                onBack: () => Navigator.of(context).maybePop(),
+                safeTop: true,
+              ),
             ),
             Expanded(
               child: SafeArea(
                 top: false,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsetsDirectional.all(Space.lg),
+                  padding: EdgeInsetsDirectional.all(layout.gutter),
                   child: Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: _contentMaxWidth,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: Space.lg,
-                        children: [
-                          if (error != null)
-                            NoticeBanner(
-                              text: error,
-                              icon: 'exclamationmark.circle',
-                            ),
-                          const _AccountCard(),
-                          const _AppearanceCard(),
-                          const _LanguageCard(),
-                          _PrinterCard(
-                            deviceCode: _deviceCode,
-                            printerHost: _printerHost,
-                          ),
-                          if (!isKitchen && hasTills) const _TillCard(),
-                          if (isKitchen && hasStations) const _StationCard(),
-                          _LanCard(controller: _lanHub),
-                          const _DeviceCard(),
-                          const _DiagnosticsCard(),
-                          const _LegalCard(),
-                          _Cta(
-                            label: bridge.tr(key: 'settings.sign_out'),
-                            icon: 'rectangle.portrait.and.arrow.right',
-                            danger: true,
-                            onTap: () => unawaited(_signOut()),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Account: avatar initial tile, teller + branch, role chip.
-class _AccountCard extends ConsumerWidget {
-  const _AccountCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
-    final teller = ref.watch(
-      settingsProvider.select((s) => s.shift?.tellerName),
-    );
-    final branchName =
-        ref.watch(settingsProvider.select((s) => s.config.branchName)) ?? '';
-    final role = ref.watch(shellProvider.select((s) => s.session?.role)) ?? '';
-    final initial = (teller != null && teller.isNotEmpty)
-        ? teller[0].toUpperCase()
-        : '?';
-    return _SettingsCard(
-      title: bridge.tr(key: 'settings.account'),
-      children: [
-        Row(
-          spacing: Space.md,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.navyBg,
-                borderRadius: BorderRadius.circular(Radii.sm),
-              ),
-              child: SizedBox.square(
-                dimension: _avatarSize,
-                child: Center(
-                  child: Text(
-                    initial,
-                    style: MadarType.title.copyWith(
-                      fontSize: _avatarInitialSize,
-                      fontWeight: FontWeight.w700,
-                      color: colors.navy,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
-                children: [
-                  Text(
-                    teller ?? '—',
-                    style: MadarType.title.copyWith(color: colors.textPrimary),
-                  ),
-                  if (branchName.isNotEmpty)
-                    Row(
-                      spacing: Space.xs,
-                      children: [
-                        MadarIcon(
-                          'storefront',
-                          tint: colors.textMuted,
-                          size: IconSize.sm,
+                      constraints: BoxConstraints(
+                        maxWidth: layout.pick(
+                          phone: Responsive.billMaxWidth,
+                          tablet: Responsive.contentMaxWidth + Space.xxl,
                         ),
-                        Flexible(
-                          child: Text(
-                            branchName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: MadarType.label.copyWith(
-                              fontWeight: FontWeight.w400,
-                              color: colors.textSecondary,
+                      ),
+                      child: layout.isTablet
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              spacing: Space.xl,
+                              children: [
+                                Expanded(flex: _syncFlex, child: sync),
+                                const Expanded(flex: _prefsFlex, child: prefs),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              spacing: Space.xl,
+                              children: [sync, prefs],
                             ),
-                          ),
-                        ),
-                      ],
                     ),
-                ],
-              ),
-            ),
-            if (role.isNotEmpty)
-              StatusChip(
-                label: role.replaceAll('_', ' ').toUpperCase(),
-                tone: ChipTone.info,
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Appearance: light/dark — drives [darkModeProvider] (the host persists).
-class _AppearanceCard extends ConsumerWidget {
-  const _AppearanceCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
-    final dark = ref.watch(darkModeProvider);
-    return _SettingsCard(
-      title: bridge.tr(key: 'settings.appearance'),
-      children: [
-        Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: _Chip(
-                label: bridge.tr(key: 'settings.theme_light'),
-                active: !dark,
-                onTap: () =>
-                    ref.read(darkModeProvider.notifier).setDark(dark: false),
-              ),
-            ),
-            Expanded(
-              child: _Chip(
-                label: bridge.tr(key: 'settings.theme_dark'),
-                active: dark,
-                onTap: () =>
-                    ref.read(darkModeProvider.notifier).setDark(dark: true),
+                  ),
+                ),
               ),
             ),
           ],
-        ),
-        // Tablets lock to ONE landscape (no auto-rotate); this flips between
-        // the two. Phones are portrait-locked, so the control is hidden.
-        if (OrientationController.instance.canFlip) const _OrientationFlipRow(),
-        const _TabletThresholdRow(),
-      ],
-    );
-  }
-}
-
-/// A row that flips the locked landscape orientation on tablets (the two
-/// landscape locks; never auto-rotating).
-class _OrientationFlipRow extends ConsumerWidget {
-  const _OrientationFlipRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
-    return ListenableBuilder(
-      listenable: OrientationController.instance,
-      builder: (context, _) {
-        final controller = OrientationController.instance;
-        return Row(
-          children: [
-            Expanded(
-              child: Text(
-                bridge.tr(key: 'settings.orientation'),
-                style: MadarType.body.copyWith(color: colors.textSecondary),
-              ),
-            ),
-            _Chip(
-              label: bridge.tr(key: 'settings.flip_screen'),
-              active: false,
-              icon: controller.landscapeRight ? 'rotate.left' : 'rotate.right',
-              onTap: controller.flip,
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// Diagonal-inch cutoff between the phone (portrait-locked) and tablet
-/// (landscape-locked) orientation behavior — some ~7" tablets under-report
-/// their density and land just under the default cutoff, misreading as a
-/// phone; this lets the device be nudged onto the right side of it.
-class _TabletThresholdRow extends ConsumerWidget {
-  const _TabletThresholdRow();
-
-  static const _step = 0.5;
-  static const _min = 5.0;
-  static const _max = 10.0;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
-    return ListenableBuilder(
-      listenable: OrientationController.instance,
-      builder: (context, _) {
-        final controller = OrientationController.instance;
-        final inches = controller.tabletThresholdInches;
-        return Row(
-          children: [
-            Expanded(
-              child: Text(
-                bridge.tr(key: 'settings.tablet_threshold'),
-                style: MadarType.body.copyWith(color: colors.textSecondary),
-              ),
-            ),
-            _StepChip(
-              icon: 'minus',
-              onTap: inches > _min
-                  ? () => controller.setTabletThresholdInches(
-                      (inches - _step).clamp(_min, _max),
-                    )
-                  : null,
-            ),
-            SizedBox(
-              width: 44,
-              child: Text(
-                '${inches.toStringAsFixed(1)}"',
-                textAlign: TextAlign.center,
-                style: MadarType.body.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
-            _StepChip(
-              icon: 'plus',
-              onTap: inches < _max
-                  ? () => controller.setTabletThresholdInches(
-                      (inches + _step).clamp(_min, _max),
-                    )
-                  : null,
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// A small circular icon button — the +/- ends of [_TabletThresholdRow].
-class _StepChip extends StatelessWidget {
-  const _StepChip({required this.icon, required this.onTap});
-
-  final String icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final enabled = onTap != null;
-    return TactileScale(
-      onTap: onTap ?? () {},
-      child: Container(
-        width: Metrics.stepper,
-        height: Metrics.stepper,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          shape: BoxShape.circle,
-          border: Border.all(color: colors.border),
-        ),
-        child: MadarIcon(
-          icon,
-          tint: enabled ? colors.textPrimary : colors.textMuted,
-          size: IconSize.sm,
         ),
       ),
     );
   }
 }
 
-/// Language: live en/ar switch — strings + RTL re-resolve in place through
-/// [localeProvider]. Labels are each language's own name, never translated
-/// (natives).
-class _LanguageCard extends ConsumerWidget {
-  const _LanguageCard();
+/// Account, language, theme, the row list, sign out.
+class _Preferences extends ConsumerWidget {
+  const _Preferences();
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
-    final locale = ref.watch(localeProvider.select((s) => s.locale));
-    return _SettingsCard(
-      title: bridge.tr(key: 'settings.language'),
-      children: [
-        Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: _Chip(
-                label: 'English',
-                active: locale.startsWith('en'),
-                onTap: () => ref.read(localeProvider.notifier).set('en'),
-              ),
-            ),
-            Expanded(
-              child: _Chip(
-                label: 'العربية',
-                active: locale.startsWith('ar'),
-                onTap: () => ref.read(localeProvider.notifier).set('ar'),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Printer: this till's device code (the `<DEVICE>` segment of every
-/// order_ref) lives alongside the printer host + brand (matches the
-/// natives), plus the test print.
-class _PrinterCard extends ConsumerWidget {
-  const _PrinterCard({required this.deviceCode, required this.printerHost});
-
-  final TextEditingController deviceCode;
-  final TextEditingController printerHost;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
-    final brand = ref.watch(settingsProvider.select((s) => s.brand));
-    final printState = ref.watch(settingsProvider.select((s) => s.printState));
-    final config = ref.watch(settingsProvider.select((s) => s.config));
-    final isBluetooth = (config.printerTransport ?? 'lan') == 'bluetooth';
-    // Effective paper width, mirroring the core default (Bluetooth → 58 mm / 384
-    // dots, LAN → 80 mm / 576) until the user pins one explicitly.
-    final paperDots = config.printerPaperDots ?? (isBluetooth ? 384 : 576);
-    final status = switch (printState) {
-      PrintState.idle => null,
-      PrintState.printing => (
-        bridge.tr(key: 'receipt.printing'),
-        colors.textMuted,
-      ),
-      PrintState.printed => (bridge.tr(key: 'receipt.printed'), colors.success),
-      PrintState.failed => (
-        bridge.tr(key: 'receipt.print_failed'),
-        colors.danger,
-      ),
-      PrintState.noPrinter => (
-        bridge.tr(key: 'receipt.no_printer'),
-        colors.warning,
-      ),
-    };
-    return _SettingsCard(
-      title: bridge.tr(key: 'settings.printer'),
-      children: [
-        _SettingsTextField(
-          controller: deviceCode,
-          placeholder: bridge.tr(key: 'settings.device_code_hint'),
-          icon: 'number',
-          onChanged: ref.read(settingsProvider.notifier).setDeviceCode,
-        ),
-        Text(
-          bridge.tr(key: 'settings.device_code_caption'),
-          style: MadarType.labelSm.copyWith(
-            fontWeight: FontWeight.w400,
-            color: colors.textMuted,
-          ),
-        ),
-        // Transport picker — the printer's LAN IP unified with Bluetooth. The
-        // brand + test-print below apply to whichever transport is active.
-        Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: _Chip(
-                label: bridge.tr(key: 'settings.printer_lan'),
-                icon: 'wifi',
-                active: !isBluetooth,
-                onTap: () => unawaited(
-                  ref.read(settingsProvider.notifier).setTransport('lan'),
-                ),
-              ),
-            ),
-            Expanded(
-              child: _Chip(
-                label: bridge.tr(key: 'settings.printer_bluetooth'),
-                icon: 'bluetooth',
-                active: isBluetooth,
-                onTap: () => unawaited(
-                  ref.read(settingsProvider.notifier).setTransport('bluetooth'),
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (isBluetooth)
-          _BluetoothPicker(config: config)
-        else
-          _SettingsTextField(
-            controller: printerHost,
-            placeholder: bridge.tr(key: 'settings.printer_hint'),
-            icon: 'printer',
-            onChanged: (value) => unawaited(
-              ref.read(settingsProvider.notifier).persistPrinter(value),
-            ),
-          ),
-        // Paper width — 58 mm portables (the Bluetooth default) vs 80 mm desktop
-        // rolls. Shown for either transport; the receipt raster renders to match.
-        Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: _Chip(
-                label: bridge.tr(key: 'settings.printer_paper_58'),
-                active: paperDots == 384,
-                onTap: () => unawaited(
-                  ref.read(settingsProvider.notifier).setPaperDots(384),
-                ),
-              ),
-            ),
-            Expanded(
-              child: _Chip(
-                label: bridge.tr(key: 'settings.printer_paper_80'),
-                active: paperDots == 576,
-                onTap: () => unawaited(
-                  ref.read(settingsProvider.notifier).setPaperDots(576),
-                ),
-              ),
-            ),
-          ],
-        ),
-        Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: _Chip(
-                label: bridge.tr(key: 'settings.printer_epson'),
-                active: brand == PrinterBrand.epson,
-                onTap: () => unawaited(
-                  ref
-                      .read(settingsProvider.notifier)
-                      .persistPrinter(
-                        printerHost.text,
-                        brand: PrinterBrand.epson,
-                      ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: _Chip(
-                label: bridge.tr(key: 'settings.printer_star'),
-                active: brand == PrinterBrand.star,
-                onTap: () => unawaited(
-                  ref
-                      .read(settingsProvider.notifier)
-                      .persistPrinter(
-                        printerHost.text,
-                        brand: PrinterBrand.star,
-                      ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        _Cta(
-          label: bridge.tr(key: 'receipt.print'),
-          icon: 'printer',
-          loading: printState == PrintState.printing,
-          onTap: () =>
-              unawaited(ref.read(settingsProvider.notifier).testPrint()),
-        ),
-        if (status != null)
-          Text(status.$1, style: MadarType.labelSm.copyWith(color: status.$2)),
-      ],
-    );
-  }
-}
-
-/// Bluetooth transport config: the paired-device picker shown when the printer
-/// transport is Bluetooth. Pairing itself happens in Android's Bluetooth
-/// settings (SPP, PIN 0000/1234); this only lists ALREADY-paired (bonded)
-/// devices and binds the chosen one. Refresh re-scans; the empty state points
-/// the user back to Android settings to pair first.
-class _BluetoothPicker extends ConsumerWidget {
-  const _BluetoothPicker({required this.config});
-
-  final DeviceConfigView config;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
-    final devices = ref.watch(settingsProvider.select((s) => s.pairedDevices));
-    final scanning = ref.watch(settingsProvider.select((s) => s.scanningBt));
-    final selectedAddress = config.printerBtAddress;
-    String tr(String key) => bridge.tr(key: key);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.md,
-      children: [
-        _Cta(
-          label: tr('settings.printer_bt_scan'),
-          icon: 'arrow.clockwise',
-          loading: scanning,
-          onTap: () => unawaited(
-            ref.read(settingsProvider.notifier).loadPairedDevices(),
-          ),
-        ),
-        // The pair-first hint when nothing is bonded, bound, or scanning.
-        if (devices.isEmpty && !scanning && selectedAddress == null)
-          Text(
-            tr('settings.printer_bt_none'),
-            style: MadarType.labelSm.copyWith(
-              fontWeight: FontWeight.w400,
-              color: colors.textMuted,
-            ),
-          ),
-        for (final device in devices)
-          _PickerRow(
-            label: device.name,
-            selected: device.address == selectedAddress,
-            onTap: () => unawaited(
-              ref.read(settingsProvider.notifier).selectBtDevice(device),
-            ),
-          ),
-        // A bound device that isn't in the (unscanned/stale) list — still show
-        // what's selected so the binding is visible without a scan.
-        if (selectedAddress != null &&
-            !devices.any((d) => d.address == selectedAddress))
-          _InfoRow(
-            label: tr('settings.printer_bluetooth'),
-            value: config.printerBtName ?? selectedAddress,
-          ),
-      ],
-    );
-  }
-}
-
-/// Till (drawer) binding — which POS drawer this device controls.
-/// Multi-till branches pin a device to one; others use the branch
-/// default. Hidden on kitchen devices (they bind a station).
-class _TillCard extends ConsumerWidget {
-  const _TillCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
-    final tills = ref.watch(settingsProvider.select((s) => s.tills));
-    final tillId = ref.watch(settingsProvider.select((s) => s.config.tillId));
-    return _SettingsCard(
-      title: bridge.tr(key: 'settings.till'),
-      children: [
-        _PickerRow(
-          label: bridge.tr(key: 'settings.till_default'),
-          selected: tillId == null,
-          onTap: () =>
-              unawaited(ref.read(settingsProvider.notifier).bindTill(null)),
-        ),
-        for (final till in tills)
-          _PickerRow(
-            label: till.name,
-            selected: tillId == till.id,
-            onTap: () => unawaited(
-              ref.read(settingsProvider.notifier).bindTill(till.id),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// Station binding for kitchen devices — which station this display
-/// shows (and routes chits for).
-class _StationCard extends ConsumerWidget {
-  const _StationCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.watch(bridgeProvider);
-    final stations = ref.watch(settingsProvider.select((s) => s.stations));
-    final stationId = ref.watch(
-      settingsProvider.select((s) => s.config.stationId),
-    );
-    return _SettingsCard(
-      title: bridge.tr(key: 'setup.choose_station'),
-      children: [
-        for (final station in stations)
-          _PickerRow(
-            label: station.name,
-            selected: stationId == station.id,
-            onTap: () => unawaited(
-              ref.read(settingsProvider.notifier).bindStation(station.id),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// Optional fixed hub-IP for the LAN relay when mDNS auto-discovery
-/// can't reach peers, plus the live relay diagnostics row.
-class _LanCard extends ConsumerWidget {
-  const _LanCard({required this.controller});
-
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
-    // Config writes re-mirror through the provider — watching it keeps the
-    // relay row fresh after each hub persist.
-    ref.watch(settingsProvider.select((s) => s.config));
-    final active = bridge.lanActive();
-    return _SettingsCard(
-      title: bridge.tr(key: 'settings.lan'),
-      children: [
-        _SettingsTextField(
-          controller: controller,
-          placeholder: bridge.tr(key: 'settings.lan_hub_hint'),
-          icon: 'wifi',
-          onChanged: (value) =>
-              unawaited(ref.read(settingsProvider.notifier).setLanHub(value)),
-        ),
-        Text(
-          bridge.tr(key: 'settings.lan_caption'),
-          style: MadarType.labelSm.copyWith(
-            fontWeight: FontWeight.w400,
-            color: colors.textMuted,
-          ),
-        ),
-        _InfoRow(
-          label: active
-              ? bridge.tr(key: 'settings.lan_active')
-              : bridge.tr(key: 'settings.lan_offline'),
-          value: active
-              ? '${bridge.lanPeerCount()} ${bridge.tr(key: 'settings.lan_peers')}'
-              : '—',
-        ),
-      ],
-    );
-  }
-}
-
-/// Device: the begin-reconfigure entry (guarded by an open drawer).
-class _DeviceCard extends ConsumerWidget {
-  const _DeviceCard();
-
-  /// Pop first, then refresh the shell — the route flips to DeviceSetup on
-  /// the shell subtree, not under this overlay.
-  Future<void> _reconfigure(BuildContext context, WidgetRef ref) async {
+  /// Sign-out (guarded in the notifier): pop first, then refresh the shell
+  /// so the route flip lands on the shell subtree, not this overlay.
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     final shell = ref.read(shellProvider.notifier);
-    final ok = await ref.read(settingsProvider.notifier).reconfigure();
+    final ok = await ref.read(settingsProvider.notifier).signOut();
     if (!ok || !context.mounted) return;
     await Navigator.of(context).maybePop();
     shell.refresh();
@@ -814,548 +152,258 @@ class _DeviceCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
-    return _SettingsCard(
-      title: bridge.tr(key: 'settings.device'),
-      children: [
-        Semantics(
-          button: true,
-          child: TactileScale(
-            onTap: () => unawaited(_reconfigure(context, ref)),
-            child: Row(
-              spacing: Space.lg,
-              children: [
-                MadarIcon(
-                  'building.2',
-                  tint: colors.textSecondary,
-                  size: IconSize.xl,
-                ),
-                Expanded(
-                  child: Text(
-                    bridge.tr(key: 'settings.reconfigure'),
-                    style: MadarType.title.copyWith(color: colors.textPrimary),
-                  ),
-                ),
-                MadarIcon('chevron.forward', tint: colors.textMuted),
-              ],
-            ),
-          ),
-        ),
-      ],
+    String t(String key) => bridge.tr(key: key);
+    final error = ref.watch(settingsProvider.select((s) => s.error));
+    final hasOpenShift = ref.watch(
+      settingsProvider.select((s) => s.hasOpenShift),
     );
-  }
-}
-
-/// Diagnostics: core version, server, pending count, realtime channel
-/// health, and the recent-warnings feed (with clear).
-class _DiagnosticsCard extends ConsumerWidget {
-  const _DiagnosticsCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.watch(bridgeProvider);
-    final pending = ref.watch(settingsProvider.select((s) => s.pending));
-    final diagnostics = ref.watch(
-      settingsProvider.select((s) => s.diagnostics),
-    );
-    return _SettingsCard(
-      title: bridge.tr(key: 'settings.diagnostics'),
-      children: [
-        _InfoRow(
-          label: bridge.tr(key: 'settings.version'),
-          value: coreVersion(),
-        ),
-        _InfoRow(
-          label: bridge.tr(key: 'settings.server'),
-          value: bridge.baseUrl(),
-        ),
-        _InfoRow(
-          label: bridge.tr(key: 'settings.pending'),
-          value: '$pending',
-        ),
-        // Realtime (SSE) channel health — the teller's order alerts ride
-        // this; surfacing it makes a silent drop diagnosable.
-        _InfoRow(
-          label: bridge.tr(key: 'settings.realtime'),
-          value: bridge.isRealtimeSubscribed()
-              ? bridge.tr(key: 'settings.realtime_on')
-              : bridge.tr(key: 'settings.realtime_off'),
-        ),
-        if (diagnostics.isNotEmpty) ...[
-          SizedBox(height: 1, child: ColoredBox(color: colors.borderLight)),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  bridge.tr(key: 'settings.recent_warnings'),
-                  style: MadarType.label.copyWith(color: colors.textMuted),
-                ),
-              ),
-              TactileScale(
-                onTap: () => unawaited(
-                  ref.read(settingsProvider.notifier).clearDiagnostics(),
-                ),
-                child: Text(
-                  bridge.tr(key: 'settings.clear'),
-                  style: MadarType.label.copyWith(color: colors.accent),
-                ),
-              ),
-            ],
-          ),
-          for (final entry in diagnostics.take(15))
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 1,
-              children: [
-                Text(
-                  entry.message,
-                  style: MadarType.label.copyWith(
-                    fontWeight: FontWeight.w400,
-                    color: entry.level == 'error'
-                        ? colors.danger
-                        : colors.warning,
-                  ),
-                ),
-                Text(
-                  entry.at,
-                  style: MadarType.labelSm.copyWith(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w400,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-        ],
-      ],
-    );
-  }
-}
-
-/// The natives' `SettingsCard`: uppercase muted label above a bordered,
-/// softly-elevated surface card.
-class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({required this.title, required this.children});
-
-  final String title;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.sm,
+      spacing: Space.lg,
       children: [
-        Text(
-          title.toUpperCase(),
-          style: MadarType.label.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: MadarType.tracking,
-            color: colors.textMuted,
-          ),
+        if (error != null)
+          NoticeBanner(text: error, icon: 'exclamationmark.circle'),
+        const _AccountCard(),
+        MadarSectionHeader(text: t('settings.language')),
+        const LanguageSegment(),
+        MadarSectionHeader(text: t('settings.theme')),
+        const ThemeSegment(),
+        const _RowList(),
+        MadarButton(
+          label: t('settings.sign_out'),
+          glyph: MadarGlyph.signOut,
+          variant: MadarButtonVariant.danger,
+          enabled: !hasOpenShift,
+          tooltip: hasOpenShift ? t('settings.sign_out_shift_open') : null,
+          onTap: () => unawaited(_signOut(context, ref)),
         ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(Radii.md),
-            border: Border.all(color: colors.borderLight),
-            boxShadow: MadarElevation.card.shadows(colors, dark: dark),
+        if (hasOpenShift)
+          Text(
+            t('settings.sign_out_shift_open'),
+            textAlign: TextAlign.center,
+            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
           ),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.all(Space.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.md,
-              children: children,
-            ),
-          ),
-        ),
       ],
     );
   }
 }
 
-/// Segmented choice chip: accent-filled when active, quiet bordered
-/// surface otherwise (the natives' `Chip`).
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
-    required this.active,
-    required this.onTap,
-    this.icon,
-  });
-
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  /// Optional leading glyph (e.g. the rotate icon on the orientation flip).
-  final String? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final fg = active ? colors.textOnAccent : colors.textPrimary;
-    return Semantics(
-      button: true,
-      selected: active,
-      child: TactileScale(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsetsDirectional.symmetric(
-            vertical: Space.md,
-            horizontal: Space.md,
-          ),
-          decoration: BoxDecoration(
-            color: active ? colors.accent : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(Radii.sm),
-            border: active ? null : Border.all(color: colors.border),
-          ),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: Space.xs,
-            children: [
-              if (icon case final icon?) MadarIcon(icon, tint: fg),
-              Text(
-                label,
-                style: MadarType.bodySm.copyWith(
-                  fontSize: _chipLabelSize,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Radio-style picker row (the natives' `TillRow`): leading check circle,
-/// accent when selected.
-class _PickerRow extends StatelessWidget {
-  const _PickerRow({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: TactileScale(
-        onTap: onTap,
-        child: Row(
-          spacing: Space.sm,
-          children: [
-            MadarIcon(
-              selected ? 'checkmark.circle' : 'circle',
-              tint: selected ? colors.accent : colors.textMuted,
-              size: IconSize.lg,
-            ),
-            Expanded(
-              child: Text(
-                label,
-                style: MadarType.body.copyWith(color: colors.textPrimary),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Quiet label/value row.
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Row(
-      spacing: Space.md,
-      children: [
-        Text(
-          label,
-          style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: MadarType.bodySm.copyWith(
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// The natives' `MadarButton` at the two variants this screen needs:
-/// outline (test print) and danger (sign out), with a centered spinner
-/// while [loading].
-class _Cta extends StatelessWidget {
-  const _Cta({
-    required this.label,
-    required this.onTap,
-    this.icon,
-    this.danger = false,
-    this.loading = false,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final String? icon;
-  final bool danger;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final fg = danger ? colors.textOnAccent : colors.accent;
-    final button = Container(
-      height: Metrics.buttonHeight,
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.lg),
-      decoration: BoxDecoration(
-        color: danger ? colors.danger : null,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: danger
-            ? null
-            : Border.all(color: colors.accent, width: _outlineBorder),
-      ),
-      alignment: Alignment.center,
-      child: loading
-          ? SizedBox.square(
-              dimension: _spinnerSize,
-              child: CircularProgressIndicator(
-                color: fg,
-                strokeWidth: _spinnerStroke,
-              ),
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  MadarIcon(icon, tint: fg),
-                  const SizedBox(width: Space.sm),
-                ],
-                Text(
-                  label,
-                  style: MadarType.title.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: fg,
-                  ),
-                ),
-              ],
-            ),
-    );
-    if (loading) return button;
-    return Semantics(
-      button: true,
-      child: TactileScale(
-        onTap: () {
-          MadarHaptics.impact();
-          onTap();
-        },
-        child: button,
-      ),
-    );
-  }
-}
-
-/// The natives' `MadarTextField`: rounded field with an animated focus
-/// ring (accent border + glow, surfaceAlt → surface fill), a leading icon
-/// that tints accent while focused, and per-keystroke [onChanged]. The
-/// focus ring re-renders through a [ListenableBuilder] on the focus node —
-/// no setState.
-class _SettingsTextField extends StatefulWidget {
-  const _SettingsTextField({
-    required this.controller,
-    required this.placeholder,
-    required this.onChanged,
-    this.icon,
-  });
-
-  final TextEditingController controller;
-  final String placeholder;
-  final ValueChanged<String> onChanged;
-  final String? icon;
-
-  @override
-  State<_SettingsTextField> createState() => _SettingsTextFieldState();
-}
-
-class _SettingsTextFieldState extends State<_SettingsTextField> {
-  final FocusNode _focus = FocusNode();
-
-  @override
-  void dispose() {
-    _focus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return ListenableBuilder(
-      listenable: _focus,
-      builder: (context, _) {
-        final focused = _focus.hasFocus;
-        return AnimatedContainer(
-          duration: MotionSpec.standardDuration,
-          curve: MotionSpec.standardCurve,
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Space.lg,
-            vertical: _fieldVPad,
-          ),
-          decoration: BoxDecoration(
-            color: focused ? colors.surface : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(Radii.md),
-            border: Border.all(
-              color: focused ? colors.accent : colors.border,
-              width: focused ? 2 : 1,
-            ),
-            boxShadow: focused
-                ? [
-                    BoxShadow(
-                      color: colors.accent.withValues(
-                        alpha: Opacities.focusGlow,
-                      ),
-                      blurRadius: 8,
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            spacing: _fieldGap,
-            children: [
-              if (widget.icon != null)
-                MadarIcon(
-                  widget.icon,
-                  tint: focused ? colors.accent : colors.textMuted,
-                  size: IconSize.lg,
-                ),
-              Expanded(
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: TextField(
-                    controller: widget.controller,
-                    focusNode: _focus,
-                    onChanged: widget.onChanged,
-                    cursorColor: colors.accent,
-                    style: MadarType.title.copyWith(
-                      fontWeight: FontWeight.w400,
-                      color: colors.textPrimary,
-                    ),
-                    decoration: InputDecoration.collapsed(
-                      hintText: widget.placeholder,
-                      hintStyle: MadarType.title.copyWith(
-                        fontWeight: FontWeight.w400,
-                        color: colors.textMuted,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Legal: the public privacy policy and terms.
-///
-/// The documents are hosted as a static site independent of this app and of the
-/// API, so the URLs stay valid even offline — which matters here, because a POS
-/// terminal frequently has no browser and no reliable connection. The address is
-/// therefore SHOWN in full rather than hidden behind a link, and tapping copies
-/// it (via `Clipboard`, so no url_launcher dependency is introduced for a screen
-/// that mostly cannot open a browser anyway).
-class _LegalCard extends ConsumerWidget {
-  const _LegalCard();
-
-  static const _base = 'https://legal.madar-pos.cloud';
+/// Who is signed in, where: avatar initial, name, role · branch.
+class _AccountCard extends ConsumerWidget {
+  const _AccountCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
-
-    Widget row(String labelKey, String url, {bool divider = false}) {
-      return Semantics(
-        button: true,
-        child: TactileScale(
-          onTap: () => unawaited(Clipboard.setData(ClipboardData(text: url))),
-          child: Padding(
-            padding: EdgeInsets.only(top: divider ? Space.md : 0),
-            child: Row(
-              spacing: Space.lg,
+    final session = ref.watch(shellProvider.select((s) => s.session));
+    final tellerName = ref.watch(
+      settingsProvider.select((s) => s.shift?.tellerName),
+    );
+    final branch =
+        ref.watch(settingsProvider.select((s) => s.config.branchName)) ?? '';
+    final online = ref.watch(
+      syncProvider.select((s) => s.status?.online ?? false),
+    );
+    // The session names the person; the shift is the fallback for a till
+    // whose session snapshot is missing (unlocked offline before a login).
+    final name = session?.displayName ?? tellerName ?? '—';
+    final role = session?.role ?? '';
+    final meta = [
+      if (role.isNotEmpty) roleLabel(bridge, role),
+      if (branch.isNotEmpty) branch,
+    ].join(' · ');
+    return MadarCard(
+      child: Row(
+        spacing: Space.lg,
+        children: [
+          MadarAvatar(
+            person: MadarPerson(
+              name: name,
+              initial: name.isEmpty ? '?' : name[0].toUpperCase(),
+              online: online,
+            ),
+            size: Metrics.glyphTileLarge,
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
               children: [
-                MadarIcon(
-                  'doc.text',
-                  tint: colors.textSecondary,
-                  size: IconSize.xl,
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MadarType.h3.copyWith(color: colors.textPrimary),
                 ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        bridge.tr(key: labelKey),
-                        style: MadarType.title.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        url.replaceFirst('https://', ''),
-                        style: MadarType.labelSm.copyWith(
-                          color: colors.textMuted,
-                        ),
-                      ),
-                    ],
+                if (meta.isNotEmpty)
+                  Text(
+                    meta,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
-                ),
-                MadarIcon('link', tint: colors.textMuted),
               ],
             ),
           ),
-        ),
-      );
-    }
+        ],
+      ),
+    );
+  }
+}
 
-    return _SettingsCard(
-      title: bridge.tr(key: 'settings.legal'),
-      children: [
-        row('settings.legal_privacy', '$_base/privacy-policy.html'),
-        row(
-          'settings.legal_terms',
-          '$_base/terms-of-service.html',
-          divider: true,
+/// Live en / ar switch — strings + RTL re-resolve in place through
+/// `localeProvider`. Labels are each language's own name, never translated.
+/// Shared with the Me tab.
+class LanguageSegment extends ConsumerWidget {
+  const LanguageSegment({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeProvider.select((s) => s.locale));
+    return MadarSegmented<String>(
+      items: const [
+        MadarSegmentItem('en', 'English'),
+        MadarSegmentItem('ar', 'العربية'),
+      ],
+      value: locale.startsWith('ar') ? 'ar' : 'en',
+      onChanged: ref.read(localeProvider.notifier).set,
+    );
+  }
+}
+
+/// Light / dark — drives `darkModeProvider` (the host persists). "Auto" is
+/// not offered: the app-core preference is a boolean and a segment that
+/// forgets itself on the next launch would lie. Shared with the Me tab.
+class ThemeSegment extends ConsumerWidget {
+  const ThemeSegment({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
+    final choice = ref.watch(themeChoiceProvider);
+    // Light · Dark · Auto — the third cell follows the device and, because
+    // the choice is persisted by name, still does after a relaunch.
+    return MadarSegmented<ThemeChoice>(
+      items: [
+        MadarSegmentItem(
+          ThemeChoice.light,
+          bridge.tr(key: 'settings.theme_light'),
+        ),
+        MadarSegmentItem(
+          ThemeChoice.dark,
+          bridge.tr(key: 'settings.theme_dark'),
+        ),
+        MadarSegmentItem(
+          ThemeChoice.system,
+          bridge.tr(key: 'settings.theme_system'),
         ),
       ],
+      value: choice,
+      onChanged: ref.read(themeChoiceProvider.notifier).set,
+    );
+  }
+}
+
+/// The rows that open a sheet: Printer, Till / Station, Device,
+/// Diagnostics, Legal. Each carries its one-line summary.
+class _RowList extends ConsumerWidget {
+  const _RowList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => bridge.tr(key: key);
+    final config = ref.watch(settingsProvider.select((s) => s.config));
+    final tills = ref.watch(settingsProvider.select((s) => s.tills));
+    final stations = ref.watch(settingsProvider.select((s) => s.stations));
+    final isKitchen = ref.watch(
+      shellProvider.select((s) => s.session?.role == 'kitchen'),
+    );
+    final floorAuthored = ref.watch(
+      settingsProvider.select((s) => s.floorAuthored),
+    );
+    final warnings = ref.watch(
+      settingsProvider.select((s) => s.diagnostics.length),
+    );
+    final tillName = config.tillId == null
+        ? t('settings.till_default')
+        : tills
+              .where((till) => till.id == config.tillId)
+              .map((till) => till.name)
+              .firstOrNull;
+    final stationName = stations
+        .where((station) => station.id == config.stationId)
+        .map((station) => station.name)
+        .firstOrNull;
+    final deviceCode = bridge.deviceCode();
+    final deviceMeta = [
+      if (deviceCode.isNotEmpty) deviceCode,
+      if ((config.branchName ?? '').isNotEmpty) config.branchName!,
+    ].join(' · ');
+    final server = Uri.tryParse(bridge.baseUrl())?.host ?? bridge.baseUrl();
+    final diagnosticsMeta = 'v${bridge.version()} · $server';
+    final rows = <Widget>[
+      MadarRow(
+        title: t('settings.printer'),
+        subtitle: printerSummary(bridge, config),
+        glyph: MadarGlyph.printer,
+        onTap: () => unawaited(showPrinterSheet(context)),
+      ),
+      if (!isKitchen && tills.isNotEmpty)
+        MadarRow(
+          title: t('settings.till'),
+          subtitle: tillName,
+          glyph: MadarGlyph.wallet,
+          onTap: () => unawaited(showTillSheet(context)),
+        ),
+      if (isKitchen && stations.isNotEmpty)
+        MadarRow(
+          title: t('setup.choose_station'),
+          subtitle: stationName,
+          glyph: MadarGlyph.flame,
+          onTap: () => unawaited(showStationSheet(context)),
+        ),
+      MadarRow(
+        title: t('settings.device'),
+        subtitle: deviceMeta.isEmpty ? null : deviceMeta,
+        glyph: MadarGlyph.tag,
+        onTap: () => unawaited(showDeviceSheet(context)),
+      ),
+      MadarRow(
+        title: t('settings.diagnostics'),
+        subtitle: diagnosticsMeta,
+        glyph: MadarGlyph.alertCircle,
+        // A shop that expected a Floor tab and has none, or a feed with
+        // warnings in it, gets a mark on the row so the answer is one tap
+        // away — without opening the sheet on every visit to find out.
+        trailing: (!floorAuthored || warnings > 0)
+            ? MadarTag(
+                label: '${warnings + (floorAuthored ? 0 : 1)}',
+                tone: MadarTone.warning,
+              )
+            : null,
+        onTap: () => unawaited(showDiagnosticsSheet(context)),
+      ),
+      MadarRow(
+        title: t('settings.legal'),
+        glyph: MadarGlyph.note,
+        onTap: () => unawaited(showLegalSheet(context)),
+      ),
+    ];
+    return MadarCard(
+      flush: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (index, row) in rows.indexed) ...[
+            if (index > 0) const MadarHairline.row(),
+            row,
+          ],
+        ],
+      ),
     );
   }
 }

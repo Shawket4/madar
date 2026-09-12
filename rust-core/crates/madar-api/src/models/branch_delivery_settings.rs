@@ -13,6 +13,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BranchDeliverySettings {
+    /// Minutes a `received` order may wait for a teller before the sweeper rejects it and tells the customer. `null` = never: the order waits until someone acts on it. Read at sweep time rather than frozen on the order, so a branch that shortens it means the change to apply to what is already waiting.
+    #[serde(
+        rename = "auto_reject_minutes",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub auto_reject_minutes: Option<Option<i32>>,
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
     #[serde(
@@ -159,6 +167,7 @@ impl BranchDeliverySettings {
         umbrella_override: String,
     ) -> BranchDeliverySettings {
         BranchDeliverySettings {
+            auto_reject_minutes: None,
             branch_id,
             in_mall_close_time: None,
             in_mall_discount_id: None,

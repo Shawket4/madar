@@ -19,6 +19,9 @@ pub struct TimeseriesPoint {
     pub orders: i64,
     #[serde(rename = "period")]
     pub period: String,
+    #[serde(rename = "refunded", skip_serializing_if = "Option::is_none")]
+    pub refunded: Option<i64>,
+    /// Net of refunds against the period's sales; `refunded` is what came off.
     #[serde(rename = "revenue")]
     pub revenue: i64,
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
@@ -43,6 +46,7 @@ impl TimeseriesPoint {
             discount,
             orders,
             period,
+            refunded: None,
             revenue,
             revenue_by_method,
             tax,

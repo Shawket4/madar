@@ -85,6 +85,9 @@ class OrderState {
     this.toast,
     this.shiftSalesMinor = 0,
     this.shiftOrderCount = 0,
+    this.displayName = '',
+    this.requireTableForOrders = false,
+    this.pendingCovers = const {},
   });
 
   // ── session ──────────────────────────────────────────────────────────────
@@ -93,6 +96,29 @@ class OrderState {
   final bool isWaiter;
   final String currency;
   final ShiftView? shift;
+
+  /// The signed-in person, as the server names them. The waiter's Bills tab
+  /// groups MINE by matching this against `TicketView.waiterName` — a string
+  /// match, because the view carries a name and no `opened_by` id.
+  final String displayName;
+
+  /// The shop puts every sale on a table (the org/branch rule, merged). Sell
+  /// then rings rounds only: the server refuses a table-less till sale and the
+  /// bar says so before the items are rung up rather than after.
+  final bool requireTableForOrders;
+
+  /// Covers chosen at seating, per table, until the first round fires.
+  ///
+  /// `seatTable` takes no party size and nothing on the wire stores one before
+  /// a ticket exists, so the number a person picked on the free-table sheet is
+  /// kept HERE — device-local, honest about its reach — and handed to
+  /// `fireTicket(guestCount)` with the first round, which is where the server
+  /// records it. A table cleared or unseated drops its entry.
+  final Map<String, int> pendingCovers;
+
+  /// A drawer is open on this till. Taking money needs one; seating and
+  /// firing do not.
+  bool get shiftOpen => shift?.isOpen ?? false;
 
   // ── catalog ──────────────────────────────────────────────────────────────
   final List<CategoryView> categories;
@@ -242,6 +268,9 @@ class OrderState {
     Object? toast = _unset,
     int? shiftSalesMinor,
     int? shiftOrderCount,
+    String? displayName,
+    bool? requireTableForOrders,
+    Map<String, int>? pendingCovers,
   }) => OrderState(
     isWaiter: isWaiter ?? this.isWaiter,
     currency: currency ?? this.currency,
@@ -293,6 +322,9 @@ class OrderState {
     toast: identical(toast, _unset) ? this.toast : toast as ToastData?,
     shiftSalesMinor: shiftSalesMinor ?? this.shiftSalesMinor,
     shiftOrderCount: shiftOrderCount ?? this.shiftOrderCount,
+    displayName: displayName ?? this.displayName,
+    requireTableForOrders: requireTableForOrders ?? this.requireTableForOrders,
+    pendingCovers: pendingCovers ?? this.pendingCovers,
   );
 }
 
@@ -314,7 +346,25 @@ class OrderNotifier extends Notifier<OrderState> {
     return OrderState(
       isWaiter: session?.role == 'waiter',
       currency: session?.currencyCode ?? '',
+      displayName: session?.displayName ?? '',
+      requireTableForOrders: session?.requireTableForOrders ?? false,
     );
+  }
+
+  /// The user id [init] last ran for; null until it has run once.
+  String? _initedFor;
+
+  /// Run [init] once per signed-in person.
+  ///
+  /// The shells mount Sell, Floor and Bills as TABS, so any of them can be the
+  /// first thing on screen and none of them may assume another already loaded
+  /// the catalog and the cart. Each calls this on appear; only the first one
+  /// pays for it, and a new sign-in pays again.
+  Future<void> ensureInit() async {
+    final who = _bridge.currentSession()?.userId;
+    if (_initedFor != null && _initedFor == who) return;
+    _initedFor = who;
+    await init();
   }
 
   // ── toast ──────────────────────────────────────────────────────────────────
@@ -369,6 +419,8 @@ class OrderNotifier extends Notifier<OrderState> {
     state = state.copyWith(
       isWaiter: session?.role == 'waiter',
       currency: session?.currencyCode ?? '',
+      displayName: session?.displayName ?? '',
+      requireTableForOrders: session?.requireTableForOrders ?? false,
       isLoadingCatalog: true,
       activeTicketId: null,
       error: null,
@@ -894,6 +946,21 @@ class OrderNotifier extends Notifier<OrderState> {
     ]);
   }
 
+  /// A bill was charged through the shared Charge drawer, which took the
+  /// money, printed the receipt and asks about the table itself. What is
+  /// left is the board: bus the table in the local mirror so the room is
+  /// right before the next pull, reload the bills and the floor, and let the
+  /// shell know a sale landed on the shift.
+  Future<void> afterBillCharged(String ticketId) async {
+    final table = state.openTickets
+        .where((t) => t.id == ticketId)
+        .firstOrNull
+        ?.tableId;
+    if (table != null) await _busTableLocally(table);
+    await Future.wait([loadOpenTickets(), loadFloor(), loadShiftStats()]);
+    _refreshShell();
+  }
+
   /// Mark a table as needing a bus after its party checked out. The server
   /// does the same walk on settle/complete; this keeps the LOCAL mirror in
   /// step so the canvas is right the instant the sale lands (and offline).
@@ -942,6 +1009,7 @@ class OrderNotifier extends Notifier<OrderState> {
     // The failure toast is the error's own; saying "cleared" on top of it would
     // contradict the message directly above.
     if (!await _clearTableOnServer(tableId)) return;
+    _dropPendingCovers(tableId);
     showToast(
       _tr('tables.cleared'),
       tone: ChipTone.success,
@@ -985,7 +1053,18 @@ class OrderNotifier extends Notifier<OrderState> {
   /// No ticket is opened. Sitting down is not a bill — the tab starts with the
   /// party's first round, which claims the table they are already sitting at.
   /// So the only state that changes here is the room's, plus the cart's target.
-  Future<void> seatTable(FloorTableStateView t) async {
+  ///
+  /// [covers] is what the person picked on the free-table sheet; it is kept
+  /// device-locally (see [OrderState.pendingCovers]) until the first round
+  /// carries it to the server. [bindCart] aims the live cart at the table as
+  /// well — the legacy floor wanted that because it went straight to the menu;
+  /// the new one seats and stays in the room, so it passes false and a teller's
+  /// counter cart is not silently retargeted by a seating.
+  Future<void> seatTable(
+    FloorTableStateView t, {
+    int? covers,
+    bool bindCart = true,
+  }) async {
     try {
       await _bridge.seatTable(tableId: t.id);
     } on MadarError catch (e) {
@@ -1000,13 +1079,41 @@ class OrderNotifier extends Notifier<OrderState> {
       await loadFloor();
       return;
     }
-    state = state.copyWith(
-      cartTableId: t.id,
-      cartTableLabel: t.label,
-      activeTicketId: null,
-    );
+    if (covers != null && covers > 0) setPendingCovers(t.id, covers);
+    if (bindCart) {
+      state = state.copyWith(
+        cartTableId: t.id,
+        cartTableLabel: t.label,
+        activeTicketId: null,
+      );
+    }
     await loadFloor();
     _refreshShell();
+  }
+
+  /// Remember the party size picked for [tableId] until its first round fires.
+  void setPendingCovers(String tableId, int covers) => state = state.copyWith(
+    pendingCovers: {...state.pendingCovers, tableId: covers},
+  );
+
+  void _dropPendingCovers(String? tableId) {
+    if (tableId == null || !state.pendingCovers.containsKey(tableId)) return;
+    final next = Map<String, int>.of(state.pendingCovers)..remove(tableId);
+    state = state.copyWith(pendingCovers: next);
+  }
+
+  /// A table-less bill for a branch with no floor: the waiter's "+ New bill",
+  /// which asks only for a name. The cart is pointed at nothing; the name
+  /// rides on the first round as the ticket's customer.
+  void startNewBill(String? guestName) {
+    final name = guestName?.trim();
+    state = state.copyWith(
+      cartTableId: null,
+      cartTableLabel: null,
+      cartBookingId: null,
+      activeTicketId: null,
+      cartName: (name?.isEmpty ?? true) ? null : name,
+    );
   }
 
   /// Aim the cart at a table that is ALREADY taken, without seating anything.
@@ -1039,6 +1146,7 @@ class OrderNotifier extends Notifier<OrderState> {
     if (state.cartTableId == tableId) {
       state = state.copyWith(cartTableId: null, cartTableLabel: null);
     }
+    _dropPendingCovers(tableId);
     await loadFloor();
     _refreshShell();
   }
@@ -1062,6 +1170,19 @@ class OrderNotifier extends Notifier<OrderState> {
       b.id,
       tableId: tableId,
       tableLabel: label,
+      guest: b.guestName,
+    );
+  }
+
+  /// Seat a booked party on a table of the floor's choosing — the free-table
+  /// sheet's "Seat a booking here". The party size on the booking becomes the
+  /// covers the first round will carry.
+  Future<void> seatArrivalAt(BookingView b, FloorTableStateView t) async {
+    if (b.partySize > 0) setPendingCovers(t.id, b.partySize);
+    await _seatBooking(
+      b.id,
+      tableId: t.id,
+      tableLabel: t.label,
       guest: b.guestName,
     );
   }
@@ -1367,12 +1488,16 @@ class OrderNotifier extends Notifier<OrderState> {
     try {
       final fired = await _bridge.fireTicket(
         tableId: tableId,
-        customerName: customerName,
+        // A table-less bill carries the name it was started under.
+        customerName: customerName ?? state.cartName,
         notes: notes,
-        guestCount: guestCount,
+        // The covers picked at seating, if nobody said otherwise since. This
+        // is the moment the number reaches the server.
+        guestCount: guestCount ?? state.pendingCovers[tableId],
         // The booking this order seats, if the waiter tapped "Seat this party".
         bookingId: state.cartBookingId,
       );
+      _dropPendingCovers(tableId);
       await loadCart();
       await loadOpenTickets();
       showToast(
@@ -1424,6 +1549,12 @@ class OrderNotifier extends Notifier<OrderState> {
     String? tipPaymentMethodId,
     String? loyaltyCustomerId,
     List<CheckoutRedemption> loyaltyRedemptions = const [],
+
+    /// Raise the floor's "clear it now?" prompt through
+    /// [OrderState.pendingTableClear]. The bill screen passes false and asks
+    /// on its own footer instead, so the question is not raised twice — once
+    /// by the floor beneath it and once by the bill itself.
+    bool askToClear = true,
   }) async {
     final shiftId = state.shift?.id;
     if (shiftId == null) {
@@ -1456,7 +1587,7 @@ class OrderNotifier extends Notifier<OrderState> {
       if (table != null) await _busTableLocally(table);
       await loadOpenTickets();
       await loadFloor();
-      if (table != null) _askToClear(table, label);
+      if (table != null && askToClear) _askToClear(table, label);
       // The customer's receipt. Settling a table used to print nothing at all —
       // the checkout drawer printed, the floor's own settle did not — so a
       // dine-in customer got a toast and no paper.

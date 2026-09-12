@@ -85,6 +85,13 @@ pub struct UpdateBranchRequest {
     )]
     pub printer_port: Option<Option<i32>>,
     #[serde(
+        rename = "require_table_for_orders",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub require_table_for_orders: Option<Option<bool>>,
+    #[serde(
         rename = "service_charge_rate",
         default,
         with = "::serde_with::rust::double_option",
@@ -135,6 +142,7 @@ impl UpdateBranchRequest {
             printer_brand: None,
             printer_ip: None,
             printer_port: None,
+            require_table_for_orders: None,
             service_charge_rate: None,
             service_charge_taxable: None,
             tax_inclusive: None,

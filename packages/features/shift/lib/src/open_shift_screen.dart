@@ -6,7 +6,10 @@
 ///
 /// State lives in [openShiftProvider] (prefill, heartbeat, busy/error and the
 /// connectivity chrome); the screen renders and forwards intents. Auth-flow
-/// split-brand screen → keeps its own chrome (no MadarHeader).
+/// split-brand screen → keeps its own chrome (no MadarHeader). As the Till
+/// tab's no-shift home (`embedded`) the shell already carries the
+/// connectivity chrome, so the pinned banners stay off and the tab can hang
+/// something under the card (a manager's drawers).
 library;
 
 import 'dart:async';
@@ -40,7 +43,14 @@ const double _carryoverMoneySize = 20;
 /// off to the shell inside [OpenShiftNotifier].
 class OpenShiftScreen extends ConsumerStatefulWidget {
   /// Creates the open-shift screen.
-  const OpenShiftScreen({super.key});
+  const OpenShiftScreen({super.key, this.embedded = false, this.below});
+
+  /// Rendered inside the Till tab: the shell owns the offline / auth-paused
+  /// banners, so this screen paints none of its own.
+  final bool embedded;
+
+  /// A block under the form column (the manager's drawers on the Till tab).
+  final Widget? below;
 
   @override
   ConsumerState<OpenShiftScreen> createState() => _OpenShiftScreenState();
@@ -72,10 +82,29 @@ class _OpenShiftScreenState extends ConsumerState<OpenShiftScreen> {
       body: ResponsiveBuilder(
         builder: (context, info) {
           final form = SingleChildScrollView(
-            child: _FormColumn(
-              width: info.width,
-              showLogo: !info.isWide,
-              reason: _reason,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _FormColumn(
+                  width: info.width,
+                  showLogo: !info.isWide,
+                  reason: _reason,
+                ),
+                if (widget.below case final below?)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: Responsive.formWidth(info.width),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        start: Space.xxl,
+                        end: Space.xxl,
+                        bottom: _formVPad,
+                      ),
+                      child: below,
+                    ),
+                  ),
+              ],
             ),
           );
           return Stack(
@@ -98,37 +127,38 @@ class _OpenShiftScreenState extends ConsumerState<OpenShiftScreen> {
                 Center(child: form),
               // Top-pinned chrome so a teller WAITING here still sees +
               // recovers connectivity / a genuine session expiry — not only on
-              // the order screen.
-              PositionedDirectional(
-                top: 0,
-                start: 0,
-                end: 0,
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: Space.lg,
-                    vertical: Space.sm,
-                  ),
-                  child: Column(
-                    spacing: Space.sm,
-                    children: [
-                      if (!online)
-                        NoticeBanner(
-                          text: t('chrome.offline_banner'),
-                          icon: 'wifi.slash',
-                        ),
-                      if (authPaused)
-                        NoticeBanner(
-                          text: t('chrome.auth_paused'),
-                          tone: ChipTone.danger,
-                          icon: 'lock',
-                          trailing: BannerActionPill(
-                            label: t('chrome.auth_paused_action'),
+              // the order screen. Off when the shell above carries it.
+              if (!widget.embedded)
+                PositionedDirectional(
+                  top: 0,
+                  start: 0,
+                  end: 0,
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: Space.lg,
+                      vertical: Space.sm,
+                    ),
+                    child: Column(
+                      spacing: Space.sm,
+                      children: [
+                        if (!online)
+                          NoticeBanner(
+                            text: t('chrome.offline_banner'),
+                            icon: 'wifi.slash',
                           ),
-                        ),
-                    ],
+                        if (authPaused)
+                          NoticeBanner(
+                            text: t('chrome.auth_paused'),
+                            tone: ChipTone.danger,
+                            icon: 'lock',
+                            trailing: BannerActionPill(
+                              label: t('chrome.auth_paused_action'),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           );
         },
@@ -222,7 +252,13 @@ class _FormColumn extends ConsumerWidget {
                   text: t('shift.opening_cash'),
                   icon: 'banknote',
                 ),
+                // Keyed on the suggestion: the carry-over lands a beat after
+                // the field mounts, and the kit's field only syncs a value
+                // it has already seen once (its `late _lastEmitted` is first
+                // read inside didUpdateWidget, against the NEW widget). A
+                // fresh mount takes the prefill as its initial text.
                 MadarAmountField(
+                  key: ValueKey(suggestedMinor),
                   amountMinor: openingMinor,
                   onAmountMinor: (v) =>
                       ref.read(openShiftProvider.notifier).setAmount(v),

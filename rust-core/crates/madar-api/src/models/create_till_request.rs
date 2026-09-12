@@ -31,6 +31,14 @@ pub struct CreateTillRequest {
     pub is_default: Option<Option<bool>>,
     #[serde(rename = "name")]
     pub name: String,
+    /// Standard float in minor units; must not be negative. Omit or `null` for \"not decided\".
+    #[serde(
+        rename = "standard_float",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub standard_float: Option<Option<i32>>,
 }
 
 impl CreateTillRequest {
@@ -40,6 +48,7 @@ impl CreateTillRequest {
             is_active: None,
             is_default: None,
             name,
+            standard_float: None,
         }
     }
 }

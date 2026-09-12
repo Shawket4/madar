@@ -22,11 +22,16 @@ pub struct BranchComparison {
     /// The cash slice of `total_tips`.
     #[serde(rename = "cash_tips", skip_serializing_if = "Option::is_none")]
     pub cash_tips: Option<i64>,
-    /// Goods only, by method actually tendered. Tips are in `total_tips`.
+    #[serde(rename = "gross_sales", skip_serializing_if = "Option::is_none")]
+    pub gross_sales: Option<i64>,
+    #[serde(rename = "refunded_amount", skip_serializing_if = "Option::is_none")]
+    pub refunded_amount: Option<i64>,
+    /// Goods only, by method actually tendered — money in. Tips are in `total_tips`; refunds are not netted from the buckets.
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
     pub revenue_by_method: Option<serde_json::Value>,
     #[serde(rename = "total_orders")]
     pub total_orders: i64,
+    /// Net of refunds: `gross_sales − refunded_amount`.
     #[serde(rename = "total_revenue")]
     pub total_revenue: i64,
     /// Tips, standalone — same definition as on the branch sales + shift reports.
@@ -54,6 +59,8 @@ impl BranchComparison {
             branch_id,
             branch_name,
             cash_tips: None,
+            gross_sales: None,
+            refunded_amount: None,
             revenue_by_method,
             total_orders,
             total_revenue,

@@ -1278,7 +1278,7 @@ class _DiscountSection extends StatelessWidget {
 /// trailing `.0` so the common case still reads "10%" and not "10.0%".
 String _discountLabel(DiscountView d) {
   if (d.dtype != 'percentage') return d.name;
-  final pct = d.value * 100;
+  final pct = (d.value * 1000).round() / 10;
   final text = pct == pct.roundToDouble()
       ? pct.toStringAsFixed(0)
       : pct.toStringAsFixed(1);
@@ -1431,7 +1431,6 @@ class _CustomerSection extends StatelessWidget {
               tint: colors.textMuted,
               background: colors.surfaceAlt,
               semanticLabel: tr('loyalty.remove'),
-              size: MadarButtonSize.compact,
               onTap: onClear,
             ),
           ],

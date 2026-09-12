@@ -119,19 +119,13 @@ pub struct PricedBreakdown {
 /// Matches the cart's `clamp(0, 999999)` change ceiling.
 const CHANGE_CAP: MoneyMinor = 999_999;
 
-/// The rate arrives as `f64` because that is what the FFI and the JSON carry.
-/// Converting through the decimal string keeps `0.145` as 0.145 rather than
-/// 0.14499999999999999, which is the whole reason the engine uses decimals.
+/// A rate (or a discount value) arrives as `f64` because that is what the FFI
+/// and the JSON carry. Converting through the decimal string keeps `0.145` as
+/// 0.145 rather than 0.14499999999999999, which is the whole reason the engine
+/// uses decimals.
 fn decimal_rate(r: f64) -> rust_decimal::Decimal {
     use std::str::FromStr;
     rust_decimal::Decimal::from_str(&r.to_string()).unwrap_or_default()
-}
-
-#[allow(dead_code)]
-#[inline]
-fn round_money(x: f64) -> MoneyMinor {
-    // Dart `double.round()` is ties-away-from-zero; Rust `f64::round()` matches.
-    x.round() as MoneyMinor
 }
 
 fn line_total(line: &CartLine) -> MoneyMinor {
@@ -164,17 +158,25 @@ fn line_total(line: &CartLine) -> MoneyMinor {
 pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
     let subtotal: MoneyMinor = input.lines.iter().map(line_total).sum();
 
-    // Discount, clamped to [0, subtotal] in EVERY branch (doc 05 F8: a >100%
+    // Discount, clamped to [0, subtotal] whatever its kind (doc 05 F8: a >100%
     // percentage must not drive the total negative; fixed is capped likewise).
-    let discount: MoneyMinor = match input.discount_kind {
-        DiscountKind::None => 0,
-        DiscountKind::Percentage => {
-            // A fraction, MULTIPLIED — the same shape as the tax rate, and the
-            // same arithmetic the backend's `calc_discount` runs.
-            round_money(subtotal as f64 * input.discount_value).clamp(0, subtotal)
-        }
-        DiscountKind::Fixed => round_money(input.discount_value).clamp(0, subtotal),
-    };
+    //
+    // Derived by the shared engine, not here. This used to be
+    // `subtotal as f64 * input.discount_value` — and 100 × 0.145 in binary
+    // floating point is 14.499999999999998, which rounds to 14 where the
+    // server's decimal 14.5 rounds to 15. One piastre, and the server refuses
+    // the order over it. The value crosses the FFI as `f64`; `decimal_rate`
+    // goes through the decimal string so 0.145 arrives as 0.145.
+    let discount: MoneyMinor = crate::tax::discount_amount(
+        subtotal,
+        match input.discount_kind {
+            DiscountKind::None => crate::tax::Discount::None,
+            DiscountKind::Percentage => {
+                crate::tax::Discount::Percentage(decimal_rate(input.discount_value))
+            }
+            DiscountKind::Fixed => crate::tax::Discount::Fixed(decimal_rate(input.discount_value)),
+        },
+    );
 
     let taxable = subtotal - discount;
 
@@ -543,6 +545,23 @@ mod tests {
         ));
         assert_eq!(b.subtotal_minor, 3500);
         assert_eq!(b.total_minor, 3500);
+    }
+
+    /// The case that bit. 14.5% off 1.00 is exactly 14.5 piastres, which
+    /// rounds to 15 — but `100.0 * 0.145` in binary floating point is
+    /// 14.499999999999998, and this cart used to derive the discount that way
+    /// while the server derived it in decimal. Fifteen on the receipt, fourteen
+    /// in the payload, and a refused order.
+    #[test]
+    fn percentage_discount_at_a_rate_binary_cannot_hold_still_lands_on_the_half() {
+        let b = price_cart(cart(vec![line(100, 1)], DiscountKind::Percentage, 0.145, 0.0));
+        assert_eq!(b.discount_minor, 15);
+        assert_eq!(b.total_minor, 85);
+        assert_eq!(
+            (100.0_f64 * 0.145).round() as i64,
+            14,
+            "the f64 derivation this replaces really did lose the piastre"
+        );
     }
 
     #[test]

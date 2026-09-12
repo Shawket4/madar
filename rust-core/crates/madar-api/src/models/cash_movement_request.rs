@@ -23,6 +23,14 @@ pub struct CashMovementRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub client_ref: Option<Option<uuid::Uuid>>,
+    /// For a `correction` only: the movement on this shift it reverses. The amount must be the exact opposite of that row's, and a row may be corrected once. Omit for a correction of something never recorded.
+    #[serde(
+        rename = "corrects_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub corrects_id: Option<Option<uuid::Uuid>>,
     /// When the movement actually happened. Omit for live (online) movements — the server stamps `now()`. The POS sends this for movements made OFFLINE so they keep their real time after syncing. Future values are rejected.
     #[serde(
         rename = "created_at",
@@ -31,6 +39,14 @@ pub struct CashMovementRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub created_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// What the movement is. Optional for the clients already in the field, which send only a signed amount: an omitted kind resolves by sign (negative → `pay_out`, positive → `pay_in`), exactly what the In/Out chips have always meant. A supplied kind must agree with the sign.
+    #[serde(
+        rename = "kind",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub kind: Option<Option<models::CashMovementKind>>,
     #[serde(rename = "note")]
     pub note: String,
 }
@@ -40,7 +56,9 @@ impl CashMovementRequest {
         CashMovementRequest {
             amount,
             client_ref: None,
+            corrects_id: None,
             created_at: None,
+            kind: None,
             note,
         }
     }

@@ -1,29 +1,43 @@
-/// Madar POS — the shared checkout drawer, receipt confirmation and preview.
+/// Madar POS — Charge, the Done card, and the loyalty moments.
 ///
-/// Pixel-and-behavior port of the Kotlin natives' TenderScreen.kt /
-/// ReceiptPaper.kt over the shared Rust core: `TenderSheet` is THE checkout
-/// drawer (present via `showMadarSheet(size: SheetSize.large)`, resolves
-/// with the placed `ReceiptView`), `CheckoutDrawer` is the shared tender
-/// collector the settle/finalize flows reuse (state in `checkoutProvider` —
-/// the presenting sheet calls `startCart()` / `startSettle(summary)` in its
-/// `initState`), `ReceiptPaper` renders a receipt as white thermal paper,
-/// and `ReceiptSheet` wraps it with Print + Done actions.
+/// One drawer for every caller: `showCharge(context, ChargeTarget.cart())`,
+/// `.bill(ticket)`, `.online(order)` presents the tender drawer (a centred
+/// modal on a tablet, a full-height sheet on a phone), takes the money
+/// through the one bridge call that caller has, and slides the `DoneCard`
+/// down over the host. State lives in `checkoutProvider`; the session
+/// starts itself.
+///
+/// Still exported for the screens that have not migrated: `TenderSheet` and
+/// `CheckoutDrawer` (the previous checkout / settle / finalize drawer),
+/// `ReceiptSheet` (a receipt preview with Print + Done), `ReceiptPaper`.
 library;
 
+export 'src/charge_sheet.dart'
+    show ChargeSheet, DoneCardCallback, discountLabel, paymentGlyph, showCharge;
+export 'src/charge_strings.dart' show chargeFallbackStrings, chargeTr;
+export 'src/charge_target.dart'
+    show
+        BillChargeTarget,
+        CartChargeTarget,
+        ChargeOutcome,
+        ChargeTarget,
+        OnlineChargeTarget;
 export 'src/checkout_drawer.dart' show CheckoutDrawer;
 export 'src/checkout_provider.dart'
     show
+        ChargeBlock,
         CheckoutNotifier,
         CheckoutResult,
         CheckoutState,
         CheckoutSummary,
-        PrintState,
-        checkoutProvider,
-        kReceiptChars,
-        printerBrandOf;
+        RedeemableLine,
+        checkoutProvider;
+export 'src/done_card.dart' show DoneCard, DoneCardResult, showDoneCard;
 export 'src/loyalty_award_sheet.dart' show LoyaltyAwardSheet;
 export 'src/loyalty_scan_sheet.dart' show LoyaltyScanSheet;
 export 'src/receipt_paper.dart' show ReceiptPaper;
+export 'src/receipt_printing.dart'
+    show PrintState, kReceiptChars, printReceiptView, printerBrandOf;
 export 'src/receipt_sheet.dart'
     show
         ReceiptPreviewNotifier,

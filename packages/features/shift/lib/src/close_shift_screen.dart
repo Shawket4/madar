@@ -1,12 +1,15 @@
-/// Close-shift — count the closing drawer and end the shift. A
-/// pixel-and-behavior port of the Kotlin CloseShiftScreen.kt: a summary
-/// card (teller / opening float / opened-at + the shift's sales figures),
-/// the counted-cash card (expected drawer in a tinted teal hero block, the
-/// autofocused count, a live over/short banner, and the discrepancy
-/// reason), the full Z-report breakdown, the report preview entry, and one
-/// loud danger CTA. On a successful close the core marks the shift closed;
-/// the screen pops the overlay first, then hands off to the shell (route
-/// flips back to open-shift). State lives in [closeShiftProvider].
+/// Close shift — count the drawer and end the shift. The expected cash with
+/// its arithmetic beside the counted figure; the difference named plainly
+/// (Short by / Over by / Drawer matches) with a reason required when the
+/// count is off; the Z report preview a row away; and the one red button in
+/// the till. iPad: two cards side by side. Phone: the same two, stacked.
+///
+/// On a successful close the core marks the shift closed; the screen pops
+/// first, then hands off to the shell (the route flips). State lives in
+/// [closeShiftProvider].
+///
+/// Not here, on purpose: "− refunds" (no refunds on the report) and
+/// "Suggested safe drop" (no standard float anywhere on the wire).
 library;
 
 import 'dart:async';
@@ -15,32 +18,25 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
-import 'package:flutter/material.dart' show Scaffold, Theme;
+import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-// Native metrics (CloseShiftScreen.kt) that fall between the 4-pt Space
-// steps — kept verbatim so the Flutter chrome measures identically.
+/// The counted-cash card's width beside the expected card (canvas: 520).
+const double _countedColumnWidth = 520;
 
-/// Content column cap (natives: widthIn(max = 640.dp)).
-const double _contentMaxWidth = 640;
+/// Arithmetic row height and the expected figure's size (canvas: 32 / 30).
+const double _arithmeticRowHeight = 32;
+const double _expectedFigureSize = 30;
 
-/// Card-header tone tile (natives: 34.dp square, Radii.sm).
-const double _headerTileSize = 34;
-
-/// Expected-cash block insets (natives: h 16.dp / v 14.dp) and money size
-/// (natives: 20.sp Black tabular).
-const double _expectedVPad = 14;
-const double _expectedMoneySize = 20;
-
-/// Discrepancy banner insets/gap (natives: 14/12/10.dp).
+/// The difference banner (canvas: 40 tall, 14 inset, 10 gap).
+const double _bannerHeight = 40;
 const double _bannerHPad = 14;
-const double _bannerVPad = 12;
 const double _bannerGap = 10;
 
-/// The end-of-day drawer count, shown over the order screen; the header's
-/// back pops it via `Navigator.maybePop`.
+/// The end-of-day drawer count, pushed over the shell; the header's back
+/// pops it via `Navigator.maybePop`.
 class CloseShiftScreen extends ConsumerStatefulWidget {
   /// Creates the close-shift screen.
   const CloseShiftScreen({super.key});
@@ -69,7 +65,7 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
         .close(note: _note.text);
     if (!ok || !mounted) return;
     // Dismiss the overlay first, then let the shell re-read `app_route()`
-    // (shift closed → open-shift).
+    // (shift closed → open-shift / the Till tab's open card).
     await Navigator.of(context).maybePop();
     shell.refresh();
   }
@@ -90,82 +86,80 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
     final bridge = ref.watch(bridgeProvider);
     String t(String key) => bridge.tr(key: key);
     final currency = bridge.currentSession()?.currencyCode ?? '';
-    // Narrow slices — the count keystrokes repaint only the cash card below.
+    final layout = context.madarLayout;
+    // Narrow slices — the count keystrokes repaint only the counted card.
     final shift = ref.watch(closeShiftProvider.select((s) => s.shift));
     final report = ref.watch(closeShiftProvider.select((s) => s.report));
-    final busy = ref.watch(closeShiftProvider.select((s) => s.busy));
-    final error = ref.watch(closeShiftProvider.select((s) => s.error));
+    final tillName = ref.watch(closeShiftProvider.select((s) => s.tillName));
+    final orderCount = ref.watch(
+      closeShiftProvider.select((s) => s.orderCount),
+    );
+
+    final subtitle = [
+      ?tillName,
+      if (shift != null) shift.tellerName,
+      if (shift != null)
+        '${t('till.open_since')} ${bridge.formatTime(rfc3339: shift.openedAt, style: TimeStyle.time)}',
+      if (orderCount != null) '$orderCount ${t('shift.orders')}',
+    ].join(' · ');
+
+    final expected = _ExpectedCard(
+      report: report,
+      currency: currency,
+      tr: t,
+      onPreview: report == null
+          ? null
+          : () => unawaited(_openReportPreview(report)),
+    );
+    final counted = _CountedCard(
+      note: _note,
+      currency: currency,
+      tr: t,
+      onClose: () => unawaited(_close()),
+    );
+
     // Scaffold: screens own their own Material ancestor in this app.
     return Scaffold(
       backgroundColor: colors.bg,
       body: Column(
         children: [
-          MadarHeader(
-            title: t('shift.close_title'),
-            subtitle: t('shift.closing_desc'),
-            onBack: () => Navigator.maybePop(context),
+          Padding(
+            padding: EdgeInsetsDirectional.symmetric(horizontal: layout.gutter),
+            child: MadarHeader(
+              title: t('shift.close_title'),
+              subtitle: subtitle.isEmpty ? null : subtitle,
+              onBack: () => Navigator.maybePop(context),
+              safeTop: true,
+            ),
           ),
           Expanded(
             child: SafeArea(
               top: false,
-              child: SingleChildScrollView(
-                padding: const EdgeInsetsDirectional.all(Space.xl),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: _contentMaxWidth,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: Space.lg,
+              child: layout.isTablet
+                  ? Padding(
+                      padding: EdgeInsetsDirectional.all(layout.gutter),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: Space.lg,
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(child: expected),
+                          ),
+                          SizedBox(
+                            width: _countedColumnWidth,
+                            child: SingleChildScrollView(child: counted),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView(
+                      padding: EdgeInsetsDirectional.all(layout.gutter),
                       children: [
-                        if (shift != null)
-                          _SummaryCard(
-                            shift: shift,
-                            report: report,
-                            currency: currency,
-                            bridge: bridge,
-                          ),
-                        _CashCard(note: _note, currency: currency, tr: t),
-                        if (report != null)
-                          _Card(
-                            children: [
-                              _CardHeader(
-                                icon: 'list.bullet.rectangle',
-                                title: t('shift.report_title'),
-                              ),
-                              ShiftReportBreakdown(
-                                report: report,
-                                currency: currency,
-                                tr: t,
-                              ),
-                            ],
-                          ),
-                        if (report != null)
-                          MadarButton(
-                            label: t('shift.print_report'),
-                            icon: 'printer',
-                            variant: MadarButtonVariant.outline,
-                            onTap: () => unawaited(_openReportPreview(report)),
-                          ),
-                        if (error != null)
-                          NoticeBanner(
-                            text: error,
-                            tone: ChipTone.danger,
-                            icon: 'exclamationmark.circle',
-                          ),
-                        MadarButton(
-                          label: t('order.close_shift'),
-                          icon: 'lock',
-                          variant: MadarButtonVariant.danger,
-                          loading: busy,
-                          onTap: () => unawaited(_close()),
-                        ),
+                        expected,
+                        const SizedBox(height: Space.lg),
+                        counted,
                       ],
                     ),
-                  ),
-                ),
-              ),
             ),
           ),
         ],
@@ -174,101 +168,176 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
   }
 }
 
-/// The shift-summary card: teller, opening float (hero money), opened-at —
-/// plus the shift's headline figures (sales / cash / card / voided) once
-/// the Z-report lands.
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.shift,
+/// Expected cash and how it was reached: opening float + cash sales + paid
+/// in − paid out. Cash sales is the report's own remainder, so the rows
+/// always sum to the figure above them — offline too, when "cash sales" is
+/// the queued cash the core added to the float. Then the Z report preview.
+class _ExpectedCard extends StatelessWidget {
+  const _ExpectedCard({
     required this.report,
     required this.currency,
-    required this.bridge,
+    required this.tr,
+    required this.onPreview,
   });
 
-  final ShiftView shift;
   final ShiftReportView? report;
   final String currency;
-  final MadarBridge bridge;
+  final String Function(String key) tr;
+  final VoidCallback? onPreview;
 
   @override
   Widget build(BuildContext context) {
-    String t(String key) => bridge.tr(key: key);
+    final colors = context.madarColors;
+    final r = report;
     String money(int minor) => Money.format(minor, currency: currency);
-    final report = this.report;
-    return _Card(
+    String plus(int minor) => '+${money(minor)}';
+    String minus(int minor) => '−${money(minor)}';
+    final cashSales = r == null
+        ? 0
+        : r.expectedCashMinor -
+              r.openingCashMinor -
+              r.cashInMinor +
+              r.cashOutMinor;
+    return MadarCard.column(
+      spacing: _statGap,
       children: [
-        _CardHeader(icon: 'doc.text', title: t('shift.summary')),
-        _InfoRow(label: t('shift.teller'), value: shift.tellerName),
-        // Opening cash is money — the hero treatment (bold teal, tabular).
-        _InfoRow(
-          label: t('shift.opening_cash'),
-          value: money(shift.openingCashMinor),
-          money: true,
-        ),
-        _InfoRow(
-          label: t('shift.opened_at'),
-          value: bridge.formatTime(
-            rfc3339: shift.openedAt,
-            style: TimeStyle.dateTime,
-          ),
-        ),
-        // Headline figures once the Z-report lands (sales + voids up top;
-        // the per-method cash/card split lives in the report card below).
-        if (report != null) ...[
-          _InfoRow(
-            label: t('shift.payments'),
-            value: money(report.totalPaymentsMinor),
-            money: true,
-          ),
-          if (report.voidedAmountMinor > 0)
-            _InfoRow(
-              label: t('history.voided'),
-              value: '−${money(report.voidedAmountMinor)}',
-              money: true,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                tr('shift.expected_cash'),
+                style: MadarType.h3.copyWith(color: colors.textPrimary),
+              ),
             ),
-        ],
+            if (r == null)
+              const SkeletonBlock(height: _expectedFigureSize, width: 140)
+            else
+              MoneyText(
+                r.expectedCashMinor,
+                currency: currency,
+                style: MadarType.moneyDisplay.copyWith(
+                  fontSize: _expectedFigureSize,
+                ),
+              ),
+            if (r != null && !r.fromServer) ...[
+              const SizedBox(width: Space.sm),
+              MadarTag(label: tr('chrome.offline'), tone: MadarTone.warning),
+            ],
+          ],
+        ),
+        const MadarHairline(),
+        if (r != null) ...[
+          _ArithmeticRow(
+            label: tr('shift.opening_float'),
+            value: money(r.openingCashMinor),
+          ),
+          _ArithmeticRow(label: tr('shift.cash_sales'), value: plus(cashSales)),
+          _ArithmeticRow(
+            label: tr('shift.paid_in'),
+            value: plus(r.cashInMinor),
+          ),
+          _ArithmeticRow(
+            label: tr('shift.paid_out'),
+            value: minus(r.cashOutMinor),
+          ),
+          if (r.voidedAmountMinor > 0)
+            _ArithmeticRow(
+              label: tr('history.voided'),
+              value: minus(r.voidedAmountMinor),
+              muted: true,
+            ),
+          const MadarHairline(),
+          MadarRow(
+            title: tr('shift.z_preview'),
+            glyph: MadarGlyph.receipt,
+            dense: true,
+            onTap: onPreview,
+          ),
+        ] else
+          const SkeletonList(count: 4),
       ],
     );
   }
 }
 
-/// The counted-cash card: expected drawer (hero teal block), the count
-/// itself, the live over/short banner, and the note — which becomes the
-/// REQUIRED discrepancy reason when the count deviates (the open screen's
-/// pattern). Watches its own narrow slices so count keystrokes repaint only
-/// this card.
-class _CashCard extends ConsumerWidget {
-  const _CashCard({
+/// A stat card's row rhythm, shared with the Till figures.
+const double _statGap = 6;
+
+/// One line of the drawer's arithmetic: quiet label, mono figure.
+class _ArithmeticRow extends StatelessWidget {
+  const _ArithmeticRow({
+    required this.label,
+    required this.value,
+    this.muted = false,
+  });
+
+  final String label;
+  final String value;
+
+  /// A line that is shown for the record but is not part of the sum.
+  final bool muted;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return SizedBox(
+      height: _arithmeticRowHeight,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.body.copyWith(color: colors.textSecondary),
+            ),
+          ),
+          Text(
+            value,
+            textDirection: TextDirection.ltr,
+            style: MadarType.money.copyWith(
+              color: muted ? colors.textMuted : colors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The counted-cash card: the autofocused count, the live difference in
+/// words, the reason (required when off, an optional note when matched),
+/// what closing does, the error next to the action, and the danger button.
+/// Watches its own narrow slices so count keystrokes repaint only this card.
+class _CountedCard extends ConsumerWidget {
+  const _CountedCard({
     required this.note,
     required this.currency,
     required this.tr,
+    required this.onClose,
   });
 
   final TextEditingController note;
   final String currency;
   final String Function(String key) tr;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
     final countedMinor = ref.watch(
       closeShiftProvider.select((s) => s.countedMinor),
     );
-    final needsReason = ref.watch(
-      closeShiftProvider.select((s) => s.needsReason),
+    final expectedMinor = ref.watch(
+      closeShiftProvider.select((s) => s.report?.expectedCashMinor),
     );
-    final report = ref.watch(closeShiftProvider.select((s) => s.report));
-    return _Card(
+    final busy = ref.watch(closeShiftProvider.select((s) => s.busy));
+    final error = ref.watch(closeShiftProvider.select((s) => s.error));
+    final diff = expectedMinor == null ? null : countedMinor - expectedMinor;
+    final needsReason = diff != null && diff != 0;
+    return MadarCard.column(
       children: [
-        _CardHeader(icon: 'banknote', title: tr('shift.counted_cash')),
-        // System (expected) cash — the figure the count is measured
-        // against, so it gets the hero money treatment in a tinted teal
-        // block (mirrors the order screen's grand-total block).
-        if (report != null)
-          _ExpectedCashBlock(
-            expectedMinor: report.expectedCashMinor,
-            currency: currency,
-            tr: tr,
-          ),
+        MadarSectionHeader(text: tr('shift.counted_cash')),
         MadarAmountField(
           amountMinor: countedMinor,
           onAmountMinor: (v) =>
@@ -276,268 +345,121 @@ class _CashCard extends ConsumerWidget {
           currencyCode: currency,
           autofocus: true,
         ),
-        if (report != null)
-          _DiscrepancyBanner(
-            declaredMinor: countedMinor,
-            expectedMinor: report.expectedCashMinor,
-            currency: currency,
-            tr: tr,
-          ),
+        if (diff != null)
+          _DifferenceBanner(diff: diff, currency: currency, tr: tr),
         MadarField(
           controller: note,
-          placeholder: needsReason
-              ? tr('shift.opening_reason_label')
-              : tr('shift.cash_note'),
-          icon: needsReason ? 'exclamationmark.bubble' : 'note.text',
+          placeholder: switch (diff) {
+            null || 0 => tr('shift.cash_note'),
+            < 0 => tr('shift.why_short'),
+            _ => tr('shift.why_over'),
+          },
+          glyph: needsReason ? MadarGlyph.alertCircle : MadarGlyph.note,
+        ),
+        Text(
+          tr('shift.close_hint'),
+          style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+        ),
+        if (error != null)
+          NoticeBanner(
+            text: error,
+            tone: ChipTone.danger,
+            icon: 'exclamationmark.circle',
+          ),
+        MadarButton(
+          label: tr('shift.close_title'),
+          glyph: MadarGlyph.lock,
+          variant: MadarButtonVariant.danger,
+          loading: busy,
+          enabled: expectedMinor != null,
+          tooltip: expectedMinor == null ? tr('chrome.syncing') : null,
+          onTap: onClose,
         ),
       ],
     );
   }
 }
 
-/// The system-expected cash — bold teal money in a tinted teal block, the
-/// figure the declared count is reconciled against.
-class _ExpectedCashBlock extends StatelessWidget {
-  const _ExpectedCashBlock({
-    required this.expectedMinor,
+/// The difference, named: Drawer matches (success), Over by (warning),
+/// Short by (danger) — with "reason required" on the end when it is off.
+class _DifferenceBanner extends StatelessWidget {
+  const _DifferenceBanner({
+    required this.diff,
     required this.currency,
     required this.tr,
   });
 
-  final int expectedMinor;
+  final int diff;
   final String currency;
   final String Function(String key) tr;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.accentBg,
-        borderRadius: BorderRadius.circular(Radii.md),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Space.lg,
-          vertical: _expectedVPad,
-        ),
-        child: Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
-                children: [
-                  Text(
-                    tr('shift.system_cash'),
-                    style: MadarType.label.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colors.accent,
-                    ),
-                  ),
-                  Text(
-                    tr('shift.system_cash_explain'),
-                    style: MadarType.labelSm.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            MoneyText(
-              expectedMinor,
-              currency: currency,
-              style: MadarType.moneyLg.copyWith(fontSize: _expectedMoneySize),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Live drawer variance: matched (success), over (warning), short (danger).
-class _DiscrepancyBanner extends StatelessWidget {
-  const _DiscrepancyBanner({
-    required this.declaredMinor,
-    required this.expectedMinor,
-    required this.currency,
-    required this.tr,
-  });
-
-  final int declaredMinor;
-  final int expectedMinor;
-  final String currency;
-  final String Function(String key) tr;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final diff = declaredMinor - expectedMinor;
-    final (Color fg, Color bg, String icon, String label) = switch (diff) {
+    final (Color fg, Color bg, MadarGlyph glyph, String label) = switch (diff) {
       0 => (
         colors.success,
         colors.successBg,
-        'checkmark.circle',
+        MadarGlyph.checkCircle,
         tr('shift.drawer_matches'),
       ),
       > 0 => (
         colors.warning,
         colors.warningBg,
-        'arrow.up.circle',
-        '${tr('shift.drawer_over')} '
-            '${Money.format(diff, currency: currency)}',
+        MadarGlyph.alertTriangle,
+        tr('shift.drawer_over'),
       ),
       _ => (
         colors.danger,
         colors.dangerBg,
-        'arrow.down.circle',
-        '${tr('shift.drawer_short')} '
-            '${Money.format(-diff, currency: currency)}',
+        MadarGlyph.xCircle,
+        tr('shift.drawer_short'),
       ),
     };
-    return DecoratedBox(
+    return Container(
+      constraints: const BoxConstraints(minHeight: _bannerHeight),
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: _bannerHPad,
+        vertical: Space.sm,
+      ),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(Radii.sm),
-        border: Border.all(color: fg.withValues(alpha: Opacities.border)),
+        borderRadius: BorderRadius.circular(Radii.control),
       ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: _bannerHPad,
-          vertical: _bannerVPad,
-        ),
-        child: Row(
-          spacing: _bannerGap,
-          children: [
-            MadarIcon(icon, tint: fg),
-            Expanded(
-              child: Text(
-                label,
-                style: MadarType.bodySm.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: fg,
+      child: Row(
+        spacing: _bannerGap,
+        children: [
+          MadarGlyphIcon(glyph, color: fg),
+          // Wraps rather than overflows: on a phone "Short by · figure ·
+          // reason required" is wider than the card.
+          Expanded(
+            child: Wrap(
+              spacing: _bannerGap,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  label,
+                  style: MadarType.body.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: fg,
+                  ),
                 ),
-              ),
+                if (diff != 0)
+                  Text(
+                    Money.format(diff.abs(), currency: currency),
+                    textDirection: TextDirection.ltr,
+                    style: MadarType.numLg.copyWith(color: fg),
+                  ),
+              ],
             ),
-          ],
-        ),
+          ),
+          if (diff != 0)
+            Text(
+              tr('shift.reason_required'),
+              style: MadarType.bodySm.copyWith(color: fg),
+            ),
+        ],
       ),
-    );
-  }
-}
-
-/// The close screen's card primitive (natives: Radii.md, CARD elevation,
-/// borderLight hairline, Space.lg inset, Space.md rhythm).
-class _Card extends StatelessWidget {
-  const _Card({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(color: colors.borderLight),
-        boxShadow: MadarElevation.card.shadows(colors, dark: dark),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(Space.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: children,
-        ),
-      ),
-    );
-  }
-}
-
-/// Leading teal tone-tile behind the glyph + a bold card title — matches
-/// the confident Kitchen/Order/Sync header (accentBg + accent icon).
-class _CardHeader extends StatelessWidget {
-  const _CardHeader({required this.icon, required this.title});
-
-  final String icon;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Row(
-      spacing: Space.sm,
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.accentBg,
-            borderRadius: BorderRadius.circular(Radii.sm),
-          ),
-          child: SizedBox.square(
-            dimension: _headerTileSize,
-            child: Center(
-              child: MadarIcon(icon, tint: colors.accent, size: IconSize.lg),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            title,
-            style: MadarType.h3.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Quiet label/value row; money values are the hero — bold teal, tabular.
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    this.money = false,
-  });
-
-  final String label;
-  final String value;
-  final bool money;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-          ),
-        ),
-        if (money)
-          Text(
-            value,
-            textDirection: TextDirection.ltr,
-            style: MadarType.money.copyWith(color: colors.accent),
-          )
-        else
-          Text(
-            value,
-            style: MadarType.bodySm.copyWith(
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
-          ),
-      ],
     );
   }
 }

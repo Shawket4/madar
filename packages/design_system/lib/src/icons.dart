@@ -1,11 +1,16 @@
-/// The Madar icon system — SF-Symbol-style names resolved to Lucide glyphs.
+/// The Madar icon system — SF-Symbol-style names, kept for the call sites
+/// that still use them.
 ///
-/// Ported from the Kotlin natives' `Icons.kt` / `IconCatalog.kt` and Swift
-/// `MadarIcon.swift`: every platform passes the SAME SF-Symbol-style string
-/// (e.g. `"printer"`, `"checkmark.circle"`) and renders the SAME Lucide glyph,
-/// so icons stay pixel-identical across Compose, SwiftUI, and Flutter.
+/// System v2 draws its own glyph set ([MadarGlyph], `glyphs.dart`): a 24
+/// grid, a 2.5 stroke, duotone when active. New work names a [MadarGlyph]
+/// directly. The SF-Symbol names below stay so the feature packages compile
+/// while they migrate — and every name the v2 set covers is ROUTED to it by
+/// [madarIconGlyphs], so an unmigrated screen already draws the new icon.
+/// Only the names the set does not cover (food categories, a handful of
+/// specialised marks) still fall through to Lucide.
 library;
 
+import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/tokens/dimens.dart';
 import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -166,6 +171,97 @@ const Map<String, IconData> madarIconCatalog = <String, IconData>{
   'cat.matcha': LucideIcons.leaf,
 };
 
+/// SF-Symbol name → v2 glyph, for every name the set covers. [MadarIcon]
+/// consults this first; only a miss falls through to [madarIconCatalog].
+const Map<String, MadarGlyph> madarIconGlyphs = <String, MadarGlyph>{
+  'bell': MadarGlyph.bell,
+  'bell.fill': MadarGlyph.bell,
+  'pencil': MadarGlyph.edit,
+  'exclamationmark.circle': MadarGlyph.alertCircle,
+  'exclamationmark.triangle': MadarGlyph.alertTriangle,
+  'exclamationmark.triangle.fill': MadarGlyph.alertTriangle,
+  'xmark': MadarGlyph.close,
+  // The sign-in / open-shift screens' leading marks: the duotone set has a
+  // glyph for each, so they no longer fall through to the thin Lucide face.
+  'arrow.right.circle': MadarGlyph.chevronForward,
+  'lock.open': MadarGlyph.lock,
+  'person.crop.circle.badge.clock': MadarGlyph.user,
+  'exclamationmark.bubble': MadarGlyph.alertCircle,
+  'xmark.circle': MadarGlyph.xCircle,
+  'xmark.circle.fill': MadarGlyph.xCircle,
+  'checkmark': MadarGlyph.check,
+  'checkmark.circle': MadarGlyph.checkCircle,
+  'checkmark.circle.fill': MadarGlyph.checkCircle,
+  'checkmark.seal': MadarGlyph.checkCircle,
+  'chevron.backward': MadarGlyph.chevronBack,
+  'chevron.forward': MadarGlyph.chevronForward,
+  'chevron.down': MadarGlyph.chevronDown,
+  'chevron.up': MadarGlyph.chevronUp,
+  'arrow.up': MadarGlyph.arrowUp,
+  'arrow.down': MadarGlyph.arrowDown,
+  'arrow.down.left': MadarGlyph.arrowDownStart,
+  'arrow.up.right': MadarGlyph.arrowUpEnd,
+  'arrow.triangle.2.circlepath': MadarGlyph.refresh,
+  'arrow.clockwise': MadarGlyph.refresh,
+  'arrow.uturn.backward': MadarGlyph.undo,
+  'person': MadarGlyph.user,
+  'person.fill': MadarGlyph.user,
+  'person.2': MadarGlyph.users,
+  'text.bubble': MadarGlyph.note,
+  'phone.fill': MadarGlyph.phone,
+  'magnifyingglass': MadarGlyph.search,
+  'qrcode': MadarGlyph.scan,
+  'qr': MadarGlyph.scan,
+  'lock': MadarGlyph.lock,
+  'lock.circle': MadarGlyph.lock,
+  'delete.left': MadarGlyph.backspace,
+  'line.3.horizontal': MadarGlyph.menu,
+  'slider.horizontal.3': MadarGlyph.settings,
+  'cart': MadarGlyph.bag,
+  'bag.fill': MadarGlyph.bag,
+  'creditcard': MadarGlyph.card,
+  'wallet': MadarGlyph.wallet,
+  'banknote': MadarGlyph.banknote,
+  'receipt': MadarGlyph.receipt,
+  'gearshape': MadarGlyph.settings,
+  'square.grid.2x2.fill': MadarGlyph.grid,
+  'square.grid.2x2': MadarGlyph.grid,
+  'clock': MadarGlyph.clock,
+  'clock.badge.checkmark': MadarGlyph.clock,
+  'clock.badge.exclamationmark': MadarGlyph.clock,
+  'calendar': MadarGlyph.calendar,
+  'calendar.days': MadarGlyph.calendar,
+  'printer': MadarGlyph.printer,
+  'trash': MadarGlyph.trash,
+  'trash.fill': MadarGlyph.trash,
+  'tray.full': MadarGlyph.inbox,
+  'tray': MadarGlyph.inbox,
+  'rectangle.portrait.and.arrow.right': MadarGlyph.signOut,
+  'plus': MadarGlyph.plus,
+  'minus': MadarGlyph.minus,
+  'list.bullet.rectangle': MadarGlyph.list,
+  'list.bullet': MadarGlyph.list,
+  'sparkles': MadarGlyph.sparkle,
+  'wifi': MadarGlyph.wifi,
+  'wifi.slash': MadarGlyph.wifiOff,
+  'bicycle': MadarGlyph.bike,
+  'tag': MadarGlyph.tag,
+  'tag.fill': MadarGlyph.tag,
+  'ellipsis.circle': MadarGlyph.more,
+  'ellipsis': MadarGlyph.more,
+  'star': MadarGlyph.star,
+  'circle': MadarGlyph.ring,
+  'largecircle.fill.circle': MadarGlyph.radio,
+  'flame': MadarGlyph.flame,
+  'table': MadarGlyph.table,
+  'globe': MadarGlyph.globe,
+  'camera': MadarGlyph.camera,
+  'percent': MadarGlyph.percent,
+  'bookmark': MadarGlyph.bookmark,
+  'square': MadarGlyph.square,
+  'checkmark.square.fill': MadarGlyph.squareCheck,
+};
+
 /// Directional glyphs flip in RTL so chevrons point the right way (parity
 /// with the natives' `iconMirror` / Swift `MadarIcon.mirror`).
 const Map<String, String> _iconMirror = <String, String>{
@@ -199,13 +295,13 @@ String backGlyph(BuildContext context) => isRtlLayout(context) ? '›' : '‹';
 String disclosureGlyph(BuildContext context) =>
     isRtlLayout(context) ? '‹' : '›';
 
-/// Renders the shared Lucide glyph for an SF-Symbol-style [name], tinted and
-/// sized — pixel-identical to the Compose/SwiftUI apps, which render the same
-/// Lucide asset.
+/// Renders the icon for an SF-Symbol-style [name], tinted and sized: the v2
+/// glyph when [madarIconGlyphs] covers the name (it mirrors itself under
+/// RTL), otherwise the Lucide glyph from [madarIconCatalog].
 ///
 /// A `null` or unmapped [name] renders nothing ([SizedBox.shrink]) rather
-/// than a wrong icon. Directional names (chevrons) mirror automatically under
-/// RTL, matching the natives' `iconMirror`.
+/// than a wrong icon. New work should name a [MadarGlyph] and use
+/// [MadarGlyphIcon] directly.
 ///
 /// ```dart
 /// MadarIcon('cart', tint: context.madarColors.accent)
@@ -233,6 +329,8 @@ class MadarIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = this.name;
     if (name == null) return const SizedBox.shrink();
+    final v2 = madarIconGlyphs[name];
+    if (v2 != null) return MadarGlyphIcon(v2, size: size, color: tint);
     final resolved = isRtlLayout(context) ? (_iconMirror[name] ?? name) : name;
     final glyph = madarIconCatalog[resolved];
     if (glyph == null) return const SizedBox.shrink();

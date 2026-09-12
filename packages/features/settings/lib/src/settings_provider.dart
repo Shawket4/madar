@@ -54,6 +54,7 @@ class SettingsState {
     this.printState = PrintState.idle,
     this.pairedDevices = const [],
     this.scanningBt = false,
+    this.floorAuthored = true,
     this.error,
   });
 
@@ -88,6 +89,11 @@ class SettingsState {
   /// True while listing paired Bluetooth devices.
   final bool scanningBt;
 
+  /// The branch has a floor layout mirrored. An empty mirror is the floor's
+  /// feature gate, so a shop that expected a Floor tab and has none finds
+  /// the reason under Diagnostics. Optimistically true until loaded.
+  final bool floorAuthored;
+
   /// Guard-failure banner text (open-shift sign-out/reconfigure).
   final String? error;
 
@@ -108,6 +114,7 @@ class SettingsState {
     PrintState? printState,
     List<BtDevice>? pairedDevices,
     bool? scanningBt,
+    bool? floorAuthored,
     String? error,
   }) {
     return SettingsState(
@@ -121,6 +128,7 @@ class SettingsState {
       printState: printState ?? this.printState,
       pairedDevices: pairedDevices ?? this.pairedDevices,
       scanningBt: scanningBt ?? this.scanningBt,
+      floorAuthored: floorAuthored ?? this.floorAuthored,
       error: error ?? this.error,
     );
   }
@@ -169,6 +177,9 @@ class SettingsNotifier extends Notifier<SettingsState> {
     final pending = await _quiet(_bridge.pendingOutboxCount) ?? 0;
     final diagnostics =
         await _quiet(_bridge.recentLogs) ?? const <DiagLogView>[];
+    // The floor mirror is local; reading it is free and never throws
+    // offline. Null (a failed read) keeps the optimistic default.
+    final floor = await _quiet(_bridge.floorLayout);
     state = SettingsState(
       config: config,
       brand: _brandOf(config.printerBrand),
@@ -177,6 +188,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
       stations: stations,
       diagnostics: diagnostics,
       pending: pending,
+      floorAuthored: floor == null || floor.tables.isNotEmpty,
     );
   }
 

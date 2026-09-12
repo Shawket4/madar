@@ -38,6 +38,7 @@ pub struct LedgerEntry {
     pub currency: String,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// `earn`, `redeem`, `adjust`, or `reverse_earn` / `reverse_redeem` / `reverse_adjust` — the last three undo the row named in `reverses_id`.
     #[serde(rename = "kind")]
     pub kind: String,
     #[serde(
@@ -56,6 +57,14 @@ pub struct LedgerEntry {
     pub order_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "points")]
     pub points: i32,
+    /// For a reversal, the row it undoes.
+    #[serde(
+        rename = "reverses_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reverses_id: Option<Option<uuid::Uuid>>,
     #[serde(
         rename = "reward_name",
         default,
@@ -63,6 +72,9 @@ pub struct LedgerEntry {
         skip_serializing_if = "Option::is_none"
     )]
     pub reward_name: Option<Option<String>>,
+    /// Why the row exists: `sale`, `redemption`, `void`, `refund`, `birthday`, `winback` or `manual`. What a till or a dashboard should print as the reason, instead of guessing from the kind and the note.
+    #[serde(rename = "source")]
+    pub source: String,
 }
 
 impl LedgerEntry {
@@ -74,6 +86,7 @@ impl LedgerEntry {
         id: uuid::Uuid,
         kind: String,
         points: i32,
+        source: String,
     ) -> LedgerEntry {
         LedgerEntry {
             basis_piastres: None,
@@ -86,7 +99,9 @@ impl LedgerEntry {
             note: None,
             order_id: None,
             points,
+            reverses_id: None,
             reward_name: None,
+            source,
         }
     }
 }

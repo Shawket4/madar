@@ -1,28 +1,18 @@
-import 'package:design_system/src/icons.dart';
+import 'package:design_system/src/controls.dart';
+import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/dimens.dart';
 import 'package:design_system/src/tokens/typography.dart';
-import 'package:design_system/src/touch.dart';
 import 'package:flutter/material.dart';
 
-/// Content height of the bar, below the status-bar inset.
-const double _headerHeight = 60;
-
-/// THE screen header. One look everywhere: a surface bar that paints all
-/// the way up under the notification bar (content inset by the status-bar
-/// height), a mirrored back tile, a bold title with an optional subtitle,
-/// trailing actions, and a hairline base.
-///
-/// Screens place it as the FIRST child of their Scaffold body column and
-/// do NOT wrap it in SafeArea — the header owns the top inset:
+/// THE in-page header — system v2. A 48px row ON the paper (not a bar): a
+/// 44 back tile when the screen was pushed, the title at 28 bold, an
+/// optional muted subtitle, and end-aligned actions. Sits under the chrome's
+/// top bar, so it paints no status-bar inset of its own unless [safeTop] is
+/// set (a full-screen route with no shell above it).
 ///
 /// ```dart
-/// Scaffold(
-///   body: Column(children: [
-///     MadarHeader(title: tr('cash.title'), onBack: () => Navigator.maybePop(context)),
-///     Expanded(child: SafeArea(top: false, child: content)),
-///   ]),
-/// )
+/// MadarHeader(title: tr('till.title'), onBack: () => Navigator.maybePop(context))
 /// ```
 class MadarHeader extends StatelessWidget {
   const MadarHeader({
@@ -33,70 +23,56 @@ class MadarHeader extends StatelessWidget {
     this.actions = const [],
     this.below,
     this.tinted = false,
+    this.safeTop = false,
+    this.backLabel,
   });
 
-  /// Screen title — [MadarType.h3] weight-boosted, single line.
+  /// Screen title — [MadarType.h1], single line.
   final String title;
 
-  /// Muted second line (e.g. the branch, a count, a date range).
+  /// Muted second line (the branch, a count, a date range).
   final String? subtitle;
 
   /// Shows the mirrored back tile when set. Use `Navigator.maybePop`.
   final VoidCallback? onBack;
 
-  /// Trailing widgets, laid end-aligned with [Space.sm] gaps.
+  /// Trailing widgets, laid end-aligned with [Space.md] gaps.
   final List<Widget> actions;
 
-  /// A full-width row under the title, INSIDE the bar — a screen's at-a-glance
-  /// summary (the floor's state counts) that wants the whole width rather than
-  /// what is left over beside the actions.
+  /// A full-width row under the title — a screen's at-a-glance summary that
+  /// wants the whole width rather than what is left beside the actions.
   final Widget? below;
 
-  /// Accent-washed variant for hero surfaces (e.g. KDS station header).
+  /// Kept for callers; the v2 header has one look. Ignored.
   final bool tinted;
+
+  /// Pads the status-bar inset — only for a route with no top bar above it.
+  final bool safeTop;
+
+  /// What the back tile does, for a screen reader.
+  final String? backLabel;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final topInset = MediaQuery.viewPaddingOf(context).top;
-    return Container(
-      padding: EdgeInsetsDirectional.only(
-        top: topInset,
-        start: Space.lg,
-        end: Space.lg,
-      ),
-      decoration: BoxDecoration(
-        color: tinted ? colors.accentBg : colors.surface,
-        border: Border(bottom: BorderSide(color: colors.borderLight)),
-      ),
+    final topInset = safeTop ? MediaQuery.viewPaddingOf(context).top : 0.0;
+    return Padding(
+      padding: EdgeInsetsDirectional.only(top: topInset),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            height: _headerHeight,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: Metrics.headerHeight),
             child: Row(
+              spacing: Space.lg,
               children: [
-                if (onBack != null) ...[
-                  TactileScale(
-                    onTap: onBack,
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(Radii.sm),
-                      ),
-                      child: MadarIcon(
-                        'chevron.backward',
-                        tint: colors.textPrimary,
-                        size: IconSize.lg,
-                      ),
-                    ),
+                if (onBack != null)
+                  MadarGlyphTile(
+                    glyph: MadarGlyph.chevronBack,
+                    onTap: onBack!,
+                    semanticLabel: backLabel,
                   ),
-                  const SizedBox(width: Space.md),
-                ],
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -106,33 +82,32 @@ class MadarHeader extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: MadarType.h3.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: colors.textPrimary,
-                        ),
+                        style: MadarType.h1.copyWith(color: colors.textPrimary),
                       ),
                       if (subtitle != null)
-                        Text(
-                          subtitle!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: MadarType.labelSm.copyWith(
-                            color: colors.textMuted,
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            top: Space.xs,
+                          ),
+                          child: Text(
+                            subtitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: MadarType.bodySm.copyWith(
+                              color: colors.textSecondary,
+                            ),
                           ),
                         ),
                     ],
                   ),
                 ),
-                for (final action in actions) ...[
-                  const SizedBox(width: Space.sm),
-                  action,
-                ],
+                ...actions,
               ],
             ),
           ),
           if (below != null)
             Padding(
-              padding: const EdgeInsetsDirectional.only(bottom: Space.md),
+              padding: const EdgeInsetsDirectional.only(top: Space.md),
               child: below,
             ),
         ],
@@ -141,41 +116,34 @@ class MadarHeader extends StatelessWidget {
   }
 }
 
-/// A round header action tile — pair with [MadarHeader.actions] so every
-/// screen's trailing affordances share one look.
+/// A header action — a 44 glyph tile. Pair with [MadarHeader.actions] so
+/// every screen's trailing affordances share one look.
 class MadarHeaderAction extends StatelessWidget {
   const MadarHeaderAction({
-    required this.icon,
     required this.onTap,
     super.key,
+    this.glyph,
+    this.icon,
     this.tint,
     this.tooltip,
-  });
+  }) : assert(glyph != null || icon != null, 'an action needs a glyph');
 
-  final String icon;
+  final MadarGlyph? glyph;
+
+  /// Legacy SF-Symbol name. Prefer [glyph].
+  final String? icon;
   final VoidCallback onTap;
   final Color? tint;
   final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final tile = TactileScale(
+    final tile = MadarGlyphTile(
+      glyph: glyph,
+      icon: icon,
       onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(Radii.sm),
-        ),
-        child: MadarIcon(
-          icon,
-          tint: tint ?? colors.textSecondary,
-          size: IconSize.lg,
-        ),
-      ),
+      tint: tint,
+      semanticLabel: tooltip,
     );
     final tip = tooltip;
     if (tip == null) return tile;

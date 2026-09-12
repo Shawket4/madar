@@ -15,8 +15,27 @@ use serde::{Deserialize, Serialize};
 pub struct CashMovementSummaryRow {
     #[serde(rename = "amount")]
     pub amount: i32,
+    #[serde(
+        rename = "corrects_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub corrects_id: Option<Option<uuid::Uuid>>,
+    /// The kind of the movement `corrects_id` points at, so a printed report can say \"correction of pay-out\" and the totals can net the pair inside the bucket the mistake was made in.
+    #[serde(
+        rename = "corrects_kind",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub corrects_kind: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(rename = "id")]
+    pub id: uuid::Uuid,
+    #[serde(rename = "kind")]
+    pub kind: String,
     #[serde(rename = "moved_by_name")]
     pub moved_by_name: String,
     #[serde(rename = "note")]
@@ -27,12 +46,18 @@ impl CashMovementSummaryRow {
     pub fn new(
         amount: i32,
         created_at: chrono::DateTime<chrono::FixedOffset>,
+        id: uuid::Uuid,
+        kind: String,
         moved_by_name: String,
         note: String,
     ) -> CashMovementSummaryRow {
         CashMovementSummaryRow {
             amount,
+            corrects_id: None,
+            corrects_kind: None,
             created_at,
+            id,
+            kind,
             moved_by_name,
             note,
         }

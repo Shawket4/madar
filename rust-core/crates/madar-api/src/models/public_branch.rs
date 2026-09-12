@@ -38,6 +38,9 @@ pub struct PublicBranch {
     pub pickup_enabled: bool,
     #[serde(rename = "pickup_open_now")]
     pub pickup_open_now: bool,
+    /// The tax this branch prices online orders under. The storefront renders a tax line from it (exclusive) or an \"includes VAT\" note (inclusive) — the same policy intake will freeze onto the order.
+    #[serde(rename = "tax_policy")]
+    pub tax_policy: Box<models::OnlineTaxPolicy>,
     #[serde(rename = "umbrella_enabled")]
     pub umbrella_enabled: bool,
     #[serde(rename = "umbrella_open_now")]
@@ -57,6 +60,7 @@ impl PublicBranch {
         outside_open_now: bool,
         pickup_enabled: bool,
         pickup_open_now: bool,
+        tax_policy: models::OnlineTaxPolicy,
         umbrella_enabled: bool,
         umbrella_open_now: bool,
     ) -> PublicBranch {
@@ -72,6 +76,7 @@ impl PublicBranch {
             outside_open_now,
             pickup_enabled,
             pickup_open_now,
+            tax_policy: Box::new(tax_policy),
             umbrella_enabled,
             umbrella_open_now,
         }

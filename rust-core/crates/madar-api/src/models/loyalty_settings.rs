@@ -13,6 +13,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoyaltySettings {
+    /// When a void or refund claws back points the member has already spent, may the balance go below zero?  Off (the default) clamps at zero: the shop eats the reward that was already handed over, and the earn stays visibly part-reversed on the ledger against an order that says `voided`, so a report can list who benefited and by how much. On, the balance goes negative and the next visits earn into the hole — the books balance, and the customer sees a minus on their card for what was nearly always the shop's own mistake.  Clawbacks ONLY. A redemption or a manual deduction can never overdraw whatever this says: you cannot spend what you do not have; you can only owe because a sale you were paid for was undone. Enforced in the database (`loyalty_apply_txn`), not here.
+    #[serde(
+        rename = "allow_negative_balance",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub allow_negative_balance: Option<bool>,
     /// The ceiling, when `balance_cap_enabled`. `None` = derive it.  A `None` here is NOT \"no cap\" — that is what the switch is for. It means the most expensive reward on offer at this scope, read from the catalogue at award time. Once a customer can claim anything in the programme, collecting more buys them nothing and leaves the shop carrying a liability it never chose; and because it is derived, adding a dearer reward raises the ceiling without anyone retyping it.  Earning at the cap is DROPPED, not refused: the sale is not the customer's doing and must not fail because their card is full.
     #[serde(
         rename = "balance_cap",
@@ -163,6 +169,7 @@ impl LoyaltySettings {
         require_otp: bool,
     ) -> LoyaltySettings {
         LoyaltySettings {
+            allow_negative_balance: None,
             balance_cap: None,
             balance_cap_enabled: None,
             birthday_enabled: None,

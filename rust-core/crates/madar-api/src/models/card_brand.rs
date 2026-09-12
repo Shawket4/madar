@@ -67,11 +67,19 @@ pub struct CardBrand {
         skip_serializing_if = "Option::is_none"
     )]
     pub program_name_ar: Option<Option<String>>,
+    /// Where else to find the shop, in the order a card prints them. Empty is the common case, and the page draws nothing for it — no row, no placeholder.  NOT gated on the branding tier, like `OrgBrand::social_links` it is read from: a shop's Instagram is a fact about the shop in the way its name is, so a Madar-coloured card carries the links too.
+    #[serde(rename = "social_links")]
+    pub social_links: Vec<models::PublicSocialLink>,
 }
 
 impl CardBrand {
     /// How a tenant's card should look.  Every field is optional and the site falls back to Madar's own palette, so a tenant who has set nothing still gets a finished card rather than an unstyled one. `org_name` is NOT optional: whose card this is must always be on it, however little else has been configured.
-    pub fn new(logo_is_mark: bool, org_name: String, program_name: String) -> CardBrand {
+    pub fn new(
+        logo_is_mark: bool,
+        org_name: String,
+        program_name: String,
+        social_links: Vec<models::PublicSocialLink>,
+    ) -> CardBrand {
         CardBrand {
             background_color: None,
             card_image_url: None,
@@ -82,6 +90,7 @@ impl CardBrand {
             org_name,
             program_name,
             program_name_ar: None,
+            social_links,
         }
     }
 }

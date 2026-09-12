@@ -20,7 +20,15 @@ pub struct SettleOpenTicketRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub amount_tendered: Option<Option<i32>>,
-    /// Settle-time overrides (else the ticket's own discount / no tip).
+    /// What the till handed back. Recorded as the drawer saw it, like a counter sale's; absent, it is derived from `amount_tendered` and the server's total.
+    #[serde(
+        rename = "change_given",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub change_given: Option<Option<i32>>,
+    /// Settle-time discount. ABSENT (all three fields) means the waiter's ticket discount is inherited, as it always was — but the till can now see that discount on the ticket view. The literal `discount_type: \"none\"` settles with no discount at all; any other value (or a `discount_id`) replaces the waiter's.
     #[serde(
         rename = "discount_id",
         default,
@@ -58,6 +66,22 @@ pub struct SettleOpenTicketRequest {
     pub loyalty_redemptions: Option<Vec<models::LoyaltyRedemptionInput>>,
     #[serde(rename = "payment_method")]
     pub payment_method: String,
+    /// Split tenders, when the party paid with more than one. Carried to the order's payment legs like a counter sale's; they must sum to the total.
+    #[serde(
+        rename = "payment_splits",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub payment_splits: Option<Option<Vec<models::PaymentSplitInput>>>,
+    /// When the bill was paid, as the till says. An offline settle replayed later keeps its real time — it becomes the order's `created_at` and the ticket's `settled_at`, one instant on both rows. Absent means now; a future clock is refused.
+    #[serde(
+        rename = "settled_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub settled_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
     #[serde(
@@ -74,21 +98,33 @@ pub struct SettleOpenTicketRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub tip_payment_method: Option<Option<String>>,
+    /// What the till says the bill came to — the figure its drawer collected. Checked against the server's own total exactly as a counter checkout is (`create_order_inner`'s drift check); a disagreement is refused, not recorded. Absent on older builds, which then get no check. The figure to send is `OpenTicketView::bill.total`, which is priced by the same engine under the same policy — a till that shows that number cannot disagree with the books.
+    #[serde(
+        rename = "total_amount",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub total_amount: Option<Option<i32>>,
 }
 
 impl SettleOpenTicketRequest {
     pub fn new(payment_method: String, shift_id: uuid::Uuid) -> SettleOpenTicketRequest {
         SettleOpenTicketRequest {
             amount_tendered: None,
+            change_given: None,
             discount_id: None,
             discount_type: None,
             discount_value: None,
             loyalty_customer_id: None,
             loyalty_redemptions: None,
             payment_method,
+            payment_splits: None,
+            settled_at: None,
             shift_id,
             tip_amount: None,
             tip_payment_method: None,
+            total_amount: None,
         }
     }
 }

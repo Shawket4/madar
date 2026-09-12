@@ -13,13 +13,24 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ShiftReportResponse {
+    /// Signed sum of corrections that reverse nothing on record (a miscounted float). Kept apart so a fix-up is never mistaken for a receipt or a cost.
+    #[serde(rename = "cash_adjustments")]
+    pub cash_adjustments: i64,
+    /// Cash tenders and cash tips on this shift's sales that were later FULLY refunded. `payment_summary` and `cash_tips` leave those sales out (they are revenue figures and match the sales report), but the notes did go into the drawer, so `expected_cash` counts them. Reported so the sheet adds up: `expected_cash = opening_cash + cash bucket + cash_tips + cash_in_refunded_sales + cash_movements_net − refunds_issued_cash`.
+    #[serde(
+        rename = "cash_in_refunded_sales",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cash_in_refunded_sales: Option<i64>,
     #[serde(rename = "cash_movements")]
     pub cash_movements: Vec<models::CashMovementSummaryRow>,
+    /// Non-sale cash placed in the drawer (`pay_in`), net of any correction that reversed one. Positive.
     #[serde(rename = "cash_movements_in")]
     pub cash_movements_in: i64,
-    /// Net of all cash movements (in - out) as a signed integer
+    /// Signed net effect of EVERY movement on the drawer — the figure `compute_system_cash` adds to the float and the cash sales: `in − out − safe_drops + cash_adjustments`.
     #[serde(rename = "cash_movements_net")]
     pub cash_movements_net: i64,
+    /// What the shift SPENT (`pay_out`), net of corrections. Positive. A safe drop is NOT in here — that money left the drawer but not the shop.
     #[serde(rename = "cash_movements_out")]
     pub cash_movements_out: i64,
     /// The cash slice of `total_tips` (snapshotted `tip_is_cash`). This IS in the drawer, so it is counted by `expected_cash` even though it is not part of `net_payments`.
@@ -38,8 +49,43 @@ pub struct ShiftReportResponse {
     pub payment_summary: Vec<models::PaymentSummaryRow>,
     #[serde(rename = "printed_at")]
     pub printed_at: chrono::DateTime<chrono::FixedOffset>,
+    #[serde(
+        rename = "refunds_issued_amount",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub refunds_issued_amount: Option<i64>,
+    #[serde(
+        rename = "refunds_issued_cash",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub refunds_issued_cash: Option<i64>,
+    /// Refunds ISSUED FROM THIS DRAWER — keyed on `order_refunds.shift_id`, which need not be the shift that made the sale. Money OUT; the Z-report's returns line. `refunds_issued_cash` is what `compute_system_cash` subtracts.
+    #[serde(
+        rename = "refunds_issued_count",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub refunds_issued_count: Option<i64>,
+    /// Cash moved from the drawer to the safe (`safe_drop`), net of corrections. Positive. Out of the drawer, still the shop's.
+    #[serde(rename = "safe_drops")]
+    pub safe_drops: i64,
     #[serde(rename = "shift")]
     pub shift: Box<models::Shift>,
+    /// The till's standard float, when the shop has set one: what should stay in the drawer at close. `None` means \"not decided\" — propose nothing.
+    #[serde(
+        rename = "standard_float",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub standard_float: Option<Option<i64>>,
+    /// For an OPEN shift on a till with a standard float: how much of `expected_cash` to drop into the safe so the drawer closes at the float. Never negative — a drawer under its float has nothing to drop. `None` when the shift is closed or the till has no float.
+    #[serde(
+        rename = "suggested_safe_drop",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub suggested_safe_drop: Option<Option<i64>>,
     #[serde(rename = "total_payments")]
     pub total_payments: i64,
     /// Tips, as a standalone figure — never folded into a method bucket, and never part of `total_payments`/`net_payments`. Mirrors `total_tips` on the sales reports so the two screens agree on what \"revenue\" means.
@@ -51,6 +97,7 @@ pub struct ShiftReportResponse {
 
 impl ShiftReportResponse {
     pub fn new(
+        cash_adjustments: i64,
         cash_movements: Vec<models::CashMovementSummaryRow>,
         cash_movements_in: i64,
         cash_movements_net: i64,
@@ -61,12 +108,15 @@ impl ShiftReportResponse {
         non_cash_tips: i64,
         payment_summary: Vec<models::PaymentSummaryRow>,
         printed_at: chrono::DateTime<chrono::FixedOffset>,
+        safe_drops: i64,
         shift: models::Shift,
         total_payments: i64,
         total_tips: i64,
         voided_amount: i64,
     ) -> ShiftReportResponse {
         ShiftReportResponse {
+            cash_adjustments,
+            cash_in_refunded_sales: None,
             cash_movements,
             cash_movements_in,
             cash_movements_net,
@@ -77,7 +127,13 @@ impl ShiftReportResponse {
             non_cash_tips,
             payment_summary,
             printed_at,
+            refunds_issued_amount: None,
+            refunds_issued_cash: None,
+            refunds_issued_count: None,
+            safe_drops,
             shift: Box::new(shift),
+            standard_float: None,
+            suggested_safe_drop: None,
             total_payments,
             total_tips,
             voided_amount,

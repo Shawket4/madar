@@ -34,6 +34,14 @@ pub struct UpdateTillRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<Option<String>>,
+    /// Standard float in minor units. Absent → unchanged; `null` → cleared (the shop no longer proposes a closing figure); a value → set. Same `Option<Option<T>>` shape as the branch printer fields.
+    #[serde(
+        rename = "standard_float",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub standard_float: Option<Option<i32>>,
 }
 
 impl UpdateTillRequest {
@@ -42,6 +50,7 @@ impl UpdateTillRequest {
             is_active: None,
             is_default: None,
             name: None,
+            standard_float: None,
         }
     }
 }

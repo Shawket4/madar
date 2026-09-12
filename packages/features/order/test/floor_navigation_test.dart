@@ -89,7 +89,9 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('tables.title'), findsOneWidget);
     expect(
-      find.byIcon(madarIconCatalog['chevron.backward']!),
+      find.byWidgetPredicate(
+        (w) => w is MadarGlyphTile && w.glyph == MadarGlyph.chevronBack,
+      ),
       findsNothing,
       reason: 'home has nothing to go back to',
     );
@@ -137,7 +139,11 @@ void main() {
 
     // Pushed from somewhere, so leaving has a destination — and actually goes
     // there. This is the half the home floor deliberately lacks.
-    await tester.tap(find.byIcon(madarIconCatalog['chevron.backward']!));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is MadarGlyphTile && w.glyph == MadarGlyph.chevronBack,
+      ),
+    );
     await tester.pumpAndSettle();
     expect(
       find.text('open'),

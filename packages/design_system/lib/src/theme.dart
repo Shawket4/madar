@@ -15,13 +15,14 @@ abstract final class MadarTheme {
       brightness: brightness,
       primary: c.accent,
       onPrimary: c.textOnAccent,
-      secondary: c.navy,
-      onSecondary: c.textOnAccent,
+      secondary: c.chromeAlt,
+      onSecondary: c.onChrome,
       error: c.danger,
       onError: c.textOnAccent,
       surface: c.surface,
       onSurface: c.textPrimary,
       outline: c.border,
+      outlineVariant: c.borderLight,
       surfaceContainerHighest: c.surfaceAlt,
     );
     return ThemeData(
@@ -39,8 +40,9 @@ abstract final class MadarTheme {
             displayColor: c.textPrimary,
           ),
       scaffoldBackgroundColor: c.bg,
-      dividerColor: c.border,
-      splashFactory: InkSparkle.splashFactory,
+      dividerColor: c.borderLight,
+      // A flat system: a plain ripple, not the sparkle.
+      splashFactory: InkRipple.splashFactory,
       extensions: [c],
     );
   }

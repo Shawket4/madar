@@ -28,6 +28,9 @@ Name | Type | Description | Notes
 **rejected_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **status** | **String** |  | 
 **subtotal** | **i32** |  | 
+**tax_amount** | **i32** | The tax line, frozen at intake. Inside `total` when `tax_inclusive` (render \"includes VAT\"), added to it otherwise (render a tax line). | 
+**tax_inclusive** | **bool** |  | 
+**tax_rate_applied** | **f64** |  | 
 **total** | **i32** |  | 
 **unit_number** | Option<**String**> |  | [optional]
 

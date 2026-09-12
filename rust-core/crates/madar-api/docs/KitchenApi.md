@@ -9,7 +9,7 @@ Method | HTTP request | Description
 [**delete_category_route**](KitchenApi.md#delete_category_route) | **DELETE** /kitchen/routes/category | 
 [**delete_item_route**](KitchenApi.md#delete_item_route) | **DELETE** /kitchen/routes/item | 
 [**delete_station**](KitchenApi.md#delete_station) | **DELETE** /kitchen/stations/{id} | 
-[**feed**](KitchenApi.md#feed) | **GET** /kitchen/orders | Outstanding kitchen tickets for a branch (those with at least one un-bumped, un-voided line — for the given station if provided), oldest first. Seed for the KDS; live updates arrive on `/realtime/stream?topics=kitchen`.
+[**feed**](KitchenApi.md#feed) | **GET** /kitchen/orders | The branch's LIVE kitchen tickets — not closed, oldest first — optionally narrowed to those with un-bumped work for one station. Seed for the KDS; live updates arrive on `/realtime/stream?topics=kitchen`.
 [**get_routing_mode**](KitchenApi.md#get_routing_mode) | **GET** /kitchen/routing-mode | 
 [**list_routes**](KitchenApi.md#list_routes) | **GET** /kitchen/routes | 
 [**list_stations**](KitchenApi.md#list_stations) | **GET** /kitchen/stations | 
@@ -166,7 +166,9 @@ Name | Type | Description  | Required | Notes
 ## feed
 
 > Vec<models::KitchenTicketView> feed(branch_id, station_id)
-Outstanding kitchen tickets for a branch (those with at least one un-bumped, un-voided line — for the given station if provided), oldest first. Seed for the KDS; live updates arrive on `/realtime/stream?topics=kitchen`.
+The branch's LIVE kitchen tickets — not closed, oldest first — optionally narrowed to those with un-bumped work for one station. Seed for the KDS; live updates arrive on `/realtime/stream?topics=kitchen`.
+
+\"Live\" is `closed_at IS NULL`, not \"has an un-bumped line\": a ticket at a branch that never bumps stays on the till queue until its bill settles or the shift closes, and a ticket the kitchen finished is closed `bumped` the moment its last line is.
 
 ### Parameters
 

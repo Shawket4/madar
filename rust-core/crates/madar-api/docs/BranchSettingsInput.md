@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**auto_reject_minutes** | Option<**i32**> | Minutes before an unaccepted order is rejected automatically. `null` (and omitted, for older clients) = never. | [optional]
 **branch_id** | **uuid::Uuid** |  | 
 **in_mall_close_time** | Option<**String**> |  | [optional]
 **in_mall_discount_id** | Option<**uuid::Uuid**> | Optional per-channel discount ids (must be active discounts in the caller's org). `null` clears the channel's discount. | [optional]

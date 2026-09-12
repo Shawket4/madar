@@ -107,7 +107,7 @@ pub struct DeliveryOrder {
     pub delivery_zone_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "discount_amount", skip_serializing_if = "Option::is_none")]
     pub discount_amount: Option<i32>,
-    /// Frozen channel discount on the item subtotal (`total == subtotal - discount_amount + delivery_fee`). `discount_amount` is 0 when none.
+    /// Frozen channel discount on the item subtotal. `discount_amount` is 0 when none.
     #[serde(
         rename = "discount_id",
         default,
@@ -124,6 +124,14 @@ pub struct DeliveryOrder {
     pub discount_type: Option<Option<String>>,
     #[serde(rename = "discount_value", skip_serializing_if = "Option::is_none")]
     pub discount_value: Option<f64>,
+    /// How `road_distance_meters` was measured: `osrm` (routed) or `haversine` (straight line — the routing fallback, and always the in-mall walking distance). `None` exactly when no distance was recorded.
+    #[serde(
+        rename = "distance_source",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub distance_source: Option<Option<String>>,
     /// Extra prep minutes the teller added on top of the branch base (multiples of 5).
     #[serde(rename = "extra_prep_minutes")]
     pub extra_prep_minutes: i32,
@@ -161,6 +169,15 @@ pub struct DeliveryOrder {
         skip_serializing_if = "Option::is_none"
     )]
     pub out_for_delivery_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// What was actually taken at the door. Set at finalize and only then; `Some` exactly when the order is `delivered`.
+    #[serde(
+        rename = "payment_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub payment_method: Option<Option<String>>,
+    /// What the customer SAID they would pay with, at checkout. Display only.
     #[serde(
         rename = "payment_method_hint",
         default,
@@ -210,10 +227,31 @@ pub struct DeliveryOrder {
         skip_serializing_if = "Option::is_none"
     )]
     pub road_distance_meters: Option<Option<i32>>,
+    /// Always 0: the service charge is dine-in only. Present so the till can render the same breakdown for every kind of sale.
+    #[serde(
+        rename = "service_charge_amount",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_amount: Option<i32>,
+    #[serde(
+        rename = "service_charge_rate_applied",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_rate_applied: Option<f64>,
     #[serde(rename = "status")]
     pub status: String,
     #[serde(rename = "subtotal")]
     pub subtotal: i32,
+    /// The tax as priced at intake, under the policy frozen beside it. Inside `total` when `tax_inclusive`, added to it otherwise. Finalize does not re-price: a rate the shop changes between the quote and the door does not move a bill the customer already agreed.
+    #[serde(rename = "tax_amount", skip_serializing_if = "Option::is_none")]
+    pub tax_amount: Option<i32>,
+    /// Copy of the ONE inclusivity flag (org, branch override) as it stood at intake — not a setting of its own.
+    #[serde(rename = "tax_inclusive", skip_serializing_if = "Option::is_none")]
+    pub tax_inclusive: Option<bool>,
+    /// Fraction, not a percentage: `0.14` is 14%.
+    #[serde(rename = "tax_rate_applied", skip_serializing_if = "Option::is_none")]
+    pub tax_rate_applied: Option<f64>,
+    /// The quote: `subtotal - discount_amount + delivery_fee`, plus `tax_amount` when the tax is exclusive. Replayed verbatim at finalize.
     #[serde(rename = "total")]
     pub total: i32,
     #[serde(
@@ -268,6 +306,7 @@ impl DeliveryOrder {
             discount_id: None,
             discount_type: None,
             discount_value: None,
+            distance_source: None,
             extra_prep_minutes,
             floor: None,
             id,
@@ -276,6 +315,7 @@ impl DeliveryOrder {
             org_id,
             otp_verified,
             out_for_delivery_at: None,
+            payment_method: None,
             payment_method_hint: None,
             place_name: None,
             preparing_at: None,
@@ -283,8 +323,13 @@ impl DeliveryOrder {
             receipt_printed_at: None,
             rejected_at: None,
             road_distance_meters: None,
+            service_charge_amount: None,
+            service_charge_rate_applied: None,
             status,
             subtotal,
+            tax_amount: None,
+            tax_inclusive: None,
+            tax_rate_applied: None,
             total,
             unit_number: None,
             updated_at,

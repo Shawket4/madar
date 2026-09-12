@@ -10,6 +10,7 @@ Name | Type | Description | Notes
 **from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **total_delivery_fees** | **i64** |  | 
+**total_goods_revenue** | Option<**i64**> | `total_revenue − total_delivery_fees`. | [optional]
 **total_orders** | **i64** |  | 
 **total_revenue** | **i64** |  | 
 

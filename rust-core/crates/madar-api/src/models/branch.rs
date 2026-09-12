@@ -98,6 +98,14 @@ pub struct Branch {
         skip_serializing_if = "Option::is_none"
     )]
     pub printer_port: Option<Option<i32>>,
+    /// Whether every dine-in sale here must belong to a table. Same shape as the tax overrides: `null` inherits the organisation, which is not the same as `false`. An explicit `false` lets a counter with two stools by the window keep ringing walk-ups while the org's dining rooms seat everyone; an explicit `true` does the reverse. This is the OVERRIDE — the resolved answer is `branches::policy::require_table_for_orders`.
+    #[serde(
+        rename = "require_table_for_orders",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub require_table_for_orders: Option<Option<bool>>,
     #[serde(
         rename = "service_charge_rate",
         default,
@@ -160,6 +168,7 @@ impl Branch {
             printer_brand: None,
             printer_ip: None,
             printer_port: None,
+            require_table_for_orders: None,
             service_charge_rate: None,
             service_charge_taxable: None,
             tax_inclusive: None,

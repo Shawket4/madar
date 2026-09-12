@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **org_name** | **String** | The organisation's name. Always present. | 
 **program_name** | **String** | What the programme calls itself (\"Rewards\", \"Bean Club\"). | 
 **program_name_ar** | Option<**String**> |  | [optional]
+**social_links** | [**Vec<models::PublicSocialLink>**](PublicSocialLink.md) | Where else to find the shop, in the order a card prints them. Empty is the common case, and the page draws nothing for it — no row, no placeholder.  NOT gated on the branding tier, like `OrgBrand::social_links` it is read from: a shop's Instagram is a fact about the shop in the way its name is, so a Madar-coloured card carries the links too. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

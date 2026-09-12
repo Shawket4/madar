@@ -11,19 +11,31 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// VoidOpenTicketRequest : Why a bill is torn up. `reason` is typed; `note` is what actually happened, required when the reason is `other`.  Deserialised leniently, because a void queued offline by an older till arrives here months later with the picker's LABEL (`\"Order mistake\"`, or `\"Order mistake — burnt\"`) where the enum now is, and a queued op that fails to parse dead-letters. Those spellings map exactly as migration `20260912020000` mapped the stored rows; an unrecognised string is `other` with the whole text as the note, so nothing the waiter wrote is lost.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct VoidOpenTicketRequest {
+    #[serde(
+        rename = "note",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub note: Option<Option<String>>,
     #[serde(
         rename = "reason",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub reason: Option<Option<String>>,
+    pub reason: Option<Option<models::VoidReason>>,
 }
 
 impl VoidOpenTicketRequest {
+    /// Why a bill is torn up. `reason` is typed; `note` is what actually happened, required when the reason is `other`.  Deserialised leniently, because a void queued offline by an older till arrives here months later with the picker's LABEL (`\"Order mistake\"`, or `\"Order mistake — burnt\"`) where the enum now is, and a queued op that fails to parse dead-letters. Those spellings map exactly as migration `20260912020000` mapped the stored rows; an unrecognised string is `other` with the whole text as the note, so nothing the waiter wrote is lost.
     pub fn new() -> VoidOpenTicketRequest {
-        VoidOpenTicketRequest { reason: None }
+        VoidOpenTicketRequest {
+            note: None,
+            reason: None,
+        }
     }
 }

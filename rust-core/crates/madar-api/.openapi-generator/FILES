@@ -74,6 +74,7 @@ docs/CardPreferences.md
 docs/CardView.md
 docs/CartLineInput.md
 docs/CashMovement.md
+docs/CashMovementKind.md
 docs/CashMovementRequest.md
 docs/CashMovementSummaryRow.md
 docs/CatalogSyncResponse.md
@@ -138,6 +139,7 @@ docs/CreateOrderRequest.md
 docs/CreatePaymentMethodRequest.md
 docs/CreatePeriodRequest.md
 docs/CreatePurchaseOrderRequest.md
+docs/CreateRefundRequest.md
 docs/CreateReturnRequest.md
 docs/CreateSectionRequest.md
 docs/CreateStaffRequest.md
@@ -263,6 +265,7 @@ docs/OfflineAuthBundle.md
 docs/OfflineTellerCredential.md
 docs/OnboardingStatus.md
 docs/OnboardingStep.md
+docs/OnlineTaxPolicy.md
 docs/OpenShiftRequest.md
 docs/OpenTicketItemView.md
 docs/OpenTicketView.md
@@ -283,6 +286,7 @@ docs/OrderItemFull.md
 docs/OrderItemInput.md
 docs/OrderItemOptional.md
 docs/OrderPayment.md
+docs/OrderRefunds.md
 docs/OrderSummary.md
 docs/OrdersApi.md
 docs/Org.md
@@ -343,6 +347,7 @@ docs/PublicBrand.md
 docs/PublicReward.md
 docs/PublicSlot.md
 docs/PublicSlots.md
+docs/PublicSocialLink.md
 docs/PurchaseOrder.md
 docs/PurchaseOrderFull.md
 docs/PurchaseOrderLine.md
@@ -373,6 +378,14 @@ docs/RecipeStep.md
 docs/RecipeStepInput.md
 docs/RecipeStepPreset.md
 docs/RecipesApi.md
+docs/Refund.md
+docs/RefundFull.md
+docs/RefundIssued.md
+docs/RefundLine.md
+docs/RefundLineInput.md
+docs/RefundReason.md
+docs/RefundTotals.md
+docs/RefundsApi.md
 docs/RegistryInfo.md
 docs/ReleaseTableRequest.md
 docs/RenameConversationRequest.md
@@ -406,6 +419,7 @@ docs/SetRoutingModeRequest.md
 docs/SettleOpenTicketRequest.md
 docs/Shift.md
 docs/ShiftPreFill.md
+docs/ShiftRefunds.md
 docs/ShiftReportResponse.md
 docs/ShiftSummary.md
 docs/ShiftsApi.md
@@ -445,6 +459,7 @@ docs/TablePosition.md
 docs/TaxPolicyPublic.md
 docs/TeamPresence.md
 docs/TellerStats.md
+docs/TicketBill.md
 docs/Till.md
 docs/TillsApi.md
 docs/TimeseriesPoint.md
@@ -497,6 +512,7 @@ docs/VarianceRow.md
 docs/Viz.md
 docs/VoidOpenTicketRequest.md
 docs/VoidOrderRequest.md
+docs/VoidReason.md
 docs/WaiterStats.md
 docs/WaiterStatsReport.md
 docs/WaiveDeductionRequest.md
@@ -544,6 +560,7 @@ src/apis/purchasing_api.rs
 src/apis/qr_api.rs
 src/apis/realtime_api.rs
 src/apis/recipes_api.rs
+src/apis/refunds_api.rs
 src/apis/reports_api.rs
 src/apis/reservations_api.rs
 src/apis/shifts_api.rs
@@ -619,6 +636,7 @@ src/models/card_preferences.rs
 src/models/card_view.rs
 src/models/cart_line_input.rs
 src/models/cash_movement.rs
+src/models/cash_movement_kind.rs
 src/models/cash_movement_request.rs
 src/models/cash_movement_summary_row.rs
 src/models/catalog_sync_response.rs
@@ -682,6 +700,7 @@ src/models/create_order_request.rs
 src/models/create_payment_method_request.rs
 src/models/create_period_request.rs
 src/models/create_purchase_order_request.rs
+src/models/create_refund_request.rs
 src/models/create_return_request.rs
 src/models/create_section_request.rs
 src/models/create_staff_request.rs
@@ -795,6 +814,7 @@ src/models/offline_auth_bundle.rs
 src/models/offline_teller_credential.rs
 src/models/onboarding_status.rs
 src/models/onboarding_step.rs
+src/models/online_tax_policy.rs
 src/models/open_shift_request.rs
 src/models/open_ticket_item_view.rs
 src/models/open_ticket_view.rs
@@ -814,6 +834,7 @@ src/models/order_item_full.rs
 src/models/order_item_input.rs
 src/models/order_item_optional.rs
 src/models/order_payment.rs
+src/models/order_refunds.rs
 src/models/order_summary.rs
 src/models/org.rs
 src/models/org_comparison_report.rs
@@ -870,6 +891,7 @@ src/models/public_brand.rs
 src/models/public_reward.rs
 src/models/public_slot.rs
 src/models/public_slots.rs
+src/models/public_social_link.rs
 src/models/purchase_order.rs
 src/models/purchase_order_full.rs
 src/models/purchase_order_line.rs
@@ -896,6 +918,13 @@ src/models/recipe_line_out.rs
 src/models/recipe_step.rs
 src/models/recipe_step_input.rs
 src/models/recipe_step_preset.rs
+src/models/refund.rs
+src/models/refund_full.rs
+src/models/refund_issued.rs
+src/models/refund_line.rs
+src/models/refund_line_input.rs
+src/models/refund_reason.rs
+src/models/refund_totals.rs
 src/models/registry_info.rs
 src/models/release_table_request.rs
 src/models/rename_conversation_request.rs
@@ -927,6 +956,7 @@ src/models/set_routing_mode_request.rs
 src/models/settle_open_ticket_request.rs
 src/models/shift.rs
 src/models/shift_pre_fill.rs
+src/models/shift_refunds.rs
 src/models/shift_report_response.rs
 src/models/shift_summary.rs
 src/models/shrinkage_row.rs
@@ -963,6 +993,7 @@ src/models/table_position.rs
 src/models/tax_policy_public.rs
 src/models/team_presence.rs
 src/models/teller_stats.rs
+src/models/ticket_bill.rs
 src/models/till.rs
 src/models/timeseries_point.rs
 src/models/top_per.rs
@@ -1012,6 +1043,7 @@ src/models/variance_row.rs
 src/models/viz.rs
 src/models/void_open_ticket_request.rs
 src/models/void_order_request.rs
+src/models/void_reason.rs
 src/models/waiter_stats.rs
 src/models/waiter_stats_report.rs
 src/models/waive_deduction_request.rs

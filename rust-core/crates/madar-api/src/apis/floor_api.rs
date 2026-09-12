@@ -95,7 +95,7 @@ pub enum SwapTablesError {
     UnknownValue(serde_json::Value),
 }
 
-/// The ONE human act the derived-status model needs. Everything else about a table's status follows from the ticket on it: seated when one lands, free when nobody vacated, dirty after a checkout. But no server can see that the plates have been cleared, so a person says so.  Deliberately not a set-status endpoint. Its predecessor took any status and wrote it with no lock and no occupancy check, so it could declare a table free while a ticket was open on it. This performs exactly one transition, `dirty` -> `free`, and refuses anything else.
+/// The ONE human act the ledger cannot derive. Everything else about a table's status follows from its rows: seated while one is live, dirty after a checkout ended it. But no server can see that the plates have been cleared, so a person says so, and the row records who.  Deliberately not a set-status endpoint. Its predecessor took any status and wrote it with no lock and no occupancy check, so it could declare a table free while a ticket was open on it. This performs exactly one transition, `dirty` -> `free`, and refuses anything else.
 pub async fn clear_table(
     configuration: &configuration::Configuration,
     params: ClearTableParams,
@@ -135,7 +135,7 @@ pub async fn clear_table(
     }
 }
 
-/// Occupancy travels on its own here, carrying nothing about why. Two things use it:    * A PARTY SITTING DOWN. They have ordered nothing yet, so there is no     bill — a ticket starts with their first round and claims this table on     the way in. Seating used to open an empty ticket instead, which put a     zero-value bill in every report and made a party who changed their mind     and left something you had to VOID.   * A PARKED CART. Device-local by design: the order, its lines and its     money never leave the till. But the table is not the till's private     business, and while it stayed local the dashboard's floor and every     other terminal were told a table with somebody's order waiting on it was     free.  In both cases the server learns that the table is taken and nothing whatever about what is on it.  Like `clear_table`, and for the reason written there, this is not a set-status endpoint: exactly one transition, `free` -> `seated`, refused from anything else. A table a ticket is already on stays the ticket's.
+/// Occupancy travels on its own here, carrying nothing about what is on the table -- but always who took it: the hold is a `party` row in the ledger owned by the hand that placed it, so there is no such thing as a table held by nobody. Two things use it:    * A PARTY SITTING DOWN. They have ordered nothing yet, so there is no     bill — a ticket starts with their first round and claims this table on     the way in. Seating used to open an empty ticket instead, which put a     zero-value bill in every report and made a party who changed their mind     and left something you had to VOID.   * A PARKED CART. Device-local by design: the order, its lines and its     money never leave the till. But the table is not the till's private     business, and while it stayed local the dashboard's floor and every     other terminal were told a table with somebody's order waiting on it was     free.  In both cases the server learns that the table is taken, by whom and from which till, and nothing whatever about what is on it.  Like `clear_table`, and for the reason written there, this is not a set-status endpoint: exactly one transition, `free` -> `seated`, refused from anything else with a `code` the till can act on. A table a ticket is already on stays the ticket's; a table another till holds stays theirs.
 pub async fn hold_table(
     configuration: &configuration::Configuration,
     params: HoldTableParams,
@@ -175,7 +175,7 @@ pub async fn hold_table(
     }
 }
 
-/// The counterpart to `hold_table`: the hold moved to another table, was checked out, or was discarded. Exactly one transition out of `seated` -- to `free`, or to `dirty` when `bus` says the party ate -- and never over a live ticket — if one has landed since, the ticket owns the table and this is a no-op rather than a way to free an occupied table.
+/// The counterpart to `hold_table`: the hold moved to another table, was checked out, or was discarded. Ends the `party` row -- leaving the table `free`, or `dirty` when `bus` says the party ate -- and never touches a ticket's: if one has landed since, the ticket owns the table and this is a no-op rather than a way to free an occupied table.  Not owner-gated on purpose. The draft is device-local and outlives a shift handover, so the teller who checks it out is often not the one who parked it; the ledger records who released it instead of refusing them.
 pub async fn release_table(
     configuration: &configuration::Configuration,
     params: ReleaseTableParams,

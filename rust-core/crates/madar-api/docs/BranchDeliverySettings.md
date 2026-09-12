@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**auto_reject_minutes** | Option<**i32**> | Minutes a `received` order may wait for a teller before the sweeper rejects it and tells the customer. `null` = never: the order waits until someone acts on it. Read at sweep time rather than frozen on the order, so a branch that shortens it means the change to apply to what is already waiting. | [optional]
 **branch_id** | **uuid::Uuid** |  | 
 **in_mall_close_time** | Option<**String**> |  | [optional]
 **in_mall_discount_id** | Option<**uuid::Uuid**> | Optional discount applied to each channel's item subtotal (reuses the org `discounts` table). Frozen onto the order at intake. `null` = none. | [optional]

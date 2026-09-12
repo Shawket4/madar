@@ -7,7 +7,7 @@ Method | HTTP request | Description
 [**booking_availability**](BookingsApi.md#booking_availability) | **GET** /bookings/availability | 
 [**booking_stats**](BookingsApi.md#booking_stats) | **GET** /bookings/stats | 
 [**cancel_booking**](BookingsApi.md#cancel_booking) | **POST** /bookings/{id}/cancel | 
-[**complete_booking**](BookingsApi.md#complete_booking) | **POST** /bookings/{id}/complete | 
+[**complete_booking**](BookingsApi.md#complete_booking) | **POST** /bookings/{id}/complete | `seated` → `completed` by hand. The party is done with the booking; if they never started a bill under it, the hold seating placed is let go of too (a bill, had there been one, would have ended it `seated` already and its settle buses the table). Already `completed` is a clean 200.
 [**create_booking**](BookingsApi.md#create_booking) | **POST** /bookings | 
 [**get_booking**](BookingsApi.md#get_booking) | **GET** /bookings/{id} | 
 [**get_booking_settings**](BookingsApi.md#get_booking_settings) | **GET** /bookings/settings | 
@@ -113,7 +113,7 @@ Name | Type | Description  | Required | Notes
 ## complete_booking
 
 > models::BookingView complete_booking(id)
-
+`seated` → `completed` by hand. The party is done with the booking; if they never started a bill under it, the hold seating placed is let go of too (a bill, had there been one, would have ended it `seated` already and its settle buses the table). Already `completed` is a clean 200.
 
 ### Parameters
 

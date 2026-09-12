@@ -1,10 +1,12 @@
 /// The shift feature's Riverpod spine — one `Notifier` per surface, mirroring
-/// the natives' per-screen state: the open-shift form (prefill + connectivity
-/// heartbeat), the close-shift count (expected drawer + variance), the cash
-/// in/out ledger, the shift-history list (+ per-row report prefetch), and the
-/// Z-report preview sheet (report / orders / print feedback). All bridge calls
-/// go through [bridgeProvider]; any call that can move `app_route()` or the
-/// drawer hands off to [shellProvider]'s `refresh()`.
+/// the natives' per-screen state: the Till home (the drawer's figures and
+/// every drawer at the branch for a manager), the open-shift form (prefill +
+/// connectivity heartbeat), the close-shift count (expected drawer +
+/// variance), the cash in/out ledger, the shift-history list (+ per-row
+/// report prefetch), and the Z-report preview sheet (report / orders / print
+/// feedback). All bridge calls go through [bridgeProvider]; any call that can
+/// move `app_route()` or the drawer hands off to [shellProvider]'s
+/// `refresh()`.
 library;
 
 import 'dart:async';
@@ -22,6 +24,268 @@ const int _printWidth = 32;
 
 /// copyWith sentinel so nullable fields can be cleared explicitly.
 const Object _unset = Object();
+
+/// Roles whose Till sees every drawer at the branch, not just their own.
+/// The wire enum is super_admin | org_admin | branch_manager | teller |
+/// waiter | kitchen; the rule from the design is "manager = not a teller,
+/// waiter or kitchen device", written positively so an unknown future role
+/// is NOT a manager by accident.
+const Set<String> _managerRoles = {
+  'super_admin',
+  'org_admin',
+  'branch_manager',
+};
+
+/// Whether the signed-in person's Till lists every drawer.
+bool isManagerRole(String? role) =>
+    role != null && _managerRoles.contains(role);
+
+/// The name of the till this device is bound to ("Till 1"), or null when the
+/// device is unbound or the catalog mirror has not got the till yet. Tills
+/// are named on the server; the device only holds the id.
+Future<String?> _boundTillName(MadarBridge bridge) async {
+  final tillId = bridge.deviceConfig().tillId;
+  if (tillId == null) return null;
+  try {
+    final tills = await bridge.listTills();
+    for (final till in tills) {
+      if (till.id == tillId) return till.name;
+    }
+  } on Exception catch (_) {}
+  return null;
+}
+
+/// The device's shift: server-fresh when online, the local cache otherwise —
+/// and never let a transient refresh error nuke a good local shift.
+Future<ShiftView?> _deviceShift(MadarBridge bridge) async {
+  if (bridge.currentSession()?.online ?? false) {
+    try {
+      return await bridge.refreshShift();
+    } on Exception catch (_) {}
+  }
+  try {
+    return await bridge.currentShift();
+  } on Exception catch (_) {
+    return null;
+  }
+}
+
+// ─── Till home ───────────────────────────────────────────────────────────────
+
+/// The Till tab's state: the drawer (shift + till name), this shift's
+/// headline figures (sales from the queue-merged orders, cash in till from the
+/// report), the movement ledger, and — for a manager — every drawer at the
+/// branch.
+@immutable
+class TillState {
+  /// Creates the Till state.
+  const TillState({
+    this.loading = true,
+    this.shift,
+    this.tillName,
+    this.report,
+    this.stats,
+    this.queuedOrders = 0,
+    this.movements = const [],
+    this.online = true,
+    this.isManager = false,
+    this.drawers = const [],
+    this.drawerReportLoadingId,
+    this.toast,
+  });
+
+  /// The first load has not resolved the shift yet.
+  final bool loading;
+
+  /// The device's shift — null when no shift is open on this till.
+  final ShiftView? shift;
+
+  /// The bound till's server name ("Till 1"), or null when unbound.
+  final String? tillName;
+
+  /// This shift's report (expected cash, per-method lines); null while it
+  /// loads or when the shift is not open.
+  final ShiftReportView? report;
+
+  /// Sales total + order count over the queue-merged orders (voids
+  /// excluded); null until loaded.
+  final ShiftStatsView? stats;
+
+  /// How many of this shift's orders are still in the outbox.
+  final int queuedOrders;
+
+  /// The open shift's cash movements, newest first.
+  final List<CashMovementView> movements;
+
+  /// The device is online (the honest-figures flag on the stat cards).
+  final bool online;
+
+  /// The signed-in role sees every drawer at the branch.
+  final bool isManager;
+
+  /// Every shift at the branch (managers only): open ones first.
+  final List<ShiftSummaryView> drawers;
+
+  /// The drawer whose report is being fetched (row spinner), or null.
+  final String? drawerReportLoadingId;
+
+  /// The latest failure toast, or null.
+  final ToastData? toast;
+
+  /// A shift is open on this till.
+  bool get hasOpenShift => shift?.isOpen ?? false;
+
+  /// Copies with the given overrides (nullables clear through the sentinel).
+  TillState copyWith({
+    bool? loading,
+    Object? shift = _unset,
+    Object? tillName = _unset,
+    Object? report = _unset,
+    Object? stats = _unset,
+    int? queuedOrders,
+    List<CashMovementView>? movements,
+    bool? online,
+    bool? isManager,
+    List<ShiftSummaryView>? drawers,
+    Object? drawerReportLoadingId = _unset,
+    Object? toast = _unset,
+  }) {
+    return TillState(
+      loading: loading ?? this.loading,
+      shift: shift == _unset ? this.shift : shift as ShiftView?,
+      tillName: tillName == _unset ? this.tillName : tillName as String?,
+      report: report == _unset ? this.report : report as ShiftReportView?,
+      stats: stats == _unset ? this.stats : stats as ShiftStatsView?,
+      queuedOrders: queuedOrders ?? this.queuedOrders,
+      movements: movements ?? this.movements,
+      online: online ?? this.online,
+      isManager: isManager ?? this.isManager,
+      drawers: drawers ?? this.drawers,
+      drawerReportLoadingId: drawerReportLoadingId == _unset
+          ? this.drawerReportLoadingId
+          : drawerReportLoadingId as String?,
+      toast: toast == _unset ? this.toast : toast as ToastData?,
+    );
+  }
+}
+
+/// The Till tab's controller. Loads the drawer on entry and again whenever
+/// the shell's truth moves (a shift opened or closed, a re-login) or the
+/// device's connectivity changes — the figures on this tab are the ones a
+/// teller reconciles against, so they must never be a stale first read.
+class TillNotifier extends Notifier<TillState> {
+  bool _disposed = false;
+  int _toastSeq = 0;
+  late MadarBridge _bridge;
+
+  @override
+  TillState build() {
+    _bridge = ref.read(bridgeProvider);
+    ref
+      ..onDispose(() => _disposed = true)
+      // The shell re-reads route + session after every state-moving bridge
+      // call (open, close, sign-in). Each of those changes what this tab
+      // shows, so it is the one signal to reload on.
+      ..listen(shellProvider, (_, _) => unawaited(refresh()))
+      ..listen(connectivityPulseProvider, (_, _) => unawaited(refresh()));
+    unawaited(Future<void>.microtask(refresh));
+    return TillState(isManager: isManagerRole(_bridge.currentSession()?.role));
+  }
+
+  /// Reload everything the tab shows. The figures load in parallel; each
+  /// degrades on its own so one failing call cannot blank the tab.
+  Future<void> refresh() async {
+    final isManager = isManagerRole(_bridge.currentSession()?.role);
+    final shift = await _deviceShift(_bridge);
+    if (_disposed) return;
+    final open = shift?.isOpen ?? false;
+    final (tillName, report, orders, movements, drawers, sync) = await (
+      _boundTillName(_bridge),
+      open ? _quiet(_bridge.shiftReport) : Future<ShiftReportView?>.value(),
+      open
+          ? _quiet(_bridge.listShiftOrders)
+          : Future<List<OrderSummaryView>?>.value(),
+      open
+          ? _quiet(_bridge.listCashMovements)
+          : Future<List<CashMovementView>?>.value(),
+      isManager
+          ? _quiet(_bridge.listShifts)
+          : Future<List<ShiftSummaryView>?>.value(),
+      _quiet(_bridge.syncStatus),
+    ).wait;
+    if (_disposed) return;
+    // Stats are computed in the core over the orders the till just listed —
+    // the same queue-merged set the Orders row counts.
+    ShiftStatsView? stats;
+    if (orders != null) {
+      stats = await _quiet(() => _bridge.shiftStats(orders: orders));
+      if (_disposed) return;
+    }
+    final branchDrawers = drawers ?? const <ShiftSummaryView>[];
+    state = state.copyWith(
+      loading: false,
+      shift: shift,
+      tillName: tillName,
+      report: report,
+      stats: stats,
+      queuedOrders: orders?.where((o) => o.queued).length ?? 0,
+      movements: movements ?? const [],
+      online: sync?.online ?? state.online,
+      isManager: isManager,
+      // Open drawers first — the manager is here to see who is on a till
+      // right now; the closed ones are history.
+      drawers: [
+        ...branchDrawers.where((s) => s.isOpen),
+        ...branchDrawers.where((s) => !s.isOpen),
+      ],
+    );
+  }
+
+  /// A manager tapped a drawer: fetch its report for the shared preview
+  /// sheet (spinner on the row, toast on failure). Returns null while another
+  /// row is busy or on failure; the SCREEN presents the sheet.
+  Future<ShiftReportView?> fetchDrawerReport(String shiftId) async {
+    if (state.drawerReportLoadingId != null) return null;
+    state = state.copyWith(drawerReportLoadingId: shiftId);
+    try {
+      final report = await _bridge.shiftReportFor(shiftId: shiftId);
+      if (!_disposed) state = state.copyWith(drawerReportLoadingId: null);
+      return report;
+    } on Exception catch (_) {
+      if (_disposed) return null;
+      _toastSeq += 1;
+      state = state.copyWith(
+        drawerReportLoadingId: null,
+        toast: ToastData(
+          id: _toastSeq,
+          text: _bridge.tr(key: 'err.generic'),
+          tone: ChipTone.danger,
+          icon: 'xmark.circle',
+        ),
+      );
+      return null;
+    }
+  }
+
+  /// Dismiss the toast if it is still the presented one.
+  void dismissToast(int id) {
+    if (state.toast?.id == id) state = state.copyWith(toast: null);
+  }
+
+  /// Run a bridge read, degrading a failure to null (the natives'
+  /// `getOrNull`) — the tab shows a dash, not an error, for one figure.
+  static Future<T?> _quiet<T>(Future<T> Function() call) async {
+    try {
+      return await call();
+    } on Exception catch (_) {
+      return null;
+    }
+  }
+}
+
+/// Till tab state (auto-disposed with the tab so a re-entry reloads).
+final NotifierProvider<TillNotifier, TillState> tillProvider =
+    NotifierProvider.autoDispose<TillNotifier, TillState>(TillNotifier.new);
 
 // ─── Open shift ──────────────────────────────────────────────────────────────
 
@@ -293,6 +557,8 @@ class CloseShiftState {
     this.error,
     this.shift,
     this.report,
+    this.tillName,
+    this.orderCount,
   });
 
   /// The teller's counted drawer, minor units.
@@ -310,6 +576,12 @@ class CloseShiftState {
   /// The Z-report carrying the expected drawer (null while loading).
   final ShiftReportView? report;
 
+  /// The bound till's name for the header ("Till 1"), or null.
+  final String? tillName;
+
+  /// How many sales this shift rang (voids excluded), or null until known.
+  final int? orderCount;
+
   /// The count deviates from the system's expected drawer → a closing reason
   /// is required (the open screen's discrepancy pattern).
   bool get needsReason =>
@@ -322,6 +594,8 @@ class CloseShiftState {
     Object? error = _unset,
     Object? shift = _unset,
     Object? report = _unset,
+    Object? tillName = _unset,
+    Object? orderCount = _unset,
   }) {
     return CloseShiftState(
       countedMinor: countedMinor ?? this.countedMinor,
@@ -329,6 +603,8 @@ class CloseShiftState {
       error: error == _unset ? this.error : error as String?,
       shift: shift == _unset ? this.shift : shift as ShiftView?,
       report: report == _unset ? this.report : report as ShiftReportView?,
+      tillName: tillName == _unset ? this.tillName : tillName as String?,
+      orderCount: orderCount == _unset ? this.orderCount : orderCount as int?,
     );
   }
 }
@@ -350,34 +626,26 @@ class CloseShiftNotifier extends Notifier<CloseShiftState> {
   /// The teller edited the count.
   void setCounted(int minor) => state = state.copyWith(countedMinor: minor);
 
-  /// Prime the screen: the open shift for the summary card (server-fresh
-  /// when online, cache otherwise — never let a transient refresh nuke a
-  /// good local shift), then the Z-report for the expected drawer figures.
+  /// Prime the screen: the open shift for the header (server-fresh when
+  /// online, cache otherwise), then the Z-report for the expected drawer
+  /// figures, the till's name, and the sales count — the last two are
+  /// context for the header and degrade to nothing.
   Future<void> _load() async {
-    ShiftView? shift;
-    if (_bridge.currentSession()?.online ?? false) {
-      try {
-        shift = await _bridge.refreshShift();
-      } on Exception catch (_) {
-        shift = await _currentShiftOrNull();
-      }
-    } else {
-      shift = await _currentShiftOrNull();
-    }
+    final shift = await _deviceShift(_bridge);
     if (_disposed) return;
     state = state.copyWith(shift: shift);
     try {
       final report = await _bridge.shiftReport();
       if (!_disposed) state = state.copyWith(report: report);
     } on Exception catch (_) {}
-  }
-
-  Future<ShiftView?> _currentShiftOrNull() async {
+    final tillName = await _boundTillName(_bridge);
+    if (_disposed) return;
+    state = state.copyWith(tillName: tillName);
     try {
-      return await _bridge.currentShift();
-    } on Exception catch (_) {
-      return null;
-    }
+      final orders = await _bridge.listShiftOrders();
+      final stats = await _bridge.shiftStats(orders: orders);
+      if (!_disposed) state = state.copyWith(orderCount: stats.orderCount);
+    } on Exception catch (_) {}
   }
 
   /// Close the shift with the counted drawer (+ [note], REQUIRED when the
@@ -425,15 +693,23 @@ final NotifierProvider<CloseShiftNotifier, CloseShiftState> closeShiftProvider =
 // ─── Cash movements ──────────────────────────────────────────────────────────
 
 /// Cash in/out ledger state: the open shift's movements, the record form's
-/// direction + amount, and the busy / error pair.
+/// kind + amount + note, and the busy / error pair.
+///
+/// The kinds are Pay out and Pay in only. The wire also knows safe_drop and
+/// correction (with a `corrects_id`), but the bridge's `recordCashMovement`
+/// sends a signed amount and a note and nothing else — so a "Safe drop" chip
+/// would record a pay-out that the report cannot tell apart, and a
+/// "Correct ›" would be an opposite movement pretending to be a reversal.
+/// Neither is offered until the bridge carries the kind.
 @immutable
 class CashMovementsState {
   /// Creates the cash-movements state.
   const CashMovementsState({
     this.movements = const [],
     this.loading = false,
-    this.isIn = true,
+    this.isIn = false,
     this.amountMinor = 0,
+    this.note = '',
     this.busy = false,
     this.error,
   });
@@ -444,11 +720,17 @@ class CashMovementsState {
   /// The ledger list is loading.
   final bool loading;
 
-  /// Record form: pay-in (true) or pay-out.
+  /// Record form: pay-in (true) or pay-out. Pay-out is the default — it is
+  /// the movement a shift actually makes (milk, change, a courier), and the
+  /// one the design leads with.
   final bool isIn;
 
   /// Record form: the amount, minor units.
   final int amountMinor;
+
+  /// Record form: what the money was for. Required — a movement with no
+  /// note is the phantom cash the report used to show.
+  final String note;
 
   /// A recordCashMovement call is in flight.
   final bool busy;
@@ -456,8 +738,8 @@ class CashMovementsState {
   /// The last record error (human message), or null.
   final String? error;
 
-  /// The Record CTA is enabled.
-  bool get canRecord => amountMinor > 0 && !busy;
+  /// The Record CTA is enabled: an amount, a note, nothing in flight.
+  bool get canRecord => amountMinor > 0 && note.trim().isNotEmpty && !busy;
 
   /// Copies with the given overrides ([error] clears through the sentinel).
   CashMovementsState copyWith({
@@ -465,6 +747,7 @@ class CashMovementsState {
     bool? loading,
     bool? isIn,
     int? amountMinor,
+    String? note,
     bool? busy,
     Object? error = _unset,
   }) {
@@ -473,6 +756,7 @@ class CashMovementsState {
       loading: loading ?? this.loading,
       isIn: isIn ?? this.isIn,
       amountMinor: amountMinor ?? this.amountMinor,
+      note: note ?? this.note,
       busy: busy ?? this.busy,
       error: error == _unset ? this.error : error as String?,
     );
@@ -500,6 +784,9 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
   /// The teller edited the amount.
   void setAmount(int minor) => state = state.copyWith(amountMinor: minor);
 
+  /// The teller edited the note.
+  void setNote(String note) => state = state.copyWith(note: note);
+
   /// The open shift's cash movements — server rows merged with still-queued
   /// ones in the core. Load failures degrade to an empty list (the natives'
   /// `getOrDefault(emptyList())`).
@@ -516,18 +803,22 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
   }
 
   /// Record a pay-in (`> 0`) or pay-out (`< 0`), reload the list, and reset
-  /// the amount only on success — the natives' `recordCashMovement`. Returns
+  /// the form only on success — the natives' `recordCashMovement`. Returns
   /// true on success so the screen can clear its note field; the drawer's
   /// expected cash moved, so the shell refreshes here.
-  Future<bool> record({required String note}) async {
+  Future<bool> record() async {
+    if (!state.canRecord) return false;
     final shell = ref.read(shellProvider.notifier);
     state = state.copyWith(busy: true, error: null);
     try {
       final signed = state.isIn ? state.amountMinor : -state.amountMinor;
-      await _bridge.recordCashMovement(amountMinor: signed, note: note.trim());
+      await _bridge.recordCashMovement(
+        amountMinor: signed,
+        note: state.note.trim(),
+      );
       await load();
       if (_disposed) return false;
-      state = state.copyWith(busy: false, amountMinor: 0);
+      state = state.copyWith(busy: false, amountMinor: 0, note: '');
       shell.refresh();
       return true;
     } on MadarError catch (e) {

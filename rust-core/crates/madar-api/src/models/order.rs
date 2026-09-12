@@ -109,7 +109,7 @@ pub struct Order {
         skip_serializing_if = "Option::is_none"
     )]
     pub order_ref: Option<Option<String>>,
-    /// Order origin: \"dine_in\" (POS sale) or \"delivery\" (finalized delivery order). Defaults to \"dine_in\" for every POS sale.
+    /// What kind of sale: \"dine_in\" (settled from a waiter's ticket — the only kind that carries a service charge), \"takeaway\" (rung straight through the till) or \"delivery\" (a finalized delivery order). Till sales before 2026-09 say \"dine_in\" because \"takeaway\" could not be expressed.
     #[serde(rename = "order_type")]
     pub order_type: String,
     /// What was ACTUALLY tendered, one entry per `order_payments` row — the same rows every money report buckets by. A single-tender order has one leg; a split order has one per leg (e.g. card 285.00 + cash 255.00). Empty on the response to order creation, where the legs are written just after the row this statement returns; every read hydrates it.

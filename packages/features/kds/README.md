@@ -1,39 +1,34 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# feature_kds
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+The kitchen board. A device, not a shell: a `kitchen`-role iPad on the pass
+shows `KitchenDisplayScreen` and nothing else.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
+## What it draws
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+- One ink top bar: station · branch · live dot · open count · the outbox
+  pill · settings.
+- Tickets by station in an adaptive grid (four columns on an iPad landscape,
+  one on a phone). Each card: the table label largest, the round, the age
+  in mono, the lines with their check toggles, one **Bump all**.
+- Age tint at 5 and 10 minutes; a fully bumped card turns green and carries
+  a READY tag (the server closes it; the board is never a history).
+- Banners for offline / reconnecting, and for taps the server refused
+  (Retry · Discard). A refused tap also says so in a toast — never swallowed.
 
-## Features
+## Where the truth lives
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+`kdsList` in the core overlays the still-queued bumps from the outbox onto
+the server feed, so any two readers of the core agree about every line.
+`kdsRevisionProvider` is bumped after every mutation and every live
+`kdsProvider(stationId)` reloads — the board and Queue's Kitchen segment
+(routing mode `till`, mounted as `KdsBoardBody(stationId: null)`) therefore
+show the same lines at the same moment, whichever screen bumped.
 
-## Getting started
+## Seeing it
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
-
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
-
-```dart
-const like = 'sample';
+```
+flutter test test/kds_render_test.dart --dart-define=MADAR_RENDER=true
 ```
 
-## Additional information
-
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+writes `build/render/kds-*.png`: iPad light, iPad dark, phone, and the
+Arabic board mirrored.

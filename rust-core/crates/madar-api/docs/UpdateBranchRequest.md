@@ -14,6 +14,7 @@ Name | Type | Description | Notes
 **printer_brand** | Option<[**models::PrinterBrand**](PrinterBrand.md)> |  | [optional]
 **printer_ip** | Option<**String**> |  | [optional]
 **printer_port** | Option<**i32**> |  | [optional]
+**require_table_for_orders** | Option<**bool**> |  | [optional]
 **service_charge_rate** | Option<**f64**> |  | [optional]
 **service_charge_taxable** | Option<**bool**> |  | [optional]
 **tax_inclusive** | Option<**bool**> |  | [optional]

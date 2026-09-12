@@ -101,14 +101,16 @@ List<Override> readyScopeOverrides(BootData boot) {
   return [
     coreProvider.overrideWithValue(boot.core),
     // Boot-time theme seed as an OVERRIDE — never a mutation during build.
-    darkModeProvider.overrideWith(
-      () => DarkModeNotifier(initialDark: boot.vault.themeMode == 'dark'),
+    // The vault keeps the choice by name (light · dark · system).
+    themeChoiceProvider.overrideWith(
+      () =>
+          ThemeChoiceNotifier(initial: ThemeChoice.parse(boot.vault.themeMode)),
     ),
     localePersisterProvider.overrideWithValue((locale) {
       boot.vault.locale = locale;
     }),
-    themePersisterProvider.overrideWithValue(({required dark}) {
-      boot.vault.themeMode = dark ? 'dark' : 'light';
+    themeChoicePersisterProvider.overrideWithValue((choice) {
+      boot.vault.themeMode = choice.name;
     }),
     realtimeArmerProvider.overrideWith((ref) {
       final armer = RealtimeArmer(core: boot.core, ref: ref);

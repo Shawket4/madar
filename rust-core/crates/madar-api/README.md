@@ -40,7 +40,7 @@ Class | Method | HTTP request | Description
 *BookingsApi* | [**booking_availability**](docs/BookingsApi.md#booking_availability) | **GET** /bookings/availability | 
 *BookingsApi* | [**booking_stats**](docs/BookingsApi.md#booking_stats) | **GET** /bookings/stats | 
 *BookingsApi* | [**cancel_booking**](docs/BookingsApi.md#cancel_booking) | **POST** /bookings/{id}/cancel | 
-*BookingsApi* | [**complete_booking**](docs/BookingsApi.md#complete_booking) | **POST** /bookings/{id}/complete | 
+*BookingsApi* | [**complete_booking**](docs/BookingsApi.md#complete_booking) | **POST** /bookings/{id}/complete | `seated` → `completed` by hand. The party is done with the booking; if they never started a bill under it, the hold seating placed is let go of too (a bill, had there been one, would have ended it `seated` already and its settle buses the table). Already `completed` is a clean 200.
 *BookingsApi* | [**create_booking**](docs/BookingsApi.md#create_booking) | **POST** /bookings | 
 *BookingsApi* | [**get_booking**](docs/BookingsApi.md#get_booking) | **GET** /bookings/{id} | 
 *BookingsApi* | [**get_booking_settings**](docs/BookingsApi.md#get_booking_settings) | **GET** /bookings/settings | 
@@ -106,7 +106,7 @@ Class | Method | HTTP request | Description
 *DiscountsApi* | [**list_discounts**](docs/DiscountsApi.md#list_discounts) | **GET** /discounts | 
 *DiscountsApi* | [**update_discount**](docs/DiscountsApi.md#update_discount) | **PATCH** /discounts/{id} | 
 *FloorApi* | [**clear_table**](docs/FloorApi.md#clear_table) | **POST** /floor/tables/{id}/clear | Mark a bussed table ready for the next party.
-*FloorApi* | [**hold_table**](docs/FloorApi.md#hold_table) | **POST** /floor/tables/{id}/hold | Take a table. THE seating primitive.
+*FloorApi* | [**hold_table**](docs/FloorApi.md#hold_table) | **POST** /floor/tables/{id}/hold | Take a table for a party with no bill yet.
 *FloorApi* | [**release_table**](docs/FloorApi.md#release_table) | **POST** /floor/tables/{id}/release | Give back a table a till was holding for its own parked order.
 *FloorApi* | [**swap_tables**](docs/FloorApi.md#swap_tables) | **POST** /floor/tables/swap | 
 *FloorTransfersApi* | [**cancel_transfer**](docs/FloorTransfersApi.md#cancel_transfer) | **POST** /floor/transfers/{id}/cancel | 
@@ -149,7 +149,7 @@ Class | Method | HTTP request | Description
 *KitchenApi* | [**delete_category_route**](docs/KitchenApi.md#delete_category_route) | **DELETE** /kitchen/routes/category | 
 *KitchenApi* | [**delete_item_route**](docs/KitchenApi.md#delete_item_route) | **DELETE** /kitchen/routes/item | 
 *KitchenApi* | [**delete_station**](docs/KitchenApi.md#delete_station) | **DELETE** /kitchen/stations/{id} | 
-*KitchenApi* | [**feed**](docs/KitchenApi.md#feed) | **GET** /kitchen/orders | Outstanding kitchen tickets for a branch (those with at least one un-bumped, un-voided line — for the given station if provided), oldest first. Seed for the KDS; live updates arrive on `/realtime/stream?topics=kitchen`.
+*KitchenApi* | [**feed**](docs/KitchenApi.md#feed) | **GET** /kitchen/orders | The branch's LIVE kitchen tickets — not closed, oldest first — optionally narrowed to those with un-bumped work for one station. Seed for the KDS; live updates arrive on `/realtime/stream?topics=kitchen`.
 *KitchenApi* | [**get_routing_mode**](docs/KitchenApi.md#get_routing_mode) | **GET** /kitchen/routing-mode | 
 *KitchenApi* | [**list_routes**](docs/KitchenApi.md#list_routes) | **GET** /kitchen/routes | 
 *KitchenApi* | [**list_stations**](docs/KitchenApi.md#list_stations) | **GET** /kitchen/stations | 
@@ -306,6 +306,10 @@ Class | Method | HTTP request | Description
 *RecipesApi* | [**put_recipe_steps**](docs/RecipesApi.md#put_recipe_steps) | **PUT** /recipes/steps/{menu_item_id} | Replace an item's steps, in one transaction.
 *RecipesApi* | [**upsert_addon_ingredient**](docs/RecipesApi.md#upsert_addon_ingredient) | **POST** /recipes/addons/{addon_item_id} | 
 *RecipesApi* | [**upsert_drink_recipe**](docs/RecipesApi.md#upsert_drink_recipe) | **POST** /recipes/drinks/{menu_item_id} | 
+*RefundsApi* | [**create_refund**](docs/RefundsApi.md#create_refund) | **POST** /refunds | 
+*RefundsApi* | [**get_refund**](docs/RefundsApi.md#get_refund) | **GET** /refunds/{id} | 
+*RefundsApi* | [**list_order_refunds**](docs/RefundsApi.md#list_order_refunds) | **GET** /refunds/order/{order_id} | 
+*RefundsApi* | [**list_shift_refunds**](docs/RefundsApi.md#list_shift_refunds) | **GET** /refunds/shift/{shift_id} | 
 *ReportsApi* | [**branch_addon_sales**](docs/ReportsApi.md#branch_addon_sales) | **GET** /reports/branches/{branch_id}/addons | 
 *ReportsApi* | [**branch_bundle_sales**](docs/ReportsApi.md#branch_bundle_sales) | **GET** /reports/branches/{branch_id}/bundles | 
 *ReportsApi* | [**branch_combined_item_sales**](docs/ReportsApi.md#branch_combined_item_sales) | **GET** /reports/branches/{branch_id}/items-combined | 
@@ -509,6 +513,7 @@ Class | Method | HTTP request | Description
  - [CardView](docs/CardView.md)
  - [CartLineInput](docs/CartLineInput.md)
  - [CashMovement](docs/CashMovement.md)
+ - [CashMovementKind](docs/CashMovementKind.md)
  - [CashMovementRequest](docs/CashMovementRequest.md)
  - [CashMovementSummaryRow](docs/CashMovementSummaryRow.md)
  - [CatalogSyncResponse](docs/CatalogSyncResponse.md)
@@ -572,6 +577,7 @@ Class | Method | HTTP request | Description
  - [CreatePaymentMethodRequest](docs/CreatePaymentMethodRequest.md)
  - [CreatePeriodRequest](docs/CreatePeriodRequest.md)
  - [CreatePurchaseOrderRequest](docs/CreatePurchaseOrderRequest.md)
+ - [CreateRefundRequest](docs/CreateRefundRequest.md)
  - [CreateReturnRequest](docs/CreateReturnRequest.md)
  - [CreateSectionRequest](docs/CreateSectionRequest.md)
  - [CreateStaffRequest](docs/CreateStaffRequest.md)
@@ -684,6 +690,7 @@ Class | Method | HTTP request | Description
  - [OfflineTellerCredential](docs/OfflineTellerCredential.md)
  - [OnboardingStatus](docs/OnboardingStatus.md)
  - [OnboardingStep](docs/OnboardingStep.md)
+ - [OnlineTaxPolicy](docs/OnlineTaxPolicy.md)
  - [OpenShiftRequest](docs/OpenShiftRequest.md)
  - [OpenTicketItemView](docs/OpenTicketItemView.md)
  - [OpenTicketView](docs/OpenTicketView.md)
@@ -703,6 +710,7 @@ Class | Method | HTTP request | Description
  - [OrderItemInput](docs/OrderItemInput.md)
  - [OrderItemOptional](docs/OrderItemOptional.md)
  - [OrderPayment](docs/OrderPayment.md)
+ - [OrderRefunds](docs/OrderRefunds.md)
  - [OrderSummary](docs/OrderSummary.md)
  - [Org](docs/Org.md)
  - [OrgComparisonReport](docs/OrgComparisonReport.md)
@@ -759,6 +767,7 @@ Class | Method | HTTP request | Description
  - [PublicReward](docs/PublicReward.md)
  - [PublicSlot](docs/PublicSlot.md)
  - [PublicSlots](docs/PublicSlots.md)
+ - [PublicSocialLink](docs/PublicSocialLink.md)
  - [PurchaseOrder](docs/PurchaseOrder.md)
  - [PurchaseOrderFull](docs/PurchaseOrderFull.md)
  - [PurchaseOrderLine](docs/PurchaseOrderLine.md)
@@ -785,6 +794,13 @@ Class | Method | HTTP request | Description
  - [RecipeStep](docs/RecipeStep.md)
  - [RecipeStepInput](docs/RecipeStepInput.md)
  - [RecipeStepPreset](docs/RecipeStepPreset.md)
+ - [Refund](docs/Refund.md)
+ - [RefundFull](docs/RefundFull.md)
+ - [RefundIssued](docs/RefundIssued.md)
+ - [RefundLine](docs/RefundLine.md)
+ - [RefundLineInput](docs/RefundLineInput.md)
+ - [RefundReason](docs/RefundReason.md)
+ - [RefundTotals](docs/RefundTotals.md)
  - [RegistryInfo](docs/RegistryInfo.md)
  - [ReleaseTableRequest](docs/ReleaseTableRequest.md)
  - [RenameConversationRequest](docs/RenameConversationRequest.md)
@@ -816,6 +832,7 @@ Class | Method | HTTP request | Description
  - [SettleOpenTicketRequest](docs/SettleOpenTicketRequest.md)
  - [Shift](docs/Shift.md)
  - [ShiftPreFill](docs/ShiftPreFill.md)
+ - [ShiftRefunds](docs/ShiftRefunds.md)
  - [ShiftReportResponse](docs/ShiftReportResponse.md)
  - [ShiftSummary](docs/ShiftSummary.md)
  - [ShrinkageRow](docs/ShrinkageRow.md)
@@ -852,6 +869,7 @@ Class | Method | HTTP request | Description
  - [TaxPolicyPublic](docs/TaxPolicyPublic.md)
  - [TeamPresence](docs/TeamPresence.md)
  - [TellerStats](docs/TellerStats.md)
+ - [TicketBill](docs/TicketBill.md)
  - [Till](docs/Till.md)
  - [TimeseriesPoint](docs/TimeseriesPoint.md)
  - [TopPer](docs/TopPer.md)
@@ -901,6 +919,7 @@ Class | Method | HTTP request | Description
  - [Viz](docs/Viz.md)
  - [VoidOpenTicketRequest](docs/VoidOpenTicketRequest.md)
  - [VoidOrderRequest](docs/VoidOrderRequest.md)
+ - [VoidReason](docs/VoidReason.md)
  - [WaiterStats](docs/WaiterStats.md)
  - [WaiterStatsReport](docs/WaiterStatsReport.md)
  - [WaiveDeductionRequest](docs/WaiveDeductionRequest.md)

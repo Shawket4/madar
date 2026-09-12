@@ -29,7 +29,13 @@ pub struct BranchSalesReport {
         skip_serializing_if = "Option::is_none"
     )]
     pub from: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    /// Money collected FOR GOODS, bucketed by the method actually tendered (`order_payments`). Tips are not in here — see `total_tips`.
+    /// Sales in range as rung up, before any refund. Was what `total_revenue` meant until 2026-09.
+    #[serde(rename = "gross_sales", skip_serializing_if = "Option::is_none")]
+    pub gross_sales: Option<i64>,
+    /// Money refunded against the sales in range (partial refunds; a fully refunded order is out of every figure here by status).
+    #[serde(rename = "refunded_amount", skip_serializing_if = "Option::is_none")]
+    pub refunded_amount: Option<i64>,
+    /// Money collected FOR GOODS, bucketed by the method actually tendered (`order_payments`) — money IN. Tips are not in here — see `total_tips` — and refunds are not netted out: they are money OUT with a tender of their own, on `GET /shifts/{id}/refunds` and the refunds dataset.
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
     pub revenue_by_method: Option<serde_json::Value>,
     #[serde(rename = "subtotal")]
@@ -43,6 +49,12 @@ pub struct BranchSalesReport {
     pub to: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "top_items")]
     pub top_items: Vec<models::ItemSales>,
+    /// Delivery fees on the sales in range — inside `total_revenue`, outside the tax base, not food revenue.
+    #[serde(
+        rename = "total_delivery_fees",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub total_delivery_fees: Option<i64>,
     #[serde(rename = "total_discount")]
     pub total_discount: i64,
     /// Units sold (SUM of order_items.quantity) across non-voided orders in range. Counts units, not distinct lines (\"3× burger\" contributes 3), matching quantity_sold in the item/category breakdowns.
@@ -50,8 +62,15 @@ pub struct BranchSalesReport {
     pub total_line_items: Option<i64>,
     #[serde(rename = "total_orders")]
     pub total_orders: i64,
+    /// What the sales in range are worth after refunds: `gross_sales` less `refunded_amount`. A refund is attributed to the sale it was against, whenever it was issued — the same restatement a full refund makes by flipping the order's status out of the sold set.
     #[serde(rename = "total_revenue")]
     pub total_revenue: i64,
+    /// Service charge on the dine-in bills in range — inside `total_revenue` as the shop's income, not a pass-through.
+    #[serde(
+        rename = "total_service_charge",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub total_service_charge: Option<i64>,
     #[serde(rename = "total_tax")]
     pub total_tax: i64,
     /// Tips, standalone — never folded into a method bucket and never part of `total_revenue`. Same definition as `total_tips` on the shift report, so the two screens can be reconciled line for line.
@@ -81,14 +100,18 @@ impl BranchSalesReport {
             by_category,
             cash_tips: None,
             from: None,
+            gross_sales: None,
+            refunded_amount: None,
             revenue_by_method,
             subtotal,
             to: None,
             top_items,
+            total_delivery_fees: None,
             total_discount,
             total_line_items: None,
             total_orders,
             total_revenue,
+            total_service_charge: None,
             total_tax,
             total_tips: None,
             voided_orders,

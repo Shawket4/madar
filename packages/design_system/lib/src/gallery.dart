@@ -7,7 +7,9 @@ import 'dart:async';
 
 import 'package:design_system/src/banners.dart';
 import 'package:design_system/src/brand.dart';
+import 'package:design_system/src/chrome.dart';
 import 'package:design_system/src/controls.dart';
+import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/icons.dart';
 import 'package:design_system/src/money.dart';
 import 'package:design_system/src/sheet.dart';
@@ -130,6 +132,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
                     _buildButtonSection(colors),
                     const SizedBox(height: Space.xxl),
                     _buildControlSection(colors),
+                    const SizedBox(height: Space.xxl),
+                    _buildV2Section(colors),
                     const SizedBox(height: Space.xxl),
                     _buildSkeletonSection(colors),
                     const SizedBox(height: Space.xxl),
@@ -571,12 +575,117 @@ class _GalleryScreenState extends State<GalleryScreen> {
           MadarCard.column(
             children: [
               const MadarSectionHeader(text: 'Cash drawer'),
-              const MadarHairline(light: true),
+              const MadarHairline.row(),
               Text(
                 'A card, a section header, and the hairline between them.',
                 style: MadarType.bodySm.copyWith(color: colors.textSecondary),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── System v2 ────────────────────────────────────────────────────
+
+  Widget _buildV2Section(MadarColors colors) {
+    void noop() {}
+    return _Section(
+      title: 'System v2 · rows · chips · segments · money bar · the pill',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.md,
+        children: [
+          MadarMoneyBar(
+            label: 'Charge',
+            amountMinor: 19600,
+            currency: 'EGP',
+            onTap: noop,
+          ),
+          Wrap(
+            spacing: Space.md,
+            runSpacing: Space.md,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              MadarChip(label: 'All', selected: true, onTap: noop),
+              MadarChip(label: 'Hot', onTap: noop),
+              MadarChip(
+                label: 'Parked',
+                glyph: MadarGlyph.bag,
+                count: 2,
+                onTap: noop,
+              ),
+              MadarChip.tile(label: '15', onTap: noop),
+              MadarChip.tile(label: '20', selected: true, onTap: noop),
+              MadarStepper(value: 2, onChanged: (_) {}),
+              const MadarTag(
+                label: 'Ready',
+                tone: MadarTone.success,
+                glyph: MadarGlyph.check,
+              ),
+              const MadarTag(
+                label: 'Queued',
+                tone: MadarTone.warning,
+                glyph: MadarGlyph.half,
+              ),
+            ],
+          ),
+          MadarSegmented<int>(
+            items: const [
+              MadarSegmentItem(0, 'Bills', count: 3),
+              MadarSegmentItem(1, 'Online', count: 2),
+              MadarSegmentItem(2, 'Kitchen'),
+            ],
+            value: 0,
+            onChanged: (_) {},
+          ),
+          const Wrap(
+            spacing: Space.md,
+            runSpacing: Space.md,
+            children: [
+              MadarOutboxPill(state: OutboxState.synced, label: 'Synced'),
+              MadarOutboxPill(
+                state: OutboxState.queued,
+                count: 3,
+                label: 'queued',
+              ),
+              MadarOutboxPill(
+                state: OutboxState.offline,
+                count: 3,
+                label: 'Offline',
+              ),
+              MadarOutboxPill(
+                state: OutboxState.stuck,
+                count: 1,
+                label: 'stuck',
+              ),
+            ],
+          ),
+          MadarCard(
+            flush: true,
+            child: Column(
+              children: [
+                MadarRow(
+                  title: 'T5 · Bill T-0412',
+                  subtitle: '4 covers · Sara · 42m',
+                  bar: colors.success,
+                  value: const MoneyText(19600, currency: 'EGP'),
+                  onTap: noop,
+                ),
+                const MadarHairline.row(),
+                MadarRow(
+                  title: 'Pay out',
+                  subtitle: 'Supplier · Sara 19:40',
+                  glyph: MadarGlyph.arrowDownStart,
+                  value: MoneyText(
+                    -6000,
+                    currency: 'EGP',
+                    color: colors.danger,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

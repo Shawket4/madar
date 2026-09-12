@@ -1,20 +1,26 @@
-/// Madar POS — the unified "Orders" surface: the live delivery queue and
-/// the open-tickets settle board in one two-tab screen, plus the shared
-/// order-details sheets.
+/// Madar POS — the Queue: the teller's one inbox over the shared Rust core.
 ///
-/// Pixel-and-behavior port of the Kotlin natives' IncomingScreen.kt /
-/// DeliveryScreen.kt / WaiterScreen.kt (TicketsSettleBody) over the shared
-/// Rust core: `IncomingScreen` is the teller entry (segmented tabs with
-/// live count badges, SSE-tick refreshed); `DeliveryBody` works the branch
-/// delivery queue (accepting overrides, lifecycle advance, +5 min prep,
-/// cancel-with-restock, reject, finalize through the ONE shared
-/// CheckoutDrawer); `TicketsSettleBody` settles waiter-fired tickets
-/// through the SAME drawer.
+/// `QueueScreen` carries two segments — **Bills** (open tickets waiting to be
+/// charged, kitchen-ready first) and **Online** (the branch's live delivery
+/// and pickup orders: accept with a ready-in time in one act, decline with a
+/// reason, step the lifecycle, charge). Both are fed by the shell's realtime
+/// ticks and both charge through the ONE shared checkout drawer. The Kitchen
+/// segment (routing mode `till`) waits on a flag the bridge cannot read.
+///
+/// `IncomingScreen` is the app's existing entry name and still works.
 library;
 
-export 'src/delivery_body.dart' show DeliveryBody;
+export 'src/bills_segment.dart' show BillsSegment, OpenBill;
 export 'src/details_sheets.dart' show DeliveryDetailsSheet, TicketDetailsSheet;
 export 'src/incoming_provider.dart'
-    show IncomingNotifier, IncomingState, incomingProvider;
+    show
+        IncomingNotifier,
+        IncomingState,
+        QueueSegment,
+        incomingProvider,
+        kActiveDeliveryStatuses,
+        kPrepOffsets;
 export 'src/incoming_screen.dart' show IncomingScreen;
-export 'src/tickets_settle_body.dart' show TicketsSettleBody;
+export 'src/online_segment.dart' show AcceptingRow, OnlineSegment;
+export 'src/queue_screen.dart' show QueueScreen;
+export 'src/queue_strings.dart' show QueueKeys, QueueTr;

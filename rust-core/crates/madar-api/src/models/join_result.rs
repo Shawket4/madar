@@ -11,50 +11,71 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// JoinResult : What the customer sees after signing up: their card, and the buttons.
+/// JoinResult : What the customer sees after signing up: their card, and the buttons — or, for a phone that is already a member and has not been proved, an invitation to prove it.  The member token is a bearer credential: whoever holds it holds the card, the balance, the purchase history and the wallet passes. So it is handed out on exactly two occasions — to a NEW member, whose token nobody else could want yet, and to an existing member whose device has verified THIS phone by OTP. Typing a phone number is not proof of owning it; anyone who knows a customer's number can type it.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct JoinResult {
-    /// True when this phone was already a member — the page says \"welcome back\" and shows the existing card rather than pretending to have made a new one.
+    /// True when this phone was already a member — the page says \"welcome back\" rather than pretending to have made a new card.
     #[serde(rename = "already_member")]
     pub already_member: bool,
-    /// The live balance, in `mode`'s currency. Zero for a fresh member.
+    /// The live balance, in `mode`'s currency. Zero for a fresh member, and zero (not the real figure) while `verify_required`.
     #[serde(rename = "balance")]
     pub balance: i32,
     #[serde(rename = "brand")]
     pub brand: Box<models::CardBrand>,
-    #[serde(rename = "member_token")]
-    pub member_token: String,
+    /// While `verify_required`: the card link was also sent to the number on file, by WhatsApp — the one channel that proves possession without a code. False when no gateway is configured or there is no public base to build a link on; the page then offers only the OTP.
+    #[serde(rename = "card_link_sent")]
+    pub card_link_sent: bool,
+    /// Absent when `verify_required`: the page has nothing to show yet.
+    #[serde(
+        rename = "member_token",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub member_token: Option<Option<String>>,
     #[serde(rename = "mode")]
     pub mode: String,
+    /// The name as the caller typed it. For a returning member the name ON FILE is not echoed until they have verified — it is a fact about the person who owns the phone, not about the person typing it.
     #[serde(rename = "name")]
     pub name: String,
     #[serde(rename = "next_reward_cost")]
     pub next_reward_cost: i32,
-    #[serde(rename = "passes")]
-    pub passes: Box<models::PassLinks>,
+    /// Absent when `verify_required`.
+    #[serde(
+        rename = "passes",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub passes: Option<Option<Box<models::PassLinks>>>,
+    /// This phone already has a card and the device has not proved it owns the phone. The page should run the ordinary OTP flow (`/public/otp/request` then `/public/otp/verify`) and POST here again with the `device_token` it is handed; the card comes back on that call.
+    #[serde(rename = "verify_required")]
+    pub verify_required: bool,
 }
 
 impl JoinResult {
-    /// What the customer sees after signing up: their card, and the buttons.
+    /// What the customer sees after signing up: their card, and the buttons — or, for a phone that is already a member and has not been proved, an invitation to prove it.  The member token is a bearer credential: whoever holds it holds the card, the balance, the purchase history and the wallet passes. So it is handed out on exactly two occasions — to a NEW member, whose token nobody else could want yet, and to an existing member whose device has verified THIS phone by OTP. Typing a phone number is not proof of owning it; anyone who knows a customer's number can type it.
     pub fn new(
         already_member: bool,
         balance: i32,
         brand: models::CardBrand,
-        member_token: String,
+        card_link_sent: bool,
         mode: String,
         name: String,
         next_reward_cost: i32,
-        passes: models::PassLinks,
+        verify_required: bool,
     ) -> JoinResult {
         JoinResult {
             already_member,
             balance,
             brand: Box::new(brand),
-            member_token,
+            card_link_sent,
+            member_token: None,
             mode,
             name,
             next_reward_cost,
-            passes: Box::new(passes),
+            passes: None,
+            verify_required,
         }
     }
 }

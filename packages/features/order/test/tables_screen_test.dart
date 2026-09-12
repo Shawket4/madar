@@ -150,7 +150,11 @@ void main() {
     expect(find.text('tables.empty_title'), findsOneWidget);
 
     // …and the back button actually leaves.
-    await tester.tap(find.byIcon(madarIconCatalog['chevron.backward']!));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is MadarGlyphTile && w.glyph == MadarGlyph.chevronBack,
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('tables.title'), findsNothing);
     expect(find.text('open'), findsOneWidget);
@@ -183,7 +187,11 @@ void main() {
     expect(find.text('A1'), findsOneWidget);
     expect(find.text('A2'), findsOneWidget);
 
-    await tester.tap(find.byIcon(madarIconCatalog['chevron.backward']!));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is MadarGlyphTile && w.glyph == MadarGlyph.chevronBack,
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('open'), findsOneWidget);
   });

@@ -20,7 +20,7 @@ Name | Type | Description | Notes
 **needs_table** | **bool** | Active but holding no table: the host must assign one. | 
 **no_show_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **notes** | Option<**String**> |  | [optional]
-**open_ticket_id** | Option<**uuid::Uuid**> |  | [optional]
+**open_ticket_id** | Option<**uuid::Uuid**> | The ticket this party is (or was) eating on. DERIVED from `open_tickets.booking_id` — the live one if there is one, else the latest — never stored on the booking. | [optional]
 **party_size** | **i32** |  | 
 **phone_verified** | **bool** |  | 
 **reminder_sent_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]

@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// DeliverySalesReport : Delivery sales rolled up across channels, plus a per-channel breakdown. Always returns both `in_mall` and `outside` channels (zero-filled) so the dashboard renders a stable shape.
+/// DeliverySalesReport : Delivery sales rolled up across channels, plus a per-channel breakdown. Always returns every channel in [`DELIVERY_CHANNELS`] (zero-filled) so the dashboard renders a stable shape.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DeliverySalesReport {
     #[serde(rename = "avg_order_value")]
@@ -36,6 +36,12 @@ pub struct DeliverySalesReport {
     pub to: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "total_delivery_fees")]
     pub total_delivery_fees: i64,
+    /// `total_revenue − total_delivery_fees`.
+    #[serde(
+        rename = "total_goods_revenue",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub total_goods_revenue: Option<i64>,
     #[serde(rename = "total_orders")]
     pub total_orders: i64,
     #[serde(rename = "total_revenue")]
@@ -43,7 +49,7 @@ pub struct DeliverySalesReport {
 }
 
 impl DeliverySalesReport {
-    /// Delivery sales rolled up across channels, plus a per-channel breakdown. Always returns both `in_mall` and `outside` channels (zero-filled) so the dashboard renders a stable shape.
+    /// Delivery sales rolled up across channels, plus a per-channel breakdown. Always returns every channel in [`DELIVERY_CHANNELS`] (zero-filled) so the dashboard renders a stable shape.
     pub fn new(
         avg_order_value: i64,
         cancelled_orders: i64,
@@ -59,6 +65,7 @@ impl DeliverySalesReport {
             from: None,
             to: None,
             total_delivery_fees,
+            total_goods_revenue: None,
             total_orders,
             total_revenue,
         }
