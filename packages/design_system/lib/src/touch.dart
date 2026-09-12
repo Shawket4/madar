@@ -43,6 +43,7 @@ class TactileScale extends StatefulWidget {
     required this.child,
     this.scale = MotionSpec.pressScale,
     this.onTap,
+    this.onLongPress,
     this.haptic = true,
     super.key,
   });
@@ -57,6 +58,12 @@ class TactileScale extends StatefulWidget {
   /// Optional tap handler. When null the wrapper never competes for the
   /// tap gesture — the child keeps full control of its own gestures.
   final VoidCallback? onTap;
+
+  /// Optional long-press handler — the "show me first" half of a control
+  /// whose tap commits. Setting it alone (with [onTap] null) still puts this
+  /// wrapper in the gesture arena, because a long press has to be recognised
+  /// somewhere.
+  final VoidCallback? onLongPress;
 
   /// Whether to fire [MadarHaptics.selection] on pointer-down.
   final bool haptic;
@@ -108,9 +115,11 @@ class _TactileScaleState extends State<TactileScale>
       child: ScaleTransition(scale: _controller, child: widget.child),
     );
     final onTap = widget.onTap;
-    if (onTap == null) return pressable;
+    final onLongPress = widget.onLongPress;
+    if (onTap == null && onLongPress == null) return pressable;
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       behavior: HitTestBehavior.opaque,
       child: pressable,
     );

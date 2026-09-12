@@ -116,7 +116,10 @@ class _DrawerHome extends ConsumerWidget {
 
   final VoidCallback? onOpenOrders;
 
-  Future<void> _printX(BuildContext context) async {
+  /// The long press: the same Z-report the tap would have printed, on
+  /// screen, with its own Print button. Never the only way in — a gesture
+  /// nobody discovers is not a feature.
+  Future<void> _previewX(BuildContext context) async {
     await showMadarSheet<void>(
       context,
       size: SheetSize.large,
@@ -142,12 +145,14 @@ class _DrawerHome extends ConsumerWidget {
     void closeShift() => _push(context, ref, CloseShiftScreen.new);
     void cashInOut() => _push(context, ref, CashMovementsScreen.new);
     void pastShifts() => _push(context, ref, _pastShifts);
-    void printX() => unawaited(_printX(context));
+    void printX() => unawaited(ref.read(tillProvider.notifier).printX());
+    void previewX() => unawaited(_previewX(context));
 
     final rows = _ShiftRows(
       onOpenOrders: onOpenOrders,
       onCashInOut: cashInOut,
       onPrintX: layout.isTablet ? null : printX,
+      onPreviewX: layout.isTablet ? null : previewX,
       onPastShifts: pastShifts,
     );
     final drawers = isManager ? DrawersCard(onSeeAll: pastShifts) : null;
@@ -169,6 +174,7 @@ class _DrawerHome extends ConsumerWidget {
                   variant: MadarButtonVariant.secondary,
                   size: MadarButtonSize.compact,
                   onTap: printX,
+                  onLongPress: previewX,
                 ),
                 MadarButton(
                   label: t('shift.close_title'),
@@ -406,12 +412,16 @@ class _ShiftRows extends ConsumerWidget {
     required this.onOpenOrders,
     required this.onCashInOut,
     required this.onPrintX,
+    required this.onPreviewX,
     required this.onPastShifts,
   });
 
   final VoidCallback? onOpenOrders;
   final VoidCallback onCashInOut;
   final VoidCallback? onPrintX;
+
+  /// Long press on the same row — the report on screen instead of on paper.
+  final VoidCallback? onPreviewX;
   final VoidCallback onPastShifts;
 
   @override
@@ -460,6 +470,7 @@ class _ShiftRows extends ConsumerWidget {
             title: t('till.print_x'),
             glyph: MadarGlyph.printer,
             onTap: onPrintX,
+            onLongPress: onPreviewX,
           ),
         ],
         const MadarHairline.row(),

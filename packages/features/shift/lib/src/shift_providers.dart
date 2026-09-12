@@ -267,6 +267,67 @@ class TillNotifier extends Notifier<TillState> {
     }
   }
 
+  /// Print the X report — the mid-shift read — straight to the bound
+  /// printer, with no screen in between.
+  ///
+  /// Tapping "Print X" used to open the preview sheet, so the one control
+  /// literally labelled *Print* did not print: it took two more taps. The
+  /// preview is still there on a long press, for the times the shape wants
+  /// checking before paper is spent on it, but the tap does what it says.
+  ///
+  /// Summary only, never the per-order breakdown: an X mid-shift is a read
+  /// of the drawer, and the expanded form belongs to the Z at close.
+  Future<void> printX() async {
+    final report = state.report;
+    if (report == null) return;
+    final tx = ref.read(printerServiceProvider).activeTransport();
+    if (tx == null) {
+      _tillToast('receipt.no_printer', tone: ChipTone.warning, icon: 'printer');
+      return;
+    }
+    final config = _bridge.deviceConfig();
+    try {
+      final bytes = await _bridge.renderShiftReport(
+        report: report,
+        storeName: config.branchName ?? '',
+        currency: _bridge.currentSession()?.currencyCode ?? '',
+        width: _printWidth,
+        brand: config.printerBrand == 'star'
+            ? PrinterBrand.star
+            : PrinterBrand.epson,
+        orders: const <OrderSummaryView>[],
+      );
+      await tx.send(bytes);
+      if (!_disposed) {
+        _tillToast(
+          'receipt.printed',
+          tone: ChipTone.success,
+          icon: 'checkmark.circle',
+        );
+      }
+    } on Exception catch (_) {
+      if (!_disposed) {
+        _tillToast(
+          'receipt.print_failed',
+          tone: ChipTone.danger,
+          icon: 'xmark.circle',
+        );
+      }
+    }
+  }
+
+  void _tillToast(String key, {required ChipTone tone, required String icon}) {
+    _toastSeq += 1;
+    state = state.copyWith(
+      toast: ToastData(
+        id: _toastSeq,
+        text: _bridge.tr(key: key),
+        tone: tone,
+        icon: icon,
+      ),
+    );
+  }
+
   /// Dismiss the toast if it is still the presented one.
   void dismissToast(int id) {
     if (state.toast?.id == id) state = state.copyWith(toast: null);

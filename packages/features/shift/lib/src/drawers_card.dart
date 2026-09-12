@@ -1,6 +1,12 @@
-/// Drawers — every shift at the branch, on a manager's Till. Read-only: who
-/// is on a drawer, since when, what it declared at close. Tapping a row
-/// opens that drawer's report in the shared preview sheet.
+/// Drawers — every shift at the branch, on a manager's Till.
+///
+/// SINGLE TAP on a drawer prints its Z-report straight away — a manager
+/// reaching for this row wants the printout, not another screen to tap
+/// Print from. LONG PRESS (or the small preview glyph) opens the same
+/// report in the shared sheet instead, with its own Print button, for the
+/// times the shape needs checking before paper is spent on it. The row
+/// alone would hide that second gesture completely, so the preview glyph
+/// stays — a person who never long-presses still has a way in.
 ///
 /// What is NOT here, on purpose: Force-close. The wire has
 /// `force_close_shift`, the bridge does not, and a button that cannot work
@@ -13,6 +19,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart' show printerBrandOf;
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
 import 'package:flutter/material.dart' show CircularProgressIndicator;
@@ -27,6 +34,15 @@ const double _rowSpinnerStroke = 2;
 /// How many drawers the card lists before pointing at Past shifts.
 const int _maxDrawerRows = 8;
 
+/// ESC/POS character columns — retained for API stability; the raster width
+/// actually printed comes from the device's paper config (see
+/// `MadarCore::render_shift_report`).
+const int _printWidth = 32;
+
+/// A print result fades back to the plain status tag on its own — a manager
+/// firing off several drawer printouts shouldn't have to dismiss anything.
+const Duration _resultFade = Duration(seconds: 2);
+
 /// Every drawer at the branch, open ones first. Pass [onSeeAll] to route the
 /// overflow at Past shifts.
 class DrawersCard extends ConsumerWidget {
@@ -36,7 +52,10 @@ class DrawersCard extends ConsumerWidget {
   /// Opens Past shifts when the list is longer than the card shows.
   final VoidCallback? onSeeAll;
 
-  Future<void> _open(
+  /// LONG PRESS / preview glyph: fetch the drawer's report and open it in
+  /// the shared sheet — the report ITSELF is the preview, Print lives in its
+  /// footer.
+  Future<void> _preview(
     BuildContext context,
     WidgetRef ref,
     ShiftSummaryView shift,
@@ -51,6 +70,30 @@ class DrawersCard extends ConsumerWidget {
       size: SheetSize.large,
       builder: (_) => ShiftReportSheet(report: report, shiftId: shift.id),
     );
+  }
+
+  /// SINGLE TAP: render the summary report in the core (collapsed, matching
+  /// the preview's default — the natives never auto-expand the orders
+  /// breakdown either) and stream it straight to the configured printer.
+  /// Returns null when another row's fetch is already in flight
+  /// (`fetchDrawerReport`'s own guard) so the row shows nothing rather than
+  /// a false failure.
+  Future<PrintOutcome?> _printNow(WidgetRef ref, ShiftSummaryView shift) async {
+    final report = await ref
+        .read(tillProvider.notifier)
+        .fetchDrawerReport(shift.id);
+    if (report == null) return null;
+    final bridge = ref.read(bridgeProvider);
+    final config = bridge.deviceConfig();
+    final bytes = await bridge.renderShiftReport(
+      report: report,
+      storeName: config.branchName ?? '',
+      currency: bridge.currentSession()?.currencyCode ?? '',
+      width: _printWidth,
+      brand: printerBrandOf(config.printerBrand),
+      orders: const [],
+    );
+    return await ref.read(printerServiceProvider).printBytes(bytes);
   }
 
   @override
@@ -111,7 +154,8 @@ class DrawersCard extends ConsumerWidget {
               currency: currency,
               bridge: bridge,
               loading: loadingId == d.id,
-              onTap: () => unawaited(_open(context, ref, d)),
+              onPrintNow: () => _printNow(ref, d),
+              onPreview: () => unawaited(_preview(context, ref, d)),
             ),
           ],
         if (drawers.length > shown.length && onSeeAll != null) ...[
@@ -143,54 +187,142 @@ class DrawersCard extends ConsumerWidget {
 
 /// One drawer: the state bar carries open / closed / force-closed, the
 /// teller leads, the opened time follows, the declared close (when there is
-/// one) sits at the end under a state tag.
-class _DrawerRow extends StatelessWidget {
+/// one) sits at the end under a state tag — replaced for a couple of
+/// seconds by the print outcome when the row itself just printed.
+class _DrawerRow extends StatefulWidget {
   const _DrawerRow({
     required this.shift,
     required this.currency,
     required this.bridge,
     required this.loading,
-    required this.onTap,
+    required this.onPrintNow,
+    required this.onPreview,
   });
 
   final ShiftSummaryView shift;
   final String currency;
   final MadarBridge bridge;
+
+  /// True while THIS row's report is being fetched — for the print or for
+  /// the preview, `fetchDrawerReport` cannot tell them apart and doesn't
+  /// need to.
   final bool loading;
-  final VoidCallback onTap;
+
+  /// SINGLE TAP.
+  final Future<PrintOutcome?> Function() onPrintNow;
+
+  /// LONG PRESS and the preview glyph.
+  final VoidCallback onPreview;
+
+  @override
+  State<_DrawerRow> createState() => _DrawerRowState();
+}
+
+class _DrawerRowState extends State<_DrawerRow> {
+  bool _printing = false;
+  PrintOutcome? _result;
+
+  Future<void> _handlePrintNow() async {
+    if (_printing || widget.loading) return;
+    setState(() {
+      _printing = true;
+      _result = null;
+    });
+    final outcome = await widget.onPrintNow();
+    if (!mounted) return;
+    setState(() {
+      _printing = false;
+      _result = outcome;
+    });
+    if (outcome == null) return;
+    unawaited(
+      Future<void>.delayed(_resultFade, () {
+        if (mounted && _result == outcome) setState(() => _result = null);
+      }),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final s = shift;
-    String t(String key) => bridge.tr(key: key);
+    final s = widget.shift;
+    String t(String key) => widget.bridge.tr(key: key);
     final (MadarTone tone, String label) = switch (s.status) {
       'open' => (MadarTone.success, t('shifts.open_now')),
       'force_closed' => (MadarTone.danger, t('shifts.force_closed')),
       _ => (MadarTone.neutral, t('shifts.closed')),
     };
-    final opened = bridge.formatTime(
+    final opened = widget.bridge.formatTime(
       rfc3339: s.openedAt,
       style: s.isOpen ? TimeStyle.time : TimeStyle.dateTime,
     );
     final declared = s.closingDeclaredMinor;
-    return MadarRow(
-      title: s.tellerName ?? '—',
-      subtitle: '${t('shift.opened_at')} $opened',
-      bar: tone.color(colors),
-      value: declared == null
-          ? null
-          : MoneyText(declared, currency: currency, color: colors.textPrimary),
-      trailing: loading
-          ? SizedBox.square(
-              dimension: _rowSpinnerSize,
-              child: CircularProgressIndicator(
-                color: colors.accent,
-                strokeWidth: _rowSpinnerStroke,
+    final busy = widget.loading || _printing;
+    final result = _result;
+    final statusChip = busy
+        ? SizedBox.square(
+            dimension: _rowSpinnerSize,
+            child: CircularProgressIndicator(
+              color: colors.accent,
+              strokeWidth: _rowSpinnerStroke,
+            ),
+          )
+        : switch (result) {
+            PrintOutcome.printed => MadarTag(
+              label: t('receipt.printed'),
+              tone: MadarTone.success,
+            ),
+            PrintOutcome.noPrinter => MadarTag(
+              label: t('receipt.no_printer'),
+              tone: MadarTone.warning,
+            ),
+            PrintOutcome.failed => MadarTag(
+              label: t('receipt.print_failed'),
+              tone: MadarTone.danger,
+            ),
+            null => MadarTag(label: label, tone: tone),
+          };
+    return GestureDetector(
+      // LONG PRESS opens the preview — TactileScale below owns the tap so
+      // its press-scale + haptic still fire on the print, exactly like the
+      // sell screen's item tiles (long-press outer, tap inner).
+      onLongPress: busy ? null : widget.onPreview,
+      child: TactileScale(
+        onTap: busy ? null : () => unawaited(_handlePrintNow()),
+        child: MadarRow(
+          title: s.tellerName ?? '—',
+          subtitle: '${t('shift.opened_at')} $opened',
+          bar: tone.color(colors),
+          value: declared == null
+              ? null
+              : MoneyText(
+                  declared,
+                  currency: widget.currency,
+                  color: colors.textPrimary,
+                ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: Space.xs,
+            children: [
+              statusChip,
+              // Discoverability: long-press has no visible affordance of
+              // its own, and a manager who never discovers it would never
+              // find the preview at all — this glyph-only button is the
+              // same action, always in reach, from the control kit rather
+              // than a bespoke tap target.
+              MadarButton(
+                label: '',
+                glyph: MadarGlyph.receipt,
+                variant: MadarButtonVariant.ghost,
+                size: MadarButtonSize.compact,
+                tooltip: t('chrome.view'),
+                enabled: !busy,
+                onTap: widget.onPreview,
               ),
-            )
-          : MadarTag(label: label, tone: tone),
-      onTap: onTap,
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

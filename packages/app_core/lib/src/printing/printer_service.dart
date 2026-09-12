@@ -6,6 +6,7 @@
 library;
 
 import 'dart:io' show Platform;
+import 'dart:typed_data' show Uint8List;
 
 import 'package:app_core/src/printing/bluetooth_printer_transport.dart';
 import 'package:app_core/src/printing/bt_backend.dart';
@@ -18,6 +19,24 @@ import 'package:rust_bridge/rust_bridge.dart';
 
 /// Default JetDirect (raw-TCP) printer port — the network printer fallback.
 const int _kJetDirectPort = 9100;
+
+/// Terminal outcome of one print attempt — shared so a one-tap print site
+/// (no dedicated screen/notifier of its own, e.g. a list row's single-tap
+/// print) reports "sent / no printer / failed" exactly like the feature
+/// screens that already carry this three-way state under their own name
+/// (`PrintState` in checkout, `ShiftPrintState` in shift).
+enum PrintOutcome {
+  /// The transport accepted the bytes.
+  printed,
+
+  /// No printer is bound in the device config — not a failure, an
+  /// unconfigured device.
+  noPrinter,
+
+  /// A printer is bound but the transport rejected the write (off, out of
+  /// range, out of paper).
+  failed,
+}
 
 /// The device's printer transport resolver + Bluetooth housekeeping.
 class PrinterService {
@@ -74,6 +93,23 @@ class PrinterService {
     if (!Platform.isAndroid) return true;
     final status = await Permission.bluetoothConnect.request();
     return status.isGranted;
+  }
+
+  /// Stream already-rendered bytes to the active transport, mapping "no
+  /// transport bound" / "write rejected" onto [PrintOutcome] — the one-tap
+  /// print sites that have no screen of their own to hold a richer state
+  /// machine (a list row's single-tap print, converted from a tap-to-preview
+  /// affordance so the SAME tap that used to open a preview now prints
+  /// directly).
+  Future<PrintOutcome> printBytes(Uint8List bytes) async {
+    final tx = activeTransport();
+    if (tx == null) return PrintOutcome.noPrinter;
+    try {
+      await tx.send(bytes);
+      return PrintOutcome.printed;
+    } on PrinterTransportException {
+      return PrintOutcome.failed;
+    }
   }
 }
 

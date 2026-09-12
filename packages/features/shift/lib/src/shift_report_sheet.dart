@@ -12,6 +12,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart' show ReceiptSheet;
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -666,6 +667,10 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
             children: [
               if (_printChip(state.print, t) case final Widget chip)
                 Center(child: chip),
+              // Single tap only, on purpose — this button already lives
+              // INSIDE the preview it would open (the sheet above IS the
+              // report's real shape); a long-press here would just show the
+              // screen the teller is already looking at.
               MadarButton(
                 label: state.print == ShiftPrintState.printing
                     ? t('receipt.printing')
@@ -908,9 +913,14 @@ class _OrdersSection extends StatelessWidget {
 }
 
 /// One order row — the Kotlin ShiftOrderRow's anatomy (number, time,
-/// voided tag, payment, total) in fixed paper ink, non-interactive here.
-/// Voided orders fade + strike through the total, the history rows' voided
-/// language.
+/// voided tag, payment, total) in fixed paper ink. Voided orders fade +
+/// strike through the total, the history rows' voided language.
+///
+/// SINGLE TAP on the printer glyph prints this order's receipt straight
+/// away; LONG PRESS on it — or a tap anywhere else on the row — opens that
+/// receipt in the shared preview instead (Print lives in its footer). The
+/// row-tap exists because a long-press on a small trailing glyph, alone, is
+/// an affordance nobody would ever find.
 class _ShiftOrderRow extends StatelessWidget {
   const _ShiftOrderRow({
     required this.order,
@@ -926,71 +936,106 @@ class _ShiftOrderRow extends StatelessWidget {
   /// Print this single order's receipt (per-order print in past shifts).
   final VoidCallback onPrint;
 
+  /// Best-effort — a missing cached receipt (an order never seen online)
+  /// just no-ops, matching the shift-history list's row preview.
+  Future<void> _preview(BuildContext context) async {
+    final ReceiptView receipt;
+    try {
+      receipt = await bridge.orderReceiptView(orderId: order.id);
+    } on MadarError {
+      return;
+    }
+    if (!context.mounted) return;
+    await showMadarSheet<void>(
+      context,
+      size: SheetSize.large,
+      builder: (_) => ReceiptSheet(receipt: receipt),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final o = order;
     final voided = o.status == 'voided';
     String t(String key) => bridge.tr(key: key);
-    return Opacity(
-      opacity: voided ? _voidedAlpha : 1,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Paper.track,
-          borderRadius: BorderRadius.circular(Radii.xs),
-        ),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Space.sm,
-            vertical: _orderRowVPad,
+    return GestureDetector(
+      onTap: () => unawaited(_preview(context)),
+      behavior: HitTestBehavior.opaque,
+      child: Opacity(
+        opacity: voided ? _voidedAlpha : 1,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Paper.track,
+            borderRadius: BorderRadius.circular(Radii.xs),
           ),
-          child: Row(
-            spacing: Space.sm,
-            children: [
-              Text(
-                o.orderNumber != null
-                    ? '#${o.orderNumber}'
-                    : t('history.order'),
-                style: MadarType.labelSm.copyWith(color: Paper.ink),
-              ),
-              Text(
-                bridge.formatTime(rfc3339: o.createdAt, style: TimeStyle.time),
-                style: MadarType.labelSm.copyWith(
-                  fontWeight: FontWeight.w400,
-                  color: Paper.faint,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Space.sm,
+              vertical: _orderRowVPad,
+            ),
+            child: Row(
+              spacing: Space.sm,
+              children: [
+                Text(
+                  o.orderNumber != null
+                      ? '#${o.orderNumber}'
+                      : t('history.order'),
+                  style: MadarType.labelSm.copyWith(color: Paper.ink),
                 ),
-              ),
-              if (voided) _VoidedTag(label: t('history.voided')),
-              Expanded(
-                child: Text(
-                  o.paymentLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
+                Text(
+                  bridge.formatTime(
+                    rfc3339: o.createdAt,
+                    style: TimeStyle.time,
+                  ),
                   style: MadarType.labelSm.copyWith(
                     fontWeight: FontWeight.w400,
                     color: Paper.faint,
                   ),
                 ),
-              ),
-              MoneyText(
-                o.totalMinor,
-                currency: currency,
-                style: MadarType.money.copyWith(
-                  fontSize: _orderMoneySize,
-                  fontWeight: FontWeight.w700,
-                  decoration: voided ? TextDecoration.lineThrough : null,
+                if (voided) _VoidedTag(label: t('history.voided')),
+                Expanded(
+                  child: Text(
+                    o.paymentLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: MadarType.labelSm.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: Paper.faint,
+                    ),
+                  ),
                 ),
-                color: voided ? Paper.faint : Paper.ink,
-              ),
-              // Per-order print — reprint this one order's receipt.
-              TactileScale(
-                onTap: onPrint,
-                child: const Padding(
-                  padding: EdgeInsetsDirectional.only(start: Space.xs),
-                  child: MadarIcon('printer', tint: Paper.faint),
+                MoneyText(
+                  o.totalMinor,
+                  currency: currency,
+                  style: MadarType.money.copyWith(
+                    fontSize: _orderMoneySize,
+                    fontWeight: FontWeight.w700,
+                    decoration: voided ? TextDecoration.lineThrough : null,
+                  ),
+                  color: voided ? Paper.faint : Paper.ink,
                 ),
-              ),
-            ],
+                // Per-order print — tap prints, long-press previews (the
+                // row-tap above answers the same long-press for anyone who
+                // lands on this glyph and never holds it down). Kept at the
+                // Kotlin row's compact size — the row-tap is the 44pt+
+                // target, this stays a small in-line shortcut over it.
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onLongPress: () {
+                    MadarHaptics.impact();
+                    unawaited(_preview(context));
+                  },
+                  child: TactileScale(
+                    onTap: onPrint,
+                    child: const Padding(
+                      padding: EdgeInsetsDirectional.only(start: Space.xs),
+                      child: MadarIcon('printer', tint: Paper.faint),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

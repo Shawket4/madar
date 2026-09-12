@@ -511,6 +511,12 @@ class _Totals extends StatelessWidget {
 /// offered on a queued sale too — the award names it by the client key it
 /// was rung under — and disappears on its own when the core's 24-hour
 /// window closes.
+///
+/// Reprint is SINGLE TAP → prints straight away, LONG PRESS → the shared
+/// preview with Print in its own footer (what a tap used to do here). A
+/// long-press on a button that also says "Reprint" is easy to never find,
+/// so the small View glyph beside it opens the same preview for anyone who
+/// wouldn't think to hold the button down.
 class _Actions extends ConsumerWidget {
   const _Actions({required this.order, required this.receipt});
 
@@ -552,15 +558,20 @@ class _Actions extends ConsumerWidget {
             Row(
               spacing: Space.sm,
               children: [
-                if (canReprint)
+                if (canReprint) ...[
                   Expanded(
-                    child: MadarButton(
-                      label: t('history.reprint'),
-                      variant: MadarButtonVariant.secondary,
-                      glyph: MadarGlyph.printer,
-                      onTap: () => unawaited(_reprint(context, ref)),
-                    ),
+                    child: _ReprintButton(order: o, receipt: receipt),
                   ),
+                  MadarButton(
+                    label: '',
+                    glyph: MadarGlyph.receipt,
+                    variant: MadarButtonVariant.ghost,
+                    size: MadarButtonSize.compact,
+                    tooltip: t('chrome.view'),
+                    onTap: () =>
+                        unawaited(_previewReceipt(context, ref, o, receipt)),
+                  ),
+                ],
                 if (canAward)
                   Expanded(
                     child: MadarButton(
@@ -618,27 +629,123 @@ class _Actions extends ConsumerWidget {
       ),
     );
   }
+}
 
-  /// The receipt projection is fetched with the detail; if that fetch lost
-  /// (a first tap before it landed, or an order never seen online) ask once
-  /// more here and say so if the core cannot.
-  Future<void> _reprint(BuildContext context, WidgetRef ref) async {
-    var view = receipt;
+/// The receipt projection is fetched with the sale's detail; if that fetch
+/// lost (a first tap before it landed, or an order never seen online) ask
+/// once more here and say so if the core cannot. Shared by the Reprint
+/// button's long-press and the View glyph beside it, so there is exactly
+/// one place this screen fetches a receipt for READING.
+Future<ReceiptView?> _resolveReceipt(
+  WidgetRef ref,
+  OrderSummaryView order,
+  ReceiptView? cached,
+) async {
+  if (cached != null) return cached;
+  try {
+    return await ref.read(bridgeProvider).orderReceiptView(orderId: order.id);
+  } on MadarError catch (e) {
+    ref.read(historyProvider.notifier).surfaceError(e);
+    return null;
+  }
+}
+
+Future<void> _previewReceipt(
+  BuildContext context,
+  WidgetRef ref,
+  OrderSummaryView order,
+  ReceiptView? cached,
+) async {
+  final view = await _resolveReceipt(ref, order, cached);
+  if (view == null || !context.mounted) return;
+  await showMadarSheet<void>(
+    context,
+    size: SheetSize.large,
+    builder: (_) => ReceiptSheet(receipt: view),
+  );
+}
+
+/// Reprint's SINGLE TAP: render the cached receipt in the core and stream it
+/// to the configured printer — `kickDrawer: false`, a reprint never pops the
+/// till again. LONG PRESS defers to the shared preview ([_previewReceipt]).
+/// Local `_busy` because this button has no screen of its own to hold a
+/// richer print-state machine, unlike the checkout session it mirrors.
+class _ReprintButton extends ConsumerStatefulWidget {
+  const _ReprintButton({required this.order, required this.receipt});
+
+  final OrderSummaryView order;
+  final ReceiptView? receipt;
+
+  @override
+  ConsumerState<_ReprintButton> createState() => _ReprintButtonState();
+}
+
+class _ReprintButtonState extends ConsumerState<_ReprintButton> {
+  bool _busy = false;
+
+  Future<void> _printNow() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final view = await _resolveReceipt(ref, widget.order, widget.receipt);
     if (view == null) {
-      try {
-        view = await ref
-            .read(bridgeProvider)
-            .orderReceiptView(orderId: order.id);
-      } on MadarError catch (e) {
-        ref.read(historyProvider.notifier).surfaceError(e);
-        return;
-      }
+      if (mounted) setState(() => _busy = false);
+      return;
     }
-    if (!context.mounted) return;
-    await showMadarSheet<void>(
-      context,
-      size: SheetSize.large,
-      builder: (_) => ReceiptSheet(receipt: view!),
+    final outcome = await printReceiptView(
+      ref.read(bridgeProvider),
+      ref.read(printerServiceProvider),
+      view,
+      kickDrawer: false,
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    final bridge = ref.read(bridgeProvider);
+    String t(String key) => historyTr(bridge, key);
+    final feedback = switch (outcome) {
+      PrintState.printed => (
+        t('receipt.printed'),
+        ChipTone.success,
+        'checkmark.circle',
+      ),
+      PrintState.noPrinter => (
+        t('receipt.no_printer'),
+        ChipTone.warning,
+        'exclamationmark.triangle',
+      ),
+      PrintState.failed => (
+        t('receipt.print_failed'),
+        ChipTone.danger,
+        'exclamationmark.triangle',
+      ),
+      PrintState.idle || PrintState.printing => null,
+    };
+    if (feedback != null) {
+      ref
+          .read(historyProvider.notifier)
+          .showToast(feedback.$1, tone: feedback.$2, icon: feedback.$3);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bridge = ref.watch(bridgeProvider);
+    String t(String key) => historyTr(bridge, key);
+    return GestureDetector(
+      onLongPress: _busy
+          ? null
+          : () {
+              MadarHaptics.impact();
+              unawaited(
+                _previewReceipt(context, ref, widget.order, widget.receipt),
+              );
+            },
+      child: MadarButton(
+        label: t('history.reprint'),
+        variant: MadarButtonVariant.secondary,
+        glyph: MadarGlyph.printer,
+        loading: _busy,
+        onTap: () => unawaited(_printNow()),
+      ),
     );
   }
 }

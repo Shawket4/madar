@@ -135,6 +135,7 @@ class MadarButton extends StatelessWidget {
   const MadarButton({
     required this.label,
     required this.onTap,
+    this.onLongPress,
     this.variant = MadarButtonVariant.primary,
     this.size = MadarButtonSize.regular,
     this.glyph,
@@ -151,6 +152,12 @@ class MadarButton extends StatelessWidget {
 
   /// Tap handler; fires after the impact haptic.
   final VoidCallback onTap;
+
+  /// Optional long press — the preview behind an action whose tap commits.
+  /// A print button prints on tap and shows the paper on long press; the
+  /// tap must still do the whole thing on its own, because a long press is
+  /// not discoverable and nothing may hide behind it.
+  final VoidCallback? onLongPress;
 
   final MadarButtonVariant variant;
   final MadarButtonSize size;
@@ -307,6 +314,12 @@ class MadarButton extends StatelessWidget {
           MadarHaptics.impact();
           onTap();
         },
+        onLongPress: onLongPress == null
+            ? null
+            : () {
+                MadarHaptics.impact();
+                onLongPress!();
+              },
         child: button,
       );
     }
@@ -957,6 +970,7 @@ class MadarRow extends StatelessWidget {
     this.value,
     this.trailing,
     this.onTap,
+    this.onLongPress,
     this.chevron,
     this.dense = false,
     this.titleStyle,
@@ -988,6 +1002,10 @@ class MadarRow extends StatelessWidget {
   /// Makes the row a press target. A tappable row shows a chevron unless
   /// [chevron] says otherwise.
   final VoidCallback? onTap;
+
+  /// Optional long press — the preview behind a row whose tap commits.
+  /// The tap must still stand alone; nothing may live only behind this.
+  final VoidCallback? onLongPress;
 
   /// Force the disclosure chevron on or off.
   final bool? chevron;
@@ -1089,15 +1107,23 @@ class MadarRow extends StatelessWidget {
         ],
       );
     }
-    if (onTap == null) return row;
+    if (onTap == null && onLongPress == null) return row;
     return Semantics(
       button: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () {
-          MadarHaptics.selection();
-          onTap!();
-        },
+        onTap: onTap == null
+            ? null
+            : () {
+                MadarHaptics.selection();
+                onTap!();
+              },
+        onLongPress: onLongPress == null
+            ? null
+            : () {
+                MadarHaptics.impact();
+                onLongPress!();
+              },
         child: row,
       ),
     );
