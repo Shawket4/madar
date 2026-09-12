@@ -320,6 +320,18 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     ).push(MaterialPageRoute<void>(builder: (_) => build()));
   }
 
+  /// Bumped by every incoming-order alert; the rung tab reads it as its
+  /// [MadarTab.ring]. A counter rather than a flag, because two orders
+  /// thirty seconds apart have to ring twice.
+  int _ring = 0;
+
+  /// The tab an incoming-order alert points at — the same choice
+  /// [_viewIncoming] makes, so the ring and the toast's View agree.
+  _Tab get _ringTab =>
+      _kind == ShellKind.waiter || !_bodies.containsKey(_Tab.queue)
+      ? _Tab.bills
+      : _Tab.queue;
+
   void _select(_Tab tab) {
     if (_chosen == tab) return;
     setState(() => _chosen = tab);
@@ -432,6 +444,11 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   void _onAlert(AlertCommand cmd) {
     switch (cmd) {
       case AlertCommand_Notify(:final title, :final body, :final tag):
+        // The chime is not enough on a floor: half these rooms are loud, and
+        // a tablet on a stand with the sound down is normal. Ring the tab the
+        // alert's own View would take you to, so the glance that follows the
+        // toast lands on the right place even after the toast is gone.
+        if (mounted) setState(() => _ring += 1);
         // Sticky: a new order deserves attention until someone actually
         // looks — it clears on markIncomingSeen, not on a timer.
         ref
@@ -670,6 +687,9 @@ class _RoleShellState extends ConsumerState<RoleShell> {
                     _Tab.queue => queueBadge,
                     _ => 0,
                   },
+                  // Only the tab you are NOT on: ringing the screen already
+                  // in front of the teller is noise.
+                  ring: tab == _ringTab && tab != current ? _ring : 0,
                 ),
             ],
             selectedIndex: tabs.indexOf(current),
