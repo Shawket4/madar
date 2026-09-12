@@ -123,6 +123,24 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
+    /// Take ONE line off an open bill — "they sent the calamari back".
+    ///
+    /// Not a refund (nothing has been paid) and not a ticket void (the rest of
+    /// the table's bill stands). Outbox-first and keyed on the line, so a
+    /// retried drain cannot take the money off twice. Returns true while it is
+    /// still queued; the line reads as voided on the bill either way.
+    pub async fn void_ticket_line(
+        &self,
+        ticket_id: String,
+        item_id: String,
+        reason: Option<String>,
+    ) -> Result<bool, MadarError> {
+        self.inner
+            .void_ticket_line(ticket_id, item_id, reason)
+            .await
+            .map_err(MadarError::from)
+    }
+
     /// SETTLE an open ticket into a paid order in the cashier's shift (a till
     /// action). Offline-first: the order is materialized server-side at replay,
     /// deduped on the ticket id. Returns true when still queued (offline). The

@@ -17,6 +17,22 @@ abstract final class Money {
     final code = currency.toUpperCase();
     return code.isEmpty ? amount : '$code $amount';
   }
+
+  /// A tax or service-charge rate as a percentage, for a receipt or a bill
+  /// line: `0.14` → `"14"`, `0.125` → `"12.5"`.
+  ///
+  /// Rounded to a tenth FIRST, because `0.14 * 100` is `14.000000000000002`
+  /// in a double and "14.0%" on a receipt looks like a rate nobody set. The
+  /// trailing `.0` is then dropped, so a whole rate reads whole.
+  ///
+  /// The rate is a fraction, never a percentage — the same convention the
+  /// core and the backend use for every `*_rate` on the wire.
+  static String ratePercent(double rate) {
+    final pct = (rate * 1000).round() / 10;
+    return pct == pct.roundToDouble()
+        ? pct.toStringAsFixed(0)
+        : pct.toStringAsFixed(1);
+  }
 }
 
 /// An amount rendered with [Money.format] in the Madar money type scale.

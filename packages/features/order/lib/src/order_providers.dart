@@ -1777,6 +1777,32 @@ class OrderNotifier extends Notifier<OrderState> {
     state = state.copyWith(activeTicketId: null);
   }
 
+  /// Take ONE line off an open bill. The table stays occupied and the rest of
+  /// the bill stands — this is a plate coming back, not the party leaving.
+  Future<void> voidTicketLine(
+    String ticketId,
+    String itemId,
+    String? reason,
+  ) async {
+    try {
+      await _bridge.voidTicketLine(
+        ticketId: ticketId,
+        itemId: itemId,
+        reason: reason,
+      );
+      // The core overlays the queued void on its own, so this re-read shows
+      // the line struck and the bill re-priced whether or not it reached the
+      // server.
+      await loadOpenTickets();
+    } on MadarError catch (e) {
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+    }
+  }
+
   // ── connectivity heartbeat ─────────────────────────────────────────────────
   /// Ping + refresh the sync chrome. On an offline→online transition the
   /// teller's shift is reconciled (mirrors the natives' refreshConnectivity).

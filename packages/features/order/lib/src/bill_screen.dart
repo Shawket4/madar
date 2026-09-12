@@ -6,10 +6,10 @@
 // do with a party who has ordered: add to it, or take their money. Both
 // shells mount the same screen; only Charge is the teller's.
 //
-// What the ticket view does not carry is not drawn: there is no service or
-// VAT line because `TicketView` projects only a subtotal, readiness is
-// bill-level (the server's `ready` status) rather than per round, and a
-// single line cannot be voided because no route does that yet.
+// What the ticket view does not carry is not drawn: readiness is bill-level
+// (the server's `ready` status) rather than per round. A single LINE can be
+// voided — tap it — which is the ordinary answer to "they sent it back",
+// where voiding the whole bill and re-ringing it was the only one before.
 import 'dart:async';
 
 import 'package:app_core/app_core.dart';
@@ -160,6 +160,24 @@ class _BillScreenState extends ConsumerState<BillScreen>
     await _notifier.swapTables(t.tableId!, to);
   }
 
+  /// Tap a live line: take that one plate off the bill.
+  ///
+  /// Only a LIVE line — a voided one is history and there is nothing left to
+  /// do to it. The sheet is the bill's own void sheet with the line's words in
+  /// the header, so the teller can see which plate they are about to remove.
+  Future<void> _voidLine(TicketView t, TicketLineView line) async {
+    if (line.voided) return;
+    final result = await showMadarSheet<VoidTicketResult>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (_) =>
+          WaiterVoidSheet(ticket: t, lineLabel: '${line.qty}× ${line.name}'),
+    );
+    if (result == null || !mounted) return;
+    await _notifier.voidTicketLine(t.id, line.id, result.reason);
+  }
+
   Future<void> _void(TicketView t) async {
     final result = await showMadarSheet<VoidTicketResult>(
       context,
@@ -301,6 +319,7 @@ class _BillScreenState extends ConsumerState<BillScreen>
             currency: currency,
             roundWord: bridge.tr(key: 'tables.round'),
             voidedWord: orderWord(bridge, 'bill.voided'),
+            onVoidLine: (line) => unawaited(_voidLine(ticket, line)),
             time: round.firedAt.isEmpty
                 ? ''
                 : bridge.formatTime(
@@ -310,25 +329,14 @@ class _BillScreenState extends ConsumerState<BillScreen>
           ),
           const SizedBox(height: Space.md),
         ],
-        // A SUBTOTAL, named as one. Service and VAT are on the server's bill
-        // and not yet on the till's view of it; Charge shows what it can.
-        MadarCard(
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  bridge.tr(key: 'order.subtotal'),
-                  style: MadarType.h3.copyWith(color: colors.textPrimary),
-                ),
-              ),
-              MoneyText(
-                ticket.subtotalMinor,
-                currency: currency,
-                style: MadarType.moneyLg,
-                color: colors.textPrimary,
-              ),
-            ],
-          ),
+        // The bill as the SERVER prices it — the figure the drawer collects.
+        // Without one (a fire that has not synced) the subtotal shows, named
+        // as a subtotal, rather than passing itself off as a total.
+        _BillTotals(
+          bill: ticket.bill,
+          subtotalMinor: ticket.subtotalMinor,
+          currency: currency,
+          bridge: bridge,
         ),
       ],
     );
@@ -344,7 +352,10 @@ class _BillScreenState extends ConsumerState<BillScreen>
     final charge = canCharge
         ? MadarMoneyBar(
             label: orderWord(bridge, 'sell.charge'),
-            amountMinor: ticket.subtotalMinor,
+            // What the drawer will actually take. The button used to say the
+            // subtotal while the tender screen collected the total — the same
+            // discrepancy, on the same bill, one tap apart.
+            amountMinor: ticket.bill?.totalMinor ?? ticket.subtotalMinor,
             currency: currency,
             enabled: state.shiftOpen && !state.isBusy,
             reason: state.shiftOpen
@@ -410,6 +421,104 @@ class _BillScreenState extends ConsumerState<BillScreen>
   }
 }
 
+/// The money at the foot of a bill.
+///
+/// One card, and which lines it shows is decided by what the server sent: a
+/// discount line only when something was taken off, a service line only when
+/// one was charged, and the tax line worded by whether the menu prices already
+/// contain it. The hero is the TOTAL — what the drawer collects — except on a
+/// bill the server has not priced yet, where it is honestly a subtotal.
+class _BillTotals extends StatelessWidget {
+  const _BillTotals({
+    required this.bill,
+    required this.subtotalMinor,
+    required this.currency,
+    required this.bridge,
+  });
+
+  final TicketBillView? bill;
+  final int subtotalMinor;
+  final String currency;
+  final MadarBridge bridge;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final b = bill;
+    Widget line(String label, int minor, {bool negative = false}) => Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: Space.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: MadarType.body.copyWith(color: colors.textSecondary),
+            ),
+          ),
+          MoneyText(
+            negative ? -minor : minor,
+            currency: currency,
+            style: MadarType.money,
+            color: colors.textSecondary,
+          ),
+        ],
+      ),
+    );
+    final rate = b == null || b.taxRate <= 0
+        ? ''
+        : ' ${Money.ratePercent(b.taxRate)}%';
+    return MadarCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (b != null) ...[
+            line(bridge.tr(key: 'order.subtotal'), b.subtotalMinor),
+            if (b.discountMinor > 0)
+              line(
+                bridge.tr(key: 'order.discount'),
+                b.discountMinor,
+                negative: true,
+              ),
+            if (b.serviceChargeMinor > 0)
+              line(bridge.tr(key: 'order.service_charge'), b.serviceChargeMinor),
+            // Inclusive tax is already inside the total, so it reads as a
+            // note under it rather than a term added to it.
+            if (b.taxMinor > 0 && !b.taxInclusive)
+              line('${bridge.tr(key: 'order.tax')}$rate', b.taxMinor),
+            const MadarHairline(),
+            const SizedBox(height: Space.xs),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  bridge.tr(key: b == null ? 'order.subtotal' : 'order.total'),
+                  style: MadarType.h3.copyWith(color: colors.textPrimary),
+                ),
+              ),
+              MoneyText(
+                b?.totalMinor ?? subtotalMinor,
+                currency: currency,
+                style: MadarType.moneyLg,
+                color: colors.textPrimary,
+              ),
+            ],
+          ),
+          if (b != null && b.taxInclusive && b.taxMinor > 0)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(top: Space.xs),
+              child: Text(
+                '${bridge.tr(key: 'charge.vat_included')}$rate '
+                '${Money.format(b.taxMinor, currency: currency)}',
+                style: MadarType.bodySm.copyWith(color: colors.textMuted),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// One round: "ROUND 1 · 19:02" over its lines.
 class _RoundCard extends StatelessWidget {
   const _RoundCard({
@@ -418,6 +527,7 @@ class _RoundCard extends StatelessWidget {
     required this.roundWord,
     required this.voidedWord,
     required this.time,
+    required this.onVoidLine,
   });
 
   final BillRound round;
@@ -425,6 +535,7 @@ class _RoundCard extends StatelessWidget {
   final String roundWord;
   final String voidedWord;
   final String time;
+  final void Function(TicketLineView line) onVoidLine;
 
   @override
   Widget build(BuildContext context) {
@@ -455,6 +566,8 @@ class _RoundCard extends StatelessWidget {
           for (final line in round.lines)
             MadarRow(
               dense: true,
+              // A voided line is history: nothing to tap.
+              onTap: line.voided ? null : () => onVoidLine(line),
               title: '${line.qty}× ${line.name}',
               titleStyle: line.voided
                   ? MadarType.title.copyWith(

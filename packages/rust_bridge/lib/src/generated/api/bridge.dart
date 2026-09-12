@@ -874,4 +874,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// VOID an open ticket (and pull its kitchen tickets off the KDS). Offline-first.
   Future<bool> voidTicket({required String ticketId, String? reason});
+
+  /// Take ONE line off an open bill — "they sent the calamari back".
+  ///
+  /// Not a refund (nothing has been paid) and not a ticket void (the rest of
+  /// the table's bill stands). Outbox-first and keyed on the line, so a
+  /// retried drain cannot take the money off twice. Returns true while it is
+  /// still queued; the line reads as voided on the bill either way.
+  Future<bool> voidTicketLine({
+    required String ticketId,
+    required String itemId,
+    String? reason,
+  });
 }

@@ -241,6 +241,7 @@ Class | Method | HTTP request | Description
 *OpenTicketsApi* | [**move_ticket_table**](docs/OpenTicketsApi.md#move_ticket_table) | **PATCH** /open-tickets/{id}/table | Switch an open ticket to a different table (the \"move table\" button). Works for any live ticket — walk-in dine-in or one auto-opened from a booking. The old table is flagged `dirty` (bus it), the new one `seated`; if the ticket came from a booking, the booking's assignment is kept in sync.
 *OpenTicketsApi* | [**settle_open_ticket**](docs/OpenTicketsApi.md#settle_open_ticket) | **POST** /open-tickets/{id}/settle | 
 *OpenTicketsApi* | [**void_open_ticket**](docs/OpenTicketsApi.md#void_open_ticket) | **POST** /open-tickets/{id}/void | 
+*OpenTicketsApi* | [**void_ticket_line**](docs/OpenTicketsApi.md#void_ticket_line) | **POST** /open-tickets/{id}/items/{item_id}/void | 
 *OrdersApi* | [**create_order**](docs/OrdersApi.md#create_order) | **POST** /orders | 
 *OrdersApi* | [**export_orders**](docs/OrdersApi.md#export_orders) | **GET** /orders/export | 
 *OrdersApi* | [**get_order**](docs/OrdersApi.md#get_order) | **GET** /orders/{order_id} | 

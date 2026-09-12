@@ -1261,6 +1261,21 @@ impl MadarCore {
                     Idem::Yes,
                 )
             }
+            // Idempotent on the LINE, and that is load-bearing: the bill's
+            // subtotal is a running column the server decrements, so a
+            // re-flushed queue that voided the same line twice would leave the
+            // bill short by the price of a plate.
+            "void_ticket_line" => {
+                let cmd: tickets::VoidTicketLineCommand = match serde_json::from_str(&item.payload)
+                {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "void_ticket_line", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "item_id": cmd.item_id, "request": cmd.request }),
+                    Idem::Yes,
+                )
+            }
             // ── KDS bump / unbump (Phase E §2) ────────────────────────────────
             // Idempotent on the line: a 409/404 (re-bump of a gone/bumped line) is
             // a success. Replay returns 204 No Content — handled specially below.
@@ -6383,6 +6398,14 @@ impl MadarCore {
 // ── delivery-order management (online; teller works the live branch queue) ───
 impl MadarCore {
     /// The signed-in session's branch id, or a validation error.
+    /// Whether the branch taxes its service charge — the one part of a bill's
+    /// policy the wire does not freeze onto the bill itself.
+    fn service_charge_taxable(&self) -> bool {
+        self.current_session()
+            .map(|s| s.service_charge_taxable)
+            .unwrap_or(false)
+    }
+
     fn session_branch_id(&self) -> Result<String, CoreError> {
         let g = self.session.read().unwrap_or_else(|e| e.into_inner());
         let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
@@ -6634,6 +6657,60 @@ impl MadarCore {
         Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
     }
 
+    /// Take ONE line off an open bill — "they changed their mind about the
+    /// calamari", or it came back.
+    ///
+    /// Not a refund and not a ticket void. A refund returns money already
+    /// taken; this bill has not been paid. A ticket void tears the whole thing
+    /// up, which the till has been using to express "one thing was wrong" —
+    /// losing the round's timestamps and telling the kitchen to start the
+    /// entire table again over one plate.
+    ///
+    /// Outbox-first like every other write here, and keyed on the LINE: a
+    /// retried drain of the same void is a server-side no-op, which is what
+    /// stops the bill's running subtotal being reduced twice. Returns true
+    /// while it is still queued.
+    pub async fn void_ticket_line(
+        &self,
+        ticket_id: String,
+        item_id: String,
+        reason: Option<String>,
+    ) -> Result<bool, CoreError> {
+        let mut request = madar_api::models::VoidOpenTicketRequest::new();
+        // Same mapping as a ticket void: a host key that lands on `other`
+        // keeps its wording as the note, because `other` on its own tells a
+        // report nothing and the backend insists on a note with it.
+        if let Some(raw) = reason.filter(|s| !s.trim().is_empty()) {
+            let mapped = map_void_reason(raw.trim());
+            if mapped == madar_api::models::VoidReason::Other && raw.trim() != "other" {
+                request.note = Some(Some(raw.trim().to_string()));
+            }
+            request.reason = Some(Some(mapped));
+        }
+        let cmd = tickets::VoidTicketLineCommand {
+            ticket_id: ticket_id.clone(),
+            item_id: item_id.clone(),
+            request,
+        };
+        let (user_id, clock_offset_ms) = self.outbox_meta();
+        let op_id = format!("{item_id}:void_line");
+        self.store.enqueue(&store::NewOutboxOp {
+            id: op_id.clone(),
+            op_type: "void_ticket_line".into(),
+            idempotency_key: op_id.clone(),
+            payload: serde_json::to_string(&cmd)?,
+            // After the fire that created the line: voiding a line the server
+            // has not been told about yet would 404 and dead-letter.
+            depends_on_seq: self.store.live_seq_of(&ticket_id)?,
+            event_at: self.corrected_now().to_rfc3339(),
+            user_id,
+            clock_offset_ms,
+            shift_id: None,
+        })?;
+        let _ = self.drain_outbox().await;
+        Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
+    }
+
     /// SETTLE an open ticket into a paid order in the cashier's shift (a till
     /// action). Offline-first: the order is materialized server-side at replay,
     /// deduped on the ticket id. Returns true when still queued (offline). The
@@ -6819,10 +6896,15 @@ impl MadarCore {
             }
             Err(_) => cached_views(&self.store, "cache:open_tickets"),
         };
+        // Line voids this device queued but has not sent: the waiter who took
+        // a plate off must see it come off, and the cashier must not collect
+        // for it, whichever of them is looking at the bill.
+        let line_voids = tickets::pending_line_voids(&self.store)?;
+        let sc_taxable = self.service_charge_taxable();
         let mut out: Vec<tickets::TicketView> = server
             .iter()
             .filter(|v| v.status != "settled" && v.status != "voided")
-            .map(|v| tickets::to_view(v, false))
+            .map(|v| tickets::to_view_with(v, false, &line_voids, sc_taxable))
             .collect();
         // Ticket ids the waiter has already settled or voided OFFLINE (still queued).
         // Their not-yet-synced fire must NOT show as open — else a phantom ticket
@@ -6880,7 +6962,12 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
-        Ok(tickets::to_view(&v, false))
+        Ok(tickets::to_view_with(
+            &v,
+            false,
+            &tickets::pending_line_voids(&self.store)?,
+            self.service_charge_taxable(),
+        ))
     }
 }
 

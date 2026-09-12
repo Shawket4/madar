@@ -249,9 +249,16 @@ _voidReasonProvider = NotifierProvider.autoDispose
 /// reason picker + free-text note (the shared `void.*` keys) and a
 /// Cancel / danger-Void pair. Pops a [VoidTicketResult] on confirm.
 class WaiterVoidSheet extends ConsumerStatefulWidget {
-  const WaiterVoidSheet({required this.ticket, super.key});
+  const WaiterVoidSheet({required this.ticket, this.lineLabel, super.key});
 
   final TicketView ticket;
+
+  /// Set when ONE line is being voided rather than the whole bill — the
+  /// line's own words ("2× Calamari"), so the sheet says which plate is
+  /// coming off. The two acts are near enough identical to share a sheet and
+  /// far enough apart that the header must not be ambiguous about which is
+  /// about to happen.
+  final String? lineLabel;
 
   @override
   ConsumerState<WaiterVoidSheet> createState() => _WaiterVoidSheetState();
@@ -320,11 +327,18 @@ class _WaiterVoidSheetState extends ConsumerState<WaiterVoidSheet> {
               ),
             ],
           ),
-          if (ticketRef != null && ticketRef.isNotEmpty) ...[
+          if ([
+            ?ticketRef?.ifNotEmpty,
+            ?widget.lineLabel,
+          ].join(' · ') case final sub when sub.isNotEmpty) ...[
             const SizedBox(height: Space.xs),
             Text(
-              ticketRef,
-              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+              sub,
+              style: MadarType.bodySm.copyWith(
+                color: widget.lineLabel == null
+                    ? colors.textSecondary
+                    : colors.textPrimary,
+              ),
             ),
           ],
           const SizedBox(height: Space.md),
@@ -431,4 +445,8 @@ class _VoidReasonRow extends StatelessWidget {
       ),
     );
   }
+}
+
+extension on String {
+  String? get ifNotEmpty => isEmpty ? null : this;
 }

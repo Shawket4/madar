@@ -46,6 +46,16 @@ pub(crate) struct VoidTicketCommand {
     pub request: models::VoidOpenTicketRequest,
 }
 
+/// Take ONE line off a bill — "they sent the calamari back". The same request
+/// shape as voiding the whole bill, because it is the same act at a smaller
+/// scale and a report should be able to count both with one vocabulary.
+#[derive(Serialize, Deserialize)]
+pub(crate) struct VoidTicketLineCommand {
+    pub ticket_id: String,
+    pub item_id: String,
+    pub request: models::VoidOpenTicketRequest,
+}
+
 // ── FFI view DTOs ─────────────────────────────────────────────────────────────
 
 /// The slim "sent to kitchen" confirmation after a fire/round — deliberately NOT
@@ -204,6 +214,41 @@ fn flat<T: Clone>(o: &Option<Option<T>>) -> Option<T> {
 /// Project a server `OpenTicketView` to the FFI `TicketView`. `queued_offline` is
 /// set by the caller (true for a still-outboxed fire that has no server view).
 pub(crate) fn to_view(v: &models::OpenTicketView, queued_offline: bool) -> TicketView {
+    to_view_with(v, queued_offline, &Default::default(), false)
+}
+
+/// Project a ticket, applying any line voids this device has queued but not
+/// yet sent.
+///
+/// A waiter who takes the calamari off while the wifi is down must see the
+/// calamari come off. The server has not heard yet, so its view still carries
+/// the line and prices the bill with it — and the cashier who settles from
+/// that figure would collect for a plate that was sent back.
+///
+/// `service_charge_taxable` is the one part of the policy the bill does not
+/// carry, so it comes from the session. It is the same branch setting the
+/// server read, and it only matters at all when a service charge exists.
+pub(crate) fn to_view_with(
+    v: &models::OpenTicketView,
+    queued_offline: bool,
+    voided_line_ids: &std::collections::HashSet<String>,
+    service_charge_taxable: bool,
+) -> TicketView {
+    let mut lines: Vec<TicketLineView> = v.items.iter().map(line_view).collect();
+    let mut removed: i64 = 0;
+    for line in &mut lines {
+        if !line.voided && voided_line_ids.contains(&line.id) {
+            line.voided = true;
+            removed += line.line_total_minor;
+        }
+    }
+    let subtotal = (v.subtotal as i64 - removed).max(0);
+    let bill = v.bill.as_deref().map(bill_view);
+    let bill = match (&bill, removed) {
+        // Nothing queued against this bill: the server's figures stand.
+        (_, 0) | (None, _) => bill,
+        (Some(b), _) => Some(reprice(b, subtotal, v, service_charge_taxable)),
+    };
     TicketView {
         id: v.id.to_string(),
         ticket_ref: flat(&v.ticket_ref),
@@ -212,13 +257,73 @@ pub(crate) fn to_view(v: &models::OpenTicketView, queued_offline: bool) -> Ticke
         customer_name: flat(&v.customer_name),
         waiter_name: flat(&v.opened_by_name).filter(|s| !s.is_empty()),
         guest_count: flat(&v.guest_count),
-        subtotal_minor: v.subtotal as i64,
-        bill: v.bill.as_deref().map(bill_view),
+        subtotal_minor: subtotal,
+        bill,
         order_id: flat(&v.order_id).map(|u| u.to_string()),
         opened_at: v.opened_at.to_rfc3339(),
         queued_offline,
-        lines: v.items.iter().map(line_view).collect(),
+        lines,
     }
+}
+
+/// Re-price a bill whose subtotal just dropped, through the SAME engine and
+/// the same order of operations the server uses (`price_open_bill`): resolve
+/// the discount against the NEW subtotal, then tax the remainder.
+///
+/// This is the one place the till computes a bill it was handed, and it is
+/// safe for exactly one reason — `crate::tax` and the backend's engine are
+/// held byte-identical by the shared conformance vectors. A percentage
+/// discount shrinks with the bill and a fixed one does not, which is why the
+/// discount is recomputed from its type rather than scaled.
+fn reprice(
+    b: &TicketBillView,
+    subtotal: i64,
+    v: &models::OpenTicketView,
+    service_charge_taxable: bool,
+) -> TicketBillView {
+    use std::str::FromStr;
+    let dec = |f: f64| rust_decimal::Decimal::from_str(&f.to_string()).unwrap_or_default();
+    let policy = crate::tax::TaxPolicy {
+        // The rates the SERVER froze onto this bill, not today's settings: a
+        // rate changed mid-service must not restate a bill already priced.
+        tax_rate: dec(b.tax_rate),
+        tax_inclusive: b.tax_inclusive,
+        service_charge_rate: dec(b.service_charge_rate),
+        service_charge_taxable,
+    };
+    let discount = match (
+        flat(&v.discount_type).as_deref(),
+        flat(&v.discount_value),
+    ) {
+        (Some("percentage"), Some(val)) => crate::tax::Discount::Percentage(dec(val)),
+        (Some("fixed"), Some(val)) => crate::tax::Discount::Fixed(dec(val)),
+        _ => crate::tax::Discount::None,
+    };
+    let discount = crate::tax::discount_amount(subtotal, discount);
+    let out = crate::tax::compute(subtotal, discount, &policy);
+    TicketBillView {
+        subtotal_minor: out.subtotal,
+        discount_minor: out.discount,
+        service_charge_minor: out.service_charge,
+        tax_minor: out.tax,
+        total_minor: out.total,
+        tax_rate: b.tax_rate,
+        service_charge_rate: b.service_charge_rate,
+        tax_inclusive: b.tax_inclusive,
+    }
+}
+
+/// Bill-line ids with a queued (un-sent) line void — the overlay's input.
+pub(crate) fn pending_line_voids(
+    store: &crate::store::Store,
+) -> crate::error::CoreResult<std::collections::HashSet<String>> {
+    let mut ids = std::collections::HashSet::new();
+    for item in store.list_active_of_types(&["void_ticket_line"])? {
+        if let Ok(cmd) = serde_json::from_str::<VoidTicketLineCommand>(&item.payload) {
+            ids.insert(cmd.item_id);
+        }
+    }
+    Ok(ids)
 }
 
 /// Project the server's priced bill. Every figure is taken, never derived — a
@@ -435,6 +540,147 @@ mod tests {
         assert_eq!(got.total_minor, got.subtotal_minor, "tax is already inside");
         assert_eq!(got.tax_minor, 1400, "and still recorded");
         assert!(got.tax_inclusive);
+    }
+
+    /// A fixture bill: two lines at the given totals, priced by the "server"
+    /// under `rate` exclusive with no service charge.
+    fn priced_ticket(a: i32, b: i32, rate: f64) -> models::OpenTicketView {
+        let subtotal = a + b;
+        let tax = (f64::from(subtotal) * rate).round() as i32;
+        models::OpenTicketView {
+            id: uuid::Uuid::new_v4(),
+            branch_id: uuid::Uuid::new_v4(),
+            booking_id: None,
+            table_id: None,
+            ticket_ref: Some(Some("T-1".into())),
+            status: "open".into(),
+            bill: Some(Box::new(models::TicketBill {
+                subtotal,
+                discount_amount: 0,
+                service_charge_amount: 0,
+                service_charge_rate: 0.0,
+                tax_amount: tax,
+                tax_inclusive: false,
+                tax_rate: rate,
+                total: subtotal + tax,
+            })),
+            discount_id: None,
+            discount_type: None,
+            discount_value: None,
+            ready: None,
+            void_note: None,
+            void_reason: None,
+            voided_at: None,
+            opened_by: uuid::Uuid::new_v4(),
+            opened_by_name: Some(Some("Sara".into())),
+            customer_name: None,
+            notes: None,
+            guest_count: Some(Some(2)),
+            subtotal,
+            order_id: None,
+            opened_at: chrono::Utc::now().fixed_offset(),
+            ready_at: None,
+            settled_at: None,
+            items: vec![
+                models::OpenTicketItemView {
+                    id: uuid::Uuid::from_u128(0xA),
+                    line: Some(serde_json::json!({ "name": "Calamari", "qty": 1 })),
+                    line_total: a,
+                    menu_item_id: None,
+                    round_fired_at: chrono::Utc::now().fixed_offset(),
+                    round_number: 1,
+                    voided: false,
+                },
+                models::OpenTicketItemView {
+                    id: uuid::Uuid::from_u128(0xB),
+                    line: Some(serde_json::json!({ "name": "Burger", "qty": 1 })),
+                    line_total: b,
+                    menu_item_id: None,
+                    round_fired_at: chrono::Utc::now().fixed_offset(),
+                    round_number: 1,
+                    voided: false,
+                },
+            ],
+        }
+    }
+
+    fn ids(of: &[u128]) -> std::collections::HashSet<String> {
+        of.iter()
+            .map(|n| uuid::Uuid::from_u128(*n).to_string())
+            .collect()
+    }
+
+    #[test]
+    fn a_queued_line_void_takes_the_line_off_the_bill_before_it_syncs() {
+        // 50 + 30 at 14%: the server says 80 + 11.20.
+        let v = priced_ticket(5000, 3000, 0.14);
+        let whole = to_view(&v, false);
+        assert_eq!(whole.subtotal_minor, 8000);
+        assert_eq!(whole.bill.as_ref().unwrap().total_minor, 9120);
+
+        // The calamari goes back, and the wifi is down.
+        let tv = to_view_with(&v, false, &ids(&[0xA]), false);
+        assert!(tv.lines[0].voided, "the waiter sees it come off");
+        assert!(!tv.lines[1].voided);
+        assert_eq!(tv.subtotal_minor, 3000);
+        let bill = tv.bill.unwrap();
+        assert_eq!(bill.subtotal_minor, 3000);
+        assert_eq!(bill.tax_minor, 420, "taxed on what is left, not on 80");
+        assert_eq!(
+            bill.total_minor, 3420,
+            "the cashier collects for one plate, not two"
+        );
+    }
+
+    #[test]
+    fn a_percentage_discount_shrinks_with_the_bill_and_a_fixed_one_does_not() {
+        let mut v = priced_ticket(5000, 3000, 0.0);
+        v.discount_type = Some(Some("percentage".into()));
+        v.discount_value = Some(Some(0.10));
+        let bill = to_view_with(&v, false, &ids(&[0xA]), false).bill.unwrap();
+        assert_eq!(bill.discount_minor, 300, "10% of the remaining 30");
+        assert_eq!(bill.total_minor, 2700);
+
+        v.discount_type = Some(Some("fixed".into()));
+        v.discount_value = Some(Some(500.0));
+        let bill = to_view_with(&v, false, &ids(&[0xA]), false).bill.unwrap();
+        assert_eq!(bill.discount_minor, 500, "five off is five off");
+        assert_eq!(bill.total_minor, 2500);
+    }
+
+    #[test]
+    fn voiding_every_line_leaves_a_bill_of_nothing_not_a_negative_one() {
+        let v = priced_ticket(5000, 3000, 0.14);
+        let tv = to_view_with(&v, false, &ids(&[0xA, 0xB]), false);
+        assert_eq!(tv.subtotal_minor, 0);
+        let bill = tv.bill.unwrap();
+        assert_eq!((bill.subtotal_minor, bill.tax_minor, bill.total_minor), (0, 0, 0));
+    }
+
+    #[test]
+    fn a_line_the_server_already_voided_is_not_subtracted_twice() {
+        let mut v = priced_ticket(5000, 3000, 0.0);
+        // The void reached the server: the line comes back already voided AND
+        // the subtotal already excludes it.
+        v.items[0].voided = true;
+        v.subtotal = 3000;
+        v.bill = Some(Box::new(models::TicketBill {
+            subtotal: 3000,
+            discount_amount: 0,
+            service_charge_amount: 0,
+            service_charge_rate: 0.0,
+            tax_amount: 0,
+            tax_inclusive: false,
+            tax_rate: 0.0,
+            total: 3000,
+        }));
+        // …while the op is still in this device's outbox, mid-drain.
+        let tv = to_view_with(&v, false, &ids(&[0xA]), false);
+        assert_eq!(
+            tv.subtotal_minor, 3000,
+            "the overlay skips a line the server has already taken off"
+        );
+        assert_eq!(tv.bill.unwrap().total_minor, 3000);
     }
 
     #[test]

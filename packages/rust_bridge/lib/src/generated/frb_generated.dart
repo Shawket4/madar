@@ -82,7 +82,7 @@ class RustBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 683652155;
+  int get rustContentHash => 1774699590;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -890,6 +890,13 @@ abstract class RustBridgeApi extends BaseApi {
   Future<bool> crateApiBridgeMadarBridgeVoidTicket({
     required MadarBridge that,
     required String ticketId,
+    String? reason,
+  });
+
+  Future<bool> crateApiBridgeMadarBridgeVoidTicketLine({
+    required MadarBridge that,
+    required String ticketId,
+    required String itemId,
     String? reason,
   });
 
@@ -6993,6 +7000,48 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<bool> crateApiBridgeMadarBridgeVoidTicketLine({
+    required MadarBridge that,
+    required String ticketId,
+    required String itemId,
+    String? reason,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(ticketId, serializer);
+          sse_encode_String(itemId, serializer);
+          sse_encode_opt_String(reason, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 160,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeVoidTicketLineConstMeta,
+        argValues: [that, ticketId, itemId, reason],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeVoidTicketLineConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_void_ticket_line",
+        argNames: ["that", "ticketId", "itemId", "reason"],
+      );
+
+  @override
   String crateApiBridgeCoreVersion() {
     return handler.executeSync(
       SyncTask(
@@ -7001,7 +7050,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 160,
+            funcId: 161,
           )!;
         },
         codec: SseCodec(
@@ -7027,7 +7076,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 161,
+            funcId: 162,
           )!;
         },
         codec: SseCodec(
@@ -7054,7 +7103,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 162,
+            funcId: 163,
           )!;
         },
         codec: SseCodec(
@@ -15914,4 +15963,21 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
         ticketId: ticketId,
         reason: reason,
       );
+
+  /// Take ONE line off an open bill — "they sent the calamari back".
+  ///
+  /// Not a refund (nothing has been paid) and not a ticket void (the rest of
+  /// the table's bill stands). Outbox-first and keyed on the line, so a
+  /// retried drain cannot take the money off twice. Returns true while it is
+  /// still queued; the line reads as voided on the bill either way.
+  Future<bool> voidTicketLine({
+    required String ticketId,
+    required String itemId,
+    String? reason,
+  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeVoidTicketLine(
+    that: this,
+    ticketId: ticketId,
+    itemId: itemId,
+    reason: reason,
+  );
 }

@@ -11,6 +11,7 @@ Method | HTTP request | Description
 [**move_ticket_table**](OpenTicketsApi.md#move_ticket_table) | **PATCH** /open-tickets/{id}/table | Switch an open ticket to a different table (the \"move table\" button). Works for any live ticket — walk-in dine-in or one auto-opened from a booking. The old table is flagged `dirty` (bus it), the new one `seated`; if the ticket came from a booking, the booking's assignment is kept in sync.
 [**settle_open_ticket**](OpenTicketsApi.md#settle_open_ticket) | **POST** /open-tickets/{id}/settle | 
 [**void_open_ticket**](OpenTicketsApi.md#void_open_ticket) | **POST** /open-tickets/{id}/void | 
+[**void_ticket_line**](OpenTicketsApi.md#void_ticket_line) | **POST** /open-tickets/{id}/items/{item_id}/void | 
 
 
 
@@ -197,6 +198,36 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **id** | **uuid::Uuid** | Open ticket ID | [required] |
+**void_open_ticket_request** | [**VoidOpenTicketRequest**](VoidOpenTicketRequest.md) |  | [required] |
+
+### Return type
+
+[**models::OpenTicketView**](OpenTicketView.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## void_ticket_line
+
+> models::OpenTicketView void_ticket_line(id, item_id, void_open_ticket_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Open ticket ID | [required] |
+**item_id** | **uuid::Uuid** | Bill line ID | [required] |
 **void_open_ticket_request** | [**VoidOpenTicketRequest**](VoidOpenTicketRequest.md) |  | [required] |
 
 ### Return type

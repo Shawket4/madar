@@ -466,14 +466,6 @@ class _Hero extends StatelessWidget {
   final String Function(String) tr;
   final MadarBridge bridge;
 
-  String _pct(double rate) {
-    // Rounded to a tenth first: 0.14 × 100 is 14.000000000000002 in a
-    // double, and "14.0%" on a receipt looks like a rate nobody set.
-    final pct = (rate * 1000).round() / 10;
-    return pct == pct.roundToDouble()
-        ? pct.toStringAsFixed(0)
-        : pct.toStringAsFixed(1);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -508,7 +500,7 @@ class _Hero extends StatelessWidget {
         );
       }
       if (sum.taxMinor > 0) {
-        final rate = s.taxRate > 0 ? ' ${_pct(s.taxRate)}%' : '';
+        final rate = s.taxRate > 0 ? ' ${Money.ratePercent(s.taxRate)}%' : '';
         parts.add(
           s.taxInclusive
               ? '${tr('charge.vat_included')}$rate ${money(sum.taxMinor)}'

@@ -129,6 +129,17 @@ final _tickets = <TicketView>[
     customerName: 'Omar',
     waiterName: 'Sara',
     subtotalMinor: 17500,
+    // The server's own figures: 175 of food, 14% on top.
+    bill: const TicketBillView(
+      subtotalMinor: 17500,
+      discountMinor: 0,
+      serviceChargeMinor: 0,
+      taxMinor: 2450,
+      totalMinor: 19950,
+      taxRate: 0.14,
+      serviceChargeRate: 0,
+      taxInclusive: false,
+    ),
     openedAt: _ago(42),
     queuedOffline: false,
     lines: [
@@ -273,6 +284,11 @@ const _en = {
   'order.combos': 'Combos',
   'order.configure': 'Configure',
   'order.subtotal': 'Subtotal',
+  'order.total': 'Total',
+  'order.tax': 'Tax',
+  'order.discount': 'Discount',
+  'order.service_charge': 'Service',
+  'charge.vat_included': 'VAT included',
   'order.clear': 'Clear',
   'order.cart_empty': 'Your cart is empty.',
   'waiter.items': 'items',
@@ -293,6 +309,11 @@ const _ar = {
   'tables.add_round': 'إضافة جولة',
   'tables.move': 'نقل إلى طاولة أخرى',
   'order.subtotal': 'المجموع الفرعي',
+  'order.total': 'الإجمالي',
+  'order.tax': 'الضريبة',
+  'order.discount': 'الخصم',
+  'order.service_charge': 'الخدمة',
+  'charge.vat_included': 'شامل ضريبة القيمة المضافة',
   'order.all': 'الكل',
   'order.search': 'ابحث عن صنف',
   'waiter.items': 'أصناف',
@@ -592,8 +613,37 @@ void main() {
         size: _ipad,
       );
       expect(find.text('2× Latte'), findsOneWidget);
+      // The bill's own breakdown, with the TOTAL as the hero — the figure the
+      // drawer collects. The screen used to show the subtotal as though it
+      // were the total, and Charge to say the same wrong number.
       expect(find.text('Subtotal'), findsOneWidget);
+      expect(find.text('Tax 14%'), findsOneWidget);
+      expect(find.text('Total'), findsOneWidget);
+      expect(find.text('EGP 199.50'), findsWidgets);
       await _capture(tester, 'bill-ipad');
+    });
+
+    testWidgets('tapping a live line offers to take it off the bill', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        screen: const BillScreen(ticketId: 'tk-1'),
+        size: _ipad,
+      );
+      // A voided line is history — nothing to tap.
+      final voided = find.ancestor(
+        of: find.text('1× Cake'),
+        matching: find.byType(MadarRow),
+      );
+      expect(tester.widget<MadarRow>(voided).onTap, isNull);
+
+      await tester.tap(find.text('2× Latte'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      // The bill's own void sheet, saying which plate is coming off.
+      expect(find.text('2× Latte'), findsWidgets);
+      expect(find.textContaining('T-0412 · 2× Latte'), findsOneWidget);
     });
 
     testWidgets('the width on a phone', (tester) async {

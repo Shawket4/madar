@@ -612,7 +612,11 @@ substitutes above are what ships in the morning.
 
 Still open, both SERVER work before the core can be asked for anything:
 
-- **Line void** — no route exists.
+- ~~**Line void**~~ — DONE. `POST /open-tickets/{id}/items/{item_id}/void` + a `VoidTicketLine`
+  replay op; the kitchen line now records which bill line it came from, so voiding a line takes
+  that plate off the board. `voidTicketLine` on the bridge, and the core overlays a queued void
+  on the ticket view — re-pricing the bill through the shared tax engine — so the waiter sees
+  the plate come off and the cashier does not collect for it while the op is still in the outbox.
 - ~~**`order_type: takeaway`**~~ — DONE, and it needs no request field: the server DERIVES it
   (a bill settled from a waiter's ticket is `dine_in`, anything rung straight through the till
   is `takeaway`), so a till cannot claim a type to dodge the service charge. The core stopped
