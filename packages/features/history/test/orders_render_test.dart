@@ -471,7 +471,7 @@ void main() {
     expect(find.textContaining('Void removes a mistaken sale'), findsOneWidget);
   });
 
-  testWidgets('the ⋯ sheet: Void, what it does, and the refund it is not', (
+  testWidgets('the ⋯ sheet offers Void and Refund, each saying what it does', (
     tester,
   ) async {
     await _shoot(
@@ -491,8 +491,16 @@ void main() {
       find.textContaining('Paid \u2066Sep 12 · 19:31\u2069'),
       findsOneWidget,
     );
-    // Once on the panel, once in the sheet.
-    expect(find.textContaining('is a refund'), findsNWidgets(2));
+    // BOTH acts are offered now. The sheet used to carry a sentence about the
+    // refund it could not do, because the core had a void and no refund; it
+    // has one, so the sentence is a row.
+    expect(find.text('Refund'), findsOneWidget);
+    // Twice: the panel teaches the difference between the two acts, and the
+    // sheet's Refund row repeats what it does under its own title.
+    expect(
+      find.textContaining('Refund returns money on a sale that stands'),
+      findsNWidgets(2),
+    );
   });
 
   testWidgets('the void sheet: reason chips, restock, one danger button', (
@@ -538,7 +546,10 @@ void main() {
         await _more(t);
       },
     );
-    expect(find.textContaining('cannot be voided'), findsOneWidget);
+    // Twice: a sale the server has never seen can be neither voided nor
+    // refunded, and each row says so in its own place rather than one of them
+    // sitting there enabled and failing.
+    expect(find.textContaining('cannot be voided'), findsNWidgets(2));
     expect(find.text('Reprint'), findsNothing);
   });
 

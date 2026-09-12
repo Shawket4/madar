@@ -7,9 +7,9 @@
 ///
 /// A REFUND IS NOT A VOID, and this is where the till says so. A void
 /// corrects a mistake — the sale is removed as if it never happened. A
-/// refund returns money already taken and the sale stands. The core has a
-/// void (`voidOrder`) and no refund (no route, no op, no bridge call), so
-/// Refund is not drawn: a button that cannot work is worse than no button.
+/// refund returns money already taken and the sale stands. Both are drawn
+/// now — the core grew `refundOrder`, so the sentence explaining the refund
+/// this screen could not do has been replaced by the refund itself.
 /// Void lives in the ⋯ sheet, which explains what it does, says when it
 /// cannot apply, and names the refund it is not — so a teller does not
 /// reach for the wrong correction.
@@ -189,7 +189,19 @@ class MoreTile extends ConsumerWidget {
       maxWidth: _sheetMaxWidth,
       builder: (_) => _MoreSheet(order: order),
     );
-    if (choice != _MoreChoice.voidSale || !context.mounted) return;
+    if (choice == null || !context.mounted) return;
+    if (choice == _MoreChoice.refundSale) {
+      final refunded = await showMadarSheet<bool>(
+        context,
+        size: SheetSize.hug,
+        maxWidth: _sheetMaxWidth,
+        builder: (_) => _RefundSheet(order: order),
+      );
+      if ((refunded ?? false) && context.mounted) {
+        await ref.read(historyProvider.notifier).reloadAfterVoid();
+      }
+      return;
+    }
     final voided = await showMadarSheet<bool>(
       context,
       size: SheetSize.hug,
@@ -573,7 +585,7 @@ class SaleScreen extends ConsumerWidget {
 
 // ── The ⋯ sheet ─────────────────────────────────────────────────────────────
 
-enum _MoreChoice { voidSale }
+enum _MoreChoice { voidSale, refundSale }
 
 /// What ⋯ offers: Void, with what it does under it and why it may not
 /// apply; and the sentence about the refund it is not. The sale's paid time
@@ -657,10 +669,29 @@ class _MoreSheet extends ConsumerWidget {
               ),
             ),
           ),
-          NoticeBanner(
-            text: t('history.refund_teach'),
-            tone: ChipTone.info,
-            icon: 'info.circle',
+          // A REFUND IS NOT A VOID, and this is where a teller learns the
+          // difference: the two sit side by side with what each one does to
+          // the books written under it. Refund is blocked by the same three
+          // states as void — you cannot give money back on a sale the server
+          // has never seen, nor on one already undone.
+          MadarCard(
+            flush: true,
+            child: Opacity(
+              opacity: blocked == null ? 1 : Opacities.disabled,
+              child: MadarRow(
+                title: t('history.refund_sale'),
+                subtitle: blocked ?? t('history.refund_teach'),
+                glyph: MadarGlyph.receipt,
+                onTap: blocked == null
+                    ? () =>
+                          Navigator.of(context).maybePop(_MoreChoice.refundSale)
+                    : null,
+                chevron: blocked == null,
+                titleStyle: MadarType.title.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -748,6 +779,206 @@ final NotifierProvider<_VoidFormNotifier, _VoidFormState> _voidFormProvider =
     NotifierProvider.autoDispose<_VoidFormNotifier, _VoidFormState>(
       _VoidFormNotifier.new,
     );
+
+// ── The refund sheet ────────────────────────────────────────────────────────
+
+/// How much goes back, by what route, and why. Pops `true` on success.
+///
+/// The amount defaults to the whole sale because most refunds are the whole
+/// sale, and it is editable because the ones that are not are the ones worth
+/// getting right. It is capped at the total: the server refuses a cumulative
+/// refund above what was taken, and a till that let someone type more would be
+/// queueing a failure the customer has already been promised.
+///
+/// No restock toggle, unlike a void. Returning money is not getting the food
+/// back — the kitchen made it and it left the building.
+class _RefundSheet extends ConsumerStatefulWidget {
+  const _RefundSheet({required this.order});
+
+  final OrderSummaryView order;
+
+  @override
+  ConsumerState<_RefundSheet> createState() => _RefundSheetState();
+}
+
+class _RefundSheetState extends ConsumerState<_RefundSheet> {
+  static const List<(String, String)> _reasons = [
+    ('customer', 'history.refund_reason_customer'),
+    ('wrong_order', 'history.refund_reason_wrong'),
+    ('quality', 'history.refund_reason_quality'),
+    ('overcharged', 'history.refund_reason_overcharged'),
+    ('other', 'history.refund_reason_other'),
+  ];
+
+  late int _amountMinor = widget.order.totalMinor;
+  final TextEditingController _note = TextEditingController();
+  String _reason = 'customer';
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirm() async {
+    final bridge = ref.read(bridgeProvider);
+    final minor = _amountMinor;
+    if (minor <= 0) return;
+    if (minor > widget.order.totalMinor) {
+      setState(() => _error = historyTr(bridge, 'history.refund_over'));
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await bridge.refundOrder(
+        orderId: widget.order.id,
+        amountMinor: minor,
+        // Back the way it came. A card sale refunded in cash would leave the
+        // drawer short against a card takings line that never moved, and the
+        // till has no list of methods on this screen to offer instead.
+        method: widget.order.paymentLabel,
+        reason: _reason,
+        note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+      );
+      ref.read(shellProvider.notifier).refresh();
+      if (mounted) Navigator.of(context).maybePop(true);
+    } on MadarError catch (e) {
+      if (e is MadarError_Unauthenticated &&
+          ref.read(shellProvider).session != null) {
+        ref.read(reauthRequestProvider.notifier).request();
+      }
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = bridge.humanMessage(e);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final bridge = ref.watch(bridgeProvider);
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
+    );
+    final o = widget.order;
+    String t(String key) => historyTr(bridge, key);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsetsDirectional.all(Space.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: Space.lg,
+              children: [
+                Row(
+                  spacing: Space.md,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: Space.xs,
+                        children: [
+                          Text(
+                            t('history.refund_sale'),
+                            style: MadarType.h2.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            '${saleTitle(bridge, o)}'
+                            ' · ${Money.format(o.totalMinor, currency: currency)}',
+                            style: MadarType.bodySm.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    MadarGlyphTile(
+                      glyph: MadarGlyph.close,
+                      onTap: () => Navigator.of(context).maybePop(false),
+                    ),
+                  ],
+                ),
+                Text(
+                  t('history.refund_teach'),
+                  style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+                ),
+                MadarSectionHeader(text: t('history.refund_amount')),
+                MadarAmountField(
+                  amountMinor: _amountMinor,
+                  onAmountMinor: (v) => setState(() {
+                    _amountMinor = v;
+                    _error = null;
+                  }),
+                  currencyCode: currency,
+                ),
+                MadarSectionHeader(text: t('history.refund_reason')),
+                Wrap(
+                  spacing: Space.sm,
+                  runSpacing: Space.sm,
+                  children: [
+                    for (final (key, label) in _reasons)
+                      MadarChip(
+                        label: t(label),
+                        selected: _reason == key,
+                        enabled: !_busy,
+                        onTap: () => setState(() => _reason = key),
+                      ),
+                  ],
+                ),
+                MadarField(
+                  controller: _note,
+                  placeholder: t('void.note'),
+                  glyph: MadarGlyph.note,
+                  enabled: !_busy,
+                ),
+                if (_error case final error?)
+                  NoticeBanner(
+                    text: error,
+                    tone: ChipTone.danger,
+                    icon: 'exclamationmark.triangle',
+                  ),
+                Row(
+                  spacing: Space.md,
+                  children: [
+                    Expanded(
+                      child: MadarButton(
+                        label: t('void.cancel'),
+                        variant: MadarButtonVariant.secondary,
+                        enabled: !_busy,
+                        onTap: () => Navigator.of(context).maybePop(false),
+                      ),
+                    ),
+                    Expanded(
+                      child: MadarButton(
+                        label: t('history.refund_confirm'),
+                        glyph: MadarGlyph.receipt,
+                        loading: _busy,
+                        onTap: () => unawaited(_confirm()),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 /// Reason chips, an optional note, the restock toggle, one danger CTA.
 /// Pops `true` after a successful void.

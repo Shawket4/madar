@@ -565,6 +565,24 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// this on login and on app resume.
   Future<ShiftView?> refreshShift();
 
+  /// Refund money already taken, against a synced sale.
+  ///
+  /// NOT a void. Voiding a settled sale tells the books it never happened;
+  /// this says it happened and some of the money went back. The till has
+  /// been using a void to mean both, which is why no report can say what a
+  /// month's refunds came to.
+  ///
+  /// Refused without an open shift — a refund is cash leaving a drawer.
+  /// Queued and replayed like every other write, keyed so two partial
+  /// refunds of one sale stay two events.
+  Future<void> refundOrder({
+    required String orderId,
+    required PlatformInt64 amountMinor,
+    required String method,
+    required String reason,
+    String? note,
+  });
+
   /// Give a restored draft's claim back without changes (the "never mind"
   /// path out of a resume).
   Future<void> releaseDraft({required String id});

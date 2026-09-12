@@ -19,6 +19,15 @@ pub(crate) struct VoidOrderCommand {
     pub request: models::VoidOrderRequest,
 }
 
+/// Outbox payload for a refund. The whole request travels, including the shift
+/// it was issued in: a refund is cash leaving a drawer, and a drain three hours
+/// later must credit it to the shift that was open when the money went back,
+/// not the one open when the network returned.
+#[derive(Serialize, Deserialize)]
+pub(crate) struct RefundOrderCommand {
+    pub request: models::CreateRefundRequest,
+}
+
 /// Server order ids that have a queued/failed void command — used to overlay an
 /// optimistic "voided" status on the synced orders before the void syncs.
 pub(crate) fn pending_void_ids(store: &Store) -> CoreResult<HashSet<String>> {

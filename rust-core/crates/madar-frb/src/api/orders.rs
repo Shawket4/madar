@@ -289,4 +289,28 @@ impl MadarBridge {
             .await
             .map_err(MadarError::from)
     }
+
+    /// Refund money already taken, against a synced sale.
+    ///
+    /// NOT a void. Voiding a settled sale tells the books it never happened;
+    /// this says it happened and some of the money went back. The till has
+    /// been using a void to mean both, which is why no report can say what a
+    /// month's refunds came to.
+    ///
+    /// Refused without an open shift — a refund is cash leaving a drawer.
+    /// Queued and replayed like every other write, keyed so two partial
+    /// refunds of one sale stay two events.
+    pub async fn refund_order(
+        &self,
+        order_id: String,
+        amount_minor: i64,
+        method: String,
+        reason: String,
+        note: Option<String>,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .refund_order(order_id, amount_minor, method, reason, note)
+            .await
+            .map_err(MadarError::from)
+    }
 }

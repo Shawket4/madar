@@ -82,14 +82,28 @@ const Map<String, HistoryString> historyFallbackStrings = {
     en: 'Void removes a mistaken sale as if it never happened.',
     ar: 'الإبطال يزيل عملية بيع خاطئة كأنها لم تحدث.',
   ),
+  'history.refund_sale': (en: 'Refund', ar: 'استرداد'),
   'history.refund_teach': (
-    en:
-        'Returning money on a sale that stands is a refund — '
-        'the server does not offer refunds yet.',
-    ar:
-        'إرجاع المال مع بقاء عملية البيع هو استرداد — '
-        'والخادم لا يدعم الاسترداد بعد.',
+    en: 'Refund returns money on a sale that stands.',
+    ar: 'الاسترداد يرجع المال مع بقاء عملية البيع.',
   ),
+  'history.refund_amount': (en: 'Amount to return', ar: 'المبلغ المسترد'),
+  'history.refund_method': (en: 'Back by', ar: 'طريقة الإرجاع'),
+  'history.refund_reason': (en: 'Why', ar: 'السبب'),
+  'history.refund_confirm': (en: 'Refund', ar: 'استرداد'),
+  'history.refund_over': (
+    en: 'More than the sale was for.',
+    ar: 'أكبر من قيمة عملية البيع.',
+  ),
+  'history.refund_needs_shift': (
+    en: 'A refund is cash out of a drawer — open a shift first.',
+    ar: 'الاسترداد نقد يخرج من الدرج — افتح وردية أولاً.',
+  ),
+  'history.refund_reason_customer': (en: 'Customer asked', ar: 'طلب العميل'),
+  'history.refund_reason_wrong': (en: 'Wrong order', ar: 'طلب خاطئ'),
+  'history.refund_reason_quality': (en: 'Quality', ar: 'الجودة'),
+  'history.refund_reason_overcharged': (en: 'Overcharged', ar: 'زيادة في الحساب'),
+  'history.refund_reason_other': (en: 'Something else', ar: 'سبب آخر'),
   'history.void_cannot_queued': (
     en: 'A queued sale cannot be voided until it reaches the server.',
     ar: 'لا يمكن إبطال عملية في الانتظار قبل وصولها إلى الخادم.',

@@ -1184,6 +1184,16 @@ impl MadarCore {
                     Idem::Yes,
                 )
             }
+            "refund_order" => {
+                let cmd: orders::RefundOrderCommand = match serde_json::from_str(&item.payload) {
+                    Ok(c) => c,
+                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                };
+                (
+                    serde_json::json!({ "op": "refund_order", "teller_id": teller_id, "request": cmd.request }),
+                    Idem::Yes,
+                )
+            }
             "cash_movement" => {
                 let mut cmd: shift::CashMovementCommand = match serde_json::from_str(&item.payload)
                 {
@@ -1675,6 +1685,28 @@ fn map_void_reason(reason: &str) -> madar_api::models::VoidReason {
         "customer" | "customer_request" => R::CustomerRequest,
         "mistake" | "wrong_order" => R::WrongOrder,
         "quality" | "quality_issue" => R::QualityIssue,
+        _ => R::Other,
+    }
+}
+
+/// Host reason key to the backend's refund vocabulary.
+///
+/// Separate from `map_void_reason` because the two events have different
+/// reasons and always will: nobody voids a bill for being "overcharged" — the
+/// bill was right and the money was not — and nobody refunds one as a
+/// duplicate ring-up. Folding them into one list is how a refund ends up filed
+/// under a void's heading, which is the reporting failure this whole feature
+/// exists to fix. An unmapped key falls to `Other` rather than 400-ing and
+/// dead-lettering money the customer has already been handed.
+fn map_refund_reason(reason: &str) -> madar_api::models::RefundReason {
+    use madar_api::models::RefundReason as R;
+    match reason {
+        "customer" | "customer_request" => R::CustomerRequest,
+        "wrong_order" | "mistake" => R::WrongOrder,
+        "quality" | "quality_issue" => R::QualityIssue,
+        "overcharged" => R::Overcharged,
+        "late" | "late_or_undelivered" => R::LateOrUndelivered,
+        "goodwill" => R::Goodwill,
         _ => R::Other,
     }
 }
@@ -5744,6 +5776,94 @@ impl MadarCore {
         let _ = self.drain_outbox().await;
         Ok(())
     }
+
+    /// Refund money already taken, against a synced order.
+    ///
+    /// A VOID CORRECTS A MISTAKE; A REFUND RETURNS MONEY. Voiding a settled
+    /// sale tells the books it never happened — but it did: the food was made,
+    /// the tax was charged, the drawer took the cash, the points were earned,
+    /// and then some of the money went back out. The till has been voiding
+    /// settled sales to express a refund, which is why a report cannot answer
+    /// "how much did we give back last month".
+    ///
+    /// Offline-first like every other write here: queued on a client-minted
+    /// key, replayed through the same envelope, idempotent on the server.
+    ///
+    /// The SHIFT travels with it. A refund is cash leaving a drawer, so the
+    /// server must credit it to the shift that was open when the money went
+    /// back — not the one open when the network returned. A drain hours later
+    /// would otherwise short the wrong Z-report.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn refund_order(
+        &self,
+        order_id: String,
+        amount_minor: i64,
+        method: String,
+        reason: String,
+        note: Option<String>,
+    ) -> Result<(), CoreError> {
+        if !self.is_authenticated() {
+            return Err(CoreError::Unauthenticated {
+                detail: "not signed in".into(),
+            });
+        }
+        let order_uuid = uuid::Uuid::parse_str(&order_id).map_err(|_| CoreError::Validation {
+            field: "order_id".into(),
+            detail: "a refund names a SYNCED sale; a queued one has no server id yet".into(),
+        })?;
+        // A refund belongs to a drawer. Without an open shift there is nothing
+        // to take the money out of, and the server refuses it — so refuse here
+        // rather than queueing something that will dead-letter.
+        let Some(open_shift) = shift::current(&self.store)? else {
+            return Err(CoreError::Validation {
+                field: "shift".into(),
+                detail: "a refund is cash leaving a drawer; open a shift first".into(),
+            });
+        };
+        let issued_at = self.corrected_now().fixed_offset();
+        // The key is the client's, so a retried drain lands once. Amount and
+        // method are in it: two partial refunds of the same sale are two
+        // events, and keying on the order alone would collapse them into one.
+        let client_ref = uuid::Uuid::new_v5(
+            &uuid::Uuid::NAMESPACE_OID,
+            format!("refund:{order_id}:{amount_minor}:{method}:{}", issued_at.to_rfc3339()).as_bytes(),
+        );
+
+        let mut request = madar_api::models::CreateRefundRequest::new(
+            amount_minor as i32,
+            method,
+            order_uuid,
+            map_refund_reason(&reason),
+        );
+        request.note = Some(note);
+        request.issued_at = Some(Some(issued_at));
+        request.client_ref = Some(Some(client_ref));
+        request.shift_id = Some(Some(
+            uuid::Uuid::parse_str(&open_shift.id).map_err(|_| CoreError::Validation {
+                field: "shift_id".into(),
+                detail: "the open shift has no server id".into(),
+            })?,
+        ));
+
+        let cmd = orders::RefundOrderCommand { request };
+        let (user_id, clock_offset_ms) = self.outbox_meta();
+        self.store.enqueue(&store::NewOutboxOp {
+            id: format!("{order_id}:refund:{client_ref}"),
+            op_type: "refund_order".into(),
+            idempotency_key: client_ref.to_string(),
+            payload: serde_json::to_string(&cmd)?,
+            event_at: issued_at.to_rfc3339(),
+            depends_on_seq: self.store.live_seq_of(&order_id)?,
+            user_id,
+            clock_offset_ms,
+            // Same reasoning as a void: the close must wait for it, or the
+            // Z-report freezes a drawer that still counts money since given back.
+            shift_id: Some(open_shift.id),
+        })?;
+        let _ = self.drain_outbox().await;
+        Ok(())
+    }
+
 
     /// Reconcile the device's shift with the server (online). Caches the server's
     /// open shift, or CLEARS the local cache when the server reports none — e.g.
