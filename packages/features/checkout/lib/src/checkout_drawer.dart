@@ -1413,6 +1413,7 @@ class _CustomerSection extends StatelessWidget {
               costLabel: loyaltyCost(tr, state.rewardForLine(i)!),
               covered: state.redemptions[i] ?? 0,
               quantity: state.redeemableLines[i].qty,
+              freeWord: tr('charge.free'),
               onTap: () => onToggle(i),
             ),
       ],
@@ -1427,6 +1428,7 @@ class _RewardLine extends StatelessWidget {
     required this.costLabel,
     required this.covered,
     required this.quantity,
+    required this.freeWord,
     required this.onTap,
   });
 
@@ -1434,6 +1436,9 @@ class _RewardLine extends StatelessWidget {
   final String costLabel;
   final int covered;
   final int quantity;
+
+  /// `charge.free` — the line's words come from the core like every other.
+  final String freeWord;
   final VoidCallback onTap;
 
   @override
@@ -1456,10 +1461,11 @@ class _RewardLine extends StatelessWidget {
             const SizedBox(width: Space.sm),
             Expanded(
               child: Text(
-                // "2 of 3 free" reads correctly whether one unit is covered or
+                // "2/3 free" reads correctly whether one unit is covered or
                 // all of them; "free" alone would lie on a partly covered line.
+                // Same shape as the Charge sheet's reward line.
                 quantity > 1 && on
-                    ? '$name — $covered of $quantity free'
+                    ? '$name — $covered/$quantity $freeWord'
                     : name,
                 style: theme.textTheme.bodyMedium,
               ),
