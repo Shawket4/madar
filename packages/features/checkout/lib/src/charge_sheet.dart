@@ -539,7 +539,8 @@ class _Hero extends StatelessWidget {
           _Eyebrow(
             bridge.tr(key: s.heroIsSubtotal ? 'order.subtotal' : 'order.total'),
           ),
-          MoneyText(
+          // The figures roll as they change — the natives' numericText.
+          AnimatedMoneyText(
             s.dueMinor,
             currency: s.currency,
             style: MadarType.moneyDisplay.copyWith(
@@ -1222,7 +1223,7 @@ class _SplitAllocator extends StatelessWidget {
                   ),
                 ),
               ),
-              MoneyText(
+              AnimatedMoneyText(
                 s.splitRemaining,
                 currency: s.currency,
                 style: MadarType.money,
@@ -1338,7 +1339,7 @@ class _CashSection extends StatelessWidget {
                         ),
                       )
                     else
-                      MoneyText(
+                      AnimatedMoneyText(
                         short ? s.shortMinor : s.changeMinor,
                         style: MadarType.moneyLg,
                         color: short ? colors.danger : colors.textPrimary,

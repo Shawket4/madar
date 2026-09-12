@@ -631,12 +631,9 @@ class _SaleRow extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          MadarHaptics.selection();
-          onTap();
-        },
+      child: TactileScale(
+        scale: 0.985,
+        onTap: onTap,
         child: Stack(
           children: [
             Positioned.fill(

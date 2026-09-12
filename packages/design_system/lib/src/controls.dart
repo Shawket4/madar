@@ -950,6 +950,9 @@ class MadarCard extends StatelessWidget {
   }
 }
 
+/// A pressed row's scale — shallower than a card's.
+const double _rowPressScale = 0.985;
+
 /// THE row: 64 tall, a title with an optional second line, an optional
 /// leading glyph or state bar, an optional trailing figure and a disclosure
 /// chevron when it goes somewhere. Rows stack inside a flush [MadarCard]
@@ -1122,7 +1125,9 @@ class MadarRow extends StatelessWidget {
                 MadarHaptics.impact();
                 onLongPress!();
               },
-        child: row,
+        // The press the pre-rebuild settings, sync and incoming rows had —
+        // shallow, because a full-width row at the card's 0.97 lurches.
+        child: TactileScale(scale: _rowPressScale, haptic: false, child: row),
       ),
     );
   }

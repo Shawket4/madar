@@ -395,11 +395,24 @@ class _PickRow extends StatelessWidget {
       title: label,
       dense: true,
       chevron: false,
-      leading: MadarGlyphIcon(
-        selected ? MadarGlyph.checkCircle : MadarGlyph.ring,
-        size: IconSize.xl,
-        color: selected ? colors.accent : colors.textMuted,
-        filled: selected,
+      // The pick springs in rather than swapping (the pre-rebuild settings'
+      // animated selection); reduced motion swaps it in place.
+      leading: AnimatedSwitcher(
+        duration: motionReduced(context)
+            ? Duration.zero
+            : MotionSpec.standardDuration,
+        switchInCurve: MotionSpec.springOut,
+        transitionBuilder: (child, animation) => ScaleTransition(
+          scale: Tween<double>(begin: 0.6, end: 1).animate(animation),
+          child: FadeTransition(opacity: animation, child: child),
+        ),
+        child: MadarGlyphIcon(
+          selected ? MadarGlyph.checkCircle : MadarGlyph.ring,
+          key: ValueKey<bool>(selected),
+          size: IconSize.xl,
+          color: selected ? colors.accent : colors.textMuted,
+          filled: selected,
+        ),
       ),
       onTap: onTap,
     );
