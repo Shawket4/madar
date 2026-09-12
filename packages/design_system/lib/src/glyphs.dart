@@ -274,11 +274,16 @@ final Map<MadarGlyph, List<GlyphShape>> _shapes = {
     GlyphShape('M5 8h14l-1 12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 8z'),
     GlyphShape('M9 8V6a3 3 0 0 1 6 0v2', duo: false),
   ],
+  // Four equal squares read as an app switcher, not a room — wrong for a
+  // tab that means "the floor" and, per every `square.grid.2x2` call site
+  // in `features/order`, almost always stands for a table or the floor
+  // itself. A room boundary with tables inside says what it is.
   MadarGlyph.grid: [
-    GlyphShape(_rect(3, 3, 8, 8, 2)),
-    GlyphShape(_rect(13, 3, 8, 8, 2)),
-    GlyphShape(_rect(3, 13, 8, 8, 2)),
-    GlyphShape(_rect(13, 13, 8, 8, 2)),
+    GlyphShape(_rect(3, 3, 18, 18, 4)),
+    GlyphShape(_circle(9, 9, 1.8), fill: true),
+    GlyphShape(_circle(16, 9, 1.8), fill: true),
+    GlyphShape(_circle(9, 16, 1.8), fill: true),
+    GlyphShape(_circle(16, 16, 1.8), fill: true),
   ],
   MadarGlyph.inbox: const [
     GlyphShape('M4 4h16v10h-5l-1.5 3h-3L9 14H4z'),

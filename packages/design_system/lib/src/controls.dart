@@ -223,6 +223,33 @@ class MadarButton extends StatelessWidget {
           // Ellipsis needs a bound; a `Flexible` under an UNBOUNDED width is
           // illegal and its assertion blanks the whole subtree.
           final bounded = constraints.hasBoundedWidth;
+          // The Container above sets a TIGHT height, but a tight constraint
+          // still yields to whatever an ancestor allows — an `Expanded`
+          // losing a flex fight, a fixed-height Row a few px short — and
+          // Flutter clamps rather than errors, so the button just renders
+          // shorter than its nominal height with nothing in the log. That
+          // silence is exactly how "a lot of buttons have very low height"
+          // shipped unnoticed. Assert here, where the clamped value has
+          // already reached us, so the NEXT one fails loudly in debug
+          // instead of quietly on a tablet.
+          assert(() {
+            final want = compact
+                ? Metrics.buttonSmallHeight
+                : Metrics.buttonHeight;
+            if ((constraints.maxHeight - want).abs() > 0.5) {
+              throw FlutterError(
+                'MadarButton "$label" got '
+                '${constraints.maxHeight.toStringAsFixed(1)}px of height '
+                'instead of the fixed ${want.toStringAsFixed(0)}px the '
+                '${compact ? 'compact' : 'regular'} size defines. Something '
+                'upstream is squeezing (or stretching) its slot — an '
+                '`Expanded` losing a flex fight, a fixed-height Row — give '
+                'it a slot that is exactly ${want.toStringAsFixed(0)}px tall '
+                'instead.',
+              );
+            }
+            return true;
+          }(), 'MadarButton height mismatch — see the thrown FlutterError.');
           if (loading) {
             return Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1280,9 +1307,16 @@ class MadarSegmentItem<T> {
 }
 
 /// THE segmented control: a 48 sunk track holding equal cells; the chosen
-/// one is a white thumb with a 1px lift. Plan / List; Bills / Online /
+/// one is a white thumb with a 1px lift, its label (and glyph, duotone-filled
+/// like an active tab) in ACCENT and bold. Plan / List; Bills / Online /
 /// Kitchen. The whole thing is one widget so every screen's segment has the
 /// same cell width rule: equal, filling the track.
+///
+/// The chosen cell used to read ink-on-white — correct by the letter of the
+/// spec, but in the floor's Plan/List and the Queue's Bills/Online it landed
+/// as the platform's own stock segmented control, not a considered Madar
+/// one. Accent settles which cell is chosen at a glance instead of asking
+/// the reader to compare two greys.
 class MadarSegmented<T> extends StatelessWidget {
   const MadarSegmented({
     required this.items,
@@ -1339,7 +1373,11 @@ class _SegmentCell<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final fg = on ? colors.textPrimary : colors.textSecondary;
+    // Accent, not ink: see the class doc. Bold rides along on the same
+    // signal `_CategoryTab` uses (weight, not just colour) so the choice
+    // still reads for a colour-blind teller.
+    final fg = on ? colors.accent : colors.textSecondary;
+    final weight = on ? FontWeight.w700 : FontWeight.w500;
     return Semantics(
       button: true,
       selected: on,
@@ -1349,6 +1387,9 @@ class _SegmentCell<T> extends StatelessWidget {
         child: AnimatedContainer(
           duration: MotionSpec.standardDuration,
           curve: MotionSpec.standardCurve,
+          // Breathing room at the cell's own edges — the track's 4px pad
+          // alone left the label touching its neighbour's thumb.
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.sm),
           decoration: BoxDecoration(
             color: on ? colors.surface : null,
             borderRadius: BorderRadius.circular(_segmentThumbRadius),
@@ -1361,20 +1402,34 @@ class _SegmentCell<T> extends StatelessWidget {
             spacing: Space.sm,
             children: [
               if (item.glyph != null)
-                MadarGlyphIcon(item.glyph!, size: IconSize.md, color: fg),
+                // Filled like any other active tab — the outline/duotone
+                // split `glyphs.dart` already draws for a rail tab, reused
+                // here instead of inventing a second "chosen" treatment.
+                MadarGlyphIcon(
+                  item.glyph!,
+                  size: IconSize.md,
+                  color: fg,
+                  filled: on,
+                ),
               Flexible(
                 child: Text(
                   item.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: MadarType.buttonSm.copyWith(color: fg),
+                  style: MadarType.buttonSm.copyWith(
+                    color: fg,
+                    fontWeight: weight,
+                  ),
                 ),
               ),
               if (item.count != null)
                 Text(
                   '${item.count}',
                   textDirection: TextDirection.ltr,
-                  style: MadarType.numMd.copyWith(color: fg),
+                  style: MadarType.numMd.copyWith(
+                    color: fg,
+                    fontWeight: weight,
+                  ),
                 ),
             ],
           ),

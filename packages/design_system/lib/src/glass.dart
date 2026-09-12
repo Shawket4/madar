@@ -19,7 +19,7 @@
 /// render glass is separated from the rendering, and lives here, where it can
 /// be answered once and turned off everywhere in one line.
 ///
-/// Ask [LiquidGlass.isAvailable] before building a glass surface; build the
+/// Ask [MadarGlass.isAvailable] before building a glass surface; build the
 /// ordinary surface otherwise. Never let a screen exist only in its glass
 /// form — every one of them has to be complete without it, because most of the
 /// devices running this app will never see it.
@@ -30,7 +30,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 
 /// The platform test, answered once.
-abstract final class LiquidGlass {
+abstract final class MadarGlass {
   /// The iOS version Liquid Glass arrived in.
   static const int _firstVersion = 26;
 
@@ -44,6 +44,11 @@ abstract final class LiquidGlass {
   static bool? _cached;
 
   /// `true` only on iOS 26 or newer, with the switch on.
+  ///
+  /// Deliberately our own check rather than the glass plugin's
+  /// `PlatformVersion.shouldUseNativeGlass`: this must answer in a widget
+  /// test, where no platform channel is wired, and it must stay answerable
+  /// with the plugin absent so the rest of the kit never depends on it.
   ///
   /// Cached: `Platform.operatingSystemVersion` parses a string, and this is
   /// asked on every build of every chrome surface.

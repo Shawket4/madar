@@ -955,6 +955,135 @@ void main() {
     expect(size.height, Metrics.buttonSmallHeight);
   });
 
+  testWidgets('MadarButton keeps its nominal height across common embeddings', (
+    tester,
+  ) async {
+    Future<Size> sizeIn(Widget host) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: MadarTheme.light(),
+          home: Scaffold(body: host),
+        ),
+      );
+      await tester.pump();
+      return tester.getSize(find.byType(MadarButton));
+    }
+
+    // A bare Row child gets LOOSE height from the Row, not tight — the
+    // fixed height must hold on its own.
+    expect(
+      (await sizeIn(
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [MadarButton(label: 'Hi', onTap: () {})],
+          ),
+        ),
+      )).height,
+      Metrics.buttonHeight,
+    );
+    // A Wrap never stretches a child to fill its cross size.
+    expect(
+      (await sizeIn(
+        Wrap(
+          children: [MadarButton(label: 'Hi', onTap: () {})],
+        ),
+      )).height,
+      Metrics.buttonHeight,
+    );
+    // A scrolling list hands its children UNBOUNDED height along the main
+    // axis; the fixed height must not try to expand to fill that.
+    expect(
+      (await sizeIn(
+        ListView(
+          children: [MadarButton(label: 'Hi', onTap: () {})],
+        ),
+      )).height,
+      Metrics.buttonHeight,
+    );
+    // Compact holds its own, smaller nominal height the same way.
+    expect(
+      (await sizeIn(
+        Center(
+          child: MadarButton(
+            label: 'Hi',
+            size: MadarButtonSize.compact,
+            onTap: () {},
+          ),
+        ),
+      )).height,
+      Metrics.buttonSmallHeight,
+    );
+  });
+
+  testWidgets(
+    'MadarButton asserts, rather than silently shrinking, when an ancestor '
+    'leaves it less room than its nominal height',
+    (tester) async {
+      // Once the assert throws, the failing element is swapped for an
+      // ErrorWidget — which then overflows the (now bounded) Row it sits
+      // in, a second, expected exception. `takeException` collapses two
+      // into an unhelpful summary string, so catch both ourselves and
+      // check the first is ours.
+      final caught = <Object>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = (details) => caught.add(details.exception);
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: MadarTheme.light(),
+            home: Scaffold(
+              body: SizedBox(
+                height: 32,
+                child: Row(
+                  children: [MadarButton(label: 'Hi', onTap: () {})],
+                ),
+              ),
+            ),
+          ),
+        );
+      } finally {
+        FlutterError.onError = previous;
+      }
+      expect(caught, isNotEmpty);
+      expect(caught.first, isA<FlutterError>());
+      expect(caught.first.toString(), contains('squeezing'));
+    },
+  );
+
+  testWidgets('the chosen segment reads filled and bold, not just ink', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MadarTheme.light(),
+        home: Scaffold(
+          body: MadarSegmented<String>(
+            items: const [
+              MadarSegmentItem('bills', 'Bills', glyph: MadarGlyph.receipt),
+              MadarSegmentItem('online', 'Online', glyph: MadarGlyph.bike),
+            ],
+            value: 'bills',
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    final icons = tester.widgetList<MadarGlyphIcon>(
+      find.byType(MadarGlyphIcon),
+    );
+    expect(
+      icons.firstWhere((i) => i.glyph == MadarGlyph.receipt).filled,
+      isTrue,
+    );
+    expect(icons.firstWhere((i) => i.glyph == MadarGlyph.bike).filled, isFalse);
+
+    final chosen = tester.widget<Text>(find.text('Bills'));
+    expect(chosen.style!.fontWeight, FontWeight.w700);
+    final other = tester.widget<Text>(find.text('Online'));
+    expect(other.style!.fontWeight, FontWeight.w500);
+  });
+
   test('minor units round-trip through the amount field helpers', () {
     expect(minorToText(1200), '12');
     expect(minorToText(1250), '12.50');

@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart'
-    show CircularProgressIndicator, InputDecoration, TextButton, TextField;
+    show CircularProgressIndicator, InputDecoration, TextField;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -255,18 +255,22 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
             style: MadarType.bodySm.copyWith(color: colors.danger),
           ),
 
-        // 48dp of tap target either way — a teller reaching for this has a
+        // The kit's ghost, not Material's TextButton: the last control in
+        // this package that still drew its own button, and it sat a stock
+        // ripple in the middle of a sheet where every other action is a
+        // MadarButton. Compact is 44 — a teller reaching for this has a
         // customer waiting and one hand on the drawer.
         Center(
-          child: TextButton(
-            onPressed: () {
+          child: MadarButton(
+            label: t(
+              _phoneMode ? 'loyalty.scan_card_instead' : 'loyalty.use_phone',
+            ),
+            variant: MadarButtonVariant.ghost,
+            size: MadarButtonSize.compact,
+            onTap: () {
               setState(() => _phoneMode = !_phoneMode);
               if (!_phoneMode) _wedgeFocus.requestFocus();
             },
-            child: Text(
-              t(_phoneMode ? 'loyalty.scan_card_instead' : 'loyalty.use_phone'),
-              style: MadarType.label.copyWith(color: colors.accent),
-            ),
           ),
         ),
       ],
