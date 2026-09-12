@@ -545,7 +545,11 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       // And it says whose order is sitting there.
-      expect(find.text('Sara'), findsOneWidget);
+      // "Sara · 5h" — the pill carries the table's CLOCK beside the name
+      // now. It used to read the bill's opened_at only on the list, and
+      // nothing at all on the canvas unless a parked order was sitting
+      // there, so a seated party showed a name and no time.
+      expect(find.textContaining('Sara'), findsOneWidget);
     });
 
     test('the predicate itself refuses to bus an occupied table', () {
@@ -597,7 +601,11 @@ void main() {
         ),
       );
       expect(find.text('Needs clearing'), findsNothing);
-      expect(find.text('Sara'), findsOneWidget);
+      // "Sara · 5h" — the pill carries the table's CLOCK beside the name
+      // now. It used to read the bill's opened_at only on the list, and
+      // nothing at all on the canvas unless a parked order was sitting
+      // there, so a seated party showed a name and no time.
+      expect(find.textContaining('Sara'), findsOneWidget);
     });
   });
 

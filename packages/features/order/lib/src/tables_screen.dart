@@ -2195,7 +2195,12 @@ class _TableCell extends StatelessWidget {
                   : (bookedAt == null
                         ? bookedGuest
                         : '$bookedGuest · $bookedAt'));
-    final howLong = elapsedLabel(table.heldSince);
+    // The table's clock, best source first: a parked order's own start, then
+    // this device's seated stamp, then the bill's opened_at. The last one is
+    // the safety net for a till that joined the shift AFTER the party sat —
+    // it pulled a seated table from the server and never saw the seating, so
+    // it has no stamp of its own and the bill is the only witness left.
+    final howLong = elapsedLabel(table.heldSince ?? ticket?.openedAt);
     final statusWord = words.wordFor(table, occupied: occupied);
     final statusIcon = tableStatusIcon(table, occupied: occupied);
 
@@ -2207,15 +2212,22 @@ class _TableCell extends StatelessWidget {
     // The pill names the table's situation: who is on it (with time-on-table),
     // or — when nothing occupies it but it still owes the floor a bus — that.
     // One slot, so the state is never left to colour and texture alone.
-    final pillText = (who?.isNotEmpty ?? false)
-        ? (howLong == null ? who! : '$who · $howLong')
-        : (needsClearing ? words.needsClearing : null);
     // The dashboard's estimator, verbatim (~0.55em per glyph), so both
     // platforms drop the pill on exactly the same tables rather than one
     // ellipsizing where the other omits.
-    final pillFits =
-        pillText != null && pillText.length * pillSize * 0.55 <= w - 20 * scale;
-    final showPill = pillFits && h >= 46 * scale;
+    bool fits(String t) => t.length * pillSize * 0.55 <= w - 20 * scale;
+    // WHO first, then the clock if there is room for it. The time is the
+    // first thing to give up — a small table showing "Sara" is worth more
+    // than one showing nothing because "Sara · 5h" overran the box, which is
+    // what adding the clock did until this budgeted for it.
+    final String? pillText;
+    if (who?.isNotEmpty ?? false) {
+      final withTime = howLong == null ? who! : '$who · $howLong';
+      pillText = fits(withTime) ? withTime : who;
+    } else {
+      pillText = needsClearing ? words.needsClearing : null;
+    }
+    final showPill = pillText != null && fits(pillText) && h >= 46 * scale;
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     final glyphSize = (15 * scale).clamp(10, 18).toDouble();
 

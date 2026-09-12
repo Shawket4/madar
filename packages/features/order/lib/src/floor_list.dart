@@ -51,12 +51,18 @@ class FloorRow {
   final String? sectionName;
 
   /// How long the party has been sitting, or null when nobody is.
+  ///
+  /// Best source first: a parked order's own start or this device's seated
+  /// stamp (both arrive as `heldSince`), then the bill's opened_at. The list
+  /// used to read the BILL only, so a party seated with nothing ordered yet —
+  /// the commonest state on a floor, and the one where the number matters
+  /// most — showed no clock at all.
   Duration? seatedFor(DateTime now) {
-    final t = ticket;
-    if (t == null) return null;
-    final opened = DateTime.tryParse(t.openedAt);
-    if (opened == null) return null;
-    final d = now.difference(opened.toLocal());
+    final since =
+        DateTime.tryParse(table.heldSince ?? '') ??
+        DateTime.tryParse(ticket?.openedAt ?? '');
+    if (since == null) return null;
+    final d = now.difference(since.toLocal());
     return d.isNegative ? Duration.zero : d;
   }
 }
