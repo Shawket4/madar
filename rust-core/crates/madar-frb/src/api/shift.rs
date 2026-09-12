@@ -161,16 +161,45 @@ impl MadarBridge {
         self.inner.refresh_shift().await.map_err(MadarError::from)
     }
 
+    /// Close someone else's shift, as a manager.
+    ///
+    /// A till left signed in with an open drawer blocks the next person from
+    /// opening one. The ordinary close belongs to whoever opened the shift;
+    /// this is the way out when they have gone home.
+    ///
+    /// Online only, and it says so rather than queueing: a forced close
+    /// arbitrates between two people and a drawer, and the server holds the
+    /// facts that decide it. The reason is required — a drawer closed by
+    /// someone who was not counting it needs a sentence saying why.
+    pub async fn force_close_shift(
+        &self,
+        shift_id: String,
+        reason: String,
+    ) -> Result<(), MadarError> {
+        self.inner
+            .force_close_shift(shift_id, reason)
+            .await
+            .map_err(MadarError::from)
+    }
+
     /// Record a cash-drawer movement against the open shift — pay-IN when
     /// `amount_minor > 0`, pay-OUT when `< 0`. Offline-first and idempotent on a
     /// minted `client_ref`, so a replay never double-applies cash.
+    ///
+    /// `kind` is `pay_in` | `pay_out` | `safe_drop` | `correction`. It says what
+    /// the sign cannot: a safe drop and a pay-out both take money out of the
+    /// drawer, and only one of them takes it out of the business. `corrects`
+    /// names the movement being reversed, so the pair nets to nothing on the
+    /// report rather than reading as two real movements.
     pub async fn record_cash_movement(
         &self,
         amount_minor: i64,
         note: String,
+        kind: Option<String>,
+        corrects: Option<String>,
     ) -> Result<CashMovementView, MadarError> {
         self.inner
-            .record_cash_movement(amount_minor, note)
+            .record_cash_movement(amount_minor, note, kind, corrects)
             .await
             .map_err(MadarError::from)
     }

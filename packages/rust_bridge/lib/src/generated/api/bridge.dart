@@ -287,6 +287,21 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// every table affordance (the feature gate).
   Future<FloorLayoutView> floorLayout();
 
+  /// Close someone else's shift, as a manager.
+  ///
+  /// A till left signed in with an open drawer blocks the next person from
+  /// opening one. The ordinary close belongs to whoever opened the shift;
+  /// this is the way out when they have gone home.
+  ///
+  /// Online only, and it says so rather than queueing: a forced close
+  /// arbitrates between two people and a drawer, and the server holds the
+  /// facts that decide it. The reason is required — a drawer closed by
+  /// someone who was not counting it needs a sentence saying why.
+  Future<void> forceCloseShift({
+    required String shiftId,
+    required String reason,
+  });
+
   /// Format a stored RFC3339 timestamp for DISPLAY in the BRANCH's timezone
   /// (not the device's) — the single source of truth so every host renders
   /// order/shift/cash/receipt times identically.
@@ -530,9 +545,17 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Record a cash-drawer movement against the open shift — pay-IN when
   /// `amount_minor > 0`, pay-OUT when `< 0`. Offline-first and idempotent on a
   /// minted `client_ref`, so a replay never double-applies cash.
+  ///
+  /// `kind` is `pay_in` | `pay_out` | `safe_drop` | `correction`. It says what
+  /// the sign cannot: a safe drop and a pay-out both take money out of the
+  /// drawer, and only one of them takes it out of the business. `corrects`
+  /// names the movement being reversed, so the pair nets to nothing on the
+  /// report rather than reading as two real movements.
   Future<CashMovementView> recordCashMovement({
     required PlatformInt64 amountMinor,
     required String note,
+    String? kind,
+    String? corrects,
   });
 
   /// FALLBACK recovery for the sync center: re-point every order STRANDED by a

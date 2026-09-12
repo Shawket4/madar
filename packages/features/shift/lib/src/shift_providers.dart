@@ -695,12 +695,13 @@ final NotifierProvider<CloseShiftNotifier, CloseShiftState> closeShiftProvider =
 /// Cash in/out ledger state: the open shift's movements, the record form's
 /// kind + amount + note, and the busy / error pair.
 ///
-/// The kinds are Pay out and Pay in only. The wire also knows safe_drop and
-/// correction (with a `corrects_id`), but the bridge's `recordCashMovement`
-/// sends a signed amount and a note and nothing else — so a "Safe drop" chip
-/// would record a pay-out that the report cannot tell apart, and a
-/// "Correct ›" would be an opposite movement pretending to be a reversal.
-/// Neither is offered until the bridge carries the kind.
+/// Four kinds now that the bridge carries one: pay in, pay out, safe drop and
+/// correction. The sign alone could not tell them apart — a safe drop and a
+/// pay-out are both money leaving the drawer, and only one of them is money
+/// leaving the business, so the Z-report counted the night's takings going to
+/// the safe as spend. A correction names the movement it reverses, so a
+/// mis-keyed 500 and its fix net to nothing instead of reading as 1,000 of
+/// drawer activity.
 @immutable
 class CashMovementsState {
   /// Creates the cash-movements state.
@@ -708,6 +709,8 @@ class CashMovementsState {
     this.movements = const [],
     this.loading = false,
     this.isIn = false,
+    this.kind = 'pay_out',
+    this.corrects,
     this.amountMinor = 0,
     this.note = '',
     this.busy = false,
@@ -724,6 +727,12 @@ class CashMovementsState {
   /// the movement a shift actually makes (milk, change, a courier), and the
   /// one the design leads with.
   final bool isIn;
+
+  /// `pay_in` | `pay_out` | `safe_drop` | `correction`.
+  final String kind;
+
+  /// The movement this one reverses, when [kind] is `correction`.
+  final String? corrects;
 
   /// Record form: the amount, minor units.
   final int amountMinor;
@@ -746,6 +755,8 @@ class CashMovementsState {
     List<CashMovementView>? movements,
     bool? loading,
     bool? isIn,
+    String? kind,
+    String? corrects,
     int? amountMinor,
     String? note,
     bool? busy,
@@ -755,6 +766,8 @@ class CashMovementsState {
       movements: movements ?? this.movements,
       loading: loading ?? this.loading,
       isIn: isIn ?? this.isIn,
+      kind: kind ?? this.kind,
+      corrects: corrects ?? this.corrects,
       amountMinor: amountMinor ?? this.amountMinor,
       note: note ?? this.note,
       busy: busy ?? this.busy,
@@ -779,7 +792,19 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
   }
 
   /// Pay-in / pay-out direction toggle.
-  void setDirection({required bool isIn}) => state = state.copyWith(isIn: isIn);
+  void setDirection({required bool isIn}) => state = state.copyWith(
+    isIn: isIn,
+    kind: isIn ? 'pay_in' : 'pay_out',
+  );
+
+  /// Pick what the movement IS. A safe drop and a correction both take money
+  /// out; `corrects` is cleared when the kind is no longer a correction, so a
+  /// stale id cannot ride along on an ordinary pay-out.
+  void setKind(String kind, {String? corrects}) => state = state.copyWith(
+    kind: kind,
+    isIn: kind == 'pay_in',
+    corrects: kind == 'correction' ? corrects : null,
+  );
 
   /// The teller edited the amount.
   void setAmount(int minor) => state = state.copyWith(amountMinor: minor);
@@ -811,10 +836,14 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
     final shell = ref.read(shellProvider.notifier);
     state = state.copyWith(busy: true, error: null);
     try {
+      // A safe drop and a correction-of-a-pay-in both leave the drawer; the
+      // sign follows the money, the kind says what it means.
       final signed = state.isIn ? state.amountMinor : -state.amountMinor;
       await _bridge.recordCashMovement(
         amountMinor: signed,
         note: state.note.trim(),
+        kind: state.kind,
+        corrects: state.corrects,
       );
       await load();
       if (_disposed) return false;

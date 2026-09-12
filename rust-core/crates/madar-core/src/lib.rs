@@ -1689,6 +1689,23 @@ fn map_void_reason(reason: &str) -> madar_api::models::VoidReason {
     }
 }
 
+/// Host key to the drawer's movement vocabulary.
+///
+/// An unknown key falls to the sign's plain reading — a positive amount is
+/// money in, a negative is money out — because a movement recorded under a
+/// kind nobody recognises is worse than one recorded under none: the report
+/// would have to guess, and a drawer that guesses is a drawer that is wrong.
+fn map_cash_kind(kind: &str) -> madar_api::models::CashMovementKind {
+    use madar_api::models::CashMovementKind as K;
+    match kind {
+        "pay_in" | "in" => K::PayIn,
+        "pay_out" | "out" => K::PayOut,
+        "safe_drop" | "drop" => K::SafeDrop,
+        "correction" => K::Correction,
+        _ => K::PayIn,
+    }
+}
+
 /// Host reason key to the backend's refund vocabulary.
 ///
 /// Separate from `map_void_reason` because the two events have different
@@ -4670,14 +4687,85 @@ impl MadarCore {
         ))
     }
 
+    /// Close a shift that is not yours, as a manager.
+    ///
+    /// A till left signed in with an open drawer blocks the next person from
+    /// opening one, and the teller who left it that way has gone home. The
+    /// ordinary close belongs to whoever opened the shift; this is the way out
+    /// of the room when they are not there to do it.
+    ///
+    /// ONLINE ONLY, deliberately. Every other write here is queued and replayed,
+    /// but a forced close arbitrates between two people and a drawer — the
+    /// server decides whether this actor may do it and what the shift's figures
+    /// were at that moment. Queued offline it would be a decision made without
+    /// the facts, landing whenever the network came back.
+    ///
+    /// The reason is not optional in practice even though the wire allows it:
+    /// a drawer closed by someone who was not counting it needs a sentence
+    /// saying why, or the discrepancy has no story.
+    pub async fn force_close_shift(
+        &self,
+        shift_id: String,
+        reason: String,
+    ) -> Result<(), CoreError> {
+        if !self.is_authenticated() {
+            return Err(CoreError::Unauthenticated {
+                detail: "not signed in".into(),
+            });
+        }
+        if !self.current_session().map(|s| s.online).unwrap_or(false) {
+            return Err(CoreError::Offline {
+                detail: "a forced close is the server's call to make".into(),
+            });
+        }
+        let reason = reason.trim().to_string();
+        if reason.is_empty() {
+            return Err(CoreError::Validation {
+                field: "reason".into(),
+                detail: "say why the drawer was closed for someone else".into(),
+            });
+        }
+        use madar_api::apis::shifts_api;
+        let mut request = madar_api::models::ForceCloseRequest::new();
+        request.reason = Some(Some(reason));
+        shifts_api::force_close_shift(
+            &self.api.config(),
+            shifts_api::ForceCloseShiftParams {
+                shift_id: shift_id.clone(),
+                force_close_request: request,
+            },
+        )
+        .await
+        .map_err(|e| CoreError::Internal {
+            detail: format!("force close: {e}"),
+        })?;
+        // The board this came from is now wrong — the shift it listed as open
+        // is not.
+        let _ = self.refresh_shift().await;
+        Ok(())
+    }
+
     /// Record a cash-drawer movement against the open shift — pay-IN when
     /// `amount_minor > 0`, pay-OUT when `< 0`. OFFLINE-FIRST: queued through the
     /// durable outbox (gated behind the shift's open) and idempotent on a minted
     /// `client_ref`, so a replay after a lost response never double-applies cash.
+    ///
+    /// `kind` says WHAT the movement is, which the sign alone cannot: a safe
+    /// drop and a pay-out are both money leaving the drawer, and only one of
+    /// them is money leaving the business. The Z-report counted both as spend
+    /// until the column existed. `None` lets the server infer from the sign,
+    /// which is what every till built before this did.
+    ///
+    /// `corrects` names the movement this one reverses, so a pair nets to zero
+    /// on the report instead of reading as two real movements in opposite
+    /// directions — a mis-keyed 500 and its correction are one mistake, not
+    /// 1,000 of drawer activity.
     pub async fn record_cash_movement(
         &self,
         amount_minor: i64,
         note: String,
+        kind: Option<String>,
+        corrects: Option<String>,
     ) -> Result<shift::CashMovementView, CoreError> {
         let shift = shift::current(&self.store)?
             .filter(|s| s.is_open)
@@ -4714,6 +4802,16 @@ impl MadarCore {
         );
         request.client_ref = Some(Some(client_ref));
         request.created_at = Some(Some(created_at));
+        request.kind = kind.as_deref().map(map_cash_kind).map(Some);
+        // A correction that names a movement nobody can find is a correction
+        // the server will refuse; fail here rather than queue it.
+        if let Some(id) = corrects.as_deref().filter(|s| !s.trim().is_empty()) {
+            let parsed = uuid::Uuid::parse_str(id).map_err(|_| CoreError::Validation {
+                field: "corrects".into(),
+                detail: "a correction names the movement it reverses".into(),
+            })?;
+            request.corrects_id = Some(Some(parsed));
+        }
         let cmd = shift::CashMovementCommand {
             shift_id: shift.id.clone(),
             request,
