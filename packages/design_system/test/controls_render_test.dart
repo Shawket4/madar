@@ -1051,9 +1051,11 @@ void main() {
     },
   );
 
-  testWidgets('the chosen segment reads filled and bold, not just ink', (
-    tester,
-  ) async {
+  testWidgets('a toggle is the kit button, chosen one filled', (tester) async {
+    // The ask was that every toggle be the button the cash in / cash out
+    // screen uses. So the chosen segment is a PRIMARY MadarButton and the
+    // rest are secondary — not a white thumb on a sunk track, which was the
+    // platform's own segmented control wearing our colours.
     await tester.pumpWidget(
       MaterialApp(
         theme: MadarTheme.light(),
@@ -1069,19 +1071,21 @@ void main() {
         ),
       ),
     );
-    final icons = tester.widgetList<MadarGlyphIcon>(
-      find.byType(MadarGlyphIcon),
+    final buttons = tester
+        .widgetList<MadarButton>(find.byType(MadarButton))
+        .toList();
+    expect(buttons, hasLength(2), reason: 'one kit button per segment');
+    expect(
+      buttons.firstWhere((b) => b.label == 'Bills').variant,
+      MadarButtonVariant.primary,
     );
     expect(
-      icons.firstWhere((i) => i.glyph == MadarGlyph.receipt).filled,
-      isTrue,
+      buttons.firstWhere((b) => b.label == 'Online').variant,
+      MadarButtonVariant.secondary,
     );
-    expect(icons.firstWhere((i) => i.glyph == MadarGlyph.bike).filled, isFalse);
-
-    final chosen = tester.widget<Text>(find.text('Bills'));
-    expect(chosen.style!.fontWeight, FontWeight.w700);
-    final other = tester.widget<Text>(find.text('Online'));
-    expect(other.style!.fontWeight, FontWeight.w500);
+    // Compact, like every other toolbar control in the kit.
+    expect(buttons.every((b) => b.size == MadarButtonSize.compact), isTrue);
+    expect(tester.takeException(), isNull);
   });
 
   test('minor units round-trip through the amount field helpers', () {

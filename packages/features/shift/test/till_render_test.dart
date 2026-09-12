@@ -455,11 +455,18 @@ void main() {
     expect(find.text('Till 1'), findsOneWidget);
     expect(find.text('EGP 2380.00'), findsOneWidget);
     expect(find.text('Record pay-out'), findsOneWidget);
-    // Pay out leads and is the selected kind.
-    final payOut = tester.widget<MadarChip>(
-      find.widgetWithText(MadarChip, 'Pay out'),
+    // Pay out leads and is the chosen kind. It is the kit's toggle now —
+    // which is the kit's BUTTON — so the chosen one is the primary variant
+    // rather than a selected chip. This is the control the owner pointed at
+    // when asking for one shared button everywhere.
+    final payOut = tester.widget<MadarButton>(
+      find.widgetWithText(MadarButton, 'Pay out'),
     );
-    expect(payOut.selected, isTrue);
+    expect(payOut.variant, MadarButtonVariant.primary);
+    final payIn = tester.widget<MadarButton>(
+      find.widgetWithText(MadarButton, 'Pay in'),
+    );
+    expect(payIn.variant, MadarButtonVariant.secondary);
   });
 
   testWidgets('the Till offline, in the dark', (tester) async {

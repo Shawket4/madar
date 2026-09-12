@@ -106,23 +106,24 @@ class _CashInOutPanelState extends ConsumerState<CashInOutPanel> {
         // The kind IS the chip. Pay out leads: it is the movement a shift
         // actually makes. Safe drop and Correct › are not here — see
         // CashMovementsState's doc for why.
-        Wrap(
-          spacing: Space.sm,
-          runSpacing: Space.sm,
-          children: [
-            MadarChip(
-              label: t('cash.pay_out'),
+        // Two-way choice → the kit's toggle, which is the kit's button. Pay
+        // in / pay out is the control the owner pointed at when asking for
+        // one shared button everywhere, so it had better BE that button.
+        MadarSegmented<bool>(
+          items: [
+            MadarSegmentItem(
+              false,
+              t('cash.pay_out'),
               glyph: MadarGlyph.arrowUpEnd,
-              selected: !isIn,
-              onTap: () => notifier.setDirection(isIn: false),
             ),
-            MadarChip(
-              label: t('cash.pay_in'),
+            MadarSegmentItem(
+              true,
+              t('cash.pay_in'),
               glyph: MadarGlyph.arrowDownStart,
-              selected: isIn,
-              onTap: () => notifier.setDirection(isIn: true),
             ),
           ],
+          value: isIn,
+          onChanged: (v) => notifier.setDirection(isIn: v),
         ),
         MadarAmountField(
           amountMinor: amountMinor,

@@ -294,10 +294,16 @@ class _SellScreenState extends ConsumerState<SellScreen>
         // visible. Narrow hides the cart behind a sheet, so this is that
         // sheet's only door.
         if (counter && !layout.isTablet)
-          MadarChip(
-            label: orderWord(bridge, 'sell.parked'),
+          // An ACTION, not a filter — so it is the kit's button, like every
+          // other action. A chip says "this is one of a set you choose
+          // between"; this opens a sheet.
+          MadarButton(
+            label: drafts == 0
+                ? orderWord(bridge, 'sell.parked')
+                : '${orderWord(bridge, 'sell.parked')} $drafts',
             glyph: MadarGlyph.bag,
-            count: drafts == 0 ? null : drafts,
+            variant: MadarButtonVariant.secondary,
+            size: MadarButtonSize.compact,
             onTap: () => unawaited(_openParked()),
           ),
       ],

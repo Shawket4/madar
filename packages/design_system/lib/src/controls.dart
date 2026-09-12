@@ -42,8 +42,6 @@ const double _fieldBorder = 1.5;
 const double _focusRing = 3;
 
 /// A segmented control's inner padding and its thumb's radius.
-const double _segmentPad = 4;
-const double _segmentThumbRadius = 9;
 
 /// The state bar at the start of a row ("▌T5").
 const double _rowBarWidth = 4;
@@ -1338,11 +1336,13 @@ class MadarSegmentItem<T> {
   final MadarGlyph? glyph;
 }
 
-/// THE segmented control: a 48 sunk track holding equal cells; the chosen
-/// one is a white thumb with a 1px lift, its label (and glyph, duotone-filled
-/// like an active tab) in ACCENT and bold. Plan / List; Bills / Online /
-/// Kitchen. The whole thing is one widget so every screen's segment has the
-/// same cell width rule: equal, filling the track.
+/// THE toggle: a row of the kit's own buttons, the chosen one filled.
+///
+/// Plan / List; Bills / Online / Kitchen. It used to be a sunk track with a
+/// white thumb — the platform's stock segmented control by another name,
+/// which is exactly why those two toggles read as bolted on. Every toggle in
+/// this app is now the same button the cash in / cash out screen uses, at the
+/// compact height, equal-width across the row.
 ///
 /// The chosen cell used to read ink-on-white — correct by the letter of the
 /// spec, but in the floor's Plan/List and the Queue's Bills/Online it landed
@@ -1363,112 +1363,45 @@ class MadarSegmented<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Container(
-      height: Metrics.segmentHeight,
-      padding: const EdgeInsets.all(_segmentPad),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(Radii.control),
-      ),
-      child: Row(
-        children: [
-          for (final item in items)
-            Expanded(
-              child: _SegmentCell<T>(
-                item: item,
-                on: item.value == value,
-                onTap: () {
-                  if (item.value == value) return;
-                  MadarHaptics.selection();
-                  onChanged(item.value);
-                },
-              ),
+    // THE kit's button, not a segmented track.
+    //
+    // This used to be a pill of cells on a sunk surface — the platform's own
+    // segmented control by another name, which is why the floor's Plan/List
+    // and the queue's Bills/Online read as something bolted on. The ask was
+    // plain: every toggle should be the button the cash in / cash out screen
+    // uses. So it IS that button — the chosen one primary, the rest
+    // secondary, same 44 height, same radius, same press.
+    //
+    // The API is unchanged, so no caller moves.
+    return Row(
+      spacing: Space.sm,
+      children: [
+        for (final item in items)
+          Expanded(
+            child: MadarButton(
+              label: item.label,
+              glyph: item.glyph,
+              // The count rides the button's own trailing slot rather than
+              // being glued onto the label — it stays mono, and the label
+              // stays the label for anything reading the screen.
+              trailing: item.count == null
+                  ? null
+                  : Text('${item.count}', style: MadarType.numMd),
+              variant: item.value == value
+                  ? MadarButtonVariant.primary
+                  : MadarButtonVariant.secondary,
+              size: MadarButtonSize.compact,
+              onTap: () {
+                if (item.value == value) return;
+                onTap(item.value);
+              },
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
-}
 
-class _SegmentCell<T> extends StatelessWidget {
-  const _SegmentCell({
-    required this.item,
-    required this.on,
-    required this.onTap,
-  });
-
-  final MadarSegmentItem<T> item;
-  final bool on;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    // Accent, not ink: see the class doc. Bold rides along on the same
-    // signal `_CategoryTab` uses (weight, not just colour) so the choice
-    // still reads for a colour-blind teller.
-    final fg = on ? colors.accent : colors.textSecondary;
-    final weight = on ? FontWeight.w700 : FontWeight.w500;
-    return Semantics(
-      button: true,
-      selected: on,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: MotionSpec.standardDuration,
-          curve: MotionSpec.standardCurve,
-          // Breathing room at the cell's own edges — the track's 4px pad
-          // alone left the label touching its neighbour's thumb.
-          padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.sm),
-          decoration: BoxDecoration(
-            color: on ? colors.surface : null,
-            borderRadius: BorderRadius.circular(_segmentThumbRadius),
-            boxShadow: on
-                ? elevationShadows(context, MadarElevation.thumb)
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            spacing: Space.sm,
-            children: [
-              if (item.glyph != null)
-                // Filled like any other active tab — the outline/duotone
-                // split `glyphs.dart` already draws for a rail tab, reused
-                // here instead of inventing a second "chosen" treatment.
-                MadarGlyphIcon(
-                  item.glyph!,
-                  size: IconSize.md,
-                  color: fg,
-                  filled: on,
-                ),
-              Flexible(
-                child: Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.buttonSm.copyWith(
-                    color: fg,
-                    fontWeight: weight,
-                  ),
-                ),
-              ),
-              if (item.count != null)
-                Text(
-                  '${item.count}',
-                  textDirection: TextDirection.ltr,
-                  style: MadarType.numMd.copyWith(
-                    color: fg,
-                    fontWeight: weight,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  void onTap(T v) => onChanged(v);
 }
 
 /// THE tag: a 26px uppercase state word on its tone's wash — NEW, READY,
