@@ -14,6 +14,7 @@
 library;
 
 import 'package:design_system/src/brand.dart';
+import 'package:design_system/src/glass_surface.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/playful.dart';
 import 'package:design_system/src/responsive.dart';
@@ -303,29 +304,36 @@ class MadarRail extends StatelessWidget {
     final colors = context.madarColors;
     final topInset = MediaQuery.viewPaddingOf(context).top;
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-    return Container(
-      width: Metrics.railWidth,
-      color: colors.chrome,
-      padding: EdgeInsetsDirectional.only(
-        top: topInset + Space.lg,
-        bottom: bottomInset + 18,
-      ),
-      child: Column(
-        children: [
-          _Mark(onTap: onMarkTap),
-          const SizedBox(height: 14),
-          for (var i = 0; i < tabs.length; i++) ...[
-            if (i > 0) const SizedBox(height: 6),
-            MadarRailTab(
-              tab: tabs[i],
-              selected: i == selectedIndex,
-              onTap: () => onSelect(i),
-            ),
+    // The ONE glass surface in this app. It is persistent chrome — one
+    // platform view for the life of the process, not one per screen — and
+    // everything else stays painted, because a platform view under a stack
+    // of sheets is where iOS's compositing order starts showing through.
+    // Off iOS 26 this is exactly the Container it replaced.
+    return MadarGlassSurface(
+      fallback: colors.chrome,
+      child: Container(
+        width: Metrics.railWidth,
+        padding: EdgeInsetsDirectional.only(
+          top: topInset + Space.lg,
+          bottom: bottomInset + 18,
+        ),
+        child: Column(
+          children: [
+            _Mark(onTap: onMarkTap),
+            const SizedBox(height: 14),
+            for (var i = 0; i < tabs.length; i++) ...[
+              if (i > 0) const SizedBox(height: 6),
+              MadarRailTab(
+                tab: tabs[i],
+                selected: i == selectedIndex,
+                onTap: () => onSelect(i),
+              ),
+            ],
+            const Spacer(),
+            if (person != null)
+              _Who(person: person!, onTap: onPersonTap, vertical: true),
           ],
-          const Spacer(),
-          if (person != null)
-            _Who(person: person!, onTap: onPersonTap, vertical: true),
-        ],
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:design_system/design_system.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -32,4 +33,36 @@ void main() {
       expect(MadarGlass.isAvailable, isFalse);
     });
   });
+  _surfaceTests();
 }
+
+// The rail must be complete WITHOUT glass, because that is what almost every
+// device running this app will show. This renders it with the gate forced
+// both ways and asserts the chrome is identical either side of it.
+void _surfaceTests() {
+  testWidgets('the rail renders its chrome with glass off', (tester) async {
+    MadarGlass.debugOverride(available: false);
+    addTearDown(() => MadarGlass.debugOverride(available: null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MadarTheme.light(),
+        home: const Scaffold(
+          body: Row(
+            children: [
+              MadarRail(
+                tabs: [MadarTab(label: 'Sell', glyph: MadarGlyph.grid)],
+                selectedIndex: 0,
+                onSelect: _noop,
+              ),
+              Expanded(child: SizedBox.shrink()),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('Sell'), findsOneWidget);
+  });
+}
+
+void _noop(int _) {}

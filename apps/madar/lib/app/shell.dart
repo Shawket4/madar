@@ -30,6 +30,10 @@ class MadarShell extends ConsumerWidget {
         ThemeChoice.dark => ThemeMode.dark,
         ThemeChoice.system => ThemeMode.system,
       },
+      // The rail wears a native platform view on iOS 26 (design_system's
+      // MadarGlassSurface), and iOS composites those above Flutter's own
+      // layers unless something tells the plugin a modal went up.
+      navigatorObservers: [glassRouteObserver()],
       // Direction sits ABOVE the navigator, so every pushed screen, sheet
       // and modal mirrors with the locale — not only the home route.
       builder: (context, child) => Directionality(

@@ -9,6 +9,12 @@ environment:
   flutter: ">=3.41.0"
 
 dependencies:
+  # Apple's OWN Liquid Glass, through a platform view — not a shader that
+  # imitates it. It returns the child unchanged below iOS 26 and on every
+  # other platform, which is the same answer MadarGlass gives, so the gate
+  # and the plugin agree. See lib/src/glass.dart for why this is gated at
+  # all and lib/src/glass_surface.dart for where it is allowed to appear.
+  cupertino_native_better: ^1.6.0
   flutter:
     sdk: flutter
   lottie: ^3.3.2

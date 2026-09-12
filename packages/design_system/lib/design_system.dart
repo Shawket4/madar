@@ -15,6 +15,7 @@ export 'src/drawer.dart';
 export 'src/focus.dart';
 export 'src/gallery.dart';
 export 'src/glass.dart';
+export 'src/glass_surface.dart';
 export 'src/glyphs.dart';
 export 'src/header.dart';
 export 'src/icons.dart';
