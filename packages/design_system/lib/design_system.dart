@@ -34,4 +34,5 @@ export 'src/tokens/dimens.dart';
 export 'src/tokens/elevation.dart';
 export 'src/tokens/motion.dart';
 export 'src/tokens/typography.dart';
+export 'src/top_card.dart';
 export 'src/touch.dart';

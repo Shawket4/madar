@@ -229,6 +229,13 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
                 controller: _wedge,
                 focusNode: _wedgeFocus,
                 autofocus: true,
+                // A hardware wedge types; nobody does. `none` keeps the soft
+                // keyboard DOWN while the field still holds focus — raising
+                // it jumped the sheet (and the one beneath) up the screen
+                // for a keyboard no one would use.
+                keyboardType: TextInputType.none,
+                showCursor: false,
+                enableInteractiveSelection: false,
                 // Every keystroke, not just Enter — see [_offer].
                 onChanged: (v) => unawaited(_offer(v)),
                 onSubmitted: (v) => unawaited(_offer(v)),

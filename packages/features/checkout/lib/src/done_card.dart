@@ -7,19 +7,17 @@ import 'package:feature_checkout/src/charge_target.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/loyalty_award_sheet.dart';
 import 'package:feature_checkout/src/receipt_printing.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// The card's width on a tablet and its distance from the top of the window
-/// (the canvas: 600 / 76 — it clears the top bar).
-const double _cardWidth = 600;
+/// The card's distance from the top of the window (the canvas: 76 — it
+/// clears the top bar); its width cap is the top card's 600.
 const double _cardTopTablet = 76;
 const double _cardTopPhone = 60;
 
 /// The state glyph at the card's start.
-const double _markSize = 28;
+const double _markSize = 40;
 
 /// How the Done card was put away.
 enum DoneCardResult {
@@ -33,132 +31,32 @@ enum DoneCardResult {
 
 /// Slide the Done card down over whatever the teller is standing on.
 ///
-/// Not a screen and not a dialog: nothing behind it is blocked. The next tap
-/// on the host goes THROUGH to the host — the next tile tap IS the new sale
-/// — and dismisses the card on its way, which for a bill means "not yet".
-/// Resolves once the card is gone.
+/// A route in the kit's surface stack ([showMadarTopCard]), not a floating
+/// overlay: a sheet it opens ("Add points") lands ABOVE it, and the one
+/// shared dim follows the stack. A tap outside the card is its barrier and
+/// means "not yet" — the table keeps waiting for a bus. Resolves once the
+/// card is gone.
 Future<DoneCardResult> showDoneCard(
   BuildContext context,
   ChargeOutcome outcome, {
   VoidCallback? onPrinterSettings,
-}) {
-  final overlay = Overlay.of(context, rootOverlay: true);
-  final done = Completer<DoneCardResult>();
-  late final OverlayEntry entry;
-  entry = OverlayEntry(
-    builder: (_) => _DoneCardOverlay(
+}) async {
+  final layout = MadarLayout.of(context);
+  final result = await showMadarTopCard<DoneCardResult>(
+    context,
+    barrierResult: DoneCardResult.notYet,
+    padding: EdgeInsetsDirectional.only(
+      top: layout.pick(phone: _cardTopPhone, tablet: _cardTopTablet),
+      start: layout.gutter,
+      end: layout.gutter,
+    ),
+    builder: (cardContext) => DoneCard(
       outcome: outcome,
       onPrinterSettings: onPrinterSettings,
-      onGone: (result) {
-        entry.remove();
-        if (!done.isCompleted) done.complete(result);
-      },
+      onDone: (r) => MadarSheet.close(cardContext, r),
     ),
   );
-  overlay.insert(entry);
-  return done.future;
-}
-
-/// The overlay: positions the card, plays it in and out, and watches for the
-/// pointer-down that dismisses it — anywhere but on the card itself.
-class _DoneCardOverlay extends StatefulWidget {
-  const _DoneCardOverlay({
-    required this.outcome,
-    required this.onGone,
-    this.onPrinterSettings,
-  });
-
-  final ChargeOutcome outcome;
-  final ValueChanged<DoneCardResult> onGone;
-  final VoidCallback? onPrinterSettings;
-
-  @override
-  State<_DoneCardOverlay> createState() => _DoneCardOverlayState();
-}
-
-class _DoneCardOverlayState extends State<_DoneCardOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _anim = AnimationController(
-    vsync: this,
-    duration: MotionSpec.standardDuration,
-  );
-  final GlobalKey _cardKey = GlobalKey();
-  bool _leaving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _anim.forward();
-    // A global route, not a barrier: a barrier would eat the tap that is
-    // meant to start the next sale. This only WATCHES pointers; the card's
-    // own box is excluded, and everything else still gets its tap.
-    GestureBinding.instance.pointerRouter.addGlobalRoute(_onPointer);
-  }
-
-  @override
-  void dispose() {
-    GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointer);
-    _anim.dispose();
-    super.dispose();
-  }
-
-  void _onPointer(PointerEvent event) {
-    if (event is! PointerDownEvent || _leaving) return;
-    final box = _cardKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box != null && box.hasSize) {
-      final local = box.globalToLocal(event.position);
-      if (box.paintBounds.contains(local)) return;
-    }
-    unawaited(_dismiss(DoneCardResult.notYet));
-  }
-
-  Future<void> _dismiss(DoneCardResult result) async {
-    if (_leaving) return;
-    _leaving = true;
-    await _anim.reverse();
-    if (mounted) widget.onGone(result);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final layout = MadarLayout.of(context);
-    final slide = Tween<Offset>(
-      begin: const Offset(0, -1.2),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _anim, curve: MotionSpec.springOut));
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Padding(
-          padding: EdgeInsetsDirectional.only(
-            top: layout.pick(phone: _cardTopPhone, tablet: _cardTopTablet),
-            start: layout.gutter,
-            end: layout.gutter,
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _cardWidth),
-            child: SlideTransition(
-              position: slide,
-              child: FadeTransition(
-                opacity: _anim,
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: KeyedSubtree(
-                    key: _cardKey,
-                    child: DoneCard(
-                      outcome: widget.outcome,
-                      onPrinterSettings: widget.onPrinterSettings,
-                      onDone: (r) => unawaited(_dismiss(r)),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  return result ?? DoneCardResult.notYet;
 }
 
 /// The Done card — two variants of one card.
@@ -415,12 +313,14 @@ class _DoneCardState extends ConsumerState<DoneCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: Space.md + 2,
             children: [
-              MadarGlyphIcon(
-                o.queued ? MadarGlyph.half : MadarGlyph.checkCircle,
-                size: _markSize,
-                // The same half disc, in the same teal, as the outbox pill.
-                color: colors.accent,
-                filled: !o.queued,
+              // The pre-overhaul celebrations, back where a sale ends: the
+              // settle mark draws closed and strikes its check once; a sale
+              // parked for the network gets the living amber clock.
+              SizedBox.square(
+                dimension: _markSize,
+                child: o.queued
+                    ? const QueuedMark(size: _markSize)
+                    : const SettleMark(size: _markSize),
               ),
               Expanded(
                 child: Column(

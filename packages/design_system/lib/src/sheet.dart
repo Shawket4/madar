@@ -69,6 +69,38 @@ Future<T?> showMadarSheet<T>(
   ).push(MadarSheetRoute<T>(builder: builder, size: size, maxWidth: maxWidth));
 }
 
+/// Closing a sheet (or drawer) from its content, ALWAYS with the slide-out.
+///
+/// `Navigator.of(context).pop()` removes a Madar sheet route with no exit
+/// animation (its route transition is zero-length; the page drives the
+/// springs). Use [MadarSheet.close] instead — it runs the same dismissal as a
+/// scrim tap and resolves the presenter's future with `result` once the card
+/// is off-screen. Outside a Madar surface it falls back to `maybePop`.
+abstract final class MadarSheet {
+  /// Animates the nearest enclosing sheet / drawer out, then pops [result].
+  static void close<T>(BuildContext context, [T? result]) {
+    DismissibleSurface? surface;
+    context.visitAncestorElements((element) {
+      if (element is StatefulElement && element.state is DismissibleSurface) {
+        surface = element.state as DismissibleSurface;
+        return false;
+      }
+      return true;
+    });
+    if (surface case final s?) {
+      s.dismissWith(result);
+    } else {
+      Navigator.of(context).maybePop(result);
+    }
+  }
+}
+
+/// A surface page that knows how to animate itself out — see [MadarSheet].
+abstract interface class DismissibleSurface {
+  /// Plays the exit and pops the route with [result].
+  void dismissWith(Object? result);
+}
+
 /// The custom [ModalRoute] behind [showMadarSheet].
 ///
 /// It owns its springs: the route's own transitions are zero-length and
@@ -92,6 +124,31 @@ class MadarSheetRoute<T> extends ModalRoute<T> {
   /// Centered width cap of the card.
   final double maxWidth;
 
+  /// This sheet's stake in the shared dim (scrim.dart). Taken when the route
+  /// is installed, given back the moment it starts to leave.
+  ScrimClaim get scrimClaim => _scrimClaim ??= ScrimClaim.claim();
+  ScrimClaim? _scrimClaim;
+
+  @override
+  void install() {
+    _scrimClaim ??= ScrimClaim.claim(); // Before the first frame.
+    super.install();
+  }
+
+  @override
+  bool didPop(T? result) {
+    // A bare Navigator.pop lands here without the page's own dismiss — the
+    // dim must still be handed on before the caller's future resolves.
+    scrimClaim.release();
+    return super.didPop(result);
+  }
+
+  @override
+  void dispose() {
+    scrimClaim.dispose();
+    super.dispose();
+  }
+
   @override
   Color? get barrierColor => null; // The page draws its own scrim.
 
@@ -109,6 +166,14 @@ class MadarSheetRoute<T> extends ModalRoute<T> {
 
   @override
   Duration get transitionDuration => Duration.zero;
+
+  /// The card leaves on its own springs BEFORE the pop; what this carries is
+  /// the dim's fade AFTER it. The dim stays down until the route is popped,
+  /// so the surface pushed the instant this one's future resolves takes it
+  /// over at full strength (scrim.dart) — no undimmed flash between two
+  /// sheets. With nothing following, it fades out over this.
+  @override
+  Duration get reverseTransitionDuration => MotionSpec.standardDuration;
 
   @override
   Widget buildPage(
@@ -132,15 +197,6 @@ const double _shadowClearance = 80;
 const double _handleWidth = 40;
 const double _handleHeight = 5;
 
-/// The natives scrim with pure black in BOTH themes (Compose
-/// `Color.Black`), pre-multiplied here with [Opacities.scrim].
-const Color _scrimColor = Color.from(
-  alpha: Opacities.scrim,
-  red: 0,
-  green: 0,
-  blue: 0,
-);
-
 /// System v2: a sheet's top corners are the sheet radius, 20.
 const BorderRadius _cardRadius = BorderRadius.vertical(
   top: Radius.circular(Radii.sheet),
@@ -156,7 +212,11 @@ class _MadarSheetPage<T> extends StatefulWidget {
 }
 
 class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin
+    implements DismissibleSurface {
+  @override
+  void dismissWith(Object? result) => _dismiss(result: result as T?);
+
   /// Base slide, in fractions of the hidden extent: 1 = off-screen,
   /// 0 = shown. Spring-driven both ways.
   late final AnimationController _slide;
@@ -168,14 +228,19 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
   late final AnimationController _scrim;
   late final CurvedAnimation _scrimOpacity;
 
+  /// The route's own exit fade — see [MadarSheetRoute.reverseTransitionDuration].
+  late final CurvedAnimation _routeFade;
+
+  /// What is actually painted: faded in by [_scrimOpacity], out by the route.
+  late final Animation<double> _scrimVisible;
+
   Timer? _popTimer;
   bool _dismissing = false;
 
-  /// Whether THIS sheet paints the dim, or something below it already does.
-  /// See scrim.dart: the dim belongs to the stack, not to each surface.
-  /// Claimed in [initState] — not lazily — so the answer is fixed before the
-  /// first frame and released exactly once.
-  late final bool _paintsScrim;
+  /// The inset last applied while this sheet was on top. A sheet covered by
+  /// another keeps it, so a keyboard raised for the sheet ABOVE does not
+  /// reflow (jump) the one beneath.
+  double _ownInset = 0;
 
   // Captured during layout for the gesture + dismiss math.
   double _sheetHeight = 0;
@@ -184,7 +249,6 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
   @override
   void initState() {
     super.initState();
-    _paintsScrim = claimScrim();
     _slide = AnimationController.unbounded(vsync: this, value: 1);
     _drag = AnimationController.unbounded(vsync: this);
     _scrim = AnimationController(
@@ -197,6 +261,16 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
       curve: MotionSpec.standardCurve,
       reverseCurve: MotionSpec.standardCurve,
     );
+    final claim = widget.route.scrimClaim
+      ..visibleOpacity = () => _scrimVisible.value;
+    // Taking over from a surface still fading out: pick up its dim where it
+    // is, so the handoff never flashes the page undimmed.
+    _scrim.value = claim.startOpacity;
+    _routeFade = CurvedAnimation(
+      parent: widget.route.animation!,
+      curve: MotionSpec.standardCurve,
+    )..addStatusListener(_onRouteStatus);
+    _scrimVisible = AnimationMin<double>(_scrimOpacity, _routeFade);
     // Slide in on the sheet spring, fade the scrim in alongside.
     _slide.animateWith(SpringSimulation(MotionSpec.sheet, 1, 0, 0));
     _scrim.forward();
@@ -204,8 +278,10 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
 
   @override
   void dispose() {
-    releaseScrim(painting: _paintsScrim);
     _popTimer?.cancel();
+    _routeFade
+      ..removeStatusListener(_onRouteStatus)
+      ..dispose();
     _scrimOpacity.dispose();
     _scrim.dispose();
     _drag.dispose();
@@ -213,15 +289,23 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
     super.dispose();
   }
 
+  /// A bare `Navigator.pop` skipped [_dismiss]: send the card away while
+  /// the route's exit fade runs, rather than leaving it standing.
+  void _onRouteStatus(AnimationStatus status) {
+    if (status != AnimationStatus.reverse || _dismissing) return;
+    _dismissing = true;
+    _slide.animateWith(SpringSimulation(MotionSpec.sheet, _slide.value, 1, 0));
+  }
+
   /// Animates out, THEN completes the route — the caller's future only
   /// resolves once the card is off-screen (no hard cut).
   void _dismiss({T? result, double velocity = 0}) {
     if (_dismissing) return;
     _dismissing = true;
+    widget.route.scrimClaim.release();
     _slide.animateWith(
       SpringSimulation(MotionSpec.sheet, _slide.value, 1, velocity),
     );
-    _scrim.reverse();
     _popTimer = Timer(MotionSpec.sheetDismissDelay, () {
       if (!mounted) return;
       Navigator.of(context).pop(result);
@@ -325,7 +409,11 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final route = ModalRoute.of(context);
+    if (route == null || route.isCurrent) {
+      _ownInset = MediaQuery.viewInsetsOf(context).bottom;
+    }
+    final bottomInset = _ownInset;
     final dismissLabel = Localizations.of<MaterialLocalizations>(
       context,
       MaterialLocalizations,
@@ -357,14 +445,12 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
                   onTap: _handleScrimTap,
                   child: Semantics(
                     label: dismissLabel,
-                    child: _paintsScrim
-                        ? FadeTransition(
-                            opacity: _scrimOpacity,
-                            child: const ColoredBox(color: _scrimColor),
-                          )
-                        // Still full-bleed and still tappable — the dim is
-                        // what is suppressed, never the tap-to-dismiss.
-                        : const SizedBox.expand(),
+                    // Still full-bleed and still tappable when it paints
+                    // nothing — the dim is suppressed, never the tap.
+                    child: StackScrim(
+                      claim: widget.route.scrimClaim,
+                      opacity: _scrimVisible,
+                    ),
                   ),
                 ),
               ),

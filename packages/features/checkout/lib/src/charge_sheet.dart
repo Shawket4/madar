@@ -98,38 +98,13 @@ Future<ChargeOutcome?> _showChargeModal(
 ) {
   final colors = context.madarColors;
   final dark = Theme.of(context).brightness == Brightness.dark;
-  // Claim the dim, like every other modal surface in the kit.
-  //
-  // This is the only dialog in the app that built its own barrier instead of
-  // going through showMadarModal, so it never told the kit it was dimming —
-  // and a sheet raised from INSIDE it (the loyalty scan, off the Charge
-  // drawer) believed it was the first one down and dimmed again. Two layers
-  // over a centred modal is the "glitch out" that was reported: the drawer
-  // behind the sheet went nearly black, so the sheet looked like it had
-  // landed on nothing.
-  final paintsScrim = claimScrim();
-  return showGeneralDialog<ChargeOutcome>(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: paintsScrim
-        ? Colors.black.withValues(alpha: Opacities.scrim)
-        : Colors.transparent,
-    transitionDuration: MotionSpec.standardDuration,
-    transitionBuilder: (context, animation, _, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: MotionSpec.springOut,
-      );
-      return FadeTransition(
-        opacity: animation,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
-          child: child,
-        ),
-      );
-    },
-    pageBuilder: (context, _, _) {
+  // The shared dialog presenter owns the dim (scrim.dart): claimed on push,
+  // handed on the moment the modal starts to leave — so a sheet raised from
+  // inside it never dims twice, and the Done card that follows it never
+  // lands on an undimmed flash or on the modal's fading barrier.
+  return showMadarDialogSurface<ChargeOutcome>(
+    context,
+    pageBuilder: (context) {
       final maxHeight =
           MediaQuery.sizeOf(context).height * _modalHeightFraction;
       return SafeArea(
@@ -154,7 +129,7 @@ Future<ChargeOutcome?> _showChargeModal(
         ),
       );
     },
-  ).whenComplete(() => releaseScrim(painting: paintsScrim));
+  );
 }
 
 /// THE tender drawer — one for a counter cart, a table's bill and an online
@@ -231,7 +206,7 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
   void _resolve(ChargeOutcome outcome, PrintState printState) {
     if (_popped || !mounted) return;
     _popped = true;
-    Navigator.of(context).pop(outcome.withPrintState(printState));
+    MadarSheet.close(context, outcome.withPrintState(printState));
   }
 
   @override
@@ -1458,13 +1433,13 @@ class _DiscountSheet extends ConsumerWidget {
                 label: bridge.tr(key: 'order.no_discount'),
                 selected: current == null,
                 onTap: () =>
-                    Navigator.of(context).pop(const _DiscountPick(null)),
+                    MadarSheet.close(context, const _DiscountPick(null)),
               ),
               for (final d in discounts)
                 MadarChip(
                   label: discountLabel(d),
                   selected: current == d.id,
-                  onTap: () => Navigator.of(context).pop(_DiscountPick(d)),
+                  onTap: () => MadarSheet.close(context, _DiscountPick(d)),
                 ),
             ],
           ),

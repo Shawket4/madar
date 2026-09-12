@@ -178,7 +178,7 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
             ),
             MadarButton(
               label: t('common.done'),
-              onTap: () => Navigator.of(context).pop(true),
+              onTap: () => MadarSheet.close(context, true),
             ),
           ],
         ),

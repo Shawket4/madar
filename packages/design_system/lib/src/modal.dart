@@ -29,33 +29,10 @@ Future<T?> showMadarModal<T>(
 }) {
   final colors = context.madarColors;
   final dark = Theme.of(context).brightness == Brightness.dark;
-  // The dim belongs to the stack (scrim.dart), not to each surface: a
-  // confirm raised from inside a sheet must not dim a page the sheet already
-  // dimmed, or two layers put the screen at three-quarters black and the
-  // teller loses sight of what they were confirming ABOUT.
-  final paintsScrim = claimScrim();
-  return showGeneralDialog<T>(
-    context: context,
-    barrierDismissible: dismissible,
-    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: paintsScrim
-        ? Colors.black.withValues(alpha: Opacities.scrim)
-        : Colors.transparent,
-    transitionDuration: MotionSpec.standardDuration,
-    transitionBuilder: (context, animation, _, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: MotionSpec.springOut,
-      );
-      return FadeTransition(
-        opacity: animation,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
-          child: child,
-        ),
-      );
-    },
-    pageBuilder: (context, _, _) {
+  return showMadarDialogSurface<T>(
+    context,
+    dismissible: dismissible,
+    pageBuilder: (context) {
       final gutter = MadarLayout.of(context).gutter;
       return SafeArea(
         child: Center(
@@ -85,7 +62,60 @@ Future<T?> showMadarModal<T>(
         ),
       );
     },
-  ).whenComplete(() => releaseScrim(painting: paintsScrim));
+  );
+}
+
+/// The centred-dialog presenter behind [showMadarModal] — and any dialog that
+/// needs its own card (the tablet Charge modal): a fade + 0.96 scale-in, and
+/// the SHARED dim (scrim.dart) instead of a private barrier colour.
+///
+/// The claim is given back the moment the dialog starts to leave, so a
+/// surface pushed as soon as the returned future resolves takes the dim over
+/// at whatever opacity this one's fade had reached — never a gap, never two.
+Future<T?> showMadarDialogSurface<T>(
+  BuildContext context, {
+  required WidgetBuilder pageBuilder,
+  bool dismissible = true,
+}) {
+  final claim = ScrimClaim.claim();
+  return showGeneralDialog<T>(
+    context: context,
+    barrierDismissible: dismissible,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    // The dim is painted in the transition, from the shared claim; the
+    // barrier stays only for tap-to-dismiss and semantics.
+    barrierColor: Colors.transparent,
+    transitionDuration: MotionSpec.standardDuration,
+    transitionBuilder: (context, animation, _, child) {
+      claim.visibleOpacity ??= () => animation.value;
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: MotionSpec.springOut,
+      );
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: StackScrim(
+                claim: claim,
+                opacity: animation.drive(
+                  Tween<double>(begin: claim.startOpacity, end: 1),
+                ),
+              ),
+            ),
+          ),
+          FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+              child: child,
+            ),
+          ),
+        ],
+      );
+    },
+    pageBuilder: (context, _, _) => pageBuilder(context),
+  ).whenComplete(claim.release);
 }
 
 /// The standard modal body: a title, an optional line of body text, and a

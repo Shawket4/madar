@@ -23,7 +23,9 @@ class LoyaltyScanSheet extends ConsumerWidget {
     final state = ref.watch(checkoutProvider);
     final bridge = ref.read(bridgeProvider);
 
-    return Padding(
+    // Scrolls rather than overflows: phone mode adds a field and a button
+    // under the title, and a short landscape phone has no room for all of it.
+    return SingleChildScrollView(
       padding: const EdgeInsetsDirectional.all(Space.xl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -44,7 +46,7 @@ class LoyaltyScanSheet extends ConsumerWidget {
               final ok = await ref
                   .read(checkoutProvider.notifier)
                   .scanLoyalty(token: token, phone: phone);
-              if (ok && context.mounted) Navigator.of(context).pop();
+              if (ok && context.mounted) MadarSheet.close<void>(context);
             },
           ),
         ],

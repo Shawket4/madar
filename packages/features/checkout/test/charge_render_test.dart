@@ -843,4 +843,141 @@ void main() {
     await _settle(tester);
     expect(await pending, DoneCardResult.cleared);
   });
+
+  // ── Sheet over sheet ────────────────────────────────────────────────
+  //
+  // The flows that glitched: a sheet opened from the Done card rendered
+  // UNDER it and died with it on the next tap; a sheet over Charge dimmed a
+  // second time or not at all; a pick closed with a hard cut; the scanner's
+  // hidden field raised a keyboard that jumped both sheets.
+
+  for (final (label, size) in [('phone', _phone), ('tablet', _ipad)]) {
+    testWidgets('charge -> scan member on a $label: one dim, no keyboard', (
+      tester,
+    ) async {
+      debugResetScrim();
+      await _mount(tester, size: size, bridge: _FakeBridge());
+      final host = tester.element(find.byType(_Host));
+      final pending = showCharge(
+        host,
+        ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+        presentDoneCard: false,
+      );
+      await _settle(tester);
+      expect(_visibleDims(tester), 1);
+      await tester.tap(find.text('Scan card').first);
+      await _settle(tester);
+      expect(find.byType(LoyaltyScanSheet), findsOneWidget);
+      expect(
+        _visibleDims(tester),
+        1,
+        reason: 'the sheet over Charge adds none',
+      );
+      final wedge = tester
+          .widgetList<TextField>(find.byType(TextField))
+          .where((f) => f.keyboardType == TextInputType.none);
+      expect(wedge, isNotEmpty, reason: 'the wedge sink raises no keyboard');
+      // The scan sheet's own barrier: only it goes.
+      await tester.tapAt(const Offset(8, 8));
+      await _settle(tester);
+      expect(find.byType(LoyaltyScanSheet), findsNothing);
+      expect(find.byType(ChargeSheet), findsOneWidget);
+      expect(_visibleDims(tester), 1);
+      MadarSheet.close<void>(tester.element(find.byType(ChargeSheet)));
+      await _settle(tester);
+      expect(await pending, isNull);
+      await tester.pump(MotionSpec.gentleDuration);
+      expect(_visibleDims(tester), 0);
+      debugResetScrim();
+    });
+
+    testWidgets('charge -> discount picker on a $label animates out', (
+      tester,
+    ) async {
+      debugResetScrim();
+      await _mount(tester, size: size, bridge: _FakeBridge());
+      final host = tester.element(find.byType(_Host));
+      final pending = showCharge(
+        host,
+        ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+        presentDoneCard: false,
+      );
+      await _settle(tester);
+      final chip = find.descendant(
+        of: find.byType(MadarChip),
+        matching: find.text('No discount'),
+      );
+      await tester.tap(find.text('Discount').first);
+      await _settle(tester);
+      expect(chip, findsOneWidget);
+      expect(_visibleDims(tester), 1);
+      await tester.tap(chip);
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(
+        chip,
+        findsOneWidget,
+        reason: 'the picker slides out, it is not cut',
+      );
+      await _settle(tester);
+      expect(chip, findsNothing);
+      expect(find.byType(ChargeSheet), findsOneWidget);
+      expect(_visibleDims(tester), 1);
+      MadarSheet.close<void>(tester.element(find.byType(ChargeSheet)));
+      await _settle(tester);
+      expect(await pending, isNull);
+      debugResetScrim();
+    });
+
+    testWidgets('done card -> add points on a $label stacks above the card', (
+      tester,
+    ) async {
+      debugResetScrim();
+      await _mount(tester, size: size, bridge: _FakeBridge());
+      final host = tester.element(find.byType(_Host));
+      // Keep a session alive so the programme is known, as it is the instant
+      // Charge hands over to the card.
+      final charge = showCharge(
+        host,
+        ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+        presentDoneCard: false,
+      );
+      await _settle(tester);
+      final done = showDoneCard(host, _saleOutcome());
+      await _settle(tester);
+      expect(find.byType(DoneCard), findsOneWidget);
+      await tester.tap(find.text('Add points'));
+      await _settle(tester);
+      expect(find.byType(LoyaltyAwardSheet), findsOneWidget);
+      expect(_visibleDims(tester), 1);
+      // The award sheet is the top of the stack: its content takes the tap,
+      // and neither it nor the card is torn down by it.
+      await tester.tap(find.byType(LoyaltyAwardSheet), warnIfMissed: false);
+      await _settle(tester);
+      expect(find.byType(LoyaltyAwardSheet), findsOneWidget);
+      expect(find.byType(DoneCard), findsOneWidget);
+      MadarSheet.close<void>(tester.element(find.byType(LoyaltyAwardSheet)));
+      await _settle(tester);
+      expect(find.byType(LoyaltyAwardSheet), findsNothing);
+      expect(find.byType(DoneCard), findsOneWidget, reason: 'the card stays');
+      await tester.tap(find.text('Not yet'));
+      await _settle(tester);
+      expect(await done, DoneCardResult.notYet);
+      MadarSheet.close<void>(tester.element(find.byType(ChargeSheet)));
+      await _settle(tester);
+      expect(await charge, isNull);
+      debugResetScrim();
+    });
+  }
+}
+
+/// The shared dims actually visible now.
+int _visibleDims(WidgetTester tester) {
+  var n = 0;
+  for (final e in find.byType(ColoredBox).evaluate()) {
+    final box = e.widget as ColoredBox;
+    if (box.color != StackScrim.color) continue;
+    final fade = e.findAncestorWidgetOfExactType<FadeTransition>();
+    if (fade == null || fade.opacity.value > 0) n++;
+  }
+  return n;
 }
