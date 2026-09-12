@@ -65,6 +65,8 @@ DeliveryOrderView _order({
   String? notes,
   String? hint,
   int fee = 1500,
+  String? promisedReadyAt,
+  String? readyAt,
 }) {
   final subtotal = lines.fold<int>(0, (s, l) => s + l.lineTotalMinor);
   return DeliveryOrderView(
@@ -84,6 +86,9 @@ DeliveryOrderView _order({
     itemCount: lines.fold<int>(0, (s, l) => s + l.qty),
     lines: lines,
     createdAt: at,
+    extraPrepMinutes: 0,
+    promisedReadyAt: promisedReadyAt,
+    readyAt: readyAt,
     isTerminal: false,
   );
 }
@@ -116,6 +121,8 @@ final _orders = <DeliveryOrderView>[
     name: 'Karim',
     phone: '0111 555 0199',
     at: '2026-09-10T19:31:00Z',
+    // Accepted at 19:33 with a 15-minute base and two added.
+    promisedReadyAt: '2026-09-10T19:50:00Z',
     lines: [_line('Beef Burger', 2, 9000)],
   ),
   _order(
@@ -128,6 +135,8 @@ final _orders = <DeliveryOrderView>[
     hint: 'paid by card',
     fee: 0,
     at: '2026-09-10T19:18:00Z',
+    // The kitchen beat the promise; the fact is what shows.
+    readyAt: '2026-09-10T19:29:00Z',
     lines: [_line('Flat White', 1, 5500)],
   ),
   _order(
@@ -296,6 +305,7 @@ const _en = <String, String>{
   'delivery.mode_auto': 'auto',
   'delivery.mode_open': 'open',
   'delivery.mode_closed': 'closed',
+  'queue.ready_by': 'Ready by',
   'receipt.delivery_fee': 'fee',
   'kds.title': 'Kitchen',
   'ticket.status.open': 'Open',
@@ -334,6 +344,7 @@ const _ar = <String, String>{
   'delivery.mode_auto': 'تلقائي',
   'delivery.mode_open': 'مفتوح',
   'delivery.mode_closed': 'مغلق',
+  'queue.ready_by': 'جاهز بحلول',
   'receipt.delivery_fee': 'رسوم التوصيل',
   'kds.title': 'المطبخ',
   'ticket.status.open': 'مفتوحة',
@@ -555,6 +566,12 @@ void main() {
     expect(find.text('Picked up'), findsOneWidget);
     // The last step charges.
     expect(find.widgetWithText(MadarButton, 'Charge'), findsOneWidget);
+    // The promise the shop made when it accepted, on the card that is still
+    // cooking; the fact, on the one the kitchen already called.
+    expect(find.textContaining('Ready by 19:50'), findsOneWidget);
+    expect(find.textContaining('Ready 19:29'), findsOneWidget);
+    // Never both on one card.
+    expect(find.textContaining('Ready by 19:29'), findsNothing);
   });
 
   testWidgets('Online on an iPad, dark', (tester) async {

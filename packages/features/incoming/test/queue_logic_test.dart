@@ -24,6 +24,7 @@ DeliveryOrderView _order(String id, String status) => DeliveryOrderView(
   itemCount: 1,
   lines: const [],
   createdAt: '2026-09-10T19:00:00Z',
+  extraPrepMinutes: 0,
   isTerminal: status == 'cancelled' || status == 'rejected',
 );
 

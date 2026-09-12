@@ -1750,6 +1750,11 @@ fn cash_i32(v: i64, field: &str) -> Result<i32, CoreError> {
 /// kv key for the branch's last-known loyalty programme.
 pub(crate) const K_LOYALTY_SETTINGS: &str = "cache:loyalty_settings";
 
+/// kv key for the branch's last-known base prep time, in minutes. Cached
+/// because every delivery card dates its promise from it, and the settings
+/// call that carries it is online-only.
+pub(crate) const K_DELIVERY_PREP_MINUTES: &str = "cache:delivery_prep_minutes";
+
 fn cache_views<T: serde::Serialize>(store: &store::Store, key: &str, views: &[T]) {
     if let Ok(json) = serde_json::to_string(views) {
         let _ = store.kv_put(key, &json);
@@ -6982,6 +6987,7 @@ impl MadarCore {
         // Live when online (cached write-through, keyed by the status filter), else
         // the last-synced snapshot — the delivery board still shows offline.
         let key = format!("cache:delivery:{}", status.as_deref().unwrap_or("all"));
+        let base_prep = self.cached_prep_minutes();
         if !self.current_session().map(|s| s.online).unwrap_or(false) {
             return Ok(cached_views(&self.store, &key));
         }
@@ -6998,7 +7004,7 @@ impl MadarCore {
             Ok(orders) => {
                 let views: Vec<_> = orders
                     .iter()
-                    .map(|o| delivery::order_view(o, &loc))
+                    .map(|o| delivery::order_view(o, &loc, base_prep))
                     .collect();
                 cache_views(&self.store, &key, &views);
                 Ok(views)
@@ -7017,7 +7023,7 @@ impl MadarCore {
         let o = d::get_delivery_order(&self.api.config(), d::GetDeliveryOrderParams { id })
             .await
             .map_err(net::map_api_error)?;
-        Ok(delivery::order_view(&o, &loc))
+        Ok(delivery::order_view(&o, &loc, self.cached_prep_minutes()))
     }
 
     /// Set a delivery order's status to an explicit wire value.
@@ -7037,7 +7043,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
-        Ok(delivery::order_view(&o, &loc))
+        Ok(delivery::order_view(&o, &loc, self.cached_prep_minutes()))
     }
 
     /// Advance one step in the lifecycle from `current` (received→confirmed→…→
@@ -7071,7 +7077,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
-        Ok(delivery::order_view(&o, &loc))
+        Ok(delivery::order_view(&o, &loc, self.cached_prep_minutes()))
     }
 
     /// Cancel a delivery order. `restore_inventory = false` means the food was
@@ -7096,7 +7102,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
-        Ok(delivery::order_view(&o, &loc))
+        Ok(delivery::order_view(&o, &loc, self.cached_prep_minutes()))
     }
 
     /// Finalize a delivery order into a real completed sale on the current open
@@ -7152,7 +7158,23 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
-        Ok(delivery::settings_view(&s))
+        let view = delivery::settings_view(&s);
+        let _ = self
+            .store
+            .kv_put(K_DELIVERY_PREP_MINUTES, &view.prep_time_minutes.to_string());
+        Ok(view)
+    }
+
+    /// The branch's base prep time as last seen. `0` before the settings have
+    /// ever been read — a promise of "ready now" that the extra minutes still
+    /// move, which is better than inventing a number the shop never set.
+    fn cached_prep_minutes(&self) -> i64 {
+        self.store
+            .kv_get(K_DELIVERY_PREP_MINUTES)
+            .ok()
+            .flatten()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0)
     }
 
     /// Set a channel's accepting override. `channel` = "in_mall"/"outside",

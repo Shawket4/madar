@@ -296,6 +296,13 @@ class _OnlineCardState extends ConsumerState<_OnlineCard> {
     final address = o.address;
     final notes = o.deliveryNotes;
     final hint = o.paymentHint;
+    // What the kitchen said, or what the shop promised — never both, and
+    // nothing at all before the order is accepted.
+    final readyStamp = o.readyAt ?? o.promisedReadyAt;
+    final readyLabel = readyStamp == null
+        ? null
+        : '${bridge.trOr(o.readyAt == null ? QueueKeys.readyBy : QueueKeys.readyAt)}'
+              ' ${clockLabel(bridge, readyStamp)}';
     // The code and the figure are one word: never split across a wrap.
     final feeLabel =
         '${bridge.tr(key: 'receipt.delivery_fee')} '
@@ -393,6 +400,11 @@ class _OnlineCardState extends ConsumerState<_OnlineCard> {
                     '${o.itemCount} ${bridge.tr(key: 'delivery.items')}',
                     if (o.deliveryFeeMinor > 0) feeLabel,
                     if (hint != null && hint.isNotEmpty) hint,
+                    // The clock the customer was given, and then the one
+                    // that actually happened. The core dates the promise
+                    // from acceptance and drops it the moment the kitchen
+                    // calls the order ready, so only one ever shows.
+                    ?readyLabel,
                   ].join(' · '),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,

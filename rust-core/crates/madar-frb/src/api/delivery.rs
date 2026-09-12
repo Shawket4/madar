@@ -35,6 +35,16 @@ pub struct _DeliveryOrderView {
     /// snapshot into the SAME shape tickets use — so both render identically.
     pub lines: Vec<TicketLineView>,
     pub created_at: String,
+    /// When the shop ACCEPTED it — the promise starts here, not at arrival.
+    pub confirmed_at: Option<String>,
+    /// When the kitchen started, and when it finished.
+    pub preparing_at: Option<String>,
+    pub ready_at: Option<String>,
+    /// Minutes the teller added on top of the branch's base prep time.
+    pub extra_prep_minutes: i64,
+    /// When the shop said it would be ready. Null before acceptance (nothing
+    /// was promised) and once `ready_at` exists (the fact replaces it).
+    pub promised_ready_at: Option<String>,
     /// `true` once the order reached a terminal state (delivered/cancelled/rejected).
     pub is_terminal: bool,
 }

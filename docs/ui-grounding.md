@@ -427,7 +427,7 @@ collapsed; qty stepper → `qty`. Editing a line = remove + re-add configured (t
 | READY → Out for delivery / Picked up | `deliveryAdvanceStatus(id, 'ready')` (label by `channel == 'pickup'`) |
 | OUT → Charge | `deliveryFinalize(id, paymentMethodId)` — needs `currentShift()`; §4.8 online caller |
 | ⋯ Cancel + restock toggle | `deliveryCancel(id, reason, restoreInventory)` (`delivery.restore_inventory`) |
-| ready at 19:45 | **hide** — the view has no `confirmedAt` / `extraPrepMinutes`; nothing to compute from. §6.6 |
+| ready at 19:45 | `promisedReadyAt` → "Ready by 19:50"; once the kitchen calls it, `readyAt` → "Ready 19:29". Never both on one card |
 | 409 flips the card | catch `MadarError.server(status: 409)` → re-read `deliveryOrderDetail(id)`, one-line notice |
 | Accepting: in-mall ● outside ○ | `deliverySettings()` → `deliverySetAccepting(channel, mode)`; chips only for `*Enabled` channels; `pickup`/`umbrella` cannot be shown or toggled (not in the view) |
 | No channels enabled | hide the segment |
@@ -598,7 +598,10 @@ substitutes above are what ships in the morning.
 5. ~~**Splits on `settleTicket`**~~ — DONE. `settleTicket(splits:)` resolves each leg's method id
    to the raw name, dropping a leg whose method no longer exists rather than 400-ing the settle.
    `canSplit` is `!isOnline && methods >= 2`.
-6. **Delivery view: `confirmedAt`, `extraPrepMinutes`, `readyAt`** — projection only. Tiny.
+6. ~~**Delivery view: `confirmedAt`, `extraPrepMinutes`, `readyAt`**~~ — DONE, plus
+   `preparingAt` and a computed `promisedReadyAt` (acceptance + branch base + the teller's
+   extra, clamped forward, dropped once `readyAt` exists). The base prep time is cached in kv
+   when the settings are read, so the promise survives going offline.
 7. **Force-close** — `force_close_shift(shift_id, reason)` for the manager's drawer page. Small.
 8. **Cash movement `kind` + `corrects_id`** — `recordCashMovement(kind, correctsId)` and
    `CashMovementView.kind/correctsId`. Small; makes the Till's chips and *Correct ›* real.

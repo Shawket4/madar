@@ -281,6 +281,7 @@ DeliveryOrderView _online({
     itemCount: lines.fold<int>(0, (s, l) => s + l.qty),
     lines: lines,
     createdAt: at,
+    extraPrepMinutes: 0,
     isTerminal: false,
   );
 }

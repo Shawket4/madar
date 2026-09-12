@@ -26,6 +26,10 @@ abstract final class QueueKeys {
     'delivery.cancel_reason',
   );
   static const readyIn = ('queue.ready_in', 'delivery.prep_time');
+  /// "Ready by 19:25" — the promise the shop made when it accepted.
+  static const readyBy = ('queue.ready_by', 'delivery.prep_time');
+  /// "Ready 19:19" — the fact, once the kitchen finished.
+  static const readyAt = ('queue.ready_at', 'delivery.status.ready');
   static const chargeBill = ('queue.charge', 'waiter.settle');
   static const chargeOnline = ('queue.charge', 'delivery.finalize');
   static const pickedUp = (

@@ -8996,6 +8996,11 @@ const _: fn() = || {
         let _: i64 = DeliveryOrderView.item_count;
         let _: Vec<crate::api::tickets::TicketLineView> = DeliveryOrderView.lines;
         let _: String = DeliveryOrderView.created_at;
+        let _: Option<String> = DeliveryOrderView.confirmed_at;
+        let _: Option<String> = DeliveryOrderView.preparing_at;
+        let _: Option<String> = DeliveryOrderView.ready_at;
+        let _: i64 = DeliveryOrderView.extra_prep_minutes;
+        let _: Option<String> = DeliveryOrderView.promised_ready_at;
         let _: bool = DeliveryOrderView.is_terminal;
     }
     {
@@ -10150,6 +10155,11 @@ impl SseDecode for crate::api::delivery::DeliveryOrderView {
         let mut var_itemCount = <i64>::sse_decode(deserializer);
         let mut var_lines = <Vec<crate::api::tickets::TicketLineView>>::sse_decode(deserializer);
         let mut var_createdAt = <String>::sse_decode(deserializer);
+        let mut var_confirmedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_preparingAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_readyAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_extraPrepMinutes = <i64>::sse_decode(deserializer);
+        let mut var_promisedReadyAt = <Option<String>>::sse_decode(deserializer);
         let mut var_isTerminal = <bool>::sse_decode(deserializer);
         return crate::api::delivery::DeliveryOrderView {
             id: var_id,
@@ -10168,6 +10178,11 @@ impl SseDecode for crate::api::delivery::DeliveryOrderView {
             item_count: var_itemCount,
             lines: var_lines,
             created_at: var_createdAt,
+            confirmed_at: var_confirmedAt,
+            preparing_at: var_preparingAt,
+            ready_at: var_readyAt,
+            extra_prep_minutes: var_extraPrepMinutes,
+            promised_ready_at: var_promisedReadyAt,
             is_terminal: var_isTerminal,
         };
     }
@@ -13902,6 +13917,11 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::delivery::Delivery
             self.0.item_count.into_into_dart().into_dart(),
             self.0.lines.into_into_dart().into_dart(),
             self.0.created_at.into_into_dart().into_dart(),
+            self.0.confirmed_at.into_into_dart().into_dart(),
+            self.0.preparing_at.into_into_dart().into_dart(),
+            self.0.ready_at.into_into_dart().into_dart(),
+            self.0.extra_prep_minutes.into_into_dart().into_dart(),
+            self.0.promised_ready_at.into_into_dart().into_dart(),
             self.0.is_terminal.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -15922,6 +15942,11 @@ impl SseEncode for crate::api::delivery::DeliveryOrderView {
         <i64>::sse_encode(self.item_count, serializer);
         <Vec<crate::api::tickets::TicketLineView>>::sse_encode(self.lines, serializer);
         <String>::sse_encode(self.created_at, serializer);
+        <Option<String>>::sse_encode(self.confirmed_at, serializer);
+        <Option<String>>::sse_encode(self.preparing_at, serializer);
+        <Option<String>>::sse_encode(self.ready_at, serializer);
+        <i64>::sse_encode(self.extra_prep_minutes, serializer);
+        <Option<String>>::sse_encode(self.promised_ready_at, serializer);
         <bool>::sse_encode(self.is_terminal, serializer);
     }
 }

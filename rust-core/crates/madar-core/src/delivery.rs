@@ -39,6 +39,26 @@ pub struct DeliveryOrderView {
     /// snapshot into the SAME shape tickets use — so both render identically.
     pub lines: Vec<crate::tickets::TicketLineView>,
     pub created_at: String,
+    /// When the shop ACCEPTED it. The promise starts here, not at `created_at`:
+    /// an order that sat unaccepted for ten minutes is not ten minutes late.
+    #[serde(default)]
+    pub confirmed_at: Option<String>,
+    /// When the kitchen started, and when it finished. Both null until they
+    /// happen; `ready_at` is the truth that replaces the promise.
+    #[serde(default)]
+    pub preparing_at: Option<String>,
+    #[serde(default)]
+    pub ready_at: Option<String>,
+    /// Minutes the teller added on top of the branch's base prep time when
+    /// they accepted ("this one needs 20").
+    #[serde(default)]
+    pub extra_prep_minutes: i64,
+    /// When the shop said it would be ready — `confirmed_at` plus the branch
+    /// base plus [`Self::extra_prep_minutes`]. Null before it is accepted
+    /// (nothing was promised yet) and once [`Self::ready_at`] exists (a
+    /// promise is not worth showing beside the fact).
+    #[serde(default)]
+    pub promised_ready_at: Option<String>,
     /// `true` once the order reached a terminal state (delivered/cancelled/rejected).
     pub is_terminal: bool,
 }
@@ -67,7 +87,11 @@ pub struct DeliveryFinalizeView {
 
 /// Project a wire `DeliveryOrder` into the view. `locale` localizes the address
 /// "Unit"/"Floor" prefixes.
-pub(crate) fn order_view(o: &models::DeliveryOrder, locale: &str) -> DeliveryOrderView {
+pub(crate) fn order_view(
+    o: &models::DeliveryOrder,
+    locale: &str,
+    base_prep_minutes: i64,
+) -> DeliveryOrderView {
     // The frozen snapshot stores its priced lines under `cart.lines` (a
     // `CartSnapshot`), NOT `cart.items` — reading the wrong key left every delivery
     // order showing "0 items" with no line detail.
@@ -89,8 +113,44 @@ pub(crate) fn order_view(o: &models::DeliveryOrder, locale: &str) -> DeliveryOrd
         item_count: lines.len() as i64,
         lines,
         created_at: o.created_at.to_rfc3339(),
+        confirmed_at: stamp(&o.confirmed_at),
+        preparing_at: stamp(&o.preparing_at),
+        ready_at: stamp(&o.ready_at),
+        extra_prep_minutes: o.extra_prep_minutes as i64,
+        promised_ready_at: match stamp(&o.ready_at) {
+            // It IS ready. A promise beside the fact is noise at best and a
+            // contradiction at worst.
+            Some(_) => None,
+            None => promised_ready_at(
+                stamp(&o.confirmed_at).as_deref(),
+                base_prep_minutes,
+                o.extra_prep_minutes as i64,
+            ),
+        },
         is_terminal: matches!(o.status.as_str(), "delivered" | "cancelled" | "rejected"),
     }
+}
+
+/// Flatten a wire double-option timestamp into an RFC 3339 string.
+fn stamp(t: &Option<Option<chrono::DateTime<chrono::FixedOffset>>>) -> Option<String> {
+    t.as_ref().and_then(|i| i.as_ref()).map(|d| d.to_rfc3339())
+}
+
+/// When the shop said it would be ready: the moment it was accepted, plus the
+/// branch's base prep time, plus whatever the teller added for this one.
+///
+/// `None` before it is accepted — an order sitting in the queue has not been
+/// promised anything, and dating the promise from `created_at` would make the
+/// shop late for a delay that is its own answer time, not the kitchen's.
+/// Negative minutes are clamped to zero rather than promising the past.
+pub fn promised_ready_at(
+    confirmed_at: Option<&str>,
+    base_minutes: i64,
+    extra_minutes: i64,
+) -> Option<String> {
+    let at = chrono::DateTime::parse_from_rfc3339(confirmed_at?).ok()?;
+    let minutes = (base_minutes + extra_minutes).max(0);
+    Some((at + chrono::Duration::minutes(minutes)).to_rfc3339())
 }
 
 /// Project the frozen cart's priced `lines` into display lines, reusing the ticket
@@ -320,7 +380,7 @@ mod tests {
     #[test]
     fn order_view_maps_core_fields() {
         let o = order("received", "outside", cart_with_lines(3));
-        let v = order_view(&o, "en");
+        let v = order_view(&o, "en", 0);
         assert_eq!(v.id, o.id.to_string());
         assert_eq!(v.channel, "outside");
         assert_eq!(v.status, "received");
@@ -340,22 +400,22 @@ mod tests {
     fn order_view_discount_amount_passed_through() {
         let mut o = order("received", "outside", cart_with_lines(1));
         o.discount_amount = Some(750);
-        let v = order_view(&o, "en");
+        let v = order_view(&o, "en", 0);
         assert_eq!(v.discount_minor, 750);
     }
 
     #[test]
     fn order_view_item_count_zero_when_no_lines_key() {
         let mut o = order("received", "in_mall", serde_json::json!({}));
-        let v = order_view(&o, "en");
+        let v = order_view(&o, "en", 0);
         assert_eq!(v.item_count, 0);
         assert!(v.lines.is_empty());
         // also when lines is not an array
         o.cart = serde_json::json!({ "lines": "nope" });
-        assert_eq!(order_view(&o, "en").item_count, 0);
+        assert_eq!(order_view(&o, "en", 0).item_count, 0);
         // and an empty lines array
         o.cart = serde_json::json!({ "lines": [] });
-        assert_eq!(order_view(&o, "en").item_count, 0);
+        assert_eq!(order_view(&o, "en", 0).item_count, 0);
     }
 
     #[test]
@@ -371,7 +431,7 @@ mod tests {
             { "item_name": "Fries", "quantity": 1, "line_total": 1500 }
         ]});
         let o = order("received", "outside", cart);
-        let v = order_view(&o, "en");
+        let v = order_view(&o, "en", 0);
         assert_eq!(v.item_count, 2, "count is the number of priced lines");
         assert_eq!(v.lines.len(), 2);
         let l = &v.lines[0];
@@ -392,21 +452,21 @@ mod tests {
     fn order_view_order_ref_blank_filtered() {
         let mut o = order("received", "outside", cart_with_lines(1));
         o.delivery_ref = Some(Some(String::new()));
-        assert_eq!(order_view(&o, "en").order_ref, None);
+        assert_eq!(order_view(&o, "en", 0).order_ref, None);
         o.delivery_ref = Some(Some("D-DT-0042".into()));
-        assert_eq!(order_view(&o, "en").order_ref.as_deref(), Some("D-DT-0042"));
+        assert_eq!(order_view(&o, "en", 0).order_ref.as_deref(), Some("D-DT-0042"));
         o.delivery_ref = None; // absent
-        assert_eq!(order_view(&o, "en").order_ref, None);
+        assert_eq!(order_view(&o, "en", 0).order_ref, None);
     }
 
     #[test]
     fn order_view_delivery_notes_blank_filtered() {
         let mut o = order("received", "outside", cart_with_lines(1));
         o.delivery_notes = Some(Some(String::new()));
-        assert_eq!(order_view(&o, "en").delivery_notes, None);
+        assert_eq!(order_view(&o, "en", 0).delivery_notes, None);
         o.delivery_notes = Some(Some("Leave at door".into()));
         assert_eq!(
-            order_view(&o, "en").delivery_notes.as_deref(),
+            order_view(&o, "en", 0).delivery_notes.as_deref(),
             Some("Leave at door")
         );
     }
@@ -417,7 +477,7 @@ mod tests {
     fn order_view_terminal_states() {
         for s in ["delivered", "cancelled", "rejected"] {
             let o = order(s, "outside", cart_with_lines(1));
-            assert!(order_view(&o, "en").is_terminal, "{s} should be terminal");
+            assert!(order_view(&o, "en", 0).is_terminal, "{s} should be terminal");
         }
     }
 
@@ -432,7 +492,7 @@ mod tests {
         ] {
             let o = order(s, "outside", cart_with_lines(1));
             assert!(
-                !order_view(&o, "en").is_terminal,
+                !order_view(&o, "en", 0).is_terminal,
                 "{s} should not be terminal"
             );
         }
@@ -448,7 +508,7 @@ mod tests {
         o.unit_number = Some(Some("4B".into()));
         o.floor = Some(Some("3".into()));
         o.landmark = Some(Some("Near park".into()));
-        let v = order_view(&o, "en");
+        let v = order_view(&o, "en", 0);
         assert_eq!(
             v.address.as_deref(),
             Some("Tower A, 12 Main St, Unit 4B, Floor 3, Near park")
@@ -460,7 +520,7 @@ mod tests {
         let mut o = order("received", "outside", cart_with_lines(1));
         o.unit_number = Some(Some("4B".into()));
         o.floor = Some(Some("3".into()));
-        let v = order_view(&o, "ar");
+        let v = order_view(&o, "ar", 0);
         assert_eq!(v.address.as_deref(), Some("وحدة 4B, طابق 3"));
     }
 
@@ -471,7 +531,7 @@ mod tests {
         o.address_line = Some(Some(String::new())); // blank skipped
         o.unit_number = Some(Some("   ".into())); // whitespace skipped
         o.landmark = Some(Some("Gate 2".into()));
-        let v = order_view(&o, "en");
+        let v = order_view(&o, "en", 0);
         // place, then landmark — line/unit/floor all blank/absent.
         assert_eq!(v.address.as_deref(), Some("Tower A, Gate 2"));
     }
@@ -479,7 +539,7 @@ mod tests {
     #[test]
     fn order_view_address_none_when_all_absent() {
         let o = order("received", "outside", cart_with_lines(1));
-        assert_eq!(order_view(&o, "en").address, None);
+        assert_eq!(order_view(&o, "en", 0).address, None);
     }
 
     #[test]
@@ -488,14 +548,14 @@ mod tests {
         o.place_name = Some(Some("  ".into()));
         o.address_line = Some(Some(String::new()));
         o.floor = Some(Some(" ".into()));
-        assert_eq!(order_view(&o, "en").address, None);
+        assert_eq!(order_view(&o, "en", 0).address, None);
     }
 
     #[test]
     fn order_view_address_unit_only() {
         let mut o = order("received", "outside", cart_with_lines(1));
         o.unit_number = Some(Some("9".into()));
-        let v = order_view(&o, "en");
+        let v = order_view(&o, "en", 0);
         assert_eq!(v.address.as_deref(), Some("Unit 9"));
     }
 
@@ -556,6 +616,57 @@ mod tests {
                 "ready",
                 "out_for_delivery"
             ]
+        );
+    }
+
+    #[test]
+    fn the_promise_dates_from_acceptance_not_arrival() {
+        // Accepted at 19:00, a 15-minute base, 10 added for this one.
+        assert_eq!(
+            promised_ready_at(Some("2026-09-12T19:00:00+00:00"), 15, 10),
+            Some("2026-09-12T19:25:00+00:00".to_string())
+        );
+    }
+
+    #[test]
+    fn an_unaccepted_order_has_been_promised_nothing() {
+        assert_eq!(promised_ready_at(None, 15, 0), None);
+        // An order that sat ten minutes waiting for an answer is not ten
+        // minutes late; dating the promise from `created_at` would say it was.
+        assert_eq!(promised_ready_at(Some("not a date"), 15, 0), None);
+    }
+
+    #[test]
+    fn a_promise_is_never_in_the_past() {
+        assert_eq!(
+            promised_ready_at(Some("2026-09-12T19:00:00+00:00"), 5, -30),
+            Some("2026-09-12T19:00:00+00:00".to_string()),
+            "clamped to now, not dated backwards"
+        );
+    }
+
+    #[test]
+    fn a_ready_order_shows_the_fact_not_the_promise() {
+        let mut o = order("confirmed", "outside", cart_with_lines(1));
+        o.confirmed_at = Some(Some(
+            chrono::DateTime::parse_from_rfc3339("2026-09-12T19:00:00+00:00").unwrap(),
+        ));
+        o.extra_prep_minutes = 10;
+        let waiting = order_view(&o, "en", 15);
+        assert_eq!(
+            waiting.promised_ready_at.as_deref(),
+            Some("2026-09-12T19:25:00+00:00")
+        );
+        assert_eq!(waiting.extra_prep_minutes, 10);
+
+        o.ready_at = Some(Some(
+            chrono::DateTime::parse_from_rfc3339("2026-09-12T19:19:00+00:00").unwrap(),
+        ));
+        let done = order_view(&o, "en", 15);
+        assert_eq!(done.ready_at.as_deref(), Some("2026-09-12T19:19:00+00:00"));
+        assert_eq!(
+            done.promised_ready_at, None,
+            "the fact replaces the promise"
         );
     }
 }

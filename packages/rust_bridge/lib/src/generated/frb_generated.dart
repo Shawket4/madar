@@ -7530,8 +7530,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   DeliveryOrderView dco_decode_delivery_order_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 17)
-      throw Exception('unexpected arr length: expect 17 but see ${arr.length}');
+    if (arr.length != 22)
+      throw Exception('unexpected arr length: expect 22 but see ${arr.length}');
     return DeliveryOrderView(
       id: dco_decode_String(arr[0]),
       orderRef: dco_decode_opt_String(arr[1]),
@@ -7549,7 +7549,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       itemCount: dco_decode_i_64(arr[13]),
       lines: dco_decode_list_ticket_line_view(arr[14]),
       createdAt: dco_decode_String(arr[15]),
-      isTerminal: dco_decode_bool(arr[16]),
+      confirmedAt: dco_decode_opt_String(arr[16]),
+      preparingAt: dco_decode_opt_String(arr[17]),
+      readyAt: dco_decode_opt_String(arr[18]),
+      extraPrepMinutes: dco_decode_i_64(arr[19]),
+      promisedReadyAt: dco_decode_opt_String(arr[20]),
+      isTerminal: dco_decode_bool(arr[21]),
     );
   }
 
@@ -9718,6 +9723,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_itemCount = sse_decode_i_64(deserializer);
     var var_lines = sse_decode_list_ticket_line_view(deserializer);
     var var_createdAt = sse_decode_String(deserializer);
+    var var_confirmedAt = sse_decode_opt_String(deserializer);
+    var var_preparingAt = sse_decode_opt_String(deserializer);
+    var var_readyAt = sse_decode_opt_String(deserializer);
+    var var_extraPrepMinutes = sse_decode_i_64(deserializer);
+    var var_promisedReadyAt = sse_decode_opt_String(deserializer);
     var var_isTerminal = sse_decode_bool(deserializer);
     return DeliveryOrderView(
       id: var_id,
@@ -9736,6 +9746,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       itemCount: var_itemCount,
       lines: var_lines,
       createdAt: var_createdAt,
+      confirmedAt: var_confirmedAt,
+      preparingAt: var_preparingAt,
+      readyAt: var_readyAt,
+      extraPrepMinutes: var_extraPrepMinutes,
+      promisedReadyAt: var_promisedReadyAt,
       isTerminal: var_isTerminal,
     );
   }
@@ -12521,6 +12536,11 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_64(self.itemCount, serializer);
     sse_encode_list_ticket_line_view(self.lines, serializer);
     sse_encode_String(self.createdAt, serializer);
+    sse_encode_opt_String(self.confirmedAt, serializer);
+    sse_encode_opt_String(self.preparingAt, serializer);
+    sse_encode_opt_String(self.readyAt, serializer);
+    sse_encode_i_64(self.extraPrepMinutes, serializer);
+    sse_encode_opt_String(self.promisedReadyAt, serializer);
     sse_encode_bool(self.isTerminal, serializer);
   }
 

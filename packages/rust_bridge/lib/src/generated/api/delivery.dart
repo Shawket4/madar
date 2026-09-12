@@ -62,6 +62,20 @@ class DeliveryOrderView {
   final List<TicketLineView> lines;
   final String createdAt;
 
+  /// When the shop ACCEPTED it — the promise starts here, not at arrival.
+  final String? confirmedAt;
+
+  /// When the kitchen started, and when it finished.
+  final String? preparingAt;
+  final String? readyAt;
+
+  /// Minutes the teller added on top of the branch's base prep time.
+  final PlatformInt64 extraPrepMinutes;
+
+  /// When the shop said it would be ready. Null before acceptance (nothing
+  /// was promised) and once `ready_at` exists (the fact replaces it).
+  final String? promisedReadyAt;
+
   /// `true` once the order reached a terminal state (delivered/cancelled/rejected).
   final bool isTerminal;
 
@@ -82,6 +96,11 @@ class DeliveryOrderView {
     required this.itemCount,
     required this.lines,
     required this.createdAt,
+    this.confirmedAt,
+    this.preparingAt,
+    this.readyAt,
+    required this.extraPrepMinutes,
+    this.promisedReadyAt,
     required this.isTerminal,
   });
 
@@ -103,6 +122,11 @@ class DeliveryOrderView {
       itemCount.hashCode ^
       lines.hashCode ^
       createdAt.hashCode ^
+      confirmedAt.hashCode ^
+      preparingAt.hashCode ^
+      readyAt.hashCode ^
+      extraPrepMinutes.hashCode ^
+      promisedReadyAt.hashCode ^
       isTerminal.hashCode;
 
   @override
@@ -126,6 +150,11 @@ class DeliveryOrderView {
           itemCount == other.itemCount &&
           lines == other.lines &&
           createdAt == other.createdAt &&
+          confirmedAt == other.confirmedAt &&
+          preparingAt == other.preparingAt &&
+          readyAt == other.readyAt &&
+          extraPrepMinutes == other.extraPrepMinutes &&
+          promisedReadyAt == other.promisedReadyAt &&
           isTerminal == other.isTerminal;
 }
 

@@ -161,6 +161,7 @@ const _online = DeliveryOrderView(
   itemCount: 3,
   lines: [],
   createdAt: '2026-09-10T19:40:00Z',
+  extraPrepMinutes: 0,
   isTerminal: false,
 );
 
