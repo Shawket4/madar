@@ -10,6 +10,7 @@
 // at the bottom whose ▲ opens it as a sheet. Both draw `SellCart`.
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
@@ -30,10 +31,22 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// Synthetic category id for the Combos chip (bundles are not a category).
 const String _kCombos = '__combos__';
 
-/// Tile geometry: compact enough for a real menu on an iPad (six across at
-/// 1194 minus the rail and the cart), still a thumb target on a phone.
-const double _kTileMaxWidth = 168;
-const double _kTileHeight = 108;
+/// Tile geometry.
+///
+/// A WIDTH BAND and a ratio, never a fixed height. It used to be 168 x 108
+/// pinned, which is right at exactly one window size and wrong at every other
+/// — the proportions drifted as the column changed, names truncated at two
+/// lines, and "EGP" wrapped off its own amount. The grid picks a column count
+/// from the width it is actually handed and derives the height from that, so
+/// a phone gets two across, an 11" three, a 13" four or five, and the card
+/// keeps its shape at all of them.
+const double _kTileMinWidth = 190;
+const double _kTileMaxWidth = 250;
+
+/// Card height as a fraction of its width. The image block is square and
+/// flush to the leading edge, so this is what leaves the text two comfortable
+/// lines beside it.
+const double _kTileAspect = 0.62;
 
 /// Sell.
 class SellScreen extends ConsumerStatefulWidget {
@@ -288,6 +301,8 @@ class _SellScreenState extends ConsumerState<SellScreen>
             onTap: () => unawaited(_openParked()),
           ),
       ],
+      // The search field belongs to the whole screen; the CATEGORY strip does
+      // not — see below, where it sits inside the catalog column.
       below: _searching
           ? MadarField(
               controller: _search,
@@ -296,18 +311,47 @@ class _SellScreenState extends ConsumerState<SellScreen>
               autofocus: true,
               onChanged: (_) => setState(() {}),
             )
-          : _CategoryChips(
-              selected: _categoryId,
-              onSelect: (id) => setState(() => _categoryId = id),
-            ),
+          : null,
     );
 
-    final catalog = _Catalog(
-      categoryId: _categoryId,
-      query: _search.text,
-      onItemTap: (item, origin) => unawaited(_onTileTap(item, origin)),
-      onItemLongPress: (item) => unawaited(_openItemSheet(item)),
-      onBundleTap: (b) => unawaited(_openBundle(b)),
+    // INSIDE the catalog side of the split, not above it.
+    //
+    // The header spans the window, so a strip hung under it ran straight
+    // across the divider and over the cart — on an iPad the categories
+    // finished somewhere in the middle of the Takeaway column. It is the
+    // catalog's own filter and it belongs to the catalog's width; it already
+    // scrolls horizontally, so once it is bounded correctly the scrolling
+    // does what it was always meant to do.
+    final categories = _searching
+        ? null
+        : _CategoryChips(
+            selected: _categoryId,
+            onSelect: (id) => setState(() => _categoryId = id),
+          );
+
+    final catalog = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (categories != null)
+          Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(
+              layout.gutter,
+              Space.md,
+              layout.gutter,
+              0,
+            ),
+            child: categories,
+          ),
+        Expanded(
+          child: _Catalog(
+            categoryId: _categoryId,
+            query: _search.text,
+            onItemTap: (item, origin) => unawaited(_onTileTap(item, origin)),
+            onItemLongPress: (item) => unawaited(_openItemSheet(item)),
+            onBundleTap: (b) => unawaited(_openBundle(b)),
+          ),
+        ),
+      ],
     );
 
     // A tab body — the shell's top bar above it already paid the top inset.
@@ -466,27 +510,44 @@ class _Catalog extends ConsumerWidget {
     final currency = ref.watch(orderProvider.select((s) => s.currency));
     final layout = MadarLayout.of(context);
     final padding = EdgeInsetsDirectional.all(layout.gutter);
-    const delegate = SliverGridDelegateWithMaxCrossAxisExtent(
-      maxCrossAxisExtent: _kTileMaxWidth,
-      mainAxisExtent: _kTileHeight,
-      mainAxisSpacing: Space.md,
-      crossAxisSpacing: Space.md,
-    );
+    // Derived from the width this column ACTUALLY has — which on a tablet is
+    // the window minus the rail minus the cart, not the window — so the same
+    // rule holds on a phone, a split iPad and a 13".
+    SliverGridDelegate delegateFor(double width) {
+      final usable = width - layout.gutter * 2;
+      // As many columns as fit at the minimum, then one more for as long as
+      // the tiles would otherwise grow past the maximum. Both ends matter: a
+      // 13" with four 300px cards looks as wrong as a phone with five 70px
+      // ones, and a single band cannot say that on its own.
+      var columns = math.max(1, (usable / _kTileMinWidth).floor());
+      double widthAt(int n) => (usable - Space.md * (n - 1)) / n;
+      while (widthAt(columns) > _kTileMaxWidth) {
+        columns += 1;
+      }
+      return SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        childAspectRatio: 1 / _kTileAspect,
+        mainAxisSpacing: Space.md,
+        crossAxisSpacing: Space.md,
+      );
+    }
 
     if (loading) return const SkeletonList();
 
     if (categoryId == _kCombos) {
       final bundles = ref.watch(orderProvider.select((s) => s.bundles));
-      return GridView.builder(
-        key: const PageStorageKey('sell-combos'),
-        padding: padding,
-        gridDelegate: delegate,
-        itemCount: bundles.length,
-        itemBuilder: (context, i) => _BundleTile(
-          bundle: bundles[i],
-          currency: currency,
-          label: bridge.tr(key: 'order.configure'),
-          onTap: () => onBundleTap(bundles[i]),
+      return LayoutBuilder(
+        builder: (context, c) => GridView.builder(
+          key: const PageStorageKey('sell-combos'),
+          padding: padding,
+          gridDelegate: delegateFor(c.maxWidth),
+          itemCount: bundles.length,
+          itemBuilder: (context, i) => _BundleTile(
+            bundle: bundles[i],
+            currency: currency,
+            label: bridge.tr(key: 'order.configure'),
+            onTap: () => onBundleTap(bundles[i]),
+          ),
         ),
       );
     }
@@ -525,27 +586,29 @@ class _Catalog extends ConsumerWidget {
     String categoryName(String? id) =>
         categories.where((c) => c.id == id).firstOrNull?.name ?? '';
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return GridView.builder(
-      key: PageStorageKey('sell-${categoryId ?? 'all'}'),
-      padding: padding,
-      gridDelegate: delegate,
-      itemCount: visible.length,
-      itemBuilder: (context, i) {
-        final item = visible[i];
-        final cat = categoryName(item.categoryId);
-        return SellTile(
-          item: item,
-          currency: currency,
-          inCart: inCart(item.id),
-          accent: hexColor(
-            notifier
-                .categoryStyle(cat.isEmpty ? item.name : cat, dark: dark)
-                .accent,
-          ),
-          onTap: (origin) => onItemTap(item, origin),
-          onLongPress: () => onItemLongPress(item),
-        );
-      },
+    return LayoutBuilder(
+      builder: (context, c) => GridView.builder(
+        key: PageStorageKey('sell-${categoryId ?? 'all'}'),
+        padding: padding,
+        gridDelegate: delegateFor(c.maxWidth),
+        itemCount: visible.length,
+        itemBuilder: (context, i) {
+          final item = visible[i];
+          final cat = categoryName(item.categoryId);
+          return SellTile(
+            item: item,
+            currency: currency,
+            inCart: inCart(item.id),
+            accent: hexColor(
+              notifier
+                  .categoryStyle(cat.isEmpty ? item.name : cat, dark: dark)
+                  .accent,
+            ),
+            onTap: (origin) => onItemTap(item, origin),
+            onLongPress: () => onItemLongPress(item),
+          );
+        },
+      ),
     );
   }
 }
@@ -609,19 +672,23 @@ class SellTile extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             child: Stack(
               children: [
-                Padding(
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: Space.md,
-                    vertical: Space.sm,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _TileThumb(item: item, accent: accent),
-                      const SizedBox(width: Space.sm),
-                      Expanded(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Flush to the card's leading and vertical edges, clipped
+                    // by the card's own radius. Inset inside the padding it
+                    // read as a stamp floating on white — these product shots
+                    // are mostly white themselves, so a small contained image
+                    // is barely an image at all.
+                    _TileThumb(item: item, accent: accent),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.symmetric(
+                          horizontal: Space.md,
+                          vertical: Space.sm,
+                        ),
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Flexible(
@@ -635,16 +702,23 @@ class SellTile extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: Space.xs),
-                            MoneyText(
-                              item.basePriceMinor,
-                              currency: currency,
-                              color: colors.textPrimary,
+                            // One line, always. The amount used to wrap under
+                            // its own currency — "EGP" on one row and
+                            // "160.00" on the next — which is not a price.
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: AlignmentDirectional.centerStart,
+                              child: MoneyText(
+                                item.basePriceMinor,
+                                currency: currency,
+                                color: colors.textPrimary,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 if (inCart > 0)
                   PositionedDirectional(
@@ -679,51 +753,59 @@ class SellTile extends StatelessWidget {
   }
 }
 
-/// Fixed leading thumbnail — the core-cached local photo when one has
-/// synced, else the item's monogram over a quiet wash of the category's
-/// accent. Same contract as `MenuItemCard`'s hero in `catalog_column.dart`:
-/// LOCAL-ONLY (the core downloads + caches during `refresh_catalog`; this
-/// never fetches), and a decode failure falls back rather than showing a
-/// broken-image glyph.
+/// The card's image block — a SQUARE the full height of the card, flush to
+/// its leading edge, filled edge to edge by the photo.
+///
+/// The core-cached local file when one has synced, else the item's monogram
+/// over a quiet wash of the category's accent. LOCAL-ONLY (the core downloads
+/// and caches during `refresh_catalog`; this never fetches), and a decode
+/// failure falls back to the monogram rather than showing a broken-image
+/// glyph to a customer.
 class _TileThumb extends StatelessWidget {
   const _TileThumb({required this.item, required this.accent});
 
   final MenuItemView item;
   final Color accent;
 
-  static const double _size = 44;
-
   @override
   Widget build(BuildContext context) {
     final path = item.localImagePath;
-    final fallback = Text(
-      monogram(item.name),
-      style: MadarType.title.copyWith(
-        fontWeight: FontWeight.w700,
-        color: accent,
-      ),
-    );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(Radii.sm),
-      child: Container(
-        width: _size,
-        height: _size,
-        color: accent.withValues(alpha: 0.14),
-        alignment: Alignment.center,
-        child: path == null
-            ? fallback
-            : Image(
-                image: ResizeImage(
-                  FileImage(File(path)),
-                  width: (_size * MediaQuery.devicePixelRatioOf(context))
-                      .round(),
-                ),
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => fallback,
-              ),
-      ),
+    return LayoutBuilder(
+      builder: (context, c) {
+        // Square on the card's own height, whatever the grid handed it.
+        final side = c.maxHeight.isFinite ? c.maxHeight : _fallbackSide;
+        final fallback = Center(
+          child: Text(
+            monogram(item.name),
+            style: MadarType.h1.copyWith(
+              fontWeight: FontWeight.w700,
+              color: accent,
+            ),
+          ),
+        );
+        return SizedBox(
+          width: side,
+          child: ColoredBox(
+            color: accent.withValues(alpha: 0.14),
+            child: path == null
+                ? fallback
+                : Image(
+                    image: ResizeImage(
+                      FileImage(File(path)),
+                      width: (side * MediaQuery.devicePixelRatioOf(context))
+                          .round(),
+                    ),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => fallback,
+                  ),
+          ),
+        );
+      },
     );
   }
+
+  /// Only reached under an unbounded height, which the grid never gives.
+  static const double _fallbackSide = 88;
 }
 
 /// A combo's tile: name, fixed price, and a "+ Configure" face, because a

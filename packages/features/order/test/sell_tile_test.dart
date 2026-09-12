@@ -32,6 +32,7 @@ Widget _host(Widget child) => MaterialApp(
 );
 
 void main() {
+  _gridTests();
   _defaultMilkTests();
   group('SellTile photo', () {
     testWidgets('renders an Image when the core has a cached local path', (
@@ -124,5 +125,53 @@ void _defaultMilkTests() {
     expect(isSwapFamily('coffee_type'), isTrue);
     expect(isSwapFamily('extra'), isFalse);
     expect(isSwapFamily('sauce'), isFalse);
+  });
+}
+
+// The grid's shape is derived from the width the CATALOG COLUMN has, not the
+// window — on a tablet that is the window minus the rail minus the cart — and
+// the card keeps its proportions at every one of them. It used to be a fixed
+// 168x108, right at one size and wrong everywhere else.
+void _gridTests() {
+  /// Mirrors `delegateFor` in sell_screen.dart.
+  int columnsFor(double width, double gutter) {
+    const minW = 190.0;
+    const maxW = 250.0;
+    const gap = 12.0; // Space.md
+    final usable = width - gutter * 2;
+    var columns = usable ~/ minW;
+    if (columns < 1) columns = 1;
+    double widthAt(int n) => (usable - gap * (n - 1)) / n;
+    while (widthAt(columns) > maxW) {
+      columns += 1;
+    }
+    return columns;
+  }
+
+  test('a phone catalog gets two across, not five slivers', () {
+    expect(columnsFor(390, 16), 2);
+  });
+
+  test('an 11-inch catalog column, rail and cart removed', () {
+    // 1194 wide, 88 rail, 340 cart → 766 for the catalog.
+    expect(columnsFor(766, 24), 3);
+  });
+
+  test('a 13-inch gets more columns rather than wider cards', () {
+    // 1366 - 88 - 340 = 938.
+    final wide = columnsFor(938, 24);
+    expect(wide, greaterThanOrEqualTo(4));
+    const gap = 12.0;
+    final tile = (938 - 24 * 2 - gap * (wide - 1)) / wide;
+    expect(
+      tile,
+      lessThanOrEqualTo(250.0),
+      reason: 'a card never grows past its band — it splits into one more',
+    );
+    expect(tile, greaterThanOrEqualTo(150.0));
+  });
+
+  test('a cart-narrow column still renders one honest column', () {
+    expect(columnsFor(220, 16), 1);
   });
 }
