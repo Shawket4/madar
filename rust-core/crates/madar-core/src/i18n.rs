@@ -386,6 +386,7 @@ fn en(key: &str) -> Option<&'static str> {
         "ticket.status.voided" => "Voided",
         "ticket.status.queued" => "Queued",
         "common.void" => "Void",
+        "common.save" => "Save",
         "common.cancel" => "Cancel",
         // reservations & floor plan (host UI)
         "reservations.title" => "Reservations",
@@ -520,6 +521,7 @@ fn en(key: &str) -> Option<&'static str> {
         // the two were sharing a key.
         "drafts.discard_title" => "Discard this order?",
         "drafts.discard" => "Discard",
+        "drafts.rename" => "Name this order",
         // side-rail labels + section captions
         "nav.incoming" => "Incoming",
         "nav.section.orders" => "Orders",
@@ -1225,6 +1227,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "ticket.status.voided" => "مُبطَلة",
         "ticket.status.queued" => "بالانتظار",
         "common.void" => "إبطال",
+        "common.save" => "حفظ",
         "common.cancel" => "إلغاء",
         // reservations & floor plan (host UI)
         "reservations.title" => "الحجوزات",
@@ -1359,6 +1362,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "drafts.current" => "الحالي",
         "drafts.discard_title" => "هل تريد إلغاء هذا الطلب؟",
         "drafts.discard" => "إلغاء الطلب",
+        "drafts.rename" => "اسم هذا الطلب",
         "nav.incoming" => "الوارد",
         "nav.section.orders" => "الطلبات",
         "nav.section.money" => "المالية",

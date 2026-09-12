@@ -3180,6 +3180,20 @@ impl MadarCore {
         Ok(lines)
     }
 
+    /// Rename a parked order in place, without disturbing anything else.
+    ///
+    /// Held orders are device-local, so nothing is queued — see
+    /// `hold_cart_on_table`. The cart, the table and the claim are untouched:
+    /// renaming is a label change, and until now the only way to make one was
+    /// to restore the draft into the live cart and re-park it, which throws
+    /// away whatever the till was in the middle of.
+    pub fn rename_draft(&self, id: String, name: String) -> Result<(), CoreError> {
+        let device = self.lan_device_id();
+        let now = self.corrected_now().to_rfc3339();
+        held::rename_local(&self.store, &id, &name, &device, &now)?;
+        Ok(())
+    }
+
     /// Give a restored draft's claim back WITHOUT re-parking (the cart wasn't
     /// changed) — e.g. the teller switches away right after resuming.
     pub fn release_draft(&self, id: String) -> Result<(), CoreError> {

@@ -628,6 +628,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// path out of a resume).
   Future<void> releaseDraft({required String id});
 
+  /// Rename a parked draft in place — no restore, no re-park, nothing
+  /// displaced. Held orders are device-local, so nothing is queued.
+  Future<void> renameDraft({required String id, required String name});
+
   /// Render ONE item as a compact kitchen chit — no money, no logo, no
   /// totals. Pair with `send_to_printer`.
   Future<Uint8List> renderKitchenChit({

@@ -344,6 +344,12 @@ impl MadarBridge {
         self.inner.release_draft(id).map_err(MadarError::from)
     }
 
+    /// Rename a parked draft in place — no restore, no re-park, nothing
+    /// displaced. Held orders are device-local, so nothing is queued.
+    pub fn rename_draft(&self, id: String, name: String) -> Result<(), MadarError> {
+        self.inner.rename_draft(id, name).map_err(MadarError::from)
+    }
+
     /// Discard a parked draft (frees its table + any waitlist wish).
     pub fn discard_draft(&self, id: String) -> Result<(), MadarError> {
         self.inner.discard_draft(id).map_err(MadarError::from)

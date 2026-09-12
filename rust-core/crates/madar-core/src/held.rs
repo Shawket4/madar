@@ -327,6 +327,59 @@ pub(crate) fn get(store: &Store, id: &str) -> CoreResult<Option<HeldWire>> {
 
 // ── Local (optimistic) mutations ─────────────────────────────────────────────
 
+/// Rename a parked order in place.
+///
+/// The only way to change a parked draft's name used to be `park_local`'s
+/// update branch — which means RESTORING the draft into the live cart and
+/// re-holding it, displacing whatever the till was working on. So a name
+/// could only be fixed by disturbing a different order, and in practice
+/// never was.
+///
+/// Held orders are device-local (the backend has no held-order endpoints),
+/// so this queues nothing: it is a field on a row this device owns. It does
+/// not touch the cart, the table, or the claim — a name is a label, and
+/// renaming one must not move anything else.
+pub(crate) fn rename_local(
+    store: &Store,
+    id: &str,
+    name: &str,
+    device: &str,
+    now: &str,
+) -> CoreResult<HeldWire> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(CoreError::Validation {
+            field: "name".into(),
+            detail: "a parked order needs a name".into(),
+        });
+    }
+    let mut list = load_held(store)?;
+    let entry = get_mut(&mut list, id).ok_or_else(|| CoreError::Validation {
+        field: "draft".into(),
+        detail: "no such parked order".into(),
+    })?;
+    if !entry.is_live() {
+        return Err(CoreError::Validation {
+            field: "draft".into(),
+            detail: format!("held order is already {}", entry.status),
+        });
+    }
+    // The same guard parking uses: a draft another till has open is that
+    // till's to edit, name included.
+    if entry.claimed_by_device.is_some() && entry.claimed_by_device.as_deref() != Some(device) {
+        return Err(CoreError::Validation {
+            field: "draft".into(),
+            detail: "held order is being edited on another till".into(),
+        });
+    }
+    entry.name = name.to_string();
+    entry.revision += 1;
+    entry.updated_at = now.to_string();
+    let out = entry.clone();
+    save_held(store, &list)?;
+    Ok(out)
+}
+
 /// Park (create or re-park) locally. Mirrors the server contract: a requested
 /// table that's occupied per the LOCAL mirror is dropped, never fatal.
 /// Returns `(entry, table_conflict)`.

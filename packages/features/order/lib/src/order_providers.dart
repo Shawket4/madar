@@ -874,6 +874,24 @@ class OrderNotifier extends Notifier<OrderState> {
   void setCartTable(String? tableId, String? tableLabel) =>
       state = state.copyWith(cartTableId: tableId, cartTableLabel: tableLabel);
 
+  /// Rename a PARKED order in place — no restore, no re-park, nothing
+  /// displaced. The only route before this was through the live cart, which
+  /// meant throwing away whatever the till was in the middle of just to fix
+  /// a label, so in practice nobody ever did.
+  Future<void> renameDraft(String id, String name) async {
+    try {
+      await _bridge.renameDraft(id: id, name: name);
+    } on MadarError catch (e) {
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+      return;
+    }
+    await loadDrafts();
+  }
+
   Future<void> discardDraft(String id) async {
     try {
       await _bridge.discardDraft(id: id);

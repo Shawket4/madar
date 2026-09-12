@@ -414,6 +414,14 @@ class TellerHeldStrip extends ConsumerWidget {
             count: draft.itemCount,
             selected: false,
             onTap: () => unawaited(notifier.switchToHeldOrder(draft.id)),
+            // The pencil is on EVERY chip now, not only the live one. A
+            // parked order could not be renamed at all before: the core had
+            // no rename, so the only path was restoring it into the cart and
+            // re-parking it, which displaces whatever the till is working on
+            // to fix a label. It is a field on a device-local row.
+            onRename: draft.lockedByOther
+                ? null
+                : () => unawaited(_renameDraft(context, ref, draft)),
             onClose: draft.lockedByOther
                 ? null
                 : () => unawaited(notifier.discardDraft(draft.id)),
@@ -433,6 +441,49 @@ class TellerHeldStrip extends ConsumerWidget {
           ),
       ],
     );
+  }
+
+  /// Rename one PARKED order. A name is a label — this moves nothing else:
+  /// not the cart, not the table, not the claim.
+  Future<void> _renameDraft(
+    BuildContext context,
+    WidgetRef ref,
+    DraftView draft,
+  ) async {
+    final bridge = ref.read(bridgeProvider);
+    final controller = TextEditingController(
+      text: _customName(draft.name) ?? '',
+    );
+    final saved = await showMadarSheet<String>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsetsDirectional.all(Space.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.lg,
+          children: [
+            MadarSectionHeader(text: bridge.tr(key: 'drafts.rename')),
+            MadarField(
+              controller: controller,
+              placeholder: bridge.tr(key: 'waiter.customer_optional'),
+              autofocus: true,
+              onSubmitted: (v) => Navigator.of(sheetContext).maybePop(v.trim()),
+            ),
+            MadarButton(
+              label: bridge.tr(key: 'common.save'),
+              onTap: () =>
+                  Navigator.of(sheetContext).maybePop(controller.text.trim()),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (saved == null || saved.isEmpty) return;
+    await ref.read(orderProvider.notifier).renameDraft(draft.id, saved);
   }
 
   /// Legacy drafts carried an "HH:MM" auto-label as their name — show those
