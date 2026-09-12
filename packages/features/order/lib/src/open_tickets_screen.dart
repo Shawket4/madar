@@ -241,7 +241,7 @@ class _OpenTicketsScreenState extends ConsumerState<OpenTicketsScreen> {
                       vertical: Space.sm,
                     ),
                     child: NoticeBanner(
-                      text: error,
+                      text: error.of(ref.bridge),
                       icon: 'exclamationmark.circle',
                     ),
                   ),
@@ -346,7 +346,7 @@ class _SettleDrawerState extends ConsumerState<_SettleDrawer> {
         children: [
           if (error != null) ...[
             NoticeBanner(
-              text: error,
+              text: error.of(ref.bridge),
               tone: ChipTone.danger,
               icon: 'exclamationmark.circle',
             ),

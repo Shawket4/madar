@@ -45,9 +45,9 @@ pub(crate) fn to_branch_local(store: &Store, rfc3339: &str) -> String {
     }
 }
 
-/// Format a stored timestamp in the branch timezone for display. Unparseable input
-/// passes through unchanged (never panics on a malformed string).
-pub(crate) fn format(store: &Store, rfc3339: &str, style: TimeStyle) -> String {
+/// Format a stored timestamp in the branch timezone for display, in `locale`.
+/// Unparseable input passes through unchanged (never panics on a malformed string).
+pub(crate) fn format(store: &Store, rfc3339: &str, style: TimeStyle, locale: &str) -> String {
     let dt = match chrono::DateTime::parse_from_rfc3339(rfc3339) {
         Ok(d) => d.with_timezone(&branch_tz(store)),
         Err(_) => return rfc3339.to_string(),
@@ -58,7 +58,36 @@ pub(crate) fn format(store: &Store, rfc3339: &str, style: TimeStyle) -> String {
         TimeStyle::DateTime => "%b %-d, %I:%M %p",
         TimeStyle::Receipt => "%d/%m/%Y %I:%M %p",
     };
-    dt.format(pat).to_string()
+    strftime_in(&dt, pat, locale)
+}
+
+/// Arabic month names as written in Egypt and most of the region's shops
+/// (the transliterated Gregorian set, not the Levantine كانون/شباط one).
+const AR_MONTHS: [&str; 12] = [
+    "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر",
+    "نوفمبر", "ديسمبر",
+];
+
+/// `strftime` with the words in `locale`: for Arabic, `%p` becomes ص / م and
+/// `%b` the Arabic month. Figures stay Western, like every figure the app
+/// shows and prints (money included) — only the words change. Every other
+/// language keeps chrono's English.
+pub(crate) fn strftime_in<Tz: chrono::TimeZone>(
+    dt: &chrono::DateTime<Tz>,
+    pat: &str,
+    locale: &str,
+) -> String
+where
+    Tz::Offset: std::fmt::Display,
+{
+    use chrono::{Datelike, Timelike};
+    if !crate::i18n::is_arabic(locale) {
+        return dt.format(pat).to_string();
+    }
+    let ampm = if dt.hour() < 12 { "ص" } else { "م" };
+    let month = AR_MONTHS[dt.month0() as usize];
+    let pat = pat.replace("%p", ampm).replace("%b", month);
+    dt.format(&pat).to_string()
 }
 
 #[cfg(test)]
@@ -71,11 +100,11 @@ mod tests {
         store.kv_put(KEY_BRANCH_TZ, "Africa/Cairo").unwrap(); // UTC+2 (no DST since 2015)
                                                               // 10:00 UTC is 12:00 in Cairo — display must show the BRANCH wall-clock.
         let utc = "2026-01-20T10:00:00+00:00";
-        assert_eq!(format(&store, utc, TimeStyle::Time), "12:00 PM");
-        assert_eq!(format(&store, utc, TimeStyle::DateTime), "Jan 20, 12:00 PM");
-        assert_eq!(format(&store, utc, TimeStyle::DateShort), "Jan 20");
+        assert_eq!(format(&store, utc, TimeStyle::Time, "en"), "12:00 PM");
+        assert_eq!(format(&store, utc, TimeStyle::DateTime, "en"), "Jan 20, 12:00 PM");
+        assert_eq!(format(&store, utc, TimeStyle::DateShort, "en"), "Jan 20");
         assert_eq!(
-            format(&store, utc, TimeStyle::Receipt),
+            format(&store, utc, TimeStyle::Receipt, "en"),
             "20/01/2026 12:00 PM"
         );
     }
@@ -86,7 +115,7 @@ mod tests {
         store.kv_put(KEY_BRANCH_TZ, "America/New_York").unwrap(); // UTC-5 in January
                                                                   // 10:00 UTC is 05:00 in New York.
         assert_eq!(
-            format(&store, "2026-01-20T10:00:00+00:00", TimeStyle::Time),
+            format(&store, "2026-01-20T10:00:00+00:00", TimeStyle::Time, "en"),
             "05:00 AM"
         );
     }
@@ -97,11 +126,31 @@ mod tests {
         // No cached tz → Cairo (UTC+2): 10:00 UTC → 12:00.
         assert_eq!(branch_tz(&store), chrono_tz::Africa::Cairo);
         assert_eq!(
-            format(&store, "2026-01-20T10:00:00+00:00", TimeStyle::Time),
+            format(&store, "2026-01-20T10:00:00+00:00", TimeStyle::Time, "en"),
             "12:00 PM"
         );
         // Unparseable input is returned as-is, never panics.
-        assert_eq!(format(&store, "not-a-date", TimeStyle::Time), "not-a-date");
+        assert_eq!(format(&store, "not-a-date", TimeStyle::Time, "ar"), "not-a-date");
+    }
+
+    #[test]
+    fn arabic_says_the_words_in_arabic_and_keeps_the_figures() {
+        let store = Store::open("").unwrap();
+        store.kv_put(KEY_BRANCH_TZ, "Africa/Cairo").unwrap();
+        let morning = "2026-01-20T08:05:00+00:00"; // 10:05 Cairo
+        let evening = "2026-09-12T17:30:00+00:00"; // 20:30 Cairo (UTC+3 in summer)
+        assert_eq!(format(&store, morning, TimeStyle::Time, "ar"), "10:05 ص");
+        assert_eq!(format(&store, morning, TimeStyle::DateShort, "ar-EG"), "يناير 20");
+        assert_eq!(
+            format(&store, evening, TimeStyle::Receipt, "ar"),
+            "12/09/2026 08:30 م"
+        );
+        assert_eq!(
+            format(&store, evening, TimeStyle::DateTime, "ar"),
+            "سبتمبر 12, 08:30 م"
+        );
+        // English is untouched.
+        assert_eq!(format(&store, morning, TimeStyle::Time, "en"), "10:05 AM");
     }
 
     #[test]

@@ -8,6 +8,8 @@ library;
 
 export 'src/core.dart';
 export 'src/failure.dart';
+export 'src/tr_check.dart';
+export 'src/ui_text.dart';
 export 'src/generated/api/bookings.dart';
 export 'src/generated/api/bridge.dart';
 export 'src/generated/api/cart.dart';

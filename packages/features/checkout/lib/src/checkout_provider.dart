@@ -193,7 +193,7 @@ class CheckoutState {
   final ChargeOutcome? outcome;
   final bool isPlacingOrder;
   final PrintState printState;
-  final String? error;
+  final UiText? error;
 
   // ── the teller's in-progress tender ───────────────────────────────────────
   /// Explicit method pick; null falls back to cash-first for a cart or a
@@ -254,7 +254,7 @@ class CheckoutState {
 
   /// Why the last scan failed. Never blocks the sale — a card that will not
   /// scan must not stop a customer from paying.
-  final String? loyaltyError;
+  final UiText? loyaltyError;
 
   // ── derived: which caller ─────────────────────────────────────────────────
 
@@ -508,7 +508,7 @@ class CheckoutState {
       outcome: outcome == _unset ? this.outcome : outcome as ChargeOutcome?,
       isPlacingOrder: isPlacingOrder ?? this.isPlacingOrder,
       printState: printState ?? this.printState,
-      error: error == _unset ? this.error : error as String?,
+      error: error == _unset ? this.error : error as UiText?,
       selectedMethodId: selectedMethodId == _unset
           ? this.selectedMethodId
           : selectedMethodId as String?,
@@ -531,7 +531,7 @@ class CheckoutState {
       loyaltyBusy: loyaltyBusy ?? this.loyaltyBusy,
       loyaltyError: loyaltyError == _unset
           ? this.loyaltyError
-          : loyaltyError as String?,
+          : loyaltyError as UiText?,
     );
   }
 }
@@ -761,7 +761,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       return true;
     } on MadarError catch (e) {
       if (!_live) return false;
-      _update((s) => s.copyWith(loyaltyError: bridge.humanMessage(e)));
+      _update((s) => s.copyWith(loyaltyError: UiText.error(e)));
       return false;
     } finally {
       if (_live) _update((s) => s.copyWith(loyaltyBusy: false));
@@ -825,7 +825,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
   /// Surface (or clear) a failure inside the drawer — settle flows push
   /// their own op errors here so they present above the terminal button.
-  void setError(String? message) => _update((s) => s.copyWith(error: message));
+  void setError(UiText? message) => _update((s) => s.copyWith(error: message));
 
   // ── discount ─────────────────────────────────────────────────────────────
 
@@ -1110,7 +1110,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// Surface a failed op — human message into the drawer banner, plus the
   /// shared re-auth request on a 401 with a live session.
   void _raise(MadarBridge bridge, MadarError e) {
-    _update((s) => s.copyWith(error: bridge.humanMessage(e)));
+    _update((s) => s.copyWith(error: UiText.error(e)));
     if (!_live) return;
     if (e is MadarError_Unauthenticated && bridge.currentSession() != null) {
       ref.read(reauthRequestProvider.notifier).request();

@@ -247,7 +247,10 @@ class _BillScreenState extends ConsumerState<BillScreen>
     final opened = DateTime.tryParse(ticket.openedAt);
     final seatedFor = opened == null
         ? null
-        : formatSeatedFor(DateTime.now().toUtc().difference(opened.toUtc()));
+        : formatSeatedFor(
+            DateTime.now().toUtc().difference(opened.toUtc()),
+            units: DurationUnits.of(bridge),
+          );
     // On a phone the tag and the ⋯ leave the title no room for a ref, so
     // the ref steps down a line; the table stays the largest thing.
     final refInTitle = layout.isTablet;

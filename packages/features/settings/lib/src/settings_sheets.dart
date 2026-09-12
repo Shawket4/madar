@@ -557,7 +557,7 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
       title: t('settings.device'),
       children: [
         if (error != null)
-          NoticeBanner(text: error, icon: 'exclamationmark.circle'),
+          NoticeBanner(text: error.of(ref.bridge), icon: 'exclamationmark.circle'),
         MadarSectionHeader(text: t('settings.device_code')),
         MadarField(
           controller: _code,

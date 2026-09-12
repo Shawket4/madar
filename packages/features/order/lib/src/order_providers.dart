@@ -208,7 +208,7 @@ class OrderState {
   final int syncFailed;
   final bool syncAuthPaused;
   final int clockSkewMinutes;
-  final String? error;
+  final UiText? error;
   final bool isBusy;
 
   // ── toast ────────────────────────────────────────────────────────────────
@@ -317,7 +317,7 @@ class OrderState {
     syncFailed: syncFailed ?? this.syncFailed,
     syncAuthPaused: syncAuthPaused ?? this.syncAuthPaused,
     clockSkewMinutes: clockSkewMinutes ?? this.clockSkewMinutes,
-    error: identical(error, _unset) ? this.error : error as String?,
+    error: identical(error, _unset) ? this.error : error as UiText?,
     isBusy: isBusy ?? this.isBusy,
     toast: identical(toast, _unset) ? this.toast : toast as ToastData?,
     shiftSalesMinor: shiftSalesMinor ?? this.shiftSalesMinor,
@@ -568,10 +568,7 @@ class OrderNotifier extends Notifier<OrderState> {
         isLoadingCatalog: false,
       );
     } on MadarError catch (e) {
-      state = state.copyWith(
-        error: _bridge.humanMessage(e),
-        isLoadingCatalog: false,
-      );
+      state = state.copyWith(error: UiText.error(e), isLoadingCatalog: false);
     }
   }
 
@@ -645,7 +642,7 @@ class OrderNotifier extends Notifier<OrderState> {
         cartTotals: totals,
       );
     } on MadarError catch (e) {
-      state = state.copyWith(error: _bridge.humanMessage(e));
+      state = state.copyWith(error: UiText.error(e));
     }
   }
 
@@ -775,7 +772,7 @@ class OrderNotifier extends Notifier<OrderState> {
         notes: notes,
       );
     } on MadarError catch (e) {
-      state = state.copyWith(error: _bridge.humanMessage(e));
+      state = state.copyWith(error: UiText.error(e));
     }
     await loadCart();
   }
@@ -794,7 +791,7 @@ class OrderNotifier extends Notifier<OrderState> {
         qty: 1,
       );
     } on MadarError catch (e) {
-      state = state.copyWith(error: _bridge.humanMessage(e));
+      state = state.copyWith(error: UiText.error(e));
     }
     await loadCart();
   }
@@ -858,7 +855,7 @@ class OrderNotifier extends Notifier<OrderState> {
       final lines = await _bridge.restoreDraft(id: id);
       state = state.copyWith(cartLines: lines);
     } on MadarError catch (e) {
-      state = state.copyWith(error: _bridge.humanMessage(e));
+      state = state.copyWith(error: UiText.error(e));
     }
     final totals = await _fetchTotals();
     final name = draft?.name.trim() ?? '';
@@ -1208,7 +1205,7 @@ class OrderNotifier extends Notifier<OrderState> {
     try {
       lines = await _bridge.cartSetContext(tableId: tableId);
     } on MadarError catch (e) {
-      state = state.copyWith(error: _bridge.humanMessage(e));
+      state = state.copyWith(error: UiText.error(e));
       return;
     }
     final meta = _cartMeta.remove(tableId);
@@ -1654,7 +1651,7 @@ class OrderNotifier extends Notifier<OrderState> {
       );
       return true;
     } on MadarError catch (e) {
-      state = state.copyWith(error: _bridge.humanMessage(e));
+      state = state.copyWith(error: UiText.error(e));
       return false;
     } finally {
       state = state.copyWith(isBusy: false);
@@ -1674,7 +1671,7 @@ class OrderNotifier extends Notifier<OrderState> {
       );
       return true;
     } on MadarError catch (e) {
-      state = state.copyWith(error: _bridge.humanMessage(e));
+      state = state.copyWith(error: UiText.error(e));
       return false;
     } finally {
       state = state.copyWith(isBusy: false);
@@ -1703,7 +1700,7 @@ class OrderNotifier extends Notifier<OrderState> {
   }) async {
     final shiftId = state.shift?.id;
     if (shiftId == null) {
-      state = state.copyWith(error: _tr('waiter.need_shift'));
+      state = state.copyWith(error: const UiText.key('waiter.need_shift'));
       return false;
     }
     state = state.copyWith(isBusy: true, error: null);
@@ -1743,7 +1740,7 @@ class OrderNotifier extends Notifier<OrderState> {
       _refreshShell();
       return true;
     } on MadarError catch (e) {
-      state = state.copyWith(error: _bridge.humanMessage(e));
+      state = state.copyWith(error: UiText.error(e));
       return false;
     } finally {
       state = state.copyWith(isBusy: false);

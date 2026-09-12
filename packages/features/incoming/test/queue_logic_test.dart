@@ -201,7 +201,7 @@ void main() {
         await n.acceptDelivery(_order('d1', 'received'), readyInMinutes: 45);
         final s = container.read(incomingProvider);
         expect(s.deliveryOrders.single.status, 'confirmed');
-        expect(s.notices['d1'], 'Prep time must be a multiple of 5');
+        expect(s.notices['d1']?.of(bridge), 'Prep time must be a multiple of 5');
       },
     );
 
@@ -219,7 +219,10 @@ void main() {
         final s = container.read(incomingProvider);
         expect(bridge.calls, contains('detail d1'));
         expect(s.deliveryOrders.single.status, 'preparing');
-        expect(s.notices['d1'], 'Order already accepted on another till');
+        expect(
+          s.notices['d1']?.of(bridge),
+          'Order already accepted on another till',
+        );
         // A race is not an error banner.
         expect(s.error, isNull);
       },

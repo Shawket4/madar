@@ -130,7 +130,7 @@ pub struct LoyaltyAwardOutcome {
 
 /// The outcome of a press the server answered.
 pub fn award_outcome(locale: &str, r: &madar_api::models::AwardResult) -> LoyaltyAwardOutcome {
-    let member = member_view(&r.member);
+    let member = member_view(&r.member, locale);
     let points = r.points_awarded as i64;
     let headline = if r.already_awarded {
         crate::i18n::tr(locale, "loyalty.already_collected")
@@ -284,10 +284,10 @@ pub fn classify_scan_input(raw: &str) -> LoyaltyScanInput {
     LoyaltyScanInput::partial()
 }
 
-/// "30 / 100", or the earned line once the threshold is reached.
-pub fn progress_label(balance: i64, threshold: i64) -> String {
+/// "30 / 100", or the earned line once the threshold is reached, in `locale`.
+pub fn progress_label(balance: i64, threshold: i64, locale: &str) -> String {
     if threshold > 0 && balance >= threshold {
-        "Reward earned".to_string()
+        crate::i18n::tr(locale, "loyalty.reward_earned")
     } else {
         format!("{balance} / {threshold}")
     }
@@ -307,10 +307,17 @@ pub fn points_label(points: i64) -> String {
 ///
 /// "orders", not "visits" — the customer counts the things they bought, and that
 /// is the word the counter says back to them.
-pub fn balance_label(mode: &str) -> &'static str {
+pub fn balance_label(mode: &str, locale: &str) -> String {
+    crate::i18n::tr(locale, balance_label_key(mode))
+}
+
+/// The i18n key behind [`balance_label`] — `loyalty.unit_orders` for a visits
+/// programme, `loyalty.unit_points` otherwise. Hosts that re-word on a language
+/// switch resolve this key themselves instead of keeping the finished word.
+pub fn balance_label_key(mode: &str) -> &'static str {
     match mode {
-        "visits" => "orders",
-        _ => "points",
+        "visits" => "loyalty.unit_orders",
+        _ => "loyalty.unit_points",
     }
 }
 
@@ -357,11 +364,11 @@ pub fn programme_view(
                 .as_str(),
             locale,
         ),
-        balance_label: balance_label(&s.mode).to_string(),
+        balance_label: balance_label(&s.mode, locale),
     }
 }
 
-pub fn member_view(m: &madar_api::models::MemberView) -> LoyaltyMemberView {
+pub fn member_view(m: &madar_api::models::MemberView, locale: &str) -> LoyaltyMemberView {
     let balance = m.balance as i64;
     let target = m.next_reward_cost as i64;
     LoyaltyMemberView {
@@ -375,14 +382,14 @@ pub fn member_view(m: &madar_api::models::MemberView) -> LoyaltyMemberView {
         progress_to_next: m.progress_to_next as i64,
         points_to_next_reward: m.points_to_next_reward as i64,
         can_redeem: m.can_redeem,
-        progress_label: progress_label(balance, target),
-        balance_label: balance_label(&m.mode).to_string(),
+        progress_label: progress_label(balance, target, locale),
+        balance_label: balance_label(&m.mode, locale),
     }
 }
 
-pub fn scan_view(s: &madar_api::models::ScanResult) -> LoyaltyScanView {
+pub fn scan_view(s: &madar_api::models::ScanResult, locale: &str) -> LoyaltyScanView {
     LoyaltyScanView {
-        member: member_view(&s.member),
+        member: member_view(&s.member, locale),
         rewards: s
             .rewards
             .iter()
@@ -392,7 +399,11 @@ pub fn scan_view(s: &madar_api::models::ScanResult) -> LoyaltyScanView {
                 price_minor: r.base_price as i64,
                 cost_currency: r.cost_currency.clone(),
                 cost_amount: r.cost_amount as i64,
-                cost_label: format!("{} {}", r.cost_amount, balance_label(&r.cost_currency)),
+                cost_label: format!(
+                    "{} {}",
+                    r.cost_amount,
+                    balance_label(&r.cost_currency, locale)
+                ),
             })
             .collect(),
         any_item: s.any_item,
@@ -419,16 +430,19 @@ mod tests {
 
     #[test]
     fn progress_counts_down_then_announces() {
-        assert_eq!(progress_label(30, 100), "30 / 100");
-        assert_eq!(progress_label(100, 100), "Reward earned");
-        assert_eq!(progress_label(130, 100), "Reward earned");
+        assert_eq!(progress_label(30, 100, "en"), "30 / 100");
+        assert_eq!(progress_label(100, 100, "en"), "Reward earned");
+        assert_eq!(progress_label(130, 100, "en"), "Reward earned");
+        assert_eq!(progress_label(100, 100, "ar"), "المكافأة جاهزة");
+        assert_eq!(balance_label("visits", "ar"), "طلبات");
+        assert_eq!(balance_label("points", "ar"), "نقاط");
     }
 
     #[test]
     fn a_zero_threshold_does_not_announce_a_reward() {
         // Defensive: the server's column is CHECK (> 0), but a screen telling
         // every customer their reward was ready would be a bad way to find out.
-        assert_eq!(progress_label(0, 0), "0 / 0");
+        assert_eq!(progress_label(0, 0, "en"), "0 / 0");
     }
 
     #[test]

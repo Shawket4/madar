@@ -165,7 +165,7 @@ class _Preferences extends ConsumerWidget {
       spacing: Space.lg,
       children: [
         if (error != null)
-          NoticeBanner(text: error, icon: 'exclamationmark.circle'),
+          NoticeBanner(text: error.of(ref.bridge), icon: 'exclamationmark.circle'),
         const _AccountCard(),
         MadarSectionHeader(text: t('settings.language')),
         const LanguageSegment(),

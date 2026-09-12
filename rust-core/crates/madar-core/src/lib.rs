@@ -2698,6 +2698,7 @@ impl MadarCore {
                 served_by: tr("receipt.served_by"),
                 queued: tr("order.queued_hint"),
                 thank_you: tr("receipt.thank_you"),
+                locale: loc.clone(),
             },
         };
         // Logo bytes were cached (online) into the blob store by the branch fetch;
@@ -2777,6 +2778,7 @@ impl MadarCore {
             end_of_report: tr("shift.end_of_report"),
             cash_moves: tr("shift.cash_moves"),
             by_method: tr("shift.by_method"),
+            locale: loc.clone(),
         };
         let cfg = device::load(&self.store);
         let bitmap = render::render_shift_report(
@@ -3731,7 +3733,7 @@ impl MadarCore {
     /// order/shift/cash/receipt time identically (and correctly, regardless of where
     /// the device sits). Mirrors Flutter's `AppTz.local()` + `formatting.dart`.
     pub fn format_time(&self, rfc3339: String, style: timefmt::TimeStyle) -> String {
-        timefmt::format(&self.store, &rfc3339, style)
+        timefmt::format(&self.store, &rfc3339, style, &self.current_locale())
     }
 
     /// The branch's IANA timezone name (cached at login, or the Cairo fallback) —
@@ -5503,7 +5505,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
-        Ok(loyalty::scan_view(&result))
+        Ok(loyalty::scan_view(&result, &self.current_locale()))
     }
 
     /// Add a sale's points to a member's balance — the button on the receipt,

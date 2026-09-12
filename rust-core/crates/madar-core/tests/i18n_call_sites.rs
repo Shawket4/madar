@@ -38,7 +38,16 @@ fn dart_files(dir: &Path, out: &mut Vec<PathBuf>) {
         if p.is_dir() {
             // Generated bindings carry no authored strings, and a test file
             // may legitimately assert on a key that does not exist.
-            if matches!(name.as_ref(), "test" | "build" | ".dart_tool" | "generated") {
+            if matches!(
+                name.as_ref(),
+                "test"
+                    | "build"
+                    | ".dart_tool"
+                    | "generated"
+                    | "rust_bridge_dashboard"
+                    | "rust_bridge_staff"
+                    | "cargokit"
+            ) {
                 continue;
             }
             dart_files(&p, out);
@@ -83,6 +92,14 @@ fn keys_in(src: &str) -> BTreeSet<String> {
     out
 }
 
+/// The source with `//` / `///` comment lines removed.
+fn strip_line_comments(src: &str) -> String {
+    src.lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// The families this crate owns. A dotted literal outside them is something
 /// else entirely — a filename, a version, a package id — and asserting on it
 /// would make this test fail for reasons that have nothing to do with strings.
@@ -91,6 +108,8 @@ fn is_ours(key: &str) -> bool {
     madar_core::i18n::tr("en", &format!("{family}.__probe__")) != format!("{family}.__probe__")
         || KNOWN_FAMILIES.contains(&family)
 }
+
+const POS_DART_ROOTS: &[&str] = &["packages", "apps/madar"];
 
 const KNOWN_FAMILIES: &[&str] = &[
     "order",
@@ -131,13 +150,26 @@ const KNOWN_FAMILIES: &[&str] = &[
     "transfer",
     "sell",
     "print",
+    "printing",
+    "notif",
+    "nav",
+    "role",
+    "toggle",
+    "login",
+    "brand",
+    "me",
+    "tender",
+    "shifts",
 ];
 
 #[test]
 fn every_key_the_app_asks_for_exists_in_both_locales() {
     let root = dart_root();
     let mut files = Vec::new();
-    for sub in ["packages", "apps"] {
+    // The POS side only: `apps/dashboard` and `apps/staff` carry their own
+    // bundled JSON string tables (their `Strings.t`) and never ask this crate,
+    // and their bridges' packages are excluded for the same reason.
+    for sub in POS_DART_ROOTS {
         dart_files(&root.join(sub), &mut files);
     }
     assert!(
@@ -154,11 +186,13 @@ fn every_key_the_app_asks_for_exists_in_both_locales() {
         let Ok(src) = std::fs::read_to_string(f) else {
             continue;
         };
-        // Only files that actually localize; this keeps a stray dotted literal
-        // in an unrelated file from being read as a key.
-        if !src.contains("tr(key:") && !src.contains("trOr(") && !src.contains("(en:") {
-            continue;
-        }
+        // Doc-comment examples (`/// t('history.load_failed')`) are prose.
+        let src = strip_line_comments(&src);
+        // Every file, not only the ones that spell `tr(key:`: a screen that
+        // wraps the bridge in a local `t('…')` / `_tr('…')` / `_w('…')`
+        // helper asks for keys just the same, and the old filter skipped
+        // exactly those files — five missing keys hid behind it. `is_ours`
+        // keeps an unrelated dotted literal (an icon name) out.
         for key in keys_in(&src) {
             if !is_ours(&key) {
                 continue;
@@ -187,6 +221,128 @@ fn every_key_the_app_asks_for_exists_in_both_locales() {
         "{} key(s) the app asks for are not in i18n.rs — each of these renders \
          either the raw key or untranslated English on a real screen:\n  {}",
         missing.len(),
+        missing.join("\n  ")
+    );
+}
+
+/// Keys the app BUILDS at runtime (`'ticket.status.$status'`). The scanner
+/// above cannot see them, so each builder prefix is registered here with
+/// every value the wire can carry, and each of those keys must exist in both
+/// locales. A builder whose prefix is not registered fails the test: adding
+/// `'foo.${x}'` in Dart without saying what `x` can be is how a raw key
+/// reaches a screen.
+const BUILT_KEYS: &[(&str, &[&str])] = &[
+    ("ticket.status.", &["open", "ready", "settled", "voided", "queued"]),
+    (
+        "delivery.status.",
+        &[
+            "received",
+            "confirmed",
+            "preparing",
+            "ready",
+            "out_for_delivery",
+            "delivered",
+            "cancelled",
+            "rejected",
+        ],
+    ),
+    (
+        "delivery.action.",
+        &["confirmed", "preparing", "ready", "out_for_delivery", "delivered"],
+    ),
+    ("delivery.mode_", &["auto", "open", "closed"]),
+    // The order's delivery channel (`in_mall` | `outside` | `umbrella` | `pickup`).
+    ("delivery.", &["in_mall", "outside", "umbrella", "pickup"]),
+    (
+        "role.",
+        &["waiter", "teller", "branch_manager", "org_admin", "super_admin", "kitchen"],
+    ),
+    ("settings.routing_", &["kds", "till", "both", "off"]),
+];
+
+/// `'family.prefix${…}'` / `'family.prefix$x'` literals: the part before `$`.
+fn built_prefixes(src: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for (idx, _) in src.match_indices('\'') {
+        let rest = &src[idx + 1..];
+        let Some(dollar) = rest.find('$') else { continue };
+        let Some(end) = rest.find('\'') else { continue };
+        if dollar > end {
+            continue;
+        }
+        let prefix = &rest[..dollar];
+        if prefix.len() < 3
+            || !prefix.contains('.')
+            || !prefix
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c == '.' || c == '_')
+        {
+            continue;
+        }
+        out.insert(prefix.to_string());
+    }
+    out
+}
+
+#[test]
+fn every_key_the_app_builds_at_runtime_exists_in_both_locales() {
+    let root = dart_root();
+    let mut files = Vec::new();
+    // The POS side only: `apps/dashboard` and `apps/staff` carry their own
+    // bundled JSON string tables (their `Strings.t`) and never ask this crate,
+    // and their bridges' packages are excluded for the same reason.
+    for sub in POS_DART_ROOTS {
+        dart_files(&root.join(sub), &mut files);
+    }
+    let mut seen = BTreeSet::new();
+    let mut unregistered = Vec::new();
+    for f in &files {
+        let Ok(src) = std::fs::read_to_string(f) else {
+            continue;
+        };
+        // Doc-comment examples (`/// t('history.load_failed')`) are prose.
+        let src = strip_line_comments(&src);
+        for prefix in built_prefixes(&src) {
+            let family = prefix.split('.').next().unwrap_or_default();
+            if !is_ours(&format!("{family}.x")) {
+                continue;
+            }
+            // Only a builder that feeds `tr` — `'order.$x'` in an event-type
+            // `startsWith` is not a key.
+            let asks = src.contains(&format!("tr(key: '{prefix}$"))
+                || src.contains(&format!("(key: '{prefix}$"));
+            if !asks {
+                continue;
+            }
+            seen.insert(prefix.clone());
+            if !BUILT_KEYS.iter().any(|(p, _)| *p == prefix) {
+                let rel = f.strip_prefix(&root).unwrap_or(f);
+                unregistered.push(format!("{prefix}… · {}", rel.display()));
+            }
+        }
+    }
+    assert!(
+        unregistered.is_empty(),
+        "Dart builds keys from these prefixes, but BUILT_KEYS does not say what \
+         can follow them — register every wire value:\n  {}",
+        unregistered.join("\n  ")
+    );
+    assert!(seen.len() >= 5, "only saw {} key builders — the scanner is broken", seen.len());
+
+    let mut missing = Vec::new();
+    for (prefix, values) in BUILT_KEYS {
+        for v in *values {
+            let key = format!("{prefix}{v}");
+            for locale in ["en", "ar"] {
+                if madar_core::i18n::tr(locale, &key) == key {
+                    missing.push(format!("{key} ({locale})"));
+                }
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "runtime-built keys missing from i18n.rs:\n  {}",
         missing.join("\n  ")
     );
 }

@@ -16,7 +16,7 @@
 use cosmic_text::{Attrs, Buffer, Color, Family, FontSystem, Metrics, Shaping, SwashCache, Weight};
 
 use crate::checkout::{ReceiptLineView, ReceiptModifierView, ReceiptView};
-use crate::receipt::{fmt_dt, money, short_id, Bitmap, EscPosCtx, ShiftReportLabels};
+use crate::receipt::{fmt_dt_in, money, short_id, Bitmap, EscPosCtx, ShiftReportLabels};
 use crate::shift::ShiftReportView;
 
 /// Printable width in dots — 72 mm @ 203 dpi. Matches the Flutter `_printerWidth`
@@ -351,7 +351,12 @@ impl Renderer {
             Some(n) => format!("{} #{}", lab.order, n),
             None => format!("{} {}", lab.order, short_id(&r.local_order_id)),
         };
-        self.row(&title, &fmt_dt(&r.created_at), SZ_BODY, Weight::NORMAL);
+        self.row(
+            &title,
+            &fmt_dt_in(&r.created_at, &lab.locale),
+            SZ_BODY,
+            Weight::NORMAL,
+        );
         if let Some(rf) = &r.order_ref {
             self.row(
                 &format!("{}: {}", lab.reference, rf),
@@ -485,12 +490,12 @@ impl Renderer {
         );
         match (r.is_open, &r.closed_at) {
             (false, Some(c)) => self.center(
-                &format!("{}: {}", lab.closed, fmt_dt(c)),
+                &format!("{}: {}", lab.closed, fmt_dt_in(c, &lab.locale)),
                 SZ_SMALL,
                 Weight::NORMAL,
             ),
             _ => self.center(
-                &format!("{}: {}", lab.printed_at, fmt_dt(&r.printed_at)),
+                &format!("{}: {}", lab.printed_at, fmt_dt_in(&r.printed_at, &lab.locale)),
                 SZ_SMALL,
                 Weight::NORMAL,
             ),
@@ -499,11 +504,11 @@ impl Renderer {
 
         // ── shift info ──
         self.row(&lab.teller, &r.teller_name, SZ_BODY, Weight::NORMAL);
-        self.row(&lab.opened, &fmt_dt(&r.opened_at), SZ_SMALL, Weight::NORMAL);
+        self.row(&lab.opened, &fmt_dt_in(&r.opened_at, &lab.locale), SZ_SMALL, Weight::NORMAL);
         if r.is_open {
             self.center(&format!("— {} —", lab.interim), SZ_SMALL, Weight::NORMAL);
         } else if let Some(c) = &r.closed_at {
-            self.row(&lab.closed, &fmt_dt(c), SZ_SMALL, Weight::NORMAL);
+            self.row(&lab.closed, &fmt_dt_in(c, &lab.locale), SZ_SMALL, Weight::NORMAL);
         }
         self.rule();
 
@@ -547,7 +552,7 @@ impl Renderer {
             self.indented(label, SZ_SMALL, 0);
             let sign = if mv.amount_minor < 0 { "−" } else { "+" };
             self.row(
-                &format!("  {}", time_only(&mv.created_at)),
+                &format!("  {}", time_only(&mv.created_at, &lab.locale)),
                 &format!("{}{}", sign, m(mv.amount_minor.abs())),
                 SZ_SMALL,
                 Weight::NORMAL,
@@ -625,7 +630,7 @@ impl Renderer {
                     .order_number
                     .map(|n| format!("#{n}"))
                     .unwrap_or_else(|| "—".to_string());
-                let left = format!("{}  {}", num, time_only(&o.created_at));
+                let left = format!("{}  {}", num, time_only(&o.created_at, &lab.locale));
                 self.row(&left, &m(o.total_minor), SZ_SMALL, Weight::NORMAL);
                 // Payment method under the row — the on-screen preview shows
                 // it, so the printed report must too (parity).
@@ -717,10 +722,10 @@ fn date_only(rfc3339: &str) -> String {
         .unwrap_or_else(|_| rfc3339.to_string())
 }
 
-/// `hh:mm AM/PM` from an RFC3339 timestamp (in its own offset).
-fn time_only(rfc3339: &str) -> String {
+/// `hh:mm AM/PM` from an RFC3339 timestamp (in its own offset), AM/PM in `locale`.
+fn time_only(rfc3339: &str, locale: &str) -> String {
     chrono::DateTime::parse_from_rfc3339(rfc3339)
-        .map(|d| d.format("%I:%M %p").to_string())
+        .map(|d| crate::timefmt::strftime_in(&d, "%I:%M %p", locale))
         .unwrap_or_default()
 }
 
@@ -816,6 +821,7 @@ mod tests {
                 served_by: "Served by".into(),
                 queued: "Saved — will sync".into(),
                 thank_you: "Thank you!".into(),
+                locale: "en".into(),
             },
         }
     }
@@ -956,6 +962,7 @@ mod tests {
             end_of_report: "End of Report".into(),
             cash_moves: "Cash moves".into(),
             by_method: "By method".into(),
+            locale: "en".into(),
         }
     }
 

@@ -5,6 +5,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/loyalty_scan_sheet.dart';
+import 'package:feature_checkout/src/loyalty_words.dart';
 import 'package:feature_checkout/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -63,7 +64,6 @@ const EdgeInsetsDirectional _quickCashPad = EdgeInsetsDirectional.symmetric(
   horizontal: 14,
   vertical: 7,
 );
-
 
 /// Small active-check glyph inside chips (natives: 10.dp).
 const double _chipCheck = 10;
@@ -380,7 +380,7 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
                   ),
                 if (error != null)
                   NoticeBanner(
-                    text: error,
+                    text: error.of(bridge),
                     tone: ChipTone.danger,
                     icon: 'exclamationmark.circle',
                   ),
@@ -1175,9 +1175,7 @@ class _TipCard extends StatelessWidget {
           ),
           if (methods.length > 1)
             MadarSegmented<String?>(
-              items: [
-                for (final m in methods) MadarSegmentItem(m.id, m.name),
-              ],
+              items: [for (final m in methods) MadarSegmentItem(m.id, m.name)],
               value: tipMethod ?? selected,
               onChanged: (id) {
                 if (id != null) onTipMethod(id);
@@ -1384,10 +1382,10 @@ class _CustomerSection extends StatelessWidget {
                     // than one reward is told so: a card does not stop at full,
                     // and a teller who cannot see the second will not offer it.
                     m.rewardsReady > 1
-                        ? '${state.balanceAfterRedemptions} ${m.balanceLabel} '
+                        ? '${state.balanceAfterRedemptions} ${loyaltyUnit(tr, m.mode)} '
                               '${tr('loyalty.left')} · ${m.rewardsReady} '
                               '${tr('loyalty.rewards_ready')}'
-                        : '${state.balanceAfterRedemptions} ${m.balanceLabel} '
+                        : '${state.balanceAfterRedemptions} ${loyaltyUnit(tr, m.mode)} '
                               '${tr('loyalty.left')}',
                     style: MadarType.bodySm.copyWith(color: colors.textMuted),
                   ),
@@ -1412,7 +1410,7 @@ class _CustomerSection extends StatelessWidget {
           for (final i in claimable)
             _RewardLine(
               name: state.redeemableLines[i].name,
-              costLabel: state.rewardForLine(i)!.costLabel,
+              costLabel: loyaltyCost(tr, state.rewardForLine(i)!),
               covered: state.redemptions[i] ?? 0,
               quantity: state.redeemableLines[i].qty,
               onTap: () => onToggle(i),

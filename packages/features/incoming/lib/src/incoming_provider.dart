@@ -69,7 +69,7 @@ class IncomingState {
   final Set<String> busyOrderIds;
 
   /// Banner text from the last failed bridge call.
-  final String? error;
+  final UiText? error;
 
   /// The branch's live online orders (online-only read).
   final List<DeliveryOrderView> deliveryOrders;
@@ -87,7 +87,7 @@ class IncomingState {
   /// One-line notices pinned to a card by order id — the server's sentence
   /// when an order changed under the teller (409) or a follow-up call failed
   /// after the main one landed.
-  final Map<String, String> notices;
+  final Map<String, UiText> notices;
 
   /// The waiter-fired open tickets (the Bills segment's feed).
   final List<TicketView> openTickets;
@@ -156,7 +156,7 @@ class IncomingState {
     bool? isLoadingDelivery,
     bool? onlineStale,
     DeliverySettingsView? deliverySettings,
-    Map<String, String>? notices,
+    Map<String, UiText>? notices,
     List<TicketView>? openTickets,
     Map<String, String>? tableLabels,
     bool? hasFloor,
@@ -167,7 +167,7 @@ class IncomingState {
       segment: segment ?? this.segment,
       isBusy: isBusy ?? this.isBusy,
       busyOrderIds: busyOrderIds ?? this.busyOrderIds,
-      error: identical(error, _unset) ? this.error : error as String?,
+      error: identical(error, _unset) ? this.error : error as UiText?,
       deliveryOrders: deliveryOrders ?? this.deliveryOrders,
       isLoadingDelivery: isLoadingDelivery ?? this.isLoadingDelivery,
       onlineStale: onlineStale ?? this.onlineStale,
@@ -192,7 +192,16 @@ class IncomingNotifier extends Notifier<IncomingState> {
   int _toastSeq = 0;
 
   @override
-  IncomingState build() => const IncomingState();
+  IncomingState build() {
+    // The core phrases parts of an online order when it is fetched — the
+    // composed address says "Unit 4, Floor 2" in the language in force then.
+    // Keeping the board across a language switch (its segment, its busy
+    // cards) means re-fetching those words, not rebuilding the notifier.
+    ref.listen(localeGenerationProvider, (_, _) {
+      if (state.segment != null) unawaited(loadDeliveryOrders());
+    });
+    return const IncomingState();
+  }
 
   /// Screen entry: land on [segment], clear stale failures, and load every
   /// feed so the segment counts populate immediately (each segment also
@@ -423,7 +432,7 @@ class IncomingNotifier extends Notifier<IncomingState> {
   /// dialog. Returns true when [e] was such a race and has been applied.
   Future<bool> _applyConflict(DeliveryOrderView o, MadarError e) async {
     if (e is! MadarError_Server || e.status != 409) return false;
-    _notice(o.id, _bridge.humanMessage(e));
+    _notice(o.id, UiText.error(e));
     try {
       _replace(await _bridge.deliveryOrderDetail(id: o.id));
     } on MadarError {
@@ -450,7 +459,7 @@ class IncomingNotifier extends Notifier<IncomingState> {
     state = state.copyWith(deliveryOrders: orders, notices: notices);
   }
 
-  void _notice(String orderId, String text) =>
+  void _notice(String orderId, UiText text) =>
       state = state.copyWith(notices: {...state.notices, orderId: text});
 
   /// Dismiss a card's notice.
@@ -512,7 +521,7 @@ class IncomingNotifier extends Notifier<IncomingState> {
     final shift = await _quiet(_bridge.currentShift);
     if (shift == null || !shift.isOpen) {
       state = state.copyWith(
-        error: _bridge.trOr(QueueKeys.needShift),
+        error: UiText.key(_bridge.trKey(QueueKeys.needShift)),
         shiftOpen: false,
       );
       return false;
@@ -564,11 +573,11 @@ class IncomingNotifier extends Notifier<IncomingState> {
 
   /// Human message for a failed bridge call; an expired/missing bearer with
   /// a live session additionally raises the app-wide re-auth request.
-  String _fail(MadarError e) {
+  UiText _fail(MadarError e) {
     if (e is MadarError_Unauthenticated && _bridge.currentSession() != null) {
       ref.read(reauthRequestProvider.notifier).request();
     }
-    return _bridge.humanMessage(e);
+    return UiText.error(e);
   }
 
   /// Best-effort bridge read — returns null instead of throwing, so lookups

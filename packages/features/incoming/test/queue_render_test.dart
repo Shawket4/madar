@@ -313,6 +313,17 @@ const _en = <String, String>{
   'waiter.covers': 'covers',
   'waiter.queued': 'Queued',
   'waiter.ticket': 'Ticket',
+  // Queue keys the fake once left to the stand-ins — same words.
+  'queue.kitchen': 'Kitchen',
+  'queue.ready_at': 'Ready',
+  'queue.no_table': 'Ticket',
+  // The kitchen board's own keys (the Kitchen segment renders it).
+  'kds.bump_all': 'Done',
+  'kds.round': 'R',
+  'kds.open': 'open',
+  'kds.age_min': 'm',
+  'kds.ready': 'Ready',
+  'kds.live': 'Live',
 };
 
 const _ar = <String, String>{
@@ -352,6 +363,16 @@ const _ar = <String, String>{
   'waiter.covers': 'ضيوف',
   'waiter.queued': 'بالانتظار',
   'waiter.ticket': 'تذكرة',
+  // Queue keys the fake once left to the stand-ins — same words.
+  'queue.kitchen': 'المطبخ',
+  'queue.ready_at': 'جاهز',
+  'queue.no_table': 'تذكرة',
+  'kds.bump_all': 'تم',
+  'kds.round': 'ج',
+  'kds.open': 'مفتوحة',
+  'kds.age_min': 'د',
+  'kds.ready': 'جاهز',
+  'kds.live': 'مباشر',
 };
 
 /// The bridge the picture needs: the two feeds, the settings, a floor for

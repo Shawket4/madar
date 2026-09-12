@@ -15,7 +15,8 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_order/src/floor_list.dart' show formatSeatedFor;
+import 'package:feature_order/src/floor_list.dart'
+    show DurationUnits, formatSeatedFor;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -197,7 +198,10 @@ class _Figures extends StatelessWidget {
         _Figure(label: tr('tables.covers'), value: '${h.covers}'),
         _Figure(
           label: tr('tables.avg_time'),
-          value: formatSeatedFor(Duration(minutes: h.averageMinutes)),
+          value: formatSeatedFor(
+            Duration(minutes: h.averageMinutes),
+            units: _units(tr),
+          ),
         ),
         _Figure(label: tr('tables.turns'), value: turns),
       ],
@@ -257,7 +261,7 @@ class _SittingRow extends StatelessWidget {
         : (s.ticketRef ?? tr('tables.sittings'));
     final covers = s.guestCount ?? 0;
     final parts = <String>[
-      formatSeatedFor(Duration(minutes: s.minutes)),
+      formatSeatedFor(Duration(minutes: s.minutes), units: _units(tr)),
       if (covers > 0) '$covers ${tr('tables.guests')}',
     ];
     return MadarRow(
@@ -286,3 +290,9 @@ class _SittingRow extends StatelessWidget {
     );
   }
 }
+
+/// The clock's short hour/minute letters, through the sheet's own `tr`.
+DurationUnits _units(String Function(String) tr) => DurationUnits(
+  hour: tr('common.hours_short'),
+  minute: tr('common.minutes_short'),
+);

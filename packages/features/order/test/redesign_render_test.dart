@@ -297,6 +297,40 @@ const _en = {
   'waiter.no_tickets': 'No open tickets',
   'chrome.more': 'More',
   'setup.continue': 'Continue',
+  // The Sell / Floor / Bill vocabulary — once served by the package's
+  // own fallback table, which is gone; the core carries these keys now.
+  'sell.takeaway': 'Takeaway',
+  'sell.parked': 'Parked',
+  'sell.park': 'Park',
+  'sell.parked_empty': 'Nothing parked',
+  'sell.this_round': 'This round',
+  'sell.on_the_bill': 'On the bill',
+  'sell.round_total': 'Round',
+  'sell.bill_so_far': 'Bill so far (before tax)',
+  'sell.charge': 'Charge',
+  'sell.fire': 'Fire',
+  'sell.table_required': 'Seat a table first',
+  'sell.guest_name': 'Guest name',
+  'sell.round_n': 'Round',
+  'floor.title': 'Floor',
+  'floor.seat': 'Seat',
+  'floor.party_size': 'Party size',
+  'floor.take_order': 'Take an order',
+  'floor.unseat': 'Unseat (party left)',
+  'floor.cleared': 'Cleared',
+  'floor.seat_booking_here': 'Seat a booking here',
+  'floor.walk_in_here': 'Walk-in here',
+  'floor.no_bill_yet': 'No bill yet',
+  'bill.title': 'Bill',
+  'bill.void_bill': 'Void bill',
+  'bill.gone': 'This bill was closed on another till',
+  'bill.ready': 'Ready',
+  'bill.queued': 'Queued',
+  'bill.voided': 'Voided',
+  'bills.title': 'Bills',
+  'bills.mine': 'Mine',
+  'bills.others': 'Others',
+  'bills.new_bill': 'New bill',
 };
 
 const _ar = {
@@ -320,12 +354,52 @@ const _ar = {
   'waiter.items': 'أصناف',
   'waiter.need_shift': 'افتح وردية للتحصيل',
   'chrome.more': 'المزيد',
+  'sell.takeaway': 'تيك أواي',
+  'sell.parked': 'مركونة',
+  'sell.park': 'اركن الطلب',
+  'sell.parked_empty': 'لا طلبات مركونة',
+  'sell.this_round': 'هذه الجولة',
+  'sell.on_the_bill': 'على الفاتورة',
+  'sell.round_total': 'الجولة',
+  'sell.bill_so_far': 'الفاتورة حتى الآن (قبل الضريبة)',
+  'sell.charge': 'تحصيل',
+  'sell.fire': 'أرسل',
+  'sell.table_required': 'أجلس على طاولة أولًا',
+  'sell.guest_name': 'اسم الضيف',
+  'sell.round_n': 'جولة',
+  'floor.title': 'الصالة',
+  'floor.seat': 'إجلاس',
+  'floor.party_size': 'عدد الأفراد',
+  'floor.take_order': 'خذ الطلب',
+  'floor.unseat': 'إلغاء الإجلاس (غادروا)',
+  'floor.cleared': 'تم التنظيف',
+  'floor.seat_booking_here': 'أجلس حجزًا هنا',
+  'floor.walk_in_here': 'زبون عابر هنا',
+  'floor.no_bill_yet': 'لا فاتورة بعد',
+  'bill.title': 'الفاتورة',
+  'bill.void_bill': 'إلغاء الفاتورة',
+  'bill.gone': 'أُغلقت هذه الفاتورة على جهاز آخر',
+  'bill.ready': 'جاهز',
+  'bill.queued': 'في الانتظار',
+  'bill.voided': 'ملغى',
+  'bills.title': 'الفواتير',
+  'bills.mine': 'فواتيري',
+  'bills.others': 'الآخرون',
+  'bills.new_bill': 'فاتورة جديدة',
 };
 
 class _FakeBridge implements MadarBridge {
-  _FakeBridge({this.role = 'teller', this.rtl = false, this.shiftOpen = true});
+  _FakeBridge({
+    this.role = 'teller',
+    this.rtl = false,
+    this.shiftOpen = true,
+    this.drafts = _drafts,
+  });
 
   final String role;
+
+  /// The parked orders the strip lists.
+  final List<DraftView> drafts;
   final bool rtl;
   final bool shiftOpen;
 
@@ -359,8 +433,7 @@ class _FakeBridge implements MadarBridge {
     final name = invocation.memberName;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
-      // A missing key comes back as the key, exactly as the core does — so
-      // the package's fallback table is exercised for the new vocabulary.
+      // A missing key comes back as the key, exactly as the core does.
       return (rtl ? _ar[key] : null) ?? _en[key] ?? key;
     }
     if (name == #isRtl) return rtl;
@@ -435,7 +508,13 @@ class _FakeBridge implements MadarBridge {
       return Future<List<CartLineView>>.value(List.of(_inHand));
     }
     if (name == #cartTotals) return Future<CartTotals>.value(_totals);
-    if (name == #listDrafts) return Future<List<DraftView>>.value(_drafts);
+    if (name == #listDrafts) return Future<List<DraftView>>.value(drafts);
+    if (name == #restoreDraft) {
+      _inHand
+        ..clear()
+        ..add(_cartLine('latte', 'Latte', 4500, 1));
+      return Future<List<CartLineView>>.value(List.of(_inHand));
+    }
     if (name == #floorLayout) return Future<FloorLayoutView>.value(_layout);
     if (name == #listOpenTickets) {
       return Future<List<TicketView>>.value(_tickets);
@@ -871,6 +950,55 @@ void _cartContextTests() {
 
     expect(bridge.parked, isEmpty, reason: 'switching never parks');
     expect(bridge.cleared, 0, reason: 'switching never clears');
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets("a table's parked order resumed from the Sell tab opens that "
+      "table's own screen; the tab stays takeaway", (tester) async {
+    final bridge = _FakeBridge(
+      drafts: const [
+        DraftView(
+          id: 'd-t5',
+          name: '',
+          itemCount: 1,
+          totalMinor: 4500,
+          createdAt: '2026-09-12T18:40:00Z',
+          tableId: 't5',
+          tableLabel: 'T5',
+          lockedByOther: false,
+        ),
+      ],
+    );
+    final container = await _mount(
+      tester,
+      screen: const SellScreen(),
+      size: _ipad,
+      bridge: bridge,
+    );
+    await tester.pump();
+    final takeaway = inHand(container);
+    bool pushedForTable(Widget w) => w is SellScreen && w.forTable;
+
+    await tester.tap(find.text('T5'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byWidgetPredicate(pushedForTable), findsOneWidget);
+    expect(container.read(orderProvider).cartTableId, 't5');
+    expect(bridge.parked, isEmpty, reason: 'the takeaway cart is not parked');
+    expect(bridge.carts[null], isNotEmpty);
+
+    Navigator.of(tester.element(find.byWidgetPredicate(pushedForTable))).pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byWidgetPredicate(pushedForTable), findsNothing);
+    expect(
+      container.read(orderProvider).cartTableId,
+      isNull,
+      reason: 'the Sell tab is takeaway and only takeaway',
+    );
+    expect(inHand(container), takeaway);
     await tester.pump(const Duration(seconds: 5));
   });
 

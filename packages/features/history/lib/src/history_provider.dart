@@ -120,7 +120,7 @@ class HistoryState {
   final bool loadingMore;
 
   /// The server's refusal, in the core's words, when a search failed.
-  final String? error;
+  final UiText? error;
 
   /// Whether the till could reach the server when All last loaded — drives
   /// the honest notice under All.
@@ -220,7 +220,7 @@ class HistoryState {
       rows: rows ?? this.rows,
       loading: loading ?? this.loading,
       loadingMore: loadingMore ?? this.loadingMore,
-      error: error == _unset ? this.error : error as String?,
+      error: error == _unset ? this.error : error as UiText?,
       online: online ?? this.online,
       hasShift: hasShift ?? this.hasShift,
       loyaltyOffered: loyaltyOffered ?? this.loyaltyOffered,
@@ -384,7 +384,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
       state = state.copyWith(
         loading: false,
         loadingMore: false,
-        error: _bridge.humanMessage(e),
+        error: UiText.error(e),
       );
     }
   }

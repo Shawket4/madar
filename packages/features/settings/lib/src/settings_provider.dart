@@ -95,7 +95,7 @@ class SettingsState {
   final bool floorAuthored;
 
   /// Guard-failure banner text (open-shift sign-out/reconfigure).
-  final String? error;
+  final UiText? error;
 
   /// Whether the drawer is open (blocks sign-out and reconfigure).
   bool get hasOpenShift => shift?.isOpen ?? false;
@@ -115,7 +115,7 @@ class SettingsState {
     List<BtDevice>? pairedDevices,
     bool? scanningBt,
     bool? floorAuthored,
-    String? error,
+    UiText? error,
   }) {
     return SettingsState(
       config: config ?? this.config,
@@ -353,7 +353,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   Future<bool> reconfigure() async {
     if (state.hasOpenShift) {
       state = state.copyWith(
-        error: _bridge.tr(key: 'settings.reconfigure_shift_open'),
+        error: const UiText.key('settings.reconfigure_shift_open'),
       );
       return false;
     }
@@ -367,7 +367,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   Future<bool> signOut() async {
     if (state.hasOpenShift) {
       state = state.copyWith(
-        error: _bridge.tr(key: 'settings.sign_out_shift_open'),
+        error: const UiText.key('settings.sign_out_shift_open'),
       );
       return false;
     }

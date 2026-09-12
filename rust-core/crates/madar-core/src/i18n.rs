@@ -29,6 +29,11 @@ pub fn tr(locale: &str, key: &str) -> String {
     resolved.or_else(|| en(key)).unwrap_or(key).to_string()
 }
 
+/// The locale is Arabic (any region) — for formatting that has Arabic words.
+pub fn is_arabic(locale: &str) -> bool {
+    lang_of(locale) == "ar"
+}
+
 pub fn is_rtl(locale: &str) -> bool {
     matches!(lang_of(locale), "ar" | "fa" | "he" | "ur")
 }
@@ -320,6 +325,11 @@ fn en(key: &str) -> Option<&'static str> {
         "loyalty.queued_hint" => "This till is offline. The points go on as soon as it reconnects.",
         "loyalty.already_collected" => "Already collected",
         "loyalty.no_points" => "No points for this sale",
+        // What a programme collects, after a count ("30 points", "4 orders"),
+        // and the progress line once a reward is reached.
+        "loyalty.unit_points" => "points",
+        "loyalty.unit_orders" => "orders",
+        "loyalty.reward_earned" => "Reward earned",
         "loyalty.scan_hint" => "Hold their wallet pass to the scanner, or point the camera at it.",
         "loyalty.phone_hint" => "Look the customer up by the number they signed up with.",
         "loyalty.phone_label" => "Phone number",
@@ -405,6 +415,13 @@ fn en(key: &str) -> Option<&'static str> {
         "common.void" => "Void",
         "common.save" => "Save",
         "common.cancel" => "Cancel",
+        // A clock figure's short units ("1h 05m", "42m") and its under-a-minute
+        // word — seated tables, bills, table history, the clock-skew banner.
+        "common.hours_short" => "h",
+        "common.minutes_short" => "m",
+        "common.now" => "now",
+        // The Android notification channel's name, shown in the OS settings.
+        "notif.channel" => "Madar alerts",
         // reservations & floor plan (host UI)
         "reservations.title" => "Reservations",
         "reservations.seat" => "Seat",
@@ -1174,6 +1191,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "loyalty.queued_hint" => "هذا الجهاز غير متصل. ستُضاف النقاط فور عودة الاتصال.",
         "loyalty.already_collected" => "تم تحصيلها من قبل",
         "loyalty.no_points" => "لا نقاط لهذه الفاتورة",
+        // Plural after a figure, the same compromise as `tables.guests`
+        // (see the plurals note at the top of this file).
+        "loyalty.unit_points" => "نقاط",
+        "loyalty.unit_orders" => "طلبات",
+        "loyalty.reward_earned" => "المكافأة جاهزة",
         "loyalty.scan_hint" => "قرّب بطاقة العميل من الماسح، أو وجّه الكاميرا إليها.",
         "loyalty.phone_hint" => "ابحث عن العميل برقم الهاتف المسجّل به.",
         "loyalty.phone_label" => "رقم الهاتف",
@@ -1264,6 +1286,13 @@ fn ar(key: &str) -> Option<&'static str> {
         "common.void" => "إبطال",
         "common.save" => "حفظ",
         "common.cancel" => "إلغاء",
+        // س / د after a Western figure ("1س 05د"), matching `kds.age_min` and
+        // the app's figures, which stay Western everywhere (money included) —
+        // not ساعة/دقيقة, which do not fit a table's pill.
+        "common.hours_short" => "س",
+        "common.minutes_short" => "د",
+        "common.now" => "الآن",
+        "notif.channel" => "تنبيهات مدار",
         // reservations & floor plan (host UI)
         "reservations.title" => "الحجوزات",
         "reservations.seat" => "إجلاس",

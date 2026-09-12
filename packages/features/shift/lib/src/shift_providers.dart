@@ -374,7 +374,7 @@ class OpenShiftState {
   final bool busy;
 
   /// The last submit error (human message), or null.
-  final String? error;
+  final UiText? error;
 
   /// Connectivity chrome: the device is online.
   final bool online;
@@ -398,7 +398,7 @@ class OpenShiftState {
       openingMinor: openingMinor ?? this.openingMinor,
       suggestedMinor: suggestedMinor ?? this.suggestedMinor,
       busy: busy ?? this.busy,
-      error: error == _unset ? this.error : error as String?,
+      error: error == _unset ? this.error : error as UiText?,
       online: online ?? this.online,
       authPaused: authPaused ?? this.authPaused,
     );
@@ -558,7 +558,7 @@ class OpenShiftNotifier extends Notifier<OpenShiftState> {
     if (state.needsReason && reason.trim().isEmpty) {
       // Guidance next to the action that triggers it — the natives' flagError.
       state = state.copyWith(
-        error: _bridge.tr(key: 'shift.opening_reason_required'),
+        error: const UiText.key('shift.opening_reason_required'),
       );
       return;
     }
@@ -573,12 +573,12 @@ class OpenShiftNotifier extends Notifier<OpenShiftState> {
       shell.refresh();
     } on MadarError catch (e) {
       if (_disposed) return;
-      state = state.copyWith(busy: false, error: _bridge.humanMessage(e));
+      state = state.copyWith(busy: false, error: UiText.error(e));
     } on Exception catch (_) {
       if (_disposed) return;
       state = state.copyWith(
         busy: false,
-        error: _bridge.tr(key: 'err.generic'),
+        error: const UiText.key('err.generic'),
       );
     }
   }
@@ -629,7 +629,7 @@ class CloseShiftState {
   final bool busy;
 
   /// The last close error (human message), or null.
-  final String? error;
+  final UiText? error;
 
   /// The open shift for the summary card (null while loading).
   final ShiftView? shift;
@@ -661,7 +661,7 @@ class CloseShiftState {
     return CloseShiftState(
       countedMinor: countedMinor ?? this.countedMinor,
       busy: busy ?? this.busy,
-      error: error == _unset ? this.error : error as String?,
+      error: error == _unset ? this.error : error as UiText?,
       shift: shift == _unset ? this.shift : shift as ShiftView?,
       report: report == _unset ? this.report : report as ShiftReportView?,
       tillName: tillName == _unset ? this.tillName : tillName as String?,
@@ -717,7 +717,7 @@ class CloseShiftNotifier extends Notifier<CloseShiftState> {
       // Guidance next to the action that triggers it — the natives'
       // flagError, mirroring the open screen's required reason.
       state = state.copyWith(
-        error: _bridge.tr(key: 'shift.opening_reason_required'),
+        error: const UiText.key('shift.opening_reason_required'),
       );
       return false;
     }
@@ -732,13 +732,13 @@ class CloseShiftNotifier extends Notifier<CloseShiftState> {
       return true;
     } on MadarError catch (e) {
       if (_disposed) return false;
-      state = state.copyWith(busy: false, error: _bridge.humanMessage(e));
+      state = state.copyWith(busy: false, error: UiText.error(e));
       return false;
     } on Exception catch (_) {
       if (_disposed) return false;
       state = state.copyWith(
         busy: false,
-        error: _bridge.tr(key: 'err.generic'),
+        error: const UiText.key('err.generic'),
       );
       return false;
     }
@@ -806,7 +806,7 @@ class CashMovementsState {
   final bool busy;
 
   /// The last record error (human message), or null.
-  final String? error;
+  final UiText? error;
 
   /// The Record CTA is enabled: an amount, a note, nothing in flight.
   bool get canRecord => amountMinor > 0 && note.trim().isNotEmpty && !busy;
@@ -832,7 +832,7 @@ class CashMovementsState {
       amountMinor: amountMinor ?? this.amountMinor,
       note: note ?? this.note,
       busy: busy ?? this.busy,
-      error: error == _unset ? this.error : error as String?,
+      error: error == _unset ? this.error : error as UiText?,
     );
   }
 }
@@ -911,13 +911,13 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
       return true;
     } on MadarError catch (e) {
       if (_disposed) return false;
-      state = state.copyWith(busy: false, error: _bridge.humanMessage(e));
+      state = state.copyWith(busy: false, error: UiText.error(e));
       return false;
     } on Exception catch (_) {
       if (_disposed) return false;
       state = state.copyWith(
         busy: false,
-        error: _bridge.tr(key: 'err.generic'),
+        error: const UiText.key('err.generic'),
       );
       return false;
     }

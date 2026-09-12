@@ -267,7 +267,10 @@ class _BillRow extends StatelessWidget {
     final opened = DateTime.tryParse(t.openedAt);
     final age = opened == null
         ? null
-        : formatSeatedFor(now.difference(opened.toUtc()));
+        : formatSeatedFor(
+            now.difference(opened.toUtc()),
+            units: DurationUnits.of(bridge),
+          );
     final rounds = t.lines.isEmpty
         ? 0
         : t.lines.map((l) => l.roundNumber).reduce((a, b) => a > b ? a : b);

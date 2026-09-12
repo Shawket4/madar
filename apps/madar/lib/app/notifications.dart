@@ -8,16 +8,21 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 /// policy. Best-effort throughout — a POS must never crash on a failed
 /// notification.
 class NotificationService {
-  NotificationService._(this._plugin);
+  NotificationService._(this._plugin, this._channelName);
 
   final FlutterLocalNotificationsPlugin _plugin;
 
   static const _channelId = 'madar_realtime';
-  static const _channelName = 'Madar alerts';
+
+  /// The channel's user-visible name (Android's notification settings), in
+  /// the app's language — `notif.channel` from the core.
+  String _channelName;
 
   /// Boot the plugin, create the Android channel, and request permission
   /// (Android 13+ / iOS / macOS). Returns a ready service; never throws.
-  static Future<NotificationService> initialize() async {
+  static Future<NotificationService> initialize({
+    required String channelName,
+  }) async {
     final plugin = FlutterLocalNotificationsPlugin();
     try {
       await plugin.initialize(
@@ -33,9 +38,9 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin
           >();
       await android?.createNotificationChannel(
-        const AndroidNotificationChannel(
+        AndroidNotificationChannel(
           _channelId,
-          _channelName,
+          channelName,
           importance: Importance.max,
         ),
       );
@@ -55,7 +60,30 @@ class NotificationService {
       // Unsupported platform or a denied prompt — the in-app toast + chime
       // still fire; OS notifications are the bonus tier.
     }
-    return NotificationService._(plugin);
+    return NotificationService._(plugin, channelName);
+  }
+
+  /// Re-name the channel after a language switch. Android updates the name
+  /// of an existing channel in place when it is re-created under the same
+  /// id; importance and sound are the user's to keep and are not touched.
+  Future<void> rename(String channelName) async {
+    if (channelName == _channelName) return;
+    _channelName = channelName;
+    try {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(
+            AndroidNotificationChannel(
+              _channelId,
+              channelName,
+              importance: Importance.max,
+            ),
+          );
+    } on Object {
+      // Best-effort, like everything here.
+    }
   }
 
   /// Post (or REPLACE, when [tag] repeats) an OS notification. The channel
@@ -72,7 +100,7 @@ class NotificationService {
         id: tag.hashCode & 0x7fffffff,
         title: title,
         body: body.isEmpty ? null : body,
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
@@ -81,11 +109,11 @@ class NotificationService {
           ),
           // Foreground presentation too — a POS is usually foreground when
           // the order lands; the banner + sound must still fire.
-          iOS: DarwinNotificationDetails(
+          iOS: const DarwinNotificationDetails(
             presentAlert: true,
             presentSound: true,
           ),
-          macOS: DarwinNotificationDetails(
+          macOS: const DarwinNotificationDetails(
             presentAlert: true,
             presentSound: true,
           ),

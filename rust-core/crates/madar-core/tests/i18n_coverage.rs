@@ -135,3 +135,28 @@ fn every_en_key_resolves_through_the_public_tr_api() {
         assert!(!ar_val.is_empty(), "AR value for {key} is empty");
     }
 }
+
+#[test]
+fn every_ar_value_is_written_in_arabic() {
+    // Stricter than the byte-identical check above: an AR value that is a
+    // DIFFERENT English sentence ("Sign-in" for "Sign in"), or English with a
+    // stray punctuation change, slips past that one. An Arabic string carries
+    // at least one Arabic letter; figures, codes and brand names alongside it
+    // are fine ("عنوان IP"), a value with none is not Arabic at all.
+    let mut latin_only = Vec::new();
+    for key in ar_keys() {
+        if ALLOWED_IDENTICAL.contains(&key) {
+            continue;
+        }
+        let v = madar_core::i18n::tr("ar", key);
+        let has_letters = v.chars().any(char::is_alphabetic);
+        let has_arabic = v.chars().any(|c| ('\u{0600}'..='\u{06FF}').contains(&c));
+        if has_letters && !has_arabic {
+            latin_only.push(format!("{key} = {v:?}"));
+        }
+    }
+    assert!(
+        latin_only.is_empty(),
+        "AR values with no Arabic in them — untranslated: {latin_only:?}"
+    );
+}

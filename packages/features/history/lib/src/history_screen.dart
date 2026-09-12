@@ -343,7 +343,7 @@ class _Rows extends ConsumerWidget {
     }
     if (error != null && rowsEmpty) {
       return ErrorState(
-        message: error,
+        message: error.of(bridge),
         retryLabel: t('history.retry'),
         onRetry: notifier.load,
       );
@@ -376,8 +376,8 @@ class _Rows extends ConsumerWidget {
         text: t('history.offline_cached'),
         icon: 'wifi.slash',
       ),
-      (OrdersScope.all, true, final String message) => NoticeBanner(
-        text: message,
+      (OrdersScope.all, true, final UiText message) => NoticeBanner(
+        text: message.of(bridge),
         tone: ChipTone.danger,
         icon: 'exclamationmark.triangle',
         onTap: notifier.load,

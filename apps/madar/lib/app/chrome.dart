@@ -278,7 +278,9 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     // toast + chime work immediately; a notification that arrives before
     // init just skips.
     unawaited(
-      NotificationService.initialize().then((s) {
+      NotificationService.initialize(
+        channelName: _t('notif.channel'),
+      ).then((s) {
         if (mounted) _notifications = s;
       }),
     );
@@ -310,6 +312,9 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     super.dispose();
   }
 
+  /// For callbacks (alerts, taps) — they run at the moment of the event, in
+  /// the language in force then. The build reads [BridgeRef.bridge] instead,
+  /// which is what re-renders the chrome when the language changes.
   String _t(String key) => ref.read(bridgeProvider).tr(key: key);
 
   // ── navigation ─────────────────────────────────────────────────────────────
@@ -566,6 +571,11 @@ class _RoleShellState extends ConsumerState<RoleShell> {
         if (cmd != null) _onAlert(cmd);
       })
       ..listen(reauthRequestProvider, (_, _) => _onReauthRequest())
+      // The Android channel's name is shown in the OS's notification
+      // settings; it follows the app's language like every other word.
+      ..listen(localeProvider, (_, _) {
+        unawaited(_notifications?.rename(_t('notif.channel')));
+      })
       // Realtime ticks keep the badges honest whichever tab is showing: the
       // waiter's Bills count and the teller's Queue count read providers the
       // hidden tabs are not reloading.
@@ -624,25 +634,25 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       online: outbox.online,
     );
     final pillWord = switch (outbox.state) {
-      OutboxState.synced => _t('chrome.online'),
-      OutboxState.queued => _t('chrome.queued'),
-      OutboxState.offline => _t('chrome.offline'),
-      OutboxState.stuck => _t('chrome.stuck'),
+      OutboxState.synced => bridge.tr(key: 'chrome.online'),
+      OutboxState.queued => bridge.tr(key: 'chrome.queued'),
+      OutboxState.offline => bridge.tr(key: 'chrome.offline'),
+      OutboxState.stuck => bridge.tr(key: 'chrome.stuck'),
     };
 
     final banners = <Widget>[
       if (outbox.authPaused)
         NoticeBanner(
-          text: _t('chrome.auth_paused'),
+          text: bridge.tr(key: 'chrome.auth_paused'),
           icon: 'lock',
           onTap: _onReauthRequest,
           trailing: Text(
-            _t('chrome.auth_paused_action'),
+            bridge.tr(key: 'chrome.auth_paused_action'),
             style: MadarType.label.copyWith(color: colors.warning),
           ),
         ),
       if (outbox.clockSkewMinutes.abs() >= _clockSkewBannerMinutes)
-        NoticeBanner(text: _t('chrome.clock_skew'), icon: 'clock'),
+        NoticeBanner(text: bridge.tr(key: 'chrome.clock_skew'), icon: 'clock'),
     ];
 
     // The top bar took the status-bar inset and, on a phone, the tab bar

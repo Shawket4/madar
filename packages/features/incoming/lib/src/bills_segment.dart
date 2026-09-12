@@ -135,7 +135,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
                   ),
                 if (error != null)
                   NoticeBanner(
-                    text: error,
+                    text: error.of(ref.bridge),
                     tone: ChipTone.danger,
                     icon: 'exclamationmark.circle',
                   ),

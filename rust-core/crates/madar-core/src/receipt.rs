@@ -105,6 +105,8 @@ pub struct ReceiptLabels {
     pub served_by: String,
     pub queued: String,
     pub thank_you: String,
+    /// The language the labels are in — the date's AM/PM follows it.
+    pub locale: String,
 }
 
 /// Render a receipt to ESC/POS bytes ready to stream to a printer.
@@ -160,7 +162,7 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
     if receipt.is_voided {
         out.push(bold_center(format!("*** {} ***", lab.voided)));
     }
-    let dt = fmt_dt(&receipt.created_at);
+    let dt = fmt_dt_in(&receipt.created_at, &lab.locale);
     let id_label = match receipt.order_number {
         Some(n) => format!("{} #{}", lab.order, n),
         None => format!("{} {}", lab.order, short_id(&receipt.local_order_id)),
@@ -348,6 +350,8 @@ pub struct ShiftReportLabels {
     pub end_of_report: String,
     pub cash_moves: String,
     pub by_method: String,
+    /// The language the labels are in — dates' AM/PM follow it.
+    pub locale: String,
 }
 
 /// Render the shift report (Z-report) to ESC/POS bytes.
@@ -730,9 +734,15 @@ pub(crate) fn short_id(id: &str) -> String {
 /// Format an RFC3339 timestamp the way Flutter's receipt does —
 /// `dd/MM/yyyy hh:mm a`, in the timestamp's own offset. Falls back to the raw
 /// string if it can't be parsed.
+#[cfg(test)]
 pub(crate) fn fmt_dt(rfc3339: &str) -> String {
+    fmt_dt_in(rfc3339, "en")
+}
+
+/// [`fmt_dt`] with its AM/PM in `locale` (ص / م for Arabic, figures Western).
+pub(crate) fn fmt_dt_in(rfc3339: &str, locale: &str) -> String {
     match chrono::DateTime::parse_from_rfc3339(rfc3339) {
-        Ok(dt) => dt.format("%d/%m/%Y %I:%M %p").to_string(),
+        Ok(dt) => crate::timefmt::strftime_in(&dt, "%d/%m/%Y %I:%M %p", locale),
         Err(_) => rfc3339.to_string(),
     }
 }
@@ -909,6 +919,7 @@ mod tests {
                 served_by: "Served by".into(),
                 queued: "Saved - will sync".into(),
                 thank_you: "Thank you!".into(),
+                locale: "en".into(),
             },
         }
     }
@@ -1627,6 +1638,13 @@ mod tests {
     }
 
     #[test]
+    fn fmt_dt_in_arabic_says_am_pm_in_arabic() {
+        assert_eq!(fmt_dt_in("2026-06-20T13:05:00Z", "ar"), "20/06/2026 01:05 م");
+        assert_eq!(fmt_dt_in("2026-01-09T00:00:00Z", "ar-EG"), "09/01/2026 12:00 ص");
+        assert_eq!(fmt_dt_in("2026-06-20T13:05:00Z", "en"), "20/06/2026 01:05 PM");
+    }
+
+    #[test]
     fn fmt_dt_returns_input_on_parse_failure() {
         assert_eq!(fmt_dt("garbage"), "garbage");
         assert_eq!(fmt_dt(""), "");
@@ -1684,6 +1702,7 @@ mod tests {
             end_of_report: "End of Report".into(),
             cash_moves: "Cash moves".into(),
             by_method: "By method".into(),
+            locale: "en".into(),
         }
     }
 

@@ -148,6 +148,23 @@ List<KdsTicketView> _tickets({bool arabic = false}) => [
 ];
 
 const _en = {
+  // The board's own keys. They used to be absent here and served through the
+  // stand-ins beside them; the stand-ins are gone, so the fake answers them —
+  // with the words these goldens were written against.
+  'kds.bump_all': 'Done',
+  'kds.round': 'R',
+  'kds.open': 'open',
+  'kds.age_min': 'm',
+  'kds.live': 'Online',
+  'kds.ready': 'Ready',
+  'kds.pill_synced': 'Online',
+  'kds.pill_queued': 'Queued',
+  'kds.pill_offline': 'Offline',
+  'kds.pill_stuck': 'Failed',
+  'kds.offline_banner': 'Offline — work is queued',
+  'kds.refused': 'Failed',
+  'kds.retry': 'Retry failed',
+  'kds.discard': 'Discard',
   'kds.title': 'Kitchen',
   'kds.reconnecting': 'Reconnecting…',
   'kds.all_clear': 'All caught up',
@@ -165,6 +182,20 @@ const _en = {
 };
 
 const _ar = {
+  'kds.bump_all': 'تم',
+  'kds.round': 'ج',
+  'kds.open': 'مفتوحة',
+  'kds.age_min': 'د',
+  'kds.live': 'متصل',
+  'kds.ready': 'جاهز',
+  'kds.pill_synced': 'متصل',
+  'kds.pill_queued': 'في الانتظار',
+  'kds.pill_offline': 'غير متصل',
+  'kds.pill_stuck': 'فشل',
+  'kds.offline_banner': 'غير متصل — العمل في الانتظار',
+  'kds.refused': 'فشل',
+  'kds.retry': 'إعادة محاولة الفاشلة',
+  'kds.discard': 'تجاهل',
   'kds.title': 'المطبخ',
   'kds.reconnecting': 'جارٍ إعادة الاتصال…',
   'kds.all_clear': 'لا طلبات معلّقة',
@@ -447,7 +478,7 @@ void main() {
     await _mount(tester, size: _ipad, bridge: _FakeBridge(rtl: true));
     expect(find.text('الشواية'), findsOneWidget);
     // The age figure stays an LTR island inside the Arabic card.
-    final age = tester.widget<Text>(find.text('7').first);
+    final age = tester.widget<Text>(find.text('7د').first);
     expect(age.textDirection, TextDirection.ltr);
     await _snap(tester, 'ipad-ar');
   });

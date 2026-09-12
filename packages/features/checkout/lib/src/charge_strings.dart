@@ -10,4 +10,4 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// untranslated ENGLISH to an Arabic teller instead of as a visible raw key,
 /// so the gap was invisible and kept being re-reported as "missing strings".
 /// The table is gone and `tests/i18n_call_sites.rs` fails the build instead.
-String chargeTr(MadarBridge bridge, String key) => bridge.tr(key: key);
+String chargeTr(MadarBridge bridge, String key) => bridge.trChecked(key);

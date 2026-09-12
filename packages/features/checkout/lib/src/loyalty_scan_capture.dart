@@ -8,6 +8,7 @@ import 'package:flutter/material.dart'
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:rust_bridge/rust_bridge.dart';
 
 /// Camera preview height — big enough to aim a pass at across a counter.
 const double _cameraHeight = 220;
@@ -50,7 +51,7 @@ class LoyaltyScanCapture extends ConsumerStatefulWidget {
   final bool busy;
 
   /// Why the last attempt failed, shown under the capture area.
-  final String? error;
+  final UiText? error;
 
   @override
   ConsumerState<LoyaltyScanCapture> createState() => _LoyaltyScanCaptureState();
@@ -257,7 +258,7 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
 
         if (widget.error case final error?)
           Text(
-            error,
+            error.of(ref.bridge),
             textAlign: TextAlign.center,
             style: MadarType.bodySm.copyWith(color: colors.danger),
           ),

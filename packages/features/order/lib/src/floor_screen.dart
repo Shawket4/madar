@@ -229,7 +229,10 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
     final opened = since == null ? null : DateTime.tryParse(since);
     final ago = opened == null
         ? null
-        : formatSeatedFor(DateTime.now().toUtc().difference(opened.toUtc()));
+        : formatSeatedFor(
+            DateTime.now().toUtc().difference(opened.toUtc()),
+            units: DurationUnits.of(_bridge),
+          );
     final covers = ref.read(orderProvider).pendingCovers[t.id];
     final guest = t.bookingGuest?.trim();
     await showMadarSheet<void>(

@@ -224,6 +224,8 @@ class TableStatusWords {
     required this.needsClearing,
     this.reserved = '',
     this.timeOf,
+    this.units = DurationUnits.latin,
+    this.now = 'now',
   });
 
   /// The vocabulary as the bridge translates it.
@@ -234,7 +236,15 @@ class TableStatusWords {
     needsClearing: bridge.tr(key: 'tables.needs_clearing'),
     reserved: bridge.tr(key: 'tables.reserved'),
     timeOf: (iso) => bridge.formatTime(rfc3339: iso, style: TimeStyle.time),
+    units: DurationUnits.of(bridge),
+    now: bridge.tr(key: 'common.now'),
   );
+
+  /// The short hour/minute letters on a seated table's clock.
+  final DurationUnits units;
+
+  /// A clock under a minute old.
+  final String now;
 
   final String free;
   final String held;
@@ -321,16 +331,23 @@ String? tableStatusIcon(FloorTableStateView t, {required bool occupied}) {
 
 /// "How long has this table been sitting" — `45m`, `2h 10m`. Null when the
 /// stamp is missing or in the future (clock skew), so nothing odd renders.
-String? elapsedLabel(String? sinceIso, {DateTime? now}) {
+/// [units] and [nowWord] are the current language's (see [DurationUnits.of]
+/// and `common.now`); the Latin defaults are for tests.
+String? elapsedLabel(
+  String? sinceIso, {
+  DateTime? now,
+  DurationUnits units = DurationUnits.latin,
+  String nowWord = 'now',
+}) {
   if (sinceIso == null || sinceIso.isEmpty) return null;
   final since = DateTime.tryParse(sinceIso);
   if (since == null) return null;
   final mins = (now ?? DateTime.now()).difference(since.toLocal()).inMinutes;
-  if (mins < 1) return 'now';
-  if (mins < 60) return '${mins}m';
+  if (mins < 1) return nowWord;
+  if (mins < 60) return '$mins${units.minute}';
   final h = mins ~/ 60;
   final m = mins % 60;
-  return m == 0 ? '${h}h' : '${h}h ${m}m';
+  return m == 0 ? '$h${units.hour}' : '$h${units.hour} $m${units.minute}';
 }
 
 /// How far a table's chairs (and its occupant pill) reach beyond its own box.
@@ -778,6 +795,12 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Every word on this screen — the canvas's status words, the list's, the
+    // clocks' units — is pulled from the bridge while building. Watching the
+    // language generation is what re-pulls them on a language switch; the
+    // screen used to read the bridge without it and stayed in the old
+    // language until something else happened to rebuild it.
+    ref.watch(localeGenerationProvider);
     final colors = context.madarColors;
     // The teller may be standing on this screen when their own sale lands.
     listenForTableClear(context, ref);
@@ -1503,6 +1526,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
       DateTime.now().toUtc().difference(
         DateTime.tryParse(ticket.openedAt)?.toUtc() ?? DateTime.now().toUtc(),
       ),
+      units: DurationUnits.of(bridge),
     );
     await showMadarSheet<void>(
       context,
@@ -2200,7 +2224,11 @@ class _TableCell extends StatelessWidget {
     // the safety net for a till that joined the shift AFTER the party sat —
     // it pulled a seated table from the server and never saw the seating, so
     // it has no stamp of its own and the bill is the only witness left.
-    final howLong = elapsedLabel(table.heldSince ?? ticket?.openedAt);
+    final howLong = elapsedLabel(
+      table.heldSince ?? ticket?.openedAt,
+      units: words.units,
+      nowWord: words.now,
+    );
     final statusWord = words.wordFor(table, occupied: occupied);
     final statusIcon = tableStatusIcon(table, occupied: occupied);
 

@@ -914,7 +914,7 @@ class _VoidFormState {
   final String reason;
   final bool restock;
   final bool busy;
-  final String? error;
+  final UiText? error;
 
   static const Object _unset = Object();
 
@@ -928,7 +928,7 @@ class _VoidFormState {
       reason: reason ?? this.reason,
       restock: restock ?? this.restock,
       busy: busy ?? this.busy,
-      error: error == _unset ? this.error : error as String?,
+      error: error == _unset ? this.error : error as UiText?,
     );
   }
 }
@@ -969,7 +969,7 @@ class _VoidFormNotifier extends Notifier<_VoidFormState> {
         ref.read(reauthRequestProvider.notifier).request();
       }
       if (_alive) {
-        state = state.copyWith(busy: false, error: bridge.humanMessage(e));
+        state = state.copyWith(busy: false, error: UiText.error(e));
       }
       return false;
     }
@@ -1015,7 +1015,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
   final TextEditingController _note = TextEditingController();
   String _reason = 'customer';
   bool _busy = false;
-  String? _error;
+  UiText? _error;
 
   /// What the SERVER says is still refundable, once earlier refunds are
   /// counted. Null while it loads, or when nothing could be read — the
@@ -1049,7 +1049,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
     // Against what is LEFT, not against the sale: a second refund on a sale
     // already half given back is over by half, and the server refuses it.
     if (minor > _cap) {
-      setState(() => _error = historyTr(bridge, 'history.refund_over'));
+      setState(() => _error = const UiText.key('history.refund_over'));
       return;
     }
     setState(() {
@@ -1077,7 +1077,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = bridge.humanMessage(e);
+          _error = UiText.error(e);
         });
       }
     }
@@ -1181,7 +1181,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
                 ),
                 if (_error case final error?)
                   NoticeBanner(
-                    text: error,
+                    text: error.of(ref.bridge),
                     tone: ChipTone.danger,
                     icon: 'exclamationmark.triangle',
                   ),
@@ -1352,7 +1352,7 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
                 ),
                 if (form.error case final error?)
                   NoticeBanner(
-                    text: error,
+                    text: error.of(ref.bridge),
                     tone: ChipTone.danger,
                     icon: 'exclamationmark.triangle',
                   ),

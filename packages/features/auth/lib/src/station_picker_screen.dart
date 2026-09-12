@@ -79,7 +79,7 @@ class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
         _greeting(context, t),
         if (error != null)
           NoticeBanner(
-            text: error,
+            text: error.of(ref.bridge),
             tone: ChipTone.danger,
             icon: 'exclamationmark.circle',
           ),

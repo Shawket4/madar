@@ -1,13 +1,9 @@
 /// Kitchen-board wording — every string the board shows, resolved through
 /// the core's i18n and nothing else.
 ///
-/// The board names a few things the core's table has no key for yet ("Bump
-/// all", the round tag, the refused-bumps banner). Those keys are requested
-/// in `i18n.rs` (one pass by the master; see the lane's `needsFromOthers`).
-/// Until they land, `tr` hands back the key itself, which is how a missing
-/// key shows. So every new key is asked for FIRST and, when missing, the
-/// nearest key that already exists stands in — never a literal. The moment
-/// the key lands in the core the board upgrades by itself.
+/// Every key below has landed in `i18n.rs`. The second key in each record
+/// is the stand-in that used to cover for a missing first key; it is no longer
+/// consulted (see the extension), because a plausible stand-in hid gaps.
 library;
 
 import 'package:rust_bridge/rust_bridge.dart';
@@ -50,17 +46,18 @@ abstract final class KdsKeys {
 }
 
 extension KdsTr on MadarBridge {
-  /// The wanted key, or its stand-in while the core lacks it.
-  String trOr((String, String) key) {
-    final (wanted, fallback) = key;
-    final v = tr(key: wanted);
-    return v == wanted ? tr(key: fallback) : v;
-  }
+  /// The key's words. The second half of each record names the key that used
+  /// to stand in while the core lacked the first; every first key has landed
+  /// in `i18n.rs`, so the stand-in is never consulted again — a stand-in only
+  /// hid the next gap as a wrong-but-plausible word. A miss now shows as the
+  /// raw key, is reported in debug builds, and fails the core's
+  /// `tests/i18n_call_sites.rs`.
+  String trOr((String, String) key) => trChecked(key.$1);
 
-  /// The wanted key, or null while the core lacks it — for a word that is
-  /// better left out than approximated.
-  String? trMaybe((String, String) key) {
-    final v = tr(key: key.$1);
-    return v == key.$1 ? null : v;
-  }
+  /// The same; kept nullable for the call sites written against the old
+  /// "drop the word while missing" contract.
+  String? trMaybe((String, String) key) => trChecked(key.$1);
+
+  /// The key itself, for state that stores what to say rather than the words.
+  String trKey((String, String) key) => key.$1;
 }

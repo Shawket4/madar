@@ -142,7 +142,7 @@ class ReauthSheet extends ConsumerWidget {
                 if (error != null) ...[
                   const SizedBox(height: Space.sm),
                   NoticeBanner(
-                    text: error,
+                    text: error.of(ref.bridge),
                     tone: ChipTone.danger,
                     icon: 'exclamationmark.circle',
                   ),

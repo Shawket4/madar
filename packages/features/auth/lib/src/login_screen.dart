@@ -205,7 +205,7 @@ class _TellerFormState extends ConsumerState<_TellerForm>
         if (error != null) ...[
           const SizedBox(height: Space.sm),
           NoticeBanner(
-            text: error,
+            text: error.of(ref.bridge),
             tone: ChipTone.danger,
             icon: 'exclamationmark.circle',
           ),

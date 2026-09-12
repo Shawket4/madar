@@ -802,7 +802,9 @@ class _ChromeBanners extends ConsumerWidget {
           Padding(
             padding: pad,
             child: NoticeBanner(
-              text: '${bridge.tr(key: 'chrome.clock_skew')} (${skew}m)',
+              text:
+                  '${bridge.tr(key: 'chrome.clock_skew')} '
+                  '($skew${bridge.tr(key: 'common.minutes_short')})',
               icon: 'clock.badge.exclamationmark',
             ),
           ),
@@ -810,7 +812,7 @@ class _ChromeBanners extends ConsumerWidget {
           Padding(
             padding: pad,
             child: NoticeBanner(
-              text: error,
+              text: error.of(ref.bridge),
               tone: ChipTone.danger,
               icon: 'exclamationmark.circle',
               onTap: ref.read(orderProvider.notifier).clearError,

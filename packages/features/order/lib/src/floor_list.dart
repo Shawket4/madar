@@ -200,11 +200,35 @@ String _naturalLabel(String label) {
 ///
 /// Deliberately coarse. Seconds are noise on a floor, and the difference
 /// between 41 and 42 minutes changes nothing anybody does.
-String formatSeatedFor(Duration d) {
-  if (d.inMinutes < 1) return '0m';
-  if (d.inHours < 1) return '${d.inMinutes}m';
+///
+/// [units] are the language's short hour/minute letters (`h`/`m`, `س`/`د`) —
+/// pass [DurationUnits.of] from a screen; the Latin default is for tests.
+String formatSeatedFor(
+  Duration d, {
+  DurationUnits units = DurationUnits.latin,
+}) {
+  final (h, m) = (units.hour, units.minute);
+  if (d.inMinutes < 1) return '0$m';
+  if (d.inHours < 1) return '${d.inMinutes}$m';
   final mins = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-  return '${d.inHours}h ${mins}m';
+  return '${d.inHours}$h $mins$m';
+}
+
+/// The short hour / minute letters a clock figure carries, in the current
+/// language. Resolved per build, so a language switch re-words every clock.
+@immutable
+class DurationUnits {
+  const DurationUnits({required this.hour, required this.minute});
+
+  factory DurationUnits.of(MadarBridge bridge) => DurationUnits(
+    hour: bridge.tr(key: 'common.hours_short'),
+    minute: bridge.tr(key: 'common.minutes_short'),
+  );
+
+  static const latin = DurationUnits(hour: 'h', minute: 'm');
+
+  final String hour;
+  final String minute;
 }
 
 /// The words this list needs, translated once by the caller.
@@ -222,6 +246,7 @@ class FloorListWords {
     required this.ready,
     required this.seats,
     required this.guests,
+    this.units = DurationUnits.latin,
   });
 
   factory FloorListWords.of(MadarBridge bridge) => FloorListWords(
@@ -232,7 +257,11 @@ class FloorListWords {
     ready: bridge.tr(key: 'ticket.status.ready'),
     seats: bridge.tr(key: 'tables.seats'),
     guests: bridge.tr(key: 'tables.guests'),
+    units: DurationUnits.of(bridge),
   );
+
+  /// The short hour/minute letters on a row's clock.
+  final DurationUnits units;
 
   final String free;
   final String seated;
@@ -395,7 +424,7 @@ class _FloorRowTile extends StatelessWidget {
                   Text(
                     seated == null
                         ? _statusWord(words, row.urgency)
-                        : formatSeatedFor(seated),
+                        : formatSeatedFor(seated, units: words.units),
                     style: MadarType.label.copyWith(
                       color: tone,
                       fontWeight: FontWeight.w700,

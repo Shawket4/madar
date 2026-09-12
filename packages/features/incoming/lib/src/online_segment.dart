@@ -129,7 +129,7 @@ class _OnlineSegmentState extends ConsumerState<OnlineSegment>
             ),
           if (error != null)
             NoticeBanner(
-              text: error,
+              text: error.of(ref.bridge),
               tone: ChipTone.danger,
               icon: 'exclamationmark.circle',
             ),
@@ -421,7 +421,7 @@ class _OnlineCardState extends ConsumerState<_OnlineCard> {
           ),
         if (notice != null)
           CardNotice(
-            text: notice,
+            text: notice.of(ref.bridge),
             onDismiss: () =>
                 ref.read(incomingProvider.notifier).clearNotice(o.id),
           ),
@@ -882,7 +882,7 @@ class _DeclineSheetState extends ConsumerState<_DeclineSheet> {
           // sits behind the modal scrim.
           if (error case final error?)
             NoticeBanner(
-              text: error,
+              text: error.of(ref.bridge),
               tone: ChipTone.danger,
               icon: 'exclamationmark.circle',
             ),
@@ -970,7 +970,7 @@ class _CancelSheetState extends ConsumerState<_CancelSheet> {
           ),
           if (error case final error?)
             NoticeBanner(
-              text: error,
+              text: error.of(ref.bridge),
               tone: ChipTone.danger,
               icon: 'exclamationmark.circle',
             ),

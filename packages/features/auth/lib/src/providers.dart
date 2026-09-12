@@ -43,7 +43,7 @@ class AuthState {
   final bool busy;
 
   /// Human-readable failure from the last auth call, if any.
-  final String? error;
+  final UiText? error;
 
   /// Digits entered so far (drives the PIN dots).
   final String pin;
@@ -83,7 +83,7 @@ class AuthState {
     return AuthState(
       phase: phase ?? this.phase,
       busy: busy ?? this.busy,
-      error: identical(error, _unset) ? this.error : error as String?,
+      error: identical(error, _unset) ? this.error : error as UiText?,
       pin: pin ?? this.pin,
       failCount: failCount ?? this.failCount,
       configVersion: configVersion ?? this.configVersion,
@@ -101,8 +101,6 @@ class AuthNotifier extends Notifier<AuthState> {
   AuthState build() => const AuthState();
 
   MadarBridge get _bridge => ref.read(bridgeProvider);
-
-  String _t(String key) => _bridge.tr(key: key);
 
   void _refreshShell() => ref.read(shellProvider.notifier).refresh();
 
@@ -131,7 +129,7 @@ class AuthNotifier extends Notifier<AuthState> {
   /// true on success; on failure clears the PIN and bumps [AuthState.failCount].
   Future<bool> _signInPin(String name) async {
     state = state.copyWith(busy: true, error: null);
-    String? failure;
+    UiText? failure;
     try {
       await _bridge.signIn(
         req: LoginRequest(
@@ -142,9 +140,9 @@ class AuthNotifier extends Notifier<AuthState> {
         ),
       );
     } on MadarError catch (e) {
-      failure = _bridge.humanMessage(e);
+      failure = UiText.error(e);
     } on Exception catch (_) {
-      failure = _t('err.generic');
+      failure = const UiText.key('err.generic');
     }
     _refreshShell();
     state = state.copyWith(
@@ -181,7 +179,7 @@ class AuthNotifier extends Notifier<AuthState> {
     }
     final name = _bridge.currentSession()?.displayName ?? '';
     state = state.copyWith(busy: true, error: null);
-    String? failure;
+    UiText? failure;
     try {
       await _bridge.login(
         req: LoginRequest(
@@ -192,9 +190,9 @@ class AuthNotifier extends Notifier<AuthState> {
         ),
       );
     } on MadarError catch (e) {
-      failure = _bridge.humanMessage(e);
+      failure = UiText.error(e);
     } on Exception catch (_) {
-      failure = _t('err.generic');
+      failure = const UiText.key('err.generic');
     }
     _refreshShell();
     state = state.copyWith(
@@ -229,7 +227,7 @@ class AuthNotifier extends Notifier<AuthState> {
     required String password,
   }) async {
     state = state.copyWith(busy: true, error: null);
-    String? failure;
+    UiText? failure;
     var branches = const <BranchView>[];
     try {
       await _bridge.login(
@@ -241,10 +239,10 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       branches = await _bridge.listBranches();
     } on MadarError catch (e) {
-      failure = _bridge.humanMessage(e);
+      failure = UiText.error(e);
       await _quietLogout();
     } on Exception catch (_) {
-      failure = _t('err.generic');
+      failure = const UiText.key('err.generic');
       await _quietLogout();
     }
     _refreshShell();
@@ -311,13 +309,13 @@ class AuthNotifier extends Notifier<AuthState> {
 
   /// Pin this device to [station] — the route recomputes to the KDS.
   Future<void> pickStation(KdsStationView station) async {
-    String? failure;
+    UiText? failure;
     try {
       await _bridge.setDeviceStation(stationId: station.id);
     } on MadarError catch (e) {
-      failure = _bridge.humanMessage(e);
+      failure = UiText.error(e);
     } on Exception catch (_) {
-      failure = _t('err.generic');
+      failure = const UiText.key('err.generic');
     }
     state = state.copyWith(error: failure);
     _refreshShell();

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/loyalty_scan_capture.dart';
+import 'package:feature_checkout/src/loyalty_words.dart';
 import 'package:flutter/material.dart' show CircularProgressIndicator;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,7 +66,7 @@ class LoyaltyAwardSheet extends ConsumerStatefulWidget {
 
 class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
   bool _busy = false;
-  String? _error;
+  UiText? _error;
 
   /// What the server said happened, already phrased by the core. Null until a
   /// press has been answered.
@@ -95,7 +96,7 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
       // this sale has closed", "That sale was voided" — reaches the teller as
       // written. Refocusing for another attempt is the capture widget's
       // business; it owns the fields and refocuses when `busy` falls.
-      setState(() => _error = bridge.humanMessage(e));
+      setState(() => _error = UiText.error(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -167,12 +168,12 @@ class _LoyaltyAwardSheetState extends ConsumerState<LoyaltyAwardSheet> {
               child: MadarIcon(glyph, tint: tint, size: IconSize.xxl),
             ),
             Text(
-              outcome.headline,
+              loyaltyAwardHeadline((k) => bridge.tr(key: k), outcome),
               textAlign: TextAlign.center,
               style: MadarType.h3.copyWith(color: colors.textPrimary),
             ),
             Text(
-              outcome.detail,
+              loyaltyAwardDetail((k) => bridge.tr(key: k), outcome),
               textAlign: TextAlign.center,
               style: MadarType.bodySm.copyWith(color: colors.textSecondary),
             ),

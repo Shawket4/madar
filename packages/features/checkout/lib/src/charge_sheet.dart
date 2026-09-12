@@ -7,6 +7,7 @@ import 'package:feature_checkout/src/charge_target.dart';
 import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/done_card.dart';
 import 'package:feature_checkout/src/loyalty_scan_sheet.dart';
+import 'package:feature_checkout/src/loyalty_words.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -320,7 +321,7 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
                     ),
                   if (s.error case final error?)
                     NoticeBanner(
-                      text: error,
+                      text: error.of(bridge),
                       tone: ChipTone.danger,
                       icon: 'exclamationmark.circle',
                     ),
@@ -650,7 +651,8 @@ class _QuietRows extends StatelessWidget {
               : tr('charge.member'),
           value: member == null
               ? bridge.tr(key: 'loyalty.scan_card')
-              : '${member.name} · ${member.balance} ${member.balanceLabel}',
+              : '${member.name} · ${member.balance} '
+                    '${loyaltyUnit((k) => bridge.tr(key: k), member.mode)}',
           onTap: member == null ? onMember : null,
           trailing: member == null
               ? null
@@ -679,7 +681,10 @@ class _QuietRows extends StatelessWidget {
           rows.add(
             _RewardLine(
               name: s.redeemableLines[i].name,
-              costLabel: s.rewardForLine(i)!.costLabel,
+              costLabel: loyaltyCost(
+                (k) => bridge.tr(key: k),
+                s.rewardForLine(i)!,
+              ),
               covered: s.redemptions[i] ?? 0,
               quantity: s.redeemableLines[i].qty,
               freeWord: tr('charge.free'),
@@ -693,7 +698,7 @@ class _QuietRows extends StatelessWidget {
             child: Text(
               // What is left AFTER what is ticked — the number the customer
               // will ask about.
-              '${s.balanceAfterRedemptions} ${member.balanceLabel} '
+              '${s.balanceAfterRedemptions} ${loyaltyUnit((k) => bridge.tr(key: k), member.mode)} '
               '${bridge.tr(key: 'loyalty.left')}',
               style: MadarType.bodySm.copyWith(color: colors.textMuted),
             ),
