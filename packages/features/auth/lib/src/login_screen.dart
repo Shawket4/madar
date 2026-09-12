@@ -7,6 +7,7 @@ import 'package:feature_auth/src/device_setup_form.dart';
 import 'package:feature_auth/src/providers.dart';
 import 'package:feature_auth/src/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Greeting metrics (natives: 28.sp Black, −0.5 tracking).
@@ -21,10 +22,6 @@ const Duration _shakeDuration = Duration(milliseconds: 300);
 
 /// Shake keyframes (natives: −8, 8, −6, 6, 0 dp).
 const List<double> _shakeKeyframes = [-8, 8, -6, 6, 0];
-
-/// Characters of the branch id shown when no branch name is known
-/// (natives: `branchId.take(8)`).
-const int _branchIdPreview = 8;
 
 /// Login — branch-gated brand moment. Manager device-setup until the till is
 /// bound to a branch, then teller PIN with a reconfigure link. Wide screens
@@ -108,6 +105,52 @@ class _TellerFormState extends ConsumerState<_TellerForm>
     if (ref.read(authProvider.notifier).pushDigit(digit)) _submit();
   }
 
+  /// A hardware keyboard types the PIN too: digits (row or numpad), delete,
+  /// and Enter to sign in with a 4–5 digit PIN that does not auto-submit.
+  /// While a text field has focus (the name) the keys are its own.
+  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final focused = FocusManager.instance.primaryFocus?.context;
+    if (focused != null &&
+        (focused.widget is EditableText ||
+            focused.findAncestorWidgetOfExactType<EditableText>() != null)) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.backspace) {
+      ref.read(authProvider.notifier).popDigit();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (event is KeyDownEvent) _submit();
+      return KeyEventResult.handled;
+    }
+    final char = event.character;
+    if (char != null && char.length == 1 && '0123456789'.contains(char)) {
+      _digit(char);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  /// Reconfigure unbinds the till from its branch until a manager signs in
+  /// again, so it is asked, never a stray tap on the login screen.
+  Future<void> _reconfigure() async {
+    final bridge = ref.read(bridgeProvider);
+    final ok = await showMadarConfirm(
+      context,
+      title: bridge.tr(key: 'login.reconfigure_title'),
+      body: bridge.tr(key: 'login.reconfigure_body'),
+      confirmLabel: bridge.tr(key: 'login.reconfigure'),
+      cancelLabel: bridge.tr(key: 'common.cancel'),
+    );
+    if (!ok || !mounted) return;
+    await ref.read(authProvider.notifier).beginReconfigure();
+  }
+
   @override
   Widget build(BuildContext context) {
     // Every rejected submit (bad PIN, empty name, bridge failure) bumps the
@@ -123,12 +166,9 @@ class _TellerFormState extends ConsumerState<_TellerForm>
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final config = bridge.deviceConfig();
-    final branchName = config.branchName ?? '';
-    final branchId = config.branchId ?? '';
-    final branchLabel = branchName.isNotEmpty
-        ? branchName
-        : '${t('login.branch')} '
-              '${branchId.substring(0, branchId.length.clamp(0, _branchIdPreview))}';
+    final branchName = config.branchName?.trim() ?? '';
+    // Never the raw id: a UUID fragment is not a place anybody works.
+    final branchLabel = branchName.isNotEmpty ? branchName : t('login.branch');
 
     // Spacing mirrors the natives' deliberate rhythm (not a flat stack): xs
     // between title/subtitle, md before the branch chip block, xxl after the
@@ -172,20 +212,13 @@ class _TellerFormState extends ConsumerState<_TellerForm>
               tone: ChipTone.accent,
               icon: 'building.2',
             ),
-            GestureDetector(
-              onTap: () =>
-                  unawaited(ref.read(authProvider.notifier).beginReconfigure()),
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: Space.xs),
-                child: Text(
-                  t('login.reconfigure'),
-                  style: MadarType.label.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ),
+            // A real 44pt target, behind a confirm.
+            MadarButton(
+              label: t('login.reconfigure'),
+              variant: MadarButtonVariant.ghost,
+              size: MadarButtonSize.compact,
+              enabled: !busy,
+              onTap: () => unawaited(_reconfigure()),
             ),
           ],
         ),
@@ -229,13 +262,17 @@ class _TellerFormState extends ConsumerState<_TellerForm>
       ],
     );
 
-    return AnimatedBuilder(
-      animation: _shakeOffset,
-      builder: (context, child) => Transform.translate(
-        offset: Offset(_shakeOffset.value, 0),
-        child: child,
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: AnimatedBuilder(
+        animation: _shakeOffset,
+        builder: (context, child) => Transform.translate(
+          offset: Offset(_shakeOffset.value, 0),
+          child: child,
+        ),
+        child: form,
       ),
-      child: form,
     );
   }
 }

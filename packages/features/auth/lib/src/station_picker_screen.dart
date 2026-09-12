@@ -66,6 +66,9 @@ class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
     final colors = context.madarColors;
     final loading = ref.watch(authProvider.select((s) => s.stationsLoading));
     final stations = ref.watch(authProvider.select((s) => s.stations));
+    final stationsError = ref.watch(
+      authProvider.select((s) => s.stationsError),
+    );
     final error = ref.watch(authProvider.select((s) => s.error));
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
@@ -96,6 +99,25 @@ class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
                 child: Center(
                   child: CircularProgressIndicator(color: colors.accent),
                 ),
+              )
+            else if (stationsError != null)
+              // Could not ask is not "none": say why and offer the retry.
+              Column(
+                spacing: Space.sm,
+                children: [
+                  NoticeBanner(
+                    text: stationsError.of(bridge),
+                    tone: ChipTone.danger,
+                    icon: 'exclamationmark.triangle',
+                  ),
+                  MadarButton(
+                    label: t('history.retry'),
+                    variant: MadarButtonVariant.secondary,
+                    onTap: () => unawaited(
+                      ref.read(authProvider.notifier).loadStations(),
+                    ),
+                  ),
+                ],
               )
             else if (stations.isEmpty)
               Padding(

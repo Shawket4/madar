@@ -34,6 +34,7 @@ class AuthState {
     this.branches = const [],
     this.stations = const [],
     this.stationsLoading = true,
+    this.stationsError,
   });
 
   /// Which device-setup step is showing.
@@ -68,6 +69,11 @@ class AuthState {
   /// The station list is still loading.
   final bool stationsLoading;
 
+  /// Why the station list could not be read, or null. Distinct from an
+  /// empty list: "this branch has no stations" and "we could not ask" call
+  /// for different things from the person holding the tablet.
+  final UiText? stationsError;
+
   /// Copy with the given fields replaced ([error] supports null-out).
   AuthState copyWith({
     SetupPhase? phase,
@@ -79,6 +85,7 @@ class AuthState {
     List<BranchView>? branches,
     List<KdsStationView>? stations,
     bool? stationsLoading,
+    Object? stationsError = _unset,
   }) {
     return AuthState(
       phase: phase ?? this.phase,
@@ -90,6 +97,9 @@ class AuthState {
       branches: branches ?? this.branches,
       stations: stations ?? this.stations,
       stationsLoading: stationsLoading ?? this.stationsLoading,
+      stationsError: identical(stationsError, _unset)
+          ? this.stationsError
+          : stationsError as UiText?,
     );
   }
 }
@@ -107,8 +117,10 @@ class AuthNotifier extends Notifier<AuthState> {
   void _bumpFail() => state = state.copyWith(failCount: state.failCount + 1);
 
   /// Append a keypad digit. Returns true when the buffer just reached the
-  /// auto-submit length — the caller then submits.
+  /// auto-submit length — the caller then submits. Anything but a single
+  /// ASCII digit is ignored (a hardware keyboard can send anything).
   bool pushDigit(String digit) {
+    if (digit.length != 1 || !'0123456789'.contains(digit)) return false;
     if (state.busy || state.pin.length >= _maxPin) return false;
     state = state.copyWith(error: null, pin: state.pin + digit);
     return state.pin.length == _maxPin;
@@ -156,10 +168,25 @@ class AuthNotifier extends Notifier<AuthState> {
 
   /// Daily teller PIN sign-in (natives' `signIn`). Rejects an empty name or
   /// a short PIN locally (fail bump → shake), otherwise hits the bridge.
+  ///
+  /// A local rejection says why and CLEARS the PIN. It used to keep it: the
+  /// sixth digit auto-submits, a blank name refused it silently, and a full
+  /// buffer refuses every further digit — the pad looked frozen.
   Future<void> signInTeller({required String name}) async {
     final trimmed = name.trim();
-    if (trimmed.isEmpty || state.pin.length < _minPin) {
-      _bumpFail();
+    if (trimmed.isEmpty) {
+      state = state.copyWith(
+        pin: '',
+        error: const UiText.key('login.name_required'),
+        failCount: state.failCount + 1,
+      );
+      return;
+    }
+    if (state.pin.length < _minPin) {
+      state = state.copyWith(
+        error: const UiText.key('login.pin_too_short'),
+        failCount: state.failCount + 1,
+      );
       return;
     }
     await _signInPin(trimmed);
@@ -266,45 +293,83 @@ class AuthNotifier extends Notifier<AuthState> {
 
   /// Bind the till to [branch], then sign the manager out so tellers sign in
   /// (natives' `bindBranch`).
+  ///
+  /// A failed bind stays on the branch list with the reason. It used to be
+  /// swallowed and followed by the logout and the reset, so the manager
+  /// landed back on an empty credentials form with the device still unbound
+  /// and no word about why.
   Future<void> bindBranch(BranchView branch) async {
+    if (state.busy) return;
+    state = state.copyWith(busy: true, error: null);
+    UiText? failure;
     try {
       await _bridge.setDeviceBranch(
         branchId: branch.id,
         branchName: branch.name,
       );
-    } on Exception catch (_) {}
+    } on MadarError catch (e) {
+      failure = UiText.error(e);
+    } on Exception catch (_) {
+      failure = const UiText.key('err.generic');
+    }
+    if (failure != null) {
+      state = state.copyWith(busy: false, error: failure);
+      return;
+    }
+    state = state.copyWith(busy: false);
     await _quietLogout();
     _resetSetup();
     _refreshShell();
   }
 
   /// Re-confirm the existing branch to drop the reconfigure flag (natives'
-  /// `cancelReconfigure`).
+  /// `cancelReconfigure`). A failure keeps the form up with the reason —
+  /// resetting anyway would leave the device half-reconfigured.
   Future<void> cancelReconfigure() async {
     final config = _bridge.deviceConfig();
     final branchId = config.branchId;
     if (branchId != null && branchId.isNotEmpty) {
+      UiText? failure;
       try {
         await _bridge.setDeviceBranch(
           branchId: branchId,
           branchName: config.branchName,
         );
-      } on Exception catch (_) {}
+      } on MadarError catch (e) {
+        failure = UiText.error(e);
+      } on Exception catch (_) {
+        failure = const UiText.key('err.generic');
+      }
+      if (failure != null) {
+        state = state.copyWith(error: failure);
+        return;
+      }
     }
     await _quietLogout();
     _resetSetup();
     _refreshShell();
   }
 
-  /// Load the branch's stations (natives' `loadKdsStations` — failures fall
-  /// back to an empty list, surfacing the "no stations" copy). Read-only, so
-  /// no shell refresh.
+  /// Load the branch's stations. A failure is NOT an empty branch: it lands
+  /// in [AuthState.stationsError] so the picker offers a retry instead of
+  /// telling an offline tablet the branch has no stations. Read-only, so no
+  /// shell refresh.
   Future<void> loadStations() async {
-    var stations = const <KdsStationView>[];
+    state = state.copyWith(stationsLoading: true, stationsError: null);
     try {
-      stations = await _bridge.kdsListStations();
-    } on Exception catch (_) {}
-    state = state.copyWith(stations: stations, stationsLoading: false);
+      final stations = await _bridge.kdsListStations();
+      state = state.copyWith(stations: stations, stationsLoading: false);
+    } on MadarError catch (e) {
+      state = state.copyWith(
+        stationsLoading: false,
+        stationsError: UiText.error(e),
+      );
+    } on Exception catch (_) {
+      state = state.copyWith(
+        stationsLoading: false,
+        stationsError: const UiText.key('err.generic'),
+      );
+    }
   }
 
   /// Pin this device to [station] — the route recomputes to the KDS.
