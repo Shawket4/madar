@@ -103,9 +103,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final name = ref.watch(sessionProvider)?.displayName ?? '';
     final canManage = ref.watch(managerCapableProvider);
 
-    return ColoredBox(
-      color: colors.bg,
-      child: SafeArea(
+    return MadarPageScaffold(
+      body: SafeArea(
         bottom: false,
         child: Column(
           children: [

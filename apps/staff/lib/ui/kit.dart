@@ -568,9 +568,8 @@ class StaffPage extends StatelessWidget {
       ],
     );
 
-    return ColoredBox(
-      color: colors.bg,
-      child: SafeArea(
+    return MadarPageScaffold(
+      body: SafeArea(
         bottom: false,
         child: Column(
           children: [

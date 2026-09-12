@@ -53,12 +53,12 @@ class MadarApp extends ConsumerWidget {
         loading: () => const _BootApp(key: ValueKey('splash'), home: _Splash()),
         error: (error, _) => _BootApp(
           key: const ValueKey('boot-failed'),
-          home: Scaffold(
+          home: MadarPageScaffold(
             body: ErrorState(
               message: error is BootFailure ? error.message : '$error',
               retryLabel: error is BootFailure
                   ? error.retryLabel
-                  : 'sync.retry',
+                  : bootRetryFallback(),
               onRetry: () => ref.invalidate(bootProvider),
             ),
           ),
@@ -179,7 +179,7 @@ class _Splash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return MadarPageScaffold(
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,

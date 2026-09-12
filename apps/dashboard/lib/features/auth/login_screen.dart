@@ -52,8 +52,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final c = context.madarColors;
     final t = ref.watch(tProvider);
-    return Scaffold(
-      backgroundColor: c.bg,
+    return MadarPageScaffold(
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(Space.xl),

@@ -41,12 +41,12 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final managing = ref.watch(managerModeProvider);
     final tabs = managing ? _managerTabs : _employeeTabs;
 
-    return Scaffold(
-      backgroundColor: colors.bg,
+    // A shell, not a page: each tab's StaffPage pays the top inset itself.
+    return MadarPageScaffold(
+      safeTop: false,
       body: Column(
         children: [
           Expanded(child: child),

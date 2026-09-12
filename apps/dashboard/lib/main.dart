@@ -1,4 +1,6 @@
 import 'package:design_system/design_system.dart';
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,9 +70,17 @@ class _BootErrorApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: MadarTheme.light(),
       darkTheme: MadarTheme.dark(),
-      home: Scaffold(
-        body: ErrorState(message: message, retryLabel: 'Retry', onRetry: () {}),
+      home: MadarPageScaffold(
+        body: ErrorState(
+          message: message,
+          retryLabel: _arabic ? 'إعادة المحاولة' : 'Retry',
+          onRetry: () {},
+        ),
       ),
     );
   }
 }
+
+/// "Retry" / the boot message frame before the core's strings exist —
+/// bilingual on the device locale, never a raw key.
+bool get _arabic => PlatformDispatcher.instance.locale.languageCode == 'ar';

@@ -12,6 +12,7 @@ import 'package:design_system/src/controls.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/icons.dart';
 import 'package:design_system/src/money.dart';
+import 'package:design_system/src/page.dart';
 import 'package:design_system/src/sheet.dart';
 import 'package:design_system/src/skeleton.dart';
 import 'package:design_system/src/states.dart';
@@ -104,7 +105,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return Scaffold(
+    return MadarPageScaffold(
       body: Directionality(
         textDirection: _rtl ? TextDirection.rtl : TextDirection.ltr,
         child: Stack(

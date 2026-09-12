@@ -16,6 +16,10 @@ import 'dart:ui' as ui;
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_history/feature_history.dart';
+import 'package:feature_order/feature_order.dart';
+import 'package:feature_settings/feature_settings.dart';
+import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show FontLoader;
@@ -476,6 +480,16 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #clockSkewMinutes) return clockSkew;
     if (name == #humanMessage) return 'Something went wrong';
+    if (name == #loyaltySettings) {
+      return Future.value(
+        const LoyaltyProgrammeView(
+          enabled: false,
+          mode: 'points',
+          programName: '',
+          balanceLabel: '',
+        ),
+      );
+    }
     // ── session, route, device ─────────────────────────────────────────────
     if (name == #appRoute) {
       if (_waiter) return const AppRoute.waiterTickets();
@@ -783,6 +797,41 @@ void _expectNoRawKeys(WidgetTester tester, String name) {
   expect(raw, isEmpty, reason: '$name shows raw i18n keys');
 }
 
+// ── Safe area ──────────────────────────────────────────────────────────────
+
+/// A notched phone's status bar: the band no content may sit in.
+const double _statusBar = 47;
+
+void _notch(WidgetTester tester) {
+  tester.view.padding = const FakeViewPadding(top: _statusBar);
+  tester.view.viewPadding = const FakeViewPadding(top: _statusBar);
+  addTearDown(() {
+    tester.view.resetPadding();
+    tester.view.resetViewPadding();
+  });
+}
+
+/// The top route is framed by the page shell, and nothing a person reads or
+/// taps starts inside the status bar.
+void _expectShellClearOfInset(WidgetTester tester, String name) {
+  expect(tester.takeException(), isNull, reason: '$name laid out cleanly');
+  expect(
+    find.byType(MadarPageScaffold),
+    findsWidgets,
+    reason: '$name is framed by MadarPageScaffold',
+  );
+  final intruders = <String>[];
+  for (final e in find.byType(Text).evaluate()) {
+    final box = e.renderObject;
+    if (box is! RenderBox || !box.hasSize || !box.attached) continue;
+    final top = box.localToGlobal(Offset.zero).dy;
+    if (box.size.height > 0 && top < _statusBar - 0.5) {
+      intruders.add('"${(e.widget as Text).data}" @ ${top.toStringAsFixed(1)}');
+    }
+  }
+  expect(intruders, isEmpty, reason: '$name puts text under the status bar');
+}
+
 void main() {
   setUpAll(() async {
     _loadWords();
@@ -936,5 +985,74 @@ void main() {
     await _shot(tester, 'shell-teller-sell-ipad-ar');
     await _tab(tester, 'till');
     await _shot(tester, 'shell-teller-till-ipad-ar');
+  });
+
+  group('every page pays the status-bar inset through the page shell', () {
+    testWidgets('teller tabs on a notched phone', (tester) async {
+      _notch(tester);
+      await _mount(tester, bridge: _FakeBridge(), size: _phone);
+      _expectShellClearOfInset(tester, 'sell tab');
+      for (final tab in ['floor', 'queue', 'till']) {
+        await _tab(tester, tab);
+        _expectShellClearOfInset(tester, '$tab tab');
+      }
+    });
+
+    testWidgets('waiter tabs on a notched phone', (tester) async {
+      _notch(tester);
+      await _mount(
+        tester,
+        bridge: _FakeBridge(role: 'waiter'),
+        size: _phone,
+      );
+      _expectShellClearOfInset(tester, 'waiter home');
+      for (final tab in ['bills', 'me']) {
+        await _tab(tester, tab);
+        _expectShellClearOfInset(tester, '$tab tab');
+      }
+    });
+
+    testWidgets('a teller with no shift: the open-shift page', (tester) async {
+      _notch(tester);
+      await _mount(tester, bridge: _FakeBridge(shiftOpen: false), size: _phone);
+      _expectShellClearOfInset(tester, 'open shift');
+    });
+
+    // Every page pushed over the shell, the way the app pushes it. A table's
+    // Sell (and the legacy order screen) is a waiter's errand: pushed over a
+    // shell that has no Sell tab of its own.
+    final pushed = <String, (bool, Widget Function())>{
+      'sell for a table': (true, () => const SellScreen.forTable()),
+      'order': (true, OrderScreen.new),
+      'bill': (
+        false,
+        () => const BillScreen(ticketId: 'tk-1', canCharge: true),
+      ),
+      'open tickets': (false, OpenTicketsScreen.new),
+      'tables': (false, TablesScreen.new),
+      'drafts': (false, DraftsScreen.new),
+      'sync': (false, SyncScreen.new),
+      'settings': (false, SettingsScreen.new),
+      'order history': (false, OrderHistoryScreen.new),
+      'sale': (false, SaleScreen.new),
+      'close shift': (false, CloseShiftScreen.new),
+      'shift history': (false, ShiftHistoryScreen.new),
+      'cash movements': (false, CashMovementsScreen.new),
+    };
+    for (final MapEntry(key: name, value: (waiter, page)) in pushed.entries) {
+      testWidgets('pushed: $name', (tester) async {
+        _notch(tester);
+        await _mount(
+          tester,
+          bridge: _FakeBridge(role: waiter ? 'waiter' : 'teller'),
+          size: _phone,
+        );
+        tester
+            .state<NavigatorState>(find.byType(Navigator).first)
+            .push(MaterialPageRoute<void>(builder: (_) => page()));
+        await _settle(tester);
+        _expectShellClearOfInset(tester, name);
+      });
+    }
   });
 }

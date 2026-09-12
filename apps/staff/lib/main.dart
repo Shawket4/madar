@@ -64,7 +64,7 @@ class _BootErrorApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: MadarTheme.light(),
-      home: Scaffold(body: Center(child: Text(message))),
+      home: MadarPageScaffold(body: Center(child: Text(message))),
     );
   }
 }

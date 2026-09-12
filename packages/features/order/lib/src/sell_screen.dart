@@ -386,9 +386,10 @@ class _SellScreenState extends ConsumerState<SellScreen>
       ],
     );
 
-    // A tab body — the shell's top bar above it already paid the top inset.
+    // As a tab body the shell's top bar above it already paid the top inset;
+    // pushed for a table it is the topmost thing and pays the inset itself.
     return MadarPageScaffold(
-      safeTop: false,
+      safeTop: widget.forTable,
       body: SafeArea(
         top: false,
         child: Column(

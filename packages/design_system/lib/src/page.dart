@@ -37,6 +37,7 @@ class MadarPageScaffold extends StatelessWidget {
     this.overlay,
     this.safeTop = true,
     this.gutter = true,
+    this.drawer,
     super.key,
   });
 
@@ -69,6 +70,10 @@ class MadarPageScaffold extends StatelessWidget {
   /// Applies the layout gutter either side of the header. Off for a page
   /// whose header has to reach the edges.
   final bool gutter;
+
+  /// A navigation drawer for a shell page on a narrow layout. The page
+  /// shell owns the only Scaffold, so the drawer is handed to it here.
+  final Widget? drawer;
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +115,7 @@ class MadarPageScaffold extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colors.bg,
+      drawer: drawer,
       body: overlay == null
           ? content
           : Stack(

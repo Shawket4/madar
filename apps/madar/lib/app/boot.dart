@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:app_core/app_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +36,21 @@ class BootFailure implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// "Retry" before the core can translate anything — the boot failed, so
+/// the core's tables may be unreachable. Bilingual on the device locale,
+/// never a raw `sync.retry` key on screen.
+String bootRetryFallback([String? languageCode]) {
+  final code = languageCode ?? PlatformDispatcher.instance.locale.languageCode;
+  return code == 'ar' ? 'إعادة المحاولة' : 'Retry';
+}
+
+/// The core's word for [key], or [fallback] when the core has none (a
+/// missing key comes back as the key itself).
+String _trOr(MadarBridge? bridge, String key, String fallback) {
+  final word = bridge?.tr(key: key);
+  return word == null || word.isEmpty || word == key ? fallback : word;
 }
 
 /// Boot: open the store, start the core, attach the vault command stream,
@@ -84,7 +100,7 @@ class BootNotifier extends AsyncNotifier<BootData> {
         message: e is MadarError && bridge != null
             ? bridge.humanMessage(e)
             : '$e',
-        retryLabel: bridge?.tr(key: 'sync.retry') ?? 'sync.retry',
+        retryLabel: _trOr(bridge, 'sync.retry', bootRetryFallback()),
       );
     }
   }

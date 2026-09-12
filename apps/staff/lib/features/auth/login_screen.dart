@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge_staff/rust_bridge_staff.dart';
@@ -51,7 +52,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final t = ref.watch(tProvider);
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return MadarPageScaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

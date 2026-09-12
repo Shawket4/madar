@@ -24,8 +24,7 @@ class AppShell extends ConsumerWidget {
     return ResponsiveBuilder(
       builder: (context, info) {
         if (info.isWide) {
-          return Scaffold(
-            backgroundColor: c.bg,
+          return MadarPageScaffold(
             body: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -45,8 +44,7 @@ class AppShell extends ConsumerWidget {
             ),
           );
         }
-        return Scaffold(
-          backgroundColor: c.bg,
+        return MadarPageScaffold(
           drawer: Drawer(
             backgroundColor: c.surface,
             child: _Sidebar(location: location),
