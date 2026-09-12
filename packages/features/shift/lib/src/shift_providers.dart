@@ -792,10 +792,8 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
   }
 
   /// Pay-in / pay-out direction toggle.
-  void setDirection({required bool isIn}) => state = state.copyWith(
-    isIn: isIn,
-    kind: isIn ? 'pay_in' : 'pay_out',
-  );
+  void setDirection({required bool isIn}) =>
+      state = state.copyWith(isIn: isIn, kind: isIn ? 'pay_in' : 'pay_out');
 
   /// Pick what the movement IS. A safe drop and a correction both take money
   /// out; `corrects` is cleared when the kind is no longer a correction, so a

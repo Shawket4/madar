@@ -112,7 +112,10 @@ const Map<String, HistoryString> historyFallbackStrings = {
   'history.refund_reason_customer': (en: 'Customer asked', ar: 'طلب العميل'),
   'history.refund_reason_wrong': (en: 'Wrong order', ar: 'طلب خاطئ'),
   'history.refund_reason_quality': (en: 'Quality', ar: 'الجودة'),
-  'history.refund_reason_overcharged': (en: 'Overcharged', ar: 'زيادة في الحساب'),
+  'history.refund_reason_overcharged': (
+    en: 'Overcharged',
+    ar: 'زيادة في الحساب',
+  ),
   'history.refund_reason_other': (en: 'Something else', ar: 'سبب آخر'),
   'history.void_cannot_queued': (
     en: 'A queued sale cannot be voided until it reaches the server.',

@@ -234,9 +234,7 @@ class HistoryState {
           ? this.selectedId
           : selectedId as String?,
       detail: detail == _unset ? this.detail : detail as OrderDetailView?,
-      refunds: refunds == _unset
-          ? this.refunds
-          : refunds as OrderRefundsView?,
+      refunds: refunds == _unset ? this.refunds : refunds as OrderRefundsView?,
       receipt: receipt == _unset ? this.receipt : receipt as ReceiptView?,
       detailLoading: detailLoading ?? this.detailLoading,
       toast: toast == _unset ? this.toast : toast as ToastData?,

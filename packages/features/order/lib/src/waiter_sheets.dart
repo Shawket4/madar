@@ -327,10 +327,8 @@ class _WaiterVoidSheetState extends ConsumerState<WaiterVoidSheet> {
               ),
             ],
           ),
-          if ([
-            ?ticketRef?.ifNotEmpty,
-            ?widget.lineLabel,
-          ].join(' · ') case final sub when sub.isNotEmpty) ...[
+          if ([?ticketRef?.ifNotEmpty, ?widget.lineLabel].join(' · ')
+              case final sub when sub.isNotEmpty) ...[
             const SizedBox(height: Space.xs),
             Text(
               sub,

@@ -466,7 +466,6 @@ class _Hero extends StatelessWidget {
   final String Function(String) tr;
   final MadarBridge bridge;
 
-
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;

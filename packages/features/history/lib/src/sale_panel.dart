@@ -790,9 +790,7 @@ class _MoreSheet extends ConsumerWidget {
                           Navigator.of(context).maybePop(_MoreChoice.refundSale)
                     : null,
                 chevron: refundBlocked == null,
-                titleStyle: MadarType.title.copyWith(
-                  color: colors.textPrimary,
-                ),
+                titleStyle: MadarType.title.copyWith(color: colors.textPrimary),
               ),
             ),
           ),

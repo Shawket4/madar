@@ -646,25 +646,26 @@ void main() {
     expect(find.text('Nothing waiting.'), findsOneWidget);
   });
 
-  testWidgets('routing to a kitchen screen offers the till no Kitchen segment', (
-    tester,
-  ) async {
-    await _shoot(
-      tester,
-      size: _ipad,
-      theme: MadarTheme.light(),
-      name: 'bills-ipad-kds-mode',
-      bridge: _FakeBridge(
-        orders: _orders,
-        tickets: _tickets,
-        routingMode: 'kds',
-      ),
-      segment: QueueSegment.bills,
-    );
-    // Bumping from here would clear a line off a screen a cook is working
-    // from. The segment is not offered at all.
-    expect(find.text('Kitchen'), findsNothing);
-  });
+  testWidgets(
+    'routing to a kitchen screen offers the till no Kitchen segment',
+    (tester) async {
+      await _shoot(
+        tester,
+        size: _ipad,
+        theme: MadarTheme.light(),
+        name: 'bills-ipad-kds-mode',
+        bridge: _FakeBridge(
+          orders: _orders,
+          tickets: _tickets,
+          routingMode: 'kds',
+        ),
+        segment: QueueSegment.bills,
+      );
+      // Bumping from here would clear a line off a screen a cook is working
+      // from. The segment is not offered at all.
+      expect(find.text('Kitchen'), findsNothing);
+    },
+  );
 
   testWidgets('a device that has never synced does not guess a mode', (
     tester,

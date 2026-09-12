@@ -88,9 +88,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     );
     // Null while the first read is in flight, and null forever on a device
     // that has never reached the server — both hide the segment.
-    final showKitchen = tillShowsKitchen(
-      ref.watch(kitchenRoutingModeProvider),
-    );
+    final showKitchen = tillShowsKitchen(ref.watch(kitchenRoutingModeProvider));
     // The mode can change under a teller who is standing on the segment.
     // Fall back rather than leave the control pointing at an item it no
     // longer has.
@@ -225,9 +223,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                     // one provider family, so the counter and the kitchen
                     // cannot disagree about a line. Falls back to Bills if the
                     // mode changed out from under a selected segment.
-                    QueueSegment.kitchen => const KdsBoardBody(
-                      stationId: null,
-                    ),
+                    QueueSegment.kitchen => const KdsBoardBody(stationId: null),
                   },
                 ),
               ],

@@ -590,13 +590,13 @@ substitutes above are what ships in the morning.
    `listShiftRefunds`, and the Z-report's own returns lines on screen AND on paper
    (`refundsIssuedMinor` / `refundsIssuedCashMinor` / `cashInRefundedSalesMinor`).
    `compute_system_cash` subtracts cash refunds server-side.
-2. **Line void** — server work first (no route). Not a core ask yet.
+2. ~~**Line void**~~ — DONE; see the entry below.
 3. ~~**Kitchen routing mode**~~ — DONE. `kitchen_routing_mode()` reads `get_routing_mode →
    effective` write-through cached in kv and refreshed on every `sync_now`;
    `set_kitchen_routing_mode(mode)` writes it (online-only — a manager changing how the shop runs
    must fail loudly, not queue). `off` needed no suppression: readiness is drawn from ticket
    status, and in `off` no kitchen ticket is ever raised, so no ticket ever reads ready.
-4. **`order_type: takeaway`** — server rule + request field, then `checkout` passes it. Server work.
+4. ~~**`order_type: takeaway`**~~ — DONE; see the entry below.
 5. ~~**Splits on `settleTicket`**~~ — DONE. `settleTicket(splits:)` resolves each leg's method id
    to the raw name, dropping a leg whose method no longer exists rather than 400-ing the settle.
    `canSplit` is `!isOnline && methods >= 2`.
@@ -623,8 +623,8 @@ Still open, both SERVER work before the core can be asked for anything:
   labelling queued counter sales `dine_in`, and Orders has Dine-in and Takeaway as separate
   chips rather than one that meant "not delivery".
    **Recommend doing this first** — it is the most visible dishonesty in the shipping app too.
-10. **Loyalty programme flag** — expose `loyalty_settings.enabled` + `mode` (+ `program_name`) if
-    the till's role may read `get_loyalty_settings`; else add it to the login/`me` payload.
+10. ~~**Loyalty programme flag**~~ — DONE. A teller holds `loyalty:read`, so the till reads
+    `get_loyalty_settings` at the branch scope directly; no login-payload change was needed.
 11. **Open-ticket edit** — guest name / covers / notes after the first fire. Server work.
 12. **Search by number / phone / amount** — `list_orders` params. Server work.
 13. **Delivery settings: `pickup` / `umbrella`** in `DeliverySettingsView` + `deliverySetAccepting`

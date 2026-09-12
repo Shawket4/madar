@@ -480,7 +480,10 @@ class _BillTotals extends StatelessWidget {
                 negative: true,
               ),
             if (b.serviceChargeMinor > 0)
-              line(bridge.tr(key: 'order.service_charge'), b.serviceChargeMinor),
+              line(
+                bridge.tr(key: 'order.service_charge'),
+                b.serviceChargeMinor,
+              ),
             // Inclusive tax is already inside the total, so it reads as a
             // note under it rather than a term added to it.
             if (b.taxMinor > 0 && !b.taxInclusive)
