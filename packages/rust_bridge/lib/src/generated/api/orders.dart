@@ -343,6 +343,10 @@ class OrderSummaryView {
   /// Optional customer name shown as a muted chip in the history row.
   final String? customerName;
 
+  /// Rung against a catalogue that has since moved — only possible for a
+  /// sale made OFFLINE, since a live sale is priced by the server.
+  final bool priceFlagged;
+
   /// Optional human order ref (server-assigned) shown under the order number.
   final String? orderRef;
 
@@ -359,6 +363,7 @@ class OrderSummaryView {
     this.tellerName,
     required this.orderType,
     this.customerName,
+    required this.priceFlagged,
     this.orderRef,
   });
 
@@ -376,6 +381,7 @@ class OrderSummaryView {
       tellerName.hashCode ^
       orderType.hashCode ^
       customerName.hashCode ^
+      priceFlagged.hashCode ^
       orderRef.hashCode;
 
   @override
@@ -395,6 +401,7 @@ class OrderSummaryView {
           tellerName == other.tellerName &&
           orderType == other.orderType &&
           customerName == other.customerName &&
+          priceFlagged == other.priceFlagged &&
           orderRef == other.orderRef;
 }
 

@@ -12,6 +12,7 @@ Method | HTTP request | Description
 [**list_orgs**](OrgsApi.md#list_orgs) | **GET** /orgs | 
 [**offline_auth_bundle**](OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
 [**public_org_brand**](OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
+[**public_org_favicon**](OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 [**update_org**](OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
 [**upload_org_card_image**](OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 [**upload_org_logo**](OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
@@ -248,6 +249,38 @@ No authorization required
 
 - **Content-Type**: Not defined
 - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## public_org_favicon
+
+> public_org_favicon(org_id, slug, size)
+The shop's own logo, as a favicon.
+
+Square, opaque, and on the shop's own ground — the same treatment the wallet badge gets, and for the same reason: a browser tab and an iOS home screen both draw this against a background they choose, so a mark on transparency is a coin flip and a wide wordmark cropped to a square loses the shop's name. [`crate::orgs::branding::on_ground`] fits the artwork whole and centres it, which is why a wordmark reads as a band rather than as two letters.  The inset is wider than the wallet's. Nothing masks a favicon to a circle, so there is no reason to leave the corners empty.  A shop with no logo gets a 404, and the page falls back to whatever icon it shipped with — Madar's. That is the honest answer: this endpoint serves a shop's logo, and there isn't one.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | Option<**uuid::Uuid**> |  |  |
+**slug** | Option<**String**> |  |  |
+**size** | Option<**u32**> | Rounded up to 32, 180 or 512. Defaults to 180 — big enough for a home screen, and a browser downsamples for the tab perfectly well. |  |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: image/png, application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

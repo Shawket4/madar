@@ -64,6 +64,7 @@ class SalePanel extends ConsumerWidget {
     final o = order;
     final state = SaleState.of(o);
     final phone = context.isPhone;
+    String t(String key) => historyTr(bridge, key);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -87,6 +88,23 @@ class SalePanel extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           state.hint(bridge),
+                          style: MadarType.bodySm.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                // Always on the sale, even beside a state, because this is the
+                // screen somebody opens to find out what happened to it.
+                if (o.priceFlagged)
+                  Row(
+                    spacing: Space.md,
+                    children: [
+                      PriceFlagTag(bridge: bridge),
+                      Expanded(
+                        child: Text(
+                          t('history.price_flagged_hint'),
                           style: MadarType.bodySm.copyWith(
                             color: colors.textSecondary,
                           ),

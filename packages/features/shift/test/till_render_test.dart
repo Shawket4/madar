@@ -221,6 +221,7 @@ List<OrderSummaryView> _orders({required int queued}) => [
       createdAt: _openedAt,
       queued: i < queued,
       tellerName: 'Sara',
+      priceFlagged: false,
       orderType: 'dine_in',
     ),
 ];

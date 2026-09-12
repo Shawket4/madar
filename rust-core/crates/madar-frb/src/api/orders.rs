@@ -217,6 +217,9 @@ pub struct _OrderSummaryView {
     pub order_type: String,
     /// Optional customer name shown as a muted chip in the history row.
     pub customer_name: Option<String>,
+    /// Rung against a catalogue that has since moved — only possible for a
+    /// sale made OFFLINE, since a live sale is priced by the server.
+    pub price_flagged: bool,
     /// Optional human order ref (server-assigned) shown under the order number.
     pub order_ref: Option<String>,
 }

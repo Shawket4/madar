@@ -118,6 +118,17 @@ pub struct Order {
     /// The order's NOMINAL payment label. For a split order this is the literal `'mixed'` — a label that exists in no money report, because reports bucket by what was actually tendered. Use [`Order::payment_legs`] for the real methods; treat this as a display badge only.
     #[serde(rename = "payment_method")]
     pub payment_method: String,
+    /// What the catalogue says this sale should have come to, when it differs. Beside `subtotal` it is the size of the drift, which is the question anyone looking at a flagged sale asks next.
+    #[serde(
+        rename = "price_expected_total",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub price_expected_total: Option<Option<i32>>,
+    /// This sale was rung against a catalogue that has since moved: a line was charged at a price the menu no longer says, or the item was disabled at this branch. Both mean a till that was OFFLINE when something changed — a live sale is priced by the server and cannot deviate.  Recorded, never rejected: the money already changed hands. It is here so the POS and the dashboard can SHOW it, which is the whole point of flagging something.
+    #[serde(rename = "price_flagged", skip_serializing_if = "Option::is_none")]
+    pub price_flagged: Option<bool>,
     /// The service charge on this bill; `0` where the branch charges none. Its own field, and its own receipt line: a charge the customer did not choose is stated separately from the tax rather than folded into it.
     #[serde(
         rename = "service_charge_amount",
@@ -239,6 +250,8 @@ impl Order {
             order_type,
             payment_legs,
             payment_method,
+            price_expected_total: None,
+            price_flagged: None,
             service_charge_amount: None,
             shift_id,
             status,

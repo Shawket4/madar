@@ -582,6 +582,11 @@ class _SaleRow extends StatelessWidget {
     );
     final tag = state != null
         ? SaleStateTag(state: state, bridge: bridge)
+        : o.priceFlagged
+        // Only when there is no state to show: a voided or still-queued sale
+        // has something more urgent to say, and two tags on one row is a row
+        // nobody reads. The sale itself always shows it — see `_Flags`.
+        ? PriceFlagTag(bridge: bridge)
         : null;
 
     final Widget content;

@@ -81,6 +81,15 @@ pub struct PublicOrgBrandParams {
     pub slug: Option<String>,
 }
 
+/// struct for passing parameters to the method [`public_org_favicon`]
+#[derive(Clone, Debug)]
+pub struct PublicOrgFaviconParams {
+    pub org_id: Option<String>,
+    pub slug: Option<String>,
+    /// Rounded up to 32, 180 or 512. Defaults to 180 — big enough for a home screen, and a browser downsamples for the tab perfectly well.
+    pub size: Option<u32>,
+}
+
 /// struct for passing parameters to the method [`update_org`]
 #[derive(Clone, Debug)]
 pub struct UpdateOrgParams {
@@ -202,6 +211,19 @@ pub enum OfflineAuthBundleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PublicOrgBrandError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`public_org_favicon`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PublicOrgFaviconError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -643,6 +665,45 @@ pub async fn public_org_brand(
     } else {
         let content = resp.text().await?;
         let entity: Option<PublicOrgBrandError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Square, opaque, and on the shop's own ground — the same treatment the wallet badge gets, and for the same reason: a browser tab and an iOS home screen both draw this against a background they choose, so a mark on transparency is a coin flip and a wide wordmark cropped to a square loses the shop's name. [`crate::orgs::branding::on_ground`] fits the artwork whole and centres it, which is why a wordmark reads as a band rather than as two letters.  The inset is wider than the wallet's. Nothing masks a favicon to a circle, so there is no reason to leave the corners empty.  A shop with no logo gets a 404, and the page falls back to whatever icon it shipped with — Madar's. That is the honest answer: this endpoint serves a shop's logo, and there isn't one.
+pub async fn public_org_favicon(
+    configuration: &configuration::Configuration,
+    params: PublicOrgFaviconParams,
+) -> Result<(), Error<PublicOrgFaviconError>> {
+    let uri_str = format!("{}/public/orgs/favicon", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.org_id {
+        req_builder = req_builder.query(&[("org_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.slug {
+        req_builder = req_builder.query(&[("slug", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.size {
+        req_builder = req_builder.query(&[("size", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PublicOrgFaviconError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

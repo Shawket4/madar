@@ -118,6 +118,7 @@ OrderSummaryView _order(
   String payment = 'Cash',
   String status = 'completed',
   bool queued = false,
+  bool flagged = false,
   String type = 'dine_in',
   String? customer,
   String? ref,
@@ -132,6 +133,7 @@ OrderSummaryView _order(
   createdAt: at,
   queued: queued,
   tellerName: queued ? null : 'Sara',
+  priceFlagged: flagged,
   orderType: type,
   customerName: customer,
   orderRef: ref,
@@ -148,12 +150,14 @@ final _shiftOrders = <OrderSummaryView>[
     type: 'takeaway',
   ),
   _order(1042, at: '2026-09-12T19:31:00Z', customer: 'Omar'),
+  // Rung while this till was offline, against a menu that has since moved.
   _order(
     1041,
     at: '2026-09-12T19:28:00Z',
     total: 4500,
     payment: 'Card',
     type: 'takeaway',
+    flagged: true,
   ),
   _order(
     1040,
@@ -537,6 +541,9 @@ void main() {
     expect(find.text('Add points'), findsOneWidget);
     // What has already gone back on this sale, before anything is offered
     // about giving back more.
+    // A sale rung offline against an older menu says so — on the row, and on
+    // the sale with the sentence explaining what it means.
+    expect(find.text('OFFLINE PRICE'), findsWidgets);
     expect(find.text('Refunded'), findsOneWidget);
     expect(find.text('− EGP 50.00'), findsOneWidget);
     expect(find.text('Sara · Cash'), findsOneWidget);

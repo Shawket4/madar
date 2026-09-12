@@ -76,6 +76,11 @@ const Map<String, HistoryString> historyFallbackStrings = {
     ar: 'غير متصل — تُعرض النتائج المحمّلة سابقاً.',
   ),
   'history.retry': (en: 'Try again', ar: 'أعد المحاولة'),
+  'history.price_flagged': (en: 'Offline price', ar: 'سعر غير محدّث'),
+  'history.price_flagged_hint': (
+    en: 'Rung offline against an older menu — the price differs from the menu today.',
+    ar: 'سُجّلت دون اتصال بأسعار قائمة أقدم — السعر يختلف عن القائمة الحالية.',
+  ),
   // A refund is not a void, and the screen says so.
   'history.void_sale': (en: 'Void sale', ar: 'إبطال البيع'),
   'history.void_teach': (

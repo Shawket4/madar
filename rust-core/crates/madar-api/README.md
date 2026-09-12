@@ -239,6 +239,9 @@ Class | Method | HTTP request | Description
 *OpenTicketsApi* | [**get_open_ticket**](docs/OpenTicketsApi.md#get_open_ticket) | **GET** /open-tickets/{id} | 
 *OpenTicketsApi* | [**list_open_tickets**](docs/OpenTicketsApi.md#list_open_tickets) | **GET** /open-tickets | 
 *OpenTicketsApi* | [**move_ticket_table**](docs/OpenTicketsApi.md#move_ticket_table) | **PATCH** /open-tickets/{id}/table | Switch an open ticket to a different table (the \"move table\" button). Works for any live ticket — walk-in dine-in or one auto-opened from a booking. The old table is flagged `dirty` (bus it), the new one `seated`; if the ticket came from a booking, the booking's assignment is kept in sync.
+*OpenTicketsApi* | [**public_table**](docs/OpenTicketsApi.md#public_table) | **GET** /public/tables/{id} | 
+*OpenTicketsApi* | [**public_table_menu**](docs/OpenTicketsApi.md#public_table_menu) | **GET** /public/tables/{id}/menu | The menu at this table.
+*OpenTicketsApi* | [**public_table_order**](docs/OpenTicketsApi.md#public_table_order) | **POST** /public/table-orders | Send this table's order to the kitchen.
 *OpenTicketsApi* | [**settle_open_ticket**](docs/OpenTicketsApi.md#settle_open_ticket) | **POST** /open-tickets/{id}/settle | 
 *OpenTicketsApi* | [**void_open_ticket**](docs/OpenTicketsApi.md#void_open_ticket) | **POST** /open-tickets/{id}/void | 
 *OpenTicketsApi* | [**void_ticket_line**](docs/OpenTicketsApi.md#void_ticket_line) | **POST** /open-tickets/{id}/items/{item_id}/void | 
@@ -256,6 +259,7 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**list_orgs**](docs/OrgsApi.md#list_orgs) | **GET** /orgs | 
 *OrgsApi* | [**offline_auth_bundle**](docs/OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
 *OrgsApi* | [**public_org_brand**](docs/OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
+*OrgsApi* | [**public_org_favicon**](docs/OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 *OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
 *OrgsApi* | [**upload_org_card_image**](docs/OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 *OrgsApi* | [**upload_org_logo**](docs/OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
@@ -769,6 +773,10 @@ Class | Method | HTTP request | Description
  - [PublicSlot](docs/PublicSlot.md)
  - [PublicSlots](docs/PublicSlots.md)
  - [PublicSocialLink](docs/PublicSocialLink.md)
+ - [PublicTable](docs/PublicTable.md)
+ - [PublicTableBill](docs/PublicTableBill.md)
+ - [PublicTableLine](docs/PublicTableLine.md)
+ - [PublicTableRound](docs/PublicTableRound.md)
  - [PurchaseOrder](docs/PurchaseOrder.md)
  - [PurchaseOrderFull](docs/PurchaseOrderFull.md)
  - [PurchaseOrderLine](docs/PurchaseOrderLine.md)
@@ -866,6 +874,7 @@ Class | Method | HTTP request | Description
  - [SyncRecipeLine](docs/SyncRecipeLine.md)
  - [SyncSize](docs/SyncSize.md)
  - [TableBookingHint](docs/TableBookingHint.md)
+ - [TableOrderRequest](docs/TableOrderRequest.md)
  - [TablePosition](docs/TablePosition.md)
  - [TaxPolicyPublic](docs/TaxPolicyPublic.md)
  - [TeamPresence](docs/TeamPresence.md)

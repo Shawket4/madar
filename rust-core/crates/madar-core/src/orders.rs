@@ -116,6 +116,14 @@ pub struct OrderSummaryView {
     pub order_type: String,
     /// Optional customer name shown as a muted chip in the history row.
     pub customer_name: Option<String>,
+    /// This sale was rung against a catalogue that has since moved — a line
+    /// charged at a price the menu no longer says, or an item disabled at this
+    /// branch. It can only happen to a sale made OFFLINE: a live sale is priced
+    /// by the server, and the till has no way to name a price of its own.
+    ///
+    /// Shown, not hidden. The whole point of recording rather than rejecting
+    /// such a sale is that somebody can find it afterwards.
+    pub price_flagged: bool,
     /// Optional human order ref (server-assigned) shown under the order number.
     pub order_ref: Option<String>,
 }
@@ -537,6 +545,7 @@ pub(crate) fn from_server(o: &models::Order) -> OrderSummaryView {
         queued: false,
         teller_name: Some(o.teller_name.clone()).filter(|s| !s.is_empty()),
         order_type: o.order_type.clone(),
+        price_flagged: o.price_flagged.unwrap_or(false),
         customer_name: o.customer_name.clone().flatten().filter(|s| !s.is_empty()),
         order_ref: o.order_ref.clone().flatten().filter(|s| !s.is_empty()),
     }
@@ -582,6 +591,9 @@ pub(crate) fn queued(store: &Store, shift_id: &str) -> CoreResult<Vec<OrderSumma
             // here made every offline sale change its own type the moment it
             // synced, and the type filter disagree with itself in between.
             order_type: "takeaway".into(),
+            // Nothing to flag: it has not reached the server, so nothing has
+            // compared it to the menu. The server decides when it lands.
+            price_flagged: false,
             customer_name: flat(&r.customer_name).filter(|s| !s.is_empty()),
             // order_ref is CLIENT-minted (mint_order_ref, SENT on the request), so
             // it's known the moment the order is queued — NOT something we wait for
@@ -631,6 +643,9 @@ pub(crate) fn queued_all(store: &Store) -> CoreResult<Vec<OrderSummaryView>> {
             // here made every offline sale change its own type the moment it
             // synced, and the type filter disagree with itself in between.
             order_type: "takeaway".into(),
+            // Nothing to flag: it has not reached the server, so nothing has
+            // compared it to the menu. The server decides when it lands.
+            price_flagged: false,
             customer_name: flat(&r.customer_name).filter(|s| !s.is_empty()),
             order_ref: flat(&r.order_ref).filter(|s| !s.is_empty()),
         });
@@ -690,6 +705,7 @@ mod tests {
             queued: status == "queued",
             teller_name: None,
             order_type: "dine_in".into(),
+            price_flagged: false,
             customer_name: None,
             order_ref: None,
         }

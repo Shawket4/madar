@@ -9520,6 +9520,7 @@ const _: fn() = || {
         let _: Option<String> = OrderSummaryView.teller_name;
         let _: String = OrderSummaryView.order_type;
         let _: Option<String> = OrderSummaryView.customer_name;
+        let _: bool = OrderSummaryView.price_flagged;
         let _: Option<String> = OrderSummaryView.order_ref;
     }
     {
@@ -12105,6 +12106,7 @@ impl SseDecode for crate::api::orders::OrderSummaryView {
         let mut var_tellerName = <Option<String>>::sse_decode(deserializer);
         let mut var_orderType = <String>::sse_decode(deserializer);
         let mut var_customerName = <Option<String>>::sse_decode(deserializer);
+        let mut var_priceFlagged = <bool>::sse_decode(deserializer);
         let mut var_orderRef = <Option<String>>::sse_decode(deserializer);
         return crate::api::orders::OrderSummaryView {
             id: var_id,
@@ -12119,6 +12121,7 @@ impl SseDecode for crate::api::orders::OrderSummaryView {
             teller_name: var_tellerName,
             order_type: var_orderType,
             customer_name: var_customerName,
+            price_flagged: var_priceFlagged,
             order_ref: var_orderRef,
         };
     }
@@ -15248,6 +15251,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::OrderSumma
             self.0.teller_name.into_into_dart().into_dart(),
             self.0.order_type.into_into_dart().into_dart(),
             self.0.customer_name.into_into_dart().into_dart(),
+            self.0.price_flagged.into_into_dart().into_dart(),
             self.0.order_ref.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -17622,6 +17626,7 @@ impl SseEncode for crate::api::orders::OrderSummaryView {
         <Option<String>>::sse_encode(self.teller_name, serializer);
         <String>::sse_encode(self.order_type, serializer);
         <Option<String>>::sse_encode(self.customer_name, serializer);
+        <bool>::sse_encode(self.price_flagged, serializer);
         <Option<String>>::sse_encode(self.order_ref, serializer);
     }
 }

@@ -49,6 +49,26 @@ pub struct MoveTicketTableParams {
     pub move_ticket_table_request: models::MoveTicketTableRequest,
 }
 
+/// struct for passing parameters to the method [`public_table`]
+#[derive(Clone, Debug)]
+pub struct PublicTableParams {
+    /// Table ID, from the QR
+    pub id: String,
+}
+
+/// struct for passing parameters to the method [`public_table_menu`]
+#[derive(Clone, Debug)]
+pub struct PublicTableMenuParams {
+    /// Table ID, from the QR
+    pub id: String,
+}
+
+/// struct for passing parameters to the method [`public_table_order`]
+#[derive(Clone, Debug)]
+pub struct PublicTableOrderParams {
+    pub table_order_request: models::TableOrderRequest,
+}
+
 /// struct for passing parameters to the method [`settle_open_ticket`]
 #[derive(Clone, Debug)]
 pub struct SettleOpenTicketParams {
@@ -131,6 +151,45 @@ pub enum ListOpenTicketsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum MoveTicketTableError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`public_table`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PublicTableError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`public_table_menu`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PublicTableMenuError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`public_table_order`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PublicTableOrderError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -411,6 +470,139 @@ pub async fn move_ticket_table(
     } else {
         let content = resp.text().await?;
         let entity: Option<MoveTicketTableError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn public_table(
+    configuration: &configuration::Configuration,
+    params: PublicTableParams,
+) -> Result<models::PublicTable, Error<PublicTableError>> {
+    let uri_str = format!(
+        "{}/public/tables/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PublicTable`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PublicTable`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PublicTableError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// The DINE-IN menu — branch prices, the whole catalogue, no channel discount — because a table's order settles as a dine-in bill. Quoting a customer the in-mall delivery menu and then charging them the till's prices is the same class of mistake as letting the till price its own sales, and it would be invisible until someone compared a receipt to a phone.
+pub async fn public_table_menu(
+    configuration: &configuration::Configuration,
+    params: PublicTableMenuParams,
+) -> Result<models::DeliveryMenu, Error<PublicTableMenuError>> {
+    let uri_str = format!(
+        "{}/public/tables/{id}/menu",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::DeliveryMenu`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::DeliveryMenu`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PublicTableMenuError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Opens the bill if the table has none, adds a round if it does. Both answer with the bill as it now stands, so the page can show what the table has ordered so far — including the rounds somebody else at the table sent.
+pub async fn public_table_order(
+    configuration: &configuration::Configuration,
+    params: PublicTableOrderParams,
+) -> Result<models::OpenTicketView, Error<PublicTableOrderError>> {
+    let uri_str = format!("{}/public/table-orders", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.json(&params.table_order_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::OpenTicketView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::OpenTicketView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PublicTableOrderError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

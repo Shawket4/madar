@@ -348,6 +348,10 @@ docs/PublicReward.md
 docs/PublicSlot.md
 docs/PublicSlots.md
 docs/PublicSocialLink.md
+docs/PublicTable.md
+docs/PublicTableBill.md
+docs/PublicTableLine.md
+docs/PublicTableRound.md
 docs/PurchaseOrder.md
 docs/PurchaseOrderFull.md
 docs/PurchaseOrderLine.md
@@ -455,6 +459,7 @@ docs/SyncOption.md
 docs/SyncRecipeLine.md
 docs/SyncSize.md
 docs/TableBookingHint.md
+docs/TableOrderRequest.md
 docs/TablePosition.md
 docs/TaxPolicyPublic.md
 docs/TeamPresence.md
@@ -892,6 +897,10 @@ src/models/public_reward.rs
 src/models/public_slot.rs
 src/models/public_slots.rs
 src/models/public_social_link.rs
+src/models/public_table.rs
+src/models/public_table_bill.rs
+src/models/public_table_line.rs
+src/models/public_table_round.rs
 src/models/purchase_order.rs
 src/models/purchase_order_full.rs
 src/models/purchase_order_line.rs
@@ -989,6 +998,7 @@ src/models/sync_option.rs
 src/models/sync_recipe_line.rs
 src/models/sync_size.rs
 src/models/table_booking_hint.rs
+src/models/table_order_request.rs
 src/models/table_position.rs
 src/models/tax_policy_public.rs
 src/models/team_presence.rs

@@ -720,6 +720,10 @@ fn en(key: &str) -> Option<&'static str> {
         "history.offline_search" => "Searching past shifts needs a connection.",
         "history.offline_cached" => "Offline — showing what was loaded.",
         "history.retry" => "Try again",
+        "history.price_flagged" => "Offline price",
+        "history.price_flagged_hint" => {
+            "Rung offline against an older menu — the price differs from the menu today."
+        }
         "history.void_sale" => "Void sale",
         "history.void_teach" => "Void removes a mistaken sale as if it never happened.",
         "history.refund_teach" => "Refund returns money on a sale that stands.",
@@ -1467,6 +1471,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "history.offline_search" => "البحث في الورديات السابقة يحتاج اتصالاً بالخادم.",
         "history.offline_cached" => "غير متصل — تُعرض النتائج المحمّلة سابقاً.",
         "history.retry" => "أعد المحاولة",
+        "history.price_flagged" => "سعر غير محدّث",
+        "history.price_flagged_hint" => {
+            "سُجّلت دون اتصال بأسعار قائمة أقدم — السعر يختلف عن القائمة الحالية."
+        }
         "history.void_sale" => "إبطال البيع",
         "history.void_teach" => "الإبطال يزيل عملية بيع خاطئة كأنها لم تحدث.",
         "history.refund_teach" => "الاسترداد يرجع المال مع بقاء عملية البيع.",
