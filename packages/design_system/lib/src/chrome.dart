@@ -434,7 +434,7 @@ class _Mark extends StatelessWidget {
       height: Metrics.railMark,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: colors.accent,
+        color: colors.brand,
         borderRadius: BorderRadius.circular(Radii.control),
       ),
       // Reversed on the accent square, which is dark in both themes — the
@@ -443,7 +443,7 @@ class _Mark extends StatelessWidget {
       child: AnimatedBrandMark(
         symbolSize: _railMarkArtwork,
         wordmark: false,
-        ink: colors.textOnAccent,
+        ink: colors.onBrand,
       ),
     );
     if (onTap == null) return ExcludeSemantics(child: mark);
@@ -654,7 +654,7 @@ class MadarOutboxPill extends StatelessWidget {
       OutboxState.queued => (
         colors.chromeRaised,
         Colors.white,
-        colors.accent,
+        colors.brand,
         MadarGlyph.half,
       ),
       OutboxState.offline => (

@@ -39,6 +39,8 @@ class MadarColors extends ThemeExtension<MadarColors> {
     required this.chromeRaised,
     required this.onChrome,
     required this.onChromeMuted,
+    required this.brand,
+    required this.onBrand,
   });
 
   // ── Work surface ──────────────────────────────────────────────────────
@@ -66,19 +68,21 @@ class MadarColors extends ThemeExtension<MadarColors> {
   final Color textSecondary;
   final Color textMuted;
 
-  /// Text on a teal fill. Near-black in dark mode, where the teal is light
-  /// enough that white would not read.
+  /// Text on an accent fill. White on the ink accent in light mode; rail ink
+  /// in dark mode, where the accent is a pale slate so it reads on the dark
+  /// work surface.
   final Color textOnAccent;
 
   // ── Roles ────────────────────────────────────────────────────────────
 
-  /// Teal — the one primary. One per screen.
+  /// The one primary: the rail's ink (light) / pale slate (dark). One per
+  /// screen.
   final Color accent;
 
-  /// Teal, pressed.
+  /// The primary, pressed.
   final Color accentDeep;
 
-  /// Teal wash: the focus ring, a "new" tag, a selected tile's tint.
+  /// Ink wash: the focus ring, a "new" tag, a selected tile's tint.
   final Color accentBg;
 
   /// Legacy alias of [accentDeep]. New work says what it means.
@@ -112,6 +116,15 @@ class MadarColors extends ThemeExtension<MadarColors> {
   /// Quieter text on the chrome: the inactive tab, the till number.
   final Color onChromeMuted;
 
+  // ── Brand ────────────────────────────────────────────────────────────
+
+  /// Madar teal, for brand marks only (the rail's logo square, a sync glyph
+  /// on the chrome). Buttons and selections use [accent], never this.
+  final Color brand;
+
+  /// The mark's ink on a [brand] plate.
+  final Color onBrand;
+
   /// Light: ink on paper.
   static const light = MadarColors(
     bg: Color(0xFFF1F3F3),
@@ -124,11 +137,11 @@ class MadarColors extends ThemeExtension<MadarColors> {
     textSecondary: Color(0xFF4F5F66),
     textMuted: Color(0xFF7A8890),
     textOnAccent: Color(0xFFFFFFFF),
-    accent: Color(0xFF0F7A8A),
-    accentDeep: Color(0xFF0B5E6B),
-    accentBg: Color(0xFFD6EBEE),
-    navy: Color(0xFF0B5E6B),
-    navyBg: Color(0xFFD6EBEE),
+    accent: Color(0xFF0D1A1E),
+    accentDeep: Color(0xFF1E353B),
+    accentBg: Color(0xFFDDE4E6),
+    navy: Color(0xFF1E353B),
+    navyBg: Color(0xFFDDE4E6),
     success: Color(0xFF178A4C),
     successBg: Color(0xFFDCF2E4),
     danger: Color(0xFFD0392C),
@@ -140,6 +153,8 @@ class MadarColors extends ThemeExtension<MadarColors> {
     chromeRaised: Color(0xFF1E353B),
     onChrome: Color(0xFFEAF0F1),
     onChromeMuted: Color(0xFF9DB0B6),
+    brand: Color(0xFF0F7A8A),
+    onBrand: Color(0xFFFFFFFF),
   );
 
   /// Dark: paper on ink, for a dim room. The chrome goes a shade deeper so
@@ -154,12 +169,12 @@ class MadarColors extends ThemeExtension<MadarColors> {
     textPrimary: Color(0xFFEEF3F4),
     textSecondary: Color(0xFFB3C2C7),
     textMuted: Color(0xFF7E929A),
-    textOnAccent: Color(0xFF06191D),
-    accent: Color(0xFF2AA7B8),
-    accentDeep: Color(0xFF1F8896),
-    accentBg: Color(0xFF123840),
-    navy: Color(0xFF1F8896),
-    navyBg: Color(0xFF123840),
+    textOnAccent: Color(0xFF0D1A1E),
+    accent: Color(0xFFD3DEE1),
+    accentDeep: Color(0xFFB2C3C8),
+    accentBg: Color(0xFF26393F),
+    navy: Color(0xFFB2C3C8),
+    navyBg: Color(0xFF26393F),
     success: Color(0xFF3BCB7E),
     successBg: Color(0xFF123324),
     danger: Color(0xFFF26B5E),
@@ -171,6 +186,8 @@ class MadarColors extends ThemeExtension<MadarColors> {
     chromeRaised: Color(0xFF173036),
     onChrome: Color(0xFFEAF0F1),
     onChromeMuted: Color(0xFF8FA4AB),
+    brand: Color(0xFF2AA7B8),
+    onBrand: Color(0xFF06191D),
   );
 
   static MadarColors of(BuildContext context) =>
@@ -210,6 +227,8 @@ class MadarColors extends ThemeExtension<MadarColors> {
       chromeRaised: l(chromeRaised, other.chromeRaised),
       onChrome: l(onChrome, other.onChrome),
       onChromeMuted: l(onChromeMuted, other.onChromeMuted),
+      brand: l(brand, other.brand),
+      onBrand: l(onBrand, other.onBrand),
     );
   }
 }
