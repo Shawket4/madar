@@ -100,7 +100,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
   /// selection and the list is exactly where it was on the way back.
   void _openOnPhone(BuildContext context, OrderSummaryView order) {
     ref.read(historyProvider.notifier).select(order);
-    Navigator.of(context).push(
+    MadarPages.navigatorOf(context).push(
       PageRouteBuilder<void>(
         pageBuilder: (_, _, _) => const SaleScreen(),
         transitionsBuilder: (_, animation, _, child) => SlideTransition(

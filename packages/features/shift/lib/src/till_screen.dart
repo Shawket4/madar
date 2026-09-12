@@ -28,7 +28,6 @@ import 'package:feature_shift/src/open_shift_screen.dart';
 import 'package:feature_shift/src/shift_history_screen.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
-import 'package:flutter/material.dart' show MaterialPageRoute;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -146,9 +145,7 @@ Future<void> _previewX(BuildContext context) async {
 void _push(BuildContext context, WidgetRef ref, Widget Function() build) {
   final notifier = ref.read(tillProvider.notifier);
   unawaited(
-    Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => build()))
-        .then((_) => notifier.refresh()),
+    MadarPages.push<void>(context, (_) => build()).then((_) => notifier.refresh()),
   );
 }
 

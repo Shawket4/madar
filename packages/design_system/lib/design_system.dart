@@ -27,6 +27,7 @@ export 'src/scrim.dart';
 export 'src/sheet.dart';
 export 'src/skeleton.dart';
 export 'src/states.dart';
+export 'src/tab_stack.dart';
 export 'src/theme.dart';
 export 'src/toast.dart';
 export 'src/tokens/colors.dart';

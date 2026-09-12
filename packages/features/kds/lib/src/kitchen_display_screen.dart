@@ -6,6 +6,8 @@
 /// Sound is the shell's job too (AlertCommand.ping) — the board only draws.
 library;
 
+import 'dart:async';
+
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_kds/src/kds_board_body.dart';
@@ -21,29 +23,45 @@ const double _liveDot = 8;
 
 /// The kitchen board. Takes only the board's route payload: the device's
 /// bound [stationId] (null = every station, the expo board).
-class KitchenDisplayScreen extends ConsumerWidget {
+class KitchenDisplayScreen extends ConsumerStatefulWidget {
   const KitchenDisplayScreen({super.key, this.stationId});
 
   /// The device's bound kitchen station (route payload). Null shows every
   /// station's lines — the expo board.
   final String? stationId;
 
+  @override
+  ConsumerState<KitchenDisplayScreen> createState() =>
+      _KitchenDisplayScreenState();
+}
+
+class _KitchenDisplayScreenState extends ConsumerState<KitchenDisplayScreen> {
+  /// The board's page stack: Settings and Sync open UNDER the top bar, which
+  /// stays standing like the POS shell's (design_system `tab_stack.dart`).
+  final _stack = GlobalKey<NavigatorState>(debugLabel: 'kds.stack');
+
+  String? get stationId => widget.stationId;
+
+  void _stackChanged() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
   void _openSettings(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen()));
+    unawaited(MadarPages.push<void>(context, (_) => const SettingsScreen()));
   }
 
   void _openSync(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const SyncScreen()));
+    unawaited(MadarPages.push<void>(context, (_) => const SyncScreen()));
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = context.madarColors;
     final bridge = ref.bridge;
+    final stackCanPop = _stack.currentState?.canPop() ?? false;
     final board = kdsProvider(stationId);
     final stationName =
         ref.watch(board.select((s) => s.stationName(stationId))) ??
@@ -63,38 +81,62 @@ class KitchenDisplayScreen extends ConsumerWidget {
     // ancestor — every screen owns its own Scaffold in this app. The top bar
     // paints under the status bar itself; the board keeps the side insets.
     // The KDS draws its own MadarTopBar, which pays its own inset.
-    return MadarPageScaffold(
-      safeTop: false,
-      body: Column(
-        children: [
-          MadarTopBar(
-            title: stationName,
-            subtitle: branch,
-            actions: [
-              _LiveDot(connected: connected, label: bridge.trOr(KdsKeys.live)),
-              _OpenCount(count: openCount, word: bridge.trMaybe(KdsKeys.open)),
-              MadarGlyphTile(
-                glyph: MadarGlyph.settings,
-                tint: colors.onChrome,
-                background: colors.chromeRaised,
-                semanticLabel: bridge.tr(key: 'settings.title'),
-                onTap: () => _openSettings(context),
+    // System back pops a page opened under the bar before it leaves the board.
+    return PopScope<Object?>(
+      canPop: !stackCanPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _stack.currentState?.maybePop();
+      },
+      child: MadarPageScaffold(
+        safeTop: false,
+        body: Column(
+          children: [
+            MadarTopBar(
+              title: stationName,
+              subtitle: branch,
+              actions: [
+                _LiveDot(
+                  connected: connected,
+                  label: bridge.trOr(KdsKeys.live),
+                ),
+                _OpenCount(
+                  count: openCount,
+                  word: bridge.trMaybe(KdsKeys.open),
+                ),
+                MadarGlyphTile(
+                  glyph: MadarGlyph.settings,
+                  tint: colors.onChrome,
+                  background: colors.chromeRaised,
+                  semanticLabel: bridge.tr(key: 'settings.title'),
+                  onTap: () => _openSettings(context),
+                ),
+              ],
+              pill: MadarOutboxPill(
+                state: outboxState,
+                label: pillWord,
+                count: outboxCount,
+                onTap: () => _openSync(context),
               ),
-            ],
-            pill: MadarOutboxPill(
-              state: outboxState,
-              label: pillWord,
-              count: outboxCount,
-              onTap: () => _openSync(context),
             ),
-          ),
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: KdsBoardBody(stationId: stationId),
+            Expanded(
+              // The bar paid the status-bar inset; a page pushed under it must
+              // not pay it again.
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: true,
+                child: MadarTabStack(
+                  navigatorKey: _stack,
+                  active: true,
+                  onStackChanged: _stackChanged,
+                  child: SafeArea(
+                    top: false,
+                    child: KdsBoardBody(stationId: stationId),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

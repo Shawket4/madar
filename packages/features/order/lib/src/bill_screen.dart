@@ -84,9 +84,7 @@ class _BillScreenState extends ConsumerState<BillScreen>
     }
     _notifier.selectTicket(t.id);
     if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
-    );
+    await MadarPages.push<void>(context, (_) => const SellScreen.forTable());
   }
 
   /// Charge = the ONE tender drawer, over this bill. It takes the money,

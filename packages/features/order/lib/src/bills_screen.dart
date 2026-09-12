@@ -60,10 +60,9 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
   }
 
   Future<void> _open(TicketView t) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => BillScreen(ticketId: t.id, canCharge: widget.canCharge),
-      ),
+    await MadarPages.push<void>(
+      context,
+      (_) => BillScreen(ticketId: t.id, canCharge: widget.canCharge),
     );
   }
 
@@ -108,9 +107,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
     if (name == null || !mounted) return;
     await _notifier.startNewBill(name);
     if (!mounted) return;
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const SellScreen()));
+    await MadarPages.push<void>(context, (_) => const SellScreen());
   }
 
   @override

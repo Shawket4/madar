@@ -22,7 +22,7 @@ import 'package:feature_settings/feature_settings.dart';
 import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart' show FontLoader;
+import 'package:flutter/services.dart' show FontLoader, LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:madar/app/shell.dart';
@@ -807,6 +807,66 @@ void _expectNoRawKeys(WidgetTester tester, String name) {
   expect(raw, isEmpty, reason: '$name shows raw i18n keys');
 }
 
+// ── The chrome stands around every page ────────────────────────────────────
+
+/// The navigator a page is pushed on — the stack of the tab in front, found
+/// the way the app finds it.
+NavigatorState _pageStack(WidgetTester tester) =>
+    MadarPages.navigatorOf(tester.element(find.byType(MadarShellScaffold)));
+
+/// The ROOT navigator — surfaces only; a page never lands here.
+NavigatorState _rootNavigator(WidgetTester tester) =>
+    tester.state<NavigatorState>(find.byType(Navigator).first);
+
+/// Whatever page is showing, the top bar and the tabs (the rail on a
+/// tablet, the bottom bar on a phone) stand around it, and the page itself
+/// sits in the content area between them — never over them.
+void _expectChromeStands(WidgetTester tester, String name, Size size) {
+  expect(
+    _rootNavigator(tester).canPop(),
+    isFalse,
+    reason: '$name: no page is pushed over the shell on the root navigator',
+  );
+  final bar = find.byType(MadarTopBar);
+  expect(bar, findsOneWidget, reason: '$name: the top bar stands');
+  final tabs = size == _phone
+      ? find.byType(MadarTabBar)
+      : find.byType(MadarRail);
+  final other = size == _phone
+      ? find.byType(MadarRail)
+      : find.byType(MadarTabBar);
+  expect(tabs, findsOneWidget, reason: '$name: the tabs stand');
+  expect(other, findsNothing, reason: '$name: one kind of tabs');
+  final barRect = tester.getRect(bar);
+  final tabsRect = tester.getRect(tabs);
+  expect(barRect.height, greaterThan(0), reason: '$name: top bar laid out');
+  expect(tabsRect.height, greaterThan(0), reason: '$name: tabs laid out');
+  // The page in front: the one header's own Scaffold.
+  final headers = find.byKey(MadarPageScaffold.headerKey);
+  if (headers.evaluate().isEmpty) return;
+  final page = tester.getRect(
+    find.ancestor(of: headers.first, matching: find.byType(Scaffold)).first,
+  );
+  expect(
+    page.top,
+    closeTo(barRect.bottom, 0.5),
+    reason: '$name: under the bar',
+  );
+  if (size == _phone) {
+    expect(
+      page.bottom,
+      lessThanOrEqualTo(tabsRect.top + 0.5),
+      reason: '$name: above the tab bar',
+    );
+  } else {
+    expect(
+      page.left,
+      greaterThanOrEqualTo(tabsRect.right - 0.5),
+      reason: '$name: beside the rail',
+    );
+  }
+}
+
 // ── Safe area ──────────────────────────────────────────────────────────────
 
 /// A notched phone's status bar: the band no content may sit in.
@@ -1025,6 +1085,108 @@ void main() {
     await _shot(tester, 'shell-teller-till-ipad-ar');
   });
 
+  group('each tab keeps its own page stack', () {
+    testWidgets('switching tabs keeps each stack; re-tapping pops to root', (
+      tester,
+    ) async {
+      await _mount(tester, bridge: _FakeBridge(), size: _ipad);
+      await _tab(tester, 'floor');
+      _pageStack(tester).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const BillScreen(ticketId: 'tk-1', canCharge: true),
+        ),
+      );
+      await _settle(tester);
+      await _tab(tester, 'queue');
+      _pageStack(
+        tester,
+      ).push(MaterialPageRoute<void>(builder: (_) => const SyncScreen()));
+      await _settle(tester);
+      expect(find.byType(SyncScreen), findsOneWidget);
+      expect(find.byType(BillScreen), findsNothing, reason: 'Floor is behind');
+      _expectChromeStands(tester, 'queue › sync', _ipad);
+
+      await _tab(tester, 'floor');
+      expect(find.byType(BillScreen), findsOneWidget, reason: 'bill kept');
+      expect(find.byType(SyncScreen), findsNothing);
+      _expectChromeStands(tester, 'floor › bill', _ipad);
+
+      await _tab(tester, 'queue');
+      expect(find.byType(SyncScreen), findsOneWidget, reason: 'sync kept');
+
+      // Re-tap the tab in front: its stack goes back to its root.
+      await _tab(tester, 'queue');
+      expect(find.byType(SyncScreen), findsNothing);
+      expect(_pageStack(tester).canPop(), isFalse);
+      // …and only its own: Floor still has the bill.
+      await _tab(tester, 'floor');
+      expect(find.byType(BillScreen), findsOneWidget);
+      await _shot(tester, 'shell-floor-bill-kept-ipad');
+    });
+
+    testWidgets('system back and Escape pop the tab stack first', (
+      tester,
+    ) async {
+      await _mount(tester, bridge: _FakeBridge(), size: _phone);
+      await _tab(tester, 'till');
+      _pageStack(tester).push(
+        MaterialPageRoute<void>(builder: (_) => const ShiftHistoryScreen()),
+      );
+      await _settle(tester);
+      _pageStack(
+        tester,
+      ).push(MaterialPageRoute<void>(builder: (_) => const SyncScreen()));
+      await _settle(tester);
+      expect(find.byType(SyncScreen), findsOneWidget);
+
+      // Android back.
+      final handled = await tester.binding.handlePopRoute();
+      await _settle(tester);
+      expect(handled, isTrue);
+      expect(find.byType(SyncScreen), findsNothing);
+      expect(find.byType(ShiftHistoryScreen), findsOneWidget);
+      _expectChromeStands(tester, 'back', _phone);
+
+      // Escape.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
+      expect(find.byType(ShiftHistoryScreen), findsNothing);
+      expect(find.byType(TillScreen), findsOneWidget);
+      expect(_pageStack(tester).canPop(), isFalse);
+    });
+
+    testWidgets("a table's Sell on the Floor stack keeps its table across "
+        'a visit to the Sell tab', (tester) async {
+      final bridge = _FakeBridge();
+      final container = await _mount(tester, bridge: bridge, size: _ipad);
+      final order = container.read(orderProvider.notifier);
+      await _tab(tester, 'floor');
+      await order.pointCartAtTable('t2', 'T2');
+      _pageStack(tester).push(
+        MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
+      );
+      await _settle(tester);
+      expect(find.text('T2 · Round 1'), findsWidgets);
+
+      // The Sell tab is the counter.
+      await _tab(tester, 'sell');
+      expect(container.read(orderProvider).cartTableId, isNull);
+      expect(bridge.activeCart, isNull);
+
+      // Back on Floor: the table's screen is still there, still for T2.
+      await _tab(tester, 'floor');
+      await _settle(tester);
+      expect(
+        find.byWidgetPredicate((w) => w is SellScreen && w.forTable),
+        findsOneWidget,
+      );
+      expect(container.read(orderProvider).cartTableId, 't2');
+      expect(bridge.activeCart, 't2');
+      expect(find.text('T2 · Round 1'), findsWidgets);
+      _expectChromeStands(tester, 'floor › sell for T2', _ipad);
+    });
+  });
+
   group('every page pays the status-bar inset through the page shell', () {
     testWidgets('teller tabs on a notched phone', (tester) async {
       _notch(tester);
@@ -1085,11 +1247,12 @@ void main() {
           bridge: _FakeBridge(role: waiter ? 'waiter' : 'teller'),
           size: _phone,
         );
-        tester
-            .state<NavigatorState>(find.byType(Navigator).first)
-            .push(MaterialPageRoute<void>(builder: (_) => page()));
+        _pageStack(
+          tester,
+        ).push(MaterialPageRoute<void>(builder: (_) => page()));
         await _settle(tester);
         _expectShellClearOfInset(tester, name);
+        _expectChromeStands(tester, name, _phone);
       });
     }
   });
@@ -1150,9 +1313,8 @@ Future<void> _openPage(
       await order.pointCartAtTable('t2', 'T2');
       order.setPendingCovers('t2', 4);
     }
-    tester
-        .state<NavigatorState>(find.byType(Navigator).first)
-        .push(MaterialPageRoute<void>(builder: (_) => pushed()));
+    // Where the app pushes a page: the stack of the tab in front.
+    _pageStack(tester).push(MaterialPageRoute<void>(builder: (_) => pushed()));
     await _settle(tester);
     if (pushed().runtimeType == SellScreen) {
       // The page title AND the cart header name the table, not takeaway.
@@ -1238,6 +1400,7 @@ void pageShellMain() {
       for (final MapEntry(key: name, value: page) in _pages.entries) {
         await _openPage(tester, page, size);
         seen[name] = _headerGeometry(tester, name);
+        _expectChromeStands(tester, name, size);
         // A pushed page carries the back tile; a tab body never does.
         expect(
           seen[name]!.back,

@@ -11,6 +11,8 @@ import 'package:feature_settings/feature_settings.dart';
 import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:madar/app/notifications.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -260,6 +262,17 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   /// Bodies already visited, kept alive in the stack.
   final Map<_Tab, Widget> _bodies = {};
 
+  /// Each tab's own page stack. A page pushed from a tab renders inside the
+  /// content area, so the rail, the top bar and the phone's tab bar stand
+  /// around every screen (design_system `tab_stack.dart`).
+  final Map<_Tab, GlobalKey<NavigatorState>> _stacks = {
+    for (final tab in _Tab.values)
+      tab: GlobalKey<NavigatorState>(debugLabel: 'tab.${tab.name}'),
+  };
+
+  /// The tab in front, as last built.
+  _Tab? _current;
+
   /// The tab the person chose; null follows the home tab.
   _Tab? _chosen;
 
@@ -278,12 +291,13 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     // toast + chime work immediately; a notification that arrives before
     // init just skips.
     unawaited(
-      NotificationService.initialize(
-        channelName: _t('notif.channel'),
-      ).then((s) {
+      NotificationService.initialize(channelName: _t('notif.channel')).then((
+        s,
+      ) {
         if (mounted) _notifications = s;
       }),
     );
+    HardwareKeyboard.instance.addHandler(_onKey);
     _pillBeatTimer = Timer.periodic(
       _pillBeat,
       (_) => unawaited(ref.read(outboxProvider.notifier).refresh()),
@@ -306,6 +320,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
     _pillBeatTimer?.cancel();
     final player = _player;
     if (player != null) unawaited(player.dispose());
@@ -319,10 +334,44 @@ class _RoleShellState extends ConsumerState<RoleShell> {
 
   // ── navigation ─────────────────────────────────────────────────────────────
 
+  /// The shell's own pushes (Settings, Sync, the close-shift hand-off) land
+  /// on the tab in front, inside the chrome — never over it.
   void _push(Widget Function() build) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => build()));
+    unawaited(MadarPages.push<void>(context, (_) => build()));
+  }
+
+  /// The page stack of the tab in front.
+  NavigatorState? get _activeStack =>
+      _current == null ? null : _stacks[_current]!.currentState;
+
+  /// A stack moved: system back's answer (pop the stack, or leave the app)
+  /// follows it.
+  void _onStackChanged() {
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    } else {
+      setState(() {});
+    }
+  }
+
+  /// Escape backs out of a page the way the back tile does — the active
+  /// tab's stack first — unless a surface (a sheet, a modal) is over the
+  /// shell, which answers Escape itself.
+  bool _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape ||
+        !mounted) {
+      return false;
+    }
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return false;
+    final stack = _activeStack;
+    if (stack == null || !stack.canPop()) return false;
+    stack.maybePop();
+    return true;
   }
 
   /// Bumped by every incoming-order alert; the rung tab reads it as its
@@ -338,23 +387,40 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       : _Tab.queue;
 
   void _select(_Tab tab) {
+    final stack = _stacks[tab]!.currentState;
+    final reselect = tab == _current;
+    // Tapping the tab already in front takes its stack back to its root.
+    if (reselect) stack?.popUntil((r) => r.isFirst);
     // The Sell tab is the counter and only the counter. Tabs live in an
     // IndexedStack, so SellScreen's initState runs once; aiming the cart
-    // back at takeaway has to happen every time the tab is SHOWN — including
-    // a re-tap of the tab already in front of the teller.
-    if (tab == _Tab.sell) {
-      unawaited(ref.read(orderProvider.notifier).pointCartAtTakeaway());
+    // back at takeaway has to happen every time the tab's ROOT is shown —
+    // including a re-tap of the tab already in front of the teller. A
+    // table's Sell left standing on the Sell stack keeps its table; it
+    // re-aims the cart itself when its tab comes back.
+    final toTakeaway =
+        tab == _Tab.sell && (reselect || !(stack?.canPop() ?? false));
+    void aim() =>
+        unawaited(ref.read(orderProvider.notifier).pointCartAtTakeaway());
+    if (reselect) {
+      if (toTakeaway) aim();
+      return;
     }
-    if (_chosen == tab) return;
     setState(() => _chosen = tab);
+    // After the frame that puts the tab in front: a table's Sell on the tab
+    // being left notes the table it was for as it goes behind, before the
+    // cart is aimed away from it.
+    if (toTakeaway) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) aim();
+      });
+    }
   }
 
   /// A Queue › Bills row opens the Bill, on the teller's side.
   Future<void> _openBill(BuildContext context, TicketView ticket) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => BillScreen(ticketId: ticket.id, canCharge: true),
-      ),
+    await MadarPages.push<void>(
+      context,
+      (_) => BillScreen(ticketId: ticket.id, canCharge: true),
     );
   }
 
@@ -614,6 +680,8 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     var current = _chosen ?? home;
     if (!tabs.contains(current)) current = home;
     _bodies.putIfAbsent(current, () => _body(current));
+    _current = current;
+    final stackCanPop = _stacks[current]!.currentState?.canPop() ?? false;
 
     final billsReady = ref.watch(
       orderProvider.select(
@@ -652,7 +720,10 @@ class _RoleShellState extends ConsumerState<RoleShell> {
           ),
         ),
       if (outbox.clockSkewMinutes.abs() >= _clockSkewBannerMinutes)
-        NoticeBanner(text: bridge.tr(key: 'chrome.clock_skew'), icon: 'clock'),
+        NoticeBanner(
+          text: bridge.tr(key: 'chrome.clock_skew'),
+          icon: 'clock',
+        ),
     ];
 
     // The top bar took the status-bar inset and, on a phone, the tab bar
@@ -679,7 +750,14 @@ class _RoleShellState extends ConsumerState<RoleShell> {
                 for (final tab in tabs)
                   KeyedSubtree(
                     key: ValueKey(tab),
-                    child: _bodies[tab] ?? const SizedBox.shrink(),
+                    child: _bodies[tab] == null
+                        ? const SizedBox.shrink()
+                        : MadarTabStack(
+                            navigatorKey: _stacks[tab]!,
+                            active: tab == current,
+                            onStackChanged: _onStackChanged,
+                            child: _bodies[tab]!,
+                          ),
                   ),
               ],
             ),
@@ -688,58 +766,66 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       ),
     );
 
-    return Material(
-      color: colors.chrome,
-      child: Stack(
-        children: [
-          MadarShellScaffold(
-            tabs: [
-              for (final tab in tabs)
-                MadarTab(
-                  key: tab.name,
-                  label: bridge.tr(key: tab.labelKey),
-                  glyph: tab.glyph,
-                  badge: switch (tab) {
-                    _Tab.bills => billsReady,
-                    _Tab.queue => queueBadge,
-                    _ => 0,
-                  },
-                  // Only the tab you are NOT on: ringing the screen already
-                  // in front of the teller is noise.
-                  ring: tab == _ringTab && tab != current ? _ring : 0,
+    // System back pops the tab in front's page stack first; only at its
+    // root does back leave the shell.
+    return PopScope<Object?>(
+      canPop: !stackCanPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _activeStack?.maybePop();
+      },
+      child: Material(
+        color: colors.chrome,
+        child: Stack(
+          children: [
+            MadarShellScaffold(
+              tabs: [
+                for (final tab in tabs)
+                  MadarTab(
+                    key: tab.name,
+                    label: bridge.tr(key: tab.labelKey),
+                    glyph: tab.glyph,
+                    badge: switch (tab) {
+                      _Tab.bills => billsReady,
+                      _Tab.queue => queueBadge,
+                      _ => 0,
+                    },
+                    // Only the tab you are NOT on: ringing the screen already
+                    // in front of the teller is noise.
+                    ring: tab == _ringTab && tab != current ? _ring : 0,
+                  ),
+              ],
+              selectedIndex: tabs.indexOf(current),
+              onSelect: (i) => _select(tabs[i]),
+              person: person,
+              onPersonTap: () => unawaited(_openPerson()),
+              // The kit's own board, for whoever is building on it. Debug
+              // builds only; it is not a row anybody sells from.
+              onMarkTap: kDebugMode ? () => _push(GalleryScreen.new) : null,
+              topBar: MadarTopBar(
+                title: _branchName(bridge, session),
+                subtitle: tillName,
+                pill: MadarOutboxPill(
+                  state: outbox.state,
+                  label: pillWord,
+                  count: outbox.count,
+                  onTap: () => _push(() => const SyncScreen()),
                 ),
-            ],
-            selectedIndex: tabs.indexOf(current),
-            onSelect: (i) => _select(tabs[i]),
-            person: person,
-            onPersonTap: () => unawaited(_openPerson()),
-            // The kit's own board, for whoever is building on it. Debug
-            // builds only; it is not a row anybody sells from.
-            onMarkTap: kDebugMode ? () => _push(GalleryScreen.new) : null,
-            topBar: MadarTopBar(
-              title: _branchName(bridge, session),
-              subtitle: tillName,
-              pill: MadarOutboxPill(
-                state: outbox.state,
-                label: pillWord,
-                count: outbox.count,
-                onTap: () => _push(() => const SyncScreen()),
               ),
+              body: body,
             ),
-            body: body,
-          ),
-          if (toast != null)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: ToastHost(
-                toast,
-                onDismiss: (_) =>
-                    ref.read(chromeProvider.notifier).dismissToast(),
-                // Only the sticky new-order alert carries an action.
-                onAction: _viewIncoming,
+            if (toast != null)
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: ToastHost(
+                  toast,
+                  onDismiss: (_) =>
+                      ref.read(chromeProvider.notifier).dismissToast(),
+                  // Only the sticky new-order alert carries an action.
+                  onAction: _viewIncoming,
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

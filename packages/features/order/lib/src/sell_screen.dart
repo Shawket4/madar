@@ -149,6 +149,43 @@ class _SellScreenState extends ConsumerState<SellScreen>
     });
   }
 
+  /// Whether this screen's tab is the one in front, as last seen.
+  bool? _tabActive;
+
+  /// What a TABLE'S Sell was ringing up when its tab went behind another.
+  ({String? table, String? label, String? ticket})? _leftWith;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Pages live in their tab's stack, so the Sell tab can be shown while a
+    // table's Sell stands on the Floor tab — and the Sell tab aims the cart
+    // at takeaway. Coming back to the table's screen aims it back at the
+    // table it was taking the order for, and the bill it was adding to.
+    final active = MadarPages.isActive(context);
+    final was = _tabActive;
+    _tabActive = active;
+    if (!widget.forTable || was == null || was == active) return;
+    final s = ref.read(orderProvider);
+    if (!active) {
+      _leftWith = (
+        table: s.cartTableId,
+        label: s.cartTableLabel,
+        ticket: s.activeTicketId,
+      );
+      return;
+    }
+    final left = _leftWith;
+    _leftWith = null;
+    final table = left?.table;
+    if (left == null || table == null) return;
+    if (s.cartTableId == table && s.activeTicketId == left.ticket) return;
+    unawaited(() async {
+      await _notifier.pointCartAtTable(table, left.label ?? '');
+      if (left.ticket != null) _notifier.selectTicket(left.ticket);
+    }());
+  }
+
   @override
   void dispose() {
     _search.dispose();

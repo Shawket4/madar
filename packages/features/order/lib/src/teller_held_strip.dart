@@ -99,7 +99,9 @@ class TellerHeldStrip extends ConsumerWidget {
     }
     // The strip leaves the tree the moment the cart turns to the table —
     // hold on to the navigator now.
-    final navigator = Navigator.of(context);
+    // The strip may sit in the cart SHEET (a root surface): the page belongs
+    // on the tab it was opened over, which navigatorOf finds.
+    final navigator = MadarPages.navigatorOf(context);
     await notifier.restoreDraft(draft.id);
     await navigator.push(
       MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),

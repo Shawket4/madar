@@ -30,8 +30,10 @@ Future<T?> showMadarDrawer<T>(
   required WidgetBuilder builder,
   double width = _drawerWidth,
 }) {
+  // A surface: the root navigator (tab_stack.dart).
   return Navigator.of(
     context,
+    rootNavigator: true,
   ).push(MadarDrawerRoute<T>(builder: builder, width: width));
 }
 

@@ -144,11 +144,9 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
   }
 
   Future<void> _openBill(String ticketId) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            BillScreen(ticketId: ticketId, canCharge: widget.canCharge),
-      ),
+    await MadarPages.push<void>(
+      context,
+      (_) => BillScreen(ticketId: ticketId, canCharge: widget.canCharge),
     );
   }
 
@@ -157,9 +155,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
   /// button to the room it came from.
   Future<void> _toSell() async {
     if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
-    );
+    await MadarPages.push<void>(context, (_) => const SellScreen.forTable());
   }
 
   // ── the sheets ─────────────────────────────────────────────────────────────

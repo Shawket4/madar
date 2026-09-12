@@ -64,8 +64,11 @@ Future<T?> showMadarSheet<T>(
   SheetSize size = SheetSize.auto,
   double maxWidth = Responsive.sheetMaxWidth,
 }) {
+  // A surface, not a page: the root navigator, over the whole window and
+  // its chrome (tab_stack.dart).
   return Navigator.of(
     context,
+    rootNavigator: true,
   ).push(MadarSheetRoute<T>(builder: builder, size: size, maxWidth: maxWidth));
 }
 
