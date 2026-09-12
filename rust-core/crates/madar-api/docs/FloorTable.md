@@ -15,6 +15,7 @@ Name | Type | Description | Notes
 **pos_x** | **f64** |  | 
 **pos_y** | **f64** |  | 
 **rotation** | **f64** |  | 
+**seated_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | When the party at this table sat down — the hold's stamp, else the bill's opening. `null` unless the table is seated. Every device renders its table clock from this, so they all agree. | [optional]
 **seats** | **i32** |  | 
 **section_id** | Option<**uuid::Uuid**> |  | [optional]
 **shape** | **String** |  | 

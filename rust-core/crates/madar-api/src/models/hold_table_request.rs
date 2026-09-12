@@ -15,10 +15,21 @@ use serde::{Deserialize, Serialize};
 pub struct HoldTableRequest {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
+    /// When the party actually sat down, by the till's clock. An offline seat replays later than it happened; this keeps every device's table clock on the seating. Clamped server-side to the last 12 hours, never in the future, and never before the table's previous party left. Recorded only -- it moves no status.
+    #[serde(
+        rename = "seated_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub seated_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
 }
 
 impl HoldTableRequest {
     pub fn new(branch_id: uuid::Uuid) -> HoldTableRequest {
-        HoldTableRequest { branch_id }
+        HoldTableRequest {
+            branch_id,
+            seated_at: None,
+        }
     }
 }

@@ -36,7 +36,7 @@ pub struct TableSitting {
         skip_serializing_if = "Option::is_none"
     )]
     pub guest_count: Option<Option<i32>>,
-    /// Minutes between the two, or to now while the bill is still open.
+    /// Minutes from `seated_at` to the close, or to now while still open.
     #[serde(rename = "minutes")]
     pub minutes: i64,
     #[serde(rename = "open_ticket_id")]
@@ -59,6 +59,9 @@ pub struct TableSitting {
         skip_serializing_if = "Option::is_none"
     )]
     pub order_number: Option<Option<i32>>,
+    /// When the party sat down: the seat hold's stamp when they were seated before ordering, else the bill's opening.
+    #[serde(rename = "seated_at")]
+    pub seated_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "status")]
     pub status: String,
     #[serde(
@@ -84,6 +87,7 @@ impl TableSitting {
         minutes: i64,
         open_ticket_id: uuid::Uuid,
         opened_at: chrono::DateTime<chrono::FixedOffset>,
+        seated_at: chrono::DateTime<chrono::FixedOffset>,
         status: String,
     ) -> TableSitting {
         TableSitting {
@@ -95,6 +99,7 @@ impl TableSitting {
             opened_at,
             order_id: None,
             order_number: None,
+            seated_at,
             status,
             ticket_ref: None,
             total_amount: None,

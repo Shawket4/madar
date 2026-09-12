@@ -41,6 +41,14 @@ pub struct FloorTable {
     pub pos_y: f64,
     #[serde(rename = "rotation")]
     pub rotation: f64,
+    /// When the party at this table sat down — the hold's stamp, else the bill's opening. `null` unless the table is seated. Every device renders its table clock from this, so they all agree.
+    #[serde(
+        rename = "seated_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub seated_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "seats")]
     pub seats: i32,
     #[serde(
@@ -90,6 +98,7 @@ impl FloorTable {
             pos_x,
             pos_y,
             rotation,
+            seated_at: None,
             seats,
             section_id: None,
             shape,

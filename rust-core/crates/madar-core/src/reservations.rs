@@ -114,6 +114,7 @@ mod tests {
             is_active: true,
             created_at: now,
             updated_at: now,
+            seated_at: None,
         };
         let view = FloorTableView::from(model);
         assert_eq!(view.section_id, None);

@@ -1571,6 +1571,22 @@ mod tests {
         assert_eq!(t.seated_at, None);
     }
 
+    /// Every device shows the same clock: a pulled table carries the server's
+    /// seating stamp (the one the seating till sent with its hold), so a till
+    /// that never saw the party sit still reads when they did.
+    #[test]
+    fn a_pulled_table_brings_the_servers_seating_clock() {
+        let s = store();
+        save_floor(
+            &s,
+            "[]",
+            r#"[{"id":"t1","section_id":null,"label":"T1","seats":4,"shape":"rect","status":"seated","pos_x":0,"pos_y":0,"width":80,"height":80,"rotation":0,"is_active":true,"seated_at":"2026-09-12T18:00:00Z"}]"#,
+        )
+        .unwrap();
+        let view = layout(&s, "dev-a").unwrap();
+        assert_eq!(view.tables[0].held_since.as_deref(), Some(T0));
+    }
+
     const T0: &str = "2026-09-12T18:00:00Z";
     const T1: &str = "2026-09-12T18:45:00Z";
 }
