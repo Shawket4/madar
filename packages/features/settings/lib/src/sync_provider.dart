@@ -141,6 +141,7 @@ class SyncNotifier extends Notifier<SyncState> {
     }
     await load();
     ref.read(shellProvider.notifier).refresh();
+    ref.read(catalogTickProvider.notifier).bump();
   }
 
   /// Discard a single DEAD command (the teller gives up on it). The

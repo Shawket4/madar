@@ -14,7 +14,10 @@ import 'dart:ui' as ui;
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/feature_order.dart';
+import 'package:feature_order/src/bundle_detail_sheet.dart';
 import 'package:feature_order/src/cart_anchor.dart';
+import 'package:feature_order/src/item_detail_sheet.dart';
+import 'package:feature_order/src/sell_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show FontLoader;
@@ -394,7 +397,11 @@ class _FakeBridge implements MadarBridge {
     this.rtl = false,
     this.shiftOpen = true,
     this.drafts = _drafts,
+    this.bundles = const [],
   });
+
+  /// The combos the catalog offers — none unless a test needs the chip.
+  final List<BundleView> bundles;
 
   final String role;
 
@@ -407,6 +414,9 @@ class _FakeBridge implements MadarBridge {
 
   /// The table each park landed on, in order — null means the counter.
   final List<String?> parked = [];
+
+  /// How many times the menu was read from the core.
+  int menuReads = 0;
 
   /// How many times a cart was emptied.
   int cleared = 0;
@@ -469,9 +479,12 @@ class _FakeBridge implements MadarBridge {
     if (name == #listCategories) {
       return Future<List<CategoryView>>.value(_categories);
     }
-    if (name == #listMenuItems) return Future<List<MenuItemView>>.value(_items);
+    if (name == #listMenuItems) {
+      menuReads++;
+      return Future<List<MenuItemView>>.value(_items);
+    }
     if (name == #availableBundles) {
-      return Future<List<BundleView>>.value(const []);
+      return Future<List<BundleView>>.value(bundles);
     }
     // Retargeting the cart parks whatever is in it first and may clear it —
     // both are bridge calls the fake has to answer or the whole flow throws.
@@ -506,6 +519,20 @@ class _FakeBridge implements MadarBridge {
         final l = _inHand[i];
         _inHand[i] = _cartLine(id, label, minor, l.qty + 1);
       }
+      return Future<List<CartLineView>>.value(List.of(_inHand));
+    }
+    if (name == #validateItemSelections) {
+      return Future<List<GroupViolationView>>.value(const []);
+    }
+    if (name == #cartAddConfigured) {
+      final id = invocation.namedArguments[#itemId] as String;
+      final item = _items.firstWhere((i) => i.id == id);
+      _inHand.add(_cartLine(id, item.name, item.basePriceMinor, 1));
+      return Future<List<CartLineView>>.value(List.of(_inHand));
+    }
+    if (name == #cartAddBundle) {
+      final id = invocation.namedArguments[#bundleId] as String;
+      _inHand.add(_cartLine(id, 'Combo', 9000, 1));
       return Future<List<CartLineView>>.value(List.of(_inHand));
     }
     if (name == #fireTicket) {
@@ -692,6 +719,7 @@ Future<void> _capture(WidgetTester tester, String name) async {
 
 void main() {
   _cartContextTests();
+  _cartFlightTests();
   _tableOrderTests();
   setUpAll(_loadFonts);
 
@@ -1243,4 +1271,170 @@ void _tableOrderTests() {
       await expectLiveTableSell(tester, bridge);
     });
   }
+}
+
+// ── the add-to-cart flight ─────────────────────────────────────────────────
+
+const _combo = BundleView(
+  id: 'combo',
+  name: 'Breakfast combo',
+  priceMinor: 9000,
+  isAvailable: true,
+  components: [
+    BundleComponentView(
+      itemId: 'croissant',
+      itemName: 'Croissant',
+      quantity: 1,
+    ),
+  ],
+);
+
+/// The anchors of the cart actually on screen (a pushed table Sell hides the
+/// tab's underneath it).
+CartAnchors _visibleAnchors(WidgetTester tester) =>
+    CartAnchors.maybeOf(tester.element(find.byType(CartAnchorPad).first))!;
+
+/// Pumps until the flight's dot is in the overlay, follows it to the end and
+/// asserts it LEFT [from] (when given), travelled, finished on the anchor,
+/// left the overlay and made the cart catch it.
+Future<void> _expectFlight(
+  WidgetTester tester, {
+  Offset? from,
+  String? capture,
+}) async {
+  final anchors = _visibleAnchors(tester);
+  final caught = anchors.catchTick.value;
+  final dot = find.byKey(cartFlightDotKey);
+  for (var i = 0; i < 40 && dot.evaluate().isEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 5));
+  }
+  expect(dot, findsOneWidget, reason: 'the flight OverlayEntry is inserted');
+  final to = anchors.center()!;
+  final start = tester.getCenter(dot);
+  if (from != null) {
+    expect((start - from).distance, lessThan(6), reason: 'launched at origin');
+  }
+  var last = start;
+  var mid = false;
+  while (dot.evaluate().isNotEmpty) {
+    last = tester.getCenter(dot);
+    await tester.pump(const Duration(milliseconds: 10));
+    if (!mid && capture != null && dot.evaluate().isNotEmpty) {
+      await tester.pump(const Duration(milliseconds: 200));
+      mid = true;
+      await _capture(tester, capture);
+    }
+  }
+  final span = (to - start).distance;
+  expect(span, greaterThan(40), reason: 'it flies somewhere, not in place');
+  expect(
+    (last - to).distance,
+    lessThan(span * 0.03 + 3),
+    reason: 'the dot ends on the cart anchor',
+  );
+  expect(anchors.catchTick.value, caught + 1, reason: 'the cart catches it');
+}
+
+void _cartFlightTests() {
+  group('the add-to-cart flight', () {
+    setUpAll(_loadFonts);
+    for (final (device, size) in [('ipad', _ipad), ('phone', _phone)]) {
+      for (final forTable in [false, true]) {
+        final where = forTable ? 'a table Sell' : 'the Sell tab';
+        Future<void> open(WidgetTester tester, {_FakeBridge? bridge}) async {
+          await _mount(
+            tester,
+            screen: const SellScreen(),
+            size: size,
+            bridge: bridge,
+          );
+          if (!forTable) return;
+          Navigator.of(tester.element(find.byType(SellScreen))).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const SellScreen.forTable(),
+            ),
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 400));
+          await tester.pump(const Duration(milliseconds: 400));
+        }
+
+        testWidgets('tile quick-add on $where, $device', (tester) async {
+          await open(tester);
+          final tile = find.widgetWithText(SellTile, 'Mocha');
+          final origin = tester.getCenter(tile);
+          await tester.tap(tile);
+          await _expectFlight(
+            tester,
+            from: origin,
+            capture: forTable ? null : 'sell-flight-$device',
+          );
+          await tester.pump(const Duration(milliseconds: 600));
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets('item sheet Add on $where, $device', (tester) async {
+          await open(tester);
+          await tester.longPress(find.widgetWithText(SellTile, 'Mocha'));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 600));
+          final sheet = find.byType(ItemDetailSheet);
+          expect(sheet, findsOneWidget);
+          await tester.tap(
+            find.descendant(of: sheet, matching: find.byType(MadarButton)).last,
+          );
+          await _expectFlight(tester);
+          await tester.pump(const Duration(milliseconds: 600));
+          expect(find.byType(ItemDetailSheet), findsNothing);
+        });
+
+        testWidgets('bundle sheet Add on $where, $device', (tester) async {
+          await open(tester, bridge: _FakeBridge(bundles: const [_combo]));
+          await tester.tap(find.byType(MadarChip).last);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 400));
+          await tester.tap(find.text('Breakfast combo').last);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 600));
+          final sheet = find.byType(BundleDetailSheet);
+          expect(sheet, findsOneWidget);
+          await tester.tap(
+            find.descendant(of: sheet, matching: find.byType(MadarButton)).last,
+          );
+          await _expectFlight(tester);
+          await tester.pump(const Duration(milliseconds: 600));
+          expect(find.byType(BundleDetailSheet), findsNothing);
+        });
+      }
+    }
+
+    testWidgets('a manual sync re-reads the menu the Sell screen holds', (
+      tester,
+    ) async {
+      final fake = _FakeBridge();
+      final container = await _mount(
+        tester,
+        screen: const SellScreen(),
+        size: _ipad,
+        bridge: fake,
+      );
+      final before = fake.menuReads;
+      container.read(catalogTickProvider.notifier).bump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(fake.menuReads, greaterThan(before));
+    });
+
+    for (final (device, size) in [('ipad', _ipad), ('phone', _phone)]) {
+      testWidgets('selected cards in the dark, $device', (tester) async {
+        await _mount(
+          tester,
+          screen: const SellScreen(),
+          size: size,
+          dark: true,
+        );
+        await _capture(tester, 'sell-$device-dark');
+      });
+    }
+  });
 }

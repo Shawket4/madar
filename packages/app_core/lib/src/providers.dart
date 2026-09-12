@@ -246,6 +246,14 @@ final bookingTickProvider = NotifierProvider<TickNotifier, int>(
   TickNotifier.new,
 );
 
+/// Bumped when a manual sync has refreshed the catalogue in the core — the
+/// Sell screen re-reads its menu on it. Without it the screen kept the menu
+/// it loaded at start-up, so recipe-step animations downloaded by the sync
+/// (and any menu edits) stayed invisible until the app restarted.
+final catalogTickProvider = NotifierProvider<TickNotifier, int>(
+  TickNotifier.new,
+);
+
 /// Bumped whenever the drawer's figures may have moved: a pay in / pay out
 /// recorded here, a cash sale, refund, void or settle, or a realtime event
 /// that can carry another till's sale. The Till and close-shift surfaces

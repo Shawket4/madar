@@ -793,6 +793,9 @@ class _NudgeState extends State<Nudge> with SingleTickerProviderStateMixin {
   }
 }
 
+/// Keys the flying dot, so a test can find the flight in the overlay.
+const Key cartFlightDotKey = ValueKey<String>('cartFlightDot');
+
 /// Flies a small accent dot from [from] to [to] (global coordinates) along a
 /// parabolic arc — the add-to-cart flight. Inserts a transient overlay entry;
 /// [onArrive] fires when the dot lands (pair it with a [Nudge] dip on the
@@ -830,6 +833,7 @@ void playCartFlight(
           top: y - dotSize / 2,
           child: IgnorePointer(
             child: Container(
+              key: cartFlightDotKey,
               width: dotSize,
               height: dotSize,
               decoration: BoxDecoration(

@@ -202,14 +202,17 @@ class _SellScreenState extends ConsumerState<SellScreen>
   /// (the reported bug: tapping a tile added the item with no motion at all).
   void _flyToCart(Offset origin) {
     if (MediaQuery.disableAnimationsOf(context)) return;
-    final anchors = CartAnchors.maybeOf(context);
-    final to = anchors?.center();
+    // `_anchors` directly, NOT `CartAnchors.maybeOf(context)`: this State's
+    // context sits ABOVE the `CartAnchorScope` its own build() provides, so
+    // the lookup always came back null and every quick-add silently skipped
+    // the flight. The sheets are fine — they are wrapped in the scope.
+    final to = _anchors.center();
     if (to == null) return;
     playCartFlight(
       context,
       from: origin,
       to: to,
-      onArrive: () => anchors!.catchTick.value++,
+      onArrive: () => _anchors.catchTick.value++,
     );
   }
 
@@ -327,6 +330,11 @@ class _SellScreenState extends ConsumerState<SellScreen>
       })
       ..listen(connectivityPulseProvider, (_, _) {
         unawaited(_notifier.syncFromStatus());
+      })
+      // A manual sync re-pulled the catalogue: re-read the menu so paths the
+      // sync just cached (step animations, photos) reach the item sheet.
+      ..listen(catalogTickProvider, (_, _) {
+        unawaited(_notifier.loadCatalog());
       })
       ..listen(localeProvider.select((s) => s.locale), (_, _) {
         unawaited(_notifier.loadCatalog());
@@ -761,17 +769,23 @@ class SellTile extends StatelessWidget {
           child: AnimatedContainer(
             duration: MotionSpec.standardDuration,
             curve: MotionSpec.standardCurve,
+            // The card clips its photo to the rounded shape; the BORDER is a
+            // foreground painted over the whole card, photo included. As a
+            // background border it sat UNDER the edge-to-edge photo, so a
+            // selected card showed its accent only around the text strip —
+            // a thin, broken outline. No padding either way: selecting
+            // never moves the picture.
             decoration: BoxDecoration(
               color: colors.surface,
+              borderRadius: BorderRadius.circular(Radii.card),
+            ),
+            foregroundDecoration: BoxDecoration(
               borderRadius: BorderRadius.circular(Radii.card),
               border: Border.all(
                 color: selected ? colors.accent : colors.borderLight,
                 width: selected ? 2 : 1,
               ),
             ),
-            // The border is drawn INSIDE a fixed 2px frame either way, so the
-            // picture never shifts when the tile becomes selected.
-            padding: EdgeInsets.all(selected ? 0 : 1),
             clipBehavior: Clip.antiAlias,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
