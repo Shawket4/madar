@@ -117,7 +117,10 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
         vertical: Space.lg,
       ),
       children: [
-        Center(
+        // Leading, not centred: the list starts on the same edge as the
+        // title and the segments above it.
+        Align(
+          alignment: AlignmentDirectional.topStart,
           child: ConstrainedBox(
             constraints: const BoxConstraints(
               maxWidth: Responsive.contentMaxWidth,

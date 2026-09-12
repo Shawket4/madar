@@ -132,24 +132,30 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       onChanged: ref.read(incomingProvider.notifier).setSegment,
     );
 
-    // Tablet: the segments and the per-channel accepting switch ride in the
-    // header's action area. Phone: the segments take the shell's row under
-    // the title (the phone puts accepting at the foot of Online).
-    final headerActions = <Widget>[
-      if (layout.isTablet) ...[
-        SizedBox(width: _segmentMaxWidth, child: segmented),
-        if (segment == QueueSegment.online)
-          const Flexible(child: AcceptingRow(compact: true)),
-      ],
-    ];
+    // The segments choose what the page lists, so they sit under the title,
+    // leading, on every size — not squeezed against the header's trailing
+    // edge. On a tablet Online's accepting switch shares that row at its end;
+    // the phone keeps accepting at the foot of Online.
+    final below = layout.isPhone
+        ? segmented
+        : Row(
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _segmentMaxWidth),
+                child: segmented,
+              ),
+              const Spacer(),
+              if (segment == QueueSegment.online)
+                const Flexible(child: AcceptingRow(compact: true)),
+            ],
+          );
 
     // Scaffold: every screen root owns its own Scaffold in this app.
     // A tab body — the shell's top bar above it already paid the top inset.
     return MadarPageScaffold(
       safeTop: false,
       title: bridge.trOr(QueueKeys.title),
-      actions: headerActions,
-      below: layout.isPhone ? segmented : null,
+      below: below,
       body: Stack(
         children: [
           SafeArea(
