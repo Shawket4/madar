@@ -52,13 +52,13 @@ class AuthSplitScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final brandFlex = (brandRatio * 100).round();
 
-    // Scaffold (not a bare ColoredBox) — TextFields and ink effects need a
-    // Material ancestor, and screens own their own Scaffold in this app.
-    return Scaffold(
-      backgroundColor: colors.bg,
+    // No header here — the brand panel IS this page's header — so the page
+    // shell's SafeArea is what keeps the stacked form off the status bar.
+    // It had none at all before, which is why sign-in and device setup
+    // started under the clock.
+    return MadarPageScaffold(
       body: ResponsiveBuilder(
         builder: (context, info) {
           if (!info.isWide) {
@@ -66,7 +66,16 @@ class AuthSplitScaffold extends StatelessWidget {
           }
           return Row(
             children: [
-              Expanded(flex: brandFlex, child: const BrandPanel()),
+              // The brand panel is full-bleed art — it reaches the top edge
+              // on purpose, so it opts out of the inset the form keeps.
+              Expanded(
+                flex: brandFlex,
+                child: MediaQuery.removePadding(
+                  context: context,
+                  removeTop: true,
+                  child: const BrandPanel(),
+                ),
+              ),
               Expanded(
                 flex: 100 - brandFlex,
                 child: _formColumn(context, showLogo: false),

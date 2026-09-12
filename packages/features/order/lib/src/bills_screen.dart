@@ -114,7 +114,6 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     ref.listen(ticketTickProvider, (_, _) {
       unawaited(_notifier.loadOpenTickets());
@@ -170,8 +169,9 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
       ],
     );
 
-    return Scaffold(
-      backgroundColor: colors.bg,
+    // A tab body — the shell's top bar above it already paid the top inset.
+    return MadarPageScaffold(
+      safeTop: false,
       body: SafeArea(
         top: false,
         child: Column(

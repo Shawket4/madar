@@ -16,8 +16,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
-import 'package:flutter/material.dart'
-    show CircularProgressIndicator, Colors, Scaffold;
+import 'package:flutter/material.dart' show CircularProgressIndicator, Colors;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -50,36 +49,20 @@ class ShiftHistoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     String t(String key) => bridge.tr(key: key);
     // Narrow slice: only the toast layer repaints on toast churn.
     final toast = ref.watch(shiftHistoryProvider.select((s) => s.toast));
-    // Scaffold: every screen root owns its own Scaffold in this app.
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              MadarHeader(
-                title: t('shifts.title'),
-                onBack: () => Navigator.maybePop(context),
-              ),
-              const Expanded(
-                child: SafeArea(top: false, child: _HistoryBody()),
-              ),
-            ],
-          ),
-          // Toasts float above everything on this screen.
-          SafeArea(
-            child: ToastHost(
-              toast,
-              onDismiss: (id) =>
-                  ref.read(shiftHistoryProvider.notifier).dismissToast(id),
-            ),
-          ),
-        ],
+    return MadarPageScaffold(
+      title: t('shifts.title'),
+      onBack: () => Navigator.maybePop(context),
+      gutter: false,
+      body: const SafeArea(top: false, child: _HistoryBody()),
+      // Toasts float above everything on this screen.
+      overlay: ToastHost(
+        toast,
+        onDismiss: (id) =>
+            ref.read(shiftHistoryProvider.notifier).dismissToast(id),
       ),
     );
   }

@@ -7,7 +7,6 @@ library;
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_settings/src/sync_section.dart';
-import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,7 +18,6 @@ class SyncScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final layout = context.madarLayout;
     // Pushed as its own route — re-derive direction from the locale
@@ -27,8 +25,7 @@ class SyncScreen extends ConsumerWidget {
     final rtl = ref.watch(localeProvider.select((s) => s.rtl));
     return Directionality(
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-      child: Scaffold(
-        backgroundColor: colors.bg,
+      child: MadarPageScaffold(
         body: Column(
           children: [
             Padding(

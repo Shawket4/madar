@@ -19,7 +19,6 @@ import 'package:feature_history/src/history_provider.dart';
 import 'package:feature_history/src/history_strings.dart';
 import 'package:feature_history/src/sale_panel.dart';
 import 'package:feature_history/src/widgets.dart';
-import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -119,7 +118,6 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final layout = context.madarLayout;
     final notifier = ref.read(historyProvider.notifier);
@@ -132,66 +130,53 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
       onChanged: notifier.setSearch,
     );
 
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: Stack(
-        children: [
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsetsDirectional.only(
-                start: layout.gutter,
-                end: layout.gutter,
-                top: layout.isTablet ? Space.card : Space.lg,
-                bottom: layout.gutter,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: Space.lg,
-                children: [
-                  MadarHeader(
-                    title: t('history.title'),
-                    subtitle: _scopeLine(ref, bridge),
-                    onBack: () => Navigator.maybePop(context),
-                    actions: [
-                      if (layout.isTablet)
-                        SizedBox(width: _searchWidth, child: search),
+    return MadarPageScaffold(
+      title: t('history.title'),
+      subtitle: _scopeLine(ref, bridge),
+      onBack: () => Navigator.maybePop(context),
+      actions: [
+        if (layout.isTablet) SizedBox(width: _searchWidth, child: search),
+      ],
+      below: layout.isPhone ? search : null,
+      overlay: const _HistoryToastHost(),
+      body: Padding(
+        padding: EdgeInsetsDirectional.only(
+          start: layout.gutter,
+          end: layout.gutter,
+          top: Space.lg,
+          bottom: layout.gutter,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.lg,
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final split = constraints.maxWidth >= _splitMinWidth;
+                  if (!split) {
+                    return _ListColumn(onOpen: (o) => _openOnPhone(context, o));
+                  }
+                  final listWidth = (constraints.maxWidth * 0.52).clamp(
+                    _listColumnMinWidth,
+                    _listColumnWidth,
+                  );
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: Space.lg,
+                    children: [
+                      SizedBox(
+                        width: listWidth,
+                        child: _ListColumn(onOpen: notifier.select),
+                      ),
+                      const Expanded(child: _SaleCard()),
                     ],
-                    below: layout.isPhone ? search : null,
-                  ),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final split = constraints.maxWidth >= _splitMinWidth;
-                        if (!split) {
-                          return _ListColumn(
-                            onOpen: (o) => _openOnPhone(context, o),
-                          );
-                        }
-                        final listWidth = (constraints.maxWidth * 0.52).clamp(
-                          _listColumnMinWidth,
-                          _listColumnWidth,
-                        );
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          spacing: Space.lg,
-                          children: [
-                            SizedBox(
-                              width: listWidth,
-                              child: _ListColumn(onOpen: notifier.select),
-                            ),
-                            const Expanded(child: _SaleCard()),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
-          ),
-          const _HistoryToastHost(),
-        ],
+          ],
+        ),
       ),
     );
   }

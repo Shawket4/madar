@@ -19,7 +19,7 @@ import 'package:feature_settings/src/settings_sheets.dart';
 import 'package:feature_settings/src/sync_provider.dart';
 import 'package:feature_settings/src/sync_screen.dart';
 import 'package:feature_settings/src/sync_section.dart';
-import 'package:flutter/material.dart' show MaterialPageRoute, Scaffold;
+import 'package:flutter/material.dart' show MaterialPageRoute;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -91,7 +91,6 @@ class _MeScreenState extends ConsumerState<MeScreen> {
     ref.listen(ticketTickProvider, (_, _) {
       unawaited(ref.read(meBillsProvider.notifier).load());
     });
-    final colors = context.madarColors;
     final layout = context.madarLayout;
     final status = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -103,8 +102,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
       ],
     );
     const prefs = _Preferences();
-    return Scaffold(
-      backgroundColor: colors.bg,
+    return MadarPageScaffold(
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsetsDirectional.all(layout.gutter),

@@ -851,8 +851,12 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     // points fits, and it will only get more crowded.
     final compact = MediaQuery.sizeOf(context).width < Responsive.tablet;
 
-    return Scaffold(
-      backgroundColor: colors.bg,
+    // Pushed from the order screen unless it IS the home tab — and when it
+    // is pushed there is no shell above it, so the header has to pay the
+    // status-bar inset or the back tile sits under the clock.
+    return MadarPageScaffold(
+      safeTop: !widget.isHome,
+      gutter: false,
       body: Column(
         children: [
           // THE house header, like every other screen. This screen used to
@@ -861,6 +865,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
           // front of all shift was the one that did not look like the app.
           MadarHeader(
             title: _tr('tables.title'),
+            safeTop: !widget.isHome,
             // Nothing behind home to go back to.
             onBack: widget.isHome
                 ? null

@@ -202,8 +202,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     );
 
     // Scaffold: every screen root owns its own Scaffold in this app.
-    return Scaffold(
-      backgroundColor: colors.bg,
+    // A tab body — the shell's top bar above it already paid the top inset.
+    return MadarPageScaffold(
+      safeTop: false,
       body: Stack(
         children: [
           SafeArea(

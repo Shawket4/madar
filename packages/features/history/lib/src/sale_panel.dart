@@ -23,7 +23,6 @@ import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_history/src/history_provider.dart';
 import 'package:feature_history/src/history_strings.dart';
 import 'package:feature_history/src/widgets.dart';
-import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -761,42 +760,21 @@ class SaleScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final selected = ref.watch(historyProvider.select((s) => s.selected));
     if (selected == null) {
-      return Scaffold(
-        backgroundColor: colors.bg,
+      return MadarPageScaffold(
         body: EmptyState(
           icon: 'receipt',
           title: historyTr(bridge, 'history.select_prompt'),
         ),
       );
     }
-    final layout = context.madarLayout;
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: SafeArea(
-        top: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: EdgeInsetsDirectional.only(
-                start: layout.gutter,
-                end: layout.gutter,
-                top: Space.lg,
-              ),
-              child: MadarHeader(
-                title: saleTitle(bridge, selected),
-                onBack: () => Navigator.maybePop(context),
-                actions: [MoreTile(order: selected)],
-              ),
-            ),
-            Expanded(child: SalePanel(order: selected)),
-          ],
-        ),
-      ),
+    return MadarPageScaffold(
+      title: saleTitle(bridge, selected),
+      onBack: () => Navigator.maybePop(context),
+      actions: [MoreTile(order: selected)],
+      body: SalePanel(order: selected),
     );
   }
 }

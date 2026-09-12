@@ -28,7 +28,7 @@ import 'package:feature_shift/src/open_shift_screen.dart';
 import 'package:feature_shift/src/shift_history_screen.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
-import 'package:flutter/material.dart' show MaterialPageRoute, Scaffold;
+import 'package:flutter/material.dart' show MaterialPageRoute;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -58,7 +58,6 @@ class TillScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final loading = ref.watch(tillProvider.select((s) => s.loading));
     final hasShift = ref.watch(tillProvider.select((s) => s.hasOpenShift));
     final isManager = ref.watch(tillProvider.select((s) => s.isManager));
@@ -78,19 +77,13 @@ class TillScreen extends ConsumerWidget {
     } else {
       body = _DrawerHome(onOpenOrders: onOpenOrders);
     }
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: Stack(
-        children: [
-          body,
-          SafeArea(
-            child: ToastHost(
-              toast,
-              onDismiss: (id) =>
-                  ref.read(tillProvider.notifier).dismissToast(id),
-            ),
-          ),
-        ],
+    // A tab body — the shell's top bar above it already paid the top inset.
+    return MadarPageScaffold(
+      safeTop: false,
+      body: body,
+      overlay: ToastHost(
+        toast,
+        onDismiss: (id) => ref.read(tillProvider.notifier).dismissToast(id),
       ),
     );
   }

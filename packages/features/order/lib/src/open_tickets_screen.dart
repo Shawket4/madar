@@ -209,7 +209,6 @@ class _OpenTicketsScreenState extends ConsumerState<OpenTicketsScreen> {
   // ── build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     // A settled ticket leaves its table needing a bus — ask once, here, while
     // the teller is still holding the bill.
@@ -225,75 +224,63 @@ class _OpenTicketsScreenState extends ConsumerState<OpenTicketsScreen> {
         .where((t) => t.status == 'open' || t.status == 'ready')
         .toList(growable: false);
     // Scaffold: every screen owns its own Material ancestor in this app.
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: Column(
-        children: [
-          MadarHeader(
-            title: bridge.tr(key: 'waiter.title'),
-            onBack: () => Navigator.maybePop(context),
-          ),
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: Stack(
-                children: [
-                  Column(
-                    children: [
-                      if (error != null)
-                        Padding(
-                          padding: const EdgeInsetsDirectional.symmetric(
-                            horizontal: Space.lg,
-                            vertical: Space.sm,
-                          ),
-                          child: NoticeBanner(
-                            text: error,
-                            icon: 'exclamationmark.circle',
-                          ),
-                        ),
-                      Expanded(
-                        child: settleable.isEmpty
-                            ? EmptyState(
-                                icon: 'tray',
-                                title: bridge.tr(key: 'waiter.no_tickets'),
-                              )
-                            : ListView.separated(
-                                padding: const EdgeInsetsDirectional.all(
-                                  Space.lg,
-                                ),
-                                itemCount: settleable.length,
-                                separatorBuilder: (context, index) =>
-                                    const SizedBox(height: Space.sm),
-                                itemBuilder: (context, index) {
-                                  final ticket = settleable[index];
-                                  return Center(
-                                    child: ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: _cardMaxWidth,
-                                      ),
-                                      child: _SettleTicketCard(
-                                        ticket: ticket,
-                                        onView: () =>
-                                            unawaited(_viewTicket(ticket)),
-                                        onSettle: () =>
-                                            unawaited(_settleTicket(ticket)),
-                                        onVoid: () =>
-                                            unawaited(_voidTicket(ticket)),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
+    return MadarPageScaffold(
+      title: bridge.tr(key: 'waiter.title'),
+      onBack: () => Navigator.maybePop(context),
+      gutter: false,
+      body: SafeArea(
+        top: false,
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                if (error != null)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: Space.lg,
+                      vertical: Space.sm,
+                    ),
+                    child: NoticeBanner(
+                      text: error,
+                      icon: 'exclamationmark.circle',
+                    ),
                   ),
-                  // Toasts float above everything on this screen.
-                  const _TicketsToastHost(),
-                ],
-              ),
+                Expanded(
+                  child: settleable.isEmpty
+                      ? EmptyState(
+                          icon: 'tray',
+                          title: bridge.tr(key: 'waiter.no_tickets'),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsetsDirectional.all(Space.lg),
+                          itemCount: settleable.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: Space.sm),
+                          itemBuilder: (context, index) {
+                            final ticket = settleable[index];
+                            return Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: _cardMaxWidth,
+                                ),
+                                child: _SettleTicketCard(
+                                  ticket: ticket,
+                                  onView: () => unawaited(_viewTicket(ticket)),
+                                  onSettle: () =>
+                                      unawaited(_settleTicket(ticket)),
+                                  onVoid: () => unawaited(_voidTicket(ticket)),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          ),
-        ],
+            // Toasts float above everything on this screen.
+            const _TicketsToastHost(),
+          ],
+        ),
       ),
     );
   }

@@ -112,59 +112,47 @@ class _DraftsScreenState extends ConsumerState<DraftsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final drafts = ref.watch(orderProvider.select((s) => s.drafts));
     final currency = ref.watch(orderProvider.select((s) => s.currency));
-    // Scaffold: every screen owns its own Material ancestor in this app.
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: Column(
-        children: [
-          MadarHeader(
-            title: bridge.tr(key: 'drafts.title'),
-            onBack: () => Navigator.maybePop(context, false),
-          ),
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: drafts.isEmpty
-                  ? EmptyState(
-                      icon: 'tray',
-                      title: bridge.tr(key: 'drafts.empty'),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsetsDirectional.all(Space.lg),
-                      itemCount: drafts.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: Space.md),
-                      itemBuilder: (context, index) {
-                        final draft = drafts[index];
-                        return Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxWidth: _cardMaxWidth,
-                            ),
-                            child: _DraftCard(
-                              draft: draft,
-                              currency: currency,
-                              onRestore: () => unawaited(_restore(draft)),
-                              onDiscard: () => unawaited(_discard(draft)),
-                              // Only where a floor exists to put it on.
-                              onTable:
-                                  ref.watch(
-                                    orderProvider.select((s) => s.hasFloor),
-                                  )
-                                  ? () => unawaited(_assignTable(draft))
-                                  : null,
-                            ),
-                          ),
-                        );
-                      },
+    return MadarPageScaffold(
+      title: bridge.tr(key: 'drafts.title'),
+      onBack: () => Navigator.maybePop(context, false),
+      gutter: false,
+      body: SafeArea(
+        top: false,
+        child: drafts.isEmpty
+            ? EmptyState(
+                icon: 'tray',
+                title: bridge.tr(key: 'drafts.empty'),
+              )
+            : ListView.separated(
+                padding: const EdgeInsetsDirectional.all(Space.lg),
+                itemCount: drafts.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: Space.md),
+                itemBuilder: (context, index) {
+                  final draft = drafts[index];
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: _cardMaxWidth,
+                      ),
+                      child: _DraftCard(
+                        draft: draft,
+                        currency: currency,
+                        onRestore: () => unawaited(_restore(draft)),
+                        onDiscard: () => unawaited(_discard(draft)),
+                        // Only where a floor exists to put it on.
+                        onTable:
+                            ref.watch(orderProvider.select((s) => s.hasFloor))
+                            ? () => unawaited(_assignTable(draft))
+                            : null,
+                      ),
                     ),
-            ),
-          ),
-        ],
+                  );
+                },
+              ),
       ),
     );
   }

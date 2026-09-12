@@ -13,8 +13,6 @@
 /// how many and in what words.
 library;
 
-import 'package:design_system/src/brand.dart';
-import 'package:design_system/src/glass_surface.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/playful.dart';
 import 'package:design_system/src/responsive.dart';
@@ -304,36 +302,29 @@ class MadarRail extends StatelessWidget {
     final colors = context.madarColors;
     final topInset = MediaQuery.viewPaddingOf(context).top;
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-    // The ONE glass surface in this app. It is persistent chrome — one
-    // platform view for the life of the process, not one per screen — and
-    // everything else stays painted, because a platform view under a stack
-    // of sheets is where iOS's compositing order starts showing through.
-    // Off iOS 26 this is exactly the Container it replaced.
-    return MadarGlassSurface(
-      fallback: colors.chrome,
-      child: Container(
-        width: Metrics.railWidth,
-        padding: EdgeInsetsDirectional.only(
-          top: topInset + Space.lg,
-          bottom: bottomInset + 18,
-        ),
-        child: Column(
-          children: [
-            _Mark(onTap: onMarkTap),
-            const SizedBox(height: 14),
-            for (var i = 0; i < tabs.length; i++) ...[
-              if (i > 0) const SizedBox(height: 6),
-              MadarRailTab(
-                tab: tabs[i],
-                selected: i == selectedIndex,
-                onTap: () => onSelect(i),
-              ),
-            ],
-            const Spacer(),
-            if (person != null)
-              _Who(person: person!, onTap: onPersonTap, vertical: true),
+    return Container(
+      width: Metrics.railWidth,
+      color: colors.chrome,
+      padding: EdgeInsetsDirectional.only(
+        top: topInset + Space.lg,
+        bottom: bottomInset + 18,
+      ),
+      child: Column(
+        children: [
+          _Mark(onTap: onMarkTap),
+          const SizedBox(height: 14),
+          for (var i = 0; i < tabs.length; i++) ...[
+            if (i > 0) const SizedBox(height: 6),
+            MadarRailTab(
+              tab: tabs[i],
+              selected: i == selectedIndex,
+              onTap: () => onSelect(i),
+            ),
           ],
-        ),
+          const Spacer(),
+          if (person != null)
+            _Who(person: person!, onTap: onPersonTap, vertical: true),
+        ],
       ),
     );
   }
@@ -347,10 +338,14 @@ class _Mark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    // The SYMBOL, not `MadarGlyph.mark`. That glyph is the path `M4 20V6l8
-    // 9 8-9v14` — a letter M, which is a placeholder for a logo rather than
-    // one. The rail carried the real mark until the till was rebuilt and it
-    // was quietly swapped for the letter.
+    // The LIVING mark, not `MadarGlyph.mark` and not the still PNG either.
+    // That glyph is the path `M4 20V6l8 9 8-9v14` — a letter M, a
+    // placeholder for a logo rather than one. The rail carried
+    // AnimatedBrandMark (the orbit ring with its satellite riding it, the
+    // planet breathing) until the till was rebuilt and it became the
+    // letter; restoring the artwork alone put the logo back and left the
+    // animation on the floor. It was never deleted — it has been sitting
+    // in playful.dart unused the whole time.
     final mark = Container(
       width: Metrics.railMark,
       height: Metrics.railMark,
@@ -360,9 +355,13 @@ class _Mark extends StatelessWidget {
         borderRadius: BorderRadius.circular(Radii.control),
       ),
       // Reversed on the accent square, which is dark in both themes — the
-      // symbol picks its variant from the ambient brightness, and the square
-      // is not the ambient anything.
-      child: const MadarSymbol(size: _railMarkArtwork, reversed: true),
+      // mark would otherwise take its ink from the ambient brightness, and
+      // the square is not the ambient anything.
+      child: AnimatedBrandMark(
+        symbolSize: _railMarkArtwork,
+        wordmark: false,
+        ink: colors.textOnAccent,
+      ),
     );
     if (onTap == null) return ExcludeSemantics(child: mark);
     return TactileScale(onTap: onTap, child: mark);

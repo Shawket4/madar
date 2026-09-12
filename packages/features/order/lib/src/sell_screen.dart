@@ -226,7 +226,6 @@ class _SellScreenState extends ConsumerState<SellScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     listenForTableClear(context, ref);
     // Back to where the round came from once it is in — only when this
@@ -311,8 +310,9 @@ class _SellScreenState extends ConsumerState<SellScreen>
       onBundleTap: (b) => unawaited(_openBundle(b)),
     );
 
-    return Scaffold(
-      backgroundColor: colors.bg,
+    // A tab body — the shell's top bar above it already paid the top inset.
+    return MadarPageScaffold(
+      safeTop: false,
       body: SafeArea(
         top: false,
         child: Column(

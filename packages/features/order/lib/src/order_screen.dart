@@ -300,8 +300,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
         autofocus: true,
         // Scaffold: text fields, ink, and text styling need a Material
         // ancestor — every screen owns its own Scaffold in this app.
-        child: Scaffold(
-          backgroundColor: colors.bg,
+        child: MadarPageScaffold(
+          safeTop: false,
           body: Stack(
             children: [
               ResponsiveBuilder(

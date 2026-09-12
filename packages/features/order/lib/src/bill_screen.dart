@@ -223,28 +223,20 @@ class _BillScreenState extends ConsumerState<BillScreen>
     final currency = state.currency;
 
     if (ticket == null) {
-      return Scaffold(
-        backgroundColor: colors.bg,
-        body: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: EdgeInsetsDirectional.all(layout.gutter),
-                child: MadarHeader(
-                  title: orderWord(bridge, 'bill.title'),
-                  onBack: () => Navigator.of(context).maybePop(),
-                ),
-              ),
-              Expanded(
-                child: state.openTickets.isEmpty && state.isLoadingCatalog
-                    ? const SkeletonList(count: 3)
-                    : EmptyState(
-                        icon: 'doc.text',
-                        title: orderWord(bridge, 'bill.gone'),
-                      ),
-              ),
-            ],
-          ),
+      return MadarPageScaffold(
+        title: orderWord(bridge, 'bill.title'),
+        onBack: () => Navigator.of(context).maybePop(),
+        body: Column(
+          children: [
+            Expanded(
+              child: state.openTickets.isEmpty && state.isLoadingCatalog
+                  ? const SkeletonList(count: 3)
+                  : EmptyState(
+                      icon: 'doc.text',
+                      title: orderWord(bridge, 'bill.gone'),
+                    ),
+            ),
+          ],
         ),
       );
     }
@@ -274,6 +266,8 @@ class _BillScreenState extends ConsumerState<BillScreen>
     final queued = ticket.queuedOffline || ticket.status == 'queued';
 
     final header = MadarHeader(
+      // Pushed route: nothing above it pays the status-bar inset.
+      safeTop: true,
       title: ticket.ticketRef == null || tableLabel == null || !refInTitle
           ? title
           : '$title · ${ticket.ticketRef}',
@@ -389,31 +383,27 @@ class _BillScreenState extends ConsumerState<BillScreen>
             ),
     );
 
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: Responsive.billMaxWidth,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: EdgeInsetsDirectional.fromSTEB(
-                    layout.gutter,
-                    Space.md,
-                    layout.gutter,
-                    0,
-                  ),
-                  child: header,
+    return MadarPageScaffold(
+      gutter: false,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: Responsive.billMaxWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsetsDirectional.fromSTEB(
+                  layout.gutter,
+                  Space.md,
+                  layout.gutter,
+                  0,
                 ),
-                Expanded(child: body),
-                const MadarHairline(),
-                footer,
-              ],
-            ),
+                child: header,
+              ),
+              Expanded(child: body),
+              const MadarHairline(),
+              footer,
+            ],
           ),
         ),
       ),

@@ -18,7 +18,6 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_shift/src/brand_panel.dart';
 import 'package:feature_shift/src/shift_providers.dart';
-import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -69,16 +68,16 @@ class _OpenShiftScreenState extends ConsumerState<OpenShiftScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     String t(String key) => bridge.tr(key: key);
     // Narrow slices: the heartbeat chrome repaints alone every 15s.
     final online = ref.watch(openShiftProvider.select((s) => s.online));
     final authPaused = ref.watch(openShiftProvider.select((s) => s.authPaused));
-    // Scaffold (not a bare ColoredBox): TextFields and text styling need a
-    // Material ancestor — screens own their own Scaffold in this app.
-    return Scaffold(
-      backgroundColor: colors.bg,
+    // The page shell, so the banners pinned at top: 0 below sit under the
+    // status bar rather than behind the clock. `embedded` means the tab
+    // shell is above us and has already paid that inset.
+    return MadarPageScaffold(
+      safeTop: !widget.embedded,
       body: ResponsiveBuilder(
         builder: (context, info) {
           final form = SingleChildScrollView(

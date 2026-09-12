@@ -85,10 +85,6 @@ class _BootApp extends StatelessWidget {
       theme: MadarTheme.light(),
       darkTheme: MadarTheme.dark(),
       themeMode: ThemeMode.light,
-      // The rail wears a native platform view on iOS 26 (design_system's
-      // MadarGlassSurface), and iOS composites those above Flutter's own
-      // layers unless something tells the plugin a modal went up.
-      navigatorObservers: [glassRouteObserver()],
       builder: orientationProbe,
       home: home,
     );

@@ -951,6 +951,8 @@ class AnimatedBrandMark extends StatefulWidget {
   const AnimatedBrandMark({
     this.symbolSize = 36,
     this.wordmarkWidth = 56,
+    this.wordmark = true,
+    this.ink,
     super.key,
   });
 
@@ -959,6 +961,17 @@ class AnimatedBrandMark extends StatefulWidget {
 
   /// Width of the typed wordmark under it.
   final double wordmarkWidth;
+
+  /// Whether the typed wordmark sits under the symbol. False on the rail,
+  /// where the mark lives inside an accent square 32px on a side and a
+  /// wordmark under it would be unreadable rather than decorative.
+  final bool wordmark;
+
+  /// Overrides the ink the ring and satellite are drawn in. Default is
+  /// `textPrimary`, which flips with the theme like the PNG marks do — pass
+  /// this only where the mark sits on a surface that is NOT the ambient
+  /// background, such as the rail's accent square.
+  final Color? ink;
 
   @override
   State<AnimatedBrandMark> createState() => _AnimatedBrandMarkState();
@@ -998,13 +1011,17 @@ class _AnimatedBrandMarkState extends State<AnimatedBrandMark>
                 pulse: _pulse.value,
                 // textPrimary mirrors the PNG marks: ink on paper, paper
                 // on ink — the reversed variant for free.
-                ink: colors.textPrimary,
-                accent: colors.accent,
+                ink: widget.ink ?? colors.textPrimary,
+                accent: widget.ink == null
+                    ? colors.accent
+                    : colors.textOnAccent,
               ),
             ),
           ),
-          const SizedBox(height: 4),
-          MadarWordmark(width: widget.wordmarkWidth),
+          if (widget.wordmark) ...[
+            const SizedBox(height: 4),
+            MadarWordmark(width: widget.wordmarkWidth),
+          ],
         ],
       ),
     );

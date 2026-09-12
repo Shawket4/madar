@@ -697,8 +697,10 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       );
     }
 
-    return Scaffold(
-      backgroundColor: colors.bg,
+    // A tab body, never pushed (chrome.dart mounts it for _Tab.floor), so
+    // the shell's top bar has already paid the status-bar inset.
+    return MadarPageScaffold(
+      safeTop: false,
       body: SafeArea(
         top: false,
         child: Column(

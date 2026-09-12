@@ -62,8 +62,9 @@ class KitchenDisplayScreen extends ConsumerWidget {
     // Scaffold (not a bare ColoredBox): text styling needs a Material
     // ancestor — every screen owns its own Scaffold in this app. The top bar
     // paints under the status bar itself; the board keeps the side insets.
-    return Scaffold(
-      backgroundColor: colors.bg,
+    // The KDS draws its own MadarTopBar, which pays its own inset.
+    return MadarPageScaffold(
+      safeTop: false,
       body: Column(
         children: [
           MadarTopBar(

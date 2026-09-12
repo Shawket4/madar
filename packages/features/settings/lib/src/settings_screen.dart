@@ -19,7 +19,7 @@ import 'package:feature_settings/src/settings_sheets.dart';
 import 'package:feature_settings/src/sync_provider.dart';
 import 'package:feature_settings/src/sync_screen.dart';
 import 'package:feature_settings/src/sync_section.dart';
-import 'package:flutter/material.dart' show MaterialPageRoute, Scaffold;
+import 'package:flutter/material.dart' show MaterialPageRoute;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -56,7 +56,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final layout = context.madarLayout;
     // Pushed as its own route, so it re-derives direction from the locale
@@ -81,53 +80,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     const prefs = _Preferences();
     return Directionality(
       textDirection: locale.rtl ? TextDirection.rtl : TextDirection.ltr,
-      child: Scaffold(
-        backgroundColor: colors.bg,
-        body: Column(
-          children: [
-            Padding(
-              padding: EdgeInsetsDirectional.symmetric(
-                horizontal: layout.gutter,
-              ),
-              child: MadarHeader(
-                title: bridge.tr(key: 'settings.title'),
-                onBack: () => Navigator.of(context).maybePop(),
-                safeTop: true,
-              ),
-            ),
-            Expanded(
-              child: SafeArea(
-                top: false,
-                child: SingleChildScrollView(
-                  padding: EdgeInsetsDirectional.all(layout.gutter),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: layout.pick(
-                          phone: Responsive.billMaxWidth,
-                          tablet: Responsive.contentMaxWidth + Space.xxl,
-                        ),
-                      ),
-                      child: layout.isTablet
-                          ? Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              spacing: Space.xl,
-                              children: [
-                                Expanded(flex: _syncFlex, child: sync),
-                                const Expanded(flex: _prefsFlex, child: prefs),
-                              ],
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              spacing: Space.xl,
-                              children: [sync, prefs],
-                            ),
-                    ),
+      child: MadarPageScaffold(
+        title: bridge.tr(key: 'settings.title'),
+        onBack: () => Navigator.of(context).maybePop(),
+        body: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsetsDirectional.all(layout.gutter),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: layout.pick(
+                    phone: Responsive.billMaxWidth,
+                    tablet: Responsive.contentMaxWidth + Space.xxl,
                   ),
                 ),
+                child: layout.isTablet
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: Space.xl,
+                        children: [
+                          Expanded(flex: _syncFlex, child: sync),
+                          const Expanded(flex: _prefsFlex, child: prefs),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: Space.xl,
+                        children: [sync, prefs],
+                      ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

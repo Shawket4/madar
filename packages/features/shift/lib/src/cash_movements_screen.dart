@@ -8,7 +8,6 @@ library;
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_shift/src/cash_in_out_panel.dart';
-import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,12 +20,10 @@ class CashMovementsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     final layout = context.madarLayout;
     // Scaffold: every screen root owns its own Scaffold in this app.
-    return Scaffold(
-      backgroundColor: colors.bg,
+    return MadarPageScaffold(
       body: Column(
         children: [
           Padding(

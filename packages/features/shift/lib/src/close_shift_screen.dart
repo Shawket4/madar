@@ -18,7 +18,6 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
-import 'package:flutter/material.dart' show Scaffold;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -82,7 +81,6 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.watch(bridgeProvider);
     String t(String key) => bridge.tr(key: key);
     final currency = bridge.currentSession()?.currencyCode ?? '';
@@ -119,8 +117,7 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
     );
 
     // Scaffold: screens own their own Material ancestor in this app.
-    return Scaffold(
-      backgroundColor: colors.bg,
+    return MadarPageScaffold(
       body: Column(
         children: [
           Padding(
