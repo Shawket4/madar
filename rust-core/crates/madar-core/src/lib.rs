@@ -6496,7 +6496,19 @@ impl MadarCore {
             false,
             Some(&seated_now),
         )?;
-        self.sync_hold_occupancy(None, Some(table_id), false)?;
+        // The same `hold_table` op a parked cart sends, carrying WHEN the party
+        // sat down — so a second device's clock reads the seating, not the
+        // moment it happened to pull. A server that does not know the field
+        // yet ignores it.
+        let cmd = held::TableStateCommand {
+            table_id: table_id.clone(),
+            request: serde_json::json!({ "seated_at": seated_now }),
+        };
+        self.enqueue_held_op(
+            "hold_table",
+            format!("table-hold:{table_id}:{}", uuid::Uuid::new_v4()),
+            &serde_json::to_string(&cmd)?,
+        )?;
         let _ = self.drain_outbox().await;
         Ok(())
     }
@@ -8893,6 +8905,20 @@ mod lifecycle_tests {
         let takeaway = core.cart_set_context(None).unwrap();
         assert_eq!(takeaway.len(), 1);
         assert_eq!(takeaway[0].name, "Cookie");
+
+        // Seating carries WHEN the party sat down on its hold op, so another
+        // device reads the seating time rather than its own pull time.
+        let t2 = "00000000-0000-0000-0000-0000000000c2".to_string();
+        core.seat_table(t2.clone()).await.unwrap();
+        let hold = core
+            .store
+            .pending()
+            .unwrap()
+            .into_iter()
+            .find(|o| o.op_type == "hold_table" && o.payload.contains(&t2))
+            .expect("a hold_table op for the seated table");
+        let payload: serde_json::Value = serde_json::from_str(&hold.payload).unwrap();
+        assert!(payload["request"]["seated_at"].as_str().is_some());
     }
 
     #[tokio::test]
