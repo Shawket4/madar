@@ -330,6 +330,20 @@ fn view(lines: &[StoredLine]) -> Vec<CartLineView> {
         .collect()
 }
 
+/// The addon families that REPLACE part of the recipe rather than adding to it.
+///
+/// A latte has milk in it already; choosing oat does not give the cup two
+/// milks, it changes which milk. That is why these pay only the delta over the
+/// base ([adjusted_addon_price]) and why a group of them can hold exactly one
+/// selection ([item_modifier_groups]). The two rules are the same fact, so
+/// they read the same constant.
+pub(crate) const SWAP_FAMILIES: [&str; 2] = ["milk_type", "coffee_type"];
+
+/// Whether `addon_type` replaces part of the recipe instead of adding to it.
+pub(crate) fn is_swap_family(addon_type: &str) -> bool {
+    SWAP_FAMILIES.contains(&addon_type)
+}
+
 /// Charged addon price: SWAP families (milk_type, coffee_type) pay only the delta
 /// over the item's default base for that family (clamped ≥0) — re-selecting the
 /// default costs 0; everything else (additive) pays the full default. The backend
@@ -621,6 +635,25 @@ pub(crate) fn item_modifier_groups(
         if options.is_empty() {
             continue; // a slot whose type has no offered addons renders nothing
         }
+        // A SWAP family is exclusive whatever the slot says.
+        //
+        // `max_selections` is optional on a slot, and `None` means "no cap" —
+        // so a milk slot that nobody set a maximum on made milk ADDITIVE. The
+        // sheet then preselected the recipe's full-fat, the teller picked oat,
+        // and the line went out with both: the customer was charged for two
+        // milks and the kitchen was told to pour two. The unslotted path below
+        // always got this right, so whether the bug appeared came down to
+        // whether a shop happened to configure a slot for milk.
+        //
+        // It is not the slot's call to make. `adjusted_addon_price` already
+        // charges these families as a DELTA over the base, which is only
+        // coherent when exactly one is chosen — the pricing engine has always
+        // assumed the exclusivity this now enforces.
+        let max_selections = if is_swap_family(&slot.addon_type) {
+            Some(slot.max_selections.unwrap_or(1).min(1))
+        } else {
+            slot.max_selections
+        };
         groups.push(ModifierGroupView {
             group_id: slot.id.clone(),
             name: slot
@@ -631,7 +664,7 @@ pub(crate) fn item_modifier_groups(
             addon_type: Some(slot.addon_type.clone()),
             is_required: slot.is_required,
             min_selections: slot.min_selections.max(0),
-            max_selections: slot.max_selections,
+            max_selections,
             options,
         });
     }
@@ -659,7 +692,7 @@ pub(crate) fn item_modifier_groups(
             addon_type: Some(ty.to_string()),
             is_required: false,
             min_selections: 0,
-            max_selections: if ty == "milk_type" { Some(1) } else { None },
+            max_selections: if is_swap_family(ty) { Some(1) } else { None },
             options: options_of(ty),
         });
     }
@@ -2614,4 +2647,102 @@ mod tests {
         // clear() empties the live cart but does NOT touch the drafts stash.
         assert_eq!(drafts(&s).unwrap().len(), 1);
     }
+    /// A milk SLOT with no maximum set used to make milk additive: the group
+    /// came out multi-select, the sheet preselected the recipe's default, and
+    /// the teller's alternative landed BESIDE it. The cup was charged for two
+    /// milks and the kitchen was told to pour two.
+    ///
+    /// The unslotted path never had this bug, so whether a shop hit it came
+    /// down to whether it happened to configure a slot for milk.
+    #[test]
+    fn a_milk_slot_with_no_maximum_is_still_choose_one() {
+        let mut i = item();
+        i.addon_slots = vec![menu::AddonSlotView {
+            id: "slot-milk".into(),
+            label: Some("Milk".into()),
+            addon_type: "milk_type".into(),
+            is_required: false,
+            min_selections: 0,
+            // The shape that did it: nobody set a cap, and `None` means
+            // "no cap" everywhere else in this model.
+            max_selections: None,
+        }];
+        let catalog = vec![
+            addon("oat", "milk_type", 1500),
+            addon("full_fat", "milk_type", 1000),
+        ];
+        let groups = item_modifier_groups(&i, &catalog);
+        let milk = groups
+            .iter()
+            .find(|g| g.addon_type.as_deref() == Some("milk_type"))
+            .expect("the slot is offered");
+        assert_eq!(
+            milk.max_selections,
+            Some(1),
+            "a swap family replaces part of the recipe, so exactly one of it \
+             can be chosen — the slot does not get a say"
+        );
+    }
+
+    /// Coffee is the other swap family and was never capped at all, slotted
+    /// or not: `adjusted_addon_price` charges it as a delta over the base,
+    /// which only means anything when one is selected.
+    #[test]
+    fn coffee_is_choose_one_too_slotted_or_not() {
+        let mut i = item();
+        let catalog = vec![
+            addon("house", "coffee_type", 0),
+            addon("single_origin", "coffee_type", 800),
+        ];
+
+        let unslotted = item_modifier_groups(&i, &catalog);
+        let g = unslotted
+            .iter()
+            .find(|g| g.addon_type.as_deref() == Some("coffee_type"))
+            .expect("offered without a slot");
+        assert_eq!(g.max_selections, Some(1));
+
+        i.addon_slots = vec![menu::AddonSlotView {
+            id: "slot-coffee".into(),
+            label: None,
+            addon_type: "coffee_type".into(),
+            is_required: true,
+            min_selections: 1,
+            max_selections: Some(3),
+        }];
+        let slotted = item_modifier_groups(&i, &catalog);
+        let g = slotted
+            .iter()
+            .find(|g| g.addon_type.as_deref() == Some("coffee_type"))
+            .expect("offered with a slot");
+        assert_eq!(
+            g.max_selections,
+            Some(1),
+            "a slot asking for three is still asking for three of a thing \
+             that replaces one"
+        );
+    }
+
+    /// The ordinary families keep their slot's own answer — this narrows
+    /// swap families and nothing else.
+    #[test]
+    fn an_additive_family_keeps_whatever_its_slot_asked_for() {
+        let mut i = item();
+        i.addon_slots = vec![menu::AddonSlotView {
+            id: "slot-extra".into(),
+            label: None,
+            addon_type: "extra".into(),
+            is_required: false,
+            min_selections: 0,
+            max_selections: None,
+        }];
+        let catalog = vec![addon("shot", "extra", 500), addon("syrup", "extra", 300)];
+        let groups = item_modifier_groups(&i, &catalog);
+        let g = groups
+            .iter()
+            .find(|g| g.addon_type.as_deref() == Some("extra"))
+            .expect("offered");
+        assert_eq!(g.max_selections, None, "extras still stack");
+    }
+
 }

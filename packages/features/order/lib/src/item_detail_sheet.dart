@@ -185,19 +185,40 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
         .where((s) => s.addonType == type)
         .firstOrNull;
     if (slot != null) {
-      if ((slot.maxSelections ?? 2) > 1) {
+      // A swap family is single-select whatever the slot says: `?? 2` meant an
+      // unset maximum made milk MULTI, so rehydrating a line put the recipe's
+      // default in the additive bucket and the next pick landed beside it
+      // rather than replacing it.
+      if (!isSwapFamily(type) && (slot.maxSelections ?? 2) > 1) {
         multi.putIfAbsent(slot.id, () => {})[addonItemId] = qty;
       } else {
         single[slot.id] = addonItemId;
       }
     } else {
       final gid = 'type:$type';
-      if (type != 'milk_type') {
+      if (!isSwapFamily(type)) {
         multi.putIfAbsent(gid, () => {})[addonItemId] = qty;
       } else {
         single[gid] = addonItemId;
       }
     }
+  }
+
+  /// Where the recipe's default milk belongs in the selection map.
+  ///
+  /// The group is keyed by the SLOT when the item configures one and by
+  /// `type:milk_type` when it does not. Seeding the unslotted key
+  /// unconditionally — which is what this used to do — dropped the
+  /// preselection into a group the sheet never renders for a slotted item:
+  /// the milk group showed nothing chosen while the line still carried
+  /// full-fat, so picking oat added a second milk instead of replacing it.
+  static void _seedDefaultMilk(ItemSheetArgs args, Map<String, String> single) {
+    final milk = args.item.defaultMilkAddonId;
+    if (milk == null) return;
+    final slot = args.item.addonSlots
+        .where((s) => s.addonType == 'milk_type')
+        .firstOrNull;
+    single[slot?.id ?? 'type:milk_type'] = milk;
   }
 
   static ItemConfigState _seed(ItemSheetArgs args) {
@@ -217,8 +238,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
         }
         optionals = seed.optionalIds.toSet();
       } else {
-        final milk = item.defaultMilkAddonId;
-        if (milk != null) single['type:milk_type'] = milk;
+        _seedDefaultMilk(args, single);
       }
     } else if (editLine != null) {
       // Edit mode: reconstruct the selection from the existing line.
@@ -229,8 +249,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
       optionals = editLine.optionals.map((o) => o.optionalFieldId).toSet();
       qty = editLine.qty < 1 ? 1 : editLine.qty;
     } else {
-      final milk = item.defaultMilkAddonId;
-      if (milk != null) single['type:milk_type'] = milk;
+      _seedDefaultMilk(args, single);
     }
     return ItemConfigState(
       size: size,
@@ -371,6 +390,18 @@ itemConfigProvider = NotifierProvider.autoDispose
     .family<ItemConfigNotifier, ItemConfigState, ItemSheetArgs>(
       ItemConfigNotifier.new,
     );
+
+/// The addon families that REPLACE part of the recipe rather than adding to
+/// it — mirrors `SWAP_FAMILIES` in the core's cart.rs, which charges them as
+/// a delta over the base and caps their groups at one selection.
+///
+/// A latte already has milk; choosing oat changes which milk, it does not put
+/// two in the cup. Anywhere this app decides whether a family is single- or
+/// multi-select, it asks this and not the slot config — a milk slot with no
+/// maximum set used to mean "no cap", which made milk additive and sent a
+/// line out carrying the recipe's full-fat AND the oat the teller picked.
+bool isSwapFamily(String addonType) =>
+    addonType == 'milk_type' || addonType == 'coffee_type';
 
 /// Item customization — size, addons (per slot + global types), optional
 /// fields, live recipe preview, notes, qty. Prices come pre-resolved from
@@ -518,7 +549,8 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
         isSlot: true,
       );
       if (addons.isEmpty) continue;
-      final isMulti = (slot.maxSelections ?? 2) > 1;
+      final isMulti =
+          !isSwapFamily(slot.addonType) && (slot.maxSelections ?? 2) > 1;
       groups.add(
         AddonGroup(
           id: slot.id,
@@ -551,7 +583,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
           id: 'type:$type',
           title: _typeLabel(bridge, type),
           addons: addons,
-          isMulti: type != 'milk_type',
+          isMulti: !isSwapFamily(type),
           maxSel: null,
           isRequired: false,
           minSel: 0,

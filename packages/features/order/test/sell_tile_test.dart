@@ -6,6 +6,7 @@
 import 'dart:io';
 
 import 'package:design_system/design_system.dart';
+import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/sell_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,6 +32,7 @@ Widget _host(Widget child) => MaterialApp(
 );
 
 void main() {
+  _defaultMilkTests();
   group('SellTile photo', () {
     testWidgets('renders an Image when the core has a cached local path', (
       tester,
@@ -107,5 +109,20 @@ void main() {
       expect(seen, isNotNull);
       expect(seen, isNot(Offset.zero));
     });
+  });
+}
+
+// The milk that comes with the recipe must land in the group the sheet
+// actually renders. It is keyed by the SLOT when the item configures one and
+// by `type:milk_type` when it does not — seeding the unslotted key either way
+// dropped the preselection into a group nothing draws, so the milk group read
+// as "nothing chosen" while the line still carried full-fat. Picking oat then
+// ADDED a second milk instead of replacing the first.
+void _defaultMilkTests() {
+  test('a swap family is single-select; an additive one is not', () {
+    expect(isSwapFamily('milk_type'), isTrue);
+    expect(isSwapFamily('coffee_type'), isTrue);
+    expect(isSwapFamily('extra'), isFalse);
+    expect(isSwapFamily('sauce'), isFalse);
   });
 }
