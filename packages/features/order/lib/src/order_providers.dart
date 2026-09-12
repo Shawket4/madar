@@ -1581,6 +1581,8 @@ class OrderNotifier extends Notifier<OrderState> {
         tipPaymentMethodId: tipPaymentMethodId,
         loyaltyCustomerId: loyaltyCustomerId,
         loyaltyRedemptions: loyaltyRedemptions,
+        // The floor settles with one method; splitting happens in the drawer.
+        splits: const [],
       );
       // The party paid and left their plates: the table needs a bus, and the
       // teller — not the app — decides when it is ready for the next party.

@@ -758,6 +758,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     double? discountValue,
     String? loyaltyCustomerId,
     required List<CheckoutRedemption> loyaltyRedemptions,
+    required List<CheckoutSplit> splits,
   });
 
   /// The current shift's report — drives the close-shift system-cash +

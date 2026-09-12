@@ -6518,6 +6518,13 @@ impl MadarCore {
         // almost all of them.
         loyalty_customer_id: Option<String>,
         loyalty_redemptions: Vec<checkout::CheckoutRedemption>,
+        // How the table actually paid, when it was not one method. A counter
+        // sale has carried its legs since splits existed; a TABLE could not,
+        // so four people settling one bill between a card and two notes were
+        // recorded as whichever method the cashier happened to tap — and the
+        // drawer reconciled against a card line that never moved. Empty means
+        // one method, which is nearly every bill.
+        splits: Vec<checkout::CheckoutSplit>,
     ) -> Result<Option<String>, CoreError> {
         let shift_uuid = uuid::Uuid::parse_str(&shift_id).map_err(|_| CoreError::Validation {
             field: "shift_id".into(),
@@ -6560,6 +6567,29 @@ impl MadarCore {
             .as_deref()
             .and_then(|s| uuid::Uuid::parse_str(s).ok())
             .map(Some);
+        // Each leg's method id resolved to the raw NAME the backend validates,
+        // the same way the cart's legs are resolved — a leg whose method no
+        // longer exists is dropped rather than sent as a name nothing matches,
+        // which would 400 the whole settle over one stale button.
+        if !splits.is_empty() {
+            let legs: Vec<madar_api::models::PaymentSplitInput> = splits
+                .iter()
+                .filter_map(|s| {
+                    let name = checkout::raw_payment_method(&self.store, &s.payment_method_id)
+                        .ok()
+                        .flatten()?
+                        .name;
+                    Some(madar_api::models::PaymentSplitInput {
+                        amount: s.amount_minor as i32,
+                        method: name,
+                        reference: None,
+                    })
+                })
+                .collect();
+            if !legs.is_empty() {
+                request.payment_splits = Some(Some(legs));
+            }
+        }
         if !loyalty_redemptions.is_empty() {
             request.loyalty_redemptions = Some(
                 loyalty_redemptions

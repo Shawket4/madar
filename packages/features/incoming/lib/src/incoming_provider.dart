@@ -522,6 +522,8 @@ class IncomingNotifier extends Notifier<IncomingState> {
         // Rewards ride with the bill's own Charge (the Bill screen); the
         // Queue's row Charge is the quick path and carries none.
         loyaltyRedemptions: const [],
+        // Settled from the queue with one method; no tender screen, no legs.
+        splits: const [],
         amountTenderedMinor: amountTenderedMinor,
         tipMinor: tipMinor,
         tipPaymentMethodId: tipPaymentMethodId,

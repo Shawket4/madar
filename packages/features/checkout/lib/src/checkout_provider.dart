@@ -256,10 +256,13 @@ class CheckoutState {
   /// else.
   bool get takesTender => !isOnline;
 
-  /// Split legs ride only on `checkout()`. `settleTicket` has no splits
-  /// although the wire accepts `payment_splits` — the toggle is hidden on a
-  /// bill until the bridge carries them.
-  bool get canSplit => isCart && paymentMethods.length >= 2;
+  /// A table splits too, now that `settleTicket` carries its legs. Four people
+  /// settling one bill across a card and two notes used to be recorded under
+  /// whichever method the cashier tapped, and the drawer then reconciled
+  /// against a card line that never moved.
+  ///
+  /// Still not an online order: a finalize takes one method and nothing else.
+  bool get canSplit => !isOnline && paymentMethods.length >= 2;
 
   bool get shiftOpen => shiftId != null;
 
@@ -957,6 +960,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       discountValue: discount?.value,
       loyaltyCustomerId: s.redemptions.isEmpty ? null : s.loyaltyMember?.id,
       loyaltyRedemptions: s.redemptionInputs,
+      splits: s.splitLegs,
     );
     ReceiptView? receipt;
     if (orderId != null) {

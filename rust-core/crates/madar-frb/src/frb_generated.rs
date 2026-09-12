@@ -7472,6 +7472,8 @@ fn wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
             let api_loyalty_customer_id = <Option<String>>::sse_decode(&mut deserializer);
             let api_loyalty_redemptions =
                 <Vec<crate::api::orders::CheckoutRedemption>>::sse_decode(&mut deserializer);
+            let api_splits =
+                <Vec<crate::api::orders::CheckoutSplit>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::MadarError>(
@@ -7506,6 +7508,7 @@ fn wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
                             api_discount_value,
                             api_loyalty_customer_id,
                             api_loyalty_redemptions,
+                            api_splits,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)

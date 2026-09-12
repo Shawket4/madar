@@ -148,6 +148,13 @@ impl MadarBridge {
         // `CheckoutRedemption::ticket_line_id`).
         loyalty_customer_id: Option<String>,
         loyalty_redemptions: Vec<crate::api::orders::CheckoutRedemption>,
+        // How the table actually paid, when it was not one method. Empty means
+        // one method, which is nearly every bill. A counter sale has carried
+        // its legs since splits existed; a table could not, so a bill settled
+        // across a card and two notes was recorded under whichever method the
+        // cashier tapped — and the drawer reconciled against a card line that
+        // never moved.
+        splits: Vec<madar_core::checkout::CheckoutSplit>,
     ) -> Result<Option<String>, MadarError> {
         self.inner
             .settle_ticket(
@@ -162,6 +169,7 @@ impl MadarBridge {
                 discount_value,
                 loyalty_customer_id,
                 loyalty_redemptions,
+                splits,
             )
             .await
             .map_err(MadarError::from)

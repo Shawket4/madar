@@ -531,7 +531,7 @@ async fn offline_backlog_replays_exactly_once_across_a_reconnect() {
         );
     }
     let _ = offline
-        .record_cash_movement(1_500, "offline drawer float".into())
+        .record_cash_movement(1_500, "offline drawer float".into(), None, None)
         .await;
 
     let queued = offline.sync_status().expect("status");
@@ -1230,7 +1230,7 @@ async fn cash_movement_is_offline_first_and_idempotent() {
         .unwrap_or(0);
     // Record a pay-in; the FFI queues + best-effort drains.
     let mv = core
-        .record_cash_movement(2_500, "rebuild test pay-in".into())
+        .record_cash_movement(2_500, "rebuild test pay-in".into(), None, None)
         .await
         .expect("record");
     assert_eq!(mv.amount_minor, 2_500);
@@ -1299,7 +1299,7 @@ async fn offline_lists_show_last_synced_server_rows() {
         .unwrap();
     let receipt = live.checkout(cash_checkout(&live)).await.expect("order");
     assert!(!receipt.queued_offline, "the order should sync online");
-    live.record_cash_movement(2_500, "online float".into())
+    live.record_cash_movement(2_500, "online float".into(), None, None)
         .await
         .expect("cash");
     live.sync_now().await.ok();

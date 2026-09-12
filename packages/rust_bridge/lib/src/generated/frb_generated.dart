@@ -777,6 +777,7 @@ abstract class RustBridgeApi extends BaseApi {
     double? discountValue,
     String? loyaltyCustomerId,
     required List<CheckoutRedemption> loyaltyRedemptions,
+    required List<CheckoutSplit> splits,
   });
 
   Future<ShiftReportView> crateApiBridgeMadarBridgeShiftReport({
@@ -6026,6 +6027,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     double? discountValue,
     String? loyaltyCustomerId,
     required List<CheckoutRedemption> loyaltyRedemptions,
+    required List<CheckoutSplit> splits,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -6046,6 +6048,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           sse_encode_opt_box_autoadd_f_64(discountValue, serializer);
           sse_encode_opt_String(loyaltyCustomerId, serializer);
           sse_encode_list_checkout_redemption(loyaltyRedemptions, serializer);
+          sse_encode_list_checkout_split(splits, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -6071,6 +6074,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           discountValue,
           loyaltyCustomerId,
           loyaltyRedemptions,
+          splits,
         ],
         apiImpl: this,
       ),
@@ -6093,6 +6097,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           "discountValue",
           "loyaltyCustomerId",
           "loyaltyRedemptions",
+          "splits",
         ],
       );
 
@@ -15162,6 +15167,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     double? discountValue,
     String? loyaltyCustomerId,
     required List<CheckoutRedemption> loyaltyRedemptions,
+    required List<CheckoutSplit> splits,
   }) => RustBridge.instance.api.crateApiBridgeMadarBridgeSettleTicket(
     that: this,
     ticketId: ticketId,
@@ -15175,6 +15181,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     discountValue: discountValue,
     loyaltyCustomerId: loyaltyCustomerId,
     loyaltyRedemptions: loyaltyRedemptions,
+    splits: splits,
   );
 
   /// The current shift's report — drives the close-shift system-cash +
