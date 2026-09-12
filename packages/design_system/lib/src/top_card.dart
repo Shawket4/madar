@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:design_system/src/scrim.dart';
 import 'package:design_system/src/sheet.dart';
 import 'package:design_system/src/tokens/motion.dart';
 import 'package:flutter/material.dart';
@@ -9,14 +8,17 @@ import 'package:flutter/material.dart';
 /// — the post-sale Done card — as a real route in the kit's surface stack.
 ///
 /// Being a route (not an overlay entry) is the point: a sheet the card opens
-/// ("Add points") is pushed ABOVE it and dims it through the shared scrim,
-/// instead of rendering underneath a floating overlay that a stray tap would
-/// tear down together with the sheet.
+/// ("Add points") is pushed ABOVE it and takes the tap, instead of rendering
+/// underneath a floating overlay that a stray tap would tear down together
+/// with the sheet.
 ///
-/// It paints the shared dim (scrim.dart) and dismisses through its own
-/// barrier: a tap outside the card pops [barrierResult]. System back does the
-/// same. From the content, close it with `MadarSheet.close(context, result)`
-/// so it always animates out.
+/// The card does NOT dim and does NOT block: the sell grid behind it stays
+/// lit and live. A pointer down anywhere outside the card puts it away with
+/// [barrierResult] AND reaches whatever is under it — the teller's tap on a
+/// product tile starts the next sale in one tap. A sheet it opens claims the
+/// shared dim (scrim.dart) as the first dimming surface. System back resolves
+/// [barrierResult] too. From the content, close it with
+/// `MadarSheet.close(context, result)` so it always animates out.
 Future<T?> showMadarTopCard<T>(
   BuildContext context, {
   required WidgetBuilder builder,
@@ -57,28 +59,6 @@ class MadarTopCardRoute<T> extends ModalRoute<T> {
   /// Width cap of the card.
   final double maxWidth;
 
-  /// The card's stake in the shared dim.
-  ScrimClaim get scrimClaim => _scrimClaim ??= ScrimClaim.claim();
-  ScrimClaim? _scrimClaim;
-
-  @override
-  void install() {
-    _scrimClaim ??= ScrimClaim.claim();
-    super.install();
-  }
-
-  @override
-  bool didPop(T? result) {
-    scrimClaim.release();
-    return super.didPop(result);
-  }
-
-  @override
-  void dispose() {
-    scrimClaim.dispose();
-    super.dispose();
-  }
-
   @override
   Color? get barrierColor => null;
 
@@ -97,13 +77,14 @@ class MadarTopCardRoute<T> extends ModalRoute<T> {
   @override
   Duration get transitionDuration => Duration.zero;
 
-  /// The card leaves on its own springs BEFORE the pop; what this carries is
-  /// the dim's fade AFTER it. The dim stays down until the route is popped,
-  /// so the surface pushed the instant this one's future resolves takes it
-  /// over at full strength (scrim.dart) — no undimmed flash between two
-  /// sheets. With nothing following, it fades out over this.
+  /// The card leaves on its own springs BEFORE the pop; there is no dim to
+  /// fade after it.
   @override
-  Duration get reverseTransitionDuration => MotionSpec.standardDuration;
+  Duration get reverseTransitionDuration => Duration.zero;
+
+  /// No barrier at all: the page behind keeps its taps (see [_TopCardPage]).
+  @override
+  Widget buildModalBarrier() => const SizedBox.shrink();
 
   @override
   Widget buildPage(
@@ -123,42 +104,19 @@ class _TopCardPage<T> extends StatefulWidget {
 }
 
 class _TopCardPageState<T> extends State<_TopCardPage<T>>
-    with TickerProviderStateMixin
+    with SingleTickerProviderStateMixin
     implements DismissibleSurface {
   /// The card: in on push, out before the pop.
   late final AnimationController _anim = AnimationController(
     vsync: this,
     duration: MotionSpec.standardDuration,
   );
-
-  /// The dim: rises with the card and HOLDS while the card slides away; the
-  /// route's exit fade takes it out after the pop (see
-  /// [MadarTopCardRoute.reverseTransitionDuration]).
-  late final AnimationController _dimIn = AnimationController(
-    vsync: this,
-    duration: MotionSpec.standardDuration,
-  );
-  late final CurvedAnimation _dimCurve = CurvedAnimation(
-    parent: _dimIn,
-    curve: MotionSpec.standardCurve,
-  );
-  late final CurvedAnimation _routeFade = CurvedAnimation(
-    parent: widget.route.animation!,
-    curve: MotionSpec.standardCurve,
-  );
-  late final Animation<double> _scrimVisible = AnimationMin<double>(
-    _dimCurve,
-    _routeFade,
-  );
+  final GlobalKey _cardKey = GlobalKey();
   bool _leaving = false;
 
   @override
   void initState() {
     super.initState();
-    final claim = widget.route.scrimClaim
-      ..visibleOpacity = () => _scrimVisible.value;
-    _dimIn.value = claim.startOpacity;
-    _dimIn.forward();
     _anim.forward();
   }
 
@@ -167,17 +125,11 @@ class _TopCardPageState<T> extends State<_TopCardPage<T>>
     super.didChangeDependencies();
     // Reduced motion: the card is simply there.
     final reduced = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    if (reduced && !_leaving) {
-      _anim.value = 1;
-      _dimIn.value = 1;
-    }
+    if (reduced && !_leaving) _anim.value = 1;
   }
 
   @override
   void dispose() {
-    _routeFade.dispose();
-    _dimCurve.dispose();
-    _dimIn.dispose();
     _anim.dispose();
     super.dispose();
   }
@@ -188,7 +140,6 @@ class _TopCardPageState<T> extends State<_TopCardPage<T>>
   Future<void> _dismiss(T? result) async {
     if (_leaving) return;
     _leaving = true;
-    widget.route.scrimClaim.release();
     final reduced = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     if (reduced) {
       _anim.value = 0;
@@ -204,59 +155,54 @@ class _TopCardPageState<T> extends State<_TopCardPage<T>>
     }
   }
 
+  /// A pointer down outside the card: put it away. The listener is
+  /// translucent, so the same pointer carries on to what lies beneath.
+  void _onPointerDown(PointerDownEvent event) {
+    if (_leaving || !widget.route.isCurrent) return;
+    final box = _cardKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) {
+      final local = box.globalToLocal(event.position);
+      if (box.paintBounds.contains(local)) return;
+    }
+    unawaited(_dismiss(widget.route.barrierResult));
+  }
+
   @override
   Widget build(BuildContext context) {
     final slide = Tween<Offset>(
       begin: const Offset(0, -1.2),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _anim, curve: MotionSpec.springOut));
-    final dismissLabel = Localizations.of<MaterialLocalizations>(
-      context,
-      MaterialLocalizations,
-    )?.modalBarrierDismissLabel;
     return PopScope<T>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) unawaited(_dismiss(result ?? widget.route.barrierResult));
       },
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => unawaited(_dismiss(widget.route.barrierResult)),
-              child: Semantics(
-                label: dismissLabel,
-                button: true,
-                child: StackScrim(
-                  claim: widget.route.scrimClaim,
-                  opacity: _scrimVisible,
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Padding(
-                padding: widget.route.padding,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: widget.route.maxWidth),
-                  child: SlideTransition(
-                    position: slide,
-                    child: FadeTransition(
-                      opacity: _anim,
-                      child: Material(
-                        type: MaterialType.transparency,
-                        child: Builder(builder: widget.route.builder),
-                      ),
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: _onPointerDown,
+        child: SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: widget.route.padding,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: widget.route.maxWidth),
+                child: SlideTransition(
+                  position: slide,
+                  child: FadeTransition(
+                    opacity: _anim,
+                    child: Material(
+                      key: _cardKey,
+                      type: MaterialType.transparency,
+                      child: Builder(builder: widget.route.builder),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

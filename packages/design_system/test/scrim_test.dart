@@ -275,12 +275,59 @@ void handoffTests() {
     MadarSheet.close<void>(tester.element(find.text('points')));
     await tester.pumpAndSettle();
     expect(find.text('card'), findsOneWidget);
-    expect(visibleDims(tester), 1);
-    // Its own barrier puts it away.
+    expect(visibleDims(tester), 0, reason: 'the card itself never dims');
+    // A tap outside puts it away.
     await tester.tapAt(const Offset(10, 590));
     await tester.pumpAndSettle();
     expect(await card, 'away');
     expect(visibleDims(tester), 0);
+    debugResetScrim();
+  });
+
+  testWidgets('a top card does not dim, and a tap outside it both dismisses '
+      'it and reaches the page', (tester) async {
+    debugResetScrim();
+    var taps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MadarTheme.light(),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ElevatedButton(
+              onPressed: () => taps++,
+              child: const Text('tile'),
+            ),
+          ),
+        ),
+      ),
+    );
+    final host = tester.element(find.text('tile'));
+    var cardTaps = 0;
+    final card = showMadarTopCard<String>(
+      host,
+      barrierResult: 'away',
+      builder: (_) => SizedBox(
+        height: 120,
+        child: GestureDetector(
+          onTap: () => cardTaps++,
+          child: const Text('card'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(visibleDims(tester), 0);
+    // A tap on the card is the card's.
+    await tester.tap(find.text('card'));
+    await tester.pumpAndSettle();
+    expect(cardTaps, 1);
+    expect(find.text('card'), findsOneWidget);
+    // One tap on the tile: the card goes AND the tile is pressed.
+    await tester.tap(find.text('tile'));
+    await tester.pumpAndSettle();
+    expect(taps, 1);
+    expect(await card, 'away');
+    expect(find.text('card'), findsNothing);
     debugResetScrim();
   });
 }

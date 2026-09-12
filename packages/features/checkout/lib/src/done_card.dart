@@ -32,10 +32,10 @@ enum DoneCardResult {
 /// Slide the Done card down over whatever the teller is standing on.
 ///
 /// A route in the kit's surface stack ([showMadarTopCard]), not a floating
-/// overlay: a sheet it opens ("Add points") lands ABOVE it, and the one
-/// shared dim follows the stack. A tap outside the card is its barrier and
-/// means "not yet" — the table keeps waiting for a bus. Resolves once the
-/// card is gone.
+/// overlay: a sheet it opens ("Add points") lands ABOVE it. It does not dim
+/// the grid: a tap outside the card means "not yet" — the table keeps waiting
+/// for a bus — and still lands on what was tapped, so a product tile starts
+/// the next sale in one tap. Resolves once the card is gone.
 Future<DoneCardResult> showDoneCard(
   BuildContext context,
   ChargeOutcome outcome, {
