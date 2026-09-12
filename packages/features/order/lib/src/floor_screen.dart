@@ -151,11 +151,14 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
     );
   }
 
+  /// Taking an order FOR A TABLE opens its own screen, not the Sell tab.
+  /// The tab is the counter; this errand has a table in hand and a back
+  /// button to the room it came from.
   Future<void> _toSell() async {
     if (!mounted) return;
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const SellScreen()));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
+    );
   }
 
   // ── the sheets ─────────────────────────────────────────────────────────────
@@ -246,8 +249,10 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
             glyph: MadarGlyph.receipt,
             onTap: () {
               Navigator.of(sheetContext).maybePop();
-              _notifier.pointCartAtTable(t.id, t.label);
-              unawaited(_toSell());
+              unawaited(() async {
+                await _notifier.pointCartAtTable(t.id, t.label);
+                await _toSell();
+              }());
             },
           ),
           MadarButton(

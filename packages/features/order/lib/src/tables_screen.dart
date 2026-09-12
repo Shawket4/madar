@@ -1250,7 +1250,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     // teller the table was "taken on another till" and stop. There is nothing
     // to show and everything to take — go to the menu with the table in hand.
     if (t.status == 'seated') {
-      _notifier.pointCartAtTable(t.id, t.label);
+      await _notifier.pointCartAtTable(t.id, t.label);
       await _toOrderScreen();
       return;
     }
@@ -1634,9 +1634,8 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                 onTap: () {
                   close();
                   unawaited(() async {
-                    _notifier
-                      ..pointCartAtTable(t.id, t.label)
-                      ..selectTicket(ticket.id);
+                    await _notifier.pointCartAtTable(t.id, t.label);
+                    _notifier.selectTicket(ticket.id);
                     await _toOrderScreen();
                   }());
                 },

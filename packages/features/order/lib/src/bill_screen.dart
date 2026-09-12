@@ -80,12 +80,13 @@ class _BillScreenState extends ConsumerState<BillScreen>
 
   Future<void> _addRound(TicketView t, String? tableLabel) async {
     if (t.tableId != null) {
-      _notifier.pointCartAtTable(t.tableId!, tableLabel ?? '');
+      await _notifier.pointCartAtTable(t.tableId!, tableLabel ?? '');
     }
     _notifier.selectTicket(t.id);
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const SellScreen()));
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
+    );
   }
 
   /// Charge = the ONE tender drawer, over this bill. It takes the money,

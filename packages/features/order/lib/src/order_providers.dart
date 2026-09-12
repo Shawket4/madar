@@ -1099,11 +1099,9 @@ class OrderNotifier extends Notifier<OrderState> {
     }
     if (covers != null && covers > 0) setPendingCovers(t.id, covers);
     if (bindCart) {
-      state = state.copyWith(
-        cartTableId: t.id,
-        cartTableLabel: t.label,
-        activeTicketId: null,
-      );
+      // A RETARGET, not a relabel: whatever is in the cart belongs to
+      // wherever it came from and parks itself on the way.
+      await _retargetCart(tableId: t.id, tableLabel: t.label);
     }
     await loadFloor();
     _refreshShell();
@@ -1134,19 +1132,95 @@ class OrderNotifier extends Notifier<OrderState> {
     );
   }
 
+  /// Point the cart at a DIFFERENT target, parking whatever is in it first.
+  ///
+  /// There is one cart in the core. `cartTableId` was only ever a label on
+  /// it, so aiming it somewhere else left the lines exactly where they were
+  /// — a half-built takeaway became table 5's first round, and two tables
+  /// tapped in a row shared one basket. That is the bug: the cart was
+  /// global, and only its NAME was per-target.
+  ///
+  /// So a retarget is a switch, with the same discipline
+  /// [switchToHeldOrder] already used: park the current order under its own
+  /// identity, clear the identity, adopt the new one — and if the new target
+  /// has an order parked on it already, restore that instead of starting
+  /// empty. Nothing is ever silently carried across, and nothing is lost.
+  ///
+  /// Passing the target it is already on is a no-op, so re-tapping the same
+  /// table does not park and restore for nothing.
+  Future<void> _retargetCart({
+    required String? tableId,
+    required String? tableLabel,
+    String? bookingId,
+    String? name,
+  }) async {
+    if (state.cartTableId == tableId && state.activeTicketId == null) {
+      // Same target: only the label/booking may have moved on.
+      state = state.copyWith(
+        cartTableLabel: tableLabel,
+        cartBookingId: bookingId ?? state.cartBookingId,
+      );
+      return;
+    }
+    if (state.cartLines.isNotEmpty) {
+      await _quiet(() async {
+        await _bridge.holdCartOnTable(
+          name: state.cartName ?? '',
+          draftId: state.cartDraftId,
+          startedAt: state.cartStartedAtIso,
+          tableId: state.cartTableId,
+        );
+        return true;
+      });
+    }
+    state = state.copyWith(
+      cartStartedAtIso: null,
+      cartName: null,
+      cartDraftId: null,
+      cartTableId: null,
+      cartTableLabel: null,
+      cartBookingId: null,
+      activeTicketId: null,
+    );
+    await loadDrafts();
+    // Whatever was already parked ON this target is what belongs in the cart
+    // now — the teller's own earlier work on that table, not a stranger's.
+    final waiting = tableId == null
+        ? null
+        : state.drafts
+              .where((d) => d.tableId == tableId && !d.lockedByOther)
+              .firstOrNull;
+    if (waiting != null) {
+      await restoreDraft(waiting.id);
+    } else {
+      await _quiet(() async {
+        await _bridge.cartClear();
+        return true;
+      });
+      await loadCart();
+    }
+    state = state.copyWith(
+      cartTableId: tableId,
+      cartTableLabel: tableLabel,
+      cartBookingId: bookingId,
+      cartName: name,
+    );
+    _refreshShell();
+  }
+
+  /// Aim the cart back at the counter. The Sell tab is takeaway and only
+  /// takeaway, so this is what it asks for on entry — anything the teller
+  /// left aimed at a table parks itself on the way out.
+  Future<void> pointCartAtTakeaway() =>
+      _retargetCart(tableId: null, tableLabel: null);
+
   /// Aim the cart at a table that is ALREADY taken, without seating anything.
   ///
   /// The party sat down (possibly on another till); this is somebody arriving
   /// to take their first order. The table is already `seated`, so seating it
   /// again would be a lie and a wasted op.
-  void pointCartAtTable(String tableId, String label) {
-    state = state.copyWith(
-      cartTableId: tableId,
-      cartTableLabel: label,
-      activeTicketId: null,
-    );
-    _refreshShell();
-  }
+  Future<void> pointCartAtTable(String tableId, String label) =>
+      _retargetCart(tableId: tableId, tableLabel: label);
 
   /// Give a seated table back without a sale — they left before ordering, or
   /// the wrong table was tapped. Nobody ate, so it goes straight back to the

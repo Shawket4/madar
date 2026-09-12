@@ -50,7 +50,24 @@ const double _kTileAspect = 0.62;
 
 /// Sell.
 class SellScreen extends ConsumerStatefulWidget {
-  const SellScreen({super.key});
+  /// The SELL TAB — the counter, and only the counter.
+  ///
+  /// It aims the cart at takeaway every time it is shown, which is the fix
+  /// for two reports at once: a teller who tapped a table, changed their
+  /// mind and came back to Sell used to still be ringing up for that table
+  /// with no sign of it, and a cart half-built at the counter used to follow
+  /// them onto it. Retargeting parks whatever is in hand first, so nothing
+  /// is lost either way.
+  const SellScreen({super.key}) : forTable = false;
+
+  /// Taking an order FOR A TABLE — a pushed screen of its own, with its own
+  /// back, reached from the floor or from a bill. Same menu, different
+  /// errand: it keeps whatever target the caller already set instead of
+  /// resetting to the counter.
+  const SellScreen.forTable({super.key}) : forTable = true;
+
+  /// See the two constructors. False = the Sell tab = takeaway.
+  final bool forTable;
 
   @override
   ConsumerState<SellScreen> createState() => _SellScreenState();
@@ -74,7 +91,16 @@ class _SellScreenState extends ConsumerState<SellScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_notifier.ensureInit());
+      if (!mounted) return;
+      unawaited(() async {
+        await _notifier.ensureInit();
+        // The TAB is the counter. Aiming the cart back at takeaway parks
+        // anything still pointed at a table, so returning here from a table
+        // you never fired lands you where the tab says you are.
+        if (!widget.forTable && mounted) {
+          await _notifier.pointCartAtTakeaway();
+        }
+      }());
     });
   }
 
