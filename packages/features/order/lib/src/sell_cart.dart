@@ -147,6 +147,7 @@ class SellCart extends ConsumerWidget {
         children: [
           _CartHeader(
             title: _title(bridge, state, ticket, tableLabel),
+            itemCount: state.cartTotals.itemCount,
             onMore: () => unawaited(_moreSheet(context, ref, state)),
             onClose: onClose,
           ),
@@ -327,9 +328,18 @@ class SellCart extends ConsumerWidget {
 }
 
 class _CartHeader extends StatelessWidget {
-  const _CartHeader({required this.title, required this.onMore, this.onClose});
+  const _CartHeader({
+    required this.title,
+    required this.itemCount,
+    required this.onMore,
+    this.onClose,
+  });
 
   final String title;
+
+  /// Units in the cart — the count chip beside the title, which pops each
+  /// time it rises (the pre-rebuild panel's bump).
+  final int itemCount;
   final VoidCallback onMore;
   final VoidCallback? onClose;
 
@@ -370,11 +380,26 @@ class _CartHeader extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: MadarType.h3.copyWith(color: colors.textPrimary),
+            child: Row(
+              spacing: Space.sm,
+              children: [
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.h3.copyWith(color: colors.textPrimary),
+                  ),
+                ),
+                if (itemCount > 0)
+                  Nudge(
+                    trigger: itemCount,
+                    child: StatusChip(
+                      label: '$itemCount',
+                      tone: ChipTone.accent,
+                    ),
+                  ),
+              ],
             ),
           ),
           MadarGlyphTile(glyph: MadarGlyph.more, onTap: onMore),
@@ -694,7 +719,7 @@ class _FigureRow extends StatelessWidget {
             ),
           ),
         ),
-        MoneyText(
+        AnimatedMoneyText(
           minor,
           currency: currency,
           style: muted ? MadarType.money : MadarType.moneyMd,
@@ -723,8 +748,8 @@ class SellBar extends ConsumerWidget {
     if (cta.itemCount <= 0) return const SizedBox.shrink();
     final isBusy = state.isBusy;
     final figure = cta.sendsToKitchen
-        ? Money.format(state.cartTotals.subtotalMinor, currency: state.currency)
-        : Money.format(cta.amountMinor, currency: state.currency);
+        ? state.cartTotals.subtotalMinor
+        : cta.amountMinor;
     return Container(
       padding: const EdgeInsetsDirectional.fromSTEB(
         Space.lg,
@@ -790,21 +815,24 @@ class SellBar extends ConsumerWidget {
                               color: colors.textSecondary,
                             ),
                             Flexible(
-                              child: Text(
-                                '${cta.itemCount} ${bridge.tr(key: 'waiter.items')}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: MadarType.title.copyWith(
-                                  color: colors.textPrimary,
+                              // Pops as the count rises — the bar's bump.
+                              child: Nudge(
+                                trigger: cta.itemCount,
+                                child: Text(
+                                  '${cta.itemCount} ${bridge.tr(key: 'waiter.items')}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: MadarType.title.copyWith(
+                                    color: colors.textPrimary,
+                                  ),
                                 ),
                               ),
                             ),
-                            Text(
+                            AnimatedMoneyText(
                               figure,
-                              textDirection: TextDirection.ltr,
-                              style: MadarType.money.copyWith(
-                                color: colors.textSecondary,
-                              ),
+                              currency: state.currency,
+                              style: MadarType.money,
+                              color: colors.textSecondary,
                             ),
                           ],
                         ),

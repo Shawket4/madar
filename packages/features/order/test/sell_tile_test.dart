@@ -135,46 +135,44 @@ void _defaultMilkTests() {
 // the card keeps its proportions at every one of them. It used to be a fixed
 // 168x108, right at one size and wrong everywhere else.
 void _gridTests() {
-  /// Mirrors `delegateFor` in sell_screen.dart.
-  int columnsFor(double width, double gutter) {
-    const minW = 190.0;
-    const maxW = 250.0;
-    const gap = 12.0; // Space.md
-    final usable = width - gutter * 2;
-    var columns = usable ~/ minW;
-    if (columns < 1) columns = 1;
-    double widthAt(int n) => (usable - gap * (n - 1)) / n;
-    while (widthAt(columns) > maxW) {
-      columns += 1;
-    }
-    return columns;
+  double usable(double width, double gutter) => width - gutter * 2;
+  double tileWidth(double width, double gutter) {
+    final u = usable(width, gutter);
+    final n = sellGridColumns(u);
+    return (u - kSellTileGap * (n - 1)) / n;
   }
 
   test('a phone catalog gets two across, not five slivers', () {
-    expect(columnsFor(390, 16), 2);
+    expect(sellGridColumns(usable(390, 16)), 2);
   });
 
   test('an 11-inch catalog column, rail and cart removed', () {
     // 1194 wide, 88 rail, 340 cart → 766 for the catalog.
-    expect(columnsFor(766, 24), 3);
+    expect(sellGridColumns(usable(766, 24)), 4);
+    expect(tileWidth(766, 24), greaterThanOrEqualTo(kSellTileMinWidth));
   });
 
   test('a 13-inch gets more columns rather than wider cards', () {
     // 1366 - 88 - 340 = 938.
-    final wide = columnsFor(938, 24);
-    expect(wide, greaterThanOrEqualTo(4));
-    const gap = 12.0;
-    final tile = (938 - 24 * 2 - gap * (wide - 1)) / wide;
+    expect(sellGridColumns(usable(938, 24)), greaterThanOrEqualTo(5));
+    final tile = tileWidth(938, 24);
     expect(
       tile,
-      lessThanOrEqualTo(250.0),
+      lessThanOrEqualTo(kSellTileMaxWidth),
       reason: 'a card never grows past its band — it splits into one more',
     );
-    expect(tile, greaterThanOrEqualTo(150.0));
+    expect(tile, greaterThanOrEqualTo(kSellTileMinWidth));
   });
 
   test('a cart-narrow column still renders one honest column', () {
-    expect(columnsFor(220, 16), 1);
+    expect(sellGridColumns(usable(220, 16)), 1);
+  });
+
+  test('the card grows with the text scale instead of clipping', () {
+    expect(
+      sellTileExtent(170, const TextScaler.linear(1.3)),
+      greaterThan(sellTileExtent(170, TextScaler.noScaling)),
+    );
   });
 }
 

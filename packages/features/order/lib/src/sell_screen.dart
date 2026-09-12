@@ -31,22 +31,58 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// Synthetic category id for the Combos chip (bundles are not a category).
 const String _kCombos = '__combos__';
 
-/// Tile geometry.
+/// Tile geometry — a VERTICAL card: the picture on top, the name and the
+/// price under it, full width.
 ///
-/// A WIDTH BAND and a ratio, never a fixed height. It used to be 168 x 108
-/// pinned, which is right at exactly one window size and wrong at every other
-/// — the proportions drifted as the column changed, names truncated at two
-/// lines, and "EGP" wrapped off its own amount. The grid picks a column count
-/// from the width it is actually handed and derives the height from that, so
-/// a phone gets two across, an 11" three, a 13" four or five, and the card
-/// keeps its shape at all of them.
-const double _kTileMinWidth = 190;
-const double _kTileMaxWidth = 250;
+/// The card it replaces was horizontal: a square photo the card's height,
+/// flush to the leading edge, and the text squeezed into what was left. On an
+/// iPad column the photo took ~60% of the card, so "Affogato" broke as
+/// "Affogat/o" and the price was crammed beside it. Stacked, the name gets
+/// the card's whole width, like the pre-rebuild catalog card and the natives.
+///
+/// A WIDTH BAND, never a fixed size: the grid picks a column count from the
+/// width it is actually handed ([sellGridColumns]) and the height follows the
+/// width and the text scale ([sellTileExtent]).
+const double kSellTileMinWidth = 150;
+const double kSellTileMaxWidth = 210;
 
-/// Card height as a fraction of its width. The image block is square and
-/// flush to the leading edge, so this is what leaves the text two comfortable
-/// lines beside it.
-const double _kTileAspect = 0.62;
+/// The gap between tiles.
+const double kSellTileGap = Space.md;
+
+/// The picture's height as a fraction of the card's width (4:3).
+const double _kTileImageAspect = 0.75;
+
+/// The text block under the picture, before text scaling: top/bottom padding,
+/// two lines of name, the gap, one line of price.
+const double _kTileTextPad = Space.sm + 2;
+const double _kTileNameSize = 15;
+const double _kTileNameLineHeight = 1.25;
+const double _kTilePriceSize = 16;
+const double _kTileTextBlock =
+    _kTileTextPad * 2 +
+    _kTileNameSize * _kTileNameLineHeight * 2 +
+    Space.xs +
+    _kTilePriceSize * 1.3;
+
+/// Columns for a catalog [usable] pixels wide (gutters already removed): as
+/// many as fit at the minimum, then one more for as long as the tiles would
+/// otherwise grow past the maximum. Both ends matter — a 13" of four 300px
+/// cards looks as wrong as a phone of five 70px ones.
+int sellGridColumns(double usable) {
+  var columns = math.max(1, (usable / kSellTileMinWidth).floor());
+  double widthAt(int n) => (usable - kSellTileGap * (n - 1)) / n;
+  while (widthAt(columns) > kSellTileMaxWidth) {
+    columns += 1;
+  }
+  return columns;
+}
+
+/// A tile's height for a tile [width] wide under [textScaler].
+double sellTileExtent(double width, TextScaler textScaler) =>
+    width * _kTileImageAspect +
+    textScaler.scale(_kTileTextBlock) +
+    // The selected state's 2px border, so choosing a tile never reflows it.
+    2;
 
 /// Sell.
 class SellScreen extends ConsumerStatefulWidget {
@@ -546,26 +582,36 @@ class _Catalog extends ConsumerWidget {
     // Derived from the width this column ACTUALLY has — which on a tablet is
     // the window minus the rail minus the cart, not the window — so the same
     // rule holds on a phone, a split iPad and a 13".
+    final textScaler = MediaQuery.textScalerOf(context);
     SliverGridDelegate delegateFor(double width) {
       final usable = width - layout.gutter * 2;
-      // As many columns as fit at the minimum, then one more for as long as
-      // the tiles would otherwise grow past the maximum. Both ends matter: a
-      // 13" with four 300px cards looks as wrong as a phone with five 70px
-      // ones, and a single band cannot say that on its own.
-      var columns = math.max(1, (usable / _kTileMinWidth).floor());
-      double widthAt(int n) => (usable - Space.md * (n - 1)) / n;
-      while (widthAt(columns) > _kTileMaxWidth) {
-        columns += 1;
-      }
+      final columns = sellGridColumns(usable);
+      final tileWidth = (usable - kSellTileGap * (columns - 1)) / columns;
       return SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
-        childAspectRatio: 1 / _kTileAspect,
-        mainAxisSpacing: Space.md,
-        crossAxisSpacing: Space.md,
+        // Height from the width AND the text scale: a larger type setting
+        // grows the card instead of clipping its second line.
+        mainAxisExtent: sellTileExtent(tileWidth, textScaler),
+        mainAxisSpacing: kSellTileGap,
+        crossAxisSpacing: kSellTileGap,
       );
     }
 
-    if (loading) return const SkeletonList();
+    // Card-shaped placeholders in the grid the cards will land in (the
+    // pre-rebuild catalog's skeleton), not a list of rows.
+    if (loading) {
+      return LayoutBuilder(
+        builder: (context, c) => SkeletonScope(
+          child: GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            padding: padding,
+            gridDelegate: delegateFor(c.maxWidth),
+            itemCount: 12,
+            itemBuilder: (context, _) => const SellTileSkeleton(),
+          ),
+        ),
+      );
+    }
 
     if (categoryId == _kCombos) {
       final bundles = ref.watch(orderProvider.select((s) => s.bundles));
@@ -647,11 +693,14 @@ class _Catalog extends ConsumerWidget {
   }
 }
 
-/// One item tile: flat surface, 16px corners, a leading thumbnail, the name
-/// and a mono price, a teal count disc once the item is in the cart. A photo
-/// when the core has one on disk; otherwise the thumbnail falls back to a
-/// quiet wash in the category's colour (never a network fetch either way —
-/// see [_TileThumb]).
+/// One item tile — a vertical card: the photo (or the item's initials on a
+/// wash of its category colour) across the top, the name in up to two lines
+/// under it, the price in the body face with tabular figures beneath.
+///
+/// Tap is QUICK-ADD and reports the tile's centre for the add-to-cart
+/// flight; long-press opens the item. Once the item is in the cart the card
+/// takes an accent border and a count disc that pops as the count rises.
+/// RTL-safe: everything is start/end, and the price is an LTR island.
 class SellTile extends StatelessWidget {
   const SellTile({
     required this.item,
@@ -675,8 +724,10 @@ class SellTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
+    final selected = inCart > 0;
     return Semantics(
       button: true,
+      selected: selected,
       label:
           '${item.name}, ${Money.format(item.basePriceMinor, currency: currency)}',
       child: GestureDetector(
@@ -699,85 +750,52 @@ class SellTile extends StatelessWidget {
               color: colors.surface,
               borderRadius: BorderRadius.circular(Radii.card),
               border: Border.all(
-                color: inCart > 0 ? colors.accent : colors.borderLight,
-                width: inCart > 0 ? 2 : 1,
+                color: selected ? colors.accent : colors.borderLight,
+                width: selected ? 2 : 1,
               ),
             ),
+            // The border is drawn INSIDE a fixed 2px frame either way, so the
+            // picture never shifts when the tile becomes selected.
+            padding: EdgeInsets.all(selected ? 0 : 1),
             clipBehavior: Clip.antiAlias,
-            child: Stack(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Flush to the card's leading and vertical edges, clipped
-                    // by the card's own radius. Inset inside the padding it
-                    // read as a stamp floating on white — these product shots
-                    // are mostly white themselves, so a small contained image
-                    // is barely an image at all.
-                    _TileThumb(item: item, accent: accent),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsetsDirectional.symmetric(
-                          horizontal: Space.md,
-                          vertical: Space.sm,
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _TileThumb(item: item, accent: accent),
+                      if (selected)
+                        PositionedDirectional(
+                          top: Space.sm,
+                          end: Space.sm,
+                          child: Nudge(
+                            trigger: inCart,
+                            child: _CountDisc(count: inCart),
+                          ),
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                item.name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: MadarType.title.copyWith(
-                                  color: colors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: Space.xs),
-                            // One line, always. The amount used to wrap under
-                            // its own currency — "EGP" on one row and
-                            // "160.00" on the next — which is not a price.
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: AlignmentDirectional.centerStart,
-                              child: MoneyText(
-                                item.basePriceMinor,
-                                currency: currency,
-                                color: colors.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (inCart > 0)
-                  PositionedDirectional(
-                    top: Space.sm,
-                    end: Space.sm,
-                    child: Container(
-                      constraints: const BoxConstraints(minWidth: 26),
-                      height: 26,
-                      padding: const EdgeInsetsDirectional.symmetric(
-                        horizontal: Space.sm,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.accent,
-                        borderRadius: BorderRadius.circular(Radii.pill),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '$inCart',
-                        textDirection: TextDirection.ltr,
-                        style: MadarType.numMd.copyWith(
-                          color: colors.textOnAccent,
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsetsDirectional.symmetric(
+                    horizontal: Space.md,
+                    vertical: _kTileTextPad,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: Space.xs,
+                    children: [
+                      SellTileName(item.name, color: colors.textPrimary),
+                      _TilePrice(
+                        minor: item.basePriceMinor,
+                        currency: currency,
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -787,13 +805,169 @@ class SellTile extends StatelessWidget {
   }
 }
 
-/// The card's image block — a SQUARE the full height of the card, flush to
-/// its leading edge, filled edge to edge by the photo.
+/// A tile's name: two lines at most, broken BETWEEN words only.
 ///
-/// The core-cached local file when one has synced, else the item's monogram
-/// over a quiet wash of the category's accent. LOCAL-ONLY (the core downloads
+/// Flutter breaks a word that is wider than its line mid-word — that is how
+/// "Americano" became "Americ/ano". So before laying out, the longest single
+/// word is measured; if it cannot fit the line at the tile's size, the size
+/// steps down until it does (never below a legible floor). Past the floor the
+/// word keeps its letters together and ellipsizes instead of splitting.
+/// The box is always two lines tall, so prices align across a row.
+class SellTileName extends StatelessWidget {
+  const SellTileName(this.name, {required this.color, super.key});
+
+  final String name;
+  final Color color;
+
+  /// The smallest size a tile name steps down to.
+  static const double minSize = 12;
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    final base = MadarType.title.copyWith(
+      fontSize: _kTileNameSize,
+      height: _kTileNameLineHeight,
+      color: color,
+    );
+    return LayoutBuilder(
+      builder: (context, c) {
+        var style = base;
+        final words = name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+        double widest(TextStyle st) {
+          var w = 0.0;
+          for (final word in words) {
+            final painter = TextPainter(
+              text: TextSpan(text: word, style: st),
+              textDirection: direction,
+              textScaler: scaler,
+              maxLines: 1,
+            )..layout();
+            w = math.max(w, painter.width);
+            painter.dispose();
+          }
+          return w;
+        }
+
+        final maxW = c.maxWidth;
+        var longest = maxW.isFinite ? widest(style) : 0.0;
+        var wordFits = longest <= maxW;
+        if (!wordFits) {
+          final size = math.max(minSize, _kTileNameSize * maxW / longest);
+          style = base.copyWith(fontSize: size.floorToDouble());
+          longest = widest(style);
+          wordFits = longest <= maxW;
+        }
+        final lineBox = scaler.scale(_kTileNameSize * _kTileNameLineHeight);
+        return SizedBox(
+          height: lineBox * 2,
+          child: Align(
+            alignment: AlignmentDirectional.topStart,
+            child: Text(
+              name,
+              // A word that still cannot fit its line stays ONE line, whole
+              // letters and an ellipsis — never broken across two.
+              maxLines: wordFits ? 2 : 1,
+              softWrap: wordFits,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The tile's price in the body face with tabular figures — the currency
+/// code quiet and small, the amount bold — one LTR line that scales down
+/// rather than wrapping "EGP" away from its own amount.
+class _TilePrice extends StatelessWidget {
+  const _TilePrice({required this.minor, required this.currency});
+
+  final int minor;
+  final String currency;
+
+  static const List<FontFeature> _figures = [FontFeature.tabularFigures()];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: AlignmentDirectional.centerStart,
+      child: Text.rich(
+        TextSpan(
+          children: [
+            if (currency.isNotEmpty)
+              TextSpan(
+                text: '${currency.toUpperCase()} ',
+                style: MadarType.bodySm.copyWith(
+                  color: colors.textSecondary,
+                  fontFeatures: _figures,
+                ),
+              ),
+            TextSpan(
+              text: Money.format(minor),
+              style: MadarType.title.copyWith(
+                fontSize: _kTilePriceSize,
+                fontWeight: FontWeight.w700,
+                color: colors.textPrimary,
+                fontFeatures: _figures,
+              ),
+            ),
+          ],
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      ),
+    );
+  }
+}
+
+/// The in-cart count on a tile's picture: a teal pill with a surface ring so
+/// it reads on a white product shot as well as on the wash.
+class _CountDisc extends StatelessWidget {
+  const _CountDisc({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 26),
+      height: 26,
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.sm),
+      decoration: BoxDecoration(
+        color: colors.accent,
+        borderRadius: BorderRadius.circular(Radii.pill),
+        border: Border.all(color: colors.surface, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '$count',
+        textDirection: TextDirection.ltr,
+        style: MadarType.title.copyWith(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: colors.textOnAccent,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+}
+
+/// The card's picture — the full width of the card, cover-fit, under the
+/// card's rounded top corners.
+///
+/// The core-cached local file when one has synced, else the item's initials
+/// over a quiet wash of the category's accent with a soft ring bleeding off
+/// the corner (the pre-rebuild catalog card). LOCAL-ONLY (the core downloads
 /// and caches during `refresh_catalog`; this never fetches), and a decode
-/// failure falls back to the monogram rather than showing a broken-image
+/// failure falls back to the initials rather than showing a broken-image
 /// glyph to a customer.
 class _TileThumb extends StatelessWidget {
   const _TileThumb({required this.item, required this.accent});
@@ -804,42 +978,120 @@ class _TileThumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final path = item.localImagePath;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return LayoutBuilder(
       builder: (context, c) {
-        // Square on the card's own height, whatever the grid handed it.
-        final side = c.maxHeight.isFinite ? c.maxHeight : _fallbackSide;
-        final fallback = Center(
-          child: Text(
-            monogram(item.name),
-            style: MadarType.h1.copyWith(
-              fontWeight: FontWeight.w700,
-              color: accent,
+        final width = c.maxWidth.isFinite ? c.maxWidth : _fallbackSide;
+        final height = c.maxHeight.isFinite ? c.maxHeight : _fallbackSide;
+        final ring = math.min(width, height) * 0.9;
+        final fallback = Stack(
+          fit: StackFit.expand,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: AlignmentDirectional.topStart,
+                  end: AlignmentDirectional.bottomEnd,
+                  colors: [
+                    accent.withValues(alpha: dark ? 0.22 : 0.12),
+                    accent.withValues(alpha: dark ? 0.12 : 0.22),
+                  ],
+                ),
+              ),
             ),
-          ),
-        );
-        return SizedBox(
-          width: side,
-          child: ColoredBox(
-            color: accent.withValues(alpha: 0.14),
-            child: path == null
-                ? fallback
-                : Image(
-                    image: ResizeImage(
-                      FileImage(File(path)),
-                      width: (side * MediaQuery.devicePixelRatioOf(context))
-                          .round(),
-                    ),
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => fallback,
+            PositionedDirectional(
+              bottom: -ring * 0.35,
+              end: -ring * 0.35,
+              width: ring,
+              height: ring,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: accent.withValues(alpha: 0.18),
+                    width: 2,
                   ),
-          ),
+                ),
+              ),
+            ),
+            Center(
+              child: Text(
+                monogram(item.name),
+                textDirection: Directionality.of(context),
+                style: MadarType.h1.copyWith(
+                  fontSize: math.min(34, height * 0.34),
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                  color: accent.withValues(alpha: dark ? 0.8 : 0.7),
+                ),
+              ),
+            ),
+          ],
+        );
+        return ColoredBox(
+          color: context.madarColors.surfaceAlt,
+          child: path == null
+              ? fallback
+              : Image(
+                  image: ResizeImage(
+                    FileImage(File(path)),
+                    width: (width * MediaQuery.devicePixelRatioOf(context))
+                        .round(),
+                  ),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => fallback,
+                ),
         );
       },
     );
   }
 
-  /// Only reached under an unbounded height, which the grid never gives.
-  static const double _fallbackSide = 88;
+  /// Only reached under unbounded constraints, which the grid never gives.
+  static const double _fallbackSide = 120;
+}
+
+/// The loading stand-in for a [SellTile]: the same card, its picture and its
+/// two text lines pulsing (under a [SkeletonScope], one shared pulse).
+class SellTileSkeleton extends StatelessWidget {
+  const SellTileSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final pulse = SkeletonScope.maybePulseOf(context);
+    Widget hero = ColoredBox(
+      color: colors.surfaceAlt,
+      child: const SizedBox.expand(),
+    );
+    if (pulse != null) hero = FadeTransition(opacity: pulse, child: hero);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(Radii.card),
+        border: Border.all(color: colors.borderLight),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(Radii.card),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: hero),
+            const Padding(
+              padding: EdgeInsetsDirectional.all(Space.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: Space.sm,
+                children: [
+                  SkeletonBlock(width: 96),
+                  SkeletonBlock(width: 56, height: 15),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// A combo's tile: name, fixed price, and a "+ Configure" face, because a

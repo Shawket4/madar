@@ -1,4 +1,5 @@
 import 'package:design_system/src/tokens/colors.dart';
+import 'package:design_system/src/tokens/motion.dart';
 import 'package:design_system/src/tokens/typography.dart';
 import 'package:flutter/widgets.dart';
 
@@ -71,6 +72,52 @@ class MoneyText extends StatelessWidget {
       Money.format(minor, currency: currency),
       style: base.copyWith(color: resolved),
       textDirection: TextDirection.ltr,
+    );
+  }
+}
+
+/// A [MoneyText] whose figure cross-fades and lifts a few pixels when the
+/// amount changes — the pre-rebuild cart total. Reduced motion swaps the
+/// figure in place.
+class AnimatedMoneyText extends StatelessWidget {
+  /// Creates the animated figure; the arguments are [MoneyText]'s.
+  const AnimatedMoneyText(
+    this.minor, {
+    this.currency = '',
+    this.style,
+    this.color,
+    super.key,
+  });
+
+  final int minor;
+  final String currency;
+  final TextStyle? style;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    return AnimatedSwitcher(
+      duration: reduced ? Duration.zero : MotionSpec.standardDuration,
+      switchInCurve: MotionSpec.standardCurve,
+      switchOutCurve: MotionSpec.standardCurve,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.25),
+            end: Offset.zero,
+          ).animate(animation),
+          child: child,
+        ),
+      ),
+      child: MoneyText(
+        minor,
+        key: ValueKey<String>('$currency$minor'),
+        currency: currency,
+        style: style,
+        color: color,
+      ),
     );
   }
 }

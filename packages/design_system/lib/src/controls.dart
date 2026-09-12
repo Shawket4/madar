@@ -417,7 +417,7 @@ class MadarMoneyBar extends StatelessWidget {
                   ),
                 )
               else
-                MoneyText(
+                AnimatedMoneyText(
                   amountMinor,
                   currency: currency,
                   style: MadarType.moneyMd,
