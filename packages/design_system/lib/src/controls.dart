@@ -1160,8 +1160,14 @@ class MadarSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return SizedBox(
-      height: 20,
+    // A FLOOR, not a fixed height. This was SizedBox(height: 20), sized for
+    // the label alone — so every section header carrying a [trailing] action
+    // clamped that control to 20px. A 44pt compact button came out 20 tall
+    // and under a finger it read as broken, which is exactly what it was.
+    // The label still never renders shorter than 20, so headers with no
+    // action space identically to before.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 20),
       child: Row(
         spacing: 10,
         children: [
