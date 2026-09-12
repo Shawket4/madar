@@ -291,9 +291,26 @@ impl MadarBridge {
         self.inner.cart_restore_removed().map_err(MadarError::from)
     }
 
-    /// Empty the cart.
+    /// Empty the ACTIVE context's cart (other tables / takeaway untouched).
     pub fn cart_clear(&self) -> Result<(), MadarError> {
         self.inner.cart_clear().map_err(MadarError::from)
+    }
+
+    /// Switch which cart is in hand: `None` = the counter's takeaway cart,
+    /// `Some(table_id)` = that table's own cart. Lines are never copied
+    /// between contexts. Returns the now-active cart's lines.
+    pub fn cart_set_context(
+        &self,
+        table_id: Option<String>,
+    ) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner
+            .cart_set_context(table_id)
+            .map_err(MadarError::from)
+    }
+
+    /// The active cart context: `None` = takeaway, else the table id.
+    pub fn cart_context(&self) -> Result<Option<String>, MadarError> {
+        self.inner.cart_context().map_err(MadarError::from)
     }
 
     /// Park the current cart as a named draft (held order) and empty the

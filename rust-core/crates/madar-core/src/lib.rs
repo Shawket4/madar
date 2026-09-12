@@ -536,7 +536,7 @@ impl MadarCore {
             .unwrap_or_else(|e| e.into_inner()) = None;
         // NB: the cached shift is intentionally KEPT (device drawer state) — see
         // the ownership gate in `sign_in`.
-        let _ = cart::clear(&self.store);
+        let _ = cart::clear_all(&self.store);
         if wipe_outbox {
             self.store.wipe_outbox()?;
         }
@@ -3086,9 +3086,22 @@ impl MadarCore {
     pub fn cart_restore_removed(&self) -> Result<Vec<cart::CartLineView>, CoreError> {
         cart::restore_last_removed(&self.store)
     }
-    /// Empty the cart.
+    /// Empty the ACTIVE context's cart (other contexts are untouched).
     pub fn cart_clear(&self) -> Result<(), CoreError> {
         cart::clear(&self.store)
+    }
+    /// Switch which cart is in hand: `None` = the counter's takeaway cart,
+    /// `Some(table_id)` = that table's own cart. Never copies lines between
+    /// contexts. Returns the now-active cart's lines.
+    pub fn cart_set_context(
+        &self,
+        table_id: Option<String>,
+    ) -> Result<Vec<cart::CartLineView>, CoreError> {
+        cart::set_context(&self.store, table_id.as_deref())
+    }
+    /// The active cart context: `None` = takeaway, else the table id.
+    pub fn cart_context(&self) -> Result<Option<String>, CoreError> {
+        cart::context(&self.store)
     }
     // ── held orders (server-backed parked carts, branch-shared) ───────────
     //
@@ -4629,7 +4642,7 @@ impl MadarCore {
         // Optimistic: mark closed locally so routing flips to open-shift now,
         // and drop the in-progress cart (a closed shift sells nothing).
         shift::close_local(&self.store)?;
-        cart::clear(&self.store)?;
+        cart::clear_all(&self.store)?;
         // Carry the declared closing into the NEXT shift's suggested opening, so
         // cash continuity holds even before this close syncs.
         shift::cache_suggested_opening_cash(&self.store, closing_cash_minor)?;
@@ -8842,6 +8855,71 @@ mod lifecycle_tests {
         assert!(core.cart_lines().unwrap().is_empty());
         assert_eq!(core.pending_outbox_count().unwrap(), 2); // open + close
         assert!(core.shift_command_pending("close_shift").unwrap());
+    }
+
+    /// Firing a table's round spends THAT table's cart only: the table starts
+    /// fresh and the counter's unfired takeaway cart survives the visit.
+    #[tokio::test]
+    async fn firing_a_table_clears_only_that_tables_cart() {
+        use argon2::password_hash::SaltString;
+        use argon2::{Argon2, PasswordHasher};
+
+        let core = MadarCore::new(MadarConfig {
+            base_url: "http://127.0.0.1:1".into(),
+            environment: "dev".into(),
+            db_path: String::new(),
+            locale: "en".into(),
+        })
+        .unwrap();
+        let salt = SaltString::encode_b64(b"madar-test-salt").unwrap();
+        let phc = Argon2::default()
+            .hash_password(b"1234", &salt)
+            .unwrap()
+            .to_string();
+        core.store
+            .kv_put(
+                session::BUNDLE_KEY,
+                &serde_json::json!({
+                    "org_id": "00000000-0000-0000-0000-0000000000aa",
+                    "generated_at": "2026-06-19T10:00:00Z",
+                    "lan_secret": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+                    "tellers": [{ "user_id": "00000000-0000-0000-0000-0000000000bb",
+                        "name": "Sara", "role": "teller", "is_active": true, "offline_pin_hash": phc }]
+                })
+                .to_string(),
+            )
+            .unwrap();
+        core.store
+            .kv_put(session::ORG_CONFIG_KEY, r#"{"org_id":"00000000-0000-0000-0000-0000000000aa","currency_code":"EGP","tax_rate":0.14}"#)
+            .unwrap();
+        // The device is bound to its branch in the CORE store; sign-in + app_route
+        // both read it from there now (no host-passed branch).
+        core.set_device_branch("00000000-0000-0000-0000-000000000001".into(), None)
+            .unwrap();
+        core.sign_in(session::LoginRequest {
+            mode: session::LoginMode::Pin,
+            name: Some("Sara".into()),
+            pin: Some("1234".into()),
+            branch_id: Some("00000000-0000-0000-0000-000000000001".into()),
+            email: None,
+            password: None,
+            org_id: None,
+        })
+        .await
+        .unwrap();
+
+        core.cart_add("c".into(), "Cookie".into(), 300).unwrap();
+        let t1 = "00000000-0000-0000-0000-0000000000c1".to_string();
+        core.cart_set_context(Some(t1.clone())).unwrap();
+        core.cart_add("a".into(), "Latte".into(), 5000).unwrap();
+        core.fire_ticket(Some(t1.clone()), None, None, None, None)
+            .await
+            .unwrap();
+        assert!(core.cart_lines().unwrap().is_empty());
+        assert_eq!(core.cart_context().unwrap(), Some(t1));
+        let takeaway = core.cart_set_context(None).unwrap();
+        assert_eq!(takeaway.len(), 1);
+        assert_eq!(takeaway[0].name, "Cookie");
     }
 
     #[tokio::test]

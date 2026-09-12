@@ -91,11 +91,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? notes,
   });
 
-  /// Empty the cart.
+  /// Empty the ACTIVE context's cart (other tables / takeaway untouched).
   Future<void> cartClear();
 
   /// Remove the cart discount.
   Future<void> cartClearDiscount();
+
+  /// The active cart context: `None` = takeaway, else the table id.
+  Future<String?> cartContext();
 
   /// The selected discount id (for the tender UI), or `None`.
   Future<String?> cartDiscountId();
@@ -109,6 +112,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
   /// nothing was removed (or it was already restored / the cart was cleared).
   Future<List<CartLineView>> cartRestoreRemoved();
+
+  /// Switch which cart is in hand: `None` = the counter's takeaway cart,
+  /// `Some(table_id)` = that table's own cart. Lines are never copied
+  /// between contexts. Returns the now-active cart's lines.
+  Future<List<CartLineView>> cartSetContext({String? tableId});
 
   /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
   Future<void> cartSetDiscount({required String discountId});

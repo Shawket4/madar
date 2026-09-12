@@ -171,15 +171,82 @@ pub struct CartTotals {
 
 // ── persistence ──────────────────────────────────────────────────────────────
 
+// ── cart contexts ────────────────────────────────────────────────────────────
+//
+// There is not one cart, there is one cart PER CONTEXT: the counter's takeaway
+// cart, and one for every table. Exactly one context is active; every cart
+// operation (lines, discount, undo stash, park, fire, checkout) reads and
+// writes the active context's cart. Switching the context never copies a
+// line — it only changes which cart is in hand — so a half-built takeaway can
+// not become table 5's first round, and two tables tapped in a row can not
+// share one basket. The takeaway context keeps the legacy keys, so a cart that
+// was persisted before contexts existed is still the counter's after upgrade.
+
+/// kv key — the active context: "" (takeaway) or a table id.
+pub(crate) const K_CONTEXT: &str = "cart:context";
+/// kv key — JSON array of table ids that have (or had) a cart of their own,
+/// so a sign-out / shift close can empty every one of them.
+const K_CONTEXT_TABLES: &str = "cart:context_tables";
+
+/// The active context's table id, or `None` for takeaway.
+pub(crate) fn context(store: &Store) -> CoreResult<Option<String>> {
+    Ok(store.kv_get(K_CONTEXT)?.filter(|s| !s.is_empty()))
+}
+
+fn key_for(table: Option<&str>, base: &str) -> String {
+    match table {
+        None => base.to_string(),
+        Some(id) => format!("{base}@table:{id}"),
+    }
+}
+
+fn ctx_key(store: &Store, base: &str) -> CoreResult<String> {
+    Ok(key_for(context(store)?.as_deref(), base))
+}
+
+fn context_tables(store: &Store) -> CoreResult<Vec<String>> {
+    Ok(match store.kv_get(K_CONTEXT_TABLES)? {
+        Some(j) => serde_json::from_str(&j).unwrap_or_default(),
+        None => Vec::new(),
+    })
+}
+
+/// Activate a context's cart (`None` = takeaway). Never moves lines: each
+/// context's cart stays exactly as it was left. Returns the now-active lines.
+pub(crate) fn set_context(store: &Store, table_id: Option<&str>) -> CoreResult<Vec<CartLineView>> {
+    let table_id = table_id.filter(|s| !s.is_empty());
+    if let Some(id) = table_id {
+        let mut known = context_tables(store)?;
+        if !known.iter().any(|k| k == id) {
+            known.push(id.to_string());
+            store.kv_put(K_CONTEXT_TABLES, &serde_json::to_string(&known)?)?;
+        }
+    }
+    store.kv_put(K_CONTEXT, table_id.unwrap_or(""))?;
+    lines(store)
+}
+
+/// Empty EVERY context's cart and fall back to takeaway (sign-out, shift close).
+pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
+    let tables = context_tables(store)?;
+    for t in std::iter::once(None).chain(tables.iter().map(|t| Some(t.as_str()))) {
+        store.kv_put(&key_for(t, K_CART), "[]")?;
+        store.kv_put(&key_for(t, K_DISCOUNT), "")?;
+        store.kv_put(&key_for(t, K_LAST_REMOVED), "[]")?;
+    }
+    store.kv_put(K_CONTEXT_TABLES, "[]")?;
+    store.kv_put(K_CONTEXT, "")
+}
+
 fn load(store: &Store) -> CoreResult<Vec<StoredLine>> {
-    match store.kv_get(K_CART)? {
+    match store.kv_get(&ctx_key(store, K_CART)?)? {
         Some(json) => Ok(serde_json::from_str(&json).unwrap_or_default()),
         None => Ok(Vec::new()),
     }
 }
 
 fn save(store: &Store, lines: &[StoredLine]) -> CoreResult<()> {
-    store.kv_put(K_CART, &serde_json::to_string(lines)?)
+    store.kv_put(&ctx_key(store, K_CART)?, &serde_json::to_string(lines)?)
 }
 
 // ── pricing helpers (the line-money rules, mirrored from cart.dart) ───────────
@@ -906,7 +973,7 @@ pub(crate) fn remove(store: &Store, line_key: &str) -> CoreResult<Vec<CartLineVi
         .collect();
     lines.retain(|l| signature(l) != line_key);
     if !removed.is_empty() {
-        store.kv_put(K_LAST_REMOVED, &serde_json::to_string(&removed)?)?;
+        store.kv_put(&ctx_key(store, K_LAST_REMOVED)?, &serde_json::to_string(&removed)?)?;
     }
     save(store, &lines)?;
     Ok(view(&lines))
@@ -916,7 +983,7 @@ pub(crate) fn remove(store: &Store, line_key: &str) -> CoreResult<Vec<CartLineVi
 /// Merges back into an identical line (same signature) if one exists, else
 /// re-appends. Clears the stash; a no-op when nothing was stashed.
 pub(crate) fn restore_last_removed(store: &Store) -> CoreResult<Vec<CartLineView>> {
-    let stash: Vec<StoredLine> = match store.kv_get(K_LAST_REMOVED)? {
+    let stash: Vec<StoredLine> = match store.kv_get(&ctx_key(store, K_LAST_REMOVED)?)? {
         Some(j) => serde_json::from_str(&j).unwrap_or_default(),
         None => Vec::new(),
     };
@@ -927,7 +994,7 @@ pub(crate) fn restore_last_removed(store: &Store) -> CoreResult<Vec<CartLineView
             None => lines.push(r),
         }
     }
-    store.kv_put(K_LAST_REMOVED, "[]")?; // consume the stash (no double-undo)
+    store.kv_put(&ctx_key(store, K_LAST_REMOVED)?, "[]")?; // consume the stash (no double-undo)
     save(store, &lines)?;
     Ok(view(&lines))
 }
@@ -935,7 +1002,7 @@ pub(crate) fn restore_last_removed(store: &Store) -> CoreResult<Vec<CartLineView
 /// Empty the cart + its discount (e.g. after checkout or on sign-out).
 pub(crate) fn clear(store: &Store) -> CoreResult<()> {
     clear_discount(store)?;
-    store.kv_put(K_LAST_REMOVED, "[]")?; // a stale undo must not resurrect a sold line
+    store.kv_put(&ctx_key(store, K_LAST_REMOVED)?, "[]")?; // a stale undo must not resurrect a sold line
     save(store, &[])
 }
 
@@ -971,7 +1038,7 @@ pub(crate) fn set_cart_payload(
         Some(d) if !d.is_empty() => set_discount(store, d)?,
         _ => clear_discount(store)?,
     }
-    store.kv_put(K_LAST_REMOVED, "[]")?; // a stale undo must not leak across orders
+    store.kv_put(&ctx_key(store, K_LAST_REMOVED)?, "[]")?; // a stale undo must not leak across orders
     save(store, &lines)?;
     Ok(view(&lines))
 }
@@ -1129,15 +1196,15 @@ pub(crate) fn discard_draft(store: &Store, id: &str) -> CoreResult<()> {
 // ── discount ─────────────────────────────────────────────────────────────────
 
 pub(crate) fn set_discount(store: &Store, discount_id: &str) -> CoreResult<()> {
-    store.kv_put(K_DISCOUNT, discount_id)
+    store.kv_put(&ctx_key(store, K_DISCOUNT)?, discount_id)
 }
 pub(crate) fn clear_discount(store: &Store) -> CoreResult<()> {
-    store.kv_put(K_DISCOUNT, "")
+    store.kv_put(&ctx_key(store, K_DISCOUNT)?, "")
 }
 /// The selected discount id, or `None`.
 pub(crate) fn discount_id(store: &Store) -> CoreResult<Option<String>> {
     Ok(store
-        .kv_get(K_DISCOUNT)?
+        .kv_get(&ctx_key(store, K_DISCOUNT)?)?
         .filter(|s| !s.is_empty() && s != "null"))
 }
 
@@ -1333,6 +1400,56 @@ mod tests {
             addon("whole", "milk_type", 0),     // downgrade → 0
             addon("shot", "extra", 800),        // additive → full
         ]
+    }
+
+    fn names(v: &[CartLineView]) -> Vec<String> {
+        v.iter().map(|l| format!("{}x{}", l.name, l.qty)).collect()
+    }
+
+    /// Every table and the counter keep their own cart; switching never copies.
+    #[test]
+    fn each_context_keeps_its_own_cart() {
+        let s = store();
+        // Takeaway (the default) gets a half-built order.
+        assert_eq!(context(&s).unwrap(), None);
+        add(&s, "c", "Cookie", 300).unwrap();
+
+        // T1: empty, then items.
+        assert!(set_context(&s, Some("t1")).unwrap().is_empty());
+        add(&s, "a", "Latte", 5000).unwrap();
+        add(&s, "a", "Latte", 5000).unwrap();
+        set_discount(&s, "d1").unwrap();
+
+        // T2: empty, and no T1 discount leaks in.
+        assert!(set_context(&s, Some("t2")).unwrap().is_empty());
+        assert_eq!(discount_id(&s).unwrap(), None);
+
+        // Takeaway: its own cookie, untouched.
+        assert_eq!(names(&set_context(&s, None).unwrap()), vec!["Cookiex1"]);
+
+        // Back to T1: its items and discount are exactly there.
+        assert_eq!(names(&set_context(&s, Some("t1")).unwrap()), vec!["Lattex2"]);
+        assert_eq!(context(&s).unwrap().as_deref(), Some("t1"));
+        assert_eq!(discount_id(&s).unwrap().as_deref(), Some("d1"));
+
+        // Firing T1 clears only T1: it starts fresh, takeaway is untouched.
+        clear(&s).unwrap();
+        assert!(lines(&s).unwrap().is_empty());
+        assert_eq!(names(&set_context(&s, None).unwrap()), vec!["Cookiex1"]);
+        assert!(set_context(&s, Some("t1")).unwrap().is_empty());
+    }
+
+    /// Sign-out / shift close empties every context and returns to takeaway.
+    #[test]
+    fn clear_all_empties_every_context() {
+        let s = store();
+        add(&s, "c", "Cookie", 300).unwrap();
+        set_context(&s, Some("t1")).unwrap();
+        add(&s, "a", "Latte", 5000).unwrap();
+        clear_all(&s).unwrap();
+        assert_eq!(context(&s).unwrap(), None);
+        assert!(lines(&s).unwrap().is_empty());
+        assert!(set_context(&s, Some("t1")).unwrap().is_empty());
     }
 
     #[test]
