@@ -169,4 +169,48 @@ void main() {
     }
     expect(result, 'tender');
   });
+
+  // The floor's "Take an order": close the sheet and push the next screen in
+  // the same tap. The sheet's delayed pop must complete the SHEET — it used to
+  // pop whatever was on top, taking the new screen down and leaving a dead
+  // scrim over the app.
+  for (final surface in ['sheet', 'drawer']) {
+    testWidgets('a $surface closed as the next screen is pushed removes only '
+        'itself', (tester) async {
+      final navKey = await _pumpHost(tester);
+      String? result = 'unset';
+      final shown = surface == 'sheet'
+          ? showMadarSheet<String>(
+              navKey.currentContext!,
+              builder: (_) => const Text('CONTENT'),
+            )
+          : showMadarDrawer<String>(
+              navKey.currentContext!,
+              builder: (_) => const Text('CONTENT'),
+            );
+      unawaited(shown.then((r) => result = r));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      MadarSheet.close(tester.element(find.text('CONTENT')), 'picked');
+      navKey.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => Scaffold(
+            body: TextButton(onPressed: () {}, child: const Text('NEXT')),
+          ),
+        ),
+      );
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      expect(find.text('NEXT'), findsOneWidget, reason: 'next screen stays');
+      expect(find.text('CONTENT', skipOffstage: false), findsNothing);
+      expect(result, 'picked');
+      expect(tester.takeException(), isNull);
+      navKey.currentState!.pop();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(navKey.currentState!.canPop(), isFalse, reason: 'nothing left');
+    });
+  }
 }

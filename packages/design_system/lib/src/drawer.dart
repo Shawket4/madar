@@ -209,7 +209,17 @@ class _MadarDrawerPageState<T> extends State<_MadarDrawerPage<T>>
     );
     _popTimer = Timer(MotionSpec.sheetDismissDelay, () {
       if (!mounted) return;
-      Navigator.of(context).pop(result);
+      // Complete THIS route, not whatever is on top. The caller may already
+      // have pushed its next screen the instant it asked to close (a sheet
+      // button that pops then pushes): a bare `pop` here would take that
+      // screen down and leave this card off-screen under a live, dismissed
+      // (so un-tappable) scrim — the app frozen.
+      final route = widget.route;
+      if (route.isCurrent) {
+        Navigator.of(context).pop(result);
+      } else if (route.isActive) {
+        route.navigator?.removeRoute(route, result);
+      }
     });
   }
 

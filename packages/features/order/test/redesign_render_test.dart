@@ -415,6 +415,10 @@ class _FakeBridge implements MadarBridge {
   /// context — the fake keeps them apart exactly the way the core does.
   final Map<String?, List<CartLineView>> carts = {null: List.of(_cart)};
   String? context;
+
+  /// Tables seated during the test — the floor reads them back seated.
+  final Set<String> seated = {};
+
   List<CartLineView> get _inHand => carts[context] ??= [];
 
   ShiftView? get _shift => shiftOpen
@@ -521,7 +525,33 @@ class _FakeBridge implements MadarBridge {
         ..add(_cartLine('latte', 'Latte', 4500, 1));
       return Future<List<CartLineView>>.value(List.of(_inHand));
     }
-    if (name == #floorLayout) return Future<FloorLayoutView>.value(_layout);
+    if (name == #seatTable) {
+      seated.add(invocation.namedArguments[#tableId]! as String);
+      return Future<void>.value();
+    }
+    if (name == #floorLayout) {
+      if (seated.isEmpty) return Future<FloorLayoutView>.value(_layout);
+      return Future<FloorLayoutView>.value(
+        FloorLayoutView(
+          sections: _layout.sections,
+          tables: [
+            for (final t in _layout.tables)
+              if (seated.contains(t.id))
+                _table(
+                  id: t.id,
+                  label: t.label,
+                  x: t.posX,
+                  y: t.posY,
+                  status: 'seated',
+                  seats: t.seats,
+                  shape: t.shape,
+                )
+              else
+                t,
+          ],
+        ),
+      );
+    }
     if (name == #listOpenTickets) {
       return Future<List<TicketView>>.value(_tickets);
     }
@@ -662,6 +692,7 @@ Future<void> _capture(WidgetTester tester, String name) async {
 
 void main() {
   _cartContextTests();
+  _tableOrderTests();
   setUpAll(_loadFonts);
 
   // A language switch reaches a screen pushed two routes deep — its words AND
@@ -1133,4 +1164,83 @@ void _cartContextTests() {
     expect(inHand(container), ['${_items.first.name}x1']);
     expect(container.read(orderProvider).cartTableId, 't2');
   });
+}
+
+/// THE freeze: "pressing a table, seating a party, then Add order routes to
+/// the menu and instantly freezes." The seated sheet's button asks the sheet
+/// to close and pushes the table's Sell screen at once; the sheet's delayed
+/// pop then took down the screen ON TOP of it, not itself — leaving the card
+/// off-screen under a full-bleed scrim that had already dismissed, so no tap
+/// ever reached anything again.
+void _tableOrderTests() {
+  bool pushedForTable(Widget w) => w is SellScreen && w.forTable;
+
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 150));
+    }
+  }
+
+  Future<void> expectLiveTableSell(
+    WidgetTester tester,
+    _FakeBridge bridge,
+  ) async {
+    int lines() => bridge.carts.values.fold(0, (n, l) => n + l.length);
+    expect(tester.takeException(), isNull);
+    expect(find.byWidgetPredicate(pushedForTable), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w.runtimeType.toString().startsWith('_MadarSheetPage'),
+        skipOffstage: false,
+      ),
+      findsNothing,
+      reason: 'no sheet lingers under or over the table screen',
+    );
+    final before = lines();
+    await tester.tap(find.text('Latte').first);
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+    expect(lines(), greaterThan(before), reason: 'the table screen takes taps');
+    await tester.pump(const Duration(seconds: 5));
+  }
+
+  for (final (name, size) in [('iPad', _ipad), ('phone', _phone)]) {
+    testWidgets('a seated table: Take an order opens a live table screen '
+        'on $name', (tester) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const FloorScreen(),
+        size: size,
+        bridge: bridge,
+      );
+      await tester.tap(find.text('T1'));
+      await settle(tester);
+      await tester.tap(find.text('Take an order'));
+      await settle(tester);
+      await expectLiveTableSell(tester, bridge);
+    });
+
+    testWidgets('a free table: Seat, then Take an order on $name', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const FloorScreen(),
+        size: size,
+        bridge: bridge,
+      );
+      await tester.tap(find.text('T6'));
+      await settle(tester);
+      await tester.tap(find.text('Seat'));
+      await settle(tester);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('T6'));
+      await settle(tester);
+      await tester.tap(find.text('Take an order'));
+      await settle(tester);
+      await expectLiveTableSell(tester, bridge);
+    });
+  }
 }
