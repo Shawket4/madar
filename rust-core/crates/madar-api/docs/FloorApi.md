@@ -8,6 +8,7 @@ Method | HTTP request | Description
 [**hold_table**](FloorApi.md#hold_table) | **POST** /floor/tables/{id}/hold | Take a table for a party with no bill yet.
 [**release_table**](FloorApi.md#release_table) | **POST** /floor/tables/{id}/release | Give back a table a till was holding for its own parked order.
 [**swap_tables**](FloorApi.md#swap_tables) | **POST** /floor/tables/swap | 
+[**table_history**](FloorApi.md#table_history) | **GET** /floor/tables/{id}/history | A table's history and what it earns.
 
 
 
@@ -127,6 +128,38 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## table_history
+
+> models::TableHistory table_history(id, from, to)
+A table's history and what it earns.
+
+The link was always there and nothing ever read it: a settled bill carries `orders.open_ticket_id`, and the ticket carries `table_id`. So a table's takings are one join away, and until now a shop could see a room full of tables and not answer \"which of these actually earns\".  Covers and money count SETTLED bills only. An open bill is still running and a voided one took nothing — folding either into the averages would flatter a table that lost money.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Table id | [required] |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Inclusive lower bound; defaults to 30 days back. |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Exclusive upper bound; defaults to now. |  |
+
+### Return type
+
+[**models::TableHistory**](TableHistory.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

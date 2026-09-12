@@ -109,6 +109,7 @@ Class | Method | HTTP request | Description
 *FloorApi* | [**hold_table**](docs/FloorApi.md#hold_table) | **POST** /floor/tables/{id}/hold | Take a table for a party with no bill yet.
 *FloorApi* | [**release_table**](docs/FloorApi.md#release_table) | **POST** /floor/tables/{id}/release | Give back a table a till was holding for its own parked order.
 *FloorApi* | [**swap_tables**](docs/FloorApi.md#swap_tables) | **POST** /floor/tables/swap | 
+*FloorApi* | [**table_history**](docs/FloorApi.md#table_history) | **GET** /floor/tables/{id}/history | A table's history and what it earns.
 *FloorTransfersApi* | [**cancel_transfer**](docs/FloorTransfersApi.md#cancel_transfer) | **POST** /floor/transfers/{id}/cancel | 
 *FloorTransfersApi* | [**create_floor_transfer**](docs/FloorTransfersApi.md#create_floor_transfer) | **POST** /floor/transfers | 
 *FloorTransfersApi* | [**fulfill_transfer**](docs/FloorTransfersApi.md#fulfill_transfer) | **POST** /floor/transfers/{id}/fulfill | 
@@ -874,8 +875,10 @@ Class | Method | HTTP request | Description
  - [SyncRecipeLine](docs/SyncRecipeLine.md)
  - [SyncSize](docs/SyncSize.md)
  - [TableBookingHint](docs/TableBookingHint.md)
+ - [TableHistory](docs/TableHistory.md)
  - [TableOrderRequest](docs/TableOrderRequest.md)
  - [TablePosition](docs/TablePosition.md)
+ - [TableSitting](docs/TableSitting.md)
  - [TaxPolicyPublic](docs/TaxPolicyPublic.md)
  - [TeamPresence](docs/TeamPresence.md)
  - [TellerStats](docs/TellerStats.md)

@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -689306044;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1656740463;
 
 // Section: executor
 
@@ -8425,6 +8425,66 @@ fn wire__crate__api__bridge__MadarBridge_sync_status_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_table_history_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_table_history",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_table_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::bridge::MadarBridge::table_history(
+                            &*api_that_guard,
+                            api_table_id,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_tr_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -11529,6 +11589,20 @@ impl SseDecode for Vec<crate::api::shift::ShiftSummaryView> {
     }
 }
 
+impl SseDecode for Vec<crate::api::floor::TableSittingView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::floor::TableSittingView>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::tickets::TicketLineView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12687,6 +12761,60 @@ impl SseDecode for crate::api::sync::SyncStatusView {
     }
 }
 
+impl SseDecode for crate::api::floor::TableHistoryView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_tableId = <String>::sse_decode(deserializer);
+        let mut var_label = <String>::sse_decode(deserializer);
+        let mut var_sittings = <Vec<crate::api::floor::TableSittingView>>::sse_decode(deserializer);
+        let mut var_covers = <i64>::sse_decode(deserializer);
+        let mut var_settledCount = <i64>::sse_decode(deserializer);
+        let mut var_totalMinor = <i64>::sse_decode(deserializer);
+        let mut var_averageBillMinor = <i64>::sse_decode(deserializer);
+        let mut var_averageMinutes = <i64>::sse_decode(deserializer);
+        let mut var_turnsPerDayX100 = <i64>::sse_decode(deserializer);
+        return crate::api::floor::TableHistoryView {
+            table_id: var_tableId,
+            label: var_label,
+            sittings: var_sittings,
+            covers: var_covers,
+            settled_count: var_settledCount,
+            total_minor: var_totalMinor,
+            average_bill_minor: var_averageBillMinor,
+            average_minutes: var_averageMinutes,
+            turns_per_day_x100: var_turnsPerDayX100,
+        };
+    }
+}
+
+impl SseDecode for crate::api::floor::TableSittingView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_ticketId = <String>::sse_decode(deserializer);
+        let mut var_ticketRef = <Option<String>>::sse_decode(deserializer);
+        let mut var_openedAt = <String>::sse_decode(deserializer);
+        let mut var_closedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_minutes = <i64>::sse_decode(deserializer);
+        let mut var_status = <String>::sse_decode(deserializer);
+        let mut var_customerName = <Option<String>>::sse_decode(deserializer);
+        let mut var_guestCount = <Option<i32>>::sse_decode(deserializer);
+        let mut var_orderRef = <Option<String>>::sse_decode(deserializer);
+        let mut var_totalMinor = <Option<i64>>::sse_decode(deserializer);
+        return crate::api::floor::TableSittingView {
+            ticket_id: var_ticketId,
+            ticket_ref: var_ticketRef,
+            opened_at: var_openedAt,
+            closed_at: var_closedAt,
+            minutes: var_minutes,
+            status: var_status,
+            customer_name: var_customerName,
+            guest_count: var_guestCount,
+            order_ref: var_orderRef,
+            total_minor: var_totalMinor,
+        };
+    }
+}
+
 impl SseDecode for crate::api::tickets::TicketBillView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13587,34 +13715,40 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        154 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
+        153 => wire__crate__api__bridge__MadarBridge_table_history_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        155 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
+        155 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        157 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+        156 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        159 => {
+        158 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        160 => {
             wire__crate__api__bridge__MadarBridge_void_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        160 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
+        161 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        161 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
+        162 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
             port,
             ptr,
             rust_vec_len,
@@ -13699,16 +13833,16 @@ fn pde_ffi_dispatcher_sync_impl(
             wire__crate__api__bridge__MadarBridge_set_device_code_impl(ptr, rust_vec_len, data_len)
         }
         141 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
-        153 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        156 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
+        154 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
+        157 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        158 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
-        162 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        163 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        164 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        159 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
+        163 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        164 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        165 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -15908,6 +16042,63 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::sync::SyncStatusVi
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::floor::TableHistoryView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.table_id.into_into_dart().into_dart(),
+            self.label.into_into_dart().into_dart(),
+            self.sittings.into_into_dart().into_dart(),
+            self.covers.into_into_dart().into_dart(),
+            self.settled_count.into_into_dart().into_dart(),
+            self.total_minor.into_into_dart().into_dart(),
+            self.average_bill_minor.into_into_dart().into_dart(),
+            self.average_minutes.into_into_dart().into_dart(),
+            self.turns_per_day_x100.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::floor::TableHistoryView
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::floor::TableHistoryView>
+    for crate::api::floor::TableHistoryView
+{
+    fn into_into_dart(self) -> crate::api::floor::TableHistoryView {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::floor::TableSittingView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ticket_id.into_into_dart().into_dart(),
+            self.ticket_ref.into_into_dart().into_dart(),
+            self.opened_at.into_into_dart().into_dart(),
+            self.closed_at.into_into_dart().into_dart(),
+            self.minutes.into_into_dart().into_dart(),
+            self.status.into_into_dart().into_dart(),
+            self.customer_name.into_into_dart().into_dart(),
+            self.guest_count.into_into_dart().into_dart(),
+            self.order_ref.into_into_dart().into_dart(),
+            self.total_minor.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::floor::TableSittingView
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::floor::TableSittingView>
+    for crate::api::floor::TableSittingView
+{
+    fn into_into_dart(self) -> crate::api::floor::TableSittingView {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::tickets::TicketBillView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -17237,6 +17428,16 @@ impl SseEncode for Vec<crate::api::shift::ShiftSummaryView> {
     }
 }
 
+impl SseEncode for Vec<crate::api::floor::TableSittingView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::floor::TableSittingView>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::tickets::TicketLineView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17996,6 +18197,37 @@ impl SseEncode for crate::api::sync::SyncStatusView {
         <u32>::sse_encode(self.blocked, serializer);
         <bool>::sse_encode(self.online, serializer);
         <bool>::sse_encode(self.auth_paused, serializer);
+    }
+}
+
+impl SseEncode for crate::api::floor::TableHistoryView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.table_id, serializer);
+        <String>::sse_encode(self.label, serializer);
+        <Vec<crate::api::floor::TableSittingView>>::sse_encode(self.sittings, serializer);
+        <i64>::sse_encode(self.covers, serializer);
+        <i64>::sse_encode(self.settled_count, serializer);
+        <i64>::sse_encode(self.total_minor, serializer);
+        <i64>::sse_encode(self.average_bill_minor, serializer);
+        <i64>::sse_encode(self.average_minutes, serializer);
+        <i64>::sse_encode(self.turns_per_day_x100, serializer);
+    }
+}
+
+impl SseEncode for crate::api::floor::TableSittingView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.ticket_id, serializer);
+        <Option<String>>::sse_encode(self.ticket_ref, serializer);
+        <String>::sse_encode(self.opened_at, serializer);
+        <Option<String>>::sse_encode(self.closed_at, serializer);
+        <i64>::sse_encode(self.minutes, serializer);
+        <String>::sse_encode(self.status, serializer);
+        <Option<String>>::sse_encode(self.customer_name, serializer);
+        <Option<i32>>::sse_encode(self.guest_count, serializer);
+        <Option<String>>::sse_encode(self.order_ref, serializer);
+        <Option<i64>>::sse_encode(self.total_minor, serializer);
     }
 }
 

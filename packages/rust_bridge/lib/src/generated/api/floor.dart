@@ -173,6 +173,130 @@ class FloorTableStateView {
           bookingStatus == other.bookingStatus;
 }
 
+/// What a table has done over the window, and what it earns.
+class TableHistoryView {
+  final String tableId;
+  final String label;
+
+  /// Newest first.
+  final List<TableSittingView> sittings;
+  final PlatformInt64 covers;
+  final PlatformInt64 settledCount;
+  final PlatformInt64 totalMinor;
+  final PlatformInt64 averageBillMinor;
+  final PlatformInt64 averageMinutes;
+
+  /// Settled bills per day, ×100 so the wire stays integer.
+  final PlatformInt64 turnsPerDayX100;
+
+  const TableHistoryView({
+    required this.tableId,
+    required this.label,
+    required this.sittings,
+    required this.covers,
+    required this.settledCount,
+    required this.totalMinor,
+    required this.averageBillMinor,
+    required this.averageMinutes,
+    required this.turnsPerDayX100,
+  });
+
+  @override
+  int get hashCode =>
+      tableId.hashCode ^
+      label.hashCode ^
+      sittings.hashCode ^
+      covers.hashCode ^
+      settledCount.hashCode ^
+      totalMinor.hashCode ^
+      averageBillMinor.hashCode ^
+      averageMinutes.hashCode ^
+      turnsPerDayX100.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TableHistoryView &&
+          runtimeType == other.runtimeType &&
+          tableId == other.tableId &&
+          label == other.label &&
+          sittings == other.sittings &&
+          covers == other.covers &&
+          settledCount == other.settledCount &&
+          totalMinor == other.totalMinor &&
+          averageBillMinor == other.averageBillMinor &&
+          averageMinutes == other.averageMinutes &&
+          turnsPerDayX100 == other.turnsPerDayX100;
+}
+
+/// One sitting at a table: the bill opened on it and what it came to.
+///
+/// A plain FRB struct rather than a mirror of the generated API model — the
+/// wire type carries `chrono` instants and optionals FRB cannot cross, and a
+/// host wants strings it can format in the branch's own zone anyway.
+class TableSittingView {
+  final String ticketId;
+  final String? ticketRef;
+
+  /// RFC3339. The closest the server has to when the party sat down.
+  final String openedAt;
+
+  /// RFC3339; `None` while the bill is still open.
+  final String? closedAt;
+  final PlatformInt64 minutes;
+
+  /// `open` | `settled` | `voided`.
+  final String status;
+  final String? customerName;
+  final int? guestCount;
+  final String? orderRef;
+
+  /// Minor units. `None` for a bill that took no money.
+  final PlatformInt64? totalMinor;
+
+  const TableSittingView({
+    required this.ticketId,
+    this.ticketRef,
+    required this.openedAt,
+    this.closedAt,
+    required this.minutes,
+    required this.status,
+    this.customerName,
+    this.guestCount,
+    this.orderRef,
+    this.totalMinor,
+  });
+
+  @override
+  int get hashCode =>
+      ticketId.hashCode ^
+      ticketRef.hashCode ^
+      openedAt.hashCode ^
+      closedAt.hashCode ^
+      minutes.hashCode ^
+      status.hashCode ^
+      customerName.hashCode ^
+      guestCount.hashCode ^
+      orderRef.hashCode ^
+      totalMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TableSittingView &&
+          runtimeType == other.runtimeType &&
+          ticketId == other.ticketId &&
+          ticketRef == other.ticketRef &&
+          openedAt == other.openedAt &&
+          closedAt == other.closedAt &&
+          minutes == other.minutes &&
+          status == other.status &&
+          customerName == other.customerName &&
+          guestCount == other.guestCount &&
+          orderRef == other.orderRef &&
+          totalMinor == other.totalMinor;
+}
+
 /// One entry of the transfer waitlist, display-ready.
 class TransferQueueView {
   final String id;

@@ -216,3 +216,85 @@ pub struct _TransferQueueView {
     pub status: String,
     pub created_at: String,
 }
+
+/// One sitting at a table: the bill opened on it and what it came to.
+///
+/// A plain FRB struct rather than a mirror of the generated API model — the
+/// wire type carries `chrono` instants and optionals FRB cannot cross, and a
+/// host wants strings it can format in the branch's own zone anyway.
+pub struct TableSittingView {
+    pub ticket_id: String,
+    pub ticket_ref: Option<String>,
+    /// RFC3339. The closest the server has to when the party sat down.
+    pub opened_at: String,
+    /// RFC3339; `None` while the bill is still open.
+    pub closed_at: Option<String>,
+    pub minutes: i64,
+    /// `open` | `settled` | `voided`.
+    pub status: String,
+    pub customer_name: Option<String>,
+    pub guest_count: Option<i32>,
+    pub order_ref: Option<String>,
+    /// Minor units. `None` for a bill that took no money.
+    pub total_minor: Option<i64>,
+}
+
+/// What a table has done over the window, and what it earns.
+pub struct TableHistoryView {
+    pub table_id: String,
+    pub label: String,
+    /// Newest first.
+    pub sittings: Vec<TableSittingView>,
+    pub covers: i64,
+    pub settled_count: i64,
+    pub total_minor: i64,
+    pub average_bill_minor: i64,
+    pub average_minutes: i64,
+    /// Settled bills per day, ×100 so the wire stays integer.
+    pub turns_per_day_x100: i64,
+}
+
+impl MadarBridge {
+    /// A table's history and takings — ONLINE ONLY, never mirrored.
+    ///
+    /// Every other floor read is cached because a till has to keep selling
+    /// with the network down. This one is a manager's question between
+    /// services, and a stale copy would quietly answer a question about money
+    /// with last week's numbers.
+    pub async fn table_history(
+        &self,
+        table_id: String,
+    ) -> Result<TableHistoryView, MadarError> {
+        let h = self
+            .inner
+            .table_history(table_id)
+            .await
+            .map_err(MadarError::from)?;
+        Ok(TableHistoryView {
+            table_id: h.table_id.to_string(),
+            label: h.label,
+            covers: h.covers,
+            settled_count: h.settled_count,
+            total_minor: h.total_minor,
+            average_bill_minor: h.average_bill_minor,
+            average_minutes: h.average_minutes,
+            turns_per_day_x100: h.turns_per_day_x100,
+            sittings: h
+                .sittings
+                .into_iter()
+                .map(|s| TableSittingView {
+                    ticket_id: s.open_ticket_id.to_string(),
+                    ticket_ref: s.ticket_ref.flatten(),
+                    opened_at: s.opened_at.to_rfc3339(),
+                    closed_at: s.closed_at.flatten().map(|d| d.to_rfc3339()),
+                    minutes: s.minutes,
+                    status: s.status,
+                    customer_name: s.customer_name.flatten(),
+                    guest_count: s.guest_count.flatten(),
+                    order_ref: s.order_number.flatten().map(|n| n.to_string()),
+                    total_minor: s.total_amount.flatten().map(i64::from),
+                })
+                .collect(),
+        })
+    }
+}

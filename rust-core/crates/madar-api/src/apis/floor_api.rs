@@ -43,6 +43,17 @@ pub struct SwapTablesParams {
     pub swap_tables_request: models::SwapTablesRequest,
 }
 
+/// struct for passing parameters to the method [`table_history`]
+#[derive(Clone, Debug)]
+pub struct TableHistoryParams {
+    /// Table id
+    pub id: String,
+    /// Inclusive lower bound; defaults to 30 days back.
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    /// Exclusive upper bound; defaults to now.
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+}
+
 /// struct for typed errors of method [`clear_table`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -92,6 +103,13 @@ pub enum SwapTablesError {
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
     Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`table_history`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TableHistoryError {
     UnknownValue(serde_json::Value),
 }
 
@@ -242,6 +260,57 @@ pub async fn swap_tables(
     } else {
         let content = resp.text().await?;
         let entity: Option<SwapTablesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// The link was always there and nothing ever read it: a settled bill carries `orders.open_ticket_id`, and the ticket carries `table_id`. So a table's takings are one join away, and until now a shop could see a room full of tables and not answer \"which of these actually earns\".  Covers and money count SETTLED bills only. An open bill is still running and a voided one took nothing — folding either into the averages would flatter a table that lost money.
+pub async fn table_history(
+    configuration: &configuration::Configuration,
+    params: TableHistoryParams,
+) -> Result<models::TableHistory, Error<TableHistoryError>> {
+    let uri_str = format!(
+        "{}/floor/tables/{id}/history",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TableHistory`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TableHistory`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<TableHistoryError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

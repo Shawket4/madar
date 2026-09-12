@@ -849,7 +849,8 @@ void main() {
     // Both bodies carry the SAME tint strength — only the hue differs.
     expect(fillOf('BUSY'), colors.accent.withValues(alpha: kTableFillOpacity));
     expect(fillOf('FREE'), colors.success.withValues(alpha: kTableFillOpacity));
-    // The occupant is what marks the table, and it names who is on it.
-    expect(find.text('Sara'), findsOneWidget);
+    // The occupant is what marks the table, and it names who is on it —
+    // beside the table's clock, where the box has room for both.
+    expect(find.textContaining('Sara'), findsOneWidget);
   });
 }

@@ -82,7 +82,7 @@ class RustBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -689306044;
+  int get rustContentHash => 1656740463;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -852,6 +852,11 @@ abstract class RustBridgeApi extends BaseApi {
 
   Future<SyncStatusView> crateApiBridgeMadarBridgeSyncStatus({
     required MadarBridge that,
+  });
+
+  Future<TableHistoryView> crateApiBridgeMadarBridgeTableHistory({
+    required MadarBridge that,
+    required String tableId,
   });
 
   String crateApiBridgeMadarBridgeTr({
@@ -6737,6 +6742,44 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  Future<TableHistoryView> crateApiBridgeMadarBridgeTableHistory({
+    required MadarBridge that,
+    required String tableId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(tableId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 153,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_table_history_view,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeTableHistoryConstMeta,
+        argValues: [that, tableId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeTableHistoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_table_history",
+        argNames: ["that", "tableId"],
+      );
+
+  @override
   String crateApiBridgeMadarBridgeTr({
     required MadarBridge that,
     required String key,
@@ -6753,7 +6796,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 153,
+            funcId: 154,
           )!;
         },
         codec: SseCodec(
@@ -6794,7 +6837,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 154,
+            funcId: 155,
             port: port_,
           );
         },
@@ -6832,7 +6875,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 155,
+            funcId: 156,
             port: port_,
           );
         },
@@ -6868,7 +6911,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 156,
+            funcId: 157,
           )!;
         },
         codec: SseCodec(
@@ -6910,7 +6953,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 157,
+            funcId: 158,
             port: port_,
           );
         },
@@ -6944,7 +6987,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 158,
+            funcId: 159,
           )!;
         },
         codec: SseCodec(
@@ -6984,7 +7027,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 159,
+            funcId: 160,
             port: port_,
           );
         },
@@ -7024,7 +7067,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 160,
+            funcId: 161,
             port: port_,
           );
         },
@@ -7066,7 +7109,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 161,
+            funcId: 162,
             port: port_,
           );
         },
@@ -7096,7 +7139,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 162,
+            funcId: 163,
           )!;
         },
         codec: SseCodec(
@@ -7122,7 +7165,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 163,
+            funcId: 164,
           )!;
         },
         codec: SseCodec(
@@ -7149,7 +7192,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 164,
+            funcId: 165,
           )!;
         },
         codec: SseCodec(
@@ -8373,6 +8416,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  List<TableSittingView> dco_decode_list_table_sitting_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_table_sitting_view).toList();
+  }
+
+  @protected
   List<TicketLineView> dco_decode_list_ticket_line_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_ticket_line_view).toList();
@@ -9176,6 +9225,45 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       blocked: dco_decode_u_32(arr[2]),
       online: dco_decode_bool(arr[3]),
       authPaused: dco_decode_bool(arr[4]),
+    );
+  }
+
+  @protected
+  TableHistoryView dco_decode_table_history_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return TableHistoryView(
+      tableId: dco_decode_String(arr[0]),
+      label: dco_decode_String(arr[1]),
+      sittings: dco_decode_list_table_sitting_view(arr[2]),
+      covers: dco_decode_i_64(arr[3]),
+      settledCount: dco_decode_i_64(arr[4]),
+      totalMinor: dco_decode_i_64(arr[5]),
+      averageBillMinor: dco_decode_i_64(arr[6]),
+      averageMinutes: dco_decode_i_64(arr[7]),
+      turnsPerDayX100: dco_decode_i_64(arr[8]),
+    );
+  }
+
+  @protected
+  TableSittingView dco_decode_table_sitting_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return TableSittingView(
+      ticketId: dco_decode_String(arr[0]),
+      ticketRef: dco_decode_opt_String(arr[1]),
+      openedAt: dco_decode_String(arr[2]),
+      closedAt: dco_decode_opt_String(arr[3]),
+      minutes: dco_decode_i_64(arr[4]),
+      status: dco_decode_String(arr[5]),
+      customerName: dco_decode_opt_String(arr[6]),
+      guestCount: dco_decode_opt_box_autoadd_i_32(arr[7]),
+      orderRef: dco_decode_opt_String(arr[8]),
+      totalMinor: dco_decode_opt_box_autoadd_i_64(arr[9]),
     );
   }
 
@@ -11077,6 +11165,20 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  List<TableSittingView> sse_decode_list_table_sitting_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TableSittingView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_table_sitting_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<TicketLineView> sse_decode_list_ticket_line_view(
     SseDeserializer deserializer,
   ) {
@@ -12181,6 +12283,58 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       blocked: var_blocked,
       online: var_online,
       authPaused: var_authPaused,
+    );
+  }
+
+  @protected
+  TableHistoryView sse_decode_table_history_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_tableId = sse_decode_String(deserializer);
+    var var_label = sse_decode_String(deserializer);
+    var var_sittings = sse_decode_list_table_sitting_view(deserializer);
+    var var_covers = sse_decode_i_64(deserializer);
+    var var_settledCount = sse_decode_i_64(deserializer);
+    var var_totalMinor = sse_decode_i_64(deserializer);
+    var var_averageBillMinor = sse_decode_i_64(deserializer);
+    var var_averageMinutes = sse_decode_i_64(deserializer);
+    var var_turnsPerDayX100 = sse_decode_i_64(deserializer);
+    return TableHistoryView(
+      tableId: var_tableId,
+      label: var_label,
+      sittings: var_sittings,
+      covers: var_covers,
+      settledCount: var_settledCount,
+      totalMinor: var_totalMinor,
+      averageBillMinor: var_averageBillMinor,
+      averageMinutes: var_averageMinutes,
+      turnsPerDayX100: var_turnsPerDayX100,
+    );
+  }
+
+  @protected
+  TableSittingView sse_decode_table_sitting_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ticketId = sse_decode_String(deserializer);
+    var var_ticketRef = sse_decode_opt_String(deserializer);
+    var var_openedAt = sse_decode_String(deserializer);
+    var var_closedAt = sse_decode_opt_String(deserializer);
+    var var_minutes = sse_decode_i_64(deserializer);
+    var var_status = sse_decode_String(deserializer);
+    var var_customerName = sse_decode_opt_String(deserializer);
+    var var_guestCount = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_orderRef = sse_decode_opt_String(deserializer);
+    var var_totalMinor = sse_decode_opt_box_autoadd_i_64(deserializer);
+    return TableSittingView(
+      ticketId: var_ticketId,
+      ticketRef: var_ticketRef,
+      openedAt: var_openedAt,
+      closedAt: var_closedAt,
+      minutes: var_minutes,
+      status: var_status,
+      customerName: var_customerName,
+      guestCount: var_guestCount,
+      orderRef: var_orderRef,
+      totalMinor: var_totalMinor,
     );
   }
 
@@ -13788,6 +13942,18 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_list_table_sitting_view(
+    List<TableSittingView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_table_sitting_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_ticket_line_view(
     List<TicketLineView> self,
     SseSerializer serializer,
@@ -14582,6 +14748,41 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_u_32(self.blocked, serializer);
     sse_encode_bool(self.online, serializer);
     sse_encode_bool(self.authPaused, serializer);
+  }
+
+  @protected
+  void sse_encode_table_history_view(
+    TableHistoryView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.tableId, serializer);
+    sse_encode_String(self.label, serializer);
+    sse_encode_list_table_sitting_view(self.sittings, serializer);
+    sse_encode_i_64(self.covers, serializer);
+    sse_encode_i_64(self.settledCount, serializer);
+    sse_encode_i_64(self.totalMinor, serializer);
+    sse_encode_i_64(self.averageBillMinor, serializer);
+    sse_encode_i_64(self.averageMinutes, serializer);
+    sse_encode_i_64(self.turnsPerDayX100, serializer);
+  }
+
+  @protected
+  void sse_encode_table_sitting_view(
+    TableSittingView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.ticketId, serializer);
+    sse_encode_opt_String(self.ticketRef, serializer);
+    sse_encode_String(self.openedAt, serializer);
+    sse_encode_opt_String(self.closedAt, serializer);
+    sse_encode_i_64(self.minutes, serializer);
+    sse_encode_String(self.status, serializer);
+    sse_encode_opt_String(self.customerName, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.guestCount, serializer);
+    sse_encode_opt_String(self.orderRef, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.totalMinor, serializer);
   }
 
   @protected
@@ -15953,6 +16154,17 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// in one cheap local read. Always succeeds offline.
   Future<SyncStatusView> syncStatus() =>
       RustBridge.instance.api.crateApiBridgeMadarBridgeSyncStatus(that: this);
+
+  /// A table's history and takings — ONLINE ONLY, never mirrored.
+  ///
+  /// Every other floor read is cached because a till has to keep selling
+  /// with the network down. This one is a manager's question between
+  /// services, and a stale copy would quietly answer a question about money
+  /// with last week's numbers.
+  Future<TableHistoryView> tableHistory({required String tableId}) => RustBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeTableHistory(that: this, tableId: tableId);
 
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).
   String tr({required String key}) =>

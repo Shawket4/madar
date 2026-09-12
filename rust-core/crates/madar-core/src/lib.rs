@@ -9522,6 +9522,33 @@ impl MadarCore {
     /// Pull today's active bookings (the arrivals list) into the offline cache.
     /// Best-effort like `refresh_floor`: offline / 403 leaves the cache as is.
     /// Queued seat / no-show answers stay applied on top.
+    /// What a table has done, and what it earns.
+    ///
+    /// ONLINE ONLY, and deliberately not mirrored. Every other floor read in
+    /// this core is cached because a till has to keep selling with the
+    /// network down; a table's history is something a manager looks at
+    /// between services, and a stale copy of it would be worse than an
+    /// honest "not now" — it would quietly answer a question about money
+    /// with last week's numbers.
+    pub async fn table_history(
+        &self,
+        table_id: String,
+    ) -> Result<madar_api::models::TableHistory, CoreError> {
+        use madar_api::apis::floor_api;
+        floor_api::table_history(
+            &self.api.config(),
+            floor_api::TableHistoryParams {
+                id: table_id,
+                from: None,
+                to: None,
+            },
+        )
+        .await
+        .map_err(|e| CoreError::Offline {
+            detail: e.to_string(),
+        })
+    }
+
     pub async fn refresh_arrivals(&self) -> Result<(), CoreError> {
         use madar_api::apis::bookings_api;
         let Ok(branch_id) = self.session_branch_id() else {

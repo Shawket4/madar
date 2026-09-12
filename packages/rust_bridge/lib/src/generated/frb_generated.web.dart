@@ -422,6 +422,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<ShiftSummaryView> dco_decode_list_shift_summary_view(dynamic raw);
 
   @protected
+  List<TableSittingView> dco_decode_list_table_sitting_view(dynamic raw);
+
+  @protected
   List<TicketLineView> dco_decode_list_ticket_line_view(dynamic raw);
 
   @protected
@@ -590,6 +593,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SyncStatusView dco_decode_sync_status_view(dynamic raw);
+
+  @protected
+  TableHistoryView dco_decode_table_history_view(dynamic raw);
+
+  @protected
+  TableSittingView dco_decode_table_sitting_view(dynamic raw);
 
   @protected
   TicketBillView dco_decode_ticket_bill_view(dynamic raw);
@@ -1118,6 +1127,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<TableSittingView> sse_decode_list_table_sitting_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<TicketLineView> sse_decode_list_ticket_line_view(
     SseDeserializer deserializer,
   );
@@ -1326,6 +1340,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SyncStatusView sse_decode_sync_status_view(SseDeserializer deserializer);
+
+  @protected
+  TableHistoryView sse_decode_table_history_view(SseDeserializer deserializer);
+
+  @protected
+  TableSittingView sse_decode_table_sitting_view(SseDeserializer deserializer);
 
   @protected
   TicketBillView sse_decode_ticket_bill_view(SseDeserializer deserializer);
@@ -1984,6 +2004,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_table_sitting_view(
+    List<TableSittingView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_ticket_line_view(
     List<TicketLineView> self,
     SseSerializer serializer,
@@ -2271,6 +2297,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_sync_status_view(
     SyncStatusView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_table_history_view(
+    TableHistoryView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_table_sitting_view(
+    TableSittingView self,
     SseSerializer serializer,
   );
 

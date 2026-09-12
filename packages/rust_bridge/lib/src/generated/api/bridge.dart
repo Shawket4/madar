@@ -835,6 +835,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// in one cheap local read. Always succeeds offline.
   Future<SyncStatusView> syncStatus();
 
+  /// A table's history and takings — ONLINE ONLY, never mirrored.
+  ///
+  /// Every other floor read is cached because a till has to keep selling
+  /// with the network down. This one is a manager's question between
+  /// services, and a stale copy would quietly answer a question about money
+  /// with last week's numbers.
+  Future<TableHistoryView> tableHistory({required String tableId});
+
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).
   String tr({required String key});
 
