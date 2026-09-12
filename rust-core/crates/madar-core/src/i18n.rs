@@ -247,6 +247,35 @@ fn en(key: &str) -> Option<&'static str> {
         // Taking a line off a cart — not `loyalty.remove`, which is about
         // unlinking a customer.
         "order.remove_line" => "Remove",
+        // Confirmations for the acts that cannot be walked back. Each says
+        // what is LOST, not just what the button is called: a dialog that
+        // only repeats the verb adds a tap and no information.
+        "order.clear_cart_title" => "Clear the cart?",
+        "order.clear_cart_body" => {
+            "Every line goes, including anything already configured. The \
+             order itself has not been sent anywhere, so nothing is refunded \
+             and nothing is voided — it is simply gone."
+        }
+        "order.clear_cart" => "Clear it",
+        "order.remove_line_title" => "Take this off?",
+        "kds.discard_refused_title" => "Discard this refused action?",
+        "kds.discard_refused_body" => {
+            "The kitchen never accepted it and it will not be retried. \
+             Whatever it was meant to do has not happened."
+        }
+        "transfer.cancel_title" => "Cancel this transfer?",
+        "transfer.cancel_body" => {
+            "The table keeps its bill where it is. Nothing moves."
+        }
+        "loyalty.remove_title" => "Take the customer off this sale?",
+        "loyalty.remove_body" => {
+            "No points are earned and no reward is applied. The sale stands."
+        }
+        "settings.sign_out_title" => "Sign out of this till?",
+        "settings.sign_out_body" => {
+            "Queued sales stay on the device and send when the next person \
+             signs in. Nothing is lost — but nobody can ring up until then."
+        }
         "order.notes" => "Note",
         "order.cash_received" => "Cash received",
         "order.change" => "Change",
@@ -1060,6 +1089,29 @@ fn ar(key: &str) -> Option<&'static str> {
         "order.customer_hint" => "اسم العميل (اختياري)",
         "order.notes_hint" => "ملاحظات الطلب (اختياري)",
         "order.remove_line" => "حذف الصنف",
+        "order.clear_cart_title" => "هل تريد تفريغ السلة؟",
+        "order.clear_cart_body" => {
+            "ستُحذف كل الأصناف بما فيها ما تم تخصيصه. الطلب لم يُرسل إلى أي \
+             مكان، فلا يوجد استرداد ولا إبطال — سيختفي فقط."
+        }
+        "order.clear_cart" => "تفريغ السلة",
+        "order.remove_line_title" => "هل تريد حذف هذا الصنف؟",
+        "kds.discard_refused_title" => "هل تريد تجاهل هذا الإجراء المرفوض؟",
+        "kds.discard_refused_body" => {
+            "لم يقبله المطبخ ولن تُعاد المحاولة. ما كان من المفترض أن يحدث \
+             لم يحدث."
+        }
+        "transfer.cancel_title" => "هل تريد إلغاء النقل؟",
+        "transfer.cancel_body" => "ستبقى الفاتورة على طاولتها. لن يتغير شيء.",
+        "loyalty.remove_title" => "هل تريد إزالة العميل من هذه العملية؟",
+        "loyalty.remove_body" => {
+            "لن تُحتسب نقاط ولن تُطبّق مكافأة. تبقى عملية البيع كما هي."
+        }
+        "settings.sign_out_title" => "هل تريد تسجيل الخروج من هذا الجهاز؟",
+        "settings.sign_out_body" => {
+            "تبقى المبيعات المنتظرة على الجهاز وتُرسل عند تسجيل دخول التالي. \
+             لن يضيع شيء — لكن لن يتمكن أحد من البيع حتى ذلك الحين."
+        }
         "order.notes" => "ملاحظة",
         "order.cash_received" => "النقد المستلم",
         "order.change" => "الباقي",

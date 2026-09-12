@@ -47,6 +47,22 @@ class _KdsBoardBodyState extends ConsumerState<KdsBoardBody>
 
   KdsNotifier get _board => ref.read(kdsProvider(widget.stationId).notifier);
 
+  /// Throwing away a refused kitchen action. The kitchen never accepted it
+  /// and it will not be retried, so whatever it was meant to do does not
+  /// happen — that is worth one question before the tap takes effect.
+  Future<void> _confirmDiscardRefused() async {
+    final bridge = ref.read(bridgeProvider);
+    final ok = await showMadarConfirm(
+      context,
+      title: bridge.tr(key: 'kds.discard_refused_title'),
+      body: bridge.tr(key: 'kds.discard_refused_body'),
+      confirmLabel: bridge.trOr(KdsKeys.discard),
+      cancelLabel: bridge.tr(key: 'common.cancel'),
+    );
+    if (!ok) return;
+    await _board.discardRefused();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -126,7 +142,7 @@ class _KdsBoardBodyState extends ConsumerState<KdsBoardBody>
                     children: [
                       BannerActionPill(label: bridge.trOr(KdsKeys.retry)),
                       TactileScale(
-                        onTap: () => unawaited(_board.discardRefused()),
+                        onTap: () => unawaited(_confirmDiscardRefused()),
                         child: BannerActionPill(
                           label: bridge.trOr(KdsKeys.discard),
                         ),

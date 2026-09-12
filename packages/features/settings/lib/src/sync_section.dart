@@ -387,24 +387,19 @@ class _StuckRow extends ConsumerWidget {
   final OutboxItemView item;
 
   Future<void> _confirmDiscard(BuildContext context, WidgetRef ref) async {
+    // The shared confirm, not a hand-rolled modal. This screen had the only
+    // other confirmation dialog in the app and it was a different widget with
+    // the same job — so a teller met two shapes of "are you sure" depending
+    // on which destructive thing they touched.
     final bridge = ref.read(bridgeProvider);
-    final ok = await showMadarModal<bool>(
+    final ok = await showMadarConfirm(
       context,
-      builder: (modalContext) => MadarModalBody(
-        title: bridge.tr(key: 'sync.discard_title'),
-        body: bridge.tr(key: 'sync.discard_body'),
-        primary: MadarModalAction(
-          bridge.tr(key: 'sync.discard'),
-          () => Navigator.of(modalContext).pop(true),
-          danger: true,
-        ),
-        secondary: MadarModalAction(
-          bridge.tr(key: 'common.cancel'),
-          () => Navigator.of(modalContext).pop(false),
-        ),
-      ),
+      title: bridge.tr(key: 'sync.discard_title'),
+      body: bridge.tr(key: 'sync.discard_body'),
+      confirmLabel: bridge.tr(key: 'sync.discard'),
+      cancelLabel: bridge.tr(key: 'common.cancel'),
     );
-    if (ok != true) return;
+    if (!ok) return;
     await ref.read(syncProvider.notifier).discard(item.id);
   }
 

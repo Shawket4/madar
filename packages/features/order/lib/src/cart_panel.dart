@@ -257,8 +257,8 @@ class _CartHeader extends ConsumerWidget {
           const Spacer(),
           if (hasLines)
             GestureDetector(
-              onTap: () =>
-                  unawaited(ref.read(orderProvider.notifier).clearCart()),
+              // Bigger than removing one line and it had no dialog at all.
+              onTap: () => unawaited(_confirmClearCart(context, ref)),
               behavior: HitTestBehavior.opaque,
               child: Text(
                 bridge.tr(key: 'order.clear'),
@@ -766,14 +766,62 @@ class _CartLineBody extends ConsumerWidget {
           const SizedBox(width: Space.xs),
           QtyStepper(
             qty: line.qty,
-            // The minus button removes the line at qty 1.
-            onDec: () => unawaited(notifier.setCartQty(line.key, line.qty - 1)),
+            // At qty 1 the minus button turns into a TRASH glyph and deletes
+            // the line — the same gesture, a different act, and the only
+            // destructive one in the app that fired with nothing in its way.
+            // Swiping a line away has always confirmed; this is the same
+            // deletion by a different route, so it asks the same question.
+            onDec: () => unawaited(
+              line.qty <= 1
+                  ? _confirmRemove(context, ref, line)
+                  : notifier.setCartQty(line.key, line.qty - 1),
+            ),
             onInc: () => unawaited(notifier.setCartQty(line.key, line.qty + 1)),
           ),
         ],
       ),
     );
   }
+}
+
+/// Emptying the whole cart — every line, including anything configured.
+///
+/// The one destructive act in this app that is BIGGER than the examples that
+/// already confirmed (a line, a parked order) and had nothing in front of it.
+Future<void> _confirmClearCart(BuildContext context, WidgetRef ref) async {
+  final bridge = ref.read(bridgeProvider);
+  final ok = await showMadarConfirm(
+    context,
+    title: bridge.tr(key: 'order.clear_cart_title'),
+    body: bridge.tr(key: 'order.clear_cart_body'),
+    confirmLabel: bridge.tr(key: 'order.clear_cart'),
+    cancelLabel: bridge.tr(key: 'common.cancel'),
+  );
+  if (!ok) return;
+  MadarHaptics.impact();
+  await ref.read(orderProvider.notifier).clearCart();
+}
+
+/// The stepper's trash tap: confirm, then take the line off.
+///
+/// Shares its wording with the swipe — one deletion, one question, however
+/// the teller reaches it.
+Future<void> _confirmRemove(
+  BuildContext context,
+  WidgetRef ref,
+  CartLineView line,
+) async {
+  final bridge = ref.read(bridgeProvider);
+  final ok = await showMadarConfirm(
+    context,
+    title: bridge.tr(key: 'order.remove_line_title'),
+    body: '${line.qty}× ${line.name}',
+    confirmLabel: bridge.tr(key: 'order.remove_line'),
+    cancelLabel: bridge.tr(key: 'common.cancel'),
+  );
+  if (!ok) return;
+  MadarHaptics.impact();
+  await ref.read(orderProvider.notifier).swipeRemoveCartLine(line);
 }
 
 /// A bundle line lists its components (qty × name) with each component's

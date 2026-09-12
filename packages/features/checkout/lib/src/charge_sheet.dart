@@ -153,6 +153,24 @@ Future<ChargeOutcome?> _showChargeModal(
 ///
 /// Owns its [checkoutProvider] session (autoDispose): starts it on mount,
 /// pops with the [ChargeOutcome] the moment the charge has landed and the
+/// Taking the customer off a sale: no points earned, no reward applied.
+/// Reversible only by scanning them again, which needs the card or the phone
+/// back in hand — so it asks first.
+Future<void> _confirmRemoveMember(
+  BuildContext context,
+  MadarBridge bridge,
+  VoidCallback clear,
+) async {
+  final ok = await showMadarConfirm(
+    context,
+    title: bridge.tr(key: 'loyalty.remove_title'),
+    body: bridge.tr(key: 'loyalty.remove_body'),
+    confirmLabel: bridge.tr(key: 'loyalty.remove'),
+    cancelLabel: bridge.tr(key: 'common.cancel'),
+  );
+  if (ok) clear();
+}
+
 /// auto-print has answered.
 class ChargeSheet extends ConsumerStatefulWidget {
   const ChargeSheet({required this.target, super.key});
@@ -278,7 +296,13 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
                           builder: (_) => const LoyaltyScanSheet(),
                         ),
                       ),
-                      onRemoveMember: notifier.clearLoyalty,
+                      onRemoveMember: () => unawaited(
+                        _confirmRemoveMember(
+                          context,
+                          bridge,
+                          notifier.clearLoyalty,
+                        ),
+                      ),
                       onToggleReward: notifier.toggleReward,
                       onOpenTip: notifier.openTip,
                       onCloseTip: notifier.closeTip,

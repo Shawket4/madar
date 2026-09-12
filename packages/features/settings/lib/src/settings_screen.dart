@@ -28,6 +28,23 @@ const int _syncFlex = 5;
 const int _prefsFlex = 6;
 
 /// The settings screen. All state flows from [settingsProvider] (plus the
+/// Signing a till out mid-service. Queued sales survive on the device and go
+/// when the next person signs in, so nothing is lost — but nobody can ring up
+/// until then, which is worth saying out loud on a shop floor.
+///
+/// The notifier already refuses outright while a shift is open; this is the
+/// question for the case it allows.
+Future<bool> _confirmSignOut(BuildContext context, WidgetRef ref) {
+  final bridge = ref.read(bridgeProvider);
+  return showMadarConfirm(
+    context,
+    title: bridge.tr(key: 'settings.sign_out_title'),
+    body: bridge.tr(key: 'settings.sign_out_body'),
+    confirmLabel: bridge.tr(key: 'home.sign_out'),
+    cancelLabel: bridge.tr(key: 'common.cancel'),
+  );
+}
+
 /// app-core locale / dark-mode providers) and `syncProvider`.
 class SettingsScreen extends ConsumerStatefulWidget {
   /// Creates the settings screen.
@@ -125,6 +142,8 @@ class _Preferences extends ConsumerWidget {
   /// Sign-out (guarded in the notifier): pop first, then refresh the shell
   /// so the route flip lands on the shell subtree, not this overlay.
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    if (!await _confirmSignOut(context, ref)) return;
+    if (!context.mounted) return;
     final shell = ref.read(shellProvider.notifier);
     final ok = await ref.read(settingsProvider.notifier).signOut();
     if (!ok || !context.mounted) return;

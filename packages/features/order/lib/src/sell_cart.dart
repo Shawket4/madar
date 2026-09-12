@@ -91,6 +91,22 @@ SellCta sellCtaFor(OrderState s, MadarBridge bridge) {
   );
 }
 
+/// Emptying the whole cart — every line, including anything configured.
+/// Shares its wording with the cart panel's own Clear.
+Future<void> _confirmClearCart(BuildContext context, WidgetRef ref) async {
+  final bridge = ref.read(bridgeProvider);
+  final ok = await showMadarConfirm(
+    context,
+    title: bridge.tr(key: 'order.clear_cart_title'),
+    body: bridge.tr(key: 'order.clear_cart_body'),
+    confirmLabel: bridge.tr(key: 'order.clear_cart'),
+    cancelLabel: bridge.tr(key: 'common.cancel'),
+  );
+  if (!ok) return;
+  MadarHaptics.impact();
+  await ref.read(orderProvider.notifier).clearCart();
+}
+
 /// The cart column / sheet.
 class SellCart extends ConsumerWidget {
   const SellCart({
@@ -273,7 +289,6 @@ class SellCart extends ConsumerWidget {
     OrderState s,
   ) async {
     final bridge = ref.read(bridgeProvider);
-    final notifier = ref.read(orderProvider.notifier);
     await showMadarSheet<void>(
       context,
       size: SheetSize.hug,
@@ -292,7 +307,10 @@ class SellCart extends ConsumerWidget {
               enabled: s.cartLines.isNotEmpty,
               onTap: () {
                 Navigator.of(sheetContext).maybePop();
-                unawaited(notifier.clearCart());
+                // Confirm on the SCREEN's context, not the sheet's: the
+                // sheet is closing, and a dialog raised from a context that
+                // is being torn down never appears.
+                unawaited(_confirmClearCart(context, ref));
               },
             ),
           ],

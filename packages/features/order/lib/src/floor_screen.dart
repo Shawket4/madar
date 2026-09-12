@@ -277,6 +277,20 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
   /// scratch (any bill, any covers on record, gone from the room). Destructive,
   /// so it confirms first like every other floor action that erases rather
   /// than merely tidies.
+  /// Cancelling a queued table transfer — the table keeps its bill where it
+  /// is and nothing moves. Small, but irreversible from the teller's side.
+  Future<void> _confirmCancelTransfer(String id) async {
+    if (!mounted) return;
+    final ok = await showMadarConfirm(
+      context,
+      title: _tr('transfer.cancel_title'),
+      body: _tr('transfer.cancel_body'),
+      confirmLabel: _tr('tables.cancel_wish'),
+      cancelLabel: _tr('common.cancel'),
+    );
+    if (ok) await _notifier.cancelTransfer(id);
+  }
+
   Future<void> _confirmUnseat(FloorTableStateView t) async {
     if (!mounted) return;
     final ok = await showMadarConfirm(
@@ -469,7 +483,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
                             glyph: MadarGlyph.close,
                             semanticLabel: _tr('tables.cancel_wish'),
                             onTap: () =>
-                                unawaited(_notifier.cancelTransfer(e.id)),
+                                unawaited(_confirmCancelTransfer(e.id)),
                           ),
                           onTap: () {
                             Navigator.of(sheetContext).maybePop();

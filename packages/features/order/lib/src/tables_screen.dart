@@ -1861,7 +1861,7 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
                           await _fulfillFlow(queue[i]);
                         },
                         onCancel: () =>
-                            unawaited(_notifier.cancelTransfer(queue[i].id)),
+                            unawaited(_confirmCancelTransfer(queue[i].id)),
                       ),
                     ),
                   ),
@@ -1901,6 +1901,20 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
   /// the same reason-capturing void sheet the bill screen and the cart use,
   /// which is a confirmation with the one question a blind Yes/No cannot
   /// ask — why.
+  /// Cancelling a queued table transfer — the table keeps its bill where it
+  /// is and nothing moves. Small, but irreversible from the teller's side.
+  Future<void> _confirmCancelTransfer(String id) async {
+    if (!mounted) return;
+    final ok = await showMadarConfirm(
+      context,
+      title: _tr('transfer.cancel_title'),
+      body: _tr('transfer.cancel_body'),
+      confirmLabel: _tr('tables.cancel_wish'),
+      cancelLabel: _tr('common.cancel'),
+    );
+    if (ok) await _notifier.cancelTransfer(id);
+  }
+
   Future<void> _freeLiveTable(TicketView ticket) async {
     if (!mounted) return;
     final result = await showMadarSheet<VoidTicketResult>(

@@ -92,6 +92,24 @@ const int _cashPresetCount = 3;
 /// CONFIG: chrome strings, feature flags, the terminal callback. Money +
 /// order assembly stay in the core / callback; this view only collects the
 /// tender and reports it back via [CheckoutResult]. Port of TenderScreen.kt's
+/// Taking the customer off a sale: no points earned, no reward applied.
+/// Reversible only by scanning them again, which needs the card or the phone
+/// back in hand — so it asks first.
+Future<void> _confirmRemoveMember(
+  BuildContext context,
+  MadarBridge bridge,
+  VoidCallback clear,
+) async {
+  final ok = await showMadarConfirm(
+    context,
+    title: bridge.tr(key: 'loyalty.remove_title'),
+    body: bridge.tr(key: 'loyalty.remove_body'),
+    confirmLabel: bridge.tr(key: 'loyalty.remove'),
+    cancelLabel: bridge.tr(key: 'common.cancel'),
+  );
+  if (ok) clear();
+}
+
 /// CheckoutDrawer.
 class CheckoutDrawer extends ConsumerStatefulWidget {
   const CheckoutDrawer({
@@ -273,7 +291,13 @@ class _CheckoutDrawerState extends ConsumerState<CheckoutDrawer> {
                       ),
                     ),
                     onToggle: notifier.toggleReward,
-                    onClear: notifier.clearLoyalty,
+                    onClear: () => unawaited(
+                      _confirmRemoveMember(
+                        context,
+                        bridge,
+                        notifier.clearLoyalty,
+                      ),
+                    ),
                   ),
                 // Order summary card — subtotal/discount/tax light
                 // above, the grand total in a tinted teal block.
