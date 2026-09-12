@@ -602,6 +602,7 @@ class _Catalog extends ConsumerWidget {
       if (q.isNotEmpty) {
         return EmptyState(
           icon: 'magnifyingglass',
+          lottieAsset: 'no_results',
           title: bridge.tr(key: 'order.empty_search'),
         );
       }

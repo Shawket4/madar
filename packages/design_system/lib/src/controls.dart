@@ -1488,29 +1488,35 @@ class MadarStepper extends StatelessWidget {
       required VoidCallback onTap,
       String? label,
     }) {
+      final face = SizedBox.square(
+        dimension: Metrics.stepper,
+        child: Center(
+          child: MadarGlyphIcon(
+            glyph,
+            size: IconSize.md,
+            color: enabled ? colors.textPrimary : colors.textMuted,
+          ),
+        ),
+      );
       return Semantics(
         button: true,
         enabled: enabled,
         label: label,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: enabled
-              ? () {
+        // The deeper key press, like the PIN pad. This is the control a
+        // teller taps most often while building a round and it was the one
+        // that shipped with no press feedback at all — the old StepButton it
+        // replaced had it, and the replacement quietly did not.
+        child: enabled
+            ? TactileScale(
+                scale: MotionSpec.pressScaleKey,
+                haptic: false,
+                onTap: () {
                   MadarHaptics.selection();
                   onTap();
-                }
-              : null,
-          child: SizedBox.square(
-            dimension: Metrics.stepper,
-            child: Center(
-              child: MadarGlyphIcon(
-                glyph,
-                size: IconSize.md,
-                color: enabled ? colors.textPrimary : colors.textMuted,
-              ),
-            ),
-          ),
-        ),
+                },
+                child: face,
+              )
+            : face,
       );
     }
 

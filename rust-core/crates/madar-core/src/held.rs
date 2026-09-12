@@ -106,6 +106,17 @@ pub(crate) struct TableWire {
     /// backend's `TableBookingHint`). `None` for a free evening.
     #[serde(default)]
     pub next_booking: Option<BookingHintWire>,
+    /// When this device saw the table become SEATED, RFC3339.
+    ///
+    /// A table's clock is the thing floor staff scan for, and until now it
+    /// could only be read off something ON the table — a parked order's
+    /// `created_at`, or a bill's `opened_at`. A party seated with nothing
+    /// ordered yet has neither, which is the commonest state on a floor and
+    /// the one where "how long have they been waiting" matters most. Cleared
+    /// the moment the table stops being seated, so a stale stamp can never
+    /// outlive the party.
+    #[serde(default)]
+    pub seated_at: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -462,7 +473,7 @@ pub(crate) fn park_local(
     // Mirror the server's choreography: the table the order landed on reads
     // as taken right away.
     if let Some(t) = entry.table_id.as_deref() {
-        set_table_state_local(store, t, Some("seated"), None, false)?;
+        set_table_state_local(store, t, Some("seated"), None, false, Some(now))?;
     }
     save_held(store, &list)?;
     Ok((entry, conflict))
@@ -569,7 +580,7 @@ pub(crate) fn terminate_local(
         } else {
             "free"
         };
-        set_table_state_local(store, &t, Some(next), None, false)?;
+        set_table_state_local(store, &t, Some(next), None, false, Some(now))?;
     }
     cancel_occupant_transfers_local(store, "held_order", id, now)?;
     Ok(())
@@ -644,10 +655,10 @@ pub(crate) fn assign_table_local(
     let out = e.clone();
     save_held(store, &list)?;
     if let Some(old) = previous.filter(|p| Some(p) != out.table_id.as_ref()) {
-        set_table_state_local(store, &old, Some("free"), None, false)?;
+        set_table_state_local(store, &old, Some("free"), None, false, Some(now))?;
     }
     if let Some(t) = out.table_id.as_deref() {
-        set_table_state_local(store, t, Some("seated"), None, false)?;
+        set_table_state_local(store, t, Some("seated"), None, false, Some(now))?;
         autofulfill_local(store, "held_order", id, t, now)?;
     }
     Ok(out)
@@ -852,12 +863,23 @@ pub(crate) fn set_table_state_local(
     status: Option<&str>,
     section_id: Option<&str>,
     clear_section: bool,
+    now: Option<&str>,
 ) -> CoreResult<()> {
     let mut tables = load_tables(store)?;
     let Some(t) = tables.iter_mut().find(|t| t.id == table_id) else {
         return Ok(());
     };
     if let Some(s) = status {
+        // Start the table's clock on the way IN to seated and stop it on the
+        // way out. Re-seating an already-seated table must not restart it —
+        // a second round is not a new party.
+        if s == "seated" {
+            if t.status != "seated" || t.seated_at.is_none() {
+                t.seated_at = now.map(str::to_string);
+            }
+        } else {
+            t.seated_at = None;
+        }
         t.status = s.to_string();
     }
     if clear_section {
@@ -927,7 +949,13 @@ pub(crate) fn layout(store: &Store, my_device: &str) -> CoreResult<FloorLayoutVi
                 rotation: t.rotation,
                 held_order_id: occ.map(|h| h.id.clone()),
                 held_order_name: occ.map(|h| h.name.clone()),
-                held_since: occ.map(|h| h.created_at.clone()),
+                // The table's clock, in order of how well each source knows
+                // when the party actually sat: a parked order's own start,
+                // then this device's seated stamp. A live BILL's opened_at is
+                // joined by the host, which holds the ticket list.
+                held_since: occ
+                    .map(|h| h.created_at.clone())
+                    .or_else(|| t.seated_at.clone()),
                 held_locked_by_other: occ
                     .map(|h| {
                         h.status == "resumed" && h.claimed_by_device.as_deref() != Some(my_device)
@@ -1164,7 +1192,7 @@ mod tests {
 
         // A seated party with no held order behind it — a ticket landing, or a
         // booking seated, both write exactly this and nothing else.
-        set_table_state_local(&s, "t1", Some("seated"), None, false).unwrap();
+        set_table_state_local(&s, "t1", Some("seated"), None, false, Some("2026-09-12T18:00:00Z")).unwrap();
 
         // A hold parked with no table, then offered that one.
         park_local(&s, "h1", "b", "Sara", payload(1), None, "dev-a", "now").unwrap();
@@ -1329,7 +1357,7 @@ mod tests {
             "wish auto-cancelled"
         );
         // Clearing it by hand is what hands it back to the room.
-        set_table_state_local(&s, "t2", Some("free"), None, false).unwrap();
+        set_table_state_local(&s, "t2", Some("free"), None, false, None).unwrap();
         assert_eq!(status_of("t2"), "free");
         // Idempotent; the opposite terminal is an error.
         terminate_local(&s, "h1", "completed", None, "t2").unwrap();
@@ -1494,4 +1522,48 @@ mod tests {
         assert!(migrate_legacy(&s, "b", "dev-a").unwrap().is_empty());
         assert_eq!(drafts(&s, "dev-a").unwrap().len(), 1);
     }
+    /// A table's clock has to start when the PARTY sits, not when they order.
+    /// Seated-with-nothing-ordered is the commonest state on a floor and the
+    /// one where "how long have they been waiting" matters most — and it was
+    /// the one state with no timestamp anywhere to read it from.
+    #[test]
+    fn a_seated_table_carries_the_moment_it_was_seated() {
+        let s = store();
+        seed_floor(&s);
+        set_table_state_local(&s, "t1", Some("seated"), None, false, Some(T0)).unwrap();
+        let t = load_tables(&s)
+            .unwrap()
+            .into_iter()
+            .find(|t| t.id == "t1")
+            .unwrap();
+        assert_eq!(t.seated_at.as_deref(), Some(T0));
+
+        // A second round is not a new party: the clock keeps running from
+        // when they actually sat.
+        set_table_state_local(&s, "t1", Some("seated"), None, false, Some(T1)).unwrap();
+        let t = load_tables(&s)
+            .unwrap()
+            .into_iter()
+            .find(|t| t.id == "t1")
+            .unwrap();
+        assert_eq!(
+            t.seated_at.as_deref(),
+            Some(T0),
+            "re-seating an already-seated table must not restart its clock"
+        );
+
+        // They left: the stamp goes with them, so it can never outlive the
+        // party and start the next one's clock in the past.
+        set_table_state_local(&s, "t1", Some("free"), None, false, Some(T1)).unwrap();
+        let t = load_tables(&s)
+            .unwrap()
+            .into_iter()
+            .find(|t| t.id == "t1")
+            .unwrap();
+        assert_eq!(t.seated_at, None);
+    }
+
+    const T0: &str = "2026-09-12T18:00:00Z";
+    const T1: &str = "2026-09-12T18:45:00Z";
+
 }

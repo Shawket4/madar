@@ -6,6 +6,7 @@
 import 'dart:io';
 
 import 'package:design_system/design_system.dart';
+import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/sell_screen.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +33,7 @@ Widget _host(Widget child) => MaterialApp(
 );
 
 void main() {
+  _cartAnchorTests();
   _gridTests();
   _defaultMilkTests();
   group('SellTile photo', () {
@@ -173,5 +175,39 @@ void _gridTests() {
 
   test('a cart-narrow column still renders one honest column', () {
     expect(columnsFor(220, 16), 1);
+  });
+}
+
+// The add-to-cart flight asks `cartAnchorCenter()` for somewhere to land and
+// returns silently when there is nowhere. Both anchors were only ever mounted
+// inside the OLD cart panel, which nothing reaches any more — so on the cart
+// that shipped, the dot had no destination and EVERY add-to-cart skipped its
+// animation without a sound. The launch code was never the problem.
+void _cartAnchorTests() {
+  testWidgets('nothing mounted means no landing point', (tester) async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(
+      cartAnchorCenter(),
+      isNull,
+      reason: 'this is the state the live cart was shipping in',
+    );
+  });
+
+  testWidgets('a mounted anchor gives the flight its target', (tester) async {
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: KeyedSubtree(
+            key: cartPanelAnchor,
+            child: const SizedBox(width: 40, height: 20),
+          ),
+        ),
+      ),
+    );
+    final at = cartAnchorCenter();
+    expect(at, isNotNull);
+    expect(at, const Offset(20, 10), reason: 'the centre of the anchored box');
   });
 }

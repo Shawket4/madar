@@ -3415,7 +3415,15 @@ impl MadarCore {
                 detail: "unknown table status".into(),
             });
         }
-        held::set_table_state_local(&self.store, &table_id, Some(&status), None, false)
+        let now = self.corrected_now().to_rfc3339();
+        held::set_table_state_local(
+            &self.store,
+            &table_id,
+            Some(&status),
+            None,
+            false,
+            Some(&now),
+        )
     }
 
     /// Clear a bussed table: the one human act a table's status cannot derive.
@@ -3432,7 +3440,7 @@ impl MadarCore {
     ///
     /// Optimistic-local + queued, like every other floor op.
     pub fn clear_table(&self, table_id: String) -> Result<(), CoreError> {
-        held::set_table_state_local(&self.store, &table_id, Some("free"), None, false)?;
+        held::set_table_state_local(&self.store, &table_id, Some("free"), None, false, None)?;
         let cmd = held::TableStateCommand {
             table_id: table_id.clone(),
             request: serde_json::json!({}),
@@ -4357,6 +4365,7 @@ impl MadarCore {
                             Some(status),
                             None,
                             false,
+                            Some(&self.corrected_now().to_rfc3339()),
                         );
                     }
                 }
@@ -6460,7 +6469,15 @@ impl MadarCore {
     /// Optimistic-local + queued, so a party can be seated with no network.
     pub async fn seat_table(&self, table_id: String) -> Result<(), CoreError> {
         self.session_branch_id()?;
-        held::set_table_state_local(&self.store, &table_id, Some("seated"), None, false)?;
+        let seated_now = self.corrected_now().to_rfc3339();
+        held::set_table_state_local(
+            &self.store,
+            &table_id,
+            Some("seated"),
+            None,
+            false,
+            Some(&seated_now),
+        )?;
         self.sync_hold_occupancy(None, Some(table_id), false)?;
         let _ = self.drain_outbox().await;
         Ok(())
@@ -6495,7 +6512,7 @@ impl MadarCore {
     /// nothing to bus.
     pub async fn unseat_table(&self, table_id: String) -> Result<(), CoreError> {
         self.session_branch_id()?;
-        held::set_table_state_local(&self.store, &table_id, Some("free"), None, false)?;
+        held::set_table_state_local(&self.store, &table_id, Some("free"), None, false, None)?;
         self.sync_hold_occupancy(Some(table_id), None, false)?;
         let _ = self.drain_outbox().await;
         Ok(())

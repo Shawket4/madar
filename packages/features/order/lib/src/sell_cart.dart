@@ -15,6 +15,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/cart_panel.dart' show TellerHeldStrip;
 import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/order_providers.dart';
@@ -160,8 +161,13 @@ class SellCart extends ConsumerWidget {
             const TellerHeldStrip(),
           Expanded(
             child: lines.isEmpty && ticket == null
+                // The Lottie was already in the bundle and already supported
+                // by EmptyState — the new cart just never asked for it, so
+                // the asset shipped as dead weight and the screen showed a
+                // flat glyph where it used to breathe.
                 ? EmptyState(
                     icon: 'cart',
+                    lottieAsset: 'empty_cart',
                     title: bridge.tr(key: 'order.cart_empty'),
                   )
                 : ListView(
@@ -340,6 +346,29 @@ class _CartHeader extends StatelessWidget {
       child: Row(
         spacing: Space.sm,
         children: [
+          // WHERE THE FLIGHT LANDS.
+          //
+          // playCartFlight asks cartAnchorCenter() for a target and returns
+          // silently when there isn't one. Both anchor keys were only ever
+          // mounted inside the OLD cart panel, which nothing reaches any
+          // more — so on this cart the dot had nowhere to go and every
+          // add-to-cart skipped its animation without a sound. The code that
+          // launches it was never the problem; it had no destination.
+          //
+          // Nudge is the other half: the header dips when the dot arrives,
+          // so the cart acknowledges the catch instead of the item just
+          // appearing in the list.
+          ValueListenableBuilder<int>(
+            valueListenable: cartCatchTick,
+            builder: (context, tick, child) =>
+                Nudge(trigger: tick, kind: NudgeKind.dip, child: child!),
+            // The anchor wraps the GLYPH, not the whole row, so the dot
+            // lands on the cart rather than in the middle of the title.
+            child: KeyedSubtree(
+              key: cartPanelAnchor,
+              child: MadarIcon('cart', tint: colors.accent, size: IconSize.lg),
+            ),
+          ),
           Expanded(
             child: Text(
               title,
@@ -531,13 +560,12 @@ class _RoundLine extends ConsumerWidget {
             ),
             child: MadarGlyphIcon(MadarGlyph.trash, color: colors.textOnAccent),
           ),
+          // TactileScale, not a bare GestureDetector: the old cart's line row
+          // had the press-shrink and the row that replaced it did not, so a
+          // tap on a line in the live bill felt like nothing happening.
           child: onEdit == null
               ? body
-              : GestureDetector(
-                  onTap: onEdit,
-                  behavior: HitTestBehavior.opaque,
-                  child: body,
-                ),
+              : TactileScale(onTap: onEdit, child: body),
         ),
       ),
     );
@@ -729,6 +757,20 @@ class SellBar extends ConsumerWidget {
             Row(
               spacing: Space.md,
               children: [
+                // The phone's landing pad — same reason as the panel's.
+                ValueListenableBuilder<int>(
+                  valueListenable: cartCatchTick,
+                  builder: (context, tick, child) =>
+                      Nudge(trigger: tick, kind: NudgeKind.dip, child: child!),
+                  child: KeyedSubtree(
+                    key: cartBarAnchor,
+                    child: MadarIcon(
+                      'cart',
+                      tint: colors.accent,
+                      size: IconSize.lg,
+                    ),
+                  ),
+                ),
                 Expanded(
                   child: Semantics(
                     button: true,
