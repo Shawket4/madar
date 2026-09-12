@@ -1524,7 +1524,10 @@ class _TablesScreenState extends ConsumerState<TablesScreen>
     final currency = ref.read(orderProvider).currency;
     final seatedFor = formatSeatedFor(
       DateTime.now().toUtc().difference(
-        DateTime.tryParse(ticket.openedAt)?.toUtc() ?? DateTime.now().toUtc(),
+        // The party's seating (every device gets it from the server), else
+        // the bill's opening.
+        DateTime.tryParse(t.heldSince ?? ticket.openedAt)?.toUtc() ??
+            DateTime.now().toUtc(),
       ),
       units: DurationUnits.of(bridge),
     );
