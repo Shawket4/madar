@@ -76,93 +76,94 @@ class _OpenShiftScreenState extends ConsumerState<OpenShiftScreen> {
     // The page shell, so the banners pinned at top: 0 below sit under the
     // status bar rather than behind the clock. `embedded` means the tab
     // shell is above us and has already paid that inset.
-    return MadarPageScaffold(
-      safeTop: !widget.embedded,
-      body: ResponsiveBuilder(
-        builder: (context, info) {
-          final form = SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _FormColumn(
-                  width: info.width,
-                  showLogo: !info.isWide,
-                  reason: _reason,
-                ),
-                if (widget.below case final below?)
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: Responsive.formWidth(info.width),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(
-                        start: Space.xxl,
-                        end: Space.xxl,
-                        bottom: _formVPad,
-                      ),
-                      child: below,
-                    ),
-                  ),
-              ],
-            ),
-          );
-          return Stack(
+    final page = ResponsiveBuilder(
+      builder: (context, info) {
+        final form = SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              if (info.isWide)
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox.expand(
-                        child: BrandPanel(
-                          tr: t,
-                          arabic: bridge.locale().startsWith('ar'),
-                        ),
-                      ),
-                    ),
-                    Expanded(child: Center(child: form)),
-                  ],
-                )
-              else
-                Center(child: form),
-              // Top-pinned chrome so a teller WAITING here still sees +
-              // recovers connectivity / a genuine session expiry — not only on
-              // the order screen. Off when the shell above carries it.
-              if (!widget.embedded)
-                PositionedDirectional(
-                  top: 0,
-                  start: 0,
-                  end: 0,
+              _FormColumn(
+                width: info.width,
+                showLogo: !info.isWide,
+                reason: _reason,
+              ),
+              if (widget.below case final below?)
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: Responsive.formWidth(info.width),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: Space.lg,
-                      vertical: Space.sm,
+                    padding: const EdgeInsetsDirectional.only(
+                      start: Space.xxl,
+                      end: Space.xxl,
+                      bottom: _formVPad,
                     ),
-                    child: Column(
-                      spacing: Space.sm,
-                      children: [
-                        if (!online)
-                          NoticeBanner(
-                            text: t('chrome.offline_banner'),
-                            icon: 'wifi.slash',
-                          ),
-                        if (authPaused)
-                          NoticeBanner(
-                            text: t('chrome.auth_paused'),
-                            tone: ChipTone.danger,
-                            icon: 'lock',
-                            trailing: BannerActionPill(
-                              label: t('chrome.auth_paused_action'),
-                            ),
-                          ),
-                      ],
-                    ),
+                    child: below,
                   ),
                 ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+        return Stack(
+          children: [
+            if (info.isWide)
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox.expand(
+                      child: BrandPanel(
+                        tr: t,
+                        arabic: bridge.locale().startsWith('ar'),
+                      ),
+                    ),
+                  ),
+                  Expanded(child: Center(child: form)),
+                ],
+              )
+            else
+              Center(child: form),
+            // Top-pinned chrome so a teller WAITING here still sees +
+            // recovers connectivity / a genuine session expiry — not only on
+            // the order screen. Off when the shell above carries it.
+            if (!widget.embedded)
+              PositionedDirectional(
+                top: 0,
+                start: 0,
+                end: 0,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.symmetric(
+                    horizontal: Space.lg,
+                    vertical: Space.sm,
+                  ),
+                  child: Column(
+                    spacing: Space.sm,
+                    children: [
+                      if (!online)
+                        NoticeBanner(
+                          text: t('chrome.offline_banner'),
+                          icon: 'wifi.slash',
+                        ),
+                      if (authPaused)
+                        NoticeBanner(
+                          text: t('chrome.auth_paused'),
+                          tone: ChipTone.danger,
+                          icon: 'lock',
+                          trailing: BannerActionPill(
+                            label: t('chrome.auth_paused_action'),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
+    // Embedded, the Till tab's page shell is the page (and its header); a
+    // second Scaffold inside it would be a page inside a page.
+    if (widget.embedded) return page;
+    return MadarPageScaffold(body: page);
   }
 }
 

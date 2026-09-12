@@ -119,8 +119,12 @@ class _MeScreenState extends ConsumerState<MeScreen> {
       ],
     );
     const prefs = _Preferences();
+    // A tab body — the shell's top bar above it already paid the top inset.
     return MadarPageScaffold(
+      safeTop: false,
+      title: ref.bridge.tr(key: 'nav.me'),
       body: SafeArea(
+        top: false,
         child: SingleChildScrollView(
           padding: EdgeInsetsDirectional.all(layout.gutter),
           child: Center(
@@ -370,7 +374,10 @@ class _Preferences extends ConsumerWidget {
       spacing: Space.lg,
       children: [
         if (error != null)
-          NoticeBanner(text: error.of(ref.bridge), icon: 'exclamationmark.circle'),
+          NoticeBanner(
+            text: error.of(ref.bridge),
+            icon: 'exclamationmark.circle',
+          ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.sm,

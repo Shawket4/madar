@@ -55,8 +55,6 @@ class ShiftHistoryScreen extends ConsumerWidget {
     final toast = ref.watch(shiftHistoryProvider.select((s) => s.toast));
     return MadarPageScaffold(
       title: t('shifts.title'),
-      onBack: () => Navigator.maybePop(context),
-      gutter: false,
       body: const SafeArea(top: false, child: _HistoryBody()),
       // Toasts float above everything on this screen.
       overlay: ToastHost(

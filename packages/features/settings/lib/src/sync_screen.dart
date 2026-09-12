@@ -26,35 +26,20 @@ class SyncScreen extends ConsumerWidget {
     return Directionality(
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       child: MadarPageScaffold(
-        body: Column(
-          children: [
-            Padding(
-              padding: EdgeInsetsDirectional.symmetric(
-                horizontal: layout.gutter,
-              ),
-              child: MadarHeader(
-                title: bridge.tr(key: 'sync.title'),
-                onBack: () => Navigator.of(context).maybePop(),
-                safeTop: true,
-              ),
-            ),
-            Expanded(
-              child: SafeArea(
-                top: false,
-                child: SingleChildScrollView(
-                  padding: EdgeInsetsDirectional.all(layout.gutter),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: Responsive.billMaxWidth,
-                      ),
-                      child: const SyncSection(),
-                    ),
-                  ),
+        title: bridge.tr(key: 'sync.title'),
+        body: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsetsDirectional.all(layout.gutter),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: Responsive.billMaxWidth,
                 ),
+                child: const SyncSection(),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

@@ -848,6 +848,8 @@ void main() {
     await _loadFonts();
   });
 
+  group('one page shell', pageShellMain);
+
   testWidgets('the teller shell on an iPad: Sell, Floor, Queue, Till', (
     tester,
   ) async {
@@ -1091,4 +1093,157 @@ void main() {
       });
     }
   });
+}
+
+// ── One page shell ─────────────────────────────────────────────────────────
+
+/// Every page the POS shows as a page, by the name its picture is filed
+/// under: `(waiter, shiftOpen, tab, pushed)`. A tab entry is reached through
+/// the rail or the bar; a pushed one is pushed over the teller's Sell tab.
+final _pages = <String, (bool, bool, String?, Widget Function()?)>{
+  'sell': (false, true, 'sell', null),
+  'floor': (false, true, 'floor', null),
+  'queue': (false, true, 'queue', null),
+  'till': (false, true, 'till', null),
+  'till-noshift': (false, false, 'till', null),
+  'waiter-bills': (true, true, 'bills', null),
+  'waiter-me': (true, true, 'me', null),
+  'sell-for-table': (false, true, null, () => const SellScreen.forTable()),
+  'bill': (
+    false,
+    true,
+    null,
+    () => const BillScreen(ticketId: 'tk-1', canCharge: true),
+  ),
+  'sync': (false, true, null, SyncScreen.new),
+  'settings': (false, true, null, SettingsScreen.new),
+  'past-orders': (false, true, null, OrderHistoryScreen.new),
+  'sale': (false, true, null, SaleScreen.new),
+  'close-shift': (false, true, null, CloseShiftScreen.new),
+  'shift-history': (false, true, null, ShiftHistoryScreen.new),
+  'cash-in-out': (false, true, null, CashMovementsScreen.new),
+};
+
+Future<void> _openPage(
+  WidgetTester tester,
+  (bool, bool, String?, Widget Function()?) page,
+  Size size,
+) async {
+  final (waiter, shiftOpen, tab, pushed) = page;
+  await _mount(
+    tester,
+    bridge: _FakeBridge(
+      role: waiter ? 'waiter' : 'teller',
+      shiftOpen: shiftOpen,
+    ),
+    size: size,
+  );
+  if (tab != null) await _tab(tester, tab);
+  if (pushed != null) {
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push(MaterialPageRoute<void>(builder: (_) => pushed()));
+    await _settle(tester);
+  }
+}
+
+/// Pages still drawing the kit header by hand rather than through the
+/// shell's slot. Their geometry is held to the same numbers below; the key
+/// is what they lack. Sell is mid-edit elsewhere — move it and empty this.
+const _headerByHand = {'sell', 'sell-for-table'};
+
+/// Where the one header's title sits: its left edge, its top, and whether a
+/// back tile stands before it.
+({double left, double top, double headerLeft, bool back}) _headerGeometry(
+  WidgetTester tester,
+  String name,
+) {
+  // Offstage routes (the tab shell under a pushed page) are not the page.
+  final headers = find.byType(MadarHeader);
+  final visible = headers.evaluate().where((e) {
+    final box = e.renderObject;
+    return box is RenderBox && box.attached && box.hasSize;
+  }).toList();
+  expect(visible, hasLength(1), reason: '$name has exactly one page header');
+  final header = visible.single;
+  if (!_headerByHand.contains(name)) {
+    expect(
+      header.widget.key,
+      MadarPageScaffold.headerKey,
+      reason: '$name: the header is the page shell own',
+    );
+  }
+  expect(
+    find.byType(AppBar),
+    findsNothing,
+    reason: '$name: no Material AppBar',
+  );
+  final title = find
+      .descendant(of: find.byWidget(header.widget), matching: find.byType(Text))
+      .first;
+  final back = find.descendant(
+    of: find.byWidget(header.widget),
+    matching: find.byWidgetPredicate(
+      (w) => w is MadarGlyphTile && w.glyph == MadarGlyph.chevronBack,
+    ),
+  );
+  // Measured from the page's own Scaffold, so the tab shell's top bar and
+  // rail (which only tab bodies sit beside) do not count against a page.
+  final page = find
+      .ancestor(
+        of: find.byWidget(header.widget),
+        matching: find.byType(Scaffold),
+      )
+      .first;
+  final origin = tester.getTopLeft(page);
+  final headerAt = tester.getTopLeft(find.byWidget(header.widget)) - origin;
+  final start = tester.getTopLeft(title) - origin;
+  return (
+    left: start.dx,
+    top: headerAt.dy,
+    headerLeft: headerAt.dx,
+    back: back.evaluate().isNotEmpty,
+  );
+}
+
+void pageShellMain() {
+  for (final (label, size) in [('ipad', _ipad), ('phone', _phone)]) {
+    for (final MapEntry(key: name, value: page) in _pages.entries) {
+      testWidgets('page board: $name on the $label', (tester) async {
+        await _openPage(tester, page, size);
+        await _shot(tester, 'page-$name-$label');
+      });
+    }
+
+    testWidgets('one header, one geometry, every page on the $label', (
+      tester,
+    ) async {
+      final seen =
+          <String, ({double left, double top, double headerLeft, bool back})>{};
+      for (final MapEntry(key: name, value: page) in _pages.entries) {
+        await _openPage(tester, page, size);
+        seen[name] = _headerGeometry(tester, name);
+        // A pushed page carries the back tile; a tab body never does.
+        expect(
+          seen[name]!.back,
+          page.$4 != null,
+          reason: '$name: back tile exactly when pushed',
+        );
+        await tester.pumpWidget(const SizedBox());
+      }
+      final pushed = seen['past-orders']!;
+      final tab = seen['till']!;
+      for (final MapEntry(key: name, value: g) in seen.entries) {
+        final like = g.back ? pushed : tab;
+        final msg = '$name vs ${g.back ? 'past-orders' : 'till'} on the $label';
+        expect(g.top, closeTo(tab.top, 0.5), reason: '$msg: header top');
+        expect(
+          g.headerLeft,
+          closeTo(tab.headerLeft, 0.5),
+          reason: '$msg: header inset',
+        );
+        expect(g.left, closeTo(like.left, 0.5), reason: '$msg: title inset');
+      }
+    });
+  }
 }

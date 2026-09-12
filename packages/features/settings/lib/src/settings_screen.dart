@@ -99,7 +99,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       textDirection: locale.rtl ? TextDirection.rtl : TextDirection.ltr,
       child: MadarPageScaffold(
         title: bridge.tr(key: 'settings.title'),
-        onBack: () => Navigator.of(context).maybePop(),
         body: SafeArea(
           top: false,
           child: SingleChildScrollView(
@@ -165,7 +164,10 @@ class _Preferences extends ConsumerWidget {
       spacing: Space.lg,
       children: [
         if (error != null)
-          NoticeBanner(text: error.of(ref.bridge), icon: 'exclamationmark.circle'),
+          NoticeBanner(
+            text: error.of(ref.bridge),
+            icon: 'exclamationmark.circle',
+          ),
         const _AccountCard(),
         MadarSectionHeader(text: t('settings.language')),
         const LanguageSegment(),

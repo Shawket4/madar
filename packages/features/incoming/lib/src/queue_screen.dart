@@ -75,7 +75,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       ..listen(ticketTickProvider, (_, _) {
         unawaited(ref.read(incomingProvider.notifier).loadOpenTickets());
       });
-    final colors = context.madarColors;
     final bridge = ref.bridge;
     var segment =
         ref.watch(incomingProvider.select((s) => s.segment)) ??
@@ -106,7 +105,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
         : 0;
     final toast = ref.watch(incomingProvider.select((s) => s.toast));
     final layout = context.madarLayout;
-    final canPop = Navigator.of(context).canPop();
 
     final segmented = MadarSegmented<QueueSegment>(
       items: [
@@ -134,84 +132,31 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       onChanged: ref.read(incomingProvider.notifier).setSegment,
     );
 
-    final title = Text(
-      bridge.trOr(QueueKeys.title),
-      style: MadarType.h1.copyWith(color: colors.textPrimary),
-    );
-
-    final header = Padding(
-      padding: EdgeInsetsDirectional.only(
-        start: layout.gutter,
-        end: layout.gutter,
-        top: Space.lg,
-        bottom: Space.xs,
-      ),
-      child: layout.isTablet
-          ? Row(
-              spacing: Space.lg,
-              children: [
-                if (canPop)
-                  MadarGlyphTile(
-                    glyph: MadarGlyph.chevronBack,
-                    size: MadarButtonSize.regular,
-                    onTap: () => Navigator.of(context).maybePop(),
-                  ),
-                title,
-                Flexible(
-                  flex: 3,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: _segmentMaxWidth,
-                    ),
-                    child: segmented,
-                  ),
-                ),
-                // Accepting per channel rides in the header on a tablet
-                // (the phone puts it at the foot of the Online segment).
-                // Bounded, so a long channel name wraps instead of pushing
-                // past the edge.
-                Expanded(
-                  flex: 2,
-                  child: Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: segment == QueueSegment.online
-                        ? const AcceptingRow(compact: true)
-                        : const SizedBox.shrink(),
-                  ),
-                ),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.md,
-              children: [
-                Row(
-                  spacing: Space.md,
-                  children: [
-                    if (canPop)
-                      MadarGlyphTile(
-                        glyph: MadarGlyph.chevronBack,
-                        onTap: () => Navigator.of(context).maybePop(),
-                      ),
-                    title,
-                  ],
-                ),
-                segmented,
-              ],
-            ),
-    );
+    // Tablet: the segments and the per-channel accepting switch ride in the
+    // header's action area. Phone: the segments take the shell's row under
+    // the title (the phone puts accepting at the foot of Online).
+    final headerActions = <Widget>[
+      if (layout.isTablet) ...[
+        SizedBox(width: _segmentMaxWidth, child: segmented),
+        if (segment == QueueSegment.online)
+          const Flexible(child: AcceptingRow(compact: true)),
+      ],
+    ];
 
     // Scaffold: every screen root owns its own Scaffold in this app.
     // A tab body — the shell's top bar above it already paid the top inset.
     return MadarPageScaffold(
       safeTop: false,
+      title: bridge.trOr(QueueKeys.title),
+      actions: headerActions,
+      below: layout.isPhone ? segmented : null,
       body: Stack(
         children: [
           SafeArea(
             bottom: false,
             child: Column(
               children: [
-                header,
+                const SizedBox(height: Space.xs),
                 // Swapping widget types remounts the segment so its own
                 // init (refresh) runs on (re)entry.
                 Expanded(

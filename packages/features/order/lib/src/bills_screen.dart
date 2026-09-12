@@ -173,31 +173,22 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
     // A tab body — the shell's top bar above it already paid the top inset.
     return MadarPageScaffold(
       safeTop: false,
+      title: orderWord(bridge, 'bills.title'),
+      actions: [
+        if (!state.hasFloor)
+          MadarButton(
+            label: orderWord(bridge, 'bills.new_bill'),
+            glyph: MadarGlyph.plus,
+            size: MadarButtonSize.compact,
+            onTap: () => unawaited(_newBill()),
+          ),
+      ],
       body: SafeArea(
         top: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: EdgeInsetsDirectional.fromSTEB(
-                layout.gutter,
-                Space.md,
-                layout.gutter,
-                Space.md,
-              ),
-              child: MadarHeader(
-                title: orderWord(bridge, 'bills.title'),
-                actions: [
-                  if (!state.hasFloor)
-                    MadarButton(
-                      label: orderWord(bridge, 'bills.new_bill'),
-                      glyph: MadarGlyph.plus,
-                      size: MadarButtonSize.compact,
-                      onTap: () => unawaited(_newBill()),
-                    ),
-                ],
-              ),
-            ),
+            const SizedBox(height: Space.md),
             Expanded(
               child: live.isEmpty
                   ? EmptyState(

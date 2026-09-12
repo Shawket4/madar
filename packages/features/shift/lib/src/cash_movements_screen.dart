@@ -24,36 +24,23 @@ class CashMovementsScreen extends ConsumerWidget {
     final layout = context.madarLayout;
     // Scaffold: every screen root owns its own Scaffold in this app.
     return MadarPageScaffold(
-      body: Column(
-        children: [
-          Padding(
-            padding: EdgeInsetsDirectional.symmetric(horizontal: layout.gutter),
-            child: MadarHeader(
-              title: bridge.tr(key: 'cash.title'),
-              onBack: () => Navigator.maybePop(context),
-              safeTop: true,
-            ),
-          ),
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: SingleChildScrollView(
-                padding: EdgeInsetsDirectional.all(layout.gutter),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: Responsive.listMaxWidth,
-                    ),
-                    child: const CashInOutPanel(
-                      autofocusAmount: true,
-                      showTitle: false,
-                    ),
-                  ),
-                ),
+      title: bridge.tr(key: 'cash.title'),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: EdgeInsetsDirectional.all(layout.gutter),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: Responsive.listMaxWidth,
+              ),
+              child: const CashInOutPanel(
+                autofocusAmount: true,
+                showTitle: false,
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

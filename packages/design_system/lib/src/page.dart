@@ -23,6 +23,7 @@ library;
 import 'package:design_system/src/header.dart';
 import 'package:design_system/src/responsive.dart';
 import 'package:design_system/src/tokens/colors.dart';
+import 'package:design_system/src/tokens/dimens.dart';
 import 'package:flutter/material.dart';
 
 class MadarPageScaffold extends StatelessWidget {
@@ -36,7 +37,7 @@ class MadarPageScaffold extends StatelessWidget {
     this.below,
     this.overlay,
     this.safeTop = true,
-    this.gutter = true,
+    this.automaticBack = true,
     this.drawer,
     super.key,
   });
@@ -52,8 +53,17 @@ class MadarPageScaffold extends StatelessWidget {
   /// Muted second line under the title.
   final String? subtitle;
 
-  /// Shows the back tile when set.
+  /// What the back tile does. Null with [automaticBack] on shows the tile
+  /// whenever the route can pop, and pops it — so a pushed page never has to
+  /// remember its own back button, and a tab body never grows one.
   final VoidCallback? onBack;
+
+  /// See [onBack]. Off only for a page that must not be left by back.
+  final bool automaticBack;
+
+  /// The key on the one header every titled page carries — what the shell
+  /// guard test counts and measures.
+  static const headerKey = ValueKey<String>('madar.page.header');
 
   /// End-aligned header actions.
   final List<Widget> actions;
@@ -67,10 +77,6 @@ class MadarPageScaffold extends StatelessWidget {
   /// See the class doc. True for a pushed route, false inside the tab shell.
   final bool safeTop;
 
-  /// Applies the layout gutter either side of the header. Off for a page
-  /// whose header has to reach the edges.
-  final bool gutter;
-
   /// A navigation drawer for a shell page on a narrow layout. The page
   /// shell owns the only Scaffold, so the drawer is handed to it here.
   final Widget? drawer;
@@ -79,12 +85,17 @@ class MadarPageScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final layout = MadarLayout.of(context);
+    final canPop = ModalRoute.of(context)?.canPop ?? false;
+    final back =
+        onBack ??
+        (automaticBack && canPop ? () => Navigator.maybePop(context) : null);
     final header = title == null
         ? null
         : MadarHeader(
+            key: headerKey,
             title: title!,
             subtitle: subtitle,
-            onBack: onBack,
+            onBack: back,
             actions: actions,
             below: below,
             safeTop: safeTop,
@@ -95,8 +106,13 @@ class MadarPageScaffold extends StatelessWidget {
       children: [
         if (header != null)
           Padding(
-            padding: EdgeInsetsDirectional.symmetric(
-              horizontal: gutter ? layout.gutter : 0,
+            // ONE geometry for every page: the gutter either side and
+            // Space.md above, whatever the size class — the Sell tab's.
+            padding: EdgeInsetsDirectional.fromSTEB(
+              layout.gutter,
+              Space.md,
+              layout.gutter,
+              0,
             ),
             child: header,
           ),

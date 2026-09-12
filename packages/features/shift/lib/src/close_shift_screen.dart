@@ -118,48 +118,33 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
 
     // Scaffold: screens own their own Material ancestor in this app.
     return MadarPageScaffold(
-      body: Column(
-        children: [
-          Padding(
-            padding: EdgeInsetsDirectional.symmetric(horizontal: layout.gutter),
-            child: MadarHeader(
-              title: t('shift.close_title'),
-              subtitle: subtitle.isEmpty ? null : subtitle,
-              onBack: () => Navigator.maybePop(context),
-              safeTop: true,
-            ),
-          ),
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: layout.isTablet
-                  ? Padding(
-                      padding: EdgeInsetsDirectional.all(layout.gutter),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: Space.lg,
-                        children: [
-                          Expanded(
-                            child: SingleChildScrollView(child: expected),
-                          ),
-                          SizedBox(
-                            width: _countedColumnWidth,
-                            child: SingleChildScrollView(child: counted),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView(
-                      padding: EdgeInsetsDirectional.all(layout.gutter),
-                      children: [
-                        expected,
-                        const SizedBox(height: Space.lg),
-                        counted,
-                      ],
+      title: t('shift.close_title'),
+      subtitle: subtitle.isEmpty ? null : subtitle,
+      body: SafeArea(
+        top: false,
+        child: layout.isTablet
+            ? Padding(
+                padding: EdgeInsetsDirectional.all(layout.gutter),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: Space.lg,
+                  children: [
+                    Expanded(child: SingleChildScrollView(child: expected)),
+                    SizedBox(
+                      width: _countedColumnWidth,
+                      child: SingleChildScrollView(child: counted),
                     ),
-            ),
-          ),
-        ],
+                  ],
+                ),
+              )
+            : ListView(
+                padding: EdgeInsetsDirectional.all(layout.gutter),
+                children: [
+                  expected,
+                  const SizedBox(height: Space.lg),
+                  counted,
+                ],
+              ),
       ),
     );
   }

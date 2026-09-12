@@ -62,6 +62,42 @@ class TillScreen extends ConsumerWidget {
     final hasShift = ref.watch(tillProvider.select((s) => s.hasOpenShift));
     final isManager = ref.watch(tillProvider.select((s) => s.isManager));
     final toast = ref.watch(tillProvider.select((s) => s.toast));
+    final bridge = ref.bridge;
+    String t(String key) => bridge.tr(key: key);
+    final layout = context.madarLayout;
+    final shift = ref.watch(tillProvider.select((s) => s.shift));
+    final tillName = ref.watch(tillProvider.select((s) => s.tillName));
+    // The header is the page shell's, whatever the drawer's state: the tab's
+    // name, and with a shift open who holds it since when, and — on a
+    // tablet — the two drawer actions in the shell's action area.
+    String? subtitle;
+    var actions = const <Widget>[];
+    if (hasShift && shift != null) {
+      final since = bridge.formatTime(
+        rfc3339: shift.openedAt,
+        style: TimeStyle.time,
+      );
+      subtitle = '${shift.tellerName} · ${t('till.open_since')} $since';
+      if (layout.isTablet) {
+        actions = [
+          MadarButton(
+            label: t('till.print_x'),
+            glyph: MadarGlyph.printer,
+            variant: MadarButtonVariant.secondary,
+            size: MadarButtonSize.compact,
+            onTap: () => unawaited(ref.read(tillProvider.notifier).printX()),
+            onLongPress: () => unawaited(_previewX(context)),
+          ),
+          MadarButton(
+            label: t('shift.close_title'),
+            glyph: MadarGlyph.lock,
+            variant: MadarButtonVariant.ink,
+            size: MadarButtonSize.compact,
+            onTap: () => _push(context, ref, CloseShiftScreen.new),
+          ),
+        ];
+      }
+    }
     final Widget body;
     if (loading && !hasShift) {
       body = const Align(alignment: Alignment.topCenter, child: SkeletonList());
@@ -80,6 +116,9 @@ class TillScreen extends ConsumerWidget {
     // A tab body — the shell's top bar above it already paid the top inset.
     return MadarPageScaffold(
       safeTop: false,
+      title: (hasShift ? tillName : null) ?? t('till.title'),
+      subtitle: subtitle,
+      actions: actions,
       body: body,
       overlay: ToastHost(
         toast,
@@ -90,6 +129,17 @@ class TillScreen extends ConsumerWidget {
 }
 
 Widget _pastShifts() => const ShiftHistoryScreen();
+
+/// The long press: the same Z-report the tap would have printed, on
+/// screen, with its own Print button. Never the only way in — a gesture
+/// nobody discovers is not a feature.
+Future<void> _previewX(BuildContext context) async {
+  await showMadarSheet<void>(
+    context,
+    size: SheetSize.large,
+    builder: (_) => const ShiftReportSheet(),
+  );
+}
 
 /// Push a full-screen route over the shell and reload the drawer when it
 /// pops — every one of these screens can move the drawer's figures.
@@ -109,31 +159,12 @@ class _DrawerHome extends ConsumerWidget {
 
   final VoidCallback? onOpenOrders;
 
-  /// The long press: the same Z-report the tap would have printed, on
-  /// screen, with its own Print button. Never the only way in — a gesture
-  /// nobody discovers is not a feature.
-  Future<void> _previewX(BuildContext context) async {
-    await showMadarSheet<void>(
-      context,
-      size: SheetSize.large,
-      builder: (_) => const ShiftReportSheet(),
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final layout = context.madarLayout;
-    final shift = ref.watch(tillProvider.select((s) => s.shift))!;
-    final tillName = ref.watch(tillProvider.select((s) => s.tillName));
     final isManager = ref.watch(tillProvider.select((s) => s.isManager));
-    final since = bridge.formatTime(
-      rfc3339: shift.openedAt,
-      style: TimeStyle.time,
-    );
-    final title = tillName ?? t('till.title');
-    final subtitle = '${shift.tellerName} · ${t('till.open_since')} $since';
 
     void closeShift() => _push(context, ref, CloseShiftScreen.new);
     void cashInOut() => _push(context, ref, CashMovementsScreen.new);
@@ -157,27 +188,6 @@ class _DrawerHome extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.lg,
           children: [
-            MadarHeader(
-              title: title,
-              subtitle: subtitle,
-              actions: [
-                MadarButton(
-                  label: t('till.print_x'),
-                  glyph: MadarGlyph.printer,
-                  variant: MadarButtonVariant.secondary,
-                  size: MadarButtonSize.compact,
-                  onTap: printX,
-                  onLongPress: previewX,
-                ),
-                MadarButton(
-                  label: t('shift.close_title'),
-                  glyph: MadarGlyph.lock,
-                  variant: MadarButtonVariant.ink,
-                  size: MadarButtonSize.compact,
-                  onTap: closeShift,
-                ),
-              ],
-            ),
             const _StatCards(),
             Expanded(
               child: Row(
@@ -213,8 +223,6 @@ class _DrawerHome extends ConsumerWidget {
     return ListView(
       padding: EdgeInsetsDirectional.all(layout.gutter),
       children: [
-        MadarHeader(title: title, subtitle: subtitle),
-        const SizedBox(height: Space.lg),
         const _StatCards(),
         const SizedBox(height: Space.lg),
         if (drawers != null) ...[drawers, const SizedBox(height: Space.lg)],

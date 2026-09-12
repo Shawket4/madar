@@ -646,38 +646,34 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       ],
     );
 
-    final header = MadarHeader(
-      title: _w('floor.title'),
-      onBack: Navigator.of(context).canPop()
-          ? () => Navigator.of(context).maybePop()
-          : null,
-      actions: [if (layout.isTablet) SizedBox(width: 200, child: segment)],
-      below: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.md,
-        children: [
-          if (layout.isPhone) segment,
-          if (tabs.length > 1)
-            SizedBox(
-              height: Metrics.chipHeight,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  for (final (i, tab) in tabs.indexed) ...[
-                    if (i > 0) const SizedBox(width: Space.sm),
-                    MadarChip(
-                      label: tab.$2,
-                      count: countIn(tab.$1) == 0 ? null : countIn(tab.$1),
-                      selected: tab.$1 == activeId,
-                      onTap: () => setState(() => _sectionId = tab.$1),
-                    ),
-                  ],
+    final headerActions = [
+      if (layout.isTablet) SizedBox(width: 200, child: segment),
+    ];
+    final headerBelow = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        if (layout.isPhone) segment,
+        if (tabs.length > 1)
+          SizedBox(
+            height: Metrics.chipHeight,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final (i, tab) in tabs.indexed) ...[
+                  if (i > 0) const SizedBox(width: Space.sm),
+                  MadarChip(
+                    label: tab.$2,
+                    count: countIn(tab.$1) == 0 ? null : countIn(tab.$1),
+                    selected: tab.$1 == activeId,
+                    onTap: () => setState(() => _sectionId = tab.$1),
+                  ),
                 ],
-              ),
+              ],
             ),
-          if (allTables.isNotEmpty) summary,
-        ],
-      ),
+          ),
+        if (allTables.isNotEmpty) summary,
+      ],
     );
 
     Widget room;
@@ -733,20 +729,15 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
     // the shell's top bar has already paid the status-bar inset.
     return MadarPageScaffold(
       safeTop: false,
+      title: _w('floor.title'),
+      actions: headerActions,
+      below: headerBelow,
       body: SafeArea(
         top: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: EdgeInsetsDirectional.fromSTEB(
-                layout.gutter,
-                Space.md,
-                layout.gutter,
-                Space.md,
-              ),
-              child: header,
-            ),
+            const SizedBox(height: Space.md),
             if (_moveFrom != null)
               Padding(
                 padding: EdgeInsetsDirectional.fromSTEB(

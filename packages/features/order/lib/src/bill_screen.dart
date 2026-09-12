@@ -226,7 +226,6 @@ class _BillScreenState extends ConsumerState<BillScreen>
     if (ticket == null) {
       return MadarPageScaffold(
         title: orderWord(bridge, 'bill.title'),
-        onBack: () => Navigator.of(context).maybePop(),
         body: Column(
           children: [
             Expanded(
@@ -269,34 +268,25 @@ class _BillScreenState extends ConsumerState<BillScreen>
     final ready = ticket.status == 'ready';
     final queued = ticket.queuedOffline || ticket.status == 'queued';
 
-    final header = MadarHeader(
-      // Pushed route: nothing above it pays the status-bar inset.
-      safeTop: true,
-      title: ticket.ticketRef == null || tableLabel == null || !refInTitle
-          ? title
-          : '$title · ${ticket.ticketRef}',
-      subtitle: subtitle.isEmpty ? null : subtitle,
-      onBack: () => Navigator.of(context).maybePop(),
-      actions: [
-        if (ready)
-          MadarTag(
-            label: orderWord(bridge, 'bill.ready'),
-            tone: MadarTone.success,
-            glyph: MadarGlyph.checkCircle,
-          ),
-        if (queued)
-          MadarTag(
-            label: orderWord(bridge, 'bill.queued'),
-            tone: MadarTone.warning,
-            glyph: MadarGlyph.half,
-          ),
-        MadarGlyphTile(
-          glyph: MadarGlyph.more,
-          semanticLabel: bridge.tr(key: 'chrome.more'),
-          onTap: () => unawaited(_more(ticket)),
+    final headerActions = <Widget>[
+      if (ready)
+        MadarTag(
+          label: orderWord(bridge, 'bill.ready'),
+          tone: MadarTone.success,
+          glyph: MadarGlyph.checkCircle,
         ),
-      ],
-    );
+      if (queued)
+        MadarTag(
+          label: orderWord(bridge, 'bill.queued'),
+          tone: MadarTone.warning,
+          glyph: MadarGlyph.half,
+        ),
+      MadarGlyphTile(
+        glyph: MadarGlyph.more,
+        semanticLabel: bridge.tr(key: 'chrome.more'),
+        onTap: () => unawaited(_more(ticket)),
+      ),
+    ];
 
     final body = ListView(
       padding: EdgeInsetsDirectional.symmetric(
@@ -388,22 +378,17 @@ class _BillScreenState extends ConsumerState<BillScreen>
     );
 
     return MadarPageScaffold(
-      gutter: false,
+      title: ticket.ticketRef == null || tableLabel == null || !refInTitle
+          ? title
+          : '$title · ${ticket.ticketRef}',
+      subtitle: subtitle.isEmpty ? null : subtitle,
+      actions: headerActions,
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: Responsive.billMaxWidth),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: EdgeInsetsDirectional.fromSTEB(
-                  layout.gutter,
-                  Space.md,
-                  layout.gutter,
-                  0,
-                ),
-                child: header,
-              ),
               Expanded(child: body),
               const MadarHairline(),
               footer,

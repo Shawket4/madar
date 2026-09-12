@@ -133,7 +133,6 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     return MadarPageScaffold(
       title: t('history.title'),
       subtitle: _scopeLine(ref, bridge),
-      onBack: () => Navigator.maybePop(context),
       actions: [
         if (layout.isTablet) SizedBox(width: _searchWidth, child: search),
       ],
