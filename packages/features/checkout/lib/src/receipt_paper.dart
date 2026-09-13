@@ -194,12 +194,21 @@ class ReceiptPaper extends ConsumerWidget {
           ),
           if (r.tipMinor > 0)
             _MoneyRow(left: tr('order.tip'), right: _money(r.tipMinor)),
-          // A split lists what each method paid; there is no single cash
-          // handed over to show, and "Cash 0.00 / Change 0.00" was a lie.
-          if (r.payments.isNotEmpty)
+          // A split lists what each method paid. The core reports cash handed
+          // over and change for the sale as a whole; a split with no cash leg
+          // has none, and "Cash 0.00 / Change 0.00" was a lie.
+          if (r.payments.isNotEmpty) ...[
             for (final leg in r.payments)
-              _MoneyRow(left: leg.label, right: _money(leg.amountMinor))
-          else if (r.isCash) ...[
+              _MoneyRow(left: leg.label, right: _money(leg.amountMinor)),
+            if (r.amountTenderedMinor > 0 && r.changeMinor > 0) ...[
+              _MoneyRow(
+                left: tr('receipt.cash'),
+                right: _money(r.amountTenderedMinor),
+                faint: true,
+              ),
+              _MoneyRow(left: tr('order.change'), right: _money(r.changeMinor)),
+            ],
+          ] else if (r.isCash) ...[
             _MoneyRow(
               left: tr('receipt.cash'),
               right: _money(r.amountTenderedMinor),
@@ -364,18 +373,27 @@ class _MoneyRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = faint ? Paper.faint : Paper.ink;
+    final size = bold ? _boldRowSize : _rowSize;
+    final weight = bold ? FontWeight.w700 : FontWeight.w400;
     final style = MadarType.bodySm.copyWith(
-      fontSize: bold ? _boldRowSize : _rowSize,
-      fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+      fontSize: size,
+      fontWeight: weight,
       color: color,
-      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    // Figures in Plex Mono (spec §4), isolated LTR so an Arabic paper still
+    // reads `−12.50` and the column's digits line up like thermal output.
+    final figure = MadarType.money.copyWith(
+      fontSize: size,
+      fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+      color: color,
     );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: _paperGap * 2,
       children: [
         Expanded(child: Text(left, style: style)),
         if (right.isNotEmpty)
-          Text(right, textDirection: TextDirection.ltr, style: style),
+          Text(right, textDirection: TextDirection.ltr, style: figure),
       ],
     );
   }
