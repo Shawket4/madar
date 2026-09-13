@@ -3456,6 +3456,13 @@ impl MadarCore {
         let now = self.corrected_now().to_rfc3339();
         let occupied = |t: &str| self.table_occupied(t);
         let (occ_a, occ_b) = (occupied(&table_a), occupied(&table_b));
+        // What the room looked like before the optimistic move, so a refusal
+        // puts it back even when the re-pull cannot reach the server.
+        let before: Vec<(&str, Option<String>)> =
+            [held::K_FLOOR_TABLES, held::K_HELD_MIRROR, "cache:open_tickets"]
+                .into_iter()
+                .map(|k| (k, self.store.kv_get(k).ok().flatten()))
+                .collect();
         held::swap_tables_local(&self.store, &table_a, &table_b, occ_a, occ_b, &now)?;
         self.swap_cached_ticket_tables(&table_a, &table_b);
         let cmd = held::SwapCommand {
@@ -3466,7 +3473,18 @@ impl MadarCore {
         let op_id = format!("swap:{}", uuid::Uuid::new_v4());
         self.enqueue_held_op("swap_tables", op_id.clone(), &serde_json::to_string(&cmd)?)?;
         let _ = self.drain_outbox().await;
-        self.surface_refused_floor_op(&op_id).await
+        let refused = self.surface_refused_floor_op(&op_id).await;
+        if refused.is_err() {
+            for (k, v) in &before {
+                if let Some(v) = v {
+                    let _ = self.store.kv_put(k, v);
+                }
+            }
+            // Then the room as it really is, when the server can be reached;
+            // the restore stands when it cannot.
+            self.refresh_floor_and_held().await;
+        }
+        refused
     }
 
     /// After an interactive floor op drained: if the server refused it, drop
@@ -3487,7 +3505,6 @@ impl MadarCore {
         }
         let reason = row.last_error.unwrap_or_default();
         let _ = self.store.discard_dead(op_id);
-        self.refresh_floor_and_held().await;
         Err(CoreError::Validation {
             field: String::new(),
             detail: if reason.trim().is_empty() {
@@ -8891,6 +8908,15 @@ mod lifecycle_tests {
             "drained at once"
         );
         assert_eq!(core.store.dead_count().unwrap(), 0, "no stuck row");
+        assert_eq!(table(&core, TA).status, "seated", "the party never left A");
+        assert_eq!(table(&core, TB).status, "free", "nor landed on B");
+        let bills: Vec<madar_api::models::OpenTicketView> =
+            cached_views(&core.store, "cache:open_tickets");
+        assert_eq!(
+            bills[0].table_id.flatten().map(|u| u.to_string()).as_deref(),
+            Some(TA),
+            "the bill stays on A"
+        );
     }
 
     /// Clearing a table, seating a party and seating a booking reach the
