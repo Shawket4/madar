@@ -23,7 +23,7 @@ pub struct CreateOrderParams {
 #[derive(Clone, Debug)]
 pub struct ExportOrdersParams {
     pub branch_id: Option<String>,
-    pub shift_id: Option<String>,
+    pub till_id: Option<String>,
     pub teller_name: Option<String>,
     /// Filter by the WAITER who opened the ticket (ILIKE, partial match).
     pub waiter_name: Option<String>,
@@ -44,7 +44,7 @@ pub struct GetOrderParams {
 #[derive(Clone, Debug)]
 pub struct ListOrdersParams {
     pub branch_id: Option<String>,
-    pub shift_id: Option<String>,
+    pub till_id: Option<String>,
     pub updated_after: Option<chrono::DateTime<chrono::FixedOffset>>,
     pub page: Option<i64>,
     pub per_page: Option<i64>,
@@ -213,8 +213,8 @@ pub async fn export_orders(
     if let Some(ref param_value) = params.branch_id {
         req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.shift_id {
-        req_builder = req_builder.query(&[("shift_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.till_id {
+        req_builder = req_builder.query(&[("till_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.teller_name {
         req_builder = req_builder.query(&[("teller_name", &param_value.to_string())]);
@@ -327,8 +327,8 @@ pub async fn list_orders(
     if let Some(ref param_value) = params.branch_id {
         req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
     }
-    if let Some(ref param_value) = params.shift_id {
-        req_builder = req_builder.query(&[("shift_id", &param_value.to_string())]);
+    if let Some(ref param_value) = params.till_id {
+        req_builder = req_builder.query(&[("till_id", &param_value.to_string())]);
     }
     if let Some(ref param_value) = params.updated_after {
         req_builder = req_builder.query(&[("updated_after", &param_value.to_string())]);

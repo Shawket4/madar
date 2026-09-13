@@ -27,6 +27,8 @@ Method | HTTP request | Description
 [**org_waste_report**](ReportsApi.md#org_waste_report) | **GET** /reports/orgs/{org_id}/waste-report | 
 [**shift_deductions**](ReportsApi.md#shift_deductions) | **GET** /reports/shifts/{shift_id}/deductions | 
 [**shift_summary**](ReportsApi.md#shift_summary) | **GET** /reports/shifts/{shift_id}/summary | 
+[**till_deductions**](ReportsApi.md#till_deductions) | **GET** /reports/tills/{till_id}/deductions | 
+[**till_summary**](ReportsApi.md#till_summary) | **GET** /reports/tills/{till_id}/summary | 
 
 
 
@@ -706,6 +708,62 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **shift_id** | **uuid::Uuid** | Shift ID | [required] |
+
+### Return type
+
+[**models::ShiftSummary**](ShiftSummary.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## till_deductions
+
+> Vec<models::DeductionLogRow> till_deductions(till_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**till_id** | **uuid::Uuid** | Till ID | [required] |
+
+### Return type
+
+[**Vec<models::DeductionLogRow>**](DeductionLogRow.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## till_summary
+
+> models::ShiftSummary till_summary(till_id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**till_id** | **uuid::Uuid** | Till ID | [required] |
 
 ### Return type
 

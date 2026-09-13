@@ -17,7 +17,8 @@ Name | Type | Description | Notes
 **note** | Option<**String**> |  | [optional]
 **order_id** | **uuid::Uuid** |  | 
 **reason** | **String** | One of the [`RefundReason`] spellings. | 
-**shift_id** | **uuid::Uuid** | The shift the refund was ISSUED in — the drawer the money left. Not necessarily the shift the order was sold in. | 
+**shift_id** | **uuid::Uuid** | DEPRECATED: same value as `till_id`. | 
+**till_id** | **uuid::Uuid** | The shift the refund was ISSUED in — the drawer the money left. Not necessarily the till the order was sold in. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

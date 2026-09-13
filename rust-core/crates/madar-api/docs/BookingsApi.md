@@ -233,7 +233,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **branch_id** | **uuid::Uuid** |  | [required] |
-**date** | Option<**String**> | Service date (`YYYY-MM-DD`, branch-local, 05:00→05:00). Defaults to today. |  |
+**date** | Option<**String**> | Calendar date (`YYYY-MM-DD`, branch-local, midnight→midnight). Defaults to today. |  |
 **from** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Explicit window (overrides `date`). |  |
 **to** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  |  |
 **active** | Option<**bool**> | Only `confirmed` / `seated`. |  |

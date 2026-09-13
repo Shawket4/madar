@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**animation_hash** | Option<**String**> | Content hash of the zstd-compressed asset (`/assets/global/<hash>.lottie.zst`). | [optional]
 **animation_sha256** | **String** |  | 
 **animation_url** | **String** | Path to the animation, relative to the API base. | 
 **bytes** | **i32** |  | 

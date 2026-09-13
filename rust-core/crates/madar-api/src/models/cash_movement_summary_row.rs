@@ -22,7 +22,6 @@ pub struct CashMovementSummaryRow {
         skip_serializing_if = "Option::is_none"
     )]
     pub corrects_id: Option<Option<uuid::Uuid>>,
-    /// The kind of the movement `corrects_id` points at, so a printed report can say \"correction of pay-out\" and the totals can net the pair inside the bucket the mistake was made in.
     #[serde(
         rename = "corrects_kind",
         default,

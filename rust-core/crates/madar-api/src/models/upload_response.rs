@@ -11,14 +11,30 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// UploadResponse : Upload accepted: the picture is converted by the background asset worker. `image_url` is the row's current legacy URL (unchanged until the job is done); poll `GET /assets/jobs/{asset_job_id}`.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UploadResponse {
-    #[serde(rename = "image_url")]
-    pub image_url: String,
+    #[serde(rename = "asset_job_id")]
+    pub asset_job_id: uuid::Uuid,
+    #[serde(
+        rename = "image_url",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub image_url: Option<Option<String>>,
+    /// `processing`
+    #[serde(rename = "status")]
+    pub status: String,
 }
 
 impl UploadResponse {
-    pub fn new(image_url: String) -> UploadResponse {
-        UploadResponse { image_url }
+    /// Upload accepted: the picture is converted by the background asset worker. `image_url` is the row's current legacy URL (unchanged until the job is done); poll `GET /assets/jobs/{asset_job_id}`.
+    pub fn new(asset_job_id: uuid::Uuid, status: String) -> UploadResponse {
+        UploadResponse {
+            asset_job_id,
+            image_url: None,
+            status,
+        }
     }
 }

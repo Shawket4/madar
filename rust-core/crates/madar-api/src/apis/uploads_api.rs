@@ -15,13 +15,57 @@ use serde::{de::Error as _, Deserialize, Serialize};
 use tokio::fs::File as TokioFile;
 use tokio_util::codec::{BytesCodec, FramedRead};
 
+/// struct for passing parameters to the method [`upload_bundle_image`]
+#[derive(Clone, Debug)]
+pub struct UploadBundleImageParams {
+    /// Bundle ID
+    pub bundle_id: String,
+    /// Image file (JPEG, PNG, WebP, GIF still, BMP). Type is sniffed from bytes.
+    pub image: std::path::PathBuf,
+}
+
+/// struct for passing parameters to the method [`upload_category_image`]
+#[derive(Clone, Debug)]
+pub struct UploadCategoryImageParams {
+    /// Category ID
+    pub category_id: String,
+    /// Image file (JPEG, PNG, WebP, GIF still, BMP). Type is sniffed from bytes.
+    pub image: std::path::PathBuf,
+}
+
 /// struct for passing parameters to the method [`upload_menu_item_image`]
 #[derive(Clone, Debug)]
 pub struct UploadMenuItemImageParams {
     /// Menu item ID
     pub menu_item_id: String,
-    /// Image file. PNG, JPEG, or WebP. Required.
+    /// Image file (JPEG, PNG, WebP, GIF still, BMP). Type is sniffed from bytes.
     pub image: std::path::PathBuf,
+}
+
+/// struct for typed errors of method [`upload_bundle_image`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UploadBundleImageError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`upload_category_image`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UploadCategoryImageError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
 }
 
 /// struct for typed errors of method [`upload_menu_item_image`]
@@ -35,6 +79,128 @@ pub enum UploadMenuItemImageError {
     Status409(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
+}
+
+pub async fn upload_bundle_image(
+    configuration: &configuration::Configuration,
+    params: UploadBundleImageParams,
+) -> Result<models::UploadResponse, Error<UploadBundleImageError>> {
+    let uri_str = format!(
+        "{}/uploads/bundles/{bundle_id}",
+        configuration.base_path,
+        bundle_id = crate::apis::urlencode(params.bundle_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    let mut multipart_form = reqwest::multipart::Form::new();
+    let file = TokioFile::open(&params.image).await?;
+    let stream = FramedRead::new(file, BytesCodec::new());
+    let file_name = params
+        .image
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let file_part =
+        reqwest::multipart::Part::stream(reqwest::Body::wrap_stream(stream)).file_name(file_name);
+    multipart_form = multipart_form.part("image", file_part);
+    req_builder = req_builder.multipart(multipart_form);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::UploadResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::UploadResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<UploadBundleImageError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn upload_category_image(
+    configuration: &configuration::Configuration,
+    params: UploadCategoryImageParams,
+) -> Result<models::UploadResponse, Error<UploadCategoryImageError>> {
+    let uri_str = format!(
+        "{}/uploads/categories/{category_id}",
+        configuration.base_path,
+        category_id = crate::apis::urlencode(params.category_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    let mut multipart_form = reqwest::multipart::Form::new();
+    let file = TokioFile::open(&params.image).await?;
+    let stream = FramedRead::new(file, BytesCodec::new());
+    let file_name = params
+        .image
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let file_part =
+        reqwest::multipart::Part::stream(reqwest::Body::wrap_stream(stream)).file_name(file_name);
+    multipart_form = multipart_form.part("image", file_part);
+    req_builder = req_builder.multipart(multipart_form);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::UploadResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::UploadResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<UploadCategoryImageError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 pub async fn upload_menu_item_image(

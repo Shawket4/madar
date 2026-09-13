@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// CashMovementKind : What a cash movement IS, which fixes its sign. The DB holds this as a text column under `shift_cash_movements_kind_is_known` (same convention as `order_type`), so the wire value is the snake_case label and the model carries it as a plain `String`; this enum exists so the handler can validate a request before the CHECK turns a teller's mistake into a 500.
-/// What a cash movement IS, which fixes its sign. The DB holds this as a text column under `shift_cash_movements_kind_is_known` (same convention as `order_type`), so the wire value is the snake_case label and the model carries it as a plain `String`; this enum exists so the handler can validate a request before the CHECK turns a teller's mistake into a 500.
+/// CashMovementKind : What a cash movement IS, which fixes its sign.
+/// What a cash movement IS, which fixes its sign.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum CashMovementKind {
     #[serde(rename = "pay_in")]

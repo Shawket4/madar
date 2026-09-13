@@ -12,31 +12,37 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CloseShiftRequest {
+pub struct VariantRef {
+    #[serde(rename = "bytes")]
+    pub bytes: i64,
+    #[serde(rename = "content_hash")]
+    pub content_hash: String,
     #[serde(
-        rename = "cash_note",
+        rename = "height",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub cash_note: Option<Option<String>>,
+    pub height: Option<Option<i32>>,
+    #[serde(rename = "url")]
+    pub url: String,
     #[serde(
-        rename = "closed_at",
+        rename = "width",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub closed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    #[serde(rename = "closing_cash_declared")]
-    pub closing_cash_declared: i32,
+    pub width: Option<Option<i32>>,
 }
 
-impl CloseShiftRequest {
-    pub fn new(closing_cash_declared: i32) -> CloseShiftRequest {
-        CloseShiftRequest {
-            cash_note: None,
-            closed_at: None,
-            closing_cash_declared,
+impl VariantRef {
+    pub fn new(bytes: i64, content_hash: String, url: String) -> VariantRef {
+        VariantRef {
+            bytes,
+            content_hash,
+            height: None,
+            url,
+            width: None,
         }
     }
 }

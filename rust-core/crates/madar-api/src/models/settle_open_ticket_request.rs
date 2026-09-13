@@ -82,8 +82,8 @@ pub struct SettleOpenTicketRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub settled_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    #[serde(rename = "shift_id")]
-    pub shift_id: uuid::Uuid,
+    #[serde(rename = "till_id")]
+    pub till_id: uuid::Uuid,
     #[serde(
         rename = "tip_amount",
         default,
@@ -109,7 +109,7 @@ pub struct SettleOpenTicketRequest {
 }
 
 impl SettleOpenTicketRequest {
-    pub fn new(payment_method: String, shift_id: uuid::Uuid) -> SettleOpenTicketRequest {
+    pub fn new(payment_method: String, till_id: uuid::Uuid) -> SettleOpenTicketRequest {
         SettleOpenTicketRequest {
             amount_tendered: None,
             change_given: None,
@@ -121,7 +121,7 @@ impl SettleOpenTicketRequest {
             payment_method,
             payment_splits: None,
             settled_at: None,
-            shift_id,
+            till_id,
             tip_amount: None,
             tip_payment_method: None,
             total_amount: None,

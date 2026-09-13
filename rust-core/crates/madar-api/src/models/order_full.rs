@@ -94,6 +94,7 @@ pub struct OrderFull {
         skip_serializing_if = "Option::is_none"
     )]
     pub service_charge_amount: Option<i32>,
+    /// DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0).
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
     #[serde(rename = "status")]
@@ -106,6 +107,8 @@ pub struct OrderFull {
     pub teller_id: uuid::Uuid,
     #[serde(rename = "teller_name")]
     pub teller_name: String,
+    #[serde(rename = "till_id")]
+    pub till_id: uuid::Uuid,
     /// The branch's effective IANA timezone (see `crate::tz`) — the zone every timestamp on this payload is shown and printed in. Additive: older clients ignore it; `null` only where a write path does not resolve it.
     #[serde(rename = "timezone", skip_serializing_if = "Option::is_none")]
     pub timezone: Option<String>,
@@ -169,6 +172,7 @@ impl OrderFull {
         tax_amount: i32,
         teller_id: uuid::Uuid,
         teller_name: String,
+        till_id: uuid::Uuid,
         total_amount: i32,
         items: Vec<models::OrderItemFull>,
     ) -> OrderFull {
@@ -206,6 +210,7 @@ impl OrderFull {
             tax_amount,
             teller_id,
             teller_name,
+            till_id,
             timezone: None,
             tip_amount: None,
             tip_payment_method: None,

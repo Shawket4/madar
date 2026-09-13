@@ -13,10 +13,10 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
-/// struct for passing parameters to the method [`add_cash_movement`]
+/// struct for passing parameters to the method [`add_legacy_shift_cash_movement`]
 #[derive(Clone, Debug)]
-pub struct AddCashMovementParams {
-    /// Shift ID
+pub struct AddLegacyShiftCashMovementParams {
+    /// Till ID
     pub shift_id: String,
     pub cash_movement_request: models::CashMovementRequest,
 }
@@ -24,22 +24,15 @@ pub struct AddCashMovementParams {
 /// struct for passing parameters to the method [`close_shift`]
 #[derive(Clone, Debug)]
 pub struct CloseShiftParams {
-    /// Shift ID
+    /// Till ID
     pub shift_id: String,
-    pub close_shift_request: models::CloseShiftRequest,
-}
-
-/// struct for passing parameters to the method [`delete_shift`]
-#[derive(Clone, Debug)]
-pub struct DeleteShiftParams {
-    /// Shift ID
-    pub shift_id: String,
+    pub close_till_request: models::CloseTillRequest,
 }
 
 /// struct for passing parameters to the method [`force_close_shift`]
 #[derive(Clone, Debug)]
 pub struct ForceCloseShiftParams {
-    /// Shift ID
+    /// Till ID
     pub shift_id: String,
     pub force_close_request: models::ForceCloseRequest,
 }
@@ -49,39 +42,30 @@ pub struct ForceCloseShiftParams {
 pub struct GetCurrentShiftParams {
     /// Branch ID
     pub branch_id: String,
-    /// The device's till (drawer). Narrows the open-shift lookup for managers and scopes the suggested opening cash to that drawer's carryover. Optional — omit to fall back to the branch's default till for the suggestion.
+    /// Ignored (the drawer entity is gone).
     pub till_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`get_shift`]
 #[derive(Clone, Debug)]
 pub struct GetShiftParams {
-    /// Shift ID
+    /// Till ID
     pub shift_id: String,
 }
 
 /// struct for passing parameters to the method [`get_shift_report`]
 #[derive(Clone, Debug)]
 pub struct GetShiftReportParams {
-    /// Shift ID
-    pub shift_id: String,
-}
-
-/// struct for passing parameters to the method [`list_cash_movements`]
-#[derive(Clone, Debug)]
-pub struct ListCashMovementsParams {
-    /// Shift ID
+    /// Till ID
     pub shift_id: String,
 }
 
 /// struct for passing parameters to the method [`list_shifts`]
 #[derive(Clone, Debug)]
 pub struct ListShiftsParams {
-    /// Branch ID (nil UUID = all branches in org)
+    /// Branch ID (nil UUID = all branches)
     pub branch_id: String,
-    /// 1-based page number. Omit (along with `per_page`) to fetch every shift.
     pub page: Option<i64>,
-    /// Page size (clamped to [1, 200]). Omit to fetch every shift in one page.
     pub per_page: Option<i64>,
 }
 
@@ -93,10 +77,10 @@ pub struct OpenShiftParams {
     pub open_shift_request: models::OpenShiftRequest,
 }
 
-/// struct for typed errors of method [`add_cash_movement`]
+/// struct for typed errors of method [`add_legacy_shift_cash_movement`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum AddCashMovementError {
+pub enum AddLegacyShiftCashMovementError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -110,19 +94,6 @@ pub enum AddCashMovementError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CloseShiftError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`delete_shift`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DeleteShiftError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -184,19 +155,6 @@ pub enum GetShiftReportError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`list_cash_movements`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ListCashMovementsError {
-    Status400(models::ErrorBody),
-    Status401(models::ErrorBody),
-    Status403(models::ErrorBody),
-    Status404(models::ErrorBody),
-    Status409(models::ErrorBody),
-    Status500(models::ErrorBody),
-    UnknownValue(serde_json::Value),
-}
-
 /// struct for typed errors of method [`list_shifts`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -223,10 +181,10 @@ pub enum OpenShiftError {
     UnknownValue(serde_json::Value),
 }
 
-pub async fn add_cash_movement(
+pub async fn add_legacy_shift_cash_movement(
     configuration: &configuration::Configuration,
-    params: AddCashMovementParams,
-) -> Result<models::CashMovement, Error<AddCashMovementError>> {
+    params: AddLegacyShiftCashMovementParams,
+) -> Result<models::CashMovement, Error<AddLegacyShiftCashMovementError>> {
     let uri_str = format!(
         "{}/shifts/{shift_id}/cash-movements",
         configuration.base_path,
@@ -264,7 +222,7 @@ pub async fn add_cash_movement(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<AddCashMovementError> = serde_json::from_str(&content).ok();
+        let entity: Option<AddLegacyShiftCashMovementError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -292,7 +250,7 @@ pub async fn close_shift(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.close_shift_request);
+    req_builder = req_builder.json(&params.close_till_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -315,44 +273,6 @@ pub async fn close_shift(
     } else {
         let content = resp.text().await?;
         let entity: Option<CloseShiftError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-pub async fn delete_shift(
-    configuration: &configuration::Configuration,
-    params: DeleteShiftParams,
-) -> Result<(), Error<DeleteShiftError>> {
-    let uri_str = format!(
-        "{}/shifts/{shift_id}",
-        configuration.base_path,
-        shift_id = crate::apis::urlencode(params.shift_id)
-    );
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::DELETE, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<DeleteShiftError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -547,53 +467,6 @@ pub async fn get_shift_report(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetShiftReportError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-pub async fn list_cash_movements(
-    configuration: &configuration::Configuration,
-    params: ListCashMovementsParams,
-) -> Result<Vec<models::CashMovement>, Error<ListCashMovementsError>> {
-    let uri_str = format!(
-        "{}/shifts/{shift_id}/cash-movements",
-        configuration.base_path,
-        shift_id = crate::apis::urlencode(params.shift_id)
-    );
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::CashMovement&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::CashMovement&gt;`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<ListCashMovementsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

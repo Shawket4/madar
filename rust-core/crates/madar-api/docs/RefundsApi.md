@@ -7,7 +7,7 @@ Method | HTTP request | Description
 [**create_refund**](RefundsApi.md#create_refund) | **POST** /refunds | 
 [**get_refund**](RefundsApi.md#get_refund) | **GET** /refunds/{id} | 
 [**list_order_refunds**](RefundsApi.md#list_order_refunds) | **GET** /refunds/order/{order_id} | 
-[**list_shift_refunds**](RefundsApi.md#list_shift_refunds) | **GET** /refunds/shift/{shift_id} | 
+[**list_till_refunds**](RefundsApi.md#list_till_refunds) | **GET** /tills/{till_id}/refunds | 
 
 
 
@@ -95,9 +95,9 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
-## list_shift_refunds
+## list_till_refunds
 
-> models::ShiftRefunds list_shift_refunds(shift_id)
+> models::TillRefunds list_till_refunds(till_id)
 
 
 ### Parameters
@@ -105,11 +105,11 @@ Name | Type | Description  | Required | Notes
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**shift_id** | **uuid::Uuid** | Shift ID | [required] |
+**till_id** | **uuid::Uuid** | Till ID | [required] |
 
 ### Return type
 
-[**models::ShiftRefunds**](ShiftRefunds.md)
+[**models::TillRefunds**](TillRefunds.md)
 
 ### Authorization
 

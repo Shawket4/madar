@@ -33,11 +33,11 @@ pub struct ListOrderRefundsParams {
     pub order_id: String,
 }
 
-/// struct for passing parameters to the method [`list_shift_refunds`]
+/// struct for passing parameters to the method [`list_till_refunds`]
 #[derive(Clone, Debug)]
-pub struct ListShiftRefundsParams {
-    /// Shift ID
-    pub shift_id: String,
+pub struct ListTillRefundsParams {
+    /// Till ID
+    pub till_id: String,
 }
 
 /// struct for typed errors of method [`create_refund`]
@@ -79,10 +79,10 @@ pub enum ListOrderRefundsError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`list_shift_refunds`]
+/// struct for typed errors of method [`list_till_refunds`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum ListShiftRefundsError {
+pub enum ListTillRefundsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -232,14 +232,14 @@ pub async fn list_order_refunds(
     }
 }
 
-pub async fn list_shift_refunds(
+pub async fn list_till_refunds(
     configuration: &configuration::Configuration,
-    params: ListShiftRefundsParams,
-) -> Result<models::ShiftRefunds, Error<ListShiftRefundsError>> {
+    params: ListTillRefundsParams,
+) -> Result<models::TillRefunds, Error<ListTillRefundsError>> {
     let uri_str = format!(
-        "{}/refunds/shift/{shift_id}",
+        "{}/tills/{till_id}/refunds",
         configuration.base_path,
-        shift_id = crate::apis::urlencode(params.shift_id)
+        till_id = crate::apis::urlencode(params.till_id)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
@@ -265,12 +265,12 @@ pub async fn list_shift_refunds(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ShiftRefunds`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ShiftRefunds`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TillRefunds`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TillRefunds`")))),
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<ListShiftRefundsError> = serde_json::from_str(&content).ok();
+        let entity: Option<ListTillRefundsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

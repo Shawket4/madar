@@ -12,7 +12,7 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ShiftRefunds {
+pub struct TillRefunds {
     #[serde(rename = "refund_count")]
     pub refund_count: i64,
     #[serde(rename = "refunded_amount")]
@@ -22,24 +22,29 @@ pub struct ShiftRefunds {
     pub refunded_cash: i64,
     #[serde(rename = "refunds")]
     pub refunds: Vec<models::RefundFull>,
+    /// DEPRECATED: same value as `till_id` (POS v0.6.0 decodes `ShiftRefunds`).
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
+    #[serde(rename = "till_id")]
+    pub till_id: uuid::Uuid,
 }
 
-impl ShiftRefunds {
+impl TillRefunds {
     pub fn new(
         refund_count: i64,
         refunded_amount: i64,
         refunded_cash: i64,
         refunds: Vec<models::RefundFull>,
         shift_id: uuid::Uuid,
-    ) -> ShiftRefunds {
-        ShiftRefunds {
+        till_id: uuid::Uuid,
+    ) -> TillRefunds {
+        TillRefunds {
             refund_count,
             refunded_amount,
             refunded_cash,
             refunds,
             shift_id,
+            till_id,
         }
     }
 }

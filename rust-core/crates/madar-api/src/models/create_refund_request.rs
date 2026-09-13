@@ -24,6 +24,14 @@ pub struct CreateRefundRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub client_ref: Option<Option<uuid::Uuid>>,
+    /// The device issuing the refund (else the `X-Madar-Device` header).
+    #[serde(
+        rename = "device_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_id: Option<Option<uuid::Uuid>>,
     /// When the refund was issued. Omit for live requests — the server stamps `now()`. An offline till sends the real time; future values are rejected.
     #[serde(
         rename = "issued_at",
@@ -52,12 +60,12 @@ pub struct CreateRefundRequest {
     pub reason: models::RefundReason,
     /// The shift whose drawer the money leaves. Omit for a live request and the actor's own open shift at the order's branch is used; a replayed offline refund must name the shift it was issued in, the way a queued sale does.
     #[serde(
-        rename = "shift_id",
+        rename = "till_id",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub shift_id: Option<Option<uuid::Uuid>>,
+    pub till_id: Option<Option<uuid::Uuid>>,
 }
 
 impl CreateRefundRequest {
@@ -70,13 +78,14 @@ impl CreateRefundRequest {
         CreateRefundRequest {
             amount,
             client_ref: None,
+            device_id: None,
             issued_at: None,
             lines: None,
             method,
             note: None,
             order_id,
             reason,
-            shift_id: None,
+            till_id: None,
         }
     }
 }

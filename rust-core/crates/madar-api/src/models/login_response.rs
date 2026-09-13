@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct LoginResponse {
     #[serde(rename = "currency_code")]
     pub currency_code: String,
+    /// The person's open till at the branch they signed into (any device), so the device can resume it or show where it is open.
+    #[serde(
+        rename = "open_till",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub open_till: Option<Option<Box<models::TillBrief>>>,
     /// Every dine-in sale belongs to a table.  The till needs this, not just the server: the rule changes what the POS puts in front of a teller — the floor becomes the home screen and a sale starts by picking a table — and a refusal AFTER the items are rung up is far too late to be useful.
     #[serde(
         rename = "require_table_for_orders",
@@ -44,6 +52,7 @@ impl LoginResponse {
     ) -> LoginResponse {
         LoginResponse {
             currency_code,
+            open_till: None,
             require_table_for_orders: None,
             tax_policy: Box::new(tax_policy),
             tax_rate,

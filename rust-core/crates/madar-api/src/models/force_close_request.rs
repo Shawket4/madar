@@ -14,6 +14,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ForceCloseRequest {
     #[serde(
+        rename = "device_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_id: Option<Option<uuid::Uuid>>,
+    #[serde(
         rename = "reason",
         default,
         with = "::serde_with::rust::double_option",
@@ -24,6 +31,9 @@ pub struct ForceCloseRequest {
 
 impl ForceCloseRequest {
     pub fn new() -> ForceCloseRequest {
-        ForceCloseRequest { reason: None }
+        ForceCloseRequest {
+            device_id: None,
+            reason: None,
+        }
     }
 }

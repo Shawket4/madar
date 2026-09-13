@@ -31,12 +31,13 @@ Name | Type | Description | Notes
 **price_expected_total** | Option<**i32**> | What the catalogue says this sale should have come to, when it differs. Beside `subtotal` it is the size of the drift, which is the question anyone looking at a flagged sale asks next. | [optional]
 **price_flagged** | Option<**bool**> | This sale was rung against a catalogue that has since moved: a line was charged at a price the menu no longer says, or the item was disabled at this branch. Both mean a till that was OFFLINE when something changed — a live sale is priced by the server and cannot deviate.  Recorded, never rejected: the money already changed hands. It is here so the POS and the dashboard can SHOW it, which is the whole point of flagging something. | [optional]
 **service_charge_amount** | Option<**i32**> | The service charge on this bill; `0` where the branch charges none. Its own field, and its own receipt line: a charge the customer did not choose is stated separately from the tax rather than folded into it. | [optional]
-**shift_id** | **uuid::Uuid** |  | 
+**shift_id** | **uuid::Uuid** | DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0). | 
 **status** | **String** |  | 
 **subtotal** | **i32** |  | 
 **tax_amount** | **i32** |  | 
 **teller_id** | **uuid::Uuid** |  | 
 **teller_name** | **String** |  | 
+**till_id** | **uuid::Uuid** |  | 
 **timezone** | Option<**String**> | The branch's effective IANA timezone (see `crate::tz`) — the zone every timestamp on this payload is shown and printed in. Additive: older clients ignore it; `null` only where a write path does not resolve it. | [optional]
 **tip_amount** | Option<**i32**> |  | [optional]
 **tip_payment_method** | Option<**String**> |  | [optional]

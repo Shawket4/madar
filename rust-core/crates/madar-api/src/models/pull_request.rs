@@ -12,45 +12,41 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct UpdateTillRequest {
+pub struct PullRequest {
+    #[serde(rename = "branch_id")]
+    pub branch_id: uuid::Uuid,
     #[serde(
-        rename = "is_active",
+        rename = "device_id",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub is_active: Option<Option<bool>>,
+    pub device_id: Option<Option<uuid::Uuid>>,
+    /// Page size for incremental pulls, 1..5000 (default 2000).
     #[serde(
-        rename = "is_default",
+        rename = "limit",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub is_default: Option<Option<bool>>,
+    pub limit: Option<Option<i64>>,
+    /// Full-fetch ONLY these types (checksum self-heal). Invalid with `since`.
     #[serde(
-        rename = "name",
+        rename = "types",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub name: Option<Option<String>>,
-    /// Standard float in minor units. Absent → unchanged; `null` → cleared (the shop no longer proposes a closing figure); a value → set. Same `Option<Option<T>>` shape as the branch printer fields.
-    #[serde(
-        rename = "standard_float",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub standard_float: Option<Option<i32>>,
+    pub types: Option<Option<Vec<String>>>,
 }
 
-impl UpdateTillRequest {
-    pub fn new() -> UpdateTillRequest {
-        UpdateTillRequest {
-            is_active: None,
-            is_default: None,
-            name: None,
-            standard_float: None,
+impl PullRequest {
+    pub fn new(branch_id: uuid::Uuid) -> PullRequest {
+        PullRequest {
+            branch_id,
+            device_id: None,
+            limit: None,
+            types: None,
         }
     }
 }

@@ -11,7 +11,6 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// PaginatedShifts : Paginated envelope for the shifts list. When the request omits `page`/`per_page`, `data` holds every matching shift in one page (back-compat for the dashboard); when they are present, `data` is one bounded page ordered newest-first.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PaginatedShifts {
     #[serde(rename = "data")]
@@ -27,7 +26,6 @@ pub struct PaginatedShifts {
 }
 
 impl PaginatedShifts {
-    /// Paginated envelope for the shifts list. When the request omits `page`/`per_page`, `data` holds every matching shift in one page (back-compat for the dashboard); when they are present, `data` is one bounded page ordered newest-first.
     pub fn new(
         data: Vec<models::Shift>,
         page: i64,

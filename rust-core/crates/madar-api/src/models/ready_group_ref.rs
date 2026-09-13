@@ -12,43 +12,49 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CreateTillRequest {
-    #[serde(rename = "branch_id")]
-    pub branch_id: uuid::Uuid,
+pub struct ReadyGroupRef {
+    #[serde(rename = "group_id")]
+    pub group_id: uuid::Uuid,
+    #[serde(rename = "has_alpha")]
+    pub has_alpha: bool,
     #[serde(
-        rename = "is_active",
+        rename = "height",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub is_active: Option<Option<bool>>,
+    pub height: Option<Option<i32>>,
     #[serde(
-        rename = "is_default",
+        rename = "label",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub is_default: Option<Option<bool>>,
-    #[serde(rename = "name")]
-    pub name: String,
-    /// Standard float in minor units; must not be negative. Omit or `null` for \"not decided\".
+    pub label: Option<Option<String>>,
+    #[serde(rename = "variants")]
+    pub variants: Box<models::VariantSet>,
     #[serde(
-        rename = "standard_float",
+        rename = "width",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub standard_float: Option<Option<i32>>,
+    pub width: Option<Option<i32>>,
 }
 
-impl CreateTillRequest {
-    pub fn new(branch_id: uuid::Uuid, name: String) -> CreateTillRequest {
-        CreateTillRequest {
-            branch_id,
-            is_active: None,
-            is_default: None,
-            name,
-            standard_float: None,
+impl ReadyGroupRef {
+    pub fn new(
+        group_id: uuid::Uuid,
+        has_alpha: bool,
+        variants: models::VariantSet,
+    ) -> ReadyGroupRef {
+        ReadyGroupRef {
+            group_id,
+            has_alpha,
+            height: None,
+            label: None,
+            variants: Box::new(variants),
+            width: None,
         }
     }
 }

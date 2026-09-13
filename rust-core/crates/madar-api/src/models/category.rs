@@ -24,6 +24,14 @@ pub struct Category {
     pub deleted_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// Asset refs (Track B4, §11.10); null when no asset or not attached by this endpoint.
+    #[serde(
+        rename = "image",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub image: Option<Option<Box<models::AssetGroupRef>>>,
     #[serde(
         rename = "image_url",
         default,
@@ -57,6 +65,7 @@ impl Category {
             created_at,
             deleted_at: None,
             id,
+            image: None,
             image_url: None,
             is_active,
             name,

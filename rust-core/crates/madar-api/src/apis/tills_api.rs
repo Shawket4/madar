@@ -13,37 +13,148 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
-/// struct for passing parameters to the method [`create_till`]
+/// struct for passing parameters to the method [`add_cash_movement`]
 #[derive(Clone, Debug)]
-pub struct CreateTillParams {
-    pub create_till_request: models::CreateTillRequest,
+pub struct AddCashMovementParams {
+    /// Till ID
+    pub till_id: String,
+    pub cash_movement_request: models::CashMovementRequest,
+}
+
+/// struct for passing parameters to the method [`close_preview`]
+#[derive(Clone, Debug)]
+pub struct ClosePreviewParams {
+    /// Till ID
+    pub till_id: String,
+}
+
+/// struct for passing parameters to the method [`close_till`]
+#[derive(Clone, Debug)]
+pub struct CloseTillParams {
+    /// Till ID
+    pub till_id: String,
+    pub close_till_request: models::CloseTillRequest,
 }
 
 /// struct for passing parameters to the method [`delete_till`]
 #[derive(Clone, Debug)]
 pub struct DeleteTillParams {
     /// Till ID
-    pub id: String,
+    pub till_id: String,
+}
+
+/// struct for passing parameters to the method [`force_close_till`]
+#[derive(Clone, Debug)]
+pub struct ForceCloseTillParams {
+    /// Till ID
+    pub till_id: String,
+    pub force_close_request: models::ForceCloseRequest,
+}
+
+/// struct for passing parameters to the method [`get_current_till`]
+#[derive(Clone, Debug)]
+pub struct GetCurrentTillParams {
+    /// Branch ID
+    pub branch_id: String,
+    /// Non-teller roles may ask about another person.
+    pub teller_id: Option<String>,
+}
+
+/// struct for passing parameters to the method [`get_open_bills_notice`]
+#[derive(Clone, Debug)]
+pub struct GetOpenBillsNoticeParams {
+    /// Branch ID
+    pub branch_id: String,
+}
+
+/// struct for passing parameters to the method [`get_till`]
+#[derive(Clone, Debug)]
+pub struct GetTillParams {
+    /// Till ID
+    pub till_id: String,
+}
+
+/// struct for passing parameters to the method [`get_till_report`]
+#[derive(Clone, Debug)]
+pub struct GetTillReportParams {
+    /// Till ID
+    pub till_id: String,
+}
+
+/// struct for passing parameters to the method [`legacy_list_till_entities`]
+#[derive(Clone, Debug)]
+pub struct LegacyListTillEntitiesParams {
+    pub branch_id: Option<String>,
+}
+
+/// struct for passing parameters to the method [`list_cash_movements`]
+#[derive(Clone, Debug)]
+pub struct ListCashMovementsParams {
+    /// Till ID
+    pub till_id: String,
+}
+
+/// struct for passing parameters to the method [`list_open_tills`]
+#[derive(Clone, Debug)]
+pub struct ListOpenTillsParams {
+    /// Branch ID
+    pub branch_id: String,
 }
 
 /// struct for passing parameters to the method [`list_tills`]
 #[derive(Clone, Debug)]
 pub struct ListTillsParams {
+    /// Branch ID (nil UUID = all branches in org)
     pub branch_id: String,
+    pub status: Option<String>,
+    pub teller_id: Option<String>,
+    pub device_id: Option<String>,
+    /// Only tills opened while another was open, or with a disagreed reconciliation.
+    pub flagged: Option<bool>,
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
 }
 
-/// struct for passing parameters to the method [`update_till`]
+/// struct for passing parameters to the method [`open_till`]
 #[derive(Clone, Debug)]
-pub struct UpdateTillParams {
-    /// Till ID
-    pub id: String,
-    pub update_till_request: models::UpdateTillRequest,
+pub struct OpenTillParams {
+    /// Branch ID
+    pub branch_id: String,
+    pub open_till_request: models::OpenTillRequest,
 }
 
-/// struct for typed errors of method [`create_till`]
+/// struct for typed errors of method [`add_cash_movement`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum CreateTillError {
+pub enum AddCashMovementError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`close_preview`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ClosePreviewError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`close_till`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CloseTillError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -66,6 +177,110 @@ pub enum DeleteTillError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`force_close_till`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ForceCloseTillError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_current_till`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetCurrentTillError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_open_bills_notice`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetOpenBillsNoticeError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_till`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetTillError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_till_report`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetTillReportError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`legacy_list_till_entities`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LegacyListTillEntitiesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_cash_movements`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListCashMovementsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_open_tills`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListOpenTillsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`list_tills`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -79,10 +294,10 @@ pub enum ListTillsError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`update_till`]
+/// struct for typed errors of method [`open_till`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum UpdateTillError {
+pub enum OpenTillError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -92,11 +307,15 @@ pub enum UpdateTillError {
     UnknownValue(serde_json::Value),
 }
 
-pub async fn create_till(
+pub async fn add_cash_movement(
     configuration: &configuration::Configuration,
-    params: CreateTillParams,
-) -> Result<models::Till, Error<CreateTillError>> {
-    let uri_str = format!("{}/tills", configuration.base_path);
+    params: AddCashMovementParams,
+) -> Result<models::CashMovement, Error<AddCashMovementError>> {
+    let uri_str = format!(
+        "{}/tills/{till_id}/cash-movements",
+        configuration.base_path,
+        till_id = crate::apis::urlencode(params.till_id)
+    );
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
@@ -107,7 +326,7 @@ pub async fn create_till(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.create_till_request);
+    req_builder = req_builder.json(&params.cash_movement_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -124,12 +343,109 @@ pub async fn create_till(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Till`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Till`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CashMovement`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CashMovement`")))),
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateTillError> = serde_json::from_str(&content).ok();
+        let entity: Option<AddCashMovementError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn close_preview(
+    configuration: &configuration::Configuration,
+    params: ClosePreviewParams,
+) -> Result<models::CloseTillPreview, Error<ClosePreviewError>> {
+    let uri_str = format!(
+        "{}/tills/{till_id}/close-preview",
+        configuration.base_path,
+        till_id = crate::apis::urlencode(params.till_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CloseTillPreview`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CloseTillPreview`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ClosePreviewError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn close_till(
+    configuration: &configuration::Configuration,
+    params: CloseTillParams,
+) -> Result<models::CloseTillResponse, Error<CloseTillError>> {
+    let uri_str = format!(
+        "{}/tills/{till_id}/close",
+        configuration.base_path,
+        till_id = crate::apis::urlencode(params.till_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.close_till_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CloseTillResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CloseTillResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CloseTillError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -143,9 +459,9 @@ pub async fn delete_till(
     params: DeleteTillParams,
 ) -> Result<(), Error<DeleteTillError>> {
     let uri_str = format!(
-        "{}/tills/{id}",
+        "{}/tills/{till_id}",
         configuration.base_path,
-        id = crate::apis::urlencode(params.id)
+        till_id = crate::apis::urlencode(params.till_id)
     );
     let mut req_builder = configuration
         .client
@@ -176,14 +492,351 @@ pub async fn delete_till(
     }
 }
 
-pub async fn list_tills(
+pub async fn force_close_till(
     configuration: &configuration::Configuration,
-    params: ListTillsParams,
-) -> Result<Vec<models::Till>, Error<ListTillsError>> {
+    params: ForceCloseTillParams,
+) -> Result<models::Till, Error<ForceCloseTillError>> {
+    let uri_str = format!(
+        "{}/tills/{till_id}/force-close",
+        configuration.base_path,
+        till_id = crate::apis::urlencode(params.till_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.force_close_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Till`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Till`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ForceCloseTillError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_current_till(
+    configuration: &configuration::Configuration,
+    params: GetCurrentTillParams,
+) -> Result<models::TillPreFill, Error<GetCurrentTillError>> {
+    let uri_str = format!(
+        "{}/tills/branches/{branch_id}/current",
+        configuration.base_path,
+        branch_id = crate::apis::urlencode(params.branch_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.teller_id {
+        req_builder = req_builder.query(&[("teller_id", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TillPreFill`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TillPreFill`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetCurrentTillError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_open_bills_notice(
+    configuration: &configuration::Configuration,
+    params: GetOpenBillsNoticeParams,
+) -> Result<models::OpenBillsNotice, Error<GetOpenBillsNoticeError>> {
+    let uri_str = format!(
+        "{}/tills/branches/{branch_id}/open-bills-notice",
+        configuration.base_path,
+        branch_id = crate::apis::urlencode(params.branch_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::OpenBillsNotice`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::OpenBillsNotice`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetOpenBillsNoticeError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_till(
+    configuration: &configuration::Configuration,
+    params: GetTillParams,
+) -> Result<models::Till, Error<GetTillError>> {
+    let uri_str = format!(
+        "{}/tills/{till_id}",
+        configuration.base_path,
+        till_id = crate::apis::urlencode(params.till_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Till`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Till`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetTillError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_till_report(
+    configuration: &configuration::Configuration,
+    params: GetTillReportParams,
+) -> Result<models::TillReportResponse, Error<GetTillReportError>> {
+    let uri_str = format!(
+        "{}/tills/{till_id}/report",
+        configuration.base_path,
+        till_id = crate::apis::urlencode(params.till_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TillReportResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TillReportResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetTillReportError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn legacy_list_till_entities(
+    configuration: &configuration::Configuration,
+    params: LegacyListTillEntitiesParams,
+) -> Result<Vec<models::LegacyTill>, Error<LegacyListTillEntitiesError>> {
     let uri_str = format!("{}/tills", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    req_builder = req_builder.query(&[("branch_id", &params.branch_id.to_string())]);
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::LegacyTill&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::LegacyTill&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<LegacyListTillEntitiesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn list_cash_movements(
+    configuration: &configuration::Configuration,
+    params: ListCashMovementsParams,
+) -> Result<Vec<models::CashMovement>, Error<ListCashMovementsError>> {
+    let uri_str = format!(
+        "{}/tills/{till_id}/cash-movements",
+        configuration.base_path,
+        till_id = crate::apis::urlencode(params.till_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::CashMovement&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::CashMovement&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListCashMovementsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn list_open_tills(
+    configuration: &configuration::Configuration,
+    params: ListOpenTillsParams,
+) -> Result<Vec<models::Till>, Error<ListOpenTillsError>> {
+    let uri_str = format!(
+        "{}/tills/branches/{branch_id}/open",
+        configuration.base_path,
+        branch_id = crate::apis::urlencode(params.branch_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -211,6 +864,77 @@ pub async fn list_tills(
         }
     } else {
         let content = resp.text().await?;
+        let entity: Option<ListOpenTillsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn list_tills(
+    configuration: &configuration::Configuration,
+    params: ListTillsParams,
+) -> Result<models::PaginatedTills, Error<ListTillsError>> {
+    let uri_str = format!(
+        "{}/tills/branches/{branch_id}",
+        configuration.base_path,
+        branch_id = crate::apis::urlencode(params.branch_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.status {
+        req_builder = req_builder.query(&[("status", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.teller_id {
+        req_builder = req_builder.query(&[("teller_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.device_id {
+        req_builder = req_builder.query(&[("device_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.flagged {
+        req_builder = req_builder.query(&[("flagged", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.page {
+        req_builder = req_builder.query(&[("page", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.per_page {
+        req_builder = req_builder.query(&[("per_page", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PaginatedTills`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PaginatedTills`")))),
+        }
+    } else {
+        let content = resp.text().await?;
         let entity: Option<ListTillsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
@@ -220,18 +944,18 @@ pub async fn list_tills(
     }
 }
 
-pub async fn update_till(
+pub async fn open_till(
     configuration: &configuration::Configuration,
-    params: UpdateTillParams,
-) -> Result<models::Till, Error<UpdateTillError>> {
+    params: OpenTillParams,
+) -> Result<models::Till, Error<OpenTillError>> {
     let uri_str = format!(
-        "{}/tills/{id}",
+        "{}/tills/branches/{branch_id}/open",
         configuration.base_path,
-        id = crate::apis::urlencode(params.id)
+        branch_id = crate::apis::urlencode(params.branch_id)
     );
     let mut req_builder = configuration
         .client
-        .request(reqwest::Method::PATCH, &uri_str);
+        .request(reqwest::Method::POST, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -239,7 +963,7 @@ pub async fn update_till(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.update_till_request);
+    req_builder = req_builder.json(&params.open_till_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -261,7 +985,7 @@ pub async fn update_till(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<UpdateTillError> = serde_json::from_str(&content).ok();
+        let entity: Option<OpenTillError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

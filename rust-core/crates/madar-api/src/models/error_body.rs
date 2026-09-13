@@ -25,11 +25,23 @@ pub struct ErrorBody {
     /// Human-readable error message.
     #[serde(rename = "error")]
     pub error: String,
+    /// The till a `TILL_OPEN_AT_OTHER_BRANCH` / `TILL_OPEN_ELSEWHERE` refusal is about (`TillBrief`). Omitted everywhere else.
+    #[serde(
+        rename = "till",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub till: Option<Option<serde_json::Value>>,
 }
 
 impl ErrorBody {
     /// Wire shape of every error JSON. Keep in lockstep with `AppError::error_response` below.
     pub fn new(error: String) -> ErrorBody {
-        ErrorBody { code: None, error }
+        ErrorBody {
+            code: None,
+            error,
+            till: None,
+        }
     }
 }
