@@ -231,6 +231,12 @@ class _DrawerHome extends ConsumerWidget {
 class _StatCards extends ConsumerWidget {
   const _StatCards();
 
+  /// One breakdown term, isolated so its signed figure keeps its own
+  /// direction beside its neighbours, and unbreakable so a wrap (or a row on
+  /// a phone) falls BETWEEN terms, never inside "Paid out −EGP 90.00".
+  static String _term(String term) =>
+      term.replaceAll(' ', '\u00A0');
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
@@ -244,13 +250,17 @@ class _StatCards extends ConsumerWidget {
     String money(int minor) =>
         bridge.formatMoney(minor: minor, currency: currency, signed: false);
 
+    // On a phone the breakdown is rows: a wrapped line left a "·" hanging
+    // at its edge.
+    final sep = context.madarLayout.isPhone ? '\n' : ' · ';
     // "Cash EGP 1,420.00 · Card EGP 4,810.00" from the report's own lines.
     final byMethod = report?.paymentLines
         .map(
           (l) =>
               '${bridge.paymentMethodLabel(code: l.method)} ${money(l.totalMinor)}',
         )
-        .join(' · ');
+        .map(_term)
+        .join(sep);
     // The drawer's arithmetic, closed on the report's own expected figure.
     String? arithmetic;
     if (report != null) {
@@ -262,8 +272,7 @@ class _StatCards extends ConsumerWidget {
           '${t('shift.paid_in')} ${money(report.cashInMinor)}',
         if (report.cashOutMinor > 0)
           '${t('shift.paid_out')} ${money(-report.cashOutMinor)}',
-        // A wrap breaks BETWEEN terms, never inside "Paid out −EGP 90.00".
-      ].map((term) => term.replaceAll(' ', '\u00A0')).join(' · ');
+      ].map(_term).join(sep);
     }
     final phone = context.madarLayout.isPhone;
     final Widget sales = stats == null
