@@ -6,7 +6,6 @@ import 'package:feature_auth/src/auth_layout.dart';
 import 'package:feature_auth/src/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:rust_bridge/rust_bridge.dart';
 
 /// Station column width cap (natives: `widthIn(max = 480.dp)`).
 const double _columnMaxWidth = 480;
@@ -17,16 +16,6 @@ const double _heroGlyph = 28;
 
 /// Hero title size (natives: 26.sp Black).
 const double _heroTitleSize = 26;
-
-/// Station row height (natives: 72.dp — fixed so every station aligns).
-const double _stationRowHeight = 72;
-
-/// Station leading tone-tile side (natives: 44.dp).
-const double _stationTile = 44;
-
-/// Default-station border emphasis (natives: 2.dp accent @ 0.55 alpha).
-const double _defaultBorderWidth = 2;
-const double _defaultBorderAlpha = 0.55;
 
 /// Kitchen-display commissioning — the screen a kitchen-role device shows
 /// once it's bound to a branch but has no station yet (the core routes here
@@ -63,7 +52,6 @@ class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
   }
 
   Widget _column(BuildContext context, {required bool showLogo}) {
-    final colors = context.madarColors;
     final loading = ref.watch(authProvider.select((s) => s.stationsLoading));
     final stations = ref.watch(authProvider.select((s) => s.stations));
     final stationsError = ref.watch(
@@ -86,63 +74,49 @@ class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
             tone: ChipTone.danger,
             icon: 'exclamationmark.circle',
           ),
-        // ── Station list on its own bordered surface card ─────────────────
-        MadarCard.column(
+        // ── The stations, as rows in one card ─────────────────────────────
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
           children: [
-            MadarSectionHeader(
-              text: t('setup.title'),
-              icon: 'square.stack.3d.up.fill',
-            ),
             if (loading)
-              Padding(
-                padding: const EdgeInsets.all(Space.xl),
-                child: Center(
-                  child: CircularProgressIndicator(color: colors.accent),
-                ),
+              const MadarCard(
+                flush: true,
+                child: SkeletonScope(child: SkeletonList(count: 3)),
               )
             else if (stationsError != null)
               // Could not ask is not "none": say why and offer the retry.
-              Column(
-                spacing: Space.sm,
-                children: [
-                  NoticeBanner(
-                    text: stationsError.of(bridge),
-                    tone: ChipTone.danger,
-                    icon: 'exclamationmark.triangle',
-                  ),
-                  MadarButton(
-                    label: t('history.retry'),
-                    variant: MadarButtonVariant.secondary,
-                    onTap: () => unawaited(
-                      ref.read(authProvider.notifier).loadStations(),
-                    ),
-                  ),
-                ],
+              MadarCard(
+                child: ErrorState(
+                  message: stationsError.of(bridge),
+                  retryLabel: t('history.retry'),
+                  onRetry: () =>
+                      unawaited(ref.read(authProvider.notifier).loadStations()),
+                ),
               )
             else if (stations.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: Space.md),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Text(
-                    t('setup.no_stations'),
-                    textAlign: TextAlign.center,
-                    style: MadarType.bodySm.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                ),
+              MadarCard(
+                child: EmptyState(icon: 'tray', title: t('setup.no_stations')),
               )
             else
-              for (final station in stations)
-                _StationCard(
-                  station: station,
-                  defaultLabel: t('setup.station_default'),
-                  onTap: () => unawaited(
-                    ref.read(authProvider.notifier).pickStation(station),
-                  ),
-                ),
+              MadarCard.column(
+                flush: true,
+                children: [
+                  for (final (i, station) in stations.indexed) ...[
+                    if (i > 0) const MadarHairline.row(),
+                    MadarListRow.nav(
+                      title: station.name,
+                      glyph: MadarGlyph.flame,
+                      valueText: station.isDefault
+                          ? t('setup.station_default')
+                          : null,
+                      onTap: () => unawaited(
+                        ref.read(authProvider.notifier).pickStation(station),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
           ],
         ),
         // ── Recessive exit ─────────────────────────────────────────────────
@@ -202,84 +176,6 @@ class _StationPickerScreenState extends ConsumerState<StationPickerScreen> {
             ),
           ),
       ],
-    );
-  }
-}
-
-/// One selectable station — leading tone-tile + name; the default station is
-/// flagged with an accent chip and lifted with a heavier accent border +
-/// filled tile. Fixed row height so every station aligns. Mirror of the
-/// natives' `StationCard`.
-class _StationCard extends StatelessWidget {
-  const _StationCard({
-    required this.station,
-    required this.defaultLabel,
-    required this.onTap,
-  });
-
-  final KdsStationView station;
-  final String defaultLabel;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final isDefault = station.isDefault;
-
-    return TactileScale(
-      haptic: false,
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        height: _stationRowHeight,
-        padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(Radii.md),
-          border: Border.all(
-            color: isDefault
-                ? colors.accent.withValues(alpha: _defaultBorderAlpha)
-                : colors.borderLight,
-            width: isDefault ? _defaultBorderWidth : 1,
-          ),
-          boxShadow: elevationShadows(context, MadarElevation.card),
-        ),
-        child: Row(
-          spacing: Space.md,
-          children: [
-            // The default station gets a FILLED accent tile so it reads as
-            // "this one" at a glance; the rest stay tinted.
-            Container(
-              width: _stationTile,
-              height: _stationTile,
-              decoration: BoxDecoration(
-                color: isDefault ? colors.accent : colors.accentBg,
-                borderRadius: BorderRadius.circular(Radii.sm),
-              ),
-              alignment: Alignment.center,
-              child: MadarIcon(
-                'fork.knife',
-                tint: isDefault ? colors.textOnAccent : colors.accent,
-                size: IconSize.xl,
-              ),
-            ),
-            Expanded(
-              child: Text(
-                station.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.h3.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
-              ),
-            ),
-            if (isDefault)
-              StatusChip(label: defaultLabel, tone: ChipTone.accent),
-            MadarIcon('chevron.forward', tint: colors.textMuted),
-          ],
-        ),
-      ),
     );
   }
 }

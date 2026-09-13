@@ -528,7 +528,12 @@ class _FakeBridge implements MadarBridge {
     this.failed = 0,
     this.authPaused = false,
     this.clockSkew = 0,
+    this.route,
   });
+
+  /// `login` or `station`: a device before the shell (sign-in, a kitchen
+  /// screen picking its station).
+  final String? route;
 
   final String role;
   final bool rtl;
@@ -675,6 +680,10 @@ class _FakeBridge implements MadarBridge {
       );
     }
     // ── session, route, device ─────────────────────────────────────────────
+    if (name == #appRoute && route == 'login') return const AppRoute.login();
+    if (name == #appRoute && route == 'station') {
+      return const AppRoute.deviceSetup();
+    }
     if (name == #appRoute) {
       if (_waiter) return const AppRoute.waiterTickets();
       return shiftOpen ? const AppRoute.order() : const AppRoute.openShift();
@@ -1730,8 +1739,10 @@ class _BoardScreen {
     this.pushed,
     this.sheet,
     this.then,
+    this.route,
   });
 
+  final String? route;
   final bool waiter;
   final bool shiftOpen;
   final String? tab;
@@ -1781,6 +1792,8 @@ final _board = <String, _BoardScreen>{
   'settings': _BoardScreen(tab: 'till', pushed: SettingsScreen.new),
   'sync': _BoardScreen(tab: 'till', pushed: SyncScreen.new),
   'me': const _BoardScreen(waiter: true, tab: 'me'),
+  'login': const _BoardScreen(route: 'login'),
+  'station-picker': const _BoardScreen(route: 'station'),
 };
 
 Future<void> _openBoard(
@@ -1793,9 +1806,14 @@ Future<void> _openBoard(
   await _mount(
     tester,
     bridge: _FakeBridge(
-      role: screen.waiter ? 'waiter' : 'teller',
+      role: screen.route == 'station'
+          ? 'kitchen'
+          : screen.waiter
+          ? 'waiter'
+          : 'teller',
       shiftOpen: screen.shiftOpen,
       rtl: ar,
+      route: screen.route,
     ),
     size: size,
     dark: dark,

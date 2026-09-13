@@ -5,17 +5,10 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_auth/src/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:rust_bridge/rust_bridge.dart';
 
 /// Setup title metrics (natives: 24.sp Black, −0.4 tracking).
 const double _titleSize = 24;
 const double _titleTracking = -0.4;
-
-/// Branch row inset (natives: 14.dp both axes).
-const double _branchRowPad = 14;
-
-/// Branch row leading tone-tile side (natives: 36.dp).
-const double _branchTile = 36;
 
 /// Manager logo size on the narrow (stacked) layout (natives: 56.dp).
 const double _logoSize = 56;
@@ -71,9 +64,12 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
 
     return Column(
       mainAxisSize: MainAxisSize.min,
+      // Fields and the button share one width — a hugging button under
+      // full-width fields reads as a different form.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.lg,
       children: [
-        if (widget.showLogo) const MadarSymbol(size: _logoSize),
+        if (widget.showLogo) const Center(child: MadarSymbol(size: _logoSize)),
         Padding(
           padding: const EdgeInsets.only(bottom: Space.sm),
           child: Column(
@@ -101,12 +97,24 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
           ),
         ),
         if (picking)
-          for (final branch in branches)
-            _BranchRow(
-              branch: branch,
-              onTap: () =>
-                  unawaited(ref.read(authProvider.notifier).bindBranch(branch)),
-            )
+          MadarCard.column(
+            flush: true,
+            children: [
+              for (final (i, branch) in branches.indexed) ...[
+                if (i > 0) const MadarHairline.row(),
+                MadarListRow.nav(
+                  title: branch.name,
+                  glyph: MadarGlyph.tag,
+                  onTap: () {
+                    MadarHaptics.impact();
+                    unawaited(
+                      ref.read(authProvider.notifier).bindBranch(branch),
+                    );
+                  },
+                ),
+              ],
+            ],
+          )
         else ...[
           MadarField(
             controller: _email,
@@ -145,66 +153,6 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
             variant: MadarButtonVariant.ghost,
           ),
       ],
-    );
-  }
-}
-
-/// A selectable branch — raised surface row with the signature leading
-/// tone-tile (teal glyph on accentBg) + trailing disclosure chevron, matching
-/// the order screen's row language (natives' `BranchRow`).
-class _BranchRow extends StatelessWidget {
-  const _BranchRow({required this.branch, required this.onTap});
-
-  final BranchView branch;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return TactileScale(
-      haptic: false,
-      onTap: () {
-        MadarHaptics.impact();
-        onTap();
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(_branchRowPad),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(Radii.sm),
-          border: Border.all(color: colors.borderLight),
-          boxShadow: elevationShadows(context, MadarElevation.card),
-        ),
-        child: Row(
-          spacing: Space.md,
-          children: [
-            Container(
-              width: _branchTile,
-              height: _branchTile,
-              decoration: BoxDecoration(
-                color: colors.accentBg,
-                borderRadius: BorderRadius.circular(Radii.sm),
-              ),
-              alignment: Alignment.center,
-              child: MadarIcon('building.2', tint: colors.accent),
-            ),
-            Expanded(
-              child: Text(
-                branch.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.title.copyWith(color: colors.textPrimary),
-              ),
-            ),
-            MadarIcon(
-              'chevron.right',
-              tint: colors.textMuted,
-              size: IconSize.xs,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
