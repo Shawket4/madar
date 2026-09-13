@@ -10,6 +10,7 @@
 // pictures carry the words a device would show and the test can insist that
 // no raw key reaches the screen.
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -412,6 +413,88 @@ List<OrderSummaryView> _orders({required int queued}) => [
     ),
 ];
 
+/// Past shifts: a short one (with a rail), balanced ones, an over.
+List<ShiftSummaryView> _pastShifts(bool ar) {
+  String n(String en, String a) => ar ? a : en;
+  ShiftSummaryView s(
+    String id,
+    String teller,
+    int daysAgo,
+    int hours,
+    int declared,
+    int delta,
+  ) {
+    final open = DateTime.now().toUtc().subtract(
+      Duration(days: daysAgo, hours: hours + 1),
+    );
+    return ShiftSummaryView(
+      id: id,
+      tellerName: teller,
+      openedAt: open.toIso8601String(),
+      closedAt: open.add(Duration(hours: hours, minutes: 22)).toIso8601String(),
+      openingCashMinor: 85000,
+      closingDeclaredMinor: declared,
+      closingSystemMinor: declared - delta,
+      discrepancyMinor: delta,
+      status: 'closed',
+      isOpen: false,
+    );
+  }
+
+  return [
+    s('sh-9', n('Omar', 'عمر'), 1, 8, 623000, -12000),
+    s('sh-8', n('Sara', 'سارة'), 1, 7, 418500, 0),
+    s('sh-7', n('Mona', 'منى'), 2, 7, 702250, 2500),
+    s('sh-6', n('Omar', 'عمر'), 3, 8, 911000, 0),
+  ];
+}
+
+List<OrderSummaryView> _historyOrders() => [
+  for (var i = 0; i < 14; i++)
+    OrderSummaryView(
+      id: 'h-$i',
+      orderNumber: 1042 - i,
+      subtotalMinor: 14000 + i * 3150,
+      taxMinor: 2000,
+      totalMinor: 16000 + i * 3150,
+      paymentLabel: ['cash', 'card', 'digital_wallet'][i % 3],
+      status: i == 3 ? 'voided' : 'completed',
+      createdAt: _ago(38 + i * 23),
+      queued: false,
+      tellerName: 'Sara',
+      priceFlagged: false,
+      orderType: ['dine_in', 'takeaway', 'delivery'][i % 3],
+    ),
+];
+
+OrderDetailView _detail(String id) => OrderDetailView(
+  id: id,
+  orderNumber: 1042,
+  status: 'completed',
+  paymentLabel: 'cash',
+  subtotalMinor: 14000,
+  discountMinor: 0,
+  taxMinor: 2000,
+  totalMinor: 16000,
+  createdAt: _ago(38),
+  lines: const [
+    OrderDetailLineView(
+      name: 'Flat white',
+      qty: 2,
+      lineTotalMinor: 10000,
+      addons: ['Oat milk'],
+      optionals: [],
+    ),
+    OrderDetailLineView(
+      name: 'Croissant',
+      qty: 1,
+      lineTotalMinor: 4000,
+      addons: [],
+      optionals: [],
+    ),
+  ],
+);
+
 const _outbox = <OutboxItemView>[
   OutboxItemView(
     id: 'ob-1',
@@ -471,6 +554,15 @@ class _FakeBridge implements MadarBridge {
     // The core's drawer and Orders decisions (till_views), in miniature.
     if (name == #paymentMethodLabel) {
       final code = invocation.namedArguments[#code] as String;
+      const ar = {
+        'cash': 'نقدًا',
+        'card': 'بطاقة',
+        'digital_wallet': 'محفظة إلكترونية',
+      };
+      const en = {'digital_wallet': 'Wallet'};
+      final key = code.toLowerCase();
+      if (rtl && ar[key] != null) return ar[key];
+      if (en[key] != null) return en[key];
       return code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
     }
     if (name == #shiftCashSalesMinor) {
@@ -538,6 +630,37 @@ class _FakeBridge implements MadarBridge {
           '${at.hour.toString().padLeft(2, '0')}:'
           '${at.minute.toString().padLeft(2, '0')}';
       return style == TimeStyle.time ? hm : 'Sep ${at.day} · $hm';
+    }
+    // The core's display formats (display.rs), through the kit's mirror.
+    final lang = rtl ? 'ar' : 'en';
+    if (name == #formatMoney) {
+      final a = invocation.namedArguments;
+      return MadarFormat.money(
+        a[#minor] as int,
+        currency: a[#currency] as String,
+        signed: a[#signed] as bool,
+        locale: lang,
+      );
+    }
+    if (name == #currencyLabel) {
+      return MadarFormat.currencyLabel(
+        invocation.namedArguments[#code] as String,
+        locale: lang,
+      );
+    }
+    if (name == #formatStamp) {
+      final raw = invocation.namedArguments[#rfc3339] as String;
+      final at = DateTime.tryParse(raw)?.toLocal() ?? DateTime.now();
+      return MadarFormat.stamp(at, DateTime.now(), locale: lang);
+    }
+    if (name == #formatElapsed) {
+      final secs = invocation.namedArguments[#secs] as int;
+      return MadarFormat.elapsed(Duration(seconds: secs), locale: lang);
+    }
+    if (name == #formatElapsedSince) {
+      final raw = invocation.namedArguments[#rfc3339] as String;
+      final at = DateTime.tryParse(raw) ?? DateTime.now();
+      return MadarFormat.elapsed(DateTime.now().difference(at), locale: lang);
     }
     if (name == #clockSkewMinutes) return clockSkew;
     if (name == #humanMessage) return 'Something went wrong';
@@ -712,7 +835,31 @@ class _FakeBridge implements MadarBridge {
       return Future<List<CashMovementView>>.value(_movements);
     }
     if (name == #listShifts) {
-      return Future<List<ShiftSummaryView>>.value(const []);
+      return Future<List<ShiftSummaryView>>.value(_pastShifts(rtl));
+    }
+    if (name == #listOrdersForShift) {
+      return Future<List<OrderSummaryView>>.value(
+        _historyOrders().sublist(4, 8),
+      );
+    }
+    if (name == #searchOrders) {
+      return Future<OrderSearchPage>.value(
+        OrderSearchPage(
+          orders: _historyOrders(),
+          page: 1,
+          total: 318,
+          hasMore: true,
+        ),
+      );
+    }
+    if (name == #orderDetail) {
+      final id = invocation.namedArguments[#orderId] as String;
+      return Future<OrderDetailView>.value(_detail(id));
+    }
+    if (name == #orderReceiptView || name == #listOrderRefunds) {
+      return Future<Never>.error(
+        const MadarError.offline(detail: 'not in the fixture'),
+      );
     }
     if (name == #suggestedOpeningCashMinor) return Future<int>.value(85000);
     if (name == #listPaymentMethods) {
@@ -849,8 +996,9 @@ Future<void> _shot(WidgetTester tester, String name) async {
   await tester.runAsync(() async {
     final image = await boundary.toImage(pixelRatio: 2);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    final dir = Directory('build/render')..createSync(recursive: true);
-    File('${dir.path}/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+    final file = File('build/render/$name.png')
+      ..parent.createSync(recursive: true);
+    file.writeAsBytesSync(bytes!.buffer.asUint8List());
   });
 }
 
@@ -967,6 +1115,7 @@ void main() {
   });
 
   group('one page shell', pageShellMain);
+  group('spec board', specBoardMain);
 
   testWidgets('the teller shell on an iPad: Sell, Floor, Queue, Till', (
     tester,
@@ -1419,6 +1568,17 @@ Future<void> _openPage(
   }
 }
 
+/// The pages on the spec grid (`MadarPageScaffold(width: …)`).
+const _specPages = <String>{
+  'till',
+  'till-noshift',
+  'past-orders',
+  'sale',
+  'close-shift',
+  'shift-history',
+  'cash-in-out',
+};
+
 /// Pages still drawing the kit header by hand rather than through the
 /// shell's slot. Their geometry is held to the same numbers below; the key
 /// is what they lack. Empty: every page's header is the shell's own.
@@ -1504,19 +1664,175 @@ void pageShellMain() {
         );
         await tester.pumpWidget(const SizedBox());
       }
-      final pushed = seen['past-orders']!;
-      final tab = seen['till']!;
-      for (final MapEntry(key: name, value: g) in seen.entries) {
-        final like = g.back ? pushed : tab;
-        final msg = '$name vs ${g.back ? 'past-orders' : 'till'} on the $label';
-        expect(g.top, closeTo(tab.top, 0.5), reason: '$msg: header top');
+      // Pages on the spec grid (SPEC §2): the leading slot is reserved on
+      // tab and pushed pages alike, so EVERY title sits at gutter + 56 and at
+      // one height — Till to Past shifts to Orders, the title does not move.
+      final gutter = size == _phone ? 16.0 : 24.0;
+      final spec = {
+        for (final n in _specPages)
+          if (seen[n] != null) n: seen[n]!,
+      };
+      expect(spec, isNotEmpty);
+      final till = spec['till']!;
+      for (final MapEntry(key: name, value: g) in spec.entries) {
+        final msg = '$name vs till on the $label (spec grid)';
+        expect(g.top, closeTo(till.top, 0.5), reason: '$msg: header top');
         expect(
-          g.headerLeft,
-          closeTo(tab.headerLeft, 0.5),
-          reason: '$msg: header inset',
+          g.left,
+          closeTo(gutter + MadarHeaderMetrics.titleInset, 0.5),
+          reason: '$msg: title x is gutter + slot',
         );
-        expect(g.left, closeTo(like.left, 0.5), reason: '$msg: title inset');
+      }
+      // Pages not yet migrated (other screens' owners move them) are held
+      // only to the header's top edge until they join the grid.
+      for (final MapEntry(key: name, value: g) in seen.entries) {
+        expect(
+          g.top,
+          closeTo(till.top, 0.5),
+          reason: '$name on the $label: header top',
+        );
       }
     });
+  }
+}
+
+// ── The spec board ─────────────────────────────────────────────────────────
+//
+// Every screen this migration touched, at the four size classes of
+// docs/design/SPEC.md §1, in English and Arabic, light and dark — so the
+// screens can be laid side by side and against the spec's own renders
+// (packages/design_system/build/render/spec-*.png). Written under
+// build/render/board/<screen>-<device>-<lang>-<theme>.png with the render
+// flag; without it the English light board and the Arabic dark iPad still lay
+// out every screen and fail on any exception or raw key.
+
+const Size _ipadPortrait = Size(834, 1194);
+const Size _desktop = Size(1440, 900);
+
+const _boardSizes = <String, Size>{
+  'ipad': _ipad,
+  'ipad-portrait': _ipadPortrait,
+  'desktop': _desktop,
+  'phone': _phone,
+};
+
+/// One screen on the board: who is signed in, whether a drawer is open, the
+/// tab it lives in, what is pushed or opened over it, and what is done to it
+/// before the picture.
+class _BoardScreen {
+  const _BoardScreen({
+    this.waiter = false,
+    this.shiftOpen = true,
+    this.tab,
+    this.pushed,
+    this.sheet,
+    this.then,
+  });
+
+  final bool waiter;
+  final bool shiftOpen;
+  final String? tab;
+  final Widget Function()? pushed;
+  final Widget Function()? sheet;
+  final Future<void> Function(WidgetTester tester)? then;
+}
+
+Future<void> _tapFirst(WidgetTester tester, Finder finder) async {
+  if (finder.evaluate().isEmpty) return;
+  await tester.tap(finder.first, warnIfMissed: false);
+  await _settle(tester);
+}
+
+final _board = <String, _BoardScreen>{
+  'till': const _BoardScreen(tab: 'till'),
+  'till-noshift': const _BoardScreen(tab: 'till', shiftOpen: false),
+  'cash-in-out': _BoardScreen(tab: 'till', pushed: CashMovementsScreen.new),
+  'close-shift': _BoardScreen(tab: 'till', pushed: CloseShiftScreen.new),
+  'close-shift-counted': _BoardScreen(
+    tab: 'till',
+    pushed: CloseShiftScreen.new,
+    then: (tester) async {
+      final field = find.byType(TextField);
+      if (field.evaluate().isEmpty) return;
+      await tester.enterText(field.first, '2260');
+      await _settle(tester);
+    },
+  ),
+  'z-report': _BoardScreen(
+    tab: 'till',
+    sheet: () => const ShiftReportSheet(shiftId: 'sh-1', closed: true),
+  ),
+  'x-report': _BoardScreen(tab: 'till', sheet: ShiftReportSheet.new),
+  'past-shifts': _BoardScreen(tab: 'till', pushed: ShiftHistoryScreen.new),
+  'past-shifts-open': _BoardScreen(
+    tab: 'till',
+    pushed: ShiftHistoryScreen.new,
+    then: (tester) => _tapFirst(tester, find.text('Omar')),
+  ),
+  'orders': _BoardScreen(tab: 'till', pushed: OrderHistoryScreen.new),
+  'orders-selected': _BoardScreen(
+    tab: 'till',
+    pushed: OrderHistoryScreen.new,
+    then: (tester) => _tapFirst(tester, find.textContaining('1002')),
+  ),
+  'settings': _BoardScreen(tab: 'till', pushed: SettingsScreen.new),
+  'sync': _BoardScreen(tab: 'till', pushed: SyncScreen.new),
+  'me': const _BoardScreen(waiter: true, tab: 'me'),
+};
+
+Future<void> _openBoard(
+  WidgetTester tester,
+  _BoardScreen screen, {
+  required Size size,
+  required bool ar,
+  required bool dark,
+}) async {
+  await _mount(
+    tester,
+    bridge: _FakeBridge(
+      role: screen.waiter ? 'waiter' : 'teller',
+      shiftOpen: screen.shiftOpen,
+      rtl: ar,
+    ),
+    size: size,
+    dark: dark,
+  );
+  if (screen.tab != null) await _tab(tester, screen.tab!);
+  if (screen.pushed case final page?) {
+    unawaited(
+      _pageStack(tester).push(MaterialPageRoute<void>(builder: (_) => page())),
+    );
+    await _settle(tester);
+  }
+  if (screen.sheet case final sheet?) {
+    unawaited(
+      showMadarSheet<void>(
+        tester.element(find.byType(MadarShellScaffold)),
+        size: SheetSize.large,
+        builder: (_) => sheet(),
+      ),
+    );
+    await _settle(tester);
+  }
+  await screen.then?.call(tester);
+}
+
+void specBoardMain() {
+  for (final MapEntry(key: device, value: size) in _boardSizes.entries) {
+    for (final ar in [false, true]) {
+      for (final dark in [false, true]) {
+        final tag = '${ar ? 'ar' : 'en'}-${dark ? 'dark' : 'light'}';
+        // Unrendered, one light English pass per size and the Arabic dark
+        // iPad keep the matrix honest without laying out all 16 each run.
+        final cheap = (!ar && !dark) || (device == 'ipad' && ar && dark);
+        if (!_render && !cheap) continue;
+        for (final MapEntry(key: name, value: screen) in _board.entries) {
+          testWidgets('board: $name · $device · $tag', (tester) async {
+            await _openBoard(tester, screen, size: size, ar: ar, dark: dark);
+            await _shot(tester, 'board/$name-$device-$tag');
+          });
+        }
+      }
+    }
   }
 }

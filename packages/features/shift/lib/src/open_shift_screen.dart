@@ -33,10 +33,6 @@ const double _logoSize = 56;
 const double _greetingSize = 28;
 const double _greetingTracking = -0.5;
 
-/// Carryover hint inset (natives: 14.dp) and money size (natives: 20.sp).
-const double _carryoverPad = 14;
-const double _carryoverMoneySize = 20;
-
 /// Opening-cash entry. Bridges through [bridgeProvider]; every call that can
 /// move `app_route()`/session (open shift, sign out, shift adoption) hands
 /// off to the shell inside [OpenShiftNotifier].
@@ -160,9 +156,23 @@ class _OpenShiftScreenState extends ConsumerState<OpenShiftScreen> {
         );
       },
     );
-    // Embedded, the Till tab's page shell is the page (and its header); a
-    // second Scaffold inside it would be a page inside a page.
-    if (widget.embedded) return page;
+    // Embedded, the Till tab's page shell is the page and its header: the
+    // form on the grid's form width, and none of the sign-in's branding —
+    // the teller is already in, and "Welcome back" under a header that says
+    // Till is two screens talking at once.
+    if (widget.embedded) {
+      return SingleChildScrollView(
+        padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.xl,
+          children: [
+            _OpeningForm(reason: _reason),
+            ?widget.below,
+          ],
+        ),
+      );
+    }
     return MadarPageScaffold(body: page);
   }
 }
@@ -267,10 +277,11 @@ class _FormColumn extends ConsumerWidget {
                 ),
                 // Carried-over suggestion (previous declared closing).
                 if (suggestedMinor > 0)
-                  _CarryoverHint(
+                  MadarSummaryLine(
                     label: t('shift.suggested_from_close'),
-                    suggestedMinor: suggestedMinor,
+                    minor: suggestedMinor,
                     currency: currency,
+                    tone: MadarTone.accent,
                   ),
                 // Discrepancy reason — only when the count deviates.
                 if (needsReason)
@@ -328,56 +339,87 @@ class _FormColumn extends ConsumerWidget {
   }
 }
 
-/// The carried-over opening-cash suggestion (previous declared closing) — a
-/// tinted teal block carrying the prior figure as bold teal money, the twin of
-/// CloseShift's ExpectedCashBlock (the figure this open count reconciles
-/// against).
-class _CarryoverHint extends StatelessWidget {
-  const _CarryoverHint({
-    required this.label,
-    required this.suggestedMinor,
-    required this.currency,
-  });
+/// The opening count on the Till tab: the amount (prefilled from the last
+/// close), the reason when it differs, the error beside the action, Open
+/// shift, and the way out for the wrong teller.
+class _OpeningForm extends ConsumerWidget {
+  const _OpeningForm({required this.reason});
 
-  final String label;
-  final int suggestedMinor;
-  final String currency;
+  final TextEditingController reason;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.accentBg,
-        borderRadius: BorderRadius.circular(Radii.md),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(_carryoverPad),
-        child: Row(
-          spacing: Space.sm,
+    final bridge = ref.bridge;
+    String t(String key) => bridge.tr(key: key);
+    final openingMinor = ref.watch(
+      openShiftProvider.select((s) => s.openingMinor),
+    );
+    final suggestedMinor = ref.watch(
+      openShiftProvider.select((s) => s.suggestedMinor),
+    );
+    final needsReason = ref.watch(
+      openShiftProvider.select((s) => s.needsReason),
+    );
+    final busy = ref.watch(openShiftProvider.select((s) => s.busy));
+    final error = ref.watch(openShiftProvider.select((s) => s.error));
+    final currency = bridge.currentSession()?.currencyCode ?? '';
+    final notifier = ref.read(openShiftProvider.notifier);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        MadarSectionHeader(text: t('shift.opening_cash')),
+        MadarCard.column(
           children: [
-            MadarIcon(
-              'clock.arrow.circlepath',
-              tint: colors.accent,
-              size: IconSize.sm,
+            // Keyed on the suggestion: the carry-over lands a beat after the
+            // field mounts, and a fresh mount takes it as its initial text.
+            MadarAmountField(
+              key: ValueKey(suggestedMinor),
+              amountMinor: openingMinor,
+              onAmountMinor: notifier.setAmount,
+              currencyCode: currency,
+              autofocus: true,
             ),
-            Expanded(
-              child: Text(
-                label,
-                style: MadarType.label.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: colors.accent,
-                ),
+            if (suggestedMinor > 0)
+              MadarSummaryLine(
+                label: t('shift.suggested_from_close'),
+                minor: suggestedMinor,
+                currency: currency,
+                tone: MadarTone.accent,
               ),
+            if (needsReason)
+              MadarField(
+                controller: reason,
+                placeholder: t('shift.opening_reason_label'),
+                glyph: MadarGlyph.alertCircle,
+              ),
+            Text(
+              needsReason
+                  ? t('shift.opening_reason_hint')
+                  : t('shift.opening_hint'),
+              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
             ),
-            MoneyText(
-              suggestedMinor,
-              currency: currency,
-              style: MadarType.moneyLg.copyWith(fontSize: _carryoverMoneySize),
+            if (error != null)
+              NoticeBanner(
+                text: error.of(bridge),
+                tone: ChipTone.danger,
+                icon: 'exclamationmark.circle',
+              ),
+            MadarButton(
+              label: t('shift.open_button'),
+              glyph: MadarGlyph.lock,
+              loading: busy,
+              onTap: () => unawaited(notifier.submit(reason: reason.text)),
+            ),
+            MadarButton(
+              label: t('shift.switch_teller'),
+              variant: MadarButtonVariant.ghost,
+              onTap: () => unawaited(notifier.signOut()),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 }

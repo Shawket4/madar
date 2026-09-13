@@ -1,11 +1,16 @@
-/// Z-report preview — the pixel-and-behavior port of ShiftReportPreview.kt:
-/// the shared `ShiftReportBreakdown` (per-method sales with proportional
-/// bars, drawer pay-in/out + itemised movements, voids, totals and the
-/// close reconciliation), presented as a sheet on a white "thermal paper"
-/// card (ReceiptPaper.kt's visual language — always white paper with dark
-/// ink, in BOTH themes) with a Print footer that renders the report in the
-/// core and streams the bytes to the configured network printer. Report /
-/// orders / print state live in [shiftReportProvider].
+/// The X / Z report — a shift's figures on screen, with Print.
+///
+/// On the spec (docs/design/SPEC.md §15): the kit header (the report, whose
+/// shift, when it opened, whether the figures are the server's), stat cards
+/// for the takings and the drawer, the payment methods and the drawer's cash
+/// movements as tables, the arithmetic as summary lines, and the shift's
+/// orders — collapsed until asked for — in the same table Orders uses.
+///
+/// It used to be a picture of thermal paper: 11–13 pt figures, fixed ink in
+/// both themes, and hand-built rows that agreed with no other screen. The
+/// PRINTED report is still the core's (`renderShiftReport`); this is the one
+/// a person reads. Report, orders and print state live in
+/// [shiftReportProvider].
 library;
 
 import 'dart:async';
@@ -13,542 +18,17 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart' show ReceiptSheet;
+import 'package:feature_history/feature_history.dart' show OrdersTable;
 import 'package:feature_shift/src/shift_providers.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-// ── Native metrics (ShiftReportPreview.kt / ReceiptPaper.kt) that fall
-// between the 4-pt Space steps — kept verbatim so the Flutter paper
-// measures identically to the Kotlin/Swift natives. ─────────────────────────
-
-/// Paper card cap / corner / inset (natives: 360.dp / 10.dp / 18.dp).
-const double _paperMaxWidth = 360;
-const double _paperRadius = 10;
-const double _paperPad = 18;
-
-/// Paper row rhythm (natives: spacedBy(6.dp)).
-const double _paperGap = 6;
-
-/// Header title size (natives: 18.sp Black; Plex Sans Arabic tops out at
-/// Bold, so `MadarType.heaviest` stands in for the natives' Black).
-const double _headerTitleSize = 18;
-
-/// Store-name line on the paper (natives: 15.sp Bold).
-const double _storeNameSize = 15;
-
-/// Proportional method bar height (natives: 5.dp) and its floor fraction.
-const double _barHeight = 5;
-const double _barMinFraction = 0.02;
-
-/// Movement-list rhythm (natives: spacedBy(3.dp)).
-const double _movementGap = 3;
-
-/// Emphasized total-row sizes (natives: label 15.sp / value 16.sp).
-const double _totalLabelSize = 15;
-const double _totalValueSize = 16;
-
-/// Quiet row sizes (natives: label/value 13.sp, meta 11.sp).
-const double _rowSize = 13;
-const double _metaSize = 11;
-
-/// Shift-order row metrics (Kotlin ShiftOrderRow: 5.dp vertical padding,
-/// 12.sp Bold money) and the history rows' voided fade + tag pill.
-const double _orderRowVPad = 5;
-const double _orderMoneySize = 12;
-const double _voidedAlpha = 0.55;
-const double _voidTagHPad = 6;
-const double _voidTagVPad = 2;
-const double _voidTagBgAlpha = 0.08;
-
-/// Skeleton row height while the shift's orders lazy-load (≈ one order row).
-const double _orderSkeletonHeight = 26;
-
-/// Tone set `ShiftReportBreakdown` renders with: the theme palette inside
-/// the close-shift report card (Kotlin ShiftReportBreakdown), or fixed
-/// ink-on-paper inside the Z-report preview sheet.
-class ShiftReportPalette {
-  /// Creates an explicit tone set.
-  const ShiftReportPalette({
-    required this.strong,
-    required this.soft,
-    required this.muted,
-    required this.rule,
-    required this.positive,
-    required this.negative,
-    required this.caution,
-    required this.barTrack,
-    required this.barCash,
-    required this.barOther,
-  });
-
-  /// The theme-driven palette (the Kotlin breakdown's madarColors mapping).
-  factory ShiftReportPalette.of(MadarColors colors) => ShiftReportPalette(
-    strong: colors.textPrimary,
-    soft: colors.textSecondary,
-    muted: colors.textMuted,
-    rule: colors.border,
-    positive: colors.success,
-    negative: colors.danger,
-    caution: colors.warning,
-    barTrack: colors.surfaceAlt,
-    barCash: colors.success,
-    barOther: colors.accent,
-  );
-
-  /// Fixed ink-on-white for the paper preview (theme-invariant).
-  static const ShiftReportPalette paper = ShiftReportPalette(
-    strong: Paper.ink,
-    soft: Paper.ink,
-    muted: Paper.faint,
-    rule: Paper.rule,
-    positive: Paper.success,
-    negative: Paper.danger,
-    caution: Paper.warning,
-    barTrack: Paper.track,
-    barCash: Paper.success,
-    barOther: Paper.ink,
-  );
-
-  /// Primary row text.
-  final Color strong;
-
-  /// Quiet row labels.
-  final Color soft;
-
-  /// Meta text (order counts, movement notes).
-  final Color muted;
-
-  /// Hairline dividers.
-  final Color rule;
-
-  /// Cash-in / matched tones.
-  final Color positive;
-
-  /// Cash-out / short / void tones.
-  final Color negative;
-
-  /// Over / mismatch tones.
-  final Color caution;
-
-  /// Proportional bar track.
-  final Color barTrack;
-
-  /// Bar fill for cash methods.
-  final Color barCash;
-
-  /// Bar fill for non-cash methods.
-  final Color barOther;
-}
-
-/// The Z-report breakdown — per-method sales rows with proportional bars,
-/// drawer pay-in/out (with each itemised movement), the voided total,
-/// payments + opening cash (and the opening mismatch with its reason), the
-/// expected cash, and — once the shift is closed — the counted drawer and
-/// the over/short difference. Port of Kotlin's `ShiftReportBreakdown`,
-/// reused by the close-shift report card and this preview sheet.
-class ShiftReportBreakdown extends StatelessWidget {
-  /// Creates the breakdown for [report], formatting money in [currency] and
-  /// resolving strings through [tr].
-  const ShiftReportBreakdown({
-    required this.report,
-    required this.currency,
-    required this.tr,
-    this.palette,
-    super.key,
-  });
-
-  /// The rendered report.
-  final ShiftReportView report;
-
-  /// ISO currency code for the money rows.
-  final String currency;
-
-  /// Core-localized string lookup (`bridge.tr`).
-  final String Function(String key) tr;
-
-  /// Tone override — defaults to the theme palette.
-  final ShiftReportPalette? palette;
-
-  String _money(int minor) => Money.format(minor, currency: currency);
-
-  @override
-  Widget build(BuildContext context) {
-    final p = palette ?? ShiftReportPalette.of(context.madarColors);
-    var maxLine = 0;
-    for (final line in report.paymentLines) {
-      if (line.totalMinor > maxLine) maxLine = line.totalMinor;
-    }
-    if (maxLine < 1) maxLine = 1;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.md,
-      children: [
-        if (report.paymentLines.isEmpty)
-          Text(
-            tr('shift.report_no_sales'),
-            style: MadarType.label.copyWith(
-              fontWeight: FontWeight.w400,
-              color: p.muted,
-            ),
-          )
-        else
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: Space.sm,
-            children: [
-              for (final line in report.paymentLines)
-                _MethodRow(
-                  line: line,
-                  maxLine: maxLine,
-                  currency: currency,
-                  palette: p,
-                ),
-            ],
-          ),
-        _Rule(color: p.rule),
-        if (report.cashInMinor > 0)
-          _TotalRow(
-            label: tr('shift.cash_in'),
-            value: _money(report.cashInMinor),
-            tone: p.positive,
-            palette: p,
-          ),
-        if (report.cashOutMinor > 0)
-          _TotalRow(
-            label: tr('shift.cash_out'),
-            value: '−${_money(report.cashOutMinor)}',
-            tone: p.negative,
-            palette: p,
-          ),
-        if (report.cashMovements.isNotEmpty)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(start: Space.sm),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: _movementGap,
-              children: [
-                for (final m in report.cashMovements)
-                  _MovementRow(movement: m, currency: currency, palette: p),
-              ],
-            ),
-          ),
-        if (report.voidedAmountMinor > 0)
-          _TotalRow(
-            label: tr('history.voided'),
-            value: '−${_money(report.voidedAmountMinor)}',
-            tone: p.negative,
-            palette: p,
-          ),
-        // Money GIVEN BACK from this drawer. A void says a sale never
-        // happened; a refund says it did and some of the money went out
-        // again — so it is its own line, and the cash slice is broken out
-        // because that is the only part the drawer count can see.
-        if (report.refundsIssuedMinor > 0) ...[
-          _TotalRow(
-            label: '${tr('shift.refunds')} (${report.refundsIssuedCount})',
-            value: '−${_money(report.refundsIssuedMinor)}',
-            tone: p.negative,
-            palette: p,
-          ),
-          if (report.refundsIssuedCashMinor != report.refundsIssuedMinor)
-            _TotalRow(
-              label: tr('shift.refunds_cash'),
-              value: '−${_money(report.refundsIssuedCashMinor)}',
-              tone: p.soft,
-              palette: p,
-            ),
-        ],
-        // The notes that went in on a sale later refunded in full. Not
-        // revenue — the payment lines rightly leave it out — but it is in
-        // the drawer, and without this line Expected cash does not add up.
-        if (report.cashInRefundedSalesMinor > 0)
-          _TotalRow(
-            label: tr('shift.cash_in_refunded'),
-            value: _money(report.cashInRefundedSalesMinor),
-            tone: p.soft,
-            palette: p,
-          ),
-        _Rule(color: p.rule),
-        _TotalRow(
-          label: tr('shift.payments'),
-          value: _money(report.totalPaymentsMinor),
-          tone: p.strong,
-          palette: p,
-        ),
-        // Opening float (drawer carry-over) — the base Expected cash builds on.
-        _TotalRow(
-          label: tr('shift.opening_cash'),
-          value: _money(report.openingCashMinor),
-          tone: p.strong,
-          palette: p,
-        ),
-        // Opening mismatch — the counted opening float differed from the
-        // suggested (last close); the signed difference + the teller's reason.
-        if (report.openingCashWasEdited) ...[
-          if (report.openingCashOriginalMinor != null)
-            _TotalRow(
-              label: tr('shift.opening_mismatch'),
-              value: _signed(
-                report.openingCashMinor - report.openingCashOriginalMinor!,
-              ),
-              tone: report.openingCashMinor == report.openingCashOriginalMinor
-                  ? p.soft
-                  : p.caution,
-              palette: p,
-            ),
-          if ((report.openingCashEditReason ?? '').trim().isNotEmpty)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(start: Space.sm),
-              child: Text(
-                '${tr('shift.opening_reason_label')}: '
-                '${report.openingCashEditReason}',
-                style: MadarType.labelSm.copyWith(
-                  fontWeight: FontWeight.w400,
-                  color: p.muted,
-                ),
-              ),
-            ),
-        ],
-        _TotalRow(
-          label: tr('shift.expected_cash'),
-          value: _money(report.expectedCashMinor),
-          tone: p.strong,
-          palette: p,
-          emphasized: true,
-        ),
-        // Reconciliation — the counted drawer + over/short, present once the
-        // shift is closed (declared cash set). Mirrors the printed Z-report.
-        if (report.closingCashDeclaredMinor != null) ...[
-          _TotalRow(
-            label: tr('shift.counted_cash'),
-            value: _money(report.closingCashDeclaredMinor!),
-            tone: p.strong,
-            palette: p,
-            emphasized: true,
-          ),
-          _differenceRow(
-            report.expectedCashMinor - report.closingCashDeclaredMinor!,
-            p,
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _differenceRow(int diff, ShiftReportPalette p) {
-    if (diff == 0) {
-      return _TotalRow(
-        label: tr('shift.difference'),
-        value: _money(0),
-        tone: p.positive,
-        palette: p,
-      );
-    }
-    if (diff > 0) {
-      return _TotalRow(
-        label: tr('shift.drawer_short'),
-        value: _money(diff),
-        tone: p.negative,
-        palette: p,
-      );
-    }
-    return _TotalRow(
-      label: tr('shift.drawer_over'),
-      value: _money(-diff),
-      tone: p.caution,
-      palette: p,
-    );
-  }
-
-  String _signed(int diff) =>
-      (diff < 0 ? '−' : '+') + Money.format(diff.abs(), currency: currency);
-}
-
-/// One payment-method line: name · order count · total, over a proportional
-/// bar (cash tinted success, everything else accent/ink).
-class _MethodRow extends StatelessWidget {
-  const _MethodRow({
-    required this.line,
-    required this.maxLine,
-    required this.currency,
-    required this.palette,
-  });
-
-  final ShiftReportPaymentLine line;
-  final int maxLine;
-  final String currency;
-  final ShiftReportPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = palette;
-    final fraction = (line.totalMinor / maxLine).clamp(_barMinFraction, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.xs,
-      children: [
-        Row(
-          children: [
-            Text(
-              line.method,
-              style: MadarType.money.copyWith(
-                fontSize: _rowSize,
-                fontWeight: FontWeight.w600,
-                color: p.strong,
-              ),
-            ),
-            Text(
-              ' · ${line.orderCount}',
-              style: MadarType.labelSm.copyWith(
-                fontWeight: FontWeight.w400,
-                color: p.muted,
-              ),
-            ),
-            const Spacer(),
-            MoneyText(
-              line.totalMinor,
-              currency: currency,
-              style: MadarType.money.copyWith(fontSize: _rowSize),
-              color: p.strong,
-            ),
-          ],
-        ),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(Radii.pill),
-          child: SizedBox(
-            height: _barHeight,
-            child: ColoredBox(
-              color: p.barTrack,
-              child: FractionallySizedBox(
-                alignment: AlignmentDirectional.centerStart,
-                widthFactor: fraction,
-                child: ColoredBox(color: line.isCash ? p.barCash : p.barOther),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// One itemised drawer movement: note (or who moved it) + the signed amount.
-class _MovementRow extends StatelessWidget {
-  const _MovementRow({
-    required this.movement,
-    required this.currency,
-    required this.palette,
-  });
-
-  final ShiftReportCashLine movement;
-  final String currency;
-  final ShiftReportPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final m = movement;
-    final out = m.amountMinor < 0;
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            m.note.trim().isEmpty ? m.movedByName : m.note,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: MadarType.labelSm.copyWith(
-              fontWeight: FontWeight.w400,
-              color: palette.muted,
-            ),
-          ),
-        ),
-        Text(
-          (out ? '−' : '+') +
-              Money.format(m.amountMinor.abs(), currency: currency),
-          textDirection: TextDirection.ltr,
-          style: MadarType.money.copyWith(
-            fontSize: _metaSize,
-            fontWeight: FontWeight.w600,
-            color: out ? palette.negative : palette.positive,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// A quiet (or emphasized) label/value totals row — tabular money values.
-class _TotalRow extends StatelessWidget {
-  const _TotalRow({
-    required this.label,
-    required this.value,
-    required this.tone,
-    required this.palette,
-    this.emphasized = false,
-  });
-
-  final String label;
-  final String value;
-  final Color tone;
-  final ShiftReportPalette palette;
-  final bool emphasized;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: emphasized
-                ? MadarType.title.copyWith(
-                    fontSize: _totalLabelSize,
-                    fontWeight: FontWeight.w700,
-                    color: palette.strong,
-                  )
-                : MadarType.bodySm.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: palette.soft,
-                  ),
-          ),
-        ),
-        Text(
-          value,
-          textDirection: TextDirection.ltr,
-          style: MadarType.money.copyWith(
-            fontSize: emphasized ? _totalValueSize : _rowSize,
-            fontWeight: emphasized ? FontWeight.w800 : FontWeight.w600,
-            color: tone,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// 1-px hairline divider.
-class _Rule extends StatelessWidget {
-  const _Rule({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(height: 1, child: ColoredBox(color: color));
-  }
-}
-
-/// The Z-report preview sheet — Print WITHOUT closing the shift. Shows the
-/// CURRENT shift's report by default, or a specific past-shift [report]
-/// (from Past Shifts). Fully on-screen, so it works with no printer; the
-/// footer carries the natives' terminal print feedback (sent / no printer /
-/// failed). Present with [showMadarSheet] — the sheet gets its Material
-/// ancestor from MadarSheet; dismiss returns via `Navigator.maybePop`.
-/// Pure-DATA params only; state lives in [shiftReportProvider].
+/// The report sheet — Print WITHOUT closing the shift. Shows the CURRENT
+/// shift's report by default, a pre-fetched [report] (Past shifts), or a
+/// named [shiftId]'s (the shift just closed). Works with no printer.
 class ShiftReportSheet extends ConsumerStatefulWidget {
-  /// Creates the preview; a null [report] loads the current shift's.
+  /// Creates the report; a null [report] loads it.
   const ShiftReportSheet({
     super.key,
     this.report,
@@ -559,13 +39,11 @@ class ShiftReportSheet extends ConsumerStatefulWidget {
   /// Shown straight after a close: the title says the shift is closed.
   final bool closed;
 
-  /// A pre-fetched report (close-shift / past shifts), or null to load the
-  /// current shift's on entry.
+  /// A pre-fetched report, or null to load one on entry.
   final ShiftReportView? report;
 
-  /// Past-shift id for the lazy-loaded Orders section — when set the orders
-  /// come via `listOrdersForShift` (the Kotlin ShiftHistoryScreen expansion's
-  /// call); when null the current shift's queue-merged `listShiftOrders`.
+  /// The shift whose orders (and, with no [report], figures) are shown; null
+  /// is the current shift.
   final String? shiftId;
 
   @override
@@ -574,8 +52,7 @@ class ShiftReportSheet extends ConsumerStatefulWidget {
 
 class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
   /// The presentation's provider key, minted once so the family state is
-  /// stable across sheet rebuilds (widget-local ephemera, not rendered
-  /// state).
+  /// stable across rebuilds.
   late final ShiftReportRequest _request = ShiftReportRequest(
     report: widget.report,
     shiftId: widget.shiftId,
@@ -583,135 +60,103 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final state = ref.watch(shiftReportProvider(_request));
+    final notifier = ref.read(shiftReportProvider(_request).notifier);
     final report = state.report;
+    final layout = context.madarLayout;
+    final subtitle = report == null
+        ? null
+        : [
+            report.tellerName,
+            '${t('till.open_since')} ${MadarFormat.ltr(bridge.formatStamp(rfc3339: report.openedAt))}',
+          ].join(' · ');
+
+    final Widget body;
+    if (report == null && state.loadError != null) {
+      body = ErrorState(
+        message: state.loadError!.of(bridge),
+        retryLabel: t('history.retry'),
+        onRetry: notifier.retry,
+      );
+    } else if (report == null) {
+      body = const Padding(
+        padding: EdgeInsetsDirectional.all(Space.xl),
+        child: SkeletonScope(
+          child: Column(
+            spacing: Space.lg,
+            children: [SkeletonBlock(height: 120), SkeletonList(count: 4)],
+          ),
+        ),
+      );
+    } else {
+      body = SingleChildScrollView(
+        padding: EdgeInsetsDirectional.symmetric(
+          horizontal: layout.gutter,
+          vertical: Space.lg,
+        ),
+        child: _Report(report: report, request: _request),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Header: title + teller, and the report's data source ──────────
         Padding(
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Space.lg,
-            vertical: Space.md,
+          padding: EdgeInsetsDirectional.fromSTEB(
+            layout.gutter,
+            Space.md,
+            layout.gutter,
+            0,
           ),
-          child: Row(
-            spacing: Space.sm,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t(
-                        widget.closed
-                            ? 'shift.closed_report_title'
-                            : 'shift.report_title',
-                      ),
-                      style: MadarType.h2.copyWith(
-                        fontSize: _headerTitleSize,
-                        fontWeight: FontWeight.w800,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    if (report != null)
-                      Text(
-                        report.tellerName,
-                        style: MadarType.label.copyWith(
-                          fontWeight: FontWeight.w400,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (report != null)
-                StatusChip(
-                  label: t(
-                    report.fromServer ? 'chrome.online' : 'chrome.offline',
+          child: MadarHeader(
+            title: t(
+              widget.closed
+                  ? 'shift.closed_report_title'
+                  : 'shift.report_title',
+            ),
+            subtitle: subtitle,
+            actions: [
+              if (report != null && !report.fromServer)
+                Center(
+                  child: MadarStatusPill(
+                    MadarStatus(t('chrome.offline'), tone: MadarTone.warning),
                   ),
-                  tone: report.fromServer ? ChipTone.success : ChipTone.warning,
                 ),
+              MadarHeaderAction(
+                glyph: MadarGlyph.close,
+                tooltip: t('common.close'),
+                onTap: () => MadarSheet.close<void>(context),
+              ),
             ],
           ),
         ),
-        SizedBox(height: 1, child: ColoredBox(color: colors.border)),
-        // ── Body: the report on thermal paper ─────────────────────────────
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsetsDirectional.only(
-              start: Space.lg,
-              end: Space.lg,
-              top: Space.lg,
-              bottom: Space.xl,
-            ),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: _paperMaxWidth),
-                child: report == null && state.loadError != null
-                    ? ErrorState(
-                        message: state.loadError!.of(bridge),
-                        retryLabel: t('history.retry'),
-                        onRetry: ref
-                            .read(shiftReportProvider(_request).notifier)
-                            .retry,
-                      )
-                    : report == null
-                    ? const _PaperSkeleton()
-                    : _ReportPaper(
-                        report: report,
-                        bridge: bridge,
-                        orders: state.orders,
-                        ordersError: state.ordersError?.of(bridge),
-                        onRetry: ref
-                            .read(shiftReportProvider(_request).notifier)
-                            .retry,
-                        expanded: state.expanded,
-                        onToggle: () => ref
-                            .read(shiftReportProvider(_request).notifier)
-                            .toggleExpanded(),
-                        onPrintOrder: (o) => unawaited(
-                          ref
-                              .read(shiftReportProvider(_request).notifier)
-                              .printOrder(o),
-                        ),
-                      ),
-              ),
-            ),
-          ),
-        ),
-        // ── Footer: print feedback + actions ──────────────────────────────
+        Expanded(child: body),
+        const MadarHairline(),
         Padding(
-          padding: const EdgeInsetsDirectional.all(Space.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: Space.sm,
+          padding: EdgeInsetsDirectional.all(layout.gutter),
+          child: Row(
+            spacing: Space.md,
             children: [
-              if (_printChip(state.print, t) case final Widget chip)
-                Center(child: chip),
-              // Single tap only, on purpose — this button already lives
-              // INSIDE the preview it would open (the sheet above IS the
-              // report's real shape); a long-press here would just show the
-              // screen the teller is already looking at.
+              Expanded(
+                child: _printFeedback(state.print, t) ?? const SizedBox(),
+              ),
               MadarButton(
                 label: state.print == ShiftPrintState.printing
                     ? t('receipt.printing')
                     : t('shift.print_report'),
-                icon: 'printer',
+                glyph: MadarGlyph.printer,
+                size: MadarButtonSize.compact,
                 loading: state.print == ShiftPrintState.printing,
                 enabled: report != null,
-                onTap: () => unawaited(
-                  ref
-                      .read(shiftReportProvider(_request).notifier)
-                      .printReport(),
-                ),
+                onTap: () => unawaited(notifier.printReport()),
               ),
               MadarButton(
                 label: t('common.done'),
-                variant: MadarButtonVariant.ghost,
-                onTap: () => Navigator.of(context).maybePop(),
+                variant: MadarButtonVariant.secondary,
+                size: MadarButtonSize.compact,
+                onTap: () => MadarSheet.close<void>(context),
               ),
             ],
           ),
@@ -720,271 +165,295 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
     );
   }
 
-  /// Terminal print feedback — the teller must know whether the Z-report
-  /// actually printed, hit no configured printer, or failed.
-  Widget? _printChip(ShiftPrintState print, String Function(String key) t) =>
-      switch (print) {
-        ShiftPrintState.printed => StatusChip(
-          label: t('receipt.printed'),
-          tone: ChipTone.success,
-          icon: 'checkmark.circle',
-        ),
-        ShiftPrintState.noPrinter => StatusChip(
-          label: t('receipt.no_printer'),
-          tone: ChipTone.warning,
-          icon: 'exclamationmark.triangle',
-        ),
-        ShiftPrintState.failed => StatusChip(
-          label: t('receipt.print_failed'),
-          tone: ChipTone.danger,
-          icon: 'exclamationmark.triangle',
-        ),
-        ShiftPrintState.idle || ShiftPrintState.printing => null,
-      };
+  /// Did the report print, find no printer, or fail — in words, beside the
+  /// button that did it.
+  Widget? _printFeedback(ShiftPrintState print, String Function(String) t) {
+    final status = switch (print) {
+      ShiftPrintState.printed => MadarStatus(
+        t('receipt.printed'),
+        tone: MadarTone.success,
+      ),
+      ShiftPrintState.noPrinter => MadarStatus(
+        t('receipt.no_printer'),
+        tone: MadarTone.warning,
+      ),
+      ShiftPrintState.failed => MadarStatus(
+        t('receipt.print_failed'),
+        tone: MadarTone.danger,
+      ),
+      ShiftPrintState.idle || ShiftPrintState.printing => null,
+    };
+    return status == null
+        ? null
+        : Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: MadarStatusPill(status),
+          );
+  }
 }
 
-/// The report on "thermal paper": store-name masthead, the teller/opened
-/// stamp, then the shared breakdown in fixed ink. Theme-invariant by design
-/// (ReceiptPaper.kt) — white paper with dark ink in both themes.
-class _ReportPaper extends StatelessWidget {
-  const _ReportPaper({
-    required this.report,
-    required this.bridge,
-    required this.orders,
-    required this.expanded,
-    required this.onToggle,
-    required this.onPrintOrder,
-    this.ordersError,
-    this.onRetry,
-  });
-
-  /// Why the orders could not be read, or null.
-  final String? ordersError;
-  final VoidCallback? onRetry;
+/// The figures.
+class _Report extends ConsumerWidget {
+  const _Report({required this.report, required this.request});
 
   final ShiftReportView report;
-  final MadarBridge bridge;
-
-  /// The shift's orders (null before first expand / while loading → skeleton).
-  final List<OrderSummaryView>? orders;
-
-  /// Whether the orders breakdown is expanded (OFF by default).
-  final bool expanded;
-
-  /// Toggles the orders breakdown.
-  final VoidCallback onToggle;
-
-  /// Prints a single order's receipt (per-order print).
-  final void Function(OrderSummaryView) onPrintOrder;
+  final ShiftReportRequest request;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
-    final storeName = bridge.deviceConfig().branchName?.trim() ?? '';
     final currency = bridge.currentSession()?.currencyCode ?? '';
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Paper.paper,
-        borderRadius: BorderRadius.circular(_paperRadius),
-        border: Border.all(color: Paper.rule),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(_paperPad),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: _paperGap,
-          children: [
-            Text(
-              (storeName.isEmpty ? 'MADAR' : storeName).toUpperCase(),
-              textAlign: TextAlign.center,
-              style: MadarType.title.copyWith(
-                fontSize: _storeNameSize,
-                fontWeight: FontWeight.w700,
-                color: Paper.ink,
-              ),
-            ),
-            Text(
-              t('shift.report_title').toUpperCase(),
-              textAlign: TextAlign.center,
-              style: MadarType.labelSm.copyWith(
-                color: Paper.faint,
-                letterSpacing: MadarType.tracking,
-              ),
-            ),
-            const _Rule(color: Paper.rule),
-            _paperStamp(t('shift.teller'), report.tellerName),
-            _paperStamp(
-              t('shift.opened_at'),
-              bridge.formatTime(
-                rfc3339: report.openedAt,
-                style: TimeStyle.dateTime,
-              ),
-            ),
-            const _Rule(color: Paper.rule),
-            ShiftReportBreakdown(
-              report: report,
-              currency: currency,
-              tr: t,
-              palette: ShiftReportPalette.paper,
-            ),
-            const _Rule(color: Paper.rule),
-            _OrdersSection(
-              orders: orders,
-              currency: currency,
-              bridge: bridge,
-              expanded: expanded,
-              onToggle: onToggle,
-              onPrintOrder: onPrintOrder,
-              error: ordersError,
-              onRetry: onRetry,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    final r = report;
+    final phone = context.madarLayout.isPhone;
+    final declared = r.closingCashDeclaredMinor;
+    // Counted minus expected: negative is a shortfall.
+    final diff = declared == null ? null : declared - r.expectedCashMinor;
 
-  Widget _paperStamp(String label, String value) {
-    return Row(
+    Widget section(String label, Widget child, {Widget? trailing}) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
       children: [
-        Expanded(
-          child: Text(
-            label,
-            style: MadarType.labelSm.copyWith(
-              fontWeight: FontWeight.w400,
-              color: Paper.faint,
-            ),
-          ),
-        ),
-        Text(value, style: MadarType.labelSm.copyWith(color: Paper.ink)),
+        MadarSectionHeader(text: label, trailing: trailing),
+        child,
       ],
     );
-  }
-}
 
-/// The lazy "Orders" section under the breakdown — the Kotlin
-/// ShiftHistoryScreen expansion brought onto the report paper: uppercase
-/// section label, then one row per order (skeleton rows while the list
-/// loads, a muted line when the shift has none).
-class _OrdersSection extends StatelessWidget {
-  const _OrdersSection({
-    required this.orders,
-    required this.currency,
-    required this.bridge,
-    required this.expanded,
-    required this.onToggle,
-    required this.onPrintOrder,
-    this.error,
-    this.onRetry,
-  });
+    final cards = <Widget>[
+      MadarStatCard(
+        label: t('shift.payments'),
+        minor: r.totalPaymentsMinor,
+        currency: currency,
+        compact: phone,
+      ),
+      MadarStatCard(
+        label: t('shift.expected_cash'),
+        minor: r.expectedCashMinor,
+        currency: currency,
+        compact: phone,
+      ),
+      if (declared != null)
+        MadarStatCard(
+          label: t('shift.counted_cash'),
+          minor: declared,
+          currency: currency,
+          compact: phone,
+          status: diff == 0
+              ? MadarStatus(t('shifts.balanced'), tone: MadarTone.success)
+              : diff! < 0
+              ? MadarStatus(t('shifts.short'), tone: MadarTone.danger)
+              : MadarStatus(t('shifts.over'), tone: MadarTone.warning),
+        ),
+    ];
 
-  /// Why the orders could not be read — never "no orders".
-  final String? error;
-  final VoidCallback? onRetry;
+    final lines = <Widget>[
+      MadarSummaryLine(
+        label: t('shift.opening_cash'),
+        minor: r.openingCashMinor,
+        currency: currency,
+      ),
+      if (r.openingCashWasEdited && r.openingCashOriginalMinor != null)
+        MadarSummaryLine(
+          label: [
+            t('shift.opening_mismatch'),
+            if ((r.openingCashEditReason ?? '').trim().isNotEmpty)
+              r.openingCashEditReason!.trim(),
+          ].join(' · '),
+          minor: r.openingCashMinor - r.openingCashOriginalMinor!,
+          currency: currency,
+          signed: true,
+          tone: MadarTone.warning,
+        ),
+      MadarSummaryLine(
+        label: t('shift.payments'),
+        minor: r.totalPaymentsMinor,
+        currency: currency,
+      ),
+      if (r.cashInMinor > 0)
+        MadarSummaryLine(
+          label: t('shift.cash_in'),
+          minor: r.cashInMinor,
+          currency: currency,
+          signed: true,
+        ),
+      if (r.cashOutMinor > 0)
+        MadarSummaryLine(
+          label: t('shift.cash_out'),
+          minor: -r.cashOutMinor,
+          currency: currency,
+        ),
+      if (r.voidedAmountMinor > 0)
+        MadarSummaryLine(
+          label: t('history.voided'),
+          minor: -r.voidedAmountMinor,
+          currency: currency,
+          muted: true,
+        ),
+      // Money given back from this drawer — its own line, with the cash slice
+      // broken out because that is the only part the count can see.
+      if (r.refundsIssuedMinor > 0)
+        MadarSummaryLine(
+          label:
+              '${t('shift.refunds')} · ${MadarFormat.ltr('${r.refundsIssuedCount}')}',
+          minor: -r.refundsIssuedMinor,
+          currency: currency,
+        ),
+      if (r.refundsIssuedMinor > 0 &&
+          r.refundsIssuedCashMinor != r.refundsIssuedMinor)
+        MadarSummaryLine(
+          label: t('shift.refunds_cash'),
+          minor: -r.refundsIssuedCashMinor,
+          currency: currency,
+          muted: true,
+        ),
+      if (r.cashInRefundedSalesMinor > 0)
+        MadarSummaryLine(
+          label: t('shift.cash_in_refunded'),
+          minor: r.cashInRefundedSalesMinor,
+          currency: currency,
+          muted: true,
+        ),
+      MadarSummaryLine(
+        label: t('shift.expected_cash'),
+        minor: r.expectedCashMinor,
+        currency: currency,
+        emphasis: true,
+      ),
+      if (declared != null && diff != null) ...[
+        MadarSummaryLine(
+          label: t('shift.counted_cash'),
+          minor: declared,
+          currency: currency,
+        ),
+        MadarSummaryLine(
+          label: t('shift.difference'),
+          minor: diff,
+          currency: currency,
+          signed: true,
+          tone: diff == 0
+              ? MadarTone.success
+              : diff < 0
+              ? MadarTone.danger
+              : MadarTone.warning,
+        ),
+      ],
+    ];
 
-  /// Null before first expand / while loading.
-  final List<OrderSummaryView>? orders;
-  final String currency;
-  final MadarBridge bridge;
-  final bool expanded;
-  final VoidCallback onToggle;
-  final void Function(OrderSummaryView) onPrintOrder;
-
-  @override
-  Widget build(BuildContext context) {
-    String t(String key) => bridge.tr(key: key);
-    final orders = this.orders;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.xs,
+      spacing: Space.xl,
       children: [
-        // Tappable section header — the orders breakdown is COLLAPSED by
-        // default (both here and in the print); this expands it. Uppercase
-        // faint-ink label + a chevron, in the paper's SectionHeader language.
-        TactileScale(
-          onTap: onToggle,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(vertical: Space.xs),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    t('shifts.orders').toUpperCase(),
-                    style: MadarType.labelSm.copyWith(
-                      color: Paper.faint,
-                      letterSpacing: MadarType.tracking,
-                    ),
-                  ),
-                ),
-                MadarIcon(
-                  expanded ? 'chevron.up' : 'chevron.down',
-                  tint: Paper.faint,
-                ),
-              ],
-            ),
+        if (phone)
+          Column(spacing: Space.md, children: cards)
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: Space.lg,
+            children: [for (final c in cards) Expanded(child: c)],
+          ),
+        section(
+          t('shift.payment_methods'),
+          MadarDataTable<ShiftReportPaymentLine>(
+            scrollable: false,
+            columns: [
+              MadarColumn(
+                id: 'method',
+                label: t('history.col_payment'),
+                text: (l) => bridge.paymentMethodLabel(code: l.method),
+                flex: 3,
+                emphasis: true,
+                phone: MadarPhoneRole.title,
+              ),
+              MadarColumn(
+                id: 'count',
+                label: t('shift.orders_col'),
+                text: (l) => '${l.orderCount}',
+                width: 96,
+                align: MadarColumnAlign.end,
+                mono: true,
+                muted: true,
+                phone: MadarPhoneRole.meta,
+              ),
+              MadarColumn.money(
+                id: 'total',
+                label: t('order.total'),
+                minor: (l) => l.totalMinor,
+                currency: currency,
+                width: 160,
+              ),
+            ],
+            state: MadarTableState.data(r.paymentLines),
+            rowKey: (l) => l.method,
+            empty: MadarEmptyContent(title: t('shift.report_no_sales')),
           ),
         ),
-        if (expanded)
-          if (orders == null && error != null)
-            TactileScale(
-              onTap: onRetry,
-              child: Text(
-                '${error!} · ${t('history.retry')}',
-                style: MadarType.labelSm.copyWith(color: Paper.ink),
-              ),
-            )
-          else if (orders == null) ...const [
-            SkeletonBlock(height: _orderSkeletonHeight),
-            SkeletonBlock(height: _orderSkeletonHeight),
-            SkeletonBlock(height: _orderSkeletonHeight),
-          ] else if (orders.isEmpty)
-            Text(
-              t('shifts.no_orders'),
-              style: MadarType.labelSm.copyWith(
-                fontWeight: FontWeight.w400,
-                color: Paper.faint,
-              ),
-            )
-          else
-            for (final order in orders)
-              _ShiftOrderRow(
-                order: order,
-                currency: currency,
-                bridge: bridge,
-                onPrint: () => onPrintOrder(order),
-              ),
+        if (r.cashMovements.isNotEmpty)
+          section(
+            t('cash.title'),
+            MadarDataTable<ShiftReportCashLine>(
+              scrollable: false,
+              columns: [
+                MadarColumn(
+                  id: 'note',
+                  label: t('cash.note_col'),
+                  text: (m) => m.note.trim().isEmpty ? m.movedByName : m.note,
+                  flex: 3,
+                  phone: MadarPhoneRole.title,
+                ),
+                MadarColumn(
+                  id: 'who',
+                  label: t('shift.teller'),
+                  text: (m) => m.movedByName,
+                  flex: 2,
+                  muted: true,
+                  priority: 2,
+                  phone: MadarPhoneRole.meta,
+                ),
+                MadarColumn(
+                  id: 'time',
+                  label: t('history.col_time'),
+                  text: (m) => bridge.formatStamp(rfc3339: m.createdAt),
+                  width: 120,
+                  mono: true,
+                  muted: true,
+                  priority: 1,
+                  phone: MadarPhoneRole.meta,
+                ),
+                MadarColumn.money(
+                  id: 'amount',
+                  label: t('cash.amount_col'),
+                  minor: (m) => m.amountMinor,
+                  currency: currency,
+                  width: 160,
+                ),
+              ],
+              state: MadarTableState.data(r.cashMovements),
+              rowKey: (m) => '${m.createdAt}${m.amountMinor}${m.note}',
+              empty: MadarEmptyContent(title: t('cash.empty')),
+            ),
+          ),
+        section(
+          t('shift.drawer'),
+          MadarCard.column(spacing: 0, children: lines),
+        ),
+        _Orders(request: request),
       ],
     );
   }
 }
 
-/// One order row — the Kotlin ShiftOrderRow's anatomy (number, time,
-/// voided tag, payment, total) in fixed paper ink. Voided orders fade +
-/// strike through the total, the history rows' voided language.
-///
-/// SINGLE TAP on the printer glyph prints this order's receipt straight
-/// away; LONG PRESS on it — or a tap anywhere else on the row — opens that
-/// receipt in the shared preview instead (Print lives in its footer). The
-/// row-tap exists because a long-press on a small trailing glyph, alone, is
-/// an affordance nobody would ever find.
-class _ShiftOrderRow extends StatelessWidget {
-  const _ShiftOrderRow({
-    required this.order,
-    required this.currency,
-    required this.bridge,
-    required this.onPrint,
-  });
+/// The shift's orders, collapsed until asked for — they cost a round trip
+/// and a lot of rows.
+class _Orders extends ConsumerWidget {
+  const _Orders({required this.request});
 
-  final OrderSummaryView order;
-  final String currency;
-  final MadarBridge bridge;
+  final ShiftReportRequest request;
 
-  /// Print this single order's receipt (per-order print in past shifts).
-  final VoidCallback onPrint;
-
-  /// Best-effort — a missing cached receipt (an order never seen online)
-  /// just no-ops, matching the shift-history list's row preview.
-  Future<void> _preview(BuildContext context) async {
+  Future<void> _preview(
+    BuildContext context,
+    MadarBridge bridge,
+    OrderSummaryView order,
+  ) async {
     final ReceiptView receipt;
     try {
       receipt = await bridge.orderReceiptView(orderId: order.id);
@@ -1000,142 +469,56 @@ class _ShiftOrderRow extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final o = order;
-    final voided = o.status == 'voided';
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
-    return GestureDetector(
-      onTap: () => unawaited(_preview(context)),
-      behavior: HitTestBehavior.opaque,
-      child: Opacity(
-        opacity: voided ? _voidedAlpha : 1,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Paper.track,
-            borderRadius: BorderRadius.circular(Radii.xs),
-          ),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Space.sm,
-              vertical: _orderRowVPad,
-            ),
-            child: Row(
-              spacing: Space.sm,
-              children: [
-                Text(
-                  o.orderNumber != null
-                      ? '#${o.orderNumber}'
-                      : t('history.order'),
-                  style: MadarType.labelSm.copyWith(color: Paper.ink),
-                ),
-                Text(
-                  bridge.formatTime(
-                    rfc3339: o.createdAt,
-                    style: TimeStyle.time,
-                  ),
-                  style: MadarType.labelSm.copyWith(
-                    fontWeight: FontWeight.w400,
-                    color: Paper.faint,
-                  ),
-                ),
-                if (voided) _VoidedTag(label: t('history.voided')),
-                Expanded(
-                  child: Text(
-                    bridge.paymentMethodLabel(code: o.paymentLabel),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
-                    style: MadarType.labelSm.copyWith(
-                      fontWeight: FontWeight.w400,
-                      color: Paper.faint,
-                    ),
-                  ),
-                ),
-                MoneyText(
-                  o.totalMinor,
-                  currency: currency,
-                  style: MadarType.money.copyWith(
-                    fontSize: _orderMoneySize,
-                    fontWeight: FontWeight.w700,
-                    decoration: voided ? TextDecoration.lineThrough : null,
-                  ),
-                  color: voided ? Paper.faint : Paper.ink,
-                ),
-                // Per-order print — tap prints, long-press previews (the
-                // row-tap above answers the same long-press for anyone who
-                // lands on this glyph and never holds it down). Kept at the
-                // Kotlin row's compact size — the row-tap is the 44pt+
-                // target, this stays a small in-line shortcut over it.
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onLongPress: () {
-                    MadarHaptics.impact();
-                    unawaited(_preview(context));
-                  },
-                  child: TactileScale(
-                    onTap: onPrint,
-                    child: const Padding(
-                      padding: EdgeInsetsDirectional.only(start: Space.xs),
-                      child: MadarIcon('printer', tint: Paper.faint),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The natives' danger StatusChip, rendered in fixed paper ink so it reads
-/// in both themes on the white paper (tinted pill + hairline danger border).
-class _VoidedTag extends StatelessWidget {
-  const _VoidedTag({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Paper.danger.withValues(alpha: _voidTagBgAlpha),
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(
-          color: Paper.danger.withValues(alpha: Opacities.border),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: _voidTagHPad,
-          vertical: _voidTagVPad,
-        ),
-        child: Text(
-          label,
-          style: MadarType.labelSm.copyWith(
-            fontSize: _metaSize,
-            color: Paper.danger,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Loading placeholder while the current shift's report is fetched.
-class _PaperSkeleton extends StatelessWidget {
-  const _PaperSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
+    final state = ref.watch(shiftReportProvider(request));
+    final notifier = ref.read(shiftReportProvider(request).notifier);
+    final orders = state.orders;
+    final MadarTableState<OrderSummaryView> table;
+    if (orders == null && state.ordersError != null) {
+      table = MadarTableState.error(
+        message: state.ordersError!.of(bridge),
+        retryLabel: t('history.retry'),
+        onRetry: notifier.retry,
+      );
+    } else if (orders == null) {
+      table = const MadarTableState.loading(rows: 3);
+    } else {
+      table = MadarTableState.data(orders);
+    }
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
-        SkeletonBlock(height: Space.xl),
-        SkeletonBlock(height: Space.xl),
-        SkeletonBlock(height: Space.xxl * 3),
+        MadarSectionHeader(
+          text: t('shifts.orders'),
+          trailing: MadarButton(
+            label: t(
+              state.expanded ? 'shift.hide_orders' : 'shift.show_orders',
+            ),
+            glyph: state.expanded
+                ? MadarGlyph.chevronUp
+                : MadarGlyph.chevronDown,
+            variant: MadarButtonVariant.ghost,
+            size: MadarButtonSize.compact,
+            onTap: notifier.toggleExpanded,
+          ),
+        ),
+        if (state.expanded)
+          OrdersTable(
+            bridge: bridge,
+            currency: bridge.currentSession()?.currencyCode ?? '',
+            state: table,
+            scrollable: false,
+            empty: MadarEmptyContent(title: t('shifts.no_orders')),
+            onTap: (o) => unawaited(_preview(context, bridge, o)),
+            trailing: (context, o) => MadarGlyphTile(
+              glyph: MadarGlyph.printer,
+              semanticLabel: t('history.reprint'),
+              onTap: () => unawaited(notifier.printOrder(o)),
+            ),
+          ),
       ],
     );
   }

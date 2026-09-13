@@ -734,8 +734,8 @@ class CloseShiftNotifier extends Notifier<CloseShiftState> {
     return const CloseShiftState();
   }
 
-  /// The teller edited the count.
-  void setCounted(int minor) => state = state.copyWith(countedMinor: minor);
+  /// The teller edited the count — null when they cleared it.
+  void setCounted(int? minor) => state = state.copyWith(countedMinor: minor);
 
   /// Load the report again after a failure.
   Future<void> retry() => _load();

@@ -20,6 +20,7 @@ import 'package:feature_shift/feature_shift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -32,112 +33,34 @@ const Size _ipad = Size(1194, 834);
 /// A phone — the real fallback.
 const Size _phone = Size(390, 844);
 
-// ── Fixture words ──────────────────────────────────────────────────────
+// ── The core's words ───────────────────────────────────────────────────
+//
+// Read from the core's own tables (`i18n.rs`), so the pictures carry the
+// words a device shows and a key the core lacks shows up as a raw key.
 
-const _en = <String, String>{
-  'till.title': 'Till',
-  'till.open_since': 'open since',
-  'till.sales': 'Sales',
-  'till.cash_in_till': 'Cash in till',
-  'till.this_shift': 'This shift',
-  'till.orders_this_shift': 'Orders this shift',
-  'till.print_x': 'Print X report',
-  'till.drawers': 'Drawers',
-  'till.force_close_unavailable':
-      'Force-close is not available from the till yet — use the dashboard.',
-  'cash.title': 'Cash in / out',
-  'cash.pay_out': 'Pay out',
-  'cash.pay_in': 'Pay in',
-  'cash.note_hint': 'Note · what was it for',
-  'cash.note_required': 'required',
-  'cash.record_pay_out': 'Record pay-out',
-  'cash.record_pay_in': 'Record pay-in',
-  'cash.net': 'net',
-  'cash.empty': 'No cash movements this shift.',
-  'shift.close_title': 'Close shift',
-  'shift.expected_cash': 'Expected cash',
-  'shift.opening_float': 'Opening float',
-  'shift.cash_sales': 'Cash sales',
-  'shift.paid_in': 'Paid in',
-  'shift.paid_out': 'Paid out',
-  'shift.z_preview': 'Z report preview',
-  'shift.counted_cash': 'Counted cash',
-  'shift.cash_note': 'Note (optional)',
-  'shift.why_short': 'Why is it short?',
-  'shift.why_over': 'Why is it over?',
-  'shift.close_hint': 'Closing locks Sell and Charge on this till.',
-  'shift.reason_required': 'reason required',
-  'shift.drawer_matches': 'Drawer matches',
-  'shift.drawer_over': 'Over by',
-  'shift.drawer_short': 'Short by',
-  'shift.orders': 'sales',
-  'shift.opened_at': 'opened',
-  'shift.welcome': 'Welcome back',
-  'shift.opening_cash': 'Opening cash',
-  'shift.open_button': 'Open shift',
-  'shift.switch_teller': 'Switch teller',
-  'shift.suggested_from_close': 'From last close',
-  'shift.opening_hint':
-      'Count the cash already in the drawer before you start.',
-  'shifts.title': 'Past shifts',
-  'shifts.open_now': 'Open',
-  'shifts.closed': 'Closed',
-  'shifts.force_closed': 'Force-closed',
-  'shifts.empty': 'No shifts yet.',
-  'chrome.queued': 'queued',
-  'chrome.offline': 'Offline',
-  'chrome.view': 'View',
-  'history.voided': 'Voided',
-};
+late final Map<String, String> _en;
+late final Map<String, String> _ar;
 
-const _ar = <String, String>{
-  'till.title': 'الصندوق',
-  'till.open_since': 'مفتوحة منذ',
-  'till.sales': 'المبيعات',
-  'till.cash_in_till': 'النقد في الدرج',
-  'till.this_shift': 'هذه الوردية',
-  'till.orders_this_shift': 'طلبات هذه الوردية',
-  'till.print_x': 'طباعة تقرير X',
-  'till.drawers': 'الأدراج',
-  'till.force_close_unavailable':
-      'الإغلاق الإجباري غير متاح من الصندوق بعد — استخدم لوحة التحكم.',
-  'cash.title': 'إيداع / سحب',
-  'cash.pay_out': 'سحب',
-  'cash.pay_in': 'إيداع',
-  'cash.note_hint': 'ملاحظة · لأي غرض',
-  'cash.note_required': 'مطلوب',
-  'cash.record_pay_out': 'تسجيل السحب',
-  'cash.record_pay_in': 'تسجيل الإيداع',
-  'cash.net': 'الصافي',
-  'cash.empty': 'لا توجد حركات نقدية في هذه الوردية.',
-  'shift.close_title': 'إغلاق الوردية',
-  'shift.expected_cash': 'النقد المتوقع',
-  'shift.opening_float': 'الرصيد الافتتاحي',
-  'shift.cash_sales': 'المبيعات النقدية',
-  'shift.paid_in': 'المودع',
-  'shift.paid_out': 'المسحوب',
-  'shift.z_preview': 'معاينة تقرير Z',
-  'shift.counted_cash': 'النقد المحسوب',
-  'shift.cash_note': 'ملاحظة (اختياري)',
-  'shift.why_short': 'ما سبب النقص؟',
-  'shift.why_over': 'ما سبب الزيادة؟',
-  'shift.close_hint': 'الإغلاق يوقف البيع والتحصيل على هذا الصندوق.',
-  'shift.reason_required': 'السبب مطلوب',
-  'shift.drawer_matches': 'الدرج مطابق',
-  'shift.drawer_over': 'زيادة',
-  'shift.drawer_short': 'نقص',
-  'shift.orders': 'مبيعات',
-  'shift.opened_at': 'فُتحت',
-  'shifts.title': 'الورديات السابقة',
-  'shifts.open_now': 'مفتوحة',
-  'shifts.closed': 'أُغلقت',
-  'shifts.force_closed': 'أُغلقت إجبارياً',
-  'shifts.empty': 'لا توجد ورديات بعد.',
-  'chrome.queued': 'في الانتظار',
-  'chrome.offline': 'غير متصل',
-  'chrome.view': 'عرض',
-  'history.voided': 'ملغاة',
-};
+Map<String, String> _words(String src, String fnSig) {
+  final start = src.indexOf(fnSig);
+  if (start < 0) return const {};
+  var body = src.substring(start + fnSig.length);
+  final end = body.indexOf('\nfn ');
+  if (end >= 0) body = body.substring(0, end);
+  final arm = RegExp(r'"([a-z0-9_.]+)"\s*=>\s*(?:\{\s*)?"((?:[^"\\]|\\.)*)"');
+  return {
+    for (final m in arm.allMatches(body))
+      m.group(1)!: m.group(2)!.replaceAll(r'\"', '"').replaceAll(r'\n', '\n'),
+  };
+}
+
+void _loadWords() {
+  final src = File(
+    '../../../rust-core/crates/madar-core/src/i18n.rs',
+  ).readAsStringSync();
+  _en = _words(src, "fn en(key: &str) -> Option<&'static str> {");
+  _ar = _words(src, "fn ar(key: &str) -> Option<&'static str> {");
+}
 
 // ── Fixture data ───────────────────────────────────────────────────────
 
@@ -333,11 +256,26 @@ class _FakeBridge implements MadarBridge {
     final open = shift?.isOpen ?? false;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
-      return (arabic ? _ar[key] : null) ??
-          _en[key] ??
-          key.split('.').last.replaceAll('_', ' ');
+      return (arabic ? _ar[key] : _en[key]) ?? key;
     }
     if (name == #locale) return arabic ? 'ar' : 'en';
+    final lang = arabic ? 'ar' : 'en';
+    if (name == #formatMoney) {
+      final a = invocation.namedArguments;
+      return MadarFormat.money(
+        a[#minor] as int,
+        currency: a[#currency] as String,
+        signed: a[#signed] as bool,
+        locale: lang,
+      );
+    }
+    if (name == #formatStamp) {
+      final at = DateTime.parse(invocation.namedArguments[#rfc3339] as String);
+      return MadarFormat.stamp(at, DateTime(at.year, at.month, at.day), locale: lang);
+    }
+    if (name == #formatElapsedSince || name == #formatElapsed) {
+      return MadarFormat.elapsed(const Duration(hours: 4, minutes: 38), locale: lang);
+    }
     if (name == #isRtl) return arabic;
     if (name == #appRoute) {
       return open ? const AppRoute.order() : const AppRoute.openShift();
@@ -449,6 +387,9 @@ Future<void> _shoot(
         overrides: [bridgeProvider.overrideWithValue(bridge)],
         child: MaterialApp(
           theme: theme,
+          locale: Locale(bridge.arabic ? 'ar' : 'en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           home: Directionality(
             textDirection: bridge.arabic
                 ? TextDirection.rtl
@@ -496,7 +437,10 @@ Future<void> _loadFonts() async {
 }
 
 void main() {
-  setUpAll(_loadFonts);
+  setUpAll(() async {
+    _loadWords();
+    await _loadFonts();
+  });
 
   testWidgets('the Till on an iPad, mid-shift', (tester) async {
     await _shoot(
@@ -507,21 +451,14 @@ void main() {
       theme: MadarTheme.light(),
       name: 'ipad',
     );
-    expect(find.text('Till 1'), findsOneWidget);
+    // The screen's name, never the till's: that is data, in the top bar.
+    expect(find.text('Till'), findsOneWidget);
+    expect(find.text('Till 1'), findsNothing);
     expect(find.text('EGP 2,380.00'), findsOneWidget);
-    expect(find.text('Record pay-out'), findsOneWidget);
-    // Pay out leads and is the chosen kind. It is the kit's toggle now —
-    // which is the kit's BUTTON — so the chosen one is the primary variant
-    // rather than a selected chip. This is the control the owner pointed at
-    // when asking for one shared button everywhere.
-    final payOut = tester.widget<MadarButton>(
-      find.widgetWithText(MadarButton, 'Pay out'),
-    );
-    expect(payOut.variant, MadarButtonVariant.primary);
-    final payIn = tester.widget<MadarButton>(
-      find.widgetWithText(MadarButton, 'Pay in'),
-    );
-    expect(payIn.variant, MadarButtonVariant.secondary);
+    // The pay-out form is its own page now; the Till shows the ledger.
+    expect(find.byType(CashInOutPanel), findsNothing);
+    expect(find.byType(CashLedger), findsOneWidget);
+    expect(find.text('Preview X report'), findsOneWidget);
   });
 
   testWidgets('the Till offline, in the dark', (tester) async {
@@ -533,9 +470,9 @@ void main() {
       theme: MadarTheme.dark(),
       name: 'ipad-dark-offline',
     );
-    // Both cards say where their figures stand (tags are uppercased).
-    expect(find.text('3 QUEUED'), findsOneWidget);
-    expect(find.text('OFFLINE'), findsOneWidget);
+    // Both cards say where their figures stand.
+    expect(find.text('\u20663\u2069 queued'), findsOneWidget);
+    expect(find.text('Offline'), findsOneWidget);
   });
 
   testWidgets("a manager's Till lists every drawer", (tester) async {
@@ -549,7 +486,7 @@ void main() {
     );
     expect(find.text('Hany'), findsOneWidget);
     expect(find.text('Mona'), findsOneWidget);
-    expect(find.text('DRAWERS · RUE ZAMALEK'), findsOneWidget);
+    expect(find.text('DRAWERS'), findsOneWidget);
   });
 
   testWidgets('a teller does not see the drawers', (tester) async {
@@ -604,9 +541,12 @@ void main() {
       theme: MadarTheme.light(),
       name: 'phone-ar',
     );
-    // The phone carries the ledger as a row, not inline.
     expect(find.byType(CashInOutPanel), findsNothing);
-    expect(find.text('إغلاق الوردية'), findsOneWidget);
+    expect(find.text(_ar['till.title']!), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.widgetWithText(MadarButton, _ar['shift.close_title']!),
+      300,
+    );
   });
 
   testWidgets('close shift on an iPad, short by 20', (tester) async {

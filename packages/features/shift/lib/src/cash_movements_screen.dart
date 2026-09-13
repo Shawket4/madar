@@ -1,8 +1,6 @@
-/// Cash in / out as its own screen — the phone's route from Till, and the
-/// full ledger from the iPad's Till row. The panel itself ([CashInOutPanel])
-/// is shared with the Till tab; this screen only frames it with a header
-/// and focuses the amount, so Till → Pay out → Record is three taps with
-/// nothing to hunt for.
+/// Cash in / out as its own page — pushed from the Till, on the spec's form
+/// width (docs/design/SPEC.md §3): the record form and the shift's ledger
+/// ([CashInOutPanel]), leading-aligned under the header, the amount focused.
 library;
 
 import 'package:app_core/app_core.dart';
@@ -11,36 +9,21 @@ import 'package:feature_shift/src/cash_in_out_panel.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The open shift's cash in/out ledger, pushed over the shell. The header's
-/// back pops it via `Navigator.maybePop`; the shell hand-off after a recorded
-/// movement happens inside `CashMovementsNotifier`.
+/// The open shift's cash in / out, pushed over the shell. The header's back
+/// pops it; the shell hand-off after a recorded movement happens inside
+/// `CashMovementsNotifier`.
 class CashMovementsScreen extends ConsumerWidget {
   /// Creates the cash in/out screen.
   const CashMovementsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.bridge;
-    final layout = context.madarLayout;
-    // Scaffold: every screen root owns its own Scaffold in this app.
     return MadarPageScaffold(
-      title: bridge.tr(key: 'cash.title'),
-      body: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsetsDirectional.all(layout.gutter),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: Responsive.listMaxWidth,
-              ),
-              child: const CashInOutPanel(
-                autofocusAmount: true,
-                showTitle: false,
-              ),
-            ),
-          ),
-        ),
+      title: ref.bridge.tr(key: 'cash.title'),
+      width: MadarContentWidth.form,
+      body: const SingleChildScrollView(
+        padding: EdgeInsetsDirectional.only(bottom: Space.xl),
+        child: CashInOutPanel(autofocusAmount: true),
       ),
     );
   }

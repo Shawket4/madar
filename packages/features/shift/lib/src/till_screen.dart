@@ -1,19 +1,16 @@
-/// Till — where the drawer lives. The teller shell's fourth tab (and the
+/// Till — where the drawer lives. The teller shell's Till tab (and the
 /// manager's, with every drawer at the branch). Home when there is no shift:
-/// the open-shift card, not a wall. With a shift open: the drawer's
-/// headline figures (sales, cash in till), the rows (Orders this shift,
-/// Cash in / out, Print X report, Past shifts), and Close shift.
+/// the open-shift form, not a wall.
 ///
-/// iPad (the primary target): header actions carry Print X / Close, the two
-/// stat cards sit side by side, and the cash in / out panel is INLINE beside
-/// the rows so a paid-out is Till → Pay out → Record with nothing pushed.
-/// Phone: the same blocks in one column, Cash in / out as a row that pushes
-/// the ledger, Close shift as the last button.
+/// On the spec (docs/design/SPEC.md §15): full width, the tab glyph and the
+/// screen's name in the header (never the till's name — that is data, and it
+/// is in the top bar), who holds the drawer since when underneath. The
+/// figures as stat cards; the shift's links as `.nav` rows; the latest cash
+/// movements as a ledger. Print X report and Close shift are header actions
+/// on a tablet and rows / the last button on a phone. Preview is a row of its
+/// own — never a long press nobody finds.
 ///
-/// State lives in [tillProvider]; this screen renders and routes. What the
-/// design draws that the bridge cannot back is not here: no refunds card
-/// (no refunds on the report), no tips word, no Safe drop chip, no
-/// Correct ›, no Force-close — each is noted where it would have been.
+/// State lives in [tillProvider]; this screen renders and routes.
 library;
 
 import 'dart:async';
@@ -30,29 +27,18 @@ import 'package:feature_shift/src/shift_providers.dart';
 import 'package:feature_shift/src/shift_report_sheet.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:rust_bridge/rust_bridge.dart';
 
-/// The inline cash panel's column width on a tablet (canvas: 480).
-const double _cashColumnWidth = 480;
-
-/// Ledger rows the inline panel shows before pointing at the full screen.
-const int _inlineLedgerRows = 4;
-
-/// A stat card's figure (canvas: 30, −0.5 tracking) and its meta line gap.
-const double _statFigureSize = 30;
-const double _statFigureTracking = -0.5;
-const double _statGap = 6;
+/// Ledger rows the Till shows before pointing at Cash in / out.
+const int _recentMovements = 4;
 
 /// The Till tab. [onOpenOrders] routes "Orders this shift" to the history
-/// package (the shell wires it; this package does not import history). The
-/// row still shows the count when unwired — it is information — but does
-/// not pretend to go anywhere.
+/// package (the shell wires it). The row still shows the count when
+/// unwired — it is information — but does not pretend to go anywhere.
 class TillScreen extends ConsumerWidget {
   /// Creates the Till tab.
   const TillScreen({super.key, this.onOpenOrders});
 
-  /// Opens this shift's orders list (feature_history). Null hides the
-  /// row's chevron and disables the tap.
+  /// Opens this shift's orders. Null leaves the row without a destination.
   final VoidCallback? onOpenOrders;
 
   @override
@@ -65,30 +51,16 @@ class TillScreen extends ConsumerWidget {
     String t(String key) => bridge.tr(key: key);
     final layout = context.madarLayout;
     final shift = ref.watch(tillProvider.select((s) => s.shift));
-    final tillName = ref.watch(tillProvider.select((s) => s.tillName));
     final printingX = ref.watch(tillProvider.select((s) => s.printingX));
-    // The header is the page shell's, whatever the drawer's state: the tab's
-    // name, and with a shift open who holds it since when, and — on a
-    // tablet — the two drawer actions in the shell's action area.
+
     String? subtitle;
     var actions = const <Widget>[];
     if (hasShift && shift != null) {
-      final since = bridge.formatTime(
-        rfc3339: shift.openedAt,
-        style: TimeStyle.time,
-      );
-      subtitle = '${shift.tellerName} · ${t('till.open_since')} $since';
+      final since = bridge.formatStamp(rfc3339: shift.openedAt);
+      subtitle =
+          '${shift.tellerName} · ${t('till.open_since')} ${MadarFormat.ltr(since)}';
       if (layout.isTablet) {
         actions = [
-          // Preview is a button of its own, not only a long press nobody
-          // finds.
-          MadarButton(
-            label: t('till.preview_x'),
-            glyph: MadarGlyph.receipt,
-            variant: MadarButtonVariant.ghost,
-            size: MadarButtonSize.compact,
-            onTap: () => unawaited(_previewX(context)),
-          ),
           MadarButton(
             label: t('till.print_x'),
             glyph: MadarGlyph.printer,
@@ -96,7 +68,6 @@ class TillScreen extends ConsumerWidget {
             size: MadarButtonSize.compact,
             loading: printingX,
             onTap: () => unawaited(ref.read(tillProvider.notifier).printX()),
-            onLongPress: () => unawaited(_previewX(context)),
           ),
           MadarButton(
             label: t('shift.close_title'),
@@ -108,12 +79,19 @@ class TillScreen extends ConsumerWidget {
         ];
       }
     }
+
     final Widget body;
+    final MadarContentWidth width;
     if (loading && !hasShift) {
-      body = const Align(alignment: Alignment.topCenter, child: SkeletonList());
+      width = MadarContentWidth.full;
+      body = const Align(
+        alignment: AlignmentDirectional.topStart,
+        child: SkeletonList(),
+      );
     } else if (!hasShift) {
-      // No drawer: the tab IS the open-shift card. A manager still sees the
+      // No drawer: the tab IS the open-shift form. A manager still sees the
       // branch's drawers underneath — the morning check needs no float.
+      width = MadarContentWidth.form;
       body = OpenShiftScreen(
         embedded: true,
         below: isManager
@@ -121,14 +99,17 @@ class TillScreen extends ConsumerWidget {
             : null,
       );
     } else {
+      width = MadarContentWidth.full;
       body = _DrawerHome(onOpenOrders: onOpenOrders);
     }
+
     // A tab body — the shell's top bar above it already paid the top inset.
     return MadarPageScaffold(
       safeTop: false,
-      title: (hasShift ? tillName : null) ?? t('till.title'),
+      title: t('till.title'),
       subtitle: subtitle,
       actions: actions,
+      width: width,
       body: body,
       overlay: ToastHost(
         toast,
@@ -140,9 +121,7 @@ class TillScreen extends ConsumerWidget {
 
 Widget _pastShifts() => const ShiftHistoryScreen();
 
-/// The long press: the same Z-report the tap would have printed, on
-/// screen, with its own Print button. Never the only way in — a gesture
-/// nobody discovers is not a feature.
+/// The X report on screen, with its own Print.
 Future<void> _previewX(BuildContext context) async {
   await showMadarSheet<void>(
     context,
@@ -151,8 +130,8 @@ Future<void> _previewX(BuildContext context) async {
   );
 }
 
-/// Push a full-screen route over the shell and reload the drawer when it
-/// pops — every one of these screens can move the drawer's figures.
+/// Push a page and reload the drawer when it pops — every one of these
+/// pages can move the drawer's figures.
 void _push(BuildContext context, WidgetRef ref, Widget Function() build) {
   final notifier = ref.read(tillProvider.notifier);
   unawaited(
@@ -163,8 +142,7 @@ void _push(BuildContext context, WidgetRef ref, Widget Function() build) {
   );
 }
 
-/// The drawer with a shift open — the two layouts share every block and
-/// differ only in where the cash panel and the primary actions sit.
+/// The drawer with a shift open.
 class _DrawerHome extends ConsumerWidget {
   const _DrawerHome({required this.onOpenOrders});
 
@@ -177,86 +155,79 @@ class _DrawerHome extends ConsumerWidget {
     final layout = context.madarLayout;
     final isManager = ref.watch(tillProvider.select((s) => s.isManager));
 
-    void closeShift() => _push(context, ref, CloseShiftScreen.new);
     void cashInOut() => _push(context, ref, CashMovementsScreen.new);
     void pastShifts() => _push(context, ref, _pastShifts);
-    void printX() => unawaited(ref.read(tillProvider.notifier).printX());
-    void previewX() => unawaited(_previewX(context));
 
-    final rows = _ShiftRows(
+    final links = _Links(
       onOpenOrders: onOpenOrders,
       onCashInOut: cashInOut,
-      onPrintX: layout.isTablet ? null : printX,
-      onPreviewX: layout.isTablet ? null : previewX,
       onPastShifts: pastShifts,
+      withPrint: layout.isPhone,
+    );
+    final ledger = CashLedger(
+      title: t('cash.title'),
+      maxRows: _recentMovements,
+      onSeeAll: cashInOut,
     );
     final drawers = isManager ? DrawersCard(onSeeAll: pastShifts) : null;
 
     if (layout.isTablet) {
-      return Padding(
-        padding: EdgeInsetsDirectional.all(layout.gutter),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.lg,
-          children: [
-            const _StatCards(),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: Space.lg,
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: Space.lg,
-                        children: [?drawers, rows],
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: _cashColumnWidth,
-                    child: SingleChildScrollView(
-                      child: CashInOutPanel(
-                        maxRows: _inlineLedgerRows,
-                        onSeeAll: cashInOut,
-                      ),
-                    ),
-                  ),
+      return LayoutBuilder(
+        builder: (context, c) {
+          // Two columns where both keep a readable width; one otherwise
+          // (an iPad in portrait).
+          final twoUp = c.maxWidth >= Responsive.desktop - Space.xxl * 4;
+          return SingleChildScrollView(
+            padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: Space.xl,
+              children: [
+                const _StatCards(),
+                if (twoUp)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: Space.lg,
+                    children: [
+                      Expanded(child: links),
+                      Expanded(child: ledger),
+                    ],
+                  )
+                else ...[
+                  links,
+                  ledger,
                 ],
-              ),
+                ?drawers,
+              ],
             ),
-          ],
-        ),
+          );
+        },
       );
     }
 
     return ListView(
-      padding: EdgeInsetsDirectional.all(layout.gutter),
+      padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
       children: [
         const _StatCards(),
-        const SizedBox(height: Space.lg),
-        if (drawers != null) ...[drawers, const SizedBox(height: Space.lg)],
-        rows,
+        const SizedBox(height: Space.xl),
+        links,
+        const SizedBox(height: Space.xl),
+        ledger,
+        if (drawers != null) ...[const SizedBox(height: Space.xl), drawers],
         const SizedBox(height: Space.xl),
         MadarButton(
           label: t('shift.close_title'),
           glyph: MadarGlyph.lock,
           variant: MadarButtonVariant.danger,
-          onTap: closeShift,
+          onTap: () => _push(context, ref, CloseShiftScreen.new),
         ),
-        const SizedBox(height: Space.lg),
       ],
     );
   }
 }
 
-/// Sales · count and Cash in till, side by side. Each says where its figure
-/// comes from in the meta line, and says so when it is an offline figure —
-/// the report's `fromServer` is false when the core could only add queued
-/// cash sales to the float.
-///
-/// No refunds card: the report has no refunds. No tips: nothing on the wire.
+/// Sales and Cash in till. Each says where its figure comes from in its
+/// meta line, and says so when it is an offline figure.
 class _StatCards extends ConsumerWidget {
   const _StatCards();
 
@@ -268,176 +239,117 @@ class _StatCards extends ConsumerWidget {
     final report = ref.watch(tillProvider.select((s) => s.report));
     final stats = ref.watch(tillProvider.select((s) => s.stats));
     final queued = ref.watch(tillProvider.select((s) => s.queuedOrders));
-    String money(int minor) => Money.format(minor, currency: currency);
+    String money(int minor) => MadarFormat.ltr(
+      bridge.formatMoney(minor: minor, currency: currency, signed: false),
+    );
 
-    // "cash 1,420 · card 4,810" from the report's own method lines.
+    // "Cash EGP 1,420.00 · Card EGP 4,810.00" from the report's own lines.
     final byMethod = report?.paymentLines
         .map(
           (l) =>
               '${bridge.paymentMethodLabel(code: l.method)} ${money(l.totalMinor)}',
         )
         .join(' · ');
-    // The drawer's arithmetic, closed on the report's own expected figure:
-    // cash sales is what the report added between the float, the pay-ins
-    // and the pay-outs — so the line always sums to the number above it,
-    // online or offline.
+    // The drawer's arithmetic, closed on the report's own expected figure.
     String? arithmetic;
     if (report != null) {
       final cashSales = bridge.shiftCashSalesMinor(report: report);
-      arithmetic =
-          '${t('shift.opening_float')} ${money(report.openingCashMinor)}'
-          ' + ${t('shift.cash_sales')} ${money(cashSales)}'
-          '${report.cashInMinor > 0 ? ' + ${t('shift.paid_in')} ${money(report.cashInMinor)}' : ''}'
-          '${report.cashOutMinor > 0 ? ' − ${t('shift.paid_out')} ${money(report.cashOutMinor)}' : ''}';
+      arithmetic = [
+        '${t('shift.opening_float')} ${money(report.openingCashMinor)}',
+        '${t('shift.cash_sales')} ${money(cashSales)}',
+        if (report.cashInMinor > 0)
+          '${t('shift.paid_in')} ${money(report.cashInMinor)}',
+        if (report.cashOutMinor > 0)
+          '${t('shift.paid_out')} ${money(-report.cashOutMinor)}',
+      ].join(' · ');
     }
-    final cards = [
-      _StatCard(
-        label: t('till.sales'),
-        count: stats?.orderCount,
-        figure: stats == null ? null : money(stats.salesMinor),
-        meta: byMethod,
-        tag: queued > 0 ? '$queued ${t('chrome.queued')}' : null,
-        tagTone: MadarTone.warning,
-      ),
-      _StatCard(
-        label: t('till.cash_in_till'),
-        figure: report == null ? null : money(report.expectedCashMinor),
-        meta: arithmetic,
-        tag: report != null && !report.fromServer ? t('chrome.offline') : null,
-        tagTone: MadarTone.warning,
-      ),
-    ];
-    // Side by side on a tablet. Stacked on a phone: two 30pt mono figures
-    // do not both fit across 390 points, and a clipped figure on a drawer
-    // is a wrong figure.
-    if (context.madarLayout.isPhone) {
+    final phone = context.madarLayout.isPhone;
+    final Widget sales = stats == null
+        ? const _StatSkeleton()
+        : MadarStatCard(
+            label: t('till.sales'),
+            minor: stats.salesMinor,
+            currency: currency,
+            glyph: MadarGlyph.receipt,
+            meta: byMethod,
+            status: queued > 0
+                ? MadarStatus(
+                    '${MadarFormat.ltr('$queued')} ${t('chrome.queued')}',
+                    tone: MadarTone.warning,
+                  )
+                : null,
+          );
+    final Widget cash = report == null
+        ? const _StatSkeleton()
+        : MadarStatCard(
+            label: t('till.cash_in_till'),
+            minor: report.expectedCashMinor,
+            currency: currency,
+            glyph: MadarGlyph.wallet,
+            meta: arithmetic,
+            status: report.fromServer
+                ? null
+                : MadarStatus(t('chrome.offline'), tone: MadarTone.warning),
+          );
+    if (phone) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.md,
-        children: cards,
+        children: [sales, cash],
       );
     }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Space.lg,
-      children: [for (final c in cards) Expanded(child: c)],
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.lg,
+        children: [
+          Expanded(child: sales),
+          Expanded(child: cash),
+        ],
+      ),
     );
   }
 }
 
-/// One stat: tracked label (with an optional mono count), the figure at 30
-/// in mono, a meta line, and an optional state tag.
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.figure,
-    this.count,
-    this.meta,
-    this.tag,
-    this.tagTone = MadarTone.neutral,
-  });
-
-  final String label;
-  final int? count;
-
-  /// Null while loading → a dash, not a zero: an unloaded figure is not
-  /// "no sales".
-  final String? figure;
-  final String? meta;
-  final String? tag;
-  final MadarTone tagTone;
+/// A stat card's shape while its figure loads — a dash would read as "no
+/// sales".
+class _StatSkeleton extends StatelessWidget {
+  const _StatSkeleton();
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return MadarCard.column(
-      spacing: _statGap,
-      children: [
-        Row(
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: Row(
-                spacing: Space.sm,
-                children: [
-                  Flexible(
-                    child: Text(
-                      label.toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: MadarType.label.copyWith(
-                        color: colors.textSecondary,
-                        letterSpacing: MadarType.tracking,
-                      ),
-                    ),
-                  ),
-                  if (count != null)
-                    Text(
-                      '· $count',
-                      textDirection: TextDirection.ltr,
-                      style: MadarType.num.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (tag != null) MadarTag(label: tag!, tone: tagTone),
-          ],
-        ),
-        // The figure shrinks before it clips — a narrow card still shows
-        // the whole number.
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              figure ?? '—',
-              maxLines: 1,
-              textDirection: TextDirection.ltr,
-              style: MadarType.moneyDisplay.copyWith(
-                fontSize: _statFigureSize,
-                letterSpacing: _statFigureTracking,
-                color: figure == null ? colors.textMuted : colors.textPrimary,
-              ),
-            ),
-          ),
-        ),
-        if (meta != null)
-          Text(
-            meta!,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-          ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => const MadarCard(
+    child: SkeletonScope(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: Space.md,
+        children: [
+          SkeletonBlock(height: 12, width: 96),
+          SkeletonBlock(height: 30, width: 200),
+          SkeletonBlock(height: 12),
+        ],
+      ),
+    ),
+  );
 }
 
-/// "This shift" — the rows under the figures. Orders and Cash in / out carry
-/// their counts; Print X report is a row only on the phone (the tablet has
-/// it in the header).
-class _ShiftRows extends ConsumerWidget {
-  const _ShiftRows({
+/// "This shift" — where the drawer's pages are.
+class _Links extends ConsumerWidget {
+  const _Links({
     required this.onOpenOrders,
     required this.onCashInOut,
-    required this.onPrintX,
-    required this.onPreviewX,
     required this.onPastShifts,
+    required this.withPrint,
   });
 
   final VoidCallback? onOpenOrders;
   final VoidCallback onCashInOut;
-  final VoidCallback? onPrintX;
-
-  /// Long press on the same row — the report on screen instead of on paper.
-  final VoidCallback? onPreviewX;
   final VoidCallback onPastShifts;
+
+  /// The phone has no header actions: Print X is a row.
+  final bool withPrint;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final orderCount = ref.watch(
@@ -446,55 +358,51 @@ class _ShiftRows extends ConsumerWidget {
     final movementCount = ref.watch(
       tillProvider.select((s) => s.movements.length),
     );
-    Widget num(int? n) => Text(
-      n == null ? '—' : '$n',
-      style: MadarType.money.copyWith(color: colors.textSecondary),
-    );
-    return MadarCard.column(
-      flush: true,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
       children: [
-        Padding(
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Space.card,
-            vertical: Space.lg,
-          ),
-          child: MadarSectionHeader(text: t('till.this_shift')),
-        ),
-        const MadarHairline.row(),
-        MadarRow(
-          title: t('till.orders_this_shift'),
-          glyph: MadarGlyph.receipt,
-          value: num(orderCount),
-          onTap: onOpenOrders,
-          chevron: onOpenOrders != null,
-        ),
-        const MadarHairline.row(),
-        MadarRow(
-          title: t('cash.title'),
-          glyph: MadarGlyph.wallet,
-          value: num(movementCount),
-          onTap: onCashInOut,
-        ),
-        if (onPrintX != null) ...[
-          const MadarHairline.row(),
-          MadarRow(
-            title: t('till.print_x'),
-            glyph: MadarGlyph.printer,
-            onTap: onPrintX,
-            onLongPress: onPreviewX,
-          ),
-          const MadarHairline.row(),
-          MadarRow(
-            title: t('till.preview_x'),
-            glyph: MadarGlyph.receipt,
-            onTap: onPreviewX,
-          ),
-        ],
-        const MadarHairline.row(),
-        MadarRow(
-          title: t('shifts.title'),
-          glyph: MadarGlyph.clock,
-          onTap: onPastShifts,
+        MadarSectionHeader(text: t('till.this_shift')),
+        MadarCard.column(
+          flush: true,
+          children: [
+            MadarListRow.nav(
+              title: t('till.orders_this_shift'),
+              glyph: MadarGlyph.receipt,
+              valueText: orderCount == null
+                  ? null
+                  : MadarFormat.ltr('$orderCount'),
+              onTap: onOpenOrders,
+            ),
+            const MadarHairline.row(),
+            MadarListRow.nav(
+              title: t('cash.title'),
+              glyph: MadarGlyph.wallet,
+              valueText: MadarFormat.ltr('$movementCount'),
+              onTap: onCashInOut,
+            ),
+            const MadarHairline.row(),
+            MadarListRow.nav(
+              title: t('till.preview_x'),
+              glyph: MadarGlyph.receipt,
+              onTap: () => unawaited(_previewX(context)),
+            ),
+            if (withPrint) ...[
+              const MadarHairline.row(),
+              MadarListRow.nav(
+                title: t('till.print_x'),
+                glyph: MadarGlyph.printer,
+                onTap: () =>
+                    unawaited(ref.read(tillProvider.notifier).printX()),
+              ),
+            ],
+            const MadarHairline.row(),
+            MadarListRow.nav(
+              title: t('shifts.title'),
+              glyph: MadarGlyph.clock,
+              onTap: onPastShifts,
+            ),
+          ],
         ),
       ],
     );
