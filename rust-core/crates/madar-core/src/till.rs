@@ -784,8 +784,14 @@ pub(crate) fn migrate_legacy_current(store: &Store) -> CoreResult<()> {
     };
     if raw != "null" {
         if let Ok(t) = serde_json::from_str::<TillRecord>(&raw) {
-            if !t.id.is_empty() && record(store, &t.id).is_none() {
-                save(store, &t)?;
+            if !t.id.is_empty() {
+                if record(store, &t.id).is_none() {
+                    save(store, &t)?;
+                } else if !t.teller_id.is_empty() {
+                    // The ledger backfill already holds the till (from its queued
+                    // open): it only needs to be its teller's till on this device.
+                    store.kv_put(&device_till_key(&t.teller_id), &t.id)?;
+                }
             }
         }
     }

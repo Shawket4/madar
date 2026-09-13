@@ -1016,6 +1016,13 @@ const COLS: &str = "seq,id,op_type,idempotency_key,payload,event_at,status,attem
                     server_id,depends_on_seq,next_attempt_at,user_id,clock_offset_ms,till_id,\
                     device_id,entity_type,entity_id";
 
+pub(crate) const OUTBOX_COLS: &str = COLS;
+
+/// [`map_item`] for other modules (the ledger backfill).
+pub(crate) fn map_outbox_item(r: &rusqlite::Row<'_>) -> rusqlite::Result<OutboxItem> {
+    map_item(r)
+}
+
 /// Map a row selected with `COLS` into an `OutboxItem`.
 fn map_item(r: &rusqlite::Row<'_>) -> rusqlite::Result<OutboxItem> {
     Ok(OutboxItem {

@@ -387,3 +387,126 @@ fn a_crash_between_enqueue_and_row_cannot_split_them() {
     assert!(store.list_active().unwrap().is_empty(), "the op rolled back with the row");
     assert_eq!(order_rows(&store), 0);
 }
+
+// ── store step 4: a pre-B device keeps every queued op, now as rows ────────
+
+fn copy_fixture(tag: &str) -> std::path::PathBuf {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/store_v0_6_0.sqlite");
+    let dst = std::env::temp_dir().join(format!("madar_ledger_bf_{tag}_{}.sqlite", std::process::id()));
+    let _ = std::fs::remove_file(&dst);
+    std::fs::copy(&src, &dst).unwrap();
+    dst
+}
+
+/// The real v0.6.0 store (offline open, pay-in, close, open, pay-out, all
+/// queued with `open_shift` / `shift_id`) opens as ledger rows: both tills, both
+/// movements, the first till closed, every op naming its row — and the drawer
+/// figures the teller reconciled against are the same numbers.
+#[test]
+fn a_v060_store_backfills_every_queued_op_as_a_row() {
+    let path = copy_fixture("v060");
+    let before: i64 = rusqlite::Connection::open(&path)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM outbox", [], |r| r.get(0))
+        .unwrap();
+    let store = Store::open(path.to_str().unwrap()).unwrap();
+    let ops = store.list_active().unwrap();
+    assert_eq!(ops.len() as i64, before, "no op lost");
+    for op in &ops {
+        assert!(op.entity_type.is_some() && op.entity_id.is_some(), "{} names its row", op.op_type);
+    }
+    let tills: Vec<(String, String, i64, i64)> = store
+        .with_conn(|c| {
+            let mut st = c.prepare("SELECT id, status, opening_cash, complete FROM ledger_tills ORDER BY opened_at")?;
+            let v = st
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(v)
+        })
+        .unwrap();
+    assert_eq!(tills.len(), 2);
+    assert_eq!((tills[0].1.as_str(), tills[0].2, tills[0].3), ("closed", 50000, 1), "closed by its queued close");
+    assert_eq!((tills[1].1.as_str(), tills[1].2, tills[1].3), ("open", 52000, 1));
+    let first = store.with_conn(|c| report::compute(c, &tills[0].0, &[])).unwrap().unwrap();
+    assert_eq!(first.expected_cash, 52000, "50000 float + 2000 pay-in");
+    let second = store.with_conn(|c| report::compute(c, &tills[1].0, &[])).unwrap().unwrap();
+    assert_eq!(second.expected_cash, 50500, "52000 float − 1500 pay-out");
+    assert_eq!(second.cash_movements_out, 1500);
+    // Idempotent: opening again changes nothing.
+    drop(store);
+    let again = Store::open(path.to_str().unwrap()).unwrap();
+    let n: i64 = again.with_conn(|c| Ok(c.query_row("SELECT COUNT(*) FROM ledger_cash", [], |r| r.get(0))?)).unwrap();
+    assert_eq!(n, 2);
+    drop(again);
+    let _ = std::fs::remove_file(&path);
+}
+
+/// A pre-B store with the changefeed's ledger rows in `sync_rows`, a history
+/// cache, a queued sale with a pre-rework `shift_id` payload and a queued void
+/// of a synced sale.
+#[test]
+fn a_tills_era_store_moves_its_feed_rows_caches_and_queue() {
+    let path = std::env::temp_dir().join(format!("madar_ledger_bf_tills_{}.sqlite", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+    {
+        // Build it with the store as it was before step 2 (user_version 1).
+        let s = Store::open(path.to_str().unwrap()).unwrap();
+        s.with_conn(|c| {
+            c.execute_batch(
+                "DROP TABLE ledger_payments; DROP TABLE ledger_orders; DROP TABLE ledger_tills; DROP TABLE ledger_cash;
+                 DROP TABLE ledger_refunds; DROP TABLE order_details; DROP TABLE till_reports; PRAGMA user_version = 1;",
+            )?;
+            Ok(())
+        })
+        .unwrap();
+    }
+    {
+        let c = rusqlite::Connection::open(&path).unwrap();
+        let till = json!({"id": TILL, "branch_id": BRANCH, "teller_id": "t", "status": "open", "opening_cash": 100, "opened_at": "2026-09-14T08:00:00Z"});
+        let synced = json!({"id": "srv-9", "idempotency_key": "k9", "branch_id": BRANCH, "till_id": TILL, "status": "completed",
+            "payment_method": "Cash", "total_amount": 1000, "created_at": "2026-09-14T09:00:00Z",
+            "payment_legs": [{"method": "Cash", "amount": 1000, "is_cash": true}]});
+        c.execute("INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES('till',?1,?2,5,?3)", params![TILL, BRANCH, till.to_string()]).unwrap();
+        c.execute("INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES('order','srv-9',?1,6,?2)", params![BRANCH, synced.to_string()]).unwrap();
+        c.execute("INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES('category','c1',?1,7,'{\"id\":\"c1\"}')", params![BRANCH]).unwrap();
+        c.execute(
+            "INSERT INTO kv(k,v,updated_at) VALUES('cache:cash:' || ?1, ?2, 't')",
+            params![TILL, json!([{"id": "m-old", "kind": "pay_in", "amount_minor": 300, "note": "float", "moved_by_name": "Sara", "created_at": "2026-09-14T08:05:00Z"}]).to_string()],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO kv(k,v,updated_at) VALUES('catalog:payment_methods', ?1, 't')",
+            [json!([{"id": "00000000-0000-0000-0000-00000000c001", "name": "Cash", "is_cash": true}]).to_string()],
+        )
+        .unwrap();
+        let queued = json!({"request": {"branch_id": BRANCH, "shift_id": TILL, "items": [], "payment_method": "Cash",
+            "total_amount": 250, "idempotency_key": "00000000-0000-0000-0000-0000000000f1", "created_at": "2026-09-14T09:30:00Z"}});
+        c.execute(
+            "INSERT INTO outbox(id,op_type,idempotency_key,payload,event_at,enqueued_at,status,user_id,till_id)
+             VALUES('00000000-0000-0000-0000-0000000000f1','create_order','x',?1,'2026-09-14T09:30:00Z','t','pending','t',?2)",
+            params![queued.to_string(), TILL],
+        )
+        .unwrap();
+        let void = json!({"order_id": "srv-9", "request": {"reason": "wrong_order", "voided_at": "2026-09-14T09:40:00Z"}});
+        c.execute(
+            "INSERT INTO outbox(id,op_type,idempotency_key,payload,event_at,enqueued_at,status,user_id,till_id)
+             VALUES('srv-9:void','void_order','srv-9:void',?1,'2026-09-14T09:40:00Z','t','dead','t',?2)",
+            params![void.to_string(), TILL],
+        )
+        .unwrap();
+    }
+    let store = Store::open(path.to_str().unwrap()).unwrap();
+    let r = store.with_conn(|c| report::compute(c, TILL, &[])).unwrap().unwrap();
+    // 100 float + 300 cached pay-in + 250 queued cash sale; the synced 1000 sale
+    // is voided by the (dead, not discarded) queued void.
+    assert_eq!(r.expected_cash, 650);
+    assert_eq!(r.voided_amount, 1000);
+    let left: i64 = store
+        .with_conn(|c| Ok(c.query_row("SELECT COUNT(*) FROM sync_rows WHERE type IN ('till','order','cash_movement','refund')", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(left, 0, "ledger types left sync_rows");
+    let cats: i64 = store.with_conn(|c| Ok(c.query_row("SELECT COUNT(*) FROM sync_rows WHERE type='category'", [], |r| r.get(0))?)).unwrap();
+    assert_eq!(cats, 1, "state types stay");
+    drop(store);
+    let _ = std::fs::remove_file(&path);
+}
