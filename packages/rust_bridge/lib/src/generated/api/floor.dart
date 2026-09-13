@@ -97,6 +97,12 @@ class FloorTableStateView {
   final String? bookingHeldFrom;
   final String? bookingStatus;
 
+  /// RFC3339: when the party at this table sat down. `None` unless seated.
+  final String? seatedAt;
+
+  /// How many sat down (covers), when anyone counted.
+  final int? covers;
+
   const FloorTableStateView({
     required this.id,
     this.sectionId,
@@ -119,6 +125,8 @@ class FloorTableStateView {
     this.bookingStartsAt,
     this.bookingHeldFrom,
     this.bookingStatus,
+    this.seatedAt,
+    this.covers,
   });
 
   @override
@@ -143,7 +151,9 @@ class FloorTableStateView {
       bookingParty.hashCode ^
       bookingStartsAt.hashCode ^
       bookingHeldFrom.hashCode ^
-      bookingStatus.hashCode;
+      bookingStatus.hashCode ^
+      seatedAt.hashCode ^
+      covers.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -170,7 +180,9 @@ class FloorTableStateView {
           bookingParty == other.bookingParty &&
           bookingStartsAt == other.bookingStartsAt &&
           bookingHeldFrom == other.bookingHeldFrom &&
-          bookingStatus == other.bookingStatus;
+          bookingStatus == other.bookingStatus &&
+          seatedAt == other.seatedAt &&
+          covers == other.covers;
 }
 
 /// What a table has done over the window, and what it earns.
@@ -238,8 +250,12 @@ class TableSittingView {
   final String ticketId;
   final String? ticketRef;
 
-  /// RFC3339. The closest the server has to when the party sat down.
+  /// RFC3339: when the bill was opened.
   final String openedAt;
+
+  /// RFC3339: when the party sat down (the hold's stamp, else the bill's
+  /// opening) — what a row's date and time read.
+  final String seatedAt;
 
   /// RFC3339; `None` while the bill is still open.
   final String? closedAt;
@@ -251,6 +267,11 @@ class TableSittingView {
   final int? guestCount;
   final String? orderRef;
 
+  /// What a person calls this sitting: the sale's `#number` once it was
+  /// paid, else the last part of the ticket ref (`T-0001`), never the raw
+  /// `T-BRANCH-260913-0001` that fills a phone row with a code.
+  final String displayRef;
+
   /// Minor units. `None` for a bill that took no money.
   final PlatformInt64? totalMinor;
 
@@ -258,12 +279,14 @@ class TableSittingView {
     required this.ticketId,
     this.ticketRef,
     required this.openedAt,
+    required this.seatedAt,
     this.closedAt,
     required this.minutes,
     required this.status,
     this.customerName,
     this.guestCount,
     this.orderRef,
+    required this.displayRef,
     this.totalMinor,
   });
 
@@ -272,12 +295,14 @@ class TableSittingView {
       ticketId.hashCode ^
       ticketRef.hashCode ^
       openedAt.hashCode ^
+      seatedAt.hashCode ^
       closedAt.hashCode ^
       minutes.hashCode ^
       status.hashCode ^
       customerName.hashCode ^
       guestCount.hashCode ^
       orderRef.hashCode ^
+      displayRef.hashCode ^
       totalMinor.hashCode;
 
   @override
@@ -288,12 +313,14 @@ class TableSittingView {
           ticketId == other.ticketId &&
           ticketRef == other.ticketRef &&
           openedAt == other.openedAt &&
+          seatedAt == other.seatedAt &&
           closedAt == other.closedAt &&
           minutes == other.minutes &&
           status == other.status &&
           customerName == other.customerName &&
           guestCount == other.guestCount &&
           orderRef == other.orderRef &&
+          displayRef == other.displayRef &&
           totalMinor == other.totalMinor;
 }
 

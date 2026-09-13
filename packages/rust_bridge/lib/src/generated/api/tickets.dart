@@ -160,8 +160,11 @@ class TicketView {
   final String? ticketRef;
   final String? tableId;
 
-  /// open | ready | settled | voided | queued (the last = still in the outbox).
+  /// The bill: open | settled | voided | queued (still in the outbox).
   final String status;
+
+  /// The kitchen has plated every round — the floor's "ready" state.
+  final bool ready;
   final String? customerName;
 
   /// The WAITER who opened this ticket (`open_tickets.opened_by` → user name),
@@ -185,6 +188,7 @@ class TicketView {
     this.ticketRef,
     this.tableId,
     required this.status,
+    required this.ready,
     this.customerName,
     this.waiterName,
     this.guestCount,
@@ -202,6 +206,7 @@ class TicketView {
       ticketRef.hashCode ^
       tableId.hashCode ^
       status.hashCode ^
+      ready.hashCode ^
       customerName.hashCode ^
       waiterName.hashCode ^
       guestCount.hashCode ^
@@ -221,6 +226,7 @@ class TicketView {
           ticketRef == other.ticketRef &&
           tableId == other.tableId &&
           status == other.status &&
+          ready == other.ready &&
           customerName == other.customerName &&
           waiterName == other.waiterName &&
           guestCount == other.guestCount &&

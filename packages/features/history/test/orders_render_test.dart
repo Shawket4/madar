@@ -347,6 +347,7 @@ const _receipt1042 = ReceiptView(
   isDelivery: false,
   queuedOffline: false,
   createdAt: '2026-09-12T19:31:00Z',
+  payments: [],
 );
 
 /// A bridge that answers what Orders asks, from fixtures. [online] false is
@@ -367,6 +368,59 @@ class _FakeBridge implements MadarBridge {
   @override
   dynamic noSuchMethod(Invocation invocation) {
     final name = invocation.memberName;
+    // The core's drawer and Orders decisions (till_views), in miniature.
+    if (name == #paymentMethodLabel) {
+      final code = invocation.namedArguments[#code] as String;
+      return code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
+    }
+    if (name == #shiftCashSalesMinor) {
+      final r = invocation.namedArguments[#report] as ShiftReportView;
+      return r.expectedCashMinor -
+          r.openingCashMinor -
+          r.cashInMinor +
+          r.cashOutMinor;
+    }
+    if (name == #closeCountCheck) {
+      final expected = invocation.namedArguments[#expectedMinor] as int;
+      final counted = invocation.namedArguments[#countedMinor] as int?;
+      final v = counted == null ? 0 : counted - expected;
+      return CloseCountCheck(
+        entered: counted != null,
+        varianceMinor: v,
+        verdict: counted == null
+            ? 'pending'
+            : v == 0
+            ? 'matches'
+            : v > 0
+            ? 'over'
+            : 'short',
+        needsReason: counted != null && v != 0,
+      );
+    }
+    if (name == #saleTaxInclusive) {
+      final a = invocation.namedArguments;
+      final before =
+          (a[#subtotalMinor] as int) -
+          (a[#discountMinor] as int) +
+          (a[#serviceMinor] as int) +
+          (a[#deliveryMinor] as int);
+      return (a[#taxMinor] as int) > 0 && a[#totalMinor] == before;
+    }
+    if (name == #refundMethodPlan) {
+      final method = invocation.namedArguments[#orderPaymentMethod] as String;
+      const options = [
+        PaymentMethodChoice(code: 'cash', label: 'Cash', isCash: true),
+        PaymentMethodChoice(code: 'card', label: 'Card', isCash: false),
+      ];
+      return RefundMethodPlan(
+        options: options,
+        defaultCode: options
+            .where((o) => o.code == method.toLowerCase())
+            .firstOrNull
+            ?.code,
+        crossesShift: false,
+      );
+    }
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
       // Unknown keys come back as the key, exactly like the core. No
@@ -634,11 +688,12 @@ void main() {
     expect(find.text('QUEUED'), findsOneWidget);
     expect(find.text('VOIDED'), findsOneWidget);
     // The sale beside it: lines, service from the receipt, VAT under the
-    // total because the policy is inclusive.
+    // total because THIS SALE's figures are inclusive — no rate: today's
+    // branch rate is not what an old sale paid.
     expect(find.text('Latte'), findsOneWidget);
     expect(find.text('Large · Oat milk'), findsOneWidget);
     expect(find.text('Service'), findsOneWidget);
-    expect(find.text('VAT included \u206614%\u2069'), findsOneWidget);
+    expect(find.text('VAT included'), findsOneWidget);
     expect(find.text('Reprint'), findsOneWidget);
     expect(find.text('Add points'), findsOneWidget);
     // What has already gone back on this sale, before anything is offered

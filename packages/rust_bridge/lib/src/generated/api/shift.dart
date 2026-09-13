@@ -10,6 +10,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// positive = cash in, negative = cash out.
 class CashMovementView {
   final String id;
+
+  /// `pay_in` | `pay_out` | `safe_drop` | `correction`.
+  final String kind;
   final PlatformInt64 amountMinor;
   final String note;
   final String movedByName;
@@ -17,6 +20,7 @@ class CashMovementView {
 
   const CashMovementView({
     required this.id,
+    required this.kind,
     required this.amountMinor,
     required this.note,
     required this.movedByName,
@@ -26,6 +30,7 @@ class CashMovementView {
   @override
   int get hashCode =>
       id.hashCode ^
+      kind.hashCode ^
       amountMinor.hashCode ^
       note.hashCode ^
       movedByName.hashCode ^
@@ -37,6 +42,7 @@ class CashMovementView {
       other is CashMovementView &&
           runtimeType == other.runtimeType &&
           id == other.id &&
+          kind == other.kind &&
           amountMinor == other.amountMinor &&
           note == other.note &&
           movedByName == other.movedByName &&

@@ -238,8 +238,10 @@ class _RefundedBlock extends StatelessWidget {
     required this.refunds,
     required this.currency,
     required this.t,
+    required this.methodLabel,
   });
 
+  final String Function(String code) methodLabel;
   final OrderRefundsView refunds;
   final String currency;
   final String Function(String) t;
@@ -281,7 +283,7 @@ class _RefundedBlock extends StatelessWidget {
                   child: Text(
                     [
                       r.issuedByName,
-                      r.method,
+                      methodLabel(r.method),
                       if (r.queued) t('history.refund_queued'),
                     ].where((p) => p.isNotEmpty).join(' · '),
                     maxLines: 1,
@@ -336,7 +338,7 @@ class _MetaLine extends StatelessWidget {
       if (o.orderRef case final ref?) ltrIsland(ref),
       orderTypeLabel(bridge, o.orderType),
       ?o.tellerName,
-      o.paymentLabel,
+      bridge.paymentMethodLabel(code: o.paymentLabel),
       ?o.customerName,
     ];
     return Text(
@@ -439,9 +441,17 @@ class _Totals extends StatelessWidget {
     final tax = detail?.taxMinor ?? order.taxMinor;
     final service = receipt?.serviceChargeMinor ?? 0;
     final tip = receipt?.tipMinor ?? 0;
-    final inclusive = session?.taxInclusive ?? false;
-    final rate = session?.taxRate ?? 0;
-    final pct = rate > 0 ? ' ${ltrIsland('${(rate * 100).round()}%')}' : '';
+    // The sale's OWN tax: inclusive or not is read from its figures, and no
+    // rate is printed — today's branch rate is not what an old sale paid,
+    // and a rounded 12.5 % read as 13 %.
+    final inclusive = bridge.saleTaxInclusive(
+      subtotalMinor: subtotal,
+      discountMinor: discount,
+      serviceMinor: service,
+      deliveryMinor: receipt?.deliveryFeeMinor ?? 0,
+      taxMinor: tax,
+      totalMinor: order.totalMinor,
+    );
     final voided = order.status == 'voided';
 
     Widget row(
@@ -481,9 +491,7 @@ class _Totals extends StatelessWidget {
       );
     }
 
-    final vatLabel = inclusive
-        ? '${t('history.vat_included')}$pct'
-        : '${t('order.tax')}$pct';
+    final vatLabel = inclusive ? t('history.vat_included') : t('order.tax');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -596,7 +604,12 @@ class _Actions extends ConsumerWidget {
           // What has already gone back on this sale, before anything is
           // offered about giving more back.
           if (refunds != null && refunds.refundedMinor > 0)
-            _RefundedBlock(refunds: refunds, currency: currency, t: t),
+            _RefundedBlock(
+              refunds: refunds,
+              currency: currency,
+              t: t,
+              methodLabel: (code) => bridge.paymentMethodLabel(code: code),
+            ),
           if (state != SaleState.voided)
             Container(
               padding: const EdgeInsetsDirectional.all(Space.md),
@@ -1030,6 +1043,12 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
 
   /// Null until chosen: no silent "customer asked" on the books.
   String? _reason;
+
+  /// How the money may go back (the core's plan), and the chosen code. The
+  /// sale's own method is preselected only when the server accepts it — a
+  /// split or an aggregator sale must be chosen, never sent as `mixed`.
+  RefundMethodPlan? _plan;
+  String? _method;
   bool _busy = false;
   UiText? _error;
 
@@ -1043,6 +1062,17 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
   @override
   void initState() {
     super.initState();
+    try {
+      _plan = ref
+          .read(bridgeProvider)
+          .refundMethodPlan(
+            orderPaymentMethod: widget.order.paymentLabel,
+            orderCreatedAt: widget.order.createdAt,
+          );
+      _method = _plan?.defaultCode;
+    } on MadarError catch (_) {
+      _plan = null;
+    }
     // The panel usually has this already; asking again costs a cached read
     // and covers the sheet being opened from somewhere that did not.
     final prior = ref.read(historyProvider).refunds;
@@ -1067,6 +1097,11 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
       setState(() => _error = const UiText.key('history.reason_required'));
       return;
     }
+    final method = _method;
+    if (method == null) {
+      setState(() => _error = const UiText.key('history.refund_method_pick'));
+      return;
+    }
     // Against what is LEFT, not against the sale: a second refund on a sale
     // already half given back is over by half, and the server refuses it.
     if (minor > _cap) {
@@ -1081,10 +1116,9 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
       await bridge.refundOrder(
         orderId: widget.order.id,
         amountMinor: minor,
-        // Back the way it came. A card sale refunded in cash would leave the
-        // drawer short against a card takings line that never moved, and the
-        // till has no list of methods on this screen to offer instead.
-        method: widget.order.paymentLabel,
+        // A method the server accepts: back the way it came when it can,
+        // otherwise the one the teller chose.
+        method: method,
         reason: reason,
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       );
@@ -1180,6 +1214,31 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
                     _error = null;
                   }),
                   currencyCode: currency,
+                ),
+                // An old sale's refund still leaves TODAY's drawer; say so
+                // before the money moves.
+                if (_plan?.crossesShift ?? false)
+                  NoticeBanner(
+                    text: t('history.refund_other_shift'),
+                    icon: 'exclamationmark.triangle',
+                  ),
+                MadarSectionHeader(text: t('history.refund_method')),
+                Wrap(
+                  spacing: Space.sm,
+                  runSpacing: Space.sm,
+                  children: [
+                    for (final option
+                        in _plan?.options ?? const <PaymentMethodChoice>[])
+                      MadarChip(
+                        label: option.label,
+                        selected: _method == option.code,
+                        enabled: !_busy,
+                        onTap: () => setState(() {
+                          _method = option.code;
+                          _error = null;
+                        }),
+                      ),
+                  ],
                 ),
                 MadarSectionHeader(text: t('history.refund_reason')),
                 Wrap(

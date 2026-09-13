@@ -25,6 +25,7 @@ export 'src/generated/api/routes.dart';
 export 'src/generated/api/shift.dart';
 export 'src/generated/api/sync.dart';
 export 'src/generated/api/tickets.dart';
+export 'src/generated/api/till.dart';
 export 'src/generated/api/types.dart';
 export 'src/generated/api/vault.dart';
 export 'src/tr_check.dart';

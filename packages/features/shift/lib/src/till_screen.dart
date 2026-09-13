@@ -272,7 +272,10 @@ class _StatCards extends ConsumerWidget {
 
     // "cash 1,420 · card 4,810" from the report's own method lines.
     final byMethod = report?.paymentLines
-        .map((l) => '${l.method} ${money(l.totalMinor)}')
+        .map(
+          (l) =>
+              '${bridge.paymentMethodLabel(code: l.method)} ${money(l.totalMinor)}',
+        )
         .join(' · ');
     // The drawer's arithmetic, closed on the report's own expected figure:
     // cash sales is what the report added between the float, the pay-ins
@@ -280,11 +283,7 @@ class _StatCards extends ConsumerWidget {
     // online or offline.
     String? arithmetic;
     if (report != null) {
-      final cashSales =
-          report.expectedCashMinor -
-          report.openingCashMinor -
-          report.cashInMinor +
-          report.cashOutMinor;
+      final cashSales = bridge.shiftCashSalesMinor(report: report);
       arithmetic =
           '${t('shift.opening_float')} ${money(report.openingCashMinor)}'
           ' + ${t('shift.cash_sales')} ${money(cashSales)}'

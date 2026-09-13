@@ -72,6 +72,10 @@ pub(crate) struct CashMovementCommand {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CashMovementView {
     pub id: String,
+    /// `pay_in` | `pay_out` | `safe_drop` | `correction` — what the sign
+    /// alone cannot say (a safe drop and a pay-out both take cash out).
+    #[serde(default)]
+    pub kind: String,
     pub amount_minor: i64,
     pub note: String,
     pub moved_by_name: String,
@@ -90,6 +94,7 @@ pub(crate) fn cash_movement_view(m: &models::CashMovement) -> CashMovementView {
             .flatten()
             .map(|r| r.to_string())
             .unwrap_or_else(|| m.id.to_string()),
+        kind: crate::till_views::movement_kind(Some(&m.kind), m.amount as i64),
         amount_minor: m.amount as i64,
         note: m.note.clone(),
         moved_by_name: m.moved_by_name.clone(),
@@ -1250,6 +1255,7 @@ mod tests {
     fn merge_cash_for_view_dedups_synced_movement() {
         let view = |id: &str, amt: i64| CashMovementView {
             id: id.into(),
+            kind: "pay_in".into(),
             amount_minor: amt,
             note: String::new(),
             moved_by_name: String::new(),

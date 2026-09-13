@@ -24,6 +24,8 @@ pub use madar_core::TillView;
 #[frb(mirror(CashMovementView))]
 pub struct _CashMovementView {
     pub id: String,
+    /// `pay_in` | `pay_out` | `safe_drop` | `correction`.
+    pub kind: String,
     pub amount_minor: i64,
     pub note: String,
     pub moved_by_name: String,

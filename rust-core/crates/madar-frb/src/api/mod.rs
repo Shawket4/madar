@@ -15,4 +15,5 @@ pub mod routes;
 pub mod shift;
 pub mod sync;
 pub mod tickets;
+pub mod till;
 pub mod types;

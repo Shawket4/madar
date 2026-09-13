@@ -980,6 +980,11 @@ fn en(key: &str) -> Option<&'static str> {
         "till.preview_x" => "Preview X report",
         "history.reason_required" => "Choose why first.",
         "history.preview_receipt" => "Preview",
+        "payment.mixed" => "Split",
+        "cash.kind.safe_drop" => "Safe drop",
+        "cash.kind.correction" => "Correction",
+        "history.refund_method_pick" => "Choose how the money goes back.",
+        "history.refund_other_shift" => "This sale is from an earlier shift — the refund comes out of today's drawer.",
         _ => return None,
     })
 }
@@ -1883,6 +1888,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "till.preview_x" => "معاينة تقرير X",
         "history.reason_required" => "اختر السبب أولاً.",
         "history.preview_receipt" => "معاينة",
+        "payment.mixed" => "مقسّم",
+        "cash.kind.safe_drop" => "إيداع في الخزنة",
+        "cash.kind.correction" => "تصحيح",
+        "history.refund_method_pick" => "اختر طريقة إرجاع المبلغ.",
+        "history.refund_other_shift" => "هذه البيعة من وردية سابقة — يُصرف الاسترداد من درج اليوم.",
         _ => return None,
     })
 }

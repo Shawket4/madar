@@ -332,7 +332,16 @@ class _MovementRow extends StatelessWidget {
     final m = movement;
     final positive = m.amountMinor >= 0;
     final tone = positive ? colors.success : colors.danger;
-    final kind = bridge.tr(key: positive ? 'cash.pay_in' : 'cash.pay_out');
+    // Named by what it IS — a safe drop and a pay-out both take cash out.
+    final kind = bridge.tr(
+      key: switch (m.kind) {
+        'safe_drop' => 'cash.kind.safe_drop',
+        'correction' => 'cash.kind.correction',
+        'pay_in' => 'cash.pay_in',
+        'pay_out' => 'cash.pay_out',
+        _ => positive ? 'cash.pay_in' : 'cash.pay_out',
+      },
+    );
     final title = m.note.trim().isEmpty ? kind : '$kind · ${m.note.trim()}';
     final time = bridge.formatTime(rfc3339: m.createdAt, style: TimeStyle.time);
     return ConstrainedBox(

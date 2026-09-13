@@ -91,6 +91,9 @@ pub mod store;
 pub mod tickets;
 /// Branch-timezone-aware timestamp formatting for display (mirrors Flutter AppTz).
 pub mod timefmt;
+/// Drawer and Orders decisions the screens used to make (labels, refund
+/// method, close count, cash sales, tax inclusivity, shift order paging).
+pub mod till_views;
 
 /// Pure internal functions exposed ONLY to the cargo-fuzz harness. Gated on
 /// `cfg(fuzzing)` (set automatically by `cargo +nightly fuzz`), so it never
@@ -5184,6 +5187,7 @@ impl MadarCore {
             .unwrap_or_default();
         Ok(shift::CashMovementView {
             id: client_ref.to_string(),
+            kind: till_views::movement_kind(kind.as_deref(), amount_minor),
             amount_minor,
             note,
             moved_by_name: teller,
@@ -5217,6 +5221,10 @@ impl MadarCore {
                     .ok()
                     .map(|cmd| shift::CashMovementView {
                         id: i.id.clone(),
+                        kind: till_views::movement_kind(
+                            cmd.request.kind.flatten().map(|k| k.to_string()).as_deref(),
+                            cmd.request.amount as i64,
+                        ),
                         amount_minor: cmd.request.amount as i64,
                         note: cmd.request.note,
                         moved_by_name: teller.clone(),
@@ -5602,7 +5610,6 @@ impl MadarCore {
     /// shown first, always available offline) plus the server's synced orders
     /// when online (best-effort). Errors if there's no current shift.
     pub async fn list_shift_orders(&self) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
-        use madar_api::apis::orders_api;
         let shift = shift::current(&self.store)?.ok_or_else(|| CoreError::Validation {
             field: "shift".into(),
             detail: "no shift".into(),
@@ -5631,35 +5638,13 @@ impl MadarCore {
         // this shift visible — not just the ones rung during the outage.
         let key = format!("cache:shift_orders:{}", shift.id);
         let mut server: Vec<orders::OrderSummaryView> = if online {
-            let params = orders_api::ListOrdersParams {
-                branch_id: Some(branch_id),
-                shift_id: Some(shift.id.clone()),
-                updated_after: None,
-                page: None,
-                per_page: Some(200),
-                teller_name: None,
-                waiter_name: None,
-                payment_method: None,
-                status: None,
-                from: None,
-                to: None,
-                order_type: None,
-                exclude_items: None,
-                channel: None,
-                include_items: Some(true),
-            };
-            match orders_api::list_orders(&self.api.config(), params).await {
-                Ok(page) => {
-                    // Do NOT preload page.data into cache:order:{id} for offline reprint:
-                    // the list element is models::Order (no `items` field), so it can't
-                    // deserialize as the OrderFull that get_order_or_cache reads — that
-                    // was a silent offline-reprint failure. The real OrderFull is cached
-                    // when the order is opened once online (see get_order_or_cache).
-                    let views: Vec<_> = page.data.iter().map(|o| orders::from_server(o)).collect();
+            // Every page, not the first 200 (till_views).
+            match self.fetch_shift_orders_all_pages(&branch_id, &shift.id).await {
+                Some(views) => {
                     cache_views(&self.store, &key, &views);
                     views
                 }
-                Err(_) => cached_views(&self.store, &key),
+                None => cached_views(&self.store, &key),
             }
         } else {
             cached_views(&self.store, &key)
@@ -5952,7 +5937,6 @@ impl MadarCore {
         &self,
         shift_id: String,
     ) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
-        use madar_api::apis::orders_api;
         let (branch_id, online) = {
             let g = self.session.read().unwrap_or_else(|e| e.into_inner());
             let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
@@ -5974,35 +5958,13 @@ impl MadarCore {
         // without this its history would be empty offline.
         let all = orders::queued(&self.store, &shift_id)?;
         let mut server: Vec<orders::OrderSummaryView> = if online {
-            let params = orders_api::ListOrdersParams {
-                branch_id: Some(branch_id),
-                shift_id: Some(shift_id.clone()),
-                updated_after: None,
-                page: None,
-                per_page: Some(200),
-                teller_name: None,
-                waiter_name: None,
-                payment_method: None,
-                status: None,
-                from: None,
-                to: None,
-                order_type: None,
-                exclude_items: None,
-                channel: None,
-                include_items: Some(true),
-            };
-            match orders_api::list_orders(&self.api.config(), params).await {
-                Ok(page) => {
-                    // Do NOT preload page.data into cache:order:{id} for offline reprint:
-                    // the list element is models::Order (no `items` field), so it can't
-                    // deserialize as the OrderFull that get_order_or_cache reads — that
-                    // was a silent offline-reprint failure. The real OrderFull is cached
-                    // when the order is opened once online (see get_order_or_cache).
-                    let views: Vec<_> = page.data.iter().map(|o| orders::from_server(o)).collect();
+            // Every page, not the first 200 (till_views).
+            match self.fetch_shift_orders_all_pages(&branch_id, &shift_id).await {
+                Some(views) => {
                     cache_views(&self.store, &key, &views);
                     views
                 }
-                Err(_) => cached_views(&self.store, &key),
+                None => cached_views(&self.store, &key),
             }
         } else {
             cached_views(&self.store, &key)

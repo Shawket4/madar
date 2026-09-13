@@ -21,6 +21,7 @@ import 'routes.dart';
 import 'shift.dart';
 import 'sync.dart';
 import 'tickets.dart';
+import 'till.dart';
 import 'types.dart';
 
 /// FFI contract version this wrapper was written against (madar-core's
@@ -195,6 +196,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// `refresh_connectivity`). The host shows a banner past a threshold so the
   /// teller fixes the clock before offline work is mis-timestamped.
   int clockSkewMinutes();
+
+  /// The close count against the expected drawer (`None` = not counted).
+  CloseCountCheck closeCountCheck({
+    required PlatformInt64 expectedMinor,
+    PlatformInt64? countedMinor,
+  });
 
   /// Close the current open shift: count the closing drawer cash + an optional
   /// note. Marks the shift closed locally and queues an idempotent
@@ -603,6 +610,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// refreshes on a manual data sync.
   Future<String?> orgLogoUrl();
 
+  /// A payment method code in the till's language — never a raw code.
+  String paymentMethodLabel({required String code});
+
   Future<int> pendingOutboxCount();
 
   /// What a configured line would cost (unit, extras, whole line) — priced
@@ -668,6 +678,13 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// open shift, or CLEARS the local cache when the server reports none — call
   /// this on login and on app resume.
   Future<ShiftView?> refreshShift();
+
+  /// The methods a refund of this sale may go back by, the sale's own when
+  /// allowed, and whether the refund lands in a later shift than the sale.
+  RefundMethodPlan refundMethodPlan({
+    required String orderPaymentMethod,
+    required String orderCreatedAt,
+  });
 
   /// Refund money already taken, against a synced sale.
   ///
@@ -753,6 +770,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Best-effort — offline just leaves them pending again.
   Future<void> retryOutbox();
 
+  /// Whether a settled sale's tax was included, from its own figures.
+  bool saleTaxInclusive({
+    required PlatformInt64 subtotalMinor,
+    required PlatformInt64 discountMinor,
+    required PlatformInt64 serviceMinor,
+    required PlatformInt64 deliveryMinor,
+    required PlatformInt64 taxMinor,
+    required PlatformInt64 totalMinor,
+  });
+
   /// Search the branch's orders ACROSS shifts (history lookup) with optional
   /// filters (status / teller / payment method / from-to dates) + pagination
   /// (50/page, 1-based). Online-only.
@@ -776,7 +803,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// and on every other one once it drains. It raises no kitchen ticket and
   /// opens no tab — sitting down is not a bill. The party's FIRST ROUND
   /// starts the tab and claims the table they are already at.
-  Future<void> seatTable({required String tableId});
+  /// `covers`: how many sat down, when the host counted — kept on every
+  /// device and on the server's hold.
+  Future<void> seatTable({required String tableId, int? covers});
 
   /// Best-effort raw-TCP send of pre-rendered ESC/POS bytes to a network
   /// (JetDirect / port 9100) thermal printer.
@@ -850,6 +879,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<CheckoutSplit> splits,
   });
 
+  /// The drawer arithmetic's cash-sales line, closed on the report's figure.
+  PlatformInt64 shiftCashSalesMinor({required ShiftReportView report});
+
   /// The current shift's report — drives the close-shift system-cash +
   /// discrepancy. Online: the server report plus still-queued cash sales.
   /// Offline / on error: opening cash + queued cash (`from_server = false`).
@@ -886,6 +918,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Swap whatever sits on two tables (held orders and/or waiter tickets);
   /// one empty side = a move. Offline-safe (queued; the server arbitrates).
+  ///
+  /// Drains at once: an error means the server refused the move (its reason
+  /// is the message) and the room was re-pulled; `Ok` means it landed or is
+  /// queued offline.
   Future<void> swapFloorTables({
     required String tableA,
     required String tableB,

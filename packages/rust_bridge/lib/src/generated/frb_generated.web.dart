@@ -23,6 +23,7 @@ import 'api/routes.dart';
 import 'api/shift.dart';
 import 'api/sync.dart';
 import 'api/tickets.dart';
+import 'api/till.dart';
 import 'api/types.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -194,6 +195,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CheckoutSplit dco_decode_checkout_split(dynamic raw);
+
+  @protected
+  CloseCountCheck dco_decode_close_count_check(dynamic raw);
 
   @protected
   ComputedRecipeLineView dco_decode_computed_recipe_line_view(dynamic raw);
@@ -397,6 +401,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<OutboxItemView> dco_decode_list_outbox_item_view(dynamic raw);
 
   @protected
+  List<PaymentMethodChoice> dco_decode_list_payment_method_choice(dynamic raw);
+
+  @protected
   List<PaymentMethodView> dco_decode_list_payment_method_view(dynamic raw);
 
   @protected
@@ -559,6 +566,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   OutboxItemView dco_decode_outbox_item_view(dynamic raw);
 
   @protected
+  PaymentMethodChoice dco_decode_payment_method_choice(dynamic raw);
+
+  @protected
   PaymentMethodView dco_decode_payment_method_view(dynamic raw);
 
   @protected
@@ -590,6 +600,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RefundLineView dco_decode_refund_line_view(dynamic raw);
+
+  @protected
+  RefundMethodPlan dco_decode_refund_method_plan(dynamic raw);
 
   @protected
   RefundView dco_decode_refund_view(dynamic raw);
@@ -845,6 +858,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CheckoutSplit sse_decode_checkout_split(SseDeserializer deserializer);
+
+  @protected
+  CloseCountCheck sse_decode_close_count_check(SseDeserializer deserializer);
 
   @protected
   ComputedRecipeLineView sse_decode_computed_recipe_line_view(
@@ -1122,6 +1138,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<PaymentMethodChoice> sse_decode_list_payment_method_choice(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<PaymentMethodView> sse_decode_list_payment_method_view(
     SseDeserializer deserializer,
   );
@@ -1336,6 +1357,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   OutboxItemView sse_decode_outbox_item_view(SseDeserializer deserializer);
 
   @protected
+  PaymentMethodChoice sse_decode_payment_method_choice(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PaymentMethodView sse_decode_payment_method_view(
     SseDeserializer deserializer,
   );
@@ -1375,6 +1401,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RefundLineView sse_decode_refund_line_view(SseDeserializer deserializer);
+
+  @protected
+  RefundMethodPlan sse_decode_refund_method_plan(SseDeserializer deserializer);
 
   @protected
   RefundView sse_decode_refund_view(SseDeserializer deserializer);
@@ -1683,6 +1712,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_checkout_split(CheckoutSplit self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_close_count_check(
+    CloseCountCheck self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_computed_recipe_line_view(
@@ -2036,6 +2071,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_payment_method_choice(
+    List<PaymentMethodChoice> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_payment_method_view(
     List<PaymentMethodView> self,
     SseSerializer serializer,
@@ -2312,6 +2353,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_payment_method_choice(
+    PaymentMethodChoice self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_payment_method_view(
     PaymentMethodView self,
     SseSerializer serializer,
@@ -2368,6 +2415,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_refund_line_view(
     RefundLineView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_refund_method_plan(
+    RefundMethodPlan self,
     SseSerializer serializer,
   );
 

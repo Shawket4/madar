@@ -1041,7 +1041,7 @@ class _ShiftOrderRow extends StatelessWidget {
                 if (voided) _VoidedTag(label: t('history.voided')),
                 Expanded(
                   child: Text(
-                    o.paymentLabel,
+                    bridge.paymentMethodLabel(code: o.paymentLabel),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.end,

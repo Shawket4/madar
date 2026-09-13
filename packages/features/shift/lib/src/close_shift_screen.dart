@@ -116,6 +116,7 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
     final expected = _ExpectedCard(
       report: report,
       loadError: loadError?.of(bridge),
+      cashSalesOf: (r) => bridge.shiftCashSalesMinor(report: r),
       onRetry: () => unawaited(ref.read(closeShiftProvider.notifier).retry()),
       currency: currency,
       tr: t,
@@ -176,6 +177,7 @@ class _ExpectedCard extends StatelessWidget {
     required this.currency,
     required this.tr,
     required this.onPreview,
+    required this.cashSalesOf,
   });
 
   final ShiftReportView? report;
@@ -187,6 +189,9 @@ class _ExpectedCard extends StatelessWidget {
   final String Function(String key) tr;
   final VoidCallback? onPreview;
 
+  /// The core's cash-sales line for a report.
+  final int Function(ShiftReportView report) cashSalesOf;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
@@ -194,12 +199,7 @@ class _ExpectedCard extends StatelessWidget {
     String money(int minor) => Money.format(minor, currency: currency);
     String plus(int minor) => '+${money(minor)}';
     String minus(int minor) => '−${money(minor)}';
-    final cashSales = r == null
-        ? 0
-        : r.expectedCashMinor -
-              r.openingCashMinor -
-              r.cashInMinor +
-              r.cashOutMinor;
+    final cashSales = r == null ? 0 : cashSalesOf(r);
     return MadarCard.column(
       spacing: _statGap,
       children: [
@@ -344,12 +344,16 @@ class _CountedCard extends ConsumerWidget {
     final busy = ref.watch(closeShiftProvider.select((s) => s.busy));
     final error = ref.watch(closeShiftProvider.select((s) => s.error));
     final canClose = ref.watch(closeShiftProvider.select((s) => s.canClose));
-    // No difference until a count is entered: an untouched field is not a
-    // drawer that is short by the whole float.
-    final diff = expectedMinor == null || countedMinor == null
+    // What the count means is the core's: `pending` until a count is entered
+    // — an untouched field is not a drawer short by the whole float.
+    final check = expectedMinor == null
         ? null
-        : countedMinor - expectedMinor;
-    final needsReason = diff != null && diff != 0;
+        : ref.bridge.closeCountCheck(
+            expectedMinor: expectedMinor,
+            countedMinor: countedMinor,
+          );
+    final diff = check == null || !check.entered ? null : check.varianceMinor;
+    final needsReason = check?.needsReason ?? false;
     return MadarCard.column(
       children: [
         MadarSectionHeader(text: tr('shift.counted_cash')),

@@ -54,6 +54,59 @@ class _Bridge implements MadarBridge {
   @override
   dynamic noSuchMethod(Invocation invocation) {
     final name = invocation.memberName;
+    // The core's drawer and Orders decisions (till_views), in miniature.
+    if (name == #paymentMethodLabel) {
+      final code = invocation.namedArguments[#code] as String;
+      return code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
+    }
+    if (name == #shiftCashSalesMinor) {
+      final r = invocation.namedArguments[#report] as ShiftReportView;
+      return r.expectedCashMinor -
+          r.openingCashMinor -
+          r.cashInMinor +
+          r.cashOutMinor;
+    }
+    if (name == #closeCountCheck) {
+      final expected = invocation.namedArguments[#expectedMinor] as int;
+      final counted = invocation.namedArguments[#countedMinor] as int?;
+      final v = counted == null ? 0 : counted - expected;
+      return CloseCountCheck(
+        entered: counted != null,
+        varianceMinor: v,
+        verdict: counted == null
+            ? 'pending'
+            : v == 0
+            ? 'matches'
+            : v > 0
+            ? 'over'
+            : 'short',
+        needsReason: counted != null && v != 0,
+      );
+    }
+    if (name == #saleTaxInclusive) {
+      final a = invocation.namedArguments;
+      final before =
+          (a[#subtotalMinor] as int) -
+          (a[#discountMinor] as int) +
+          (a[#serviceMinor] as int) +
+          (a[#deliveryMinor] as int);
+      return (a[#taxMinor] as int) > 0 && a[#totalMinor] == before;
+    }
+    if (name == #refundMethodPlan) {
+      final method = invocation.namedArguments[#orderPaymentMethod] as String;
+      const options = [
+        PaymentMethodChoice(code: 'cash', label: 'Cash', isCash: true),
+        PaymentMethodChoice(code: 'card', label: 'Card', isCash: false),
+      ];
+      return RefundMethodPlan(
+        options: options,
+        defaultCode: options
+            .where((o) => o.code == method.toLowerCase())
+            .firstOrNull
+            ?.code,
+        crossesShift: false,
+      );
+    }
     final args = invocation.namedArguments;
     if (name == #tr) return args[#key];
     if (name == #appRoute) return const AppRoute.order();

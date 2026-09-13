@@ -556,7 +556,7 @@ class _SaleRow extends StatelessWidget {
       ),
     );
     final payment = Text(
-      o.paymentLabel,
+      bridge.paymentMethodLabel(code: o.paymentLabel),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: MadarType.bodySm.copyWith(color: colors.textSecondary),

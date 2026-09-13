@@ -827,7 +827,9 @@ class _ShiftOrderLine extends ConsumerWidget {
             ),
             Expanded(
               child: Text(
-                voided ? bridge.tr(key: 'history.voided') : order.paymentLabel,
+                voided
+                    ? bridge.tr(key: 'history.voided')
+                    : bridge.paymentMethodLabel(code: order.paymentLabel),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: MadarType.bodySm.copyWith(
