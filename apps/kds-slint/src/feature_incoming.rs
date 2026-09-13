@@ -533,6 +533,9 @@ fn settle_ticket(
                 None, // settle-time discount — cashier drawer only
                 None,
                 None,
+                None,       // loyalty member — rewards are redeemed at the Flutter till
+                Vec::new(), // loyalty redemptions
+                Vec::new(), // one method, no split legs
             )
             .await;
         match result {

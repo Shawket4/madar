@@ -288,6 +288,7 @@ fn test_receipt(teller_name: Option<String>) -> ReceiptView {
             addons: Vec::new(),
             optionals: Vec::new(),
             components: Vec::new(),
+            reward_label: None,
         }],
         payment_label: "—".into(),
         subtotal_minor: 0,
@@ -311,6 +312,9 @@ fn test_receipt(teller_name: Option<String>) -> ReceiptView {
         delivery_notes: None,
         queued_offline: false,
         created_at: chrono::Utc::now().to_rfc3339(),
+        service_charge_minor: 0,
+        payments: Vec::new(),
+        loyalty_notice: None,
     }
 }
 
