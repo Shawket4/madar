@@ -1001,16 +1001,16 @@ class _CartSummary extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              Space.lg,
-              0,
-              Space.lg,
-              Space.sm,
+          Padding(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Space.lg,
+              vertical: Space.md,
             ),
-            child: Row(
+            // Wraps rather than scrolling: a chip cut off at the cart's edge
+            // reads as broken, and a long note must still show it is set.
+            child: Wrap(
               spacing: Space.sm,
+              runSpacing: Space.sm,
               children: [
                 if (counter) ...[
                   MadarChip(
