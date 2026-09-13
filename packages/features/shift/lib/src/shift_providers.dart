@@ -40,6 +40,10 @@ const Set<String> _managerRoles = {
 bool isManagerRole(String? role) =>
     role != null && _managerRoles.contains(role);
 
+/// A bridge failure in the core's words, for a load that failed.
+UiText _failure(Object e) =>
+    e is MadarError ? UiText.error(e) : const UiText.key('err.generic');
+
 /// The name of the till this device is bound to ("Till 1"), or null when the
 /// device is unbound or the catalog mirror has not got the till yet. Tills
 /// are named on the server; the device only holds the id.
@@ -92,7 +96,11 @@ class TillState {
     this.drawers = const [],
     this.drawerReportLoadingId,
     this.toast,
+    this.printingX = false,
   });
+
+  /// An X report is being fetched and sent — a second tap is ignored.
+  final bool printingX;
 
   /// The first load has not resolved the shift yet.
   final bool loading;
@@ -149,8 +157,10 @@ class TillState {
     List<ShiftSummaryView>? drawers,
     Object? drawerReportLoadingId = _unset,
     Object? toast = _unset,
+    bool? printingX,
   }) {
     return TillState(
+      printingX: printingX ?? this.printingX,
       loading: loading ?? this.loading,
       shift: shift == _unset ? this.shift : shift as ShiftView?,
       tillName: tillName == _unset ? this.tillName : tillName as String?,
@@ -281,16 +291,22 @@ class TillNotifier extends Notifier<TillState> {
   ///
   /// Summary only, never the per-order breakdown: an X mid-shift is a read
   /// of the drawer, and the expanded form belongs to the Z at close.
+  ///
+  /// The report is read FRESH at the tap, never the one cached on the tab:
+  /// a tap while the tab was still loading used to do nothing, and a tap
+  /// after a sale printed the drawer as it stood at the last reload. A tap
+  /// while one is already printing is ignored instead of printing twice.
   Future<void> printX() async {
-    final report = state.report;
-    if (report == null) return;
+    if (state.printingX) return;
     final tx = ref.read(printerServiceProvider).activeTransport();
     if (tx == null) {
       _tillToast('receipt.no_printer', tone: ChipTone.warning, icon: 'printer');
       return;
     }
+    state = state.copyWith(printingX: true);
     final config = _bridge.deviceConfig();
     try {
+      final report = await _bridge.shiftReport();
       final bytes = await _bridge.renderShiftReport(
         report: report,
         storeName: config.branchName ?? '',
@@ -303,6 +319,7 @@ class TillNotifier extends Notifier<TillState> {
       );
       await tx.send(bytes);
       if (!_disposed) {
+        state = state.copyWith(report: report, printingX: false);
         _tillToast(
           'receipt.printed',
           tone: ChipTone.success,
@@ -311,6 +328,7 @@ class TillNotifier extends Notifier<TillState> {
       }
     } on Exception catch (_) {
       if (!_disposed) {
+        state = state.copyWith(printingX: false);
         _tillToast(
           'receipt.print_failed',
           tone: ChipTone.danger,
@@ -617,17 +635,29 @@ final NotifierProvider<OpenShiftNotifier, OpenShiftState> openShiftProvider =
 class CloseShiftState {
   /// Creates the close-shift state.
   const CloseShiftState({
-    this.countedMinor = 0,
+    this.countedMinor,
     this.busy = false,
     this.error,
     this.shift,
     this.report,
     this.tillName,
     this.orderCount,
+    this.loadError,
+    this.closedShiftId,
   });
 
-  /// The teller's counted drawer, minor units.
-  final int countedMinor;
+  /// The teller's counted drawer, minor units — null until they enter one.
+  /// It used to start at 0, so the screen said "Short by" the whole float
+  /// before anybody had counted anything, and 0 plus a reason could close.
+  final int? countedMinor;
+
+  /// Why the report could not be read, or null. Without it the expected
+  /// figure never arrives, so the close stays disabled — say why, and retry.
+  final UiText? loadError;
+
+  /// The shift that was just closed — set on success so the screen can offer
+  /// its Z report before leaving.
+  final String? closedShiftId;
 
   /// A closeShift call is in flight.
   final bool busy;
@@ -650,20 +680,33 @@ class CloseShiftState {
   /// The count deviates from the system's expected drawer → a closing reason
   /// is required (the open screen's discrepancy pattern).
   bool get needsReason =>
-      report != null && countedMinor != report!.expectedCashMinor;
+      report != null &&
+      countedMinor != null &&
+      countedMinor != report!.expectedCashMinor;
+
+  /// A count has been entered and the expected drawer is known.
+  bool get canClose => report != null && countedMinor != null && !busy;
 
   /// Copies with the given overrides (nullables clear through the sentinel).
   CloseShiftState copyWith({
-    int? countedMinor,
+    Object? countedMinor = _unset,
     bool? busy,
     Object? error = _unset,
     Object? shift = _unset,
     Object? report = _unset,
     Object? tillName = _unset,
     Object? orderCount = _unset,
+    Object? loadError = _unset,
+    Object? closedShiftId = _unset,
   }) {
     return CloseShiftState(
-      countedMinor: countedMinor ?? this.countedMinor,
+      countedMinor: countedMinor == _unset
+          ? this.countedMinor
+          : countedMinor as int?,
+      loadError: loadError == _unset ? this.loadError : loadError as UiText?,
+      closedShiftId: closedShiftId == _unset
+          ? this.closedShiftId
+          : closedShiftId as String?,
       busy: busy ?? this.busy,
       error: error == _unset ? this.error : error as UiText?,
       shift: shift == _unset ? this.shift : shift as ShiftView?,
@@ -694,6 +737,9 @@ class CloseShiftNotifier extends Notifier<CloseShiftState> {
   /// The teller edited the count.
   void setCounted(int minor) => state = state.copyWith(countedMinor: minor);
 
+  /// Load the report again after a failure.
+  Future<void> retry() => _load();
+
   /// Prime the screen: the open shift for the header (server-fresh when
   /// online, cache otherwise), then the Z-report for the expected drawer
   /// figures, the till's name, and the sales count — the last two are
@@ -704,8 +750,10 @@ class CloseShiftNotifier extends Notifier<CloseShiftState> {
     state = state.copyWith(shift: shift);
     try {
       final report = await _bridge.shiftReport();
-      if (!_disposed) state = state.copyWith(report: report);
-    } on Exception catch (_) {}
+      if (!_disposed) state = state.copyWith(report: report, loadError: null);
+    } on Exception catch (e) {
+      if (!_disposed) state = state.copyWith(loadError: _failure(e));
+    }
     final tillName = await _boundTillName(_bridge);
     if (_disposed) return;
     state = state.copyWith(tillName: tillName);
@@ -720,22 +768,31 @@ class CloseShiftNotifier extends Notifier<CloseShiftState> {
   /// count deviates). Returns true on success — the SCREEN then pops the
   /// overlay first and hands off to the shell (route flips to open-shift).
   Future<bool> close({required String note}) async {
+    if (state.busy) return false;
+    final counted = state.countedMinor;
+    if (counted == null) {
+      state = state.copyWith(error: const UiText.key('shift.count_required'));
+      return false;
+    }
     if (state.needsReason && note.trim().isEmpty) {
-      // Guidance next to the action that triggers it — the natives'
-      // flagError, mirroring the open screen's required reason.
+      // Guidance next to the action that triggers it — the closing reason,
+      // not the opening one this used to borrow.
       state = state.copyWith(
-        error: const UiText.key('shift.opening_reason_required'),
+        error: const UiText.key('shift.closing_reason_required'),
       );
       return false;
     }
+    final shiftId = state.shift?.id;
     state = state.copyWith(busy: true, error: null);
     try {
       final trimmed = note.trim();
       await _bridge.closeShift(
-        closingCashMinor: state.countedMinor,
+        closingCashMinor: counted,
         cashNote: trimmed.isEmpty ? null : trimmed,
       );
-      if (!_disposed) state = state.copyWith(busy: false);
+      if (!_disposed) {
+        state = state.copyWith(busy: false, closedShiftId: shiftId);
+      }
       return true;
     } on MadarError catch (e) {
       if (_disposed) return false;
@@ -783,7 +840,12 @@ class CashMovementsState {
     this.note = '',
     this.busy = false,
     this.error,
+    this.loadError,
   });
+
+  /// Why the ledger could not be read, or null — never shown as "no
+  /// movements".
+  final UiText? loadError;
 
   /// The open shift's movements (server rows merged with queued ones).
   final List<CashMovementView> movements;
@@ -829,8 +891,10 @@ class CashMovementsState {
     String? note,
     bool? busy,
     Object? error = _unset,
+    Object? loadError = _unset,
   }) {
     return CashMovementsState(
+      loadError: loadError == _unset ? this.loadError : loadError as UiText?,
       movements: movements ?? this.movements,
       loading: loading ?? this.loading,
       isIn: isIn ?? this.isIn,
@@ -879,18 +943,22 @@ class CashMovementsNotifier extends Notifier<CashMovementsState> {
   void setNote(String note) => state = state.copyWith(note: note);
 
   /// The open shift's cash movements — server rows merged with still-queued
-  /// ones in the core. Load failures degrade to an empty list (the natives'
-  /// `getOrDefault(emptyList())`).
+  /// ones in the core. A failure keeps what was on screen and says so with a
+  /// retry; an empty ledger and an unreadable one are not the same thing.
   Future<void> load() async {
     state = state.copyWith(loading: true);
-    List<CashMovementView> movements;
     try {
-      movements = await _bridge.listCashMovements();
-    } on Exception catch (_) {
-      movements = const [];
+      final movements = await _bridge.listCashMovements();
+      if (_disposed) return;
+      state = state.copyWith(
+        movements: movements,
+        loading: false,
+        loadError: null,
+      );
+    } on Exception catch (e) {
+      if (_disposed) return;
+      state = state.copyWith(loading: false, loadError: _failure(e));
     }
-    if (_disposed) return;
-    state = state.copyWith(movements: movements, loading: false);
   }
 
   /// Record a pay-in (`> 0`) or pay-out (`< 0`), reload the list, and reset
@@ -957,7 +1025,15 @@ class ShiftHistoryState {
     this.ordersByShift = const {},
     this.ordersLoadingId,
     this.toast,
+    this.loadError,
+    this.ordersErrors = const {},
   });
+
+  /// Why the list could not be read, or null.
+  final UiText? loadError;
+
+  /// Per-shift failures of the expanded orders panel (keyed by shift id).
+  final Map<String, UiText> ordersErrors;
 
   /// Past shifts, newest first.
   final List<ShiftSummaryView> shifts;
@@ -994,8 +1070,12 @@ class ShiftHistoryState {
     Map<String, List<OrderSummaryView>>? ordersByShift,
     Object? ordersLoadingId = _unset,
     Object? toast = _unset,
+    Object? loadError = _unset,
+    Map<String, UiText>? ordersErrors,
   }) {
     return ShiftHistoryState(
+      loadError: loadError == _unset ? this.loadError : loadError as UiText?,
+      ordersErrors: ordersErrors ?? this.ordersErrors,
       shifts: shifts ?? this.shifts,
       live: live == _unset ? this.live : live as ShiftView?,
       loading: loading ?? this.loading,
@@ -1027,15 +1107,16 @@ class ShiftHistoryNotifier extends Notifier<ShiftHistoryState> {
     return const ShiftHistoryState();
   }
 
-  /// Past shifts (newest first) + the live shift for pinning. Load failures
-  /// degrade to empty (the natives' `getOrDefault(emptyList())`).
+  /// Past shifts (newest first) + the live shift for pinning. A failed list
+  /// is an error with a retry, not "No shifts yet".
   Future<void> load() async {
-    state = state.copyWith(loading: true);
-    List<ShiftSummaryView> shifts;
+    state = state.copyWith(loading: true, loadError: null);
+    List<ShiftSummaryView>? shifts;
+    UiText? failure;
     try {
       shifts = await _bridge.listShifts();
-    } on Exception catch (_) {
-      shifts = const [];
+    } on Exception catch (e) {
+      failure = _failure(e);
     }
     ShiftView? live;
     try {
@@ -1044,7 +1125,12 @@ class ShiftHistoryNotifier extends Notifier<ShiftHistoryState> {
       live = null;
     }
     if (_disposed) return;
-    state = state.copyWith(shifts: shifts, live: live, loading: false);
+    state = state.copyWith(
+      shifts: shifts ?? state.shifts,
+      live: live,
+      loading: false,
+      loadError: failure,
+    );
   }
 
   /// Prefetch a past shift's Z-report via `shiftReportFor` (spinner in the
@@ -1065,7 +1151,7 @@ class ShiftHistoryNotifier extends Notifier<ShiftHistoryState> {
         reportLoadingId: null,
         toast: ToastData(
           id: _toastSeq,
-          text: _bridge.tr(key: 'receipt.print_failed'),
+          text: _bridge.tr(key: 'shift.report_load_failed'),
           tone: ChipTone.danger,
           icon: 'xmark.circle',
         ),
@@ -1096,18 +1182,31 @@ class ShiftHistoryNotifier extends Notifier<ShiftHistoryState> {
         state.ordersByShift.containsKey(shiftId)) {
       return;
     }
-    state = state.copyWith(ordersLoadingId: shiftId);
-    List<OrderSummaryView> orders;
-    try {
-      orders = await _bridge.listOrdersForShift(shiftId: shiftId);
-    } on Exception catch (_) {
-      orders = const [];
-    }
-    if (_disposed) return;
+    await loadShiftOrders(shiftId);
+  }
+
+  /// Fetch (or re-fetch after a failure) one past shift's orders. A failure
+  /// is kept per shift so the panel says so and offers a retry, instead of
+  /// "No orders in this shift".
+  Future<void> loadShiftOrders(String shiftId) async {
     state = state.copyWith(
-      ordersByShift: {...state.ordersByShift, shiftId: orders},
-      ordersLoadingId: null,
+      ordersLoadingId: shiftId,
+      ordersErrors: {...state.ordersErrors}..remove(shiftId),
     );
+    try {
+      final orders = await _bridge.listOrdersForShift(shiftId: shiftId);
+      if (_disposed) return;
+      state = state.copyWith(
+        ordersByShift: {...state.ordersByShift, shiftId: orders},
+        ordersLoadingId: null,
+      );
+    } on Exception catch (e) {
+      if (_disposed) return;
+      state = state.copyWith(
+        ordersErrors: {...state.ordersErrors, shiftId: _failure(e)},
+        ordersLoadingId: null,
+      );
+    }
   }
 
   /// Print a single order's receipt from an expanded shift row — renders in
@@ -1218,7 +1317,16 @@ class ShiftReportSheetState {
     this.orders,
     this.expanded = false,
     this.print = ShiftPrintState.idle,
+    this.loadError,
+    this.ordersError,
   });
+
+  /// Why the report could not be read, or null (the sheet used to spin
+  /// forever).
+  final UiText? loadError;
+
+  /// Why the orders section could not be read, or null.
+  final UiText? ordersError;
 
   /// The rendered report (null while the current shift's loads → skeleton).
   final ShiftReportView? report;
@@ -1241,8 +1349,14 @@ class ShiftReportSheetState {
     Object? orders = _unset,
     bool? expanded,
     ShiftPrintState? print,
+    Object? loadError = _unset,
+    Object? ordersError = _unset,
   }) {
     return ShiftReportSheetState(
+      loadError: loadError == _unset ? this.loadError : loadError as UiText?,
+      ordersError: ordersError == _unset
+          ? this.ordersError
+          : ordersError as UiText?,
       report: report == _unset ? this.report : report as ShiftReportView?,
       orders: orders == _unset
           ? this.orders
@@ -1276,12 +1390,26 @@ class ShiftReportNotifier extends Notifier<ShiftReportSheetState> {
     return ShiftReportSheetState(report: arg.report);
   }
 
+  /// The current shift's report — or, when the request names a shift (a
+  /// just-closed one), that shift's.
   Future<void> _load() async {
+    state = state.copyWith(loadError: null);
     try {
-      final report = await _bridge.shiftReport();
+      final id = arg.shiftId;
+      final report = id == null
+          ? await _bridge.shiftReport()
+          : await _bridge.shiftReportFor(shiftId: id);
       if (_disposed) return;
       state = state.copyWith(report: report);
-    } on Exception catch (_) {}
+    } on Exception catch (e) {
+      if (!_disposed) state = state.copyWith(loadError: _failure(e));
+    }
+  }
+
+  /// Retry a failed report or orders load.
+  void retry() {
+    if (state.report == null) unawaited(_load());
+    if (state.expanded && state.orders == null) unawaited(_loadOrders());
   }
 
   /// Expand/collapse the orders breakdown. On first expand, lazy-load the
@@ -1294,16 +1422,15 @@ class ShiftReportNotifier extends Notifier<ShiftReportSheetState> {
   }
 
   Future<void> _loadOrders() async {
+    state = state.copyWith(ordersError: null);
     try {
       final id = arg.shiftId;
       final orders = id == null
           ? await _bridge.listShiftOrders()
           : await _bridge.listOrdersForShift(shiftId: id);
       if (!_disposed) state = state.copyWith(orders: orders);
-    } on Exception catch (_) {
-      if (!_disposed) {
-        state = state.copyWith(orders: const <OrderSummaryView>[]);
-      }
+    } on Exception catch (e) {
+      if (!_disposed) state = state.copyWith(ordersError: _failure(e));
     }
   }
 
@@ -1320,6 +1447,17 @@ class ShiftReportNotifier extends Notifier<ShiftReportSheetState> {
       return;
     }
     state = state.copyWith(print: ShiftPrintState.printing);
+    // Expanded means "print it with its orders": if they are still on their
+    // way, wait for them rather than printing a Z without the section the
+    // teller is looking at.
+    if (state.expanded && state.orders == null) {
+      await _loadOrders();
+      if (_disposed) return;
+      if (state.orders == null) {
+        state = state.copyWith(print: ShiftPrintState.failed);
+        return;
+      }
+    }
     try {
       final bytes = await _bridge.renderShiftReport(
         report: report,

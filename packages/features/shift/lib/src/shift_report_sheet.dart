@@ -188,7 +188,7 @@ class ShiftReportBreakdown extends StatelessWidget {
       children: [
         if (report.paymentLines.isEmpty)
           Text(
-            tr('history.empty'),
+            tr('shift.report_no_sales'),
             style: MadarType.label.copyWith(
               fontWeight: FontWeight.w400,
               color: p.muted,
@@ -549,7 +549,15 @@ class _Rule extends StatelessWidget {
 /// Pure-DATA params only; state lives in [shiftReportProvider].
 class ShiftReportSheet extends ConsumerStatefulWidget {
   /// Creates the preview; a null [report] loads the current shift's.
-  const ShiftReportSheet({super.key, this.report, this.shiftId});
+  const ShiftReportSheet({
+    super.key,
+    this.report,
+    this.shiftId,
+    this.closed = false,
+  });
+
+  /// Shown straight after a close: the title says the shift is closed.
+  final bool closed;
 
   /// A pre-fetched report (close-shift / past shifts), or null to load the
   /// current shift's on entry.
@@ -597,7 +605,11 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      t('shift.report_title'),
+                      t(
+                        widget.closed
+                            ? 'shift.closed_report_title'
+                            : 'shift.report_title',
+                      ),
                       style: MadarType.h2.copyWith(
                         fontSize: _headerTitleSize,
                         fontWeight: FontWeight.w800,
@@ -638,12 +650,24 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: _paperMaxWidth),
-                child: report == null
+                child: report == null && state.loadError != null
+                    ? ErrorState(
+                        message: state.loadError!.of(bridge),
+                        retryLabel: t('history.retry'),
+                        onRetry: ref
+                            .read(shiftReportProvider(_request).notifier)
+                            .retry,
+                      )
+                    : report == null
                     ? const _PaperSkeleton()
                     : _ReportPaper(
                         report: report,
                         bridge: bridge,
                         orders: state.orders,
+                        ordersError: state.ordersError?.of(bridge),
+                        onRetry: ref
+                            .read(shiftReportProvider(_request).notifier)
+                            .retry,
                         expanded: state.expanded,
                         onToggle: () => ref
                             .read(shiftReportProvider(_request).notifier)
@@ -730,7 +754,13 @@ class _ReportPaper extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     required this.onPrintOrder,
+    this.ordersError,
+    this.onRetry,
   });
+
+  /// Why the orders could not be read, or null.
+  final String? ordersError;
+  final VoidCallback? onRetry;
 
   final ShiftReportView report;
   final MadarBridge bridge;
@@ -805,6 +835,8 @@ class _ReportPaper extends StatelessWidget {
               expanded: expanded,
               onToggle: onToggle,
               onPrintOrder: onPrintOrder,
+              error: ordersError,
+              onRetry: onRetry,
             ),
           ],
         ),
@@ -842,7 +874,13 @@ class _OrdersSection extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     required this.onPrintOrder,
+    this.error,
+    this.onRetry,
   });
+
+  /// Why the orders could not be read — never "no orders".
+  final String? error;
+  final VoidCallback? onRetry;
 
   /// Null before first expand / while loading.
   final List<OrderSummaryView>? orders;
@@ -887,7 +925,15 @@ class _OrdersSection extends StatelessWidget {
           ),
         ),
         if (expanded)
-          if (orders == null) ...const [
+          if (orders == null && error != null)
+            TactileScale(
+              onTap: onRetry,
+              child: Text(
+                '${error!} · ${t('history.retry')}',
+                style: MadarType.labelSm.copyWith(color: Paper.ink),
+              ),
+            )
+          else if (orders == null) ...const [
             SkeletonBlock(height: _orderSkeletonHeight),
             SkeletonBlock(height: _orderSkeletonHeight),
             SkeletonBlock(height: _orderSkeletonHeight),

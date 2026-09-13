@@ -66,6 +66,7 @@ class TillScreen extends ConsumerWidget {
     final layout = context.madarLayout;
     final shift = ref.watch(tillProvider.select((s) => s.shift));
     final tillName = ref.watch(tillProvider.select((s) => s.tillName));
+    final printingX = ref.watch(tillProvider.select((s) => s.printingX));
     // The header is the page shell's, whatever the drawer's state: the tab's
     // name, and with a shift open who holds it since when, and — on a
     // tablet — the two drawer actions in the shell's action area.
@@ -79,11 +80,21 @@ class TillScreen extends ConsumerWidget {
       subtitle = '${shift.tellerName} · ${t('till.open_since')} $since';
       if (layout.isTablet) {
         actions = [
+          // Preview is a button of its own, not only a long press nobody
+          // finds.
+          MadarButton(
+            label: t('till.preview_x'),
+            glyph: MadarGlyph.receipt,
+            variant: MadarButtonVariant.ghost,
+            size: MadarButtonSize.compact,
+            onTap: () => unawaited(_previewX(context)),
+          ),
           MadarButton(
             label: t('till.print_x'),
             glyph: MadarGlyph.printer,
             variant: MadarButtonVariant.secondary,
             size: MadarButtonSize.compact,
+            loading: printingX,
             onTap: () => unawaited(ref.read(tillProvider.notifier).printX()),
             onLongPress: () => unawaited(_previewX(context)),
           ),
@@ -145,7 +156,10 @@ Future<void> _previewX(BuildContext context) async {
 void _push(BuildContext context, WidgetRef ref, Widget Function() build) {
   final notifier = ref.read(tillProvider.notifier);
   unawaited(
-    MadarPages.push<void>(context, (_) => build()).then((_) => notifier.refresh()),
+    MadarPages.push<void>(
+      context,
+      (_) => build(),
+    ).then((_) => notifier.refresh()),
   );
 }
 
@@ -469,6 +483,12 @@ class _ShiftRows extends ConsumerWidget {
             glyph: MadarGlyph.printer,
             onTap: onPrintX,
             onLongPress: onPreviewX,
+          ),
+          const MadarHairline.row(),
+          MadarRow(
+            title: t('till.preview_x'),
+            glyph: MadarGlyph.receipt,
+            onTap: onPreviewX,
           ),
         ],
         const MadarHairline.row(),

@@ -102,10 +102,21 @@ class _HistoryBody extends ConsumerWidget {
     final shifts = ref.watch(shiftHistoryProvider.select((s) => s.shifts));
     final live = ref.watch(shiftHistoryProvider.select((s) => s.live));
     final loading = ref.watch(shiftHistoryProvider.select((s) => s.loading));
+    final loadError = ref.watch(
+      shiftHistoryProvider.select((s) => s.loadError),
+    );
     if (loading && shifts.isEmpty && live == null) {
       return const Align(alignment: Alignment.topCenter, child: SkeletonList());
     }
     final rows = _rowsWithLocalOpen(shifts, live);
+    if (loadError != null && shifts.isEmpty) {
+      return ErrorState(
+        message: loadError.of(bridge),
+        retryLabel: t('history.retry'),
+        onRetry: () =>
+            unawaited(ref.read(shiftHistoryProvider.notifier).load()),
+      );
+    }
     if (rows.isEmpty) {
       return EmptyState(
         icon: 'clock.arrow.circlepath',
@@ -244,6 +255,12 @@ class _ShiftRowGroup extends ConsumerWidget {
             loading: ref.watch(
               shiftHistoryProvider.select((st) => st.ordersLoadingId == s.id),
             ),
+            error: ref.watch(
+              shiftHistoryProvider.select((st) => st.ordersErrors[s.id]),
+            ),
+            onRetry: () => unawaited(
+              ref.read(shiftHistoryProvider.notifier).loadShiftOrders(s.id),
+            ),
             currency: currency,
             bridge: bridge,
           )
@@ -323,6 +340,10 @@ class _ColumnHeader extends StatelessWidget {
                     alignEnd: true,
                   ),
                 ),
+                // One header slot per trailing control: the orders toggle and
+                // the report chevron. With only one, every header sat 44px
+                // off the column it names.
+                const SizedBox(width: _chevronColWidth),
                 const SizedBox(width: _chevronColWidth),
               ],
             ),
@@ -676,7 +697,13 @@ class _ShiftOrdersPanel extends ConsumerWidget {
     required this.loading,
     required this.currency,
     required this.bridge,
+    this.error,
+    this.onRetry,
   });
+
+  /// Why the orders could not be read — never "no orders".
+  final UiText? error;
+  final VoidCallback? onRetry;
 
   /// The loaded orders — null while the first fetch is in flight.
   final List<OrderSummaryView>? orders;
@@ -688,6 +715,18 @@ class _ShiftOrdersPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final orders = this.orders;
+    if (!loading && orders == null && error != null) {
+      return Padding(
+        padding: const EdgeInsetsDirectional.all(Space.lg),
+        child: NoticeBanner(
+          text: error!.of(bridge),
+          tone: ChipTone.danger,
+          icon: 'exclamationmark.triangle',
+          trailing: Text(bridge.tr(key: 'history.retry')),
+          onTap: onRetry,
+        ),
+      );
+    }
     if (loading || orders == null) {
       return const Padding(
         padding: EdgeInsetsDirectional.all(Space.lg),

@@ -971,6 +971,13 @@ fn en(key: &str) -> Option<&'static str> {
         "login.reconfigure_body" => "The till leaves its branch until a manager signs in and binds it again. Tellers cannot sign in meanwhile.",
         "settings.till_shift_open" => "Close the shift before moving this device to another till.",
         "settings.test_receipt_line" => "Test print",
+        "shift.count_required" => "Count the drawer and enter the amount first.",
+        "shift.closing_reason_required" => "Say why the count is off before closing.",
+        "shift.report_load_failed" => "Could not load this shift's report.",
+        "shift.report_no_sales" => "No sales in this shift.",
+        "shift.closed_report_title" => "Shift closed — Z report",
+        "cash.confirm_pay_out" => "Pay out {amount} from the drawer?",
+        "till.preview_x" => "Preview X report",
         _ => return None,
     })
 }
@@ -1865,6 +1872,13 @@ fn ar(key: &str) -> Option<&'static str> {
         "login.reconfigure_body" => "تخرج الكاشة من فرعها حتى يسجّل مدير الدخول ويربطها من جديد. لا يستطيع الكاشير تسجيل الدخول خلال ذلك.",
         "settings.till_shift_open" => "أغلق الوردية قبل نقل هذا الجهاز إلى كاشة أخرى.",
         "settings.test_receipt_line" => "طباعة تجريبية",
+        "shift.count_required" => "عُدّ الدرج وأدخل المبلغ أولاً.",
+        "shift.closing_reason_required" => "اذكر سبب اختلاف العدّ قبل الإغلاق.",
+        "shift.report_load_failed" => "تعذّر تحميل تقرير هذه الوردية.",
+        "shift.report_no_sales" => "لا توجد مبيعات في هذه الوردية.",
+        "shift.closed_report_title" => "أُغلقت الوردية — تقرير Z",
+        "cash.confirm_pay_out" => "صرف {amount} من الدرج؟",
+        "till.preview_x" => "معاينة تقرير X",
         _ => return None,
     })
 }

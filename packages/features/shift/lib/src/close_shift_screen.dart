@@ -59,11 +59,22 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
     // Capture the shell hand-off up front: a successful close pops this
     // route, which disposes this widget's ref.
     final shell = ref.read(shellProvider.notifier);
-    final ok = await ref
-        .read(closeShiftProvider.notifier)
-        .close(note: _note.text);
+    final notifier = ref.read(closeShiftProvider.notifier);
+    final ok = await notifier.close(note: _note.text);
     if (!ok || !mounted) return;
-    // Dismiss the overlay first, then let the shell re-read `app_route()`
+    // The Z report is the close's paper trail: offer it — print or preview —
+    // before the screen goes, reading the CLOSED shift's own report (with the
+    // count just declared). It used to be one row away BEFORE closing only.
+    final closedId = ref.read(closeShiftProvider).closedShiftId;
+    if (closedId != null) {
+      await showMadarSheet<void>(
+        context,
+        size: SheetSize.large,
+        builder: (_) => ShiftReportSheet(shiftId: closedId, closed: true),
+      );
+      if (!mounted) return;
+    }
+    // Dismiss the page first, then let the shell re-read `app_route()`
     // (shift closed → open-shift / the Till tab's open card).
     await Navigator.of(context).maybePop();
     shell.refresh();
@@ -101,8 +112,11 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
       if (orderCount != null) '$orderCount ${t('shift.orders')}',
     ].join(' · ');
 
+    final loadError = ref.watch(closeShiftProvider.select((s) => s.loadError));
     final expected = _ExpectedCard(
       report: report,
+      loadError: loadError?.of(bridge),
+      onRetry: () => unawaited(ref.read(closeShiftProvider.notifier).retry()),
       currency: currency,
       tr: t,
       onPreview: report == null
@@ -157,12 +171,18 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
 class _ExpectedCard extends StatelessWidget {
   const _ExpectedCard({
     required this.report,
+    required this.loadError,
+    required this.onRetry,
     required this.currency,
     required this.tr,
     required this.onPreview,
   });
 
   final ShiftReportView? report;
+
+  /// Why the report could not be read — the close waits on it, so say so.
+  final String? loadError;
+  final VoidCallback onRetry;
   final String currency;
   final String Function(String key) tr;
   final VoidCallback? onPreview;
@@ -235,7 +255,15 @@ class _ExpectedCard extends StatelessWidget {
             dense: true,
             onTap: onPreview,
           ),
-        ] else
+        ] else if (loadError != null)
+          NoticeBanner(
+            text: loadError!,
+            tone: ChipTone.danger,
+            icon: 'exclamationmark.triangle',
+            trailing: Text(tr('history.retry')),
+            onTap: onRetry,
+          )
+        else
           const SkeletonList(count: 4),
       ],
     );
@@ -315,13 +343,18 @@ class _CountedCard extends ConsumerWidget {
     );
     final busy = ref.watch(closeShiftProvider.select((s) => s.busy));
     final error = ref.watch(closeShiftProvider.select((s) => s.error));
-    final diff = expectedMinor == null ? null : countedMinor - expectedMinor;
+    final canClose = ref.watch(closeShiftProvider.select((s) => s.canClose));
+    // No difference until a count is entered: an untouched field is not a
+    // drawer that is short by the whole float.
+    final diff = expectedMinor == null || countedMinor == null
+        ? null
+        : countedMinor - expectedMinor;
     final needsReason = diff != null && diff != 0;
     return MadarCard.column(
       children: [
         MadarSectionHeader(text: tr('shift.counted_cash')),
         MadarAmountField(
-          amountMinor: countedMinor,
+          amountMinor: countedMinor ?? 0,
           onAmountMinor: (v) =>
               ref.read(closeShiftProvider.notifier).setCounted(v),
           currencyCode: currency,
@@ -353,8 +386,12 @@ class _CountedCard extends ConsumerWidget {
           glyph: MadarGlyph.lock,
           variant: MadarButtonVariant.danger,
           loading: busy,
-          enabled: expectedMinor != null,
-          tooltip: expectedMinor == null ? tr('chrome.syncing') : null,
+          enabled: canClose || busy,
+          tooltip: expectedMinor == null
+              ? tr('chrome.syncing')
+              : countedMinor == null
+              ? tr('shift.count_required')
+              : null,
           onTap: onClose,
         ),
       ],

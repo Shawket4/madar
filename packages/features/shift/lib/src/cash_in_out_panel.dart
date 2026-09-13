@@ -75,6 +75,27 @@ class _CashInOutPanelState extends ConsumerState<CashInOutPanel> {
   }
 
   Future<void> _record() async {
+    final state = ref.read(cashMovementsProvider);
+    if (!state.canRecord) return;
+    // Money leaving the drawer is asked once, with the figure: a pay-out
+    // mistyped by a zero is a real shortage at the close.
+    if (!state.isIn) {
+      final bridge = ref.read(bridgeProvider);
+      final currency = bridge.currentSession()?.currencyCode ?? '';
+      final ok = await showMadarConfirm(
+        context,
+        title: bridge
+            .tr(key: 'cash.confirm_pay_out')
+            .replaceAll(
+              '{amount}',
+              Money.format(state.amountMinor, currency: currency),
+            ),
+        body: state.note.trim(),
+        confirmLabel: bridge.tr(key: 'cash.record_pay_out'),
+        cancelLabel: bridge.tr(key: 'common.cancel'),
+      );
+      if (!ok || !mounted) return;
+    }
     final ok = await ref.read(cashMovementsProvider.notifier).record();
     if (ok && mounted) _note.clear();
   }
@@ -190,6 +211,9 @@ class _Ledger extends ConsumerWidget {
       cashMovementsProvider.select((s) => s.movements),
     );
     final loading = ref.watch(cashMovementsProvider.select((s) => s.loading));
+    final loadError = ref.watch(
+      cashMovementsProvider.select((s) => s.loadError),
+    );
     // The net is a sum for the header line, not a business figure — the
     // report's cash_in/cash_out are the ones that count.
     var net = 0;
@@ -235,7 +259,19 @@ class _Ledger extends ConsumerWidget {
                   ],
                 ),
         ),
-        if (loading && movements.isEmpty)
+        if (loadError != null && movements.isEmpty && !loading)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(top: Space.sm),
+            child: NoticeBanner(
+              text: loadError.of(bridge),
+              tone: ChipTone.danger,
+              icon: 'exclamationmark.triangle',
+              trailing: Text(t('history.retry')),
+              onTap: () =>
+                  unawaited(ref.read(cashMovementsProvider.notifier).load()),
+            ),
+          )
+        else if (loading && movements.isEmpty)
           const Padding(
             padding: EdgeInsetsDirectional.only(top: Space.sm),
             child: SkeletonScope(
