@@ -43,7 +43,7 @@ class ShiftHistoryScreen extends ConsumerWidget {
         // Loose, so the card hugs its rows instead of filling the page.
         child: Align(
           alignment: AlignmentDirectional.topStart,
-          child: _ShiftsTable(),
+          child: _Shifts(),
         ),
       ),
       overlay: ToastHost(
@@ -97,8 +97,8 @@ MadarStatus shiftStatus(MadarBridge bridge, ShiftSummaryView s) {
 }
 
 /// The one table. Rows expand to the shift's orders, loaded on first open.
-class _ShiftsTable extends ConsumerWidget {
-  const _ShiftsTable();
+class _Shifts extends ConsumerWidget {
+  const _Shifts();
 
   /// Open a shift's Z report in the shared sheet — the live shift loads the
   /// current report in-sheet; a past one is fetched first (a spinner in its

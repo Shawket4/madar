@@ -44,6 +44,32 @@ void main() {
     expect(offenders, isEmpty, reason: 'use MadarPageScaffold instead');
   });
 
+  test('the migrated screens build no rows or tables of their own', () {
+    // Till, shifts, Orders, Settings and sign-in are on the spec
+    // (docs/design/SPEC.md §7–8): records go in MadarDataTable, lists in
+    // MadarListRow. A private `_SomethingRow` / `_SomethingTable` class here
+    // is a hand-built row drifting from the kit again — the owner's "Past
+    // shifts and Orders look nothing alike". Composites that only arrange
+    // kit rows are named for what they hold, not "Row".
+    const packages = ['shift', 'history', 'settings', 'auth'];
+    final bespoke = RegExp(r'^class (_\w*(Row|Table))\b');
+    final raw = RegExp(r'CircularProgressIndicator\(');
+    final offenders = <String>[];
+    for (final pkg in packages) {
+      final dir = Directory('$_root/packages/features/$pkg/lib');
+      for (final f in dir.listSync(recursive: true).whereType<File>()) {
+        if (!f.path.endsWith('.dart')) continue;
+        final lines = f.readAsLinesSync();
+        for (var i = 0; i < lines.length; i++) {
+          if (bespoke.hasMatch(lines[i]) || raw.hasMatch(lines[i])) {
+            offenders.add('${f.path}:${i + 1}: ${lines[i].trim()}');
+          }
+        }
+      }
+    }
+    expect(offenders, isEmpty, reason: 'use MadarDataTable / MadarListRow');
+  });
+
   test('a failed boot never shows a raw key for Retry', () {
     expect(bootRetryFallback('en'), 'Retry');
     expect(bootRetryFallback('ar'), 'إعادة المحاولة');

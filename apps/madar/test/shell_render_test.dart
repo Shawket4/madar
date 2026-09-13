@@ -1005,9 +1005,9 @@ Future<void> _shot(WidgetTester tester, String name) async {
   await tester.runAsync(() async {
     final image = await boundary.toImage(pixelRatio: 2);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    final file = File('build/render/$name.png')
-      ..parent.createSync(recursive: true);
-    file.writeAsBytesSync(bytes!.buffer.asUint8List());
+    File('build/render/$name.png')
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync(bytes!.buffer.asUint8List());
   });
 }
 
@@ -1591,6 +1591,20 @@ const _specPages = <String>{
   'waiter-me',
 };
 
+/// Each migrated page's content width, from SPEC §3 / §15.
+const _specWidths = <String, MadarContentWidth>{
+  'till': MadarContentWidth.full,
+  'till-noshift': MadarContentWidth.form,
+  'past-orders': MadarContentWidth.full,
+  'sale': MadarContentWidth.form,
+  'close-shift': MadarContentWidth.full,
+  'shift-history': MadarContentWidth.reading,
+  'cash-in-out': MadarContentWidth.form,
+  'settings': MadarContentWidth.reading,
+  'sync': MadarContentWidth.reading,
+  'waiter-me': MadarContentWidth.reading,
+};
+
 /// Pages still drawing the kit header by hand rather than through the
 /// shell's slot. Their geometry is held to the same numbers below; the key
 /// is what they lack. Empty: every page's header is the shell's own.
@@ -1667,6 +1681,17 @@ void pageShellMain() {
       for (final MapEntry(key: name, value: page) in _pages.entries) {
         await _openPage(tester, page, size);
         seen[name] = _headerGeometry(tester, name);
+        if (_specWidths[name] case final want?) {
+          final page = tester.widget<MadarPageScaffold>(
+            find
+                .ancestor(
+                  of: find.byKey(MadarPageScaffold.headerKey).last,
+                  matching: find.byType(MadarPageScaffold),
+                )
+                .first,
+          );
+          expect(page.width, want, reason: '$name: content width (SPEC §3)');
+        }
         _expectChromeStands(tester, name, size);
         // A pushed page carries the back tile; a tab body never does.
         expect(
@@ -1760,8 +1785,11 @@ Future<void> _tapFirst(WidgetTester tester, Finder finder) async {
 final _board = <String, _BoardScreen>{
   'till': const _BoardScreen(tab: 'till'),
   'till-noshift': const _BoardScreen(tab: 'till', shiftOpen: false),
-  'cash-in-out': _BoardScreen(tab: 'till', pushed: CashMovementsScreen.new),
-  'close-shift': _BoardScreen(tab: 'till', pushed: CloseShiftScreen.new),
+  'cash-in-out': const _BoardScreen(
+    tab: 'till',
+    pushed: CashMovementsScreen.new,
+  ),
+  'close-shift': const _BoardScreen(tab: 'till', pushed: CloseShiftScreen.new),
   'close-shift-counted': _BoardScreen(
     tab: 'till',
     pushed: CloseShiftScreen.new,
@@ -1776,21 +1804,24 @@ final _board = <String, _BoardScreen>{
     tab: 'till',
     sheet: () => const ShiftReportSheet(shiftId: 'sh-1', closed: true),
   ),
-  'x-report': _BoardScreen(tab: 'till', sheet: ShiftReportSheet.new),
-  'past-shifts': _BoardScreen(tab: 'till', pushed: ShiftHistoryScreen.new),
+  'x-report': const _BoardScreen(tab: 'till', sheet: ShiftReportSheet.new),
+  'past-shifts': const _BoardScreen(
+    tab: 'till',
+    pushed: ShiftHistoryScreen.new,
+  ),
   'past-shifts-open': _BoardScreen(
     tab: 'till',
     pushed: ShiftHistoryScreen.new,
     then: (tester) => _tapFirst(tester, find.text('Omar')),
   ),
-  'orders': _BoardScreen(tab: 'till', pushed: OrderHistoryScreen.new),
+  'orders': const _BoardScreen(tab: 'till', pushed: OrderHistoryScreen.new),
   'orders-selected': _BoardScreen(
     tab: 'till',
     pushed: OrderHistoryScreen.new,
     then: (tester) => _tapFirst(tester, find.textContaining('1002')),
   ),
-  'settings': _BoardScreen(tab: 'till', pushed: SettingsScreen.new),
-  'sync': _BoardScreen(tab: 'till', pushed: SyncScreen.new),
+  'settings': const _BoardScreen(tab: 'till', pushed: SettingsScreen.new),
+  'sync': const _BoardScreen(tab: 'till', pushed: SyncScreen.new),
   'me': const _BoardScreen(waiter: true, tab: 'me'),
   'login': const _BoardScreen(route: 'login'),
   'station-picker': const _BoardScreen(route: 'station'),
@@ -1820,9 +1851,7 @@ Future<void> _openBoard(
   );
   if (screen.tab != null) await _tab(tester, screen.tab!);
   if (screen.pushed case final page?) {
-    unawaited(
-      _pageStack(tester).push(MaterialPageRoute<void>(builder: (_) => page())),
-    );
+    _pageStack(tester).push(MaterialPageRoute<void>(builder: (_) => page()));
     await _settle(tester);
   }
   if (screen.sheet case final sheet?) {
