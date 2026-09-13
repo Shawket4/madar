@@ -232,7 +232,15 @@ fn every_key_the_app_asks_for_exists_in_both_locales() {
 /// `'foo.${x}'` in Dart without saying what `x` can be is how a raw key
 /// reaches a screen.
 const BUILT_KEYS: &[(&str, &[&str])] = &[
-    ("ticket.status.", &["open", "ready", "settled", "voided", "queued"]),
+    (
+        "ticket.status.",
+        &["open", "ready", "settled", "voided", "queued"],
+    ),
+    // An add-on type with no words falls back to order.addon_other in Dart.
+    (
+        "order.addon_",
+        &["milk_type", "coffee_type", "extra", "other"],
+    ),
     (
         "delivery.status.",
         &[
@@ -248,14 +256,27 @@ const BUILT_KEYS: &[(&str, &[&str])] = &[
     ),
     (
         "delivery.action.",
-        &["confirmed", "preparing", "ready", "out_for_delivery", "delivered"],
+        &[
+            "confirmed",
+            "preparing",
+            "ready",
+            "out_for_delivery",
+            "delivered",
+        ],
     ),
     ("delivery.mode_", &["auto", "open", "closed"]),
     // The order's delivery channel (`in_mall` | `outside` | `umbrella` | `pickup`).
     ("delivery.", &["in_mall", "outside", "umbrella", "pickup"]),
     (
         "role.",
-        &["waiter", "teller", "branch_manager", "org_admin", "super_admin", "kitchen"],
+        &[
+            "waiter",
+            "teller",
+            "branch_manager",
+            "org_admin",
+            "super_admin",
+            "kitchen",
+        ],
     ),
     ("settings.routing_", &["kds", "till", "both", "off"]),
 ];
@@ -265,7 +286,9 @@ fn built_prefixes(src: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for (idx, _) in src.match_indices('\'') {
         let rest = &src[idx + 1..];
-        let Some(dollar) = rest.find('$') else { continue };
+        let Some(dollar) = rest.find('$') else {
+            continue;
+        };
         let Some(end) = rest.find('\'') else { continue };
         if dollar > end {
             continue;
@@ -327,7 +350,11 @@ fn every_key_the_app_builds_at_runtime_exists_in_both_locales() {
          can follow them — register every wire value:\n  {}",
         unregistered.join("\n  ")
     );
-    assert!(seen.len() >= 5, "only saw {} key builders — the scanner is broken", seen.len());
+    assert!(
+        seen.len() >= 5,
+        "only saw {} key builders — the scanner is broken",
+        seen.len()
+    );
 
     let mut missing = Vec::new();
     for (prefix, values) in BUILT_KEYS {
@@ -369,7 +396,9 @@ fn every_core_detail_the_app_translates_is_still_raised() {
     let mut n = 0;
     for line in body.lines() {
         let t = line.trim();
-        let Some(rest) = t.strip_prefix('\'') else { continue };
+        let Some(rest) = t.strip_prefix('\'') else {
+            continue;
+        };
         let Some(end) = rest.find("':") else { continue };
         let detail = rest[..end].replace("\\'", "'");
         n += 1;
@@ -378,5 +407,8 @@ fn every_core_detail_the_app_translates_is_still_raised() {
         }
     }
     assert!(n > 10, "parsed only {n} details — the parser is broken");
-    assert!(stale.is_empty(), "details no longer raised by the core: {stale:?}");
+    assert!(
+        stale.is_empty(),
+        "details no longer raised by the core: {stale:?}"
+    );
 }
