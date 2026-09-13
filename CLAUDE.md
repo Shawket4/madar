@@ -103,9 +103,14 @@ the SSE stream is down. Both exist on purpose — don't remove the poll.
 ## Floor / tables — shared with the dashboard
 `packages/features/order/lib/src/tables_screen.dart`.
 
-- **The glyph is shared.** `_TableCell` + `seatSlots` draw the same object as the
-  dashboard's `src/features/floor/table-glyph.tsx`, from the same constants in **canvas
-  units** × the live scale. Change a constant in one, change it in the other.
+- **The glyph is shared.** `TableGlyph` + `seatSlots` (`table_glyph.dart`, `kTable*`)
+  draw the same object as the dashboard's `src/features/floor/table-glyph.tsx`
+  (`TABLE_*`), from the same constants in **canvas units** × the live scale. Change a
+  constant in one, change it in the other.
+- **The floor screen** (`floor_screen.dart`) fits the room to both axes and docks
+  `floor_inspector.dart` at the end side on iPad/desktop (under the room in portrait, a
+  sheet on a phone). Every act goes through `_perform(FloorAction, table)`.
+  `floor_render_test.dart` renders it (`--dart-define=MADAR_RENDER=true`).
 - **Frame content, never a stored canvas size.** The dashboard's plane is unbounded;
   tables may sit at negative coordinates or far past the old nominal size. `floorBounds`
   computes the real extent (rotation envelope + chair allowance) and `kMaxFloorScale`
