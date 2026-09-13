@@ -528,7 +528,8 @@ class ProgressBar extends StatelessWidget {
   }
 }
 
-/// The paper-background page every screen is built in: a title, then content.
+/// The paper-background page every screen is built in: the shell header
+/// carrying [title], then the scrolling content.
 class StaffPage extends StatelessWidget {
   const StaffPage({
     required this.title,
@@ -559,17 +560,16 @@ class StaffPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final list = ListView(
-      padding: padding,
-      children: [
-        ScreenTitle(title, trailing: titleTrailing),
-        const SizedBox(height: Space.md),
-        ...children,
-      ],
-    );
+    final list = ListView(padding: padding, children: children);
 
+    // The title lives in the shell's header, not the scroll: it stays put
+    // while the page scrolls under it (SPEC §2). The header pays the top
+    // inset, so the body only guards the sides.
     return MadarPageScaffold(
+      title: title,
+      actions: [?titleTrailing],
       body: SafeArea(
+        top: false,
         bottom: false,
         child: Column(
           children: [
