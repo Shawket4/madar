@@ -195,6 +195,8 @@ struct CatalogSnapshot {
 
 /// kv key persisting the dashboard's active org/branch scope override.
 const K_DASHBOARD_SCOPE: &str = "dashboard:active_scope";
+/// Why the cached open-ticket list is not fresh; empty when it is.
+const K_OPEN_TICKETS_STALE: &str = "cache:open_tickets:stale";
 
 /// The dashboard's runtime-selected org/branch scope. A `None` field means
 /// "fall back to the session-derived value" (see `MadarCore::effective_scope`).
@@ -7209,6 +7211,17 @@ impl MadarCore {
     /// The branch's OPEN/READY open tickets (newest first). Server list (write-through
     /// cached, so it survives offline) PLUS any still-queued local fires overlaid as
     /// `status = "queued"` — offline-first visibility before the fire syncs.
+    /// Why the last [`Self::list_open_tickets`] served the cache instead of the
+    /// server (`offline: …`, `forbidden …`, a decode failure), or `None` when
+    /// it was fresh. The list itself stays usable offline; this says it is old.
+    pub fn open_tickets_stale_reason(&self) -> Option<String> {
+        self.store
+            .kv_get(K_OPEN_TICKETS_STALE)
+            .ok()
+            .flatten()
+            .filter(|s| !s.is_empty())
+    }
+
     pub async fn list_open_tickets(&self) -> Result<Vec<tickets::TicketView>, CoreError> {
         use madar_api::apis::open_tickets_api as ot;
         let branch_id = self.session_branch_id()?;
@@ -7226,9 +7239,17 @@ impl MadarCore {
         {
             Ok(list) => {
                 cache_views(&self.store, "cache:open_tickets", &list);
+                let _ = self.store.kv_put(K_OPEN_TICKETS_STALE, "");
                 list
             }
-            Err(_) => cached_views(&self.store, "cache:open_tickets"),
+            // The cache still shows the room, but it is marked: why the list
+            // is not fresh (offline / forbidden / a reply this build cannot
+            // read) is kept for the screen to say, not swallowed.
+            Err(e) => {
+                let why = net::map_api_error(e).to_string();
+                let _ = self.store.kv_put(K_OPEN_TICKETS_STALE, &why);
+                cached_views(&self.store, "cache:open_tickets")
+            }
         };
         // Line voids this device queued but has not sent: the waiter who took
         // a plate off must see it come off, and the cashier must not collect
@@ -8917,6 +8938,16 @@ mod lifecycle_tests {
             Some(TA),
             "the bill stays on A"
         );
+    }
+
+    /// A bill list served from the cache says so, and why.
+    #[tokio::test]
+    async fn a_cached_ticket_list_is_marked_stale() {
+        let core = draining_core("http://127.0.0.1:9".into()).await;
+        seed_party_on_a(&core, "free");
+        let list = core.list_open_tickets().await.unwrap();
+        assert_eq!(list.len(), 1, "the cache still shows the room");
+        assert!(core.open_tickets_stale_reason().is_some());
     }
 
     /// Clearing a table, seating a party and seating a booking reach the
