@@ -273,6 +273,7 @@ TicketLineView _line(String name, int qty, int minor, int round) =>
 
 final _bills = <TicketView>[
   TicketView(
+    ready: true,
     id: 'tk-1',
     ticketRef: 'T-0412',
     tableId: 't5',
@@ -286,6 +287,7 @@ final _bills = <TicketView>[
     lines: [_line('Coke', 2, 5000, 1), _line('Grill', 2, 18500, 3)],
   ),
   TicketView(
+    ready: false,
     id: 'tk-2',
     ticketRef: 'T-0415',
     tableId: 't8',
@@ -298,6 +300,7 @@ final _bills = <TicketView>[
     lines: [_line('Tea', 2, 3000, 1), _line('Cake', 1, 11500, 2)],
   ),
   TicketView(
+    ready: false,
     id: 'tk-3',
     ticketRef: 'T-0409',
     tableId: 't2',
