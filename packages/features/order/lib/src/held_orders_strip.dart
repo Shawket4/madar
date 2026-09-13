@@ -1,7 +1,9 @@
+import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge/rust_bridge.dart';
 
 /// One chip in the held-orders strip. Shared by the teller (parked drafts +
 /// the live cart) and the waiter (a "New" tab + open tickets). [sortKey] is
@@ -135,6 +137,12 @@ class HeldOrdersStrip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final saved = ref.watch(heldStripOrderProvider);
+    final bridge = ref.read(bridgeProvider);
+    // The chip's time in the BRANCH's clock, by the core's formatter. Slicing
+    // "HH:MM" out of the stamp showed UTC — two hours off in Cairo.
+    String timeOf(String rfc3339) => rfc3339.isEmpty
+        ? ''
+        : bridge.formatTime(rfc3339: rfc3339, style: TimeStyle.time);
     final display = _reconcile(saved, tabs);
     // onReorderItem (3.44+) hands a PRE-adjusted newIndex — no manual
     // removed-item offset like the old onReorder required.
@@ -170,6 +178,7 @@ class HeldOrdersStrip extends ConsumerWidget {
                       child: _HeldOrderChip(
                         tab: display[i],
                         newLabel: newLabel,
+                        time: timeOf(display[i].sortKey),
                       ),
                     ),
                   ),
@@ -192,10 +201,17 @@ const double _closeSize = 18;
 /// One polished order chip: count badge · time · close ✕. Inactive =
 /// surface + hairline border; active = accent fill with a soft raised shadow.
 class _HeldOrderChip extends StatelessWidget {
-  const _HeldOrderChip({required this.tab, required this.newLabel});
+  const _HeldOrderChip({
+    required this.tab,
+    required this.newLabel,
+    required this.time,
+  });
 
   final HeldOrderTab tab;
   final String newLabel;
+
+  /// The creation time, already formatted by the core.
+  final String time;
 
   @override
   Widget build(BuildContext context) {
@@ -256,7 +272,7 @@ class _HeldOrderChip extends StatelessWidget {
                     ? newLabel
                     : (tab.title?.trim().isNotEmpty ?? false)
                     ? tab.title!.trim()
-                    : formatHHMM(tab.sortKey),
+                    : time,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: MadarType.bodySm.copyWith(

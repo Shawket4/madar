@@ -710,8 +710,47 @@ class OrderNotifier extends Notifier<OrderState> {
   /// The item's MODIFIER GROUPS (unified-model projection) — display-ready
   /// groups with constraints + charged prices resolved by the core.
   Future<List<ModifierGroupView>> loadItemModifierGroups(String itemId) async =>
-      await _quiet(() => _bridge.listItemModifierGroups(itemId: itemId)) ??
-      const [];
+      await tryLoadItemModifierGroups(itemId) ?? const [];
+
+  /// The same, but null when the read FAILED — so a caller deciding whether
+  /// an item needs its sheet can tell "no options" from "could not ask". A
+  /// failure used to read as "no options", and an item with a required size
+  /// or milk went into the cart without its sheet. The failure is said.
+  Future<List<ModifierGroupView>?> tryLoadItemModifierGroups(
+    String itemId,
+  ) async {
+    try {
+      return await _bridge.listItemModifierGroups(itemId: itemId);
+    } on MadarError catch (e) {
+      ref.read(connectivityRefreshProvider.notifier).reportError(e);
+      showToast(
+        _tr('order.options_unavailable'),
+        tone: ChipTone.warning,
+        icon: 'exclamationmark.triangle',
+      );
+      return null;
+    }
+  }
+
+  /// What the configured line would cost — the item sheet's figures, priced
+  /// by the core's own resolver so the sheet and the cart always agree. Null
+  /// when the core could not price it (the sheet then shows no figure rather
+  /// than a guessed one).
+  Future<LinePreviewView?> previewConfiguredLine({
+    required String itemId,
+    required List<AddonSelection> addons,
+    required List<String> optionalIds,
+    required int qty,
+    String? sizeLabel,
+  }) => _quiet(
+    () => _bridge.previewConfiguredLine(
+      itemId: itemId,
+      sizeLabel: sizeLabel,
+      addons: addons,
+      optionalFieldIds: optionalIds,
+      qty: qty,
+    ),
+  );
 
   /// Check a selection against the item's group constraints (min/max/required).
   /// Empty = valid. Errors degrade to "valid" (`_quiet`) — enforcement is a UX
@@ -750,7 +789,11 @@ class OrderNotifier extends Notifier<OrderState> {
 
   /// Add (or, in edit mode, replace) a configured line. The core resolves
   /// the charged prices from the catalog; we just pass the selection.
-  Future<void> addConfigured({
+  ///
+  /// An edit is ONE core call: the old line leaves in the same write the new
+  /// one lands in, so a refused edit keeps the original line. Returns whether
+  /// the cart took the line — the sheet stays open (and says why) when not.
+  Future<bool> addConfigured({
     required String itemId,
     required List<AddonSelection> addons,
     required List<String> optionalIds,
@@ -759,22 +802,39 @@ class OrderNotifier extends Notifier<OrderState> {
     String? notes,
     String? replaceLineKey,
   }) async {
-    if (replaceLineKey != null) {
-      await _quiet(() => _bridge.cartRemove(itemId: replaceLineKey));
-    }
+    var ok = true;
     try {
-      await _bridge.cartAddConfigured(
-        itemId: itemId,
-        sizeLabel: sizeLabel,
-        addons: addons,
-        optionalFieldIds: optionalIds,
-        qty: qty,
-        notes: notes,
-      );
+      if (replaceLineKey != null) {
+        await _bridge.cartReplaceConfigured(
+          lineKey: replaceLineKey,
+          itemId: itemId,
+          sizeLabel: sizeLabel,
+          addons: addons,
+          optionalFieldIds: optionalIds,
+          qty: qty,
+          notes: notes,
+        );
+      } else {
+        await _bridge.cartAddConfigured(
+          itemId: itemId,
+          sizeLabel: sizeLabel,
+          addons: addons,
+          optionalFieldIds: optionalIds,
+          qty: qty,
+          notes: notes,
+        );
+      }
     } on MadarError catch (e) {
+      ok = false;
       state = state.copyWith(error: UiText.error(e));
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
     }
     await loadCart();
+    return ok;
   }
 
   // ── bundles ────────────────────────────────────────────────────────────────
@@ -802,10 +862,28 @@ class OrderNotifier extends Notifier<OrderState> {
     state = state.copyWith(drafts: drafts ?? state.drafts);
   }
 
+  /// The park / resume in flight, if any. A second tap while one is running
+  /// joins it instead of starting another — two parks of one cart were two
+  /// drafts of one order.
+  Future<void>? _heldOp;
+
+  Future<void> _heldOnce(Future<void> Function() op) {
+    final running = _heldOp;
+    if (running != null) return running;
+    final job = op();
+    _heldOp = job;
+    return job.whenComplete(() {
+      if (identical(_heldOp, job)) _heldOp = null;
+    });
+  }
+
   /// Park the current cart as a held order — onto its picked table, if any.
   /// A lost table race still parks (the core drops the table + returns true);
   /// the teller gets a toast instead of a failure.
-  Future<void> holdCart() async {
+  Future<void> holdCart() => _heldOnce(_holdCart);
+
+  Future<void> _holdCart() async {
+    if (state.cartLines.isEmpty) return;
     final conflict = await _quiet(
       () => _bridge.holdCartOnTable(
         // The draft keeps the ORDER's identity: its free-text name (may be
@@ -835,45 +913,93 @@ class OrderNotifier extends Notifier<OrderState> {
   /// adopting the draft's FULL identity: its createdAt as the immutable
   /// start timestamp, its free-text name, its table, and its id (passed back
   /// on the next hold so the draft never changes identity).
-  Future<void> restoreDraft(String id) async {
+  ///
+  /// A draft belongs to its table (or the counter): it is restored into THAT
+  /// context's cart, and whatever unfired work already sits there is parked
+  /// first — all inside one core call.
+  Future<void> restoreDraft(String id) =>
+      _heldOnce(() => _resumeDraft(id, parkInHand: false));
+
+  /// The one resume path. [parkInHand] also parks the cart in hand before
+  /// leaving it (the strip's tab-style switch).
+  Future<void> _resumeDraft(String id, {required bool parkInHand}) async {
     final draft = state.drafts.where((d) => d.id == id).firstOrNull;
     if (draft?.lockedByOther ?? false) {
       showToast(_tr('tables.locked'), tone: ChipTone.warning, icon: 'lock');
       return;
     }
-    // A draft belongs to its table (or the counter): restore it into THAT
-    // context's cart, and never over unfired work already sitting there.
-    if (draft != null) {
-      await _switchCart(
-        tableId: draft.tableId,
-        tableLabel: draft.tableLabel,
-        adoptParked: false,
-      );
-      if (state.cartLines.isNotEmpty) await _parkInHand();
-    }
+    final inHand = HeldParkInput(
+      name: state.cartName ?? '',
+      draftId: state.cartDraftId,
+      startedAt: state.cartStartedAtIso,
+    );
+    final targetTable = draft?.tableId;
+    final sameContext = targetTable == state.cartTableId;
+    final targetMeta = sameContext ? null : _cartMeta[targetTable];
+    final atTarget = sameContext
+        ? inHand
+        : HeldParkInput(
+            name: targetMeta?.name ?? '',
+            draftId: targetMeta?.draftId,
+            startedAt: targetMeta?.startedAtIso,
+          );
+    final DraftSwitchView view;
     try {
-      final lines = await _bridge.restoreDraft(id: id);
-      state = state.copyWith(cartLines: lines);
+      view = await _bridge.switchToDraft(
+        id: id,
+        parkInHand: parkInHand ? inHand : null,
+        parkAtTarget: atTarget,
+      );
     } on MadarError catch (e) {
-      state = state.copyWith(error: UiText.error(e));
+      // Refused before anything moved: the cart in hand is exactly as it was.
+      showToast(
+        _bridge.humanMessage(e),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+      await loadDrafts();
+      return;
     }
+    if (view.tableTaken) {
+      showToast(_tr('tables.taken'), tone: ChipTone.warning, icon: 'table');
+    }
+    if (!sameContext && !parkInHand) {
+      // The context left behind keeps its cart; remember who it belongs to.
+      _cartMeta[state.cartTableId] = _CartMeta(
+        name: state.cartName,
+        draftId: state.cartDraftId,
+        startedAtIso: state.cartStartedAtIso,
+        bookingId: state.cartBookingId,
+        label: state.cartTableLabel,
+      );
+    }
+    _cartMeta.remove(view.tableId);
     final totals = await _fetchTotals();
-    final name = draft?.name.trim() ?? '';
+    final name = view.name.trim();
     state = state.copyWith(
-      cartStartedAtIso: draft?.createdAt ?? state.cartStartedAtIso,
+      cartLines: view.lines,
+      cartTableId: view.tableId,
+      cartTableLabel: view.tableId == null
+          ? null
+          : (view.tableLabel ?? state.cartTableLabel),
+      cartBookingId: sameContext ? state.cartBookingId : null,
+      cartStartedAtIso: view.createdAt.isEmpty ? nowIso() : view.createdAt,
       // Drafts parked before names existed carry an "HH:MM" auto-label —
-      // treat those as unnamed so the chip falls back to the live time.
-      cartName: name.isEmpty || _looksLikeTimeLabel(name) ? null : name,
-      cartDraftId: draft?.id,
+      // treat those as unnamed so the chip falls back to the time.
+      cartName: name.isEmpty || looksLikeTimeLabel(name) ? null : name,
+      cartDraftId: id,
       cartTotals: totals,
+      activeTicketId: null,
     );
     await Future.wait([loadDrafts(), loadFloor()]);
     _refreshShell();
   }
 
   /// Legacy auto-labels ("14:05") from before free-text names — not names.
-  static bool _looksLikeTimeLabel(String s) =>
-      RegExp(r'^\d{1,2}:\d{2}$').hasMatch(s);
+  /// The one copy: the strip used to keep its own, with an escaped `$` that
+  /// never matched anything.
+  static bool looksLikeTimeLabel(String s) =>
+      RegExp(r'^\d{1,2}:\d{2}$').hasMatch(s.trim());
 
   /// Rename the LIVE order (free text; empty clears back to the time
   /// label). Persists on the next hold via the draft's name.
@@ -919,35 +1045,10 @@ class OrderNotifier extends Notifier<OrderState> {
   }
 
   /// Tab-style switch to a held order: park the current cart first (if any)
-  /// so nothing is lost, then load the target under its own createdAt.
-  Future<void> switchToHeldOrder(String id) async {
-    // Check the lock BEFORE parking the current cart, so a blocked switch
-    // leaves the live order exactly where it was.
-    final target = state.drafts.where((d) => d.id == id).firstOrNull;
-    if (target?.lockedByOther ?? false) {
-      showToast(_tr('tables.locked'), tone: ChipTone.warning, icon: 'lock');
-      return;
-    }
-    if (state.cartLines.isNotEmpty) {
-      await _quiet(() async {
-        // Park the CURRENT order under its own identity (see holdCart) —
-        // table included.
-        await _bridge.holdCartOnTable(
-          name: state.cartName ?? '',
-          draftId: state.cartDraftId,
-          startedAt: state.cartStartedAtIso,
-          tableId: state.cartTableId,
-        );
-        return true;
-      });
-    }
-    state = state.copyWith(
-      cartStartedAtIso: null,
-      cartName: null,
-      cartDraftId: null,
-    );
-    await restoreDraft(id);
-  }
+  /// so nothing is lost, then load the target under its own createdAt — one
+  /// core call, one at a time.
+  Future<void> switchToHeldOrder(String id) =>
+      _heldOnce(() => _resumeDraft(id, parkInHand: true));
 
   /// A resumed draft's cart just CHECKED OUT — close the loop: the held
   /// order completes (its table lands `dirty`, its waitlist wish cancels)
@@ -1229,26 +1330,6 @@ class OrderNotifier extends Notifier<OrderState> {
       if (waiting != null) await restoreDraft(waiting.id);
     }
     _refreshShell();
-  }
-
-  /// Park the cart in hand under its own identity (its context's table).
-  Future<void> _parkInHand() async {
-    await _quiet(() async {
-      await _bridge.holdCartOnTable(
-        name: state.cartName ?? '',
-        draftId: state.cartDraftId,
-        startedAt: state.cartStartedAtIso,
-        tableId: state.cartTableId,
-      );
-      return true;
-    });
-    state = state.copyWith(
-      cartLines: const [],
-      cartStartedAtIso: null,
-      cartName: null,
-      cartDraftId: null,
-    );
-    await loadDrafts();
   }
 
   /// Aim the cart back at the counter. The Sell tab is takeaway and only
@@ -1593,6 +1674,8 @@ class OrderNotifier extends Notifier<OrderState> {
     String? notes,
     int? guestCount,
   }) async {
+    // A second tap while the first fire is on its way is not a second round.
+    if (state.isBusy || state.cartLines.isEmpty) return false;
     final target = state.activeTicketId;
     // Captured BEFORE the fire, because a successful one clears the cart and
     // the chit is a picture of what was just sent.

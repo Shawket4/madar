@@ -197,27 +197,49 @@ class _SellScreenState extends ConsumerState<SellScreen>
   /// The rule: a sheet iff the item has more than one size, or any modifier
   /// group that is required (or wants at least one pick). Everything else is
   /// one tap.
-  Future<bool> _itemNeedsSheet(MenuItemView item) async {
+  ///
+  /// Null when the options could not be read: nothing is added then (the
+  /// notifier says why), and nothing is remembered, so the next tap asks
+  /// again. A failed read used to count as "no options" and put an item with
+  /// a required pick straight into the cart.
+  Future<bool?> _itemNeedsSheet(MenuItemView item) async {
     final known = _needsSheet[item.id];
     if (known != null) return known;
     var needs = item.sizes.length > 1;
     if (!needs) {
-      final groups = await _notifier.loadItemModifierGroups(item.id);
+      final groups = await _notifier.tryLoadItemModifierGroups(item.id);
+      if (groups == null) return null;
       needs = groups.any((g) => g.isRequired || g.minSelections > 0);
     }
     _needsSheet[item.id] = needs;
     return needs;
   }
 
-  Future<void> _onTileTap(MenuItemView item, Offset origin) async {
-    if (await _itemNeedsSheet(item)) {
+  /// A tile tap, a line edit or Charge already on its way. A second tap
+  /// while one is opening used to stack two sheets (or two drawers).
+  bool _opening = false;
+
+  Future<void> _once(Future<void> Function() op) async {
+    if (_opening) return;
+    _opening = true;
+    try {
+      await op();
+    } finally {
+      if (mounted) _opening = false;
+    }
+  }
+
+  Future<void> _onTileTap(MenuItemView item, Offset origin) => _once(() async {
+    final needs = await _itemNeedsSheet(item);
+    if (needs == null || !mounted) return;
+    if (needs) {
       await _openItemSheet(item);
       return;
     }
     await _quickAdd(item);
     if (!mounted) return;
     _flyToCart(origin);
-  }
+  });
 
   /// The quick-add path skips the sheet, but a recipe's base modifier — full
   /// -fat milk under a latte — must still land on the line: the owner's
@@ -276,11 +298,11 @@ class _SellScreenState extends ConsumerState<SellScreen>
     );
   }
 
-  Future<void> _editLine(CartLineView line) async {
+  Future<void> _editLine(CartLineView line) => _once(() async {
     final item = ref.read(orderProvider).menuItemById(line.itemId);
     if (item == null) return;
     await _openItemSheet(item, edit: line);
-  }
+  });
 
   Future<void> _openBundle(BundleView bundle) async {
     await showMadarSheet<void>(
@@ -296,8 +318,11 @@ class _SellScreenState extends ConsumerState<SellScreen>
 
   // ── terminal ───────────────────────────────────────────────────────────────
 
-  /// Charge a counter cart through the tender drawer, or fire the round.
-  Future<void> _terminal() async {
+  /// Charge a counter cart through the tender drawer, or fire the round —
+  /// once per tap: a double tap opened two drawers over one cart.
+  Future<void> _terminal() => _once(_terminalOnce);
+
+  Future<void> _terminalOnce() async {
     final state = ref.read(orderProvider);
     final cta = sellCtaFor(state, ref.read(bridgeProvider));
     if (!cta.enabled) return;
@@ -420,14 +445,14 @@ class _SellScreenState extends ConsumerState<SellScreen>
       // entry point here would just be a shortcut to something already
       // visible. Narrow hides the cart behind a sheet, so this is that
       // sheet's only door.
-      if (counter && !layout.isTablet)
+      // Only with something parked: with nothing, it opened a sheet with
+      // nothing in it and no way on.
+      if (counter && !layout.isTablet && drafts > 0)
         // An ACTION, not a filter — so it is the kit's button, like every
         // other action. A chip says "this is one of a set you choose
         // between"; this opens a sheet.
         MadarButton(
-          label: drafts == 0
-              ? orderWord(bridge, 'sell.parked')
-              : '${orderWord(bridge, 'sell.parked')} $drafts',
+          label: '${orderWord(bridge, 'sell.parked')} $drafts',
           glyph: MadarGlyph.bag,
           variant: MadarButtonVariant.secondary,
           size: MadarButtonSize.compact,

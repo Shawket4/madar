@@ -12,6 +12,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/feature_order.dart';
 import 'package:feature_order/src/bundle_detail_sheet.dart';
@@ -129,6 +130,7 @@ final _tickets = <TicketView>[
     ticketRef: 'T-0412',
     tableId: 't2',
     status: 'ready',
+    ready: true,
     guestCount: 4,
     customerName: 'Omar',
     waiterName: 'Sara',
@@ -158,6 +160,7 @@ final _tickets = <TicketView>[
     ticketRef: 'T-0413',
     tableId: 't5',
     status: 'open',
+    ready: false,
     guestCount: 2,
     waiterName: 'Hany',
     subtotalMinor: 14500,
@@ -173,6 +176,7 @@ final _tickets = <TicketView>[
     id: 'tk-3',
     ticketRef: 'T-0414',
     status: 'queued',
+    ready: false,
     customerName: 'Karim',
     waiterName: 'Sara',
     subtotalMinor: 6000,
@@ -449,7 +453,11 @@ class _FakeBridge implements MadarBridge {
     final name = invocation.memberName;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
+      // The core's REAL tables first (read out of i18n.rs), so the PNGs show
+      // the words that ship; the fixtures only cover a key the core lacks.
       // A missing key comes back as the key, exactly as the core does.
+      final real = coreWord(key, arabic: rtl);
+      if (real != key) return real;
       return (rtl ? _ar[key] : null) ?? _en[key] ?? key;
     }
     if (name == #isRtl) return rtl;
@@ -546,6 +554,48 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #cartTotals) return Future<CartTotals>.value(_totals);
     if (name == #listDrafts) return Future<List<DraftView>>.value(drafts);
+    if (name == #switchToDraft) {
+      // What the one core call does: park the cart in hand if asked, then
+      // bring the draft in.
+      if (invocation.namedArguments[#parkInHand] != null &&
+          _inHand.isNotEmpty) {
+        parked.add(context);
+        _inHand.clear();
+      }
+      final id = invocation.namedArguments[#id] as String;
+      final draft = drafts.where((d) => d.id == id).firstOrNull;
+      // Into the DRAFT's own context — never over the cart in hand.
+      context = draft?.tableId;
+      _inHand
+        ..clear()
+        ..add(_cartLine('latte', 'Latte', 4500, 1));
+      return Future<DraftSwitchView>.value(
+        DraftSwitchView(
+          lines: List.of(_inHand),
+          tableId: draft?.tableId,
+          tableLabel: draft?.tableLabel,
+          name: draft?.name ?? '',
+          createdAt: draft?.createdAt ?? '',
+          tableTaken: false,
+        ),
+      );
+    }
+    if (name == #previewConfiguredLine) {
+      final id = invocation.namedArguments[#itemId] as String;
+      final qty = invocation.namedArguments[#qty] as int;
+      final item = _items.firstWhere((i) => i.id == id);
+      return Future<LinePreviewView>.value(
+        LinePreviewView(
+          unitTotalMinor: item.basePriceMinor,
+          extrasMinor: 0,
+          lineTotalMinor: item.basePriceMinor * qty,
+        ),
+      );
+    }
+    if (name == #cartBillSoFarMinor) {
+      final ticket = invocation.namedArguments[#ticketSubtotalMinor] as int;
+      return Future<int>.value(ticket + _totals.subtotalMinor);
+    }
     if (name == #restoreDraft) {
       _inHand
         ..clear()
@@ -766,6 +816,10 @@ void main() {
     await tester.tap(find.text('T2'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
+    // The table's sheet leads to its bill.
+    await tester.tap(find.text('Open bill'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('Subtotal'), findsOneWidget);
     BuildContext billContext() => tester.element(find.text('Subtotal').first);
     expect(Directionality.of(billContext()), TextDirection.ltr);
@@ -793,7 +847,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('Floor'), findsNothing);
     expect(find.text('الصالة'), findsWidgets);
-    await tester.tap(find.text('T2'));
+    await tester.tap(find.text('T2').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.tap(find.text('افتح الفاتورة'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
 
@@ -931,9 +988,17 @@ void main() {
       await _capture(tester, 'floor-phone-seat');
     });
 
-    testWidgets('a table with a bill opens the Bill', (tester) async {
+    testWidgets('a table with a bill opens the Bill from its sheet', (
+      tester,
+    ) async {
       await _mount(tester, screen: const FloorScreen(), size: _ipad);
       await tester.tap(find.text('T2'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      // The sheet shows the bill's doors, then the bill.
+      expect(find.text('Charge'), findsOneWidget);
+      expect(find.text('Table history'), findsOneWidget);
+      await tester.tap(find.text('Open bill'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.text('ROUND 1'), findsOneWidget);

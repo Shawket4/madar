@@ -6,7 +6,6 @@ import 'package:feature_order/src/held_orders_strip.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_screen.dart';
 import 'package:feature_order/src/tables_screen.dart' show showTablePickerSheet;
-import 'package:feature_order/src/widgets.dart' show nowIso;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -66,7 +65,9 @@ class TellerHeldStrip extends ConsumerWidget {
         if (hasLines)
           HeldOrderTab(
             key: liveKey,
-            sortKey: cartStartedAtIso ?? nowIso(),
+            // A stamp that is not there yet sorts first and shows no time —
+            // `now` here re-stamped the chip, and re-sorted it, on every build.
+            sortKey: cartStartedAtIso ?? '',
             title: _chipTitle(
               cartName,
               ref.watch(orderProvider.select((s) => s.cartTableLabel)),
@@ -102,6 +103,11 @@ class TellerHeldStrip extends ConsumerWidget {
     // The strip may sit in the cart SHEET (a root surface): the page belongs
     // on the tab it was opened over, which navigatorOf finds.
     final navigator = MadarPages.navigatorOf(context);
+    // On a phone the strip sits in the cart SHEET, a root surface: put it
+    // away first, or the table's page opens BEHIND it.
+    if (ModalRoute.of(context) is MadarSheetRoute) {
+      MadarSheet.close<void>(context);
+    }
     await notifier.restoreDraft(draft.id);
     await navigator.push(
       MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
@@ -148,7 +154,9 @@ class TellerHeldStrip extends ConsumerWidget {
       ),
     );
     controller.dispose();
-    if (saved == null || saved.isEmpty) return;
+    // An EMPTY name is an answer too: it takes the name off, and the chip
+    // reads its time again.
+    if (saved == null) return;
     await ref.read(orderProvider.notifier).renameDraft(draft.id, saved);
   }
 
@@ -157,7 +165,7 @@ class TellerHeldStrip extends ConsumerWidget {
   static String? _customName(String name) {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return null;
-    if (RegExp(r'^\d{1,2}:\d{2}\$').hasMatch(trimmed)) return null;
+    if (OrderNotifier.looksLikeTimeLabel(trimmed)) return null;
     return trimmed;
   }
 

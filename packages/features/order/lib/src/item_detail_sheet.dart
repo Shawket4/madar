@@ -96,6 +96,7 @@ class ItemConfigState {
     this.showRecipe = false,
     this.recipeLines = const [],
     this.committing = false,
+    this.price,
   });
 
   final String? size;
@@ -121,6 +122,10 @@ class ItemConfigState {
   /// second pass would remove-then-re-add, duplicating the line).
   final bool committing;
 
+  /// The core's price for this selection (unit, extras, whole line). Null
+  /// until the first answer — the sheet never adds prices up itself.
+  final LinePreviewView? price;
+
   List<AddonSelection> get selectedAddons => [
     for (final id in single.values) AddonSelection(addonItemId: id, qty: 1),
     for (final group in multi.values)
@@ -138,6 +143,7 @@ class ItemConfigState {
     bool? showRecipe,
     List<ComputedRecipeLineView>? recipeLines,
     bool? committing,
+    LinePreviewView? price,
   }) => ItemConfigState(
     size: identical(size, _unset) ? this.size : size as String?,
     single: single ?? this.single,
@@ -148,6 +154,7 @@ class ItemConfigState {
     showRecipe: showRecipe ?? this.showRecipe,
     recipeLines: recipeLines ?? this.recipeLines,
     committing: committing ?? this.committing,
+    price: price ?? this.price,
   );
 
   static const Object _unset = Object();
@@ -168,6 +175,38 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
   ItemConfigState build() {
     ref.onDispose(() => _disposed = true);
     return _seed(arg);
+  }
+
+  int _priceSeq = 0;
+
+  /// Whether a sheet is showing this selection's price. Pricing follows the
+  /// view: the sheet starts it, and a selection nobody is looking at (the
+  /// pure selection tests) never reaches for the core.
+  bool _pricing = false;
+
+  /// Begin pricing — the sheet calls this once it is up.
+  Future<void> startPricing() {
+    _pricing = true;
+    return refreshPrice();
+  }
+
+  /// Re-price the selection through the core. Sequenced: a slow answer for
+  /// an older selection never overwrites a newer one.
+  Future<void> refreshPrice() async {
+    if (_disposed || !_pricing) return;
+    final seq = ++_priceSeq;
+    final s = state;
+    final price = await ref
+        .read(orderProvider.notifier)
+        .previewConfiguredLine(
+          itemId: arg.item.id,
+          sizeLabel: s.size,
+          addons: s.selectedAddons,
+          optionalIds: s.optionals.toList(growable: false),
+          qty: s.qty,
+        );
+    if (_disposed || seq != _priceSeq || price == null) return;
+    state = state.copyWith(price: price);
   }
 
   /// Restore a saved addon (id + qty) into the right group.
@@ -314,6 +353,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
   void selectSize(String label) {
     state = state.copyWith(size: label);
     _maybeRefreshRecipe();
+    unawaited(refreshPrice());
   }
 
   /// The swap family [addonId] belongs to, or null when it is additive.
@@ -352,6 +392,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     }
     state = state.copyWith(single: single, multi: multi);
     _maybeRefreshRecipe();
+    unawaited(refreshPrice());
   }
 
   void toggleMulti(AddonGroup g, String addonId) {
@@ -365,7 +406,8 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
       ref
           .read(orderProvider.notifier)
           .showToast(
-            '${g.title}: ${tr(key: 'order.max_reached')} (≤${g.maxSel})',
+            '${g.title}: ${tr(key: 'order.max_reached')} · '
+            '${tr(key: 'order.at_most').replaceAll('{count}', '${g.maxSel}')}',
             tone: ChipTone.warning,
             icon: 'hand.raised',
           );
@@ -400,6 +442,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     }
     state = state.copyWith(multi: multi);
     _maybeRefreshRecipe();
+    unawaited(refreshPrice());
   }
 
   void toggleOptional(String fieldId) {
@@ -409,11 +452,15 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
           : {...state.optionals, fieldId},
     );
     _maybeRefreshRecipe();
+    unawaited(refreshPrice());
   }
 
   void toggleShowAll() => state = state.copyWith(showAll: !state.showAll);
 
-  void setQty(int qty) => state = state.copyWith(qty: qty.clamp(1, 99));
+  void setQty(int qty) {
+    state = state.copyWith(qty: qty.clamp(1, 99));
+    unawaited(refreshPrice());
+  }
 
   void toggleRecipe() {
     state = state.copyWith(showRecipe: !state.showRecipe);
@@ -446,7 +493,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
   Future<bool> commit({required String? notes}) async {
     if (state.committing) return false;
     state = state.copyWith(committing: true);
-    await ref
+    final ok = await ref
         .read(orderProvider.notifier)
         .addConfigured(
           itemId: arg.item.id,
@@ -457,7 +504,10 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
           notes: notes,
           replaceLineKey: arg.editLine?.key,
         );
-    return true;
+    // A refused add or edit keeps the sheet open (the toast says why) with
+    // the teller's picks intact, ready to try again.
+    if (!ok && !_disposed) state = state.copyWith(committing: false);
+    return ok;
   }
 }
 
@@ -538,6 +588,16 @@ class ItemDetailSheet extends ConsumerStatefulWidget {
 class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
   /// Created once per presentation — the identity key that gives this sheet
   /// its own [itemConfigProvider] member.
+  @override
+  void initState() {
+    super.initState();
+    // Post-frame: a notifier write during initState lands mid-build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(itemConfigProvider(_args).notifier).startPricing());
+    });
+  }
+
   late final ItemSheetArgs _args = ItemSheetArgs(
     item: widget.item,
     addons: widget.addons,
@@ -569,11 +629,13 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     'milk_type' => bridge.tr(key: 'order.addon_milk_type'),
     'coffee_type' => bridge.tr(key: 'order.addon_coffee_type'),
     'extra' => bridge.tr(key: 'order.addon_extra'),
-    _ =>
-      type
-          .split('_')
-          .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
-          .join(' '),
+    // A type the core has words for reads in the till's language; one it
+    // does not is "Options" — never the raw English type name title-cased,
+    // which an Arabic teller used to get.
+    _ => switch (bridge.tr(key: 'order.addon_$type')) {
+      final word when word != 'order.addon_$type' => word,
+      _ => bridge.tr(key: 'order.addon_other'),
+    },
   };
 
   /// Default view = the item's AVAILABLE add-ons only. A SLOT always shows
@@ -710,8 +772,10 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     final v = violations.first;
     final tr = ref.read(bridgeProvider).tr;
     final detail = v.selected < v.minRequired
-        ? '${tr(key: 'order.required')} (≥${v.minRequired})'
-        : '${tr(key: 'order.max_reached')} (≤${v.maxAllowed})';
+        ? '${tr(key: 'order.required')} · '
+              '${tr(key: 'order.at_least').replaceAll('{count}', '${v.minRequired}')}'
+        : '${tr(key: 'order.max_reached')} · '
+              '${tr(key: 'order.at_most').replaceAll('{count}', '${v.maxAllowed}')}';
     ref
         .read(orderProvider.notifier)
         .showToast(
@@ -727,12 +791,19 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     if (!mounted) return;
     if (widget.isConfiguring) {
       if (config.committing) return;
+      // The extras for EXACTLY this selection: a tap that landed a moment
+      // before Save may not have been priced yet.
+      final notifier = ref.read(itemConfigProvider(_args).notifier);
+      await notifier.refreshPrice();
+      if (!mounted) return;
+      final extras =
+          ref.read(itemConfigProvider(_args)).price?.extrasMinor ?? extrasMinor;
       await Navigator.of(context).maybePop(
         BundleComponentDraft(
           sizeLabel: config.size,
           addons: config.selectedAddons,
           optionalIds: config.optionals.toList(growable: false),
-          extrasMinor: extrasMinor,
+          extrasMinor: extras,
         ),
       );
       return;
@@ -785,23 +856,12 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
           (t) => !slotTypes.contains(t) && !_baseTypes.contains(t),
         );
 
-    // Pricing (display only) — the core re-resolves on add.
-    final unitPrice =
-        _item.sizes
-            .where((s) => s.label == config.size)
-            .firstOrNull
-            ?.priceMinor ??
-        _item.basePriceMinor;
-    final selectedAddons = config.selectedAddons;
-    final addonsTotal = selectedAddons.fold(
-      0,
-      (sum, sel) => sum + _charged(sel.addonItemId) * sel.qty,
-    );
-    final optionalsTotal = _item.optionalFields
-        .where((f) => config.optionals.contains(f.id))
-        .fold(0, (sum, f) => sum + f.priceMinor);
-    final headerTotal = unitPrice + addonsTotal + optionalsTotal;
-    final extrasMinor = addonsTotal + optionalsTotal;
+    // Pricing — the core's, for exactly this selection (swap families
+    // collapsed the way the cart will collapse them). Until the first answer
+    // the header shows the item's own price and the footer no extras.
+    final price = config.price;
+    final headerTotal = price?.unitTotalMinor ?? _item.basePriceMinor;
+    final extrasMinor = price?.extrasMinor ?? 0;
 
     AddonGroup? firstUnsatisfied;
     for (final g in groups) {
@@ -826,7 +886,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     // Configure mode sums only the extras (the bundle covers the base).
     final footerPrice = widget.isConfiguring
         ? extrasMinor
-        : headerTotal * config.qty;
+        : (price?.lineTotalMinor ?? headerTotal);
 
     return Column(
       mainAxisSize: MainAxisSize.min,

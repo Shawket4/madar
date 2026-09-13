@@ -10,14 +10,6 @@ library;
 /// Held-order chip height (natives: 46.dp).
 const double kHeldChipHeight = 46;
 
-/// Pull "HH:MM" out of an RFC3339 timestamp ("2026-07-01T14:32:07Z" → "14:32").
-/// Falls back to the raw string if the shape is unexpected.
-String formatHHMM(String rfc3339) {
-  final index = rfc3339.indexOf('T');
-  if (index < 0 || rfc3339.length < index + 6) return rfc3339;
-  return rfc3339.substring(index + 1, index + 6);
-}
-
 /// Current instant as an RFC3339 UTC timestamp — the live-cart / New chip's
 /// sort-key fallback when no recorded start time exists yet.
 String nowIso() => DateTime.now().toUtc().toIso8601String();

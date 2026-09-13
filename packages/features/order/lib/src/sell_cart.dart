@@ -22,6 +22,7 @@ import 'package:feature_order/src/teller_held_strip.dart';
 import 'package:feature_order/src/words.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show FutureProviderFamily;
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// What the cart's one terminal button does right now, and whether it may.
@@ -177,7 +178,10 @@ class SellCart extends ConsumerWidget {
                         MadarSectionHeader(
                           text: orderWord(bridge, 'sell.on_the_bill'),
                           trailing: Text(
-                            '${groupBillByRound(ticket.lines).length} r',
+                            orderWord(bridge, 'sell.rounds_count').replaceAll(
+                              '{count}',
+                              '${groupBillByRound(ticket.lines).length}',
+                            ),
                             textDirection: TextDirection.ltr,
                             style: MadarType.num.copyWith(
                               color: colors.textMuted,
@@ -196,7 +200,10 @@ class SellCart extends ConsumerWidget {
                           for (final round in groupBillByRound(ticket.lines))
                             for (final line in round.lines)
                               _OnBillLine(
-                                round: round,
+                                roundTag: orderWord(
+                                  bridge,
+                                  'sell.round_tag',
+                                ).replaceAll('{count}', '${round.number}'),
                                 line: line,
                                 currency: state.currency,
                                 time: round.firedAt.isEmpty
@@ -406,13 +413,14 @@ class _CartHeader extends StatelessWidget {
 /// struck when voided.
 class _OnBillLine extends StatelessWidget {
   const _OnBillLine({
-    required this.round,
+    required this.roundTag,
     required this.line,
     required this.currency,
     required this.time,
   });
 
-  final BillRound round;
+  /// "R1" / "ج1", from the core.
+  final String roundTag;
   final TicketLineView line;
   final String currency;
   final String time;
@@ -427,10 +435,12 @@ class _OnBillLine extends StatelessWidget {
       child: Row(
         spacing: Space.sm,
         children: [
-          SizedBox(
-            width: 56,
+          ConstrainedBox(
+            // A floor, not a cap: "R1 07:02 PM" is wider than 56 and used to
+            // clip mid-time.
+            constraints: const BoxConstraints(minWidth: 56),
             child: Text(
-              'R${round.number}${time.isEmpty ? '' : ' $time'}',
+              '$roundTag${time.isEmpty ? '' : ' $time'}',
               maxLines: 1,
               textDirection: TextDirection.ltr,
               style: MadarType.num.copyWith(color: colors.textMuted),
@@ -519,7 +529,13 @@ class _RoundLine extends ConsumerWidget {
                   ),
                 if (notes != null && notes.isNotEmpty)
                   Text(
-                    '“$notes”',
+                    // The quote marks are the language's: “…” in English,
+                    // «…» in Arabic — hard-coded curly quotes read backwards
+                    // in RTL.
+                    ref
+                        .read(bridgeProvider)
+                        .tr(key: 'common.quoted')
+                        .replaceAll('{text}', notes),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: MadarType.bodySm.copyWith(
@@ -632,10 +648,20 @@ class _CartFooter extends ConsumerWidget {
               ),
               if (ticket != null)
                 // A SUBTOTAL: the ticket view carries no tax or service, and
-                // the label says so rather than calling it a total.
+                // the label says so rather than calling it a total. Summed by
+                // the core, keyed on both figures so it follows either.
                 _FigureRow(
                   label: orderWord(bridge, 'sell.bill_so_far'),
-                  minor: ticket!.subtotalMinor + totals.subtotalMinor,
+                  minor:
+                      ref
+                          .watch(
+                            _billSoFarProvider((
+                              ticket!.subtotalMinor,
+                              totals.subtotalMinor,
+                            )),
+                          )
+                          .value ??
+                      ticket!.subtotalMinor,
                   currency: currency,
                   muted: true,
                 ),
@@ -646,7 +672,16 @@ class _CartFooter extends ConsumerWidget {
                 enabled: cta.enabled,
                 onTap: onTerminal,
               ),
-            ] else
+            ] else ...[
+              // The discount the Charge drawer applied stays on the cart after
+              // the drawer closes; say so here, not only inside Charge.
+              if (totals.discountMinor > 0)
+                _FigureRow(
+                  label: orderWord(bridge, 'sell.discount_on_cart'),
+                  minor: -totals.discountMinor,
+                  currency: currency,
+                  muted: true,
+                ),
               Row(
                 spacing: Space.sm,
                 children: [
@@ -674,12 +709,23 @@ class _CartFooter extends ConsumerWidget {
                   ),
                 ],
               ),
+            ],
           ],
         ),
       ),
     );
   }
 }
+
+/// "Bill so far" for (ticket subtotal, round subtotal) — the core adds them.
+/// The round's figure is in the key only so a changed round re-asks.
+final FutureProviderFamily<int, (int, int)> _billSoFarProvider = FutureProvider
+    .autoDispose
+    .family<int, (int, int)>(
+      (ref, key) => ref
+          .read(bridgeProvider)
+          .cartBillSoFarMinor(ticketSubtotalMinor: key.$1),
+    );
 
 class _FigureRow extends StatelessWidget {
   const _FigureRow({
