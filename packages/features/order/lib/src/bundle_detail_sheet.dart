@@ -395,15 +395,22 @@ class _BundleFooter extends ConsumerWidget {
             child: Column(
               children: [
                 // Base + extras — light sub-rows so the total carries weight.
-                _FooterRow(
-                  label: bridge.tr(key: 'order.subtotal'),
-                  value: Money.format(bundlePriceMinor, currency: currency),
-                ),
+                // Only with extras on top: a subtotal equal to the total
+                // under it said the same figure twice.
                 if (extrasMinor > 0) ...[
+                  _FooterRow(
+                    label: bridge.tr(key: 'order.subtotal'),
+                    value: Money.format(
+                      bundlePriceMinor,
+                      currency: currency,
+                      locale: MadarFormat.localeOf(context),
+                    ),
+                  ),
                   const SizedBox(height: Space.sm),
                   _FooterRow(
                     label: bridge.tr(key: 'order.addon_extra'),
-                    value: '+${Money.format(extrasMinor, currency: currency)}',
+                    value:
+                        '+${Money.format(extrasMinor, currency: currency, locale: MadarFormat.localeOf(context))}',
                   ),
                 ],
                 const SizedBox(height: Space.sm),
@@ -413,13 +420,17 @@ class _BundleFooter extends ConsumerWidget {
                   currency: currency,
                 ),
                 const SizedBox(height: Space.md),
-                MadarButton(
-                  label: bridge.tr(
-                    key: canAdd ? 'order.add_to_cart' : 'order.configure',
+                // Full width, like the item sheet's Add.
+                SizedBox(
+                  width: double.infinity,
+                  child: MadarButton(
+                    label: bridge.tr(
+                      key: canAdd ? 'order.add_to_cart' : 'order.configure',
+                    ),
+                    enabled: canAdd,
+                    loading: loading,
+                    onTap: onAdd,
                   ),
-                  enabled: canAdd,
-                  loading: loading,
-                  onTap: onAdd,
                 ),
               ],
             ),
@@ -577,7 +588,7 @@ class _ComponentTile extends ConsumerWidget {
           if (configured && draft.extrasMinor > 0) ...[
             const SizedBox(width: Space.sm),
             Text(
-              '+${Money.format(draft.extrasMinor, currency: currency)}',
+              '+${Money.format(draft.extrasMinor, currency: currency, locale: MadarFormat.localeOf(context))}',
               textDirection: TextDirection.ltr,
               style: MadarType.label.copyWith(
                 fontWeight: FontWeight.w700,

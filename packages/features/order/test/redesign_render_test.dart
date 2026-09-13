@@ -959,7 +959,7 @@ void main() {
         size: _phone,
         bridge: _FakeBridge(shiftOpen: false),
       );
-      expect(find.text('Open a shift to settle'), findsOneWidget);
+      expect(find.text(coreWord('sell.no_shift')), findsOneWidget);
       await _capture(tester, 'sell-phone-noshift');
     });
   });
@@ -1455,7 +1455,7 @@ void _cartFlightTests() {
 
         testWidgets('bundle sheet Add on $where, $device', (tester) async {
           await open(tester, bridge: _FakeBridge(bundles: const [_combo]));
-          await tester.tap(find.byType(MadarChip).last);
+          await tester.tap(find.widgetWithText(MadarChip, 'Combos'));
           await tester.pump();
           await tester.pump(const Duration(milliseconds: 400));
           await tester.tap(find.text('Breakfast combo').last);

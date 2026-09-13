@@ -216,7 +216,6 @@ class _HeldOrderChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     final active = tab.selected;
     final badgeFg = active ? colors.textOnAccent : colors.accent;
     final onClose = tab.onClose;
@@ -232,10 +231,10 @@ class _HeldOrderChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: active ? colors.accent : colors.surface,
           borderRadius: BorderRadius.circular(Radii.md),
-          border: active ? null : Border.all(color: colors.border),
-          boxShadow: active
-              ? MadarElevation.raised.shadows(colors, dark: dark)
-              : null,
+          // Flat, like every other lit control: a raised shadow here was
+          // clipped by the strip's own viewport into a grey tab under the
+          // chip.
+          border: Border.all(color: active ? colors.accent : colors.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

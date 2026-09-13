@@ -75,7 +75,7 @@ class TellerHeldStrip extends ConsumerWidget {
             count: itemCount,
             selected: true,
             onTap: () {},
-            onRename: () => unawaited(_editLiveOrder(context, ref)),
+            onRename: () => unawaited(editLiveOrderName(context, ref)),
           ),
       ],
     );
@@ -174,81 +174,79 @@ class TellerHeldStrip extends ConsumerWidget {
     if (tableLabel == null || tableLabel.isEmpty) return name;
     return name == null ? tableLabel : '$name · $tableLabel';
   }
+}
 
-  /// The live order's edit sheet: free-text rename (persists across holds via
-  /// the draft's name; empty clears back to the time label) + the table pick
-  /// (applied when the order parks). The table row only renders when the
-  /// branch has a floor layout — no layout, no table anything.
-  Future<void> _editLiveOrder(BuildContext context, WidgetRef ref) async {
-    final bridge = ref.read(bridgeProvider);
-    final notifier = ref.read(orderProvider.notifier);
-    final controller = TextEditingController(
-      text: ref.read(orderProvider).cartName ?? '',
-    );
-    final hasFloor = ref.read(orderProvider).hasFloor;
-    final saved = await showMadarSheet<String>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsetsDirectional.all(Space.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              bridge.tr(key: 'order.rename_title'),
-              style: MadarType.h3.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: Space.lg),
-            MadarField(
-              controller: controller,
-              placeholder: bridge.tr(key: 'order.rename_hint'),
-              icon: 'pencil',
-            ),
-            if (hasFloor) ...[
-              const SizedBox(height: Space.md),
-              Consumer(
-                builder: (context, sheetRef, _) {
-                  final label = sheetRef.watch(
-                    orderProvider.select((s) => s.cartTableLabel),
-                  );
-                  return MadarButton(
-                    label: label == null
-                        ? bridge.tr(key: 'tables.assign')
-                        : '${bridge.tr(key: 'order.table')} · $label',
-                    icon: 'square.grid.2x2',
-                    variant: MadarButtonVariant.outline,
-                    onTap: () => unawaited(() async {
-                      final pick = await showTablePickerSheet(
-                        sheetContext,
-                        sheetRef,
-                        currentTableId: sheetRef
-                            .read(orderProvider)
-                            .cartTableId,
+/// The live order's edit sheet: free-text rename (persists across holds via
+/// the draft's name; empty clears back to the time label) + the table pick
+/// (applied when the order parks). The table row only renders when the
+/// branch has a floor layout — no layout, no table anything.
+Future<void> editLiveOrderName(BuildContext context, WidgetRef ref) async {
+  final bridge = ref.read(bridgeProvider);
+  final notifier = ref.read(orderProvider.notifier);
+  final controller = TextEditingController(
+    text: ref.read(orderProvider).cartName ?? '',
+  );
+  final hasFloor = ref.read(orderProvider).hasFloor;
+  final saved = await showMadarSheet<String>(
+    context,
+    size: SheetSize.hug,
+    maxWidth: Responsive.sheetCompactMaxWidth,
+    builder: (sheetContext) => Padding(
+      padding: const EdgeInsetsDirectional.all(Space.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            bridge.tr(key: 'order.rename_title'),
+            style: MadarType.h3.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: Space.lg),
+          MadarField(
+            controller: controller,
+            placeholder: bridge.tr(key: 'order.rename_hint'),
+            icon: 'pencil',
+          ),
+          if (hasFloor) ...[
+            const SizedBox(height: Space.md),
+            Consumer(
+              builder: (context, sheetRef, _) {
+                final label = sheetRef.watch(
+                  orderProvider.select((s) => s.cartTableLabel),
+                );
+                return MadarButton(
+                  label: label == null
+                      ? bridge.tr(key: 'tables.assign')
+                      : '${bridge.tr(key: 'order.table')} · $label',
+                  icon: 'square.grid.2x2',
+                  variant: MadarButtonVariant.outline,
+                  onTap: () => unawaited(() async {
+                    final pick = await showTablePickerSheet(
+                      sheetContext,
+                      sheetRef,
+                      currentTableId: sheetRef.read(orderProvider).cartTableId,
+                    );
+                    if (pick != null) {
+                      unawaited(
+                        notifier.setCartTable(pick.tableId, pick.label),
                       );
-                      if (pick != null) {
-                        unawaited(
-                          notifier.setCartTable(pick.tableId, pick.label),
-                        );
-                      }
-                    }()),
-                  );
-                },
-              ),
-            ],
-            const SizedBox(height: Space.xl),
-            MadarButton(
-              label: bridge.tr(key: 'common.done'),
-              onTap: () => Navigator.of(sheetContext).maybePop(controller.text),
+                    }
+                  }()),
+                );
+              },
             ),
           ],
-        ),
+          const SizedBox(height: Space.xl),
+          MadarButton(
+            label: bridge.tr(key: 'common.done'),
+            onTap: () => Navigator.of(sheetContext).maybePop(controller.text),
+          ),
+        ],
       ),
-    );
-    if (saved != null) {
-      ref.read(orderProvider.notifier).setCartName(saved);
-    }
-    controller.dispose();
+    ),
+  );
+  if (saved != null) {
+    ref.read(orderProvider.notifier).setCartName(saved);
   }
+  controller.dispose();
 }

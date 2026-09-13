@@ -1014,7 +1014,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                     const SizedBox(height: Space.sm),
                     MadarField(
                       controller: _notes,
-                      placeholder: bridge.tr(key: 'order.notes_hint'),
+                      placeholder: bridge.tr(key: 'sell.item_note_hint'),
                       icon: 'text.bubble',
                     ),
                   ],
@@ -1784,7 +1784,7 @@ class _AddonQtyChip extends StatelessWidget {
               ),
               if (priceMinor > 0)
                 Text(
-                  '+${Money.format(priceMinor * qty, currency: currency)}',
+                  '+${Money.format(priceMinor * qty, currency: currency, locale: MadarFormat.localeOf(context))}',
                   textDirection: TextDirection.ltr,
                   style: MadarType.labelSm.copyWith(
                     fontSize: 9,
@@ -1877,7 +1877,7 @@ class _PricePill extends StatelessWidget {
           vertical: 2,
         ),
         child: Text(
-          '+${Money.format(priceMinor, currency: currency)}',
+          '+${Money.format(priceMinor, currency: currency, locale: MadarFormat.localeOf(context))}',
           textDirection: TextDirection.ltr,
           style: MadarType.labelSm.copyWith(
             fontSize: 10,
@@ -2212,7 +2212,11 @@ class GrandTotalBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    final formatted = Money.format(totalMinor, currency: currency);
+    final formatted = Money.format(
+      totalMinor,
+      currency: currency,
+      locale: MadarFormat.localeOf(context),
+    );
     return Container(
       padding: const EdgeInsetsDirectional.all(Space.md),
       decoration: BoxDecoration(

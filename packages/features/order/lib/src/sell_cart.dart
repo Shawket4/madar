@@ -15,9 +15,12 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart'
+    show discountLabel, showCartDiscountPicker;
 import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/order_providers.dart';
+import 'package:feature_order/src/sell_open_shift.dart';
 import 'package:feature_order/src/teller_held_strip.dart';
 import 'package:feature_order/src/words.dart';
 import 'package:flutter/material.dart';
@@ -39,6 +42,7 @@ class SellCta {
     required this.itemCount,
     required this.enabled,
     this.reason,
+    this.needsShift = false,
   });
 
   /// True when the cart fires a round; false when it charges a counter sale.
@@ -55,6 +59,10 @@ class SellCta {
   /// Why [enabled] is false, already localised — shown in the bar's figure
   /// slot, because a disabled control that does not say why is a broken one.
   final String? reason;
+
+  /// Disabled only because no shift is open — the one reason with a way on
+  /// from right here ("Open shift").
+  final bool needsShift;
 }
 
 /// The cart's terminal action for [s].
@@ -78,10 +86,12 @@ SellCta sellCtaFor(OrderState s, MadarBridge bridge) {
     );
   }
   String? reason;
+  var needsShift = false;
   if (s.requireTableForOrders) {
     reason = orderWord(bridge, 'sell.table_required');
   } else if (!s.shiftOpen) {
-    reason = bridge.tr(key: 'waiter.need_shift');
+    reason = orderWord(bridge, 'sell.no_shift');
+    needsShift = true;
   }
   return SellCta(
     sendsToKitchen: false,
@@ -90,6 +100,7 @@ SellCta sellCtaFor(OrderState s, MadarBridge bridge) {
     itemCount: count,
     enabled: count > 0 && reason == null,
     reason: reason,
+    needsShift: needsShift,
   );
 }
 
@@ -147,7 +158,13 @@ class SellCart extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _CartHeader(
-            title: _title(bridge, state, ticket, tableLabel),
+            // As a COLUMN the page header above already says where this sale
+            // is going ("Takeaway", "T2 · Round 3"); saying it again here was
+            // the owner's "Takeaway twice". The phone's sheet has no page
+            // header over it, so there the cart carries the context itself.
+            title: onClose == null
+                ? orderWord(bridge, 'sell.order_title')
+                : _title(bridge, state, ticket, tableLabel),
             itemCount: state.cartTotals.itemCount,
             onMore: () => unawaited(_moreSheet(context, ref, state)),
             onClose: onClose,
@@ -157,6 +174,9 @@ class SellCart extends ConsumerWidget {
           // to rename it. Without it parking reads as a dead end.
           if (isCounterFlow && (state.drafts.isNotEmpty || lines.isNotEmpty))
             const TellerHeldStrip(),
+          // Who the sale is for and what comes off it — on the cart, where
+          // the teller is looking, not three taps deep inside Charge.
+          if (isCounterFlow && lines.isNotEmpty) const _CartSummary(),
           Expanded(
             child: lines.isEmpty && ticket == null
                 // The Lottie was already in the bundle and already supported
@@ -440,15 +460,17 @@ class _OnBillLine extends StatelessWidget {
             // clip mid-time.
             constraints: const BoxConstraints(minWidth: 56),
             child: Text(
-              '$roundTag${time.isEmpty ? '' : ' $time'}',
+              // The tag is a word ("R1" / "ج1") in the reading direction;
+              // only the clock is an LTR island — forcing the whole string
+              // LTR turned the Arabic tag round.
+              '$roundTag${time.isEmpty ? '' : ' ${MadarFormat.ltr(time)}'}',
               maxLines: 1,
-              textDirection: TextDirection.ltr,
               style: MadarType.num.copyWith(color: colors.textMuted),
             ),
           ),
           Expanded(
             child: Text(
-              '${line.qty}× ${line.name}',
+              '${MadarFormat.ltr('${line.qty}×')} ${line.name}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: MadarType.bodySm.copyWith(color: ink, decoration: strike),
@@ -673,6 +695,7 @@ class _CartFooter extends ConsumerWidget {
                 onTap: onTerminal,
               ),
             ] else ...[
+              if (cta.needsShift) SellNoShiftNotice(text: cta.reason!),
               // The discount the Charge drawer applied stays on the cart after
               // the drawer closes; say so here, not only inside Charge.
               if (totals.discountMinor > 0)
@@ -702,7 +725,8 @@ class _CartFooter extends ConsumerWidget {
                       amountMinor: cta.amountMinor,
                       currency: currency,
                       enabled: cta.enabled,
-                      reason: cta.reason,
+                      // The notice above says it, with its action.
+                      reason: cta.needsShift ? null : cta.reason,
                       loading: isBusy,
                       onTap: onTerminal,
                     ),
@@ -806,7 +830,12 @@ class SellBar extends ConsumerWidget {
           children: [
             // Why the verb is greyed, in words, above it — the bar is too
             // narrow to carry the sentence in the button itself.
-            if (!cta.enabled && cta.reason != null)
+            if (cta.needsShift)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
+                child: SellNoShiftNotice(text: cta.reason!),
+              )
+            else if (!cta.enabled && cta.reason != null)
               Padding(
                 padding: const EdgeInsetsDirectional.only(bottom: Space.xs),
                 child: Text(
@@ -890,3 +919,94 @@ class SellBar extends ConsumerWidget {
     );
   }
 }
+
+/// "No shift is open" with its way on — the Open shift button — wherever the
+/// cart's Charge is greyed for that reason (the column's footer, the phone's
+/// bar).
+class SellNoShiftNotice extends ConsumerWidget {
+  const SellNoShiftNotice({required this.text, super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
+    return NoticeBanner(
+      text: text,
+      icon: 'lock',
+      onTap: () => unawaited(openShiftFromSell(context, ref)),
+      trailing: BannerActionPill(label: orderWord(bridge, 'sell.open_shift')),
+    );
+  }
+}
+
+/// The counter cart's customer and discount, as two chips under the parked
+/// strip. Unset, each says what it adds; set, it reads the name or the
+/// discount and is lit.
+class _CartSummary extends ConsumerWidget {
+  const _CartSummary();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.madarColors;
+    final bridge = ref.bridge;
+    final name = ref.watch(orderProvider.select((s) => s.cartName));
+    final discountMinor = ref.watch(
+      orderProvider.select((s) => s.cartTotals.discountMinor),
+    );
+    final discount = ref.watch(_cartDiscountLabelProvider(discountMinor)).value;
+    return ColoredBox(
+      color: colors.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Space.lg,
+              0,
+              Space.lg,
+              Space.sm,
+            ),
+            child: Row(
+              spacing: Space.sm,
+              children: [
+                MadarChip(
+                  label: name ?? orderWord(bridge, 'sell.customer'),
+                  glyph: MadarGlyph.user,
+                  selected: name != null,
+                  onTap: () => unawaited(editLiveOrderName(context, ref)),
+                ),
+                MadarChip(
+                  label: discount ?? orderWord(bridge, 'sell.discount'),
+                  glyph: MadarGlyph.percent,
+                  selected: discount != null,
+                  onTap: () => unawaited(() async {
+                    final changed = await showCartDiscountPicker(context, ref);
+                    if (changed) {
+                      await ref.read(orderProvider.notifier).loadCart();
+                    }
+                  }()),
+                ),
+              ],
+            ),
+          ),
+          const MadarHairline(light: true),
+        ],
+      ),
+    );
+  }
+}
+
+/// The applied cart discount's label, or null — re-asked whenever the cart's
+/// discount figure moves.
+final FutureProviderFamily<String?, int> _cartDiscountLabelProvider =
+    FutureProvider.autoDispose.family<String?, int>((ref, minor) async {
+      if (minor <= 0) return null;
+      final bridge = ref.read(bridgeProvider);
+      final id = await bridge.cartDiscountId();
+      if (id == null) return null;
+      final all = await bridge.listDiscounts();
+      final d = all.where((d) => d.id == id).firstOrNull;
+      return d == null ? null : discountLabel(d);
+    });

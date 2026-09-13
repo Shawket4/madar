@@ -763,6 +763,8 @@ fn en(key: &str) -> Option<&'static str> {
         "queue.col_open_for" => "Open for",
         "queue.open_bill" => "Open the bill",
         "queue.empty_bills_hint" => "Bills appear here when a table's first round goes to the kitchen.",
+        // selling redesign: item sheet
+        "sell.item_note_hint" => "Note for the kitchen (optional)",
         // floor
         "floor.title" => "Floor",
         "floor.seat" => "Seat",
@@ -1749,6 +1751,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "queue.col_open_for" => "مفتوحة منذ",
         "queue.open_bill" => "افتح الفاتورة",
         "queue.empty_bills_hint" => "تظهر الفواتير هنا عندما تُرسل أول جولة لطاولة إلى المطبخ.",
+        // selling redesign: item sheet
+        "sell.item_note_hint" => "ملاحظة للمطبخ (اختياري)",
         // bill + the waiter's bills tab
         "bill.title" => "الفاتورة",
         "bill.void_bill" => "إبطال الفاتورة",

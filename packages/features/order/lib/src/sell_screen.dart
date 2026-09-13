@@ -452,7 +452,10 @@ class _SellScreenState extends ConsumerState<SellScreen>
         // other action. A chip says "this is one of a set you choose
         // between"; this opens a sheet.
         MadarButton(
-          label: '${orderWord(bridge, 'sell.parked')} $drafts',
+          // The bag and the count: with the word, the button squeezed the
+          // page title to "Takea…" on a phone. The word rides as a tooltip.
+          label: '$drafts',
+          tooltip: orderWord(bridge, 'sell.parked'),
           glyph: MadarGlyph.bag,
           variant: MadarButtonVariant.secondary,
           size: MadarButtonSize.compact,
@@ -998,38 +1001,22 @@ class _TilePrice extends StatelessWidget {
   final int minor;
   final String currency;
 
-  static const List<FontFeature> _figures = [FontFeature.tabularFigures()];
-
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
+    // The one money display (SPEC §9): the same figure, label and Arabic
+    // order as the cart, Charge and the Queue — it used to be a sans figure
+    // with a small grey code here and mono everywhere else.
     return FittedBox(
       fit: BoxFit.scaleDown,
       alignment: AlignmentDirectional.centerStart,
-      child: Text.rich(
-        TextSpan(
-          children: [
-            if (currency.isNotEmpty)
-              TextSpan(
-                text: '${currency.toUpperCase()} ',
-                style: MadarType.bodySm.copyWith(
-                  color: colors.textSecondary,
-                  fontFeatures: _figures,
-                ),
-              ),
-            TextSpan(
-              text: Money.format(minor),
-              style: MadarType.title.copyWith(
-                fontSize: _kTilePriceSize,
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
-                fontFeatures: _figures,
-              ),
-            ),
-          ],
+      child: MoneyText(
+        minor,
+        currency: currency,
+        style: MadarType.money.copyWith(
+          fontSize: _kTilePriceSize,
+          fontWeight: FontWeight.w600,
         ),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
+        color: context.madarColors.textPrimary,
       ),
     );
   }
