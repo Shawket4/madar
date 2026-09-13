@@ -236,14 +236,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
   void _flyToCart(Offset origin) {
     // `_anchors` directly, NOT `CartAnchors.maybeOf(context)`: this State's
     // context sits ABOVE the `CartAnchorScope` its own build() provides.
-    final to = _anchors.center();
-    if (to == null) return;
-    playCartFlight(
-      context,
-      from: origin,
-      to: to,
-      onArrive: () => _anchors.catchTick.value++,
-    );
+    unawaited(_anchors.fly(origin));
   }
 
   Future<void> _openItemSheet(MenuItemView item, {CartLineView? edit}) async {
@@ -427,42 +420,47 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
     // pushed it is the topmost thing and pays the inset itself.
     return CartAnchorScope(
       anchors: _anchors,
-      child: MadarPageScaffold(
-        safeTop: widget.pushed,
-        width: MadarContentWidth.full,
-        glyph: _tableId == null ? MadarGlyph.bag : MadarGlyph.table,
-        bodyInset: false,
-        title: header.title,
-        subtitle: header.subtitle,
-        actions: headerActions,
-        below: headerBelow,
-        body: SafeArea(
-          top: false,
-          child: layout.isTablet
-              ? Row(
-                  children: [
-                    Expanded(child: catalog),
-                    const VerticalDivider(width: 1, thickness: 1),
-                    SizedBox(
-                      width: Responsive.cartColumnWidth,
-                      child: SellCart(
-                        tableId: _tableId,
-                        onTerminal: () => unawaited(_terminal()),
-                        onEditLine: (line) => unawaited(_editLine(line)),
+      // The flight's own overlay, clipped to this screen: the dot never
+      // crosses the shell's top bar, rail or tab bar.
+      child: CartFlightLayer(
+        overlayKey: _anchors.flightOverlay,
+        child: MadarPageScaffold(
+          safeTop: widget.pushed,
+          width: MadarContentWidth.full,
+          glyph: _tableId == null ? MadarGlyph.bag : MadarGlyph.table,
+          bodyInset: false,
+          title: header.title,
+          subtitle: header.subtitle,
+          actions: headerActions,
+          below: headerBelow,
+          body: SafeArea(
+            top: false,
+            child: layout.isTablet
+                ? Row(
+                    children: [
+                      Expanded(child: catalog),
+                      const VerticalDivider(width: 1, thickness: 1),
+                      SizedBox(
+                        width: Responsive.cartColumnWidth,
+                        child: SellCart(
+                          tableId: _tableId,
+                          onTerminal: () => unawaited(_terminal()),
+                          onEditLine: (line) => unawaited(_editLine(line)),
+                        ),
                       ),
-                    ),
-                  ],
-                )
-              : Column(
-                  children: [
-                    Expanded(child: catalog),
-                    SellBar(
-                      tableId: _tableId,
-                      onOpen: () => unawaited(_openCartSheet()),
-                      onTerminal: () => unawaited(_terminal()),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Expanded(child: catalog),
+                      SellBar(
+                        tableId: _tableId,
+                        onOpen: () => unawaited(_openCartSheet()),
+                        onTerminal: () => unawaited(_terminal()),
+                      ),
+                    ],
+                  ),
+          ),
         ),
       ),
     );

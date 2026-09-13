@@ -823,25 +823,24 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
         .commit(notes: notes.isEmpty ? null : notes);
     if (committed && mounted) {
       // Fresh adds fly a dot to the cart; updates aren't an "add" moment.
-      if (widget.editLine == null) _flyToCart();
+      final fly = widget.editLine == null ? _flight() : null;
       await Navigator.of(context).maybePop();
+      if (fly != null) unawaited(fly());
     }
   }
 
-  /// Fly the add-to-cart dot from the footer CTA to the mounted cart anchor
-  /// — pure chrome on top of the already-committed add; skipped when either
-  /// end is missing (reduced motion gets the short pulse at the cart).
-  void _flyToCart() {
+  /// The add-to-cart flight from the footer CTA, captured while the sheet
+  /// is still laid out and launched once it is gone: the dot flies in the
+  /// screen's own overlay, under where this root-navigator sheet was, and
+  /// would otherwise be hidden by it. Null when either end is missing —
+  /// pure chrome on top of the already-committed add (reduced motion gets
+  /// the short pulse at the cart).
+  Future<void> Function()? _flight() {
     final render = _footerKey.currentContext?.findRenderObject();
     final anchors = CartAnchors.maybeOf(context);
-    final to = anchors?.center();
-    if (render is! RenderBox || !render.hasSize || to == null) return;
-    playCartFlight(
-      context,
-      from: render.localToGlobal(render.size.center(Offset.zero)),
-      to: to,
-      onArrive: () => anchors!.catchTick.value++,
-    );
+    if (render is! RenderBox || !render.hasSize || anchors == null) return null;
+    final from = render.localToGlobal(render.size.center(Offset.zero));
+    return () => anchors.fly(from);
   }
 
   @override

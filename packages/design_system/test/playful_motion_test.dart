@@ -70,6 +70,50 @@ void main() {
     expect(arrived, 1);
   });
 
+  testWidgets('a screen layer: the dot flies in its own clipped overlay', (
+    tester,
+  ) async {
+    final key = GlobalKey<OverlayState>();
+    late BuildContext ctx;
+    await tester.pumpWidget(
+      _host(
+        reduced: false,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 80, top: 56),
+          child: CartFlightLayer(
+            overlayKey: key,
+            child: Builder(
+              builder: (c) {
+                ctx = c;
+                return const SizedBox.expand();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    playCartFlight(
+      ctx,
+      from: const Offset(200, 400),
+      to: const Offset(700, 90),
+      overlay: key.currentState,
+    );
+    await tester.pump();
+    final dot = find.byKey(cartFlightDotKey);
+    expect(Overlay.of(tester.element(dot)), same(key.currentState));
+    expect(
+      (tester.getCenter(dot) - const Offset(200, 400)).distance,
+      lessThan(2),
+    );
+    await tester.pump(const Duration(milliseconds: 440));
+    expect(
+      (tester.getCenter(dot) - const Offset(700, 90)).distance,
+      lessThan(20),
+    );
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(dot, findsNothing);
+  });
+
   for (final reduced in [false, true]) {
     testWidgets('a nudge still plays with reduced motion = $reduced', (
       tester,

@@ -609,7 +609,22 @@ class _FakeBridge implements MadarBridge {
     if (name == #cartLines) {
       return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
-    if (name == #cartTotals) return Future<CartTotals>.value(_totals);
+    if (name == #cartTotals) {
+      // An emptied cart counts nothing — the phone bar hides on zero.
+      final lines = _cartOf(invocation);
+      return Future<CartTotals>.value(
+        lines.isEmpty
+            ? const CartTotals(
+                itemCount: 0,
+                subtotalMinor: 0,
+                discountMinor: 0,
+                taxMinor: 0,
+                serviceChargeMinor: 0,
+                totalMinor: 0,
+              )
+            : _totals,
+      );
+    }
     if (name == #listDrafts) return Future<List<DraftView>>.value(drafts);
     if (name == #switchToDraft) {
       // What the one core call does: park the cart in hand if asked, then
@@ -784,6 +799,8 @@ Future<ProviderContainer> _mount(
   required Size size,
   _FakeBridge? bridge,
   bool dark = false,
+  bool shell = false,
+  bool reduced = false,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = size;
@@ -804,9 +821,15 @@ Future<ProviderContainer> _mount(
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: dark ? MadarTheme.dark() : MadarTheme.light(),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
+            child: child!,
+          ),
           home: Directionality(
             textDirection: fake.rtl ? TextDirection.rtl : TextDirection.ltr,
-            child: screen,
+            child: shell
+                ? _FakeShell(wide: size == _ipad, screen: screen)
+                : screen,
           ),
         ),
       ),
@@ -1636,6 +1659,38 @@ const _combo = BundleView(
   ],
 );
 
+/// A stand-in for the app shell's chrome around a tab: a top bar, a side rail
+/// (wide) or a bottom tab bar (narrow), and the tab's own nested navigator in
+/// between — the content area a flight must stay inside.
+class _FakeShell extends StatelessWidget {
+  const _FakeShell({required this.wide, required this.screen});
+
+  final bool wide;
+  final Widget screen;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      const SizedBox(key: ValueKey('shellTop'), height: 56),
+      Expanded(
+        child: Row(
+          children: [
+            if (wide) const SizedBox(key: ValueKey('shellRail'), width: 80),
+            Expanded(
+              child: Navigator(
+                key: const ValueKey('shellContent'),
+                onGenerateRoute: (_) =>
+                    MaterialPageRoute<void>(builder: (_) => screen),
+              ),
+            ),
+          ],
+        ),
+      ),
+      if (!wide) const SizedBox(key: ValueKey('shellTabs'), height: 64),
+    ],
+  );
+}
+
 /// The anchors of the cart actually on screen (a pushed table Sell hides the
 /// tab's underneath it).
 CartAnchors _visibleAnchors(WidgetTester tester) =>
@@ -1648,14 +1703,15 @@ Future<void> _expectFlight(
   WidgetTester tester, {
   Offset? from,
   String? capture,
+  bool inShell = false,
 }) async {
-  final anchors = _visibleAnchors(tester);
-  final caught = anchors.catchTick.value;
   final dot = find.byKey(cartFlightDotKey);
   for (var i = 0; i < 40 && dot.evaluate().isEmpty; i++) {
     await tester.pump(const Duration(milliseconds: 5));
   }
   expect(dot, findsOneWidget, reason: 'the flight OverlayEntry is inserted');
+  final anchors = _visibleAnchors(tester);
+  final caught = anchors.catchTick.value;
   final to = anchors.center()!;
   final start = tester.getCenter(dot);
   if (from != null) {
@@ -1663,8 +1719,35 @@ Future<void> _expectFlight(
   }
   var last = start;
   var mid = false;
+  final root = tester.state<OverlayState>(find.byType(Overlay).first);
   while (dot.evaluate().isNotEmpty) {
     last = tester.getCenter(dot);
+    final overlay = Overlay.of(tester.element(dot));
+    expect(overlay, isNot(same(root)), reason: 'the screen overlay, not root');
+    if (inShell) {
+      final content = tester.getRect(
+        find.byKey(const ValueKey('shellContent')),
+      );
+      final layer = overlay.context.findRenderObject()! as RenderBox;
+      final clip = layer.localToGlobal(Offset.zero) & layer.size;
+      expect(
+        content.expandToInclude(clip),
+        content,
+        reason: 'the flight is clipped inside the content area',
+      );
+      for (final chrome in ['shellTop', 'shellRail', 'shellTabs']) {
+        final f = find.byKey(ValueKey(chrome));
+        if (f.evaluate().isEmpty) continue;
+        expect(
+          clip.intersect(tester.getRect(f)).isEmpty ||
+              clip.intersect(tester.getRect(f)).width <= 0 ||
+              clip.intersect(tester.getRect(f)).height <= 0,
+          isTrue,
+          reason: 'never over the $chrome chrome',
+        );
+      }
+      expect(clip.contains(last), isTrue, reason: 'the dot is on screen');
+    }
     await tester.pump(const Duration(milliseconds: 10));
     if (!mid && capture != null && dot.evaluate().isNotEmpty) {
       await tester.pump(const Duration(milliseconds: 200));
@@ -1680,6 +1763,39 @@ Future<void> _expectFlight(
     reason: 'the dot ends on the cart anchor',
   );
   expect(anchors.catchTick.value, caught + 1, reason: 'the cart catches it');
+}
+
+/// [_expectFlight] in a shell, or — reduced motion — the pulse: inserted in
+/// the screen's overlay (never root), ON the visible anchor, inside the
+/// content area, then the cart's catch. Nothing is replayed afterwards.
+Future<void> _expectFlightOrPulse(
+  WidgetTester tester, {
+  required bool reduced,
+  Offset? from,
+  String? capture,
+}) async {
+  if (!reduced) {
+    await _expectFlight(tester, from: from, capture: capture, inShell: true);
+  } else {
+    final dot = find.byKey(cartFlightDotKey);
+    for (var i = 0; i < 40 && dot.evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 5));
+    }
+    expect(dot, findsOneWidget, reason: 'the pulse OverlayEntry is inserted');
+    final anchors = _visibleAnchors(tester);
+    final caught = anchors.catchTick.value;
+    final root = tester.state<OverlayState>(find.byType(Overlay).first);
+    expect(Overlay.of(tester.element(dot)), isNot(same(root)));
+    expect((tester.getCenter(dot) - anchors.center()!).distance, lessThan(1));
+    final content = tester.getRect(find.byKey(const ValueKey('shellContent')));
+    expect(content.contains(tester.getCenter(dot)), isTrue);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(dot, findsNothing);
+    expect(anchors.catchTick.value, caught + 1);
+  }
+  await tester.pump(const Duration(milliseconds: 600));
+  expect(find.byKey(cartFlightDotKey), findsNothing, reason: 'no replay');
+  expect(tester.takeException(), isNull);
 }
 
 void _cartFlightTests() {
@@ -1749,6 +1865,92 @@ void _cartFlightTests() {
             find.descendant(of: sheet, matching: find.byType(MadarButton)).last,
           );
           await _expectFlight(tester);
+          await tester.pump(const Duration(milliseconds: 600));
+          expect(find.byType(BundleDetailSheet), findsNothing);
+        });
+      }
+    }
+
+    // The FIRST add to an empty cart: a phone's bar (the landing pad) only
+    // mounts once the cart has a line, so the flight used to find no target
+    // and fly nothing. Inside a shell, the dot stays in the content area.
+    for (final (device, size) in [('ipad', _ipad), ('phone', _phone)]) {
+      for (final reduced in [false, true]) {
+        final how = reduced ? ', reduced motion' : '';
+        _FakeBridge empty({List<BundleView> bundles = const []}) =>
+            _FakeBridge(bundles: bundles)..carts[null] = [];
+
+        testWidgets('empty cart, first tile quick-add flies, $device$how', (
+          tester,
+        ) async {
+          await _mount(
+            tester,
+            screen: const TakeawaySellScreen(),
+            size: size,
+            bridge: empty(),
+            shell: true,
+            reduced: reduced,
+          );
+          expect(
+            find.byType(CartAnchorPad),
+            findsNWidgets(size == _ipad ? 1 : 0),
+          );
+          final tile = find.widgetWithText(SellTile, 'Mocha');
+          final origin = tester.getCenter(tile);
+          await tester.tap(tile);
+          await _expectFlightOrPulse(
+            tester,
+            reduced: reduced,
+            from: origin,
+            capture: reduced ? null : 'sell-flight-first-$device',
+          );
+        });
+
+        testWidgets('empty cart, first item sheet Add flies, $device$how', (
+          tester,
+        ) async {
+          await _mount(
+            tester,
+            screen: const TakeawaySellScreen(),
+            size: size,
+            bridge: empty(),
+            shell: true,
+            reduced: reduced,
+          );
+          await tester.longPress(find.widgetWithText(SellTile, 'Mocha'));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 600));
+          final sheet = find.byType(ItemDetailSheet);
+          await tester.tap(
+            find.descendant(of: sheet, matching: find.byType(MadarButton)).last,
+          );
+          await _expectFlightOrPulse(tester, reduced: reduced);
+          await tester.pump(const Duration(milliseconds: 600));
+          expect(find.byType(ItemDetailSheet), findsNothing);
+        });
+
+        testWidgets('empty cart, first bundle sheet Add flies, $device$how', (
+          tester,
+        ) async {
+          await _mount(
+            tester,
+            screen: const TakeawaySellScreen(),
+            size: size,
+            bridge: empty(bundles: const [_combo]),
+            shell: true,
+            reduced: reduced,
+          );
+          await tester.tap(find.widgetWithText(MadarChip, 'Combos'));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 400));
+          await tester.tap(find.text('Breakfast combo').last);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 600));
+          final sheet = find.byType(BundleDetailSheet);
+          await tester.tap(
+            find.descendant(of: sheet, matching: find.byType(MadarButton)).last,
+          );
+          await _expectFlightOrPulse(tester, reduced: reduced);
           await tester.pump(const Duration(milliseconds: 600));
           expect(find.byType(BundleDetailSheet), findsNothing);
         });
