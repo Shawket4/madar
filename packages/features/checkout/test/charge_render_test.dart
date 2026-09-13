@@ -310,7 +310,9 @@ class _FakeBridge implements MadarBridge {
     if (name == #orgLogoLocalPath) return null;
     // The core's effective set (branch ∩ teller ∩ device); the full org
     // list is never what Charge shows.
-    if (name == #availablePaymentMethods) return methods;
+    if (name == #availablePaymentMethods) {
+      return Future<List<PaymentMethodView>>.value(methods);
+    }
     if (name == #listPaymentMethods) {
       throw StateError('Charge must list only available methods');
     }
@@ -1014,7 +1016,7 @@ void main() {
       showCharge(host, const ChargeTarget.cart(), presentDoneCard: false),
     );
     await _settle(tester);
-    expect(find.text('Open a shift to settle'), findsOneWidget);
+    expect(find.text(coreWord('waiter.need_shift')), findsOneWidget);
     await _capture(tester, 'charge-cart-phone-noshift');
   });
 

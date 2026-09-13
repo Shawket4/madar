@@ -51,7 +51,7 @@ void main() {
     // is a hand-built row drifting from the kit again — the owner's "Past
     // tills and Orders look nothing alike". Composites that only arrange
     // kit rows are named for what they hold, not "Row".
-    const packages = ['shift', 'history', 'settings', 'auth'];
+    const packages = ['till', 'history', 'settings', 'auth'];
     final bespoke = RegExp(r'^class (_\w*(Row|Table))\b');
     final raw = RegExp(r'CircularProgressIndicator\(');
     final offenders = <String>[];

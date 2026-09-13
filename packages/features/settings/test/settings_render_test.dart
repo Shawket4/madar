@@ -288,9 +288,12 @@ class _FakeBridge implements MadarBridge {
     if (name == #appRoute) return const AppRoute.order();
     if (name == #deviceConfig) return _config;
     if (name == #deviceCode) return 'T1';
+    if (name == #refreshConnectivity) return Future<bool>.value(true);
+    if (name == #refreshCatalog) return Future<void>.value();
+    if (name == #syncNow) return Future<SyncStatusView>.value(status);
     if (name == #syncFull) {
       fullSyncs += 1;
-      return status;
+      return Future<SyncStatusView>.value(status);
     }
     if (name == #currentTill) {
       return Future<TillView?>.value(
@@ -443,7 +446,7 @@ void main() {
     expect(find.text('Discard'), findsOneWidget);
     expect(find.text('Retry all'), findsOneWidget);
     // Sign out is on the page but says why it is off.
-    expect(find.text('Close your shift before signing out.'), findsOneWidget);
+    expect(find.text(_en['settings.sign_out_shift_open']!), findsOneWidget);
   });
 
   testWidgets('the Animations setting switches and persists', (tester) async {

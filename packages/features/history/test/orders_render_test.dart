@@ -576,7 +576,7 @@ void main() {
     );
     // The header counts the till in the core's words and figures.
     expect(
-      find.text('This shift · \u206642\u2069 sales · EGP 6,230.00'),
+      find.text('This till · \u206642\u2069 sales · EGP 6,230.00'),
       findsOneWidget,
     );
     // The list: a queued sale carries no number, a voided one is tagged.
@@ -715,7 +715,7 @@ void main() {
       name: 'ipad-all-offline',
     );
     expect(
-      find.text('Searching past shifts needs a connection.'),
+      find.text('Searching past tills needs a connection.'),
       findsOneWidget,
     );
     expect(find.text('Try again'), findsOneWidget);

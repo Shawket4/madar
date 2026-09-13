@@ -130,7 +130,9 @@ class _Fake implements MadarBridge {
     if (name == #humanMessage) return 'refused';
     // The core's effective set (branch ∩ teller ∩ device); the full org
     // list is never what Charge shows.
-    if (name == #availablePaymentMethods) return _methods;
+    if (name == #availablePaymentMethods) {
+      return Future<List<PaymentMethodView>>.value(_methods);
+    }
     if (name == #listPaymentMethods) {
       throw StateError('Charge must list only available methods');
     }

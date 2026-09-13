@@ -59,7 +59,7 @@ class TillSyncNotifier extends Notifier<TillSyncState> {
       view = await Future<TillOpenSyncView>.sync(
         () => _bridge.syncOnTillOpenStatus(),
       );
-    } on Exception catch (_) {
+    } on Object catch (_) {
       return;
     }
     if (_disposed) return;

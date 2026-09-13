@@ -442,7 +442,7 @@ class _MethodChecks extends ConsumerWidget {
           children: [
             for (final (i, m) in methods.indexed) ...[
               if (i > 0) const MadarHairline.row(),
-              _MethodCheckRow(method: m),
+              _MethodCheckForm(method: m),
             ],
           ],
         ),
@@ -452,16 +452,16 @@ class _MethodChecks extends ConsumerWidget {
   }
 }
 
-class _MethodCheckRow extends ConsumerStatefulWidget {
-  const _MethodCheckRow({required this.method});
+class _MethodCheckForm extends ConsumerStatefulWidget {
+  const _MethodCheckForm({required this.method});
 
   final CloseTillMethodView method;
 
   @override
-  ConsumerState<_MethodCheckRow> createState() => _MethodCheckRowState();
+  ConsumerState<_MethodCheckForm> createState() => _MethodCheckFormState();
 }
 
-class _MethodCheckRowState extends ConsumerState<_MethodCheckRow> {
+class _MethodCheckFormState extends ConsumerState<_MethodCheckForm> {
   final TextEditingController _note = TextEditingController();
 
   @override
