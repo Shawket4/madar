@@ -109,6 +109,9 @@ class _Fake implements MadarBridge {
     final name = invocation.memberName;
     final a = invocation.namedArguments;
     if (name == #tr) return coreWord(a[#key] as String);
+    if (name == #cartRewardLines || name == #ticketRewardLines) {
+      return const <RewardLineInput>[];
+    }
     if (name == #isRtl) return false;
     if (name == #locale) return 'en';
     if (name == #currentSession) return _session;

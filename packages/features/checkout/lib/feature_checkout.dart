@@ -33,7 +33,6 @@ export 'src/checkout_provider.dart'
         CheckoutNotifier,
         CheckoutState,
         CheckoutSummary,
-        RedeemableLine,
         checkoutProvider;
 export 'src/done_card.dart' show DoneCard, DoneCardResult, showDoneCard;
 export 'src/loyalty_award_sheet.dart' show LoyaltyAwardSheet;

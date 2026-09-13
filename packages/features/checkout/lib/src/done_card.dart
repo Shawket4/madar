@@ -271,6 +271,10 @@ class _DoneCardState extends ConsumerState<DoneCard> {
           ),
         ],
         if (o.queued) TextSpan(text: ' · ${tr('charge.will_send')}'),
+        // The server recorded this sale's rewards without taking points (the
+        // card was spent elsewhere first). The sale stands; the teller hears it.
+        if (o.receipt?.loyaltyNotice case final notice?)
+          TextSpan(text: '\n$notice'),
       ],
     );
 

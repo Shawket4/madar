@@ -787,7 +787,11 @@ class _QuietRows extends StatelessWidget {
       );
     }
     if (s.loyaltyOffered && member != null) {
-      final claimable = s.claimableLines;
+      final board = s.rewardBoard;
+      final claimable = [
+        for (final l in board?.lines ?? const <RewardLineState>[])
+          if (l.claimable || l.blockedReason != null) l,
+      ];
       if (claimable.isEmpty) {
         rows.add(
           Padding(
@@ -799,29 +803,32 @@ class _QuietRows extends StatelessWidget {
           ),
         );
       } else {
-        for (final i in claimable) {
+        for (final l in claimable) {
           rows.add(
             _RewardLine(
-              name: s.redeemableLines[i].name,
-              costLabel: loyaltyCost(
-                (k) => bridge.tr(key: k),
-                s.rewardForLine(i)!,
-              ),
-              covered: s.redemptions[i] ?? 0,
-              quantity: s.redeemableLines[i].qty,
+              name: s.rewardLines[l.line].name,
+              costLabel: l.costLabel,
+              covered: l.units,
+              quantity: s.rewardLines[l.line].qty,
               freeWord: tr('charge.free'),
-              onTap: () => onToggleReward(i),
+              // The core's reason a row cannot take another: the shop's cap,
+              // the balance, a bundle. Said under the row, never guessed.
+              reason: l.canAdd || l.units > 0 ? null : l.blockedReason,
+              onTap: l.claimable ? () => onToggleReward(l.line) : null,
             ),
           );
         }
+        final adjusted = board?.adjustedReason;
         rows.add(
           Padding(
             padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
             child: Text(
               // What is left AFTER what is ticked — the number the customer
-              // will ask about.
-              '${s.balanceAfterRedemptions} ${loyaltyUnit((k) => bridge.tr(key: k), member.mode)} '
-              '${bridge.tr(key: 'loyalty.left')}',
+              // will ask about — and why a tap did not all go through.
+              '${board?.balanceAfter ?? member.balance} '
+              '${loyaltyUnit((k) => bridge.tr(key: k), member.mode)} '
+              '${bridge.tr(key: 'loyalty.left')}'
+              '${adjusted == null ? '' : ' · $adjusted'}',
               style: MadarType.bodySm.copyWith(color: colors.textMuted),
             ),
           ),
@@ -997,6 +1004,7 @@ class _RewardLine extends StatelessWidget {
     required this.quantity,
     required this.freeWord,
     required this.onTap,
+    this.reason,
   });
 
   final String name;
@@ -1004,7 +1012,8 @@ class _RewardLine extends StatelessWidget {
   final int covered;
   final int quantity;
   final String freeWord;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final String? reason;
 
   @override
   Widget build(BuildContext context) {
@@ -1023,11 +1032,28 @@ class _RewardLine extends StatelessWidget {
               color: on ? colors.accent : colors.textMuted,
             ),
             Expanded(
-              child: Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.body.copyWith(color: colors.textPrimary),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.body.copyWith(
+                      color: onTap == null
+                          ? colors.textMuted
+                          : colors.textPrimary,
+                    ),
+                  ),
+                  if (reason case final why?)
+                    Text(
+                      why,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: MadarType.bodySm.copyWith(color: colors.textMuted),
+                    ),
+                ],
               ),
             ),
             if (on)

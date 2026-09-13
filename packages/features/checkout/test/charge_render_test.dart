@@ -357,6 +357,83 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #loyaltyLookup) return Future<LoyaltyScanView>.value(_scan);
+    // The reward rules are the core's (tested there); the fake keeps one
+    // shape — the bill's first line claimable, a tap adds a unit.
+    if (name == #ticketRewardLines || name == #cartRewardLines) {
+      return [
+        for (final l in _ticket.lines)
+          RewardLineInput(
+            name: l.name,
+            ticketLineId: l.id,
+            menuItemId: l.menuItemId,
+            qty: l.qty,
+            lineTotalMinor: l.lineTotalMinor,
+            isBundle: false,
+          ),
+      ];
+    }
+    if (name == #toggleReward) {
+      final picks = a[#picks] as List<RewardPick>;
+      final line = a[#line] as int;
+      final had = picks.where((p) => p.line == line).firstOrNull;
+      return [
+        ...picks.where((p) => p.line != line),
+        RewardPick(line: line, units: (had?.units ?? 0) + 1),
+      ];
+    }
+    if (name == #rewardBoard) {
+      final lines = a[#lines] as List<RewardLineInput>;
+      final picks = a[#picks] as List<RewardPick>;
+      final units = {for (final p in picks) p.line: p.units};
+      final cost = picks.fold(0, (x, p) => x + 200 * p.units);
+      return RewardBoardView(
+        lines: [
+          for (var i = 0; i < lines.length; i++)
+            RewardLineState(
+              line: i,
+              claimable: lines[i].menuItemId == 'latte',
+              unitCost: 200,
+              units: units[i] ?? 0,
+              canAdd: lines[i].menuItemId == 'latte' && cost + 200 <= 240,
+              blockedReason: lines[i].menuItemId == 'latte' && cost + 200 > 240
+                  ? 'Not enough on the card for another'
+                  : null,
+              coveredMinor: 4500 * (units[i] ?? 0),
+              costLabel: '200 pts',
+            ),
+        ],
+        picks: picks,
+        cost: cost,
+        balanceAfter: 240 - cost,
+        unitsClaimed: picks.fold(0, (x, p) => x + p.units),
+        coveredMinor: picks.fold(0, (x, p) => x + 4500 * p.units),
+      );
+    }
+    if (name == #rewardRedemptions) {
+      final lines = a[#lines] as List<RewardLineInput>;
+      return [
+        for (final p in a[#picks] as List<RewardPick>)
+          CheckoutRedemption(
+            itemIndex: 0,
+            ticketLineId: lines[p.line].ticketLineId,
+            units: p.units,
+          ),
+      ];
+    }
+    if (name == #billWithRewards) {
+      final r = a[#redemptions] as List<CheckoutRedemption>;
+      final off = r.fold(0, (x, p) => x + 4500 * p.units);
+      return TicketBillView(
+        subtotalMinor: 15351,
+        discountMinor: 0,
+        serviceChargeMinor: 0,
+        taxMinor: 2149,
+        totalMinor: 17500 - off,
+        taxRate: 0.14,
+        serviceChargeRate: 0,
+        taxInclusive: true,
+      );
+    }
     if (name == #loyaltyAwardWindowOpen) return true;
     if (name == #clearTable) return Future<void>.value();
     if (name == #splitRestHere) {
@@ -623,6 +700,10 @@ Future<void> _capture(WidgetTester tester, String name) async {
 }
 
 /// The sheet's own session, reachable while the sheet is up.
+CheckoutState _state0(WidgetTester tester) => ProviderScope.containerOf(
+  tester.element(find.byType(ChargeSheet)),
+).read(checkoutProvider);
+
 CheckoutNotifier _session0(WidgetTester tester) => ProviderScope.containerOf(
   tester.element(find.byType(ChargeSheet)),
 ).read(checkoutProvider.notifier);
@@ -710,6 +791,10 @@ void main() {
       await session.scanLoyalty(token: 'tok');
       await _settle(tester);
       session.toggleReward(0);
+      await _settle(tester);
+      // The free latte is off the figure Charge collects, not only the paper.
+      expect(_state0(tester).dueMinor, 13000);
+      expect(_state0(tester).rewardRedemptions.single.ticketLineId, 'l1');
       await tester.tap(find.text('200'));
       await _settle(tester);
       expect(

@@ -36,35 +36,6 @@ class CheckoutSummary {
   final int totalMinor;
 }
 
-/// A line a reward could cover, from either kind of session.
-///
-/// The cart names its lines by POSITION (the server indexes the items it is
-/// sent, in order). A ticket names them by ID, because the server flattens the
-/// ticket's rounds in its own order at settle time and a guessed position takes
-/// the wrong item off the bill. One type carries both so the rewards UI is one
-/// thing rather than two that drift.
-@immutable
-class RedeemableLine {
-  const RedeemableLine({
-    required this.itemId,
-    required this.name,
-    required this.qty,
-    this.cartIndex,
-    this.ticketLineId,
-  });
-
-  /// The menu item, for matching against the reward catalogue.
-  final String itemId;
-  final String name;
-  final int qty;
-
-  /// Position in the cart. Null for a ticket line.
-  final int? cartIndex;
-
-  /// `open_ticket_items.id`. Null for a cart line.
-  final String? ticketLineId;
-}
-
 /// Why the Charge bar is dimmed, if it is. The sheet turns it into words.
 enum ChargeBlock {
   /// Ready — the bar is lit.
@@ -132,12 +103,12 @@ class CheckoutState {
     this.tipMethodId,
     this.splitMode = false,
     this.splitAmounts = const {},
-    this.redeemableLines = const [],
-    this.loyaltyAnyItem = false,
-    this.loyaltyAnyItemCost = 0,
-    this.loyaltyMember,
-    this.loyaltyRewards = const [],
-    this.redemptions = const {},
+    this.baseSummary,
+    this.rewardLines = const [],
+    this.loyaltyScan,
+    this.rewardPicks = const [],
+    this.rewardBoard,
+    this.rewardRedemptions = const [],
     this.loyaltyBusy = false,
     this.loyaltyError,
     this.loyaltyProgramme,
@@ -214,41 +185,39 @@ class CheckoutState {
   // owed. Earning is the opposite — a separate button after the sale, open for
   // 24 hours. Pay less now, collect after.
 
-  /// What this session's rewards could cover: the cart's lines in a cart
-  /// session, the ticket's lines in a bill. Empty for an online order.
-  final List<RedeemableLine> redeemableLines;
+  /// What this session's rewards could cover — the core's projection of the
+  /// cart's lines (by position) or the bill's live lines (by id).
+  final List<RewardLineInput> rewardLines;
+
+  /// The last lookup (or refresh) of the attached member: balance, catalogue,
+  /// the shop's per-order cap. Null until a card is scanned.
+  final LoyaltyScanView? loyaltyScan;
 
   /// The member whose balance is being spent, once scanned.
-  final LoyaltyMemberView? loyaltyMember;
+  LoyaltyMemberView? get loyaltyMember => loyaltyScan?.member;
 
   /// The branch's programme — whether one runs at all, and what it is called.
   /// Null until the read lands; [loyaltyOffered] treats that as "not yet".
   final LoyaltyProgrammeView? loyaltyProgramme;
 
   /// May the till offer to attach a member? Only where a programme actually
-  /// runs. A shop with none used to get a *Member ›* row that answered every
-  /// scan with a lookup failure, which reads as a broken till rather than as
-  /// a feature nobody bought.
+  /// runs.
   bool get loyaltyOffered => loyaltyProgramme?.enabled ?? false;
 
-  /// What that balance can actually afford here — the server filters by both
-  /// the branch's catalogue and the member's balance, so anything in this list
-  /// is genuinely claimable.
-  final List<LoyaltyRewardView> loyaltyRewards;
+  /// The rewards the teller asked for, as taps.
+  final List<RewardPick> rewardPicks;
 
-  /// The whole menu is claimable, not just [loyaltyRewards].
-  ///
-  /// A shop whose programme is "collect five, get anything" cannot express that
-  /// as a catalogue without listing its entire menu and keeping that list in
-  /// step forever. With this on the catalogue stops being the list of what MAY
-  /// be claimed and every line is offered at [loyaltyAnyItemCost].
-  final bool loyaltyAnyItem;
+  /// The core's verdict on [rewardPicks]: which lines are claimable, why one
+  /// cannot take another, what survives the cap and the balance, what it
+  /// costs and what it takes off the bill. Null with no member attached.
+  final RewardBoardView? rewardBoard;
 
-  /// What one line costs in that mode. Meaningless unless [loyaltyAnyItem].
-  final int loyaltyAnyItemCost;
+  /// The surviving picks in the shape checkout/settle sends.
+  final List<CheckoutRedemption> rewardRedemptions;
 
-  /// Redeemable-line index → units covered by a reward.
-  final Map<int, int> redemptions;
+  /// The summary before rewards (the cart's totals, the server's bill) — what
+  /// [summary] is re-priced from whenever the rewards change.
+  final CheckoutSummary? baseSummary;
 
   final bool loyaltyBusy;
 
@@ -407,67 +376,6 @@ class CheckoutState {
       takesTender &&
       isCash;
 
-  // ── derived: rewards ──────────────────────────────────────────────────────
-
-  /// The reward priced for a line, when that line has one the balance affords.
-  LoyaltyRewardView? rewardForLine(int index) {
-    if (index < 0 || index >= redeemableLines.length) return null;
-    final line = redeemableLines[index];
-    for (final r in loyaltyRewards) {
-      if (r.menuItemId == line.itemId) return r;
-    }
-    // "Collect five, get anything." A line the catalogue does not list is still
-    // claimable, at the flat price. The server prices it the same way, so this
-    // offers nothing it would then refuse.
-    if (loyaltyAnyItem && (loyaltyMember?.balance ?? 0) >= loyaltyAnyItemCost) {
-      return LoyaltyRewardView(
-        menuItemId: line.itemId,
-        name: line.name,
-        priceMinor: 0,
-        costCurrency: loyaltyMember?.mode ?? 'points',
-        costAmount: loyaltyAnyItemCost,
-        costLabel: '$loyaltyAnyItemCost ${loyaltyMember?.balanceLabel ?? ''}'
-            .trim(),
-      );
-    }
-    return null;
-  }
-
-  /// Indexes of the lines this balance could pay for. A basket of four
-  /// coffees and a steak offers the coffees.
-  List<int> get claimableLines => [
-    for (var i = 0; i < redeemableLines.length; i++)
-      if (rewardForLine(i) != null) i,
-  ];
-
-  /// What the ticked rewards cost in total, in the member's currency.
-  int get redemptionCost {
-    var total = 0;
-    redemptions.forEach((index, units) {
-      final r = rewardForLine(index);
-      if (r != null) total += r.costAmount * units;
-    });
-    return total;
-  }
-
-  /// The balance left after the ticked rewards.
-  int get balanceAfterRedemptions =>
-      (loyaltyMember?.balance ?? 0) - redemptionCost;
-
-  /// The ticked rewards, in the shape the core takes.
-  ///
-  /// A cart line goes by position and a ticket line by id — the two paths index
-  /// differently and only the server can resolve a ticket's.
-  List<CheckoutRedemption> get redemptionInputs => [
-    for (final e in redemptions.entries)
-      if (e.key >= 0 && e.key < redeemableLines.length)
-        CheckoutRedemption(
-          itemIndex: redeemableLines[e.key].cartIndex ?? 0,
-          ticketLineId: redeemableLines[e.key].ticketLineId,
-          units: e.value,
-        ),
-  ];
-
   CheckoutState copyWith({
     Object? target = _unset,
     List<PaymentMethodView>? paymentMethods,
@@ -497,12 +405,12 @@ class CheckoutState {
     Object? tipMethodId = _unset,
     bool? splitMode,
     Map<String, int>? splitAmounts,
-    List<RedeemableLine>? redeemableLines,
-    bool? loyaltyAnyItem,
-    int? loyaltyAnyItemCost,
-    Object? loyaltyMember = _unset,
-    List<LoyaltyRewardView>? loyaltyRewards,
-    Map<int, int>? redemptions,
+    Object? baseSummary = _unset,
+    List<RewardLineInput>? rewardLines,
+    Object? loyaltyScan = _unset,
+    List<RewardPick>? rewardPicks,
+    Object? rewardBoard = _unset,
+    List<CheckoutRedemption>? rewardRedemptions,
     bool? loyaltyBusy,
     Object? loyaltyError = _unset,
     LoyaltyProgrammeView? loyaltyProgramme,
@@ -547,14 +455,18 @@ class CheckoutState {
           : tipMethodId as String?,
       splitMode: splitMode ?? this.splitMode,
       splitAmounts: splitAmounts ?? this.splitAmounts,
-      redeemableLines: redeemableLines ?? this.redeemableLines,
-      loyaltyAnyItem: loyaltyAnyItem ?? this.loyaltyAnyItem,
-      loyaltyAnyItemCost: loyaltyAnyItemCost ?? this.loyaltyAnyItemCost,
-      loyaltyMember: loyaltyMember == _unset
-          ? this.loyaltyMember
-          : loyaltyMember as LoyaltyMemberView?,
-      loyaltyRewards: loyaltyRewards ?? this.loyaltyRewards,
-      redemptions: redemptions ?? this.redemptions,
+      baseSummary: baseSummary == _unset
+          ? this.baseSummary
+          : baseSummary as CheckoutSummary?,
+      rewardLines: rewardLines ?? this.rewardLines,
+      loyaltyScan: loyaltyScan == _unset
+          ? this.loyaltyScan
+          : loyaltyScan as LoyaltyScanView?,
+      rewardPicks: rewardPicks ?? this.rewardPicks,
+      rewardBoard: rewardBoard == _unset
+          ? this.rewardBoard
+          : rewardBoard as RewardBoardView?,
+      rewardRedemptions: rewardRedemptions ?? this.rewardRedemptions,
       loyaltyBusy: loyaltyBusy ?? this.loyaltyBusy,
       loyaltyError: loyaltyError == _unset
           ? this.loyaltyError
@@ -603,7 +515,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     state = _priced(transform(state));
   }
 
-  CheckoutState _priced(CheckoutState s) {
+  CheckoutState _priced(CheckoutState unpriced) {
+    final s = _rewarded(unpriced);
     final tender = _bridge.tenderSummary(
       dueMinor: s.dueMinor,
       tipMinor: s.tipMinor,
@@ -614,6 +527,79 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       addsOnTop: s.serviceChargeRate > 0 || !s.taxInclusive,
     );
     return tender == s.tender ? s : s.copyWith(tender: tender);
+  }
+
+  /// Run the rewards through the core: the board (claimable lines, reasons,
+  /// cap, balance), the surviving redemptions, and the summary re-priced with
+  /// the covered units off — covered first, then the discount, as the server
+  /// records it. Charge, change, splits and the receipt all read that summary.
+  CheckoutState _rewarded(CheckoutState s) {
+    final scan = s.loyaltyScan;
+    final base = s.baseSummary;
+    if (scan == null) {
+      if (s.rewardBoard == null && s.rewardRedemptions.isEmpty) return s;
+      return s.copyWith(
+        rewardBoard: null,
+        rewardRedemptions: const [],
+        summary: base ?? s.summary,
+      );
+    }
+    final bridge = _bridge;
+    final board = bridge.rewardBoard(
+      lines: s.rewardLines,
+      scan: scan,
+      picks: s.rewardPicks,
+    );
+    final redemptions = bridge.rewardRedemptions(
+      lines: s.rewardLines,
+      picks: board.picks,
+    );
+    var summary = base ?? s.summary;
+    if (redemptions.isNotEmpty) {
+      switch (s.target) {
+        case CartChargeTarget(:final tableId):
+          final t = _tryCore(
+            () => bridge.cartTotalsWithRewards(
+              tableId: tableId,
+              redemptions: redemptions,
+            ),
+          );
+          if (t != null) summary = _summaryOf(t);
+        case BillChargeTarget(:final ticket):
+          final d = s.billDiscount;
+          final bill = _tryCore(
+            () => bridge.billWithRewards(
+              ticketId: ticket.id,
+              redemptions: redemptions,
+              discountType: d?.dtype,
+              discountValue: d?.value,
+            ),
+          );
+          if (bill != null) {
+            summary = CheckoutSummary(
+              subtotalMinor: bill.subtotalMinor,
+              discountMinor: bill.discountMinor,
+              serviceChargeMinor: bill.serviceChargeMinor,
+              taxMinor: bill.taxMinor,
+              totalMinor: bill.totalMinor,
+            );
+          }
+        default:
+      }
+    }
+    return s.copyWith(
+      rewardBoard: board,
+      rewardRedemptions: redemptions,
+      summary: summary,
+    );
+  }
+
+  T? _tryCore<T>(T Function() call) {
+    try {
+      return call();
+    } on MadarError {
+      return null;
+    }
   }
 
   /// A write that belongs to session [session]; dropped if a newer one began.
@@ -697,18 +683,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final programme = await _quiet(bridge.loyaltySettings);
     final logo = bridge.orgLogoLocalPath();
     final totals = await _quiet(() => bridge.cartTotals(tableId: tableId));
-    final lines =
-        await _quiet(() => bridge.cartLines(tableId: tableId)) ??
-        const <CartLineView>[];
-    final redeemable = [
-      for (var i = 0; i < lines.length; i++)
-        RedeemableLine(
-          itemId: lines[i].itemId,
-          name: lines[i].name,
-          qty: lines[i].qty,
-          cartIndex: i,
-        ),
-    ];
+    final redeemable =
+        _tryCore(() => bridge.cartRewardLines(tableId: tableId)) ??
+        const <RewardLineInput>[];
     _updateFor(
       session,
       (s) => _withSession(s, bridge).copyWith(
@@ -717,8 +694,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         loyaltyProgramme: programme,
         cartDiscountId: discountId,
         orgLogoPath: logo,
-        redeemableLines: redeemable,
+        rewardLines: redeemable,
         summary: totals == null ? null : _summaryOf(totals),
+        baseSummary: totals == null ? null : _summaryOf(totals),
         loaded: true,
       ),
     );
@@ -747,7 +725,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
               taxMinor: bill.taxMinor,
               totalMinor: bill.totalMinor,
             ),
-      ticketLines: ticket.lines,
+      ticketId: ticket.id,
       loadDiscounts: true,
     );
   }
@@ -771,10 +749,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     int session,
     CheckoutSummary summary, {
 
-    /// The ticket's live lines, so its bill can carry rewards too. Dine-in is
-    /// an open ticket now, so without these a table order could never redeem —
-    /// which would be most of them.
-    List<TicketLineView> ticketLines = const [],
+    /// The bill whose live lines rewards may cover. Dine-in is an open ticket
+    /// now, so without these a table order could never redeem.
+    String? ticketId,
     bool loadDiscounts = false,
   }) async {
     final bridge = _bridge;
@@ -784,18 +761,12 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         ? await _quiet(bridge.listDiscounts) ?? const <DiscountView>[]
         : const <DiscountView>[];
     final programme = await _quiet(bridge.loyaltySettings);
-    final redeemable = [
-      for (final l in ticketLines)
-        // A voided line is not on the bill, and one that has not synced has no
-        // id for the server to resolve — neither can be covered.
-        if (!l.voided && l.id.isNotEmpty && l.menuItemId != null)
-          RedeemableLine(
-            itemId: l.menuItemId!,
-            name: l.name,
-            qty: l.qty,
-            ticketLineId: l.id,
-          ),
-    ];
+    // A voided line is not on the bill, and one that has not synced has no id
+    // for the server to resolve — the core leaves both out.
+    final redeemable = ticketId == null
+        ? const <RewardLineInput>[]
+        : _tryCore(() => bridge.ticketRewardLines(ticketId: ticketId)) ??
+              const <RewardLineInput>[];
     _updateFor(
       session,
       (s) => _withSession(s, bridge).copyWith(
@@ -804,7 +775,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         loyaltyProgramme: programme,
         orgLogoPath: bridge.orgLogoLocalPath(),
         summary: summary,
-        redeemableLines: redeemable,
+        baseSummary: summary,
+        rewardLines: redeemable,
         loaded: true,
       ),
     );
@@ -829,11 +801,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       if (!_live || session != _session) return false;
       _update(
         (s) => s.copyWith(
-          loyaltyMember: scan.member,
-          loyaltyRewards: scan.rewards,
-          loyaltyAnyItem: scan.anyItem,
-          loyaltyAnyItemCost: scan.anyItemCost,
-          redemptions: const {},
+          loyaltyScan: scan,
+          rewardPicks: const [],
           loyaltyError: null,
         ),
       );
@@ -848,31 +817,55 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   }
 
   /// Cover one more unit of a line with a reward, or take the cover off.
-  ///
-  /// Refuses to tick past the balance — the server would reject the whole sale,
-  /// and finding that out at the moment of payment is the worst time.
+  /// The core decides — the balance, the shop's per-order cap, the catalogue —
+  /// and a line that can take no more says why on the row.
   void toggleReward(int lineIndex) {
     final s = state;
-    final reward = s.rewardForLine(lineIndex);
-    if (reward == null) return;
-    final next = Map<int, int>.from(s.redemptions);
-    final current = next[lineIndex] ?? 0;
-    final qty = s.redeemableLines[lineIndex].qty;
-    if (current >= qty) {
-      next.remove(lineIndex);
-    } else {
-      if (s.balanceAfterRedemptions < reward.costAmount) return;
-      next[lineIndex] = current + 1;
+    final scan = s.loyaltyScan;
+    if (scan == null) return;
+    final next = _bridge.toggleReward(
+      lines: s.rewardLines,
+      scan: scan,
+      picks: s.rewardBoard?.picks ?? s.rewardPicks,
+      line: lineIndex,
+    );
+    _update((st) => st.copyWith(rewardPicks: next));
+  }
+
+  /// Re-read the attached member after the server (or the core's check
+  /// against it) refused the rewards: the balance, catalogue and cap are the
+  /// server's again, the board re-trims the picks, and the hero re-prices.
+  Future<void> _refreshLoyalty() async {
+    final member = state.loyaltyMember;
+    if (member == null) return;
+    final session = _session;
+    final bridge = _bridge;
+    try {
+      final scan = await bridge.loyaltyRefresh(customerId: member.id);
+      final lines = switch (state.target) {
+        CartChargeTarget(:final tableId) => _tryCore(
+          () => bridge.cartRewardLines(tableId: tableId),
+        ),
+        BillChargeTarget(:final ticket) => _tryCore(
+          () => bridge.ticketRewardLines(ticketId: ticket.id),
+        ),
+        _ => null,
+      };
+      _updateFor(
+        session,
+        (s) =>
+            s.copyWith(loyaltyScan: scan, rewardLines: lines ?? s.rewardLines),
+      );
+    } on MadarError catch (_) {
+      // The refusal already said why; a failed refresh leaves the board as is.
     }
-    _update((st) => st.copyWith(redemptions: next));
   }
 
   /// Drop the member and every reward with them.
   void clearLoyalty() => _update(
     (s) => s.copyWith(
-      loyaltyMember: null,
-      loyaltyRewards: const [],
-      redemptions: const {},
+      loyaltyScan: null,
+      rewardPicks: const [],
       loyaltyError: null,
     ),
   );
@@ -985,6 +978,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       (s) => s.copyWith(
         cartDiscountId: discountId,
         summary: totals == null ? null : _summaryOf(totals),
+        baseSummary: totals == null ? null : _summaryOf(totals),
       ),
     );
     ref.read(shellProvider.notifier).refresh();
@@ -1102,6 +1096,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       }
     } on MadarError catch (e) {
       _raise(bridge, e);
+      // A refused reward is re-priced from the server's current card, so the
+      // next tap charges what the server will accept.
+      if (s.rewardRedemptions.isNotEmpty) unawaited(_refreshLoyalty());
     } finally {
       if (_live && state.isPlacingOrder) {
         _update((st) => st.copyWith(isPlacingOrder: false));
@@ -1123,8 +1120,10 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         // WHICH lines, never a price. The server looks each reward up in the
         // branch's catalogue, checks the balance against the whole basket, and
         // refuses the sale outright if it does not cover it.
-        loyaltyCustomerId: s.redemptions.isEmpty ? null : s.loyaltyMember?.id,
-        loyaltyRedemptions: s.redemptionInputs,
+        loyaltyCustomerId: s.rewardRedemptions.isEmpty
+            ? null
+            : s.loyaltyMember?.id,
+        loyaltyRedemptions: s.rewardRedemptions,
       ),
     );
     return ChargeOutcome(
@@ -1170,8 +1169,10 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       discountId: discount?.id,
       discountType: discount?.dtype,
       discountValue: discount?.value,
-      loyaltyCustomerId: s.redemptions.isEmpty ? null : s.loyaltyMember?.id,
-      loyaltyRedemptions: s.redemptionInputs,
+      loyaltyCustomerId: s.rewardRedemptions.isEmpty
+          ? null
+          : s.loyaltyMember?.id,
+      loyaltyRedemptions: s.rewardRedemptions,
       // Only a split sends legs. Amounts typed before split was switched off
       // are dropped by `toggleSplit`; this is the second lock on that door.
       splits: s.splitMode ? s.splitLegs : const [],
