@@ -1,23 +1,23 @@
-# feature_shift — the Till
+# feature_till — the Till
 
 Where the drawer lives. `TillScreen` is the teller shell's fourth tab (and
-the manager's, listing every drawer at the branch). With no shift it is the
-open-shift card; with one it shows the drawer's figures, the shift's rows,
-cash in / out (inline on an iPad, pushed on a phone) and Close shift.
+the manager's, listing every drawer at the branch). With no till it is the
+open-till card; with one it shows the drawer's figures, the till's rows,
+cash in / out (inline on an iPad, pushed on a phone) and Close till.
 
 | Screen | Backed by |
 |---|---|
-| `TillScreen` | `currentShift/refreshShift`, `listTills` + `deviceConfig().tillId`, `shiftReport`, `listShiftOrders` + `shiftStats`, `listCashMovements`, `syncStatus`, `listShifts` (managers) |
+| `TillScreen` | `currentTill/refreshTill`, `branchOpenTills`, `openBillsNotice`, `tillReport`, `listTillOrders` + `tillStats`, `listCashMovements`, `syncStatus`, `listTills` (managers) |
 | `CashInOutPanel` / `CashMovementsScreen` | `recordCashMovement(signed, note)`, `listCashMovements` |
-| `CloseShiftScreen` | `shiftReport` (expected cash + its arithmetic), `closeShift(counted, note)` |
-| `OpenShiftScreen` | `suggestedOpeningCashMinor`, `openShift` |
-| `ShiftReportSheet` | `shiftReport` / `shiftReportFor`, `renderShiftReport` |
-| `ShiftHistoryScreen` | `listShifts`, `shiftReportFor`, `listOrdersForShift` |
-| `DrawersCard` | `listShifts`, `shiftReportFor` — read-only |
+| `CloseTillScreen` | `tillReport` (expected cash), `closeTillPreview` (methods used, last-till warning), `closeTill(counted, note, reconciliation)` |
+| `OpenTillScreen` | `suggestedOpeningCashMinor`, `checkTillElsewhere`, `openBillsNotice`, `openTill` → `OpenTillOutcome`, `forceCloseTill` |
+| `TillSyncStrip` | `syncOnTillOpenStatus`, `syncNow` |
+| `TillReportSheet` | `tillReport` / `tillReportFor`, `renderTillReport` |
+| `TillHistoryScreen` | `listTills`, `tillReportFor`, `listOrdersForTill` |
+| `DrawersCard` | `listTills`, `tillReportFor` — read-only |
 
 Not built because the bridge cannot back it: a refunds card, a tips word, a
-Safe drop chip, Correct › (linked reversal), Suggested safe drop,
-Force-close. Each is noted where it would have been.
+Safe drop chip, Correct › (linked reversal), Suggested safe drop. Each is noted where it would have been.
 
 ## Seeing it
 
@@ -26,5 +26,5 @@ flutter test test/till_render_test.dart --dart-define=MADAR_RENDER=true
 ```
 
 writes `build/render/till-*.png`: the iPad Till (light, and offline in the
-dark), a manager's Till, the no-shift home, the close screen (short, and
+dark), a manager's Till, the no-till home, the close screen (short, and
 matching), and the phone in Arabic. Look before you ship.
