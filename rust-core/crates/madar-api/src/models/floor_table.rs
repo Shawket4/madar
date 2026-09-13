@@ -35,6 +35,14 @@ pub struct FloorTable {
     pub next_booking: Option<Option<Box<models::TableBookingHint>>>,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// How many sat down (covers) on the live occupancy, when the host counted them or the bill carries a guest count. `null` when free or unknown.
+    #[serde(
+        rename = "party_size",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub party_size: Option<Option<i32>>,
     #[serde(rename = "pos_x")]
     pub pos_x: f64,
     #[serde(rename = "pos_y")]
@@ -95,6 +103,7 @@ impl FloorTable {
             label,
             next_booking: None,
             org_id,
+            party_size: None,
             pos_x,
             pos_y,
             rotation,

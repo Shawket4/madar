@@ -114,7 +114,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **branch_id** | **uuid::Uuid** |  | [required] |
-**status** | Option<**String**> |  |  |
+**status** | Option<**String**> | `open` (the default: live bills only), `settled`, `voided`, or `all`. |  |
 
 ### Return type
 

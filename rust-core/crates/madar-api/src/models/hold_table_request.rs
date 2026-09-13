@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct HoldTableRequest {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
+    /// How many people sat down (covers), as the host counted them. Recorded on the hold and inherited by the bill's first round when it carries no guest count of its own. Anything not positive is not recorded.
+    #[serde(
+        rename = "party_size",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub party_size: Option<Option<i32>>,
     /// When the party actually sat down, by the till's clock. An offline seat replays later than it happened; this keeps every device's table clock on the seating. Clamped server-side to the last 12 hours, never in the future, and never before the table's previous party left. Recorded only -- it moves no status.
     #[serde(
         rename = "seated_at",
@@ -29,6 +37,7 @@ impl HoldTableRequest {
     pub fn new(branch_id: uuid::Uuid) -> HoldTableRequest {
         HoldTableRequest {
             branch_id,
+            party_size: None,
             seated_at: None,
         }
     }

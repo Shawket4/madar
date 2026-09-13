@@ -38,6 +38,7 @@ pub struct GetOpenTicketParams {
 #[derive(Clone, Debug)]
 pub struct ListOpenTicketsParams {
     pub branch_id: String,
+    /// `open` (the default: live bills only), `settled`, `voided`, or `all`.
     pub status: Option<String>,
 }
 
