@@ -189,7 +189,9 @@ struct CatalogSnapshot {
 /// kv key persisting the dashboard's active org/branch scope override.
 const K_DASHBOARD_SCOPE: &str = "dashboard:active_scope";
 /// Why the cached open-ticket list is not fresh; empty when it is.
-const K_OPEN_TICKETS_STALE: &str = "cache:open_tickets:stale";
+pub(crate) const K_OPEN_TICKETS_STALE: &str = "cache:open_tickets:stale";
+/// The cached open bills (`Vec<OpenTicketView>`).
+pub(crate) const K_OPEN_TICKETS_CACHE: &str = "cache:open_tickets";
 
 /// The dashboard's runtime-selected org/branch scope. A `None` field means
 /// "fall back to the session-derived value" (see `MadarCore::effective_scope`).
@@ -4657,9 +4659,18 @@ impl MadarCore {
         // fires tickets and never tenders, so it has no payment_methods:read grant)
         // must STILL get its catalog. So these are best-effort: a 403/failure leaves
         // them empty rather than aborting the whole catalog and blanking the menu.
-        let payment_methods = payment_methods_api::list_payment_methods(&self.api.config())
-            .await
-            .unwrap_or_default();
+        // Once the changefeed holds a full snapshot, payment methods come from it
+        // (`project_pull_mirrors`) and this GET is skipped.
+        let feed = branch_id.as_deref().is_some_and(|b| self.pull_feed_complete(b));
+        let payment_methods = if feed {
+            None
+        } else {
+            Some(
+                payment_methods_api::list_payment_methods(&self.api.config())
+                    .await
+                    .unwrap_or_default(),
+            )
+        };
 
         let discounts = discounts_api::list_discounts(
             &self.api.config(),
@@ -4701,10 +4712,12 @@ impl MadarCore {
         }
         self.store
             .kv_put(menu::K_BUNDLES, &serde_json::to_string(&bundles.data)?)?;
-        self.store.kv_put(
-            menu::K_PAYMENT_METHODS,
-            &serde_json::to_string(&payment_methods)?,
-        )?;
+        if let Some(payment_methods) = payment_methods {
+            self.store.kv_put(
+                menu::K_PAYMENT_METHODS,
+                &serde_json::to_string(&payment_methods)?,
+            )?;
+        }
         self.store
             .kv_put(menu::K_DISCOUNTS, &serde_json::to_string(&discounts)?)?;
 
@@ -4744,56 +4757,18 @@ impl MadarCore {
             return;
         };
         let q = [("branch_id", branch.clone())];
-        if let (Ok(sections), Ok(tables)) = (
+        // Once this branch holds a full changefeed snapshot the floor mirror is
+        // rebuilt from the synced rows (`project_pull_mirrors`, contract §10.3
+        // A6); the per-resource GETs stay only for a device that has not
+        // completed its first full pull.
+        if self.pull_feed_complete(&branch) {
+            let _ = self.pull(false).await;
+        } else if let (Ok(sections), Ok(tables)) = (
             self.api.get_text("/floor/sections", &q).await,
             self.api.get_text("/floor/tables", &q).await,
         ) {
             if held::save_floor(&self.store, &sections, &tables).is_ok() {
-                // A queued seat / no-show keeps its optimistic state on the
-                // canvas until it drains.
-                self.reapply_pending_booking_ops();
-                // Re-apply a QUEUED local clear on top of the fresh pull, so a
-                // table the teller just bussed does not flicker back to dirty
-                // between this pull and its drain.
-                //
-                // Queued HOLDS and RELEASES ride the same rail, in queue order:
-                // a table this till just parked an order on must not read free
-                // between the park and its drain, or the canvas invites the
-                // teller to seat somebody on top of their own draft.
-                if let Ok(items) = self.store.pending() {
-                    for i in items.iter().filter(|i| {
-                        matches!(
-                            i.op_type.as_str(),
-                            "clear_table" | "hold_table" | "release_table"
-                        )
-                    }) {
-                        let Ok(cmd) = serde_json::from_str::<held::TableStateCommand>(&i.payload)
-                        else {
-                            continue;
-                        };
-                        let status = match i.op_type.as_str() {
-                            "hold_table" => "seated",
-                            "release_table" => {
-                                // The party ate: the table is waiting for a
-                                // cloth, not free.
-                                if cmd.request.get("bus").and_then(|b| b.as_bool()) == Some(true) {
-                                    "dirty"
-                                } else {
-                                    "free"
-                                }
-                            }
-                            _ => "free",
-                        };
-                        let _ = held::set_table_state_local(
-                            &self.store,
-                            &cmd.table_id,
-                            Some(status),
-                            None,
-                            false,
-                            Some(&self.corrected_now().to_rfc3339()),
-                        );
-                    }
-                }
+                self.reapply_pending_floor_ops();
             }
         }
 
@@ -4814,6 +4789,57 @@ impl MadarCore {
         }
         if let Ok(body) = self.api.get_text("/floor/transfers", &tq).await {
             let _ = held::merge_transfers(&self.store, &body, tcursor.is_none(), &protect);
+        }
+    }
+
+    /// Put this till's still-queued floor answers back on a freshly written
+    /// floor mirror, so a pull never flickers the room back to what the server
+    /// knew before them.
+    pub(crate) fn reapply_pending_floor_ops(&self) {
+        // A queued seat / no-show keeps its optimistic state on the
+        // canvas until it drains.
+        self.reapply_pending_booking_ops();
+        // Re-apply a QUEUED local clear on top of the fresh pull, so a
+        // table the teller just bussed does not flicker back to dirty
+        // between this pull and its drain.
+        //
+        // Queued HOLDS and RELEASES ride the same rail, in queue order:
+        // a table this till just parked an order on must not read free
+        // between the park and its drain, or the canvas invites the
+        // teller to seat somebody on top of their own draft.
+        if let Ok(items) = self.store.pending() {
+            for i in items.iter().filter(|i| {
+                matches!(
+                    i.op_type.as_str(),
+                    "clear_table" | "hold_table" | "release_table"
+                )
+            }) {
+                let Ok(cmd) = serde_json::from_str::<held::TableStateCommand>(&i.payload)
+                else {
+                    continue;
+                };
+                let status = match i.op_type.as_str() {
+                    "hold_table" => "seated",
+                    "release_table" => {
+                        // The party ate: the table is waiting for a
+                        // cloth, not free.
+                        if cmd.request.get("bus").and_then(|b| b.as_bool()) == Some(true) {
+                            "dirty"
+                        } else {
+                            "free"
+                        }
+                    }
+                    _ => "free",
+                };
+                let _ = held::set_table_state_local(
+                    &self.store,
+                    &cmd.table_id,
+                    Some(status),
+                    None,
+                    false,
+                    Some(&self.corrected_now().to_rfc3339()),
+                );
+            }
         }
     }
 
@@ -6758,7 +6784,16 @@ impl MadarCore {
     pub async fn list_open_tickets(&self) -> Result<Vec<tickets::TicketView>, CoreError> {
         use madar_api::apis::open_tickets_api as ot;
         let branch_id = self.session_branch_id()?;
-        let server: Vec<madar_api::models::OpenTicketView> = match ot::list_open_tickets(
+        let server: Vec<madar_api::models::OpenTicketView> = if self.pull_feed_complete(&branch_id) {
+            // The bills arrive through the changefeed (contract §10.3 A6): pull,
+            // which rebuilds the cached list, then read it. A failed pull leaves
+            // the cache and says why it is not fresh.
+            if let Err(e) = self.pull(false).await {
+                let _ = self.store.kv_put(K_OPEN_TICKETS_STALE, &e.to_string());
+            }
+            cached_views(&self.store, K_OPEN_TICKETS_CACHE)
+        } else {
+            match ot::list_open_tickets(
             &self.api.config(),
             // Live bills only. Without it an older server handed back every
             // ticket the branch ever opened, capped at 500, and a still-open
@@ -6785,6 +6820,7 @@ impl MadarCore {
                 let why = net::map_api_error(e).to_string();
                 let _ = self.store.kv_put(K_OPEN_TICKETS_STALE, &why);
                 cached_views(&self.store, "cache:open_tickets")
+            }
             }
         };
         // Line voids this device queued but has not sent: the waiter who took
@@ -9133,6 +9169,61 @@ mod lifecycle_tests {
         let cash = sent.iter().find(|b| b["op"] == "cash_movement").unwrap();
         assert_eq!(cash["till_id"], sid);
         assert!(cash.get("shift_id").is_none());
+    }
+
+    /// Contract §10.3 A6: once a full snapshot landed, the floor, the open bills
+    /// and the payment methods are read from the synced rows — in the shapes the
+    /// backend's list routes use — and nothing is rebuilt before that.
+    #[tokio::test]
+    async fn mirrors_read_from_sync_rows() {
+        let core = signed_in_offline_core().await;
+        let branch = core.current_session().unwrap().branch_id.unwrap();
+        let put = |ty: &str, id: &str, data: serde_json::Value| {
+            core.store
+                .with_conn(|c| {
+                    c.execute(
+                        "INSERT OR REPLACE INTO sync_rows(type,id,branch_id,seq,data) VALUES(?1,?2,?3,1,?4)",
+                        rusqlite::params![ty, id, branch, data.to_string()],
+                    )?;
+                    Ok(())
+                })
+                .unwrap();
+        };
+        let (sec, tab, bill, cash) = (
+            "00000000-0000-0000-0000-00000000f001",
+            "00000000-0000-0000-0000-00000000f002",
+            "00000000-0000-0000-0000-00000000f003",
+            "00000000-0000-0000-0000-00000000f004",
+        );
+        put("floor_section", sec, serde_json::json!({"id": sec, "branch_id": branch, "name": "Hall",
+            "ordering": 0, "canvas_w": 1000, "canvas_h": 600}));
+        put("floor_table", tab, serde_json::json!({"id": tab, "branch_id": branch, "section_id": sec,
+            "label": "T1", "seats": 4, "shape": "square", "pos_x": 10.0, "pos_y": 10.0, "width": 80.0,
+            "height": 80.0, "rotation": 0.0, "status": "seated", "is_active": true,
+            "seated_at": "2026-09-13T09:00:00Z", "party_size": 2, "next_booking": null}));
+        put("open_ticket", bill, serde_json::json!({"id": bill, "branch_id": branch, "table_id": tab,
+            "status": "open", "subtotal": 4200, "opened_at": "2026-09-13T09:05:00Z",
+            "opened_by": "00000000-0000-0000-0000-0000000000cc", "items": []}));
+        put("payment_method", cash, serde_json::json!({"id": cash, "name": "Cash",
+            "label_translations": {"ar": "نقدي"}, "color": "#000", "icon": "cash", "is_cash": true, "is_active": true}));
+
+        core.project_pull_mirrors(&branch);
+        assert!(core.floor_layout().unwrap().tables.is_empty(), "no full snapshot yet: mirrors untouched");
+
+        core.store
+            .kv_put(&format!("{}{branch}", sync_pull::K_LAST_FULL), "2026-09-13T10:00:00Z")
+            .unwrap();
+        core.project_pull_mirrors(&branch);
+        let floor = core.floor_layout().unwrap();
+        assert_eq!(floor.sections.len(), 1);
+        assert_eq!(floor.tables.len(), 1);
+        assert_eq!(floor.tables[0].label, "T1");
+        let bills: Vec<madar_api::models::OpenTicketView> = cached_views(&core.store, K_OPEN_TICKETS_CACHE);
+        assert_eq!(bills.len(), 1);
+        assert_eq!(bills[0].subtotal, 4200);
+        let methods = core.list_payment_methods().unwrap();
+        assert_eq!(methods.len(), 1);
+        assert!(methods[0].is_cash);
     }
 
     /// Two people, two tills, ONE device: each signs in to their own till, both

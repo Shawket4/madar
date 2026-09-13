@@ -531,6 +531,7 @@ impl MadarCore {
             }
             self.store
                 .kv_put(&format!("{K_LAST_OK}{branch}"), &chrono::Utc::now().to_rfc3339())?;
+            self.project_pull_mirrors(&branch);
             self.sync_state.lock().unwrap_or_else(|e| e.into_inner()).stale_reason = stale;
             // §11.7: after rows land, fetch the files they reference (non-fatal).
             let b = bundle
@@ -539,6 +540,56 @@ impl MadarCore {
             let _ = self.sync_assets_after_pull(b).await;
             return Ok(applied);
         }
+    }
+
+    /// Has this branch completed a full snapshot? Only then are the synced rows
+    /// the whole picture, and the mirrors may be rebuilt from them.
+    pub(crate) fn pull_feed_complete(&self, branch: &str) -> bool {
+        self.store
+            .kv_get(&format!("{K_LAST_FULL}{branch}"))
+            .ok()
+            .flatten()
+            .is_some()
+    }
+
+    /// A6: rebuild the mirrors the floor, the bills and Charge read from the
+    /// synced rows, in the shapes their readers already take (the backend
+    /// projects `floor_table` / `open_ticket` with the same views its list
+    /// routes return). Skipped until the branch holds a full snapshot.
+    pub(crate) fn project_pull_mirrors(&self, branch: &str) {
+        if !self.pull_feed_complete(branch) {
+            return;
+        }
+        let store = &self.store;
+        let methods = rows_of_type(store, branch, "payment_method");
+        if let Ok(raw) = serde_json::to_string(&methods) {
+            let _ = store.kv_put(crate::menu::K_PAYMENT_METHODS, &raw);
+            self.invalidate_catalog_cache();
+        }
+
+        let sections = rows_of_type(store, branch, "floor_section");
+        let mut tables = rows_of_type(store, branch, "floor_table");
+        let label = |v: &serde_json::Value| {
+            v.get("label").and_then(|l| l.as_str()).unwrap_or("").to_lowercase()
+        };
+        tables.sort_by_key(label);
+        if let (Ok(s), Ok(t)) = (serde_json::to_string(&sections), serde_json::to_string(&tables)) {
+            if crate::held::save_floor(store, &s, &t).is_ok() {
+                self.reapply_pending_floor_ops();
+            }
+        }
+
+        let mut bills: Vec<madar_api::models::OpenTicketView> = rows_of_type(store, branch, "open_ticket")
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .filter(|t: &madar_api::models::OpenTicketView| t.status == "open")
+            .collect();
+        bills.sort_by_key(|t| t.opened_at);
+        if let Some(t) = bills.first() {
+            crate::timefmt::remember_payload_tz(store, &t.timezone);
+        }
+        crate::cache_views(store, crate::K_OPEN_TICKETS_CACHE, &bills);
+        let _ = store.kv_put(crate::K_OPEN_TICKETS_STALE, "");
     }
 
     /// One incremental pull; returns the number of changes applied.
