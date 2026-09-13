@@ -277,6 +277,7 @@ class MadarDataTable<T> extends StatefulWidget {
     this.scrollable = true,
     this.controller,
     this.collapse,
+    this.chevron = true,
     super.key,
   });
 
@@ -327,6 +328,11 @@ class MadarDataTable<T> extends StatefulWidget {
   /// Force the phone collapse on or off; null decides by layout and width.
   final bool? collapse;
 
+  /// Draw the chevron that [onTap] implies. Off for a split view whose row
+  /// tap selects into a pane beside it (a chevron says "goes somewhere") or a
+  /// row whose trailing action already is the affordance.
+  final bool chevron;
+
   @override
   State<MadarDataTable<T>> createState() => _MadarDataTableState<T>();
 }
@@ -363,7 +369,8 @@ class _MadarDataTableState<T> extends State<MadarDataTable<T>> {
   }
 
   bool get _hasChevron =>
-      widget.onTap != null || widget.expandedBuilder != null;
+      (widget.onTap != null && widget.chevron) ||
+      widget.expandedBuilder != null;
 
   double _fixedChrome() =>
       MadarTableMetrics.inset * 2 +
@@ -814,7 +821,7 @@ class _TableRow<T> extends StatelessWidget {
           ),
         );
       }
-    } else if (w.onTap != null) {
+    } else if (w.onTap != null && w.chevron) {
       chevron = MadarGlyphIcon(
         MadarGlyph.chevronForward,
         size: IconSize.md,
@@ -981,7 +988,7 @@ class _PhoneRow<T> extends StatelessWidget {
       status: statusCol?.status?.call(row),
       rail: w.rail?.call(row),
       selected: w.selected?.call(row) ?? false,
-      chevron: w.onTap != null,
+      chevron: w.onTap != null && w.chevron,
       trailing: (trailing == null && toggle == null)
           ? null
           : Row(
