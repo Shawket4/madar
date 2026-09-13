@@ -55,12 +55,30 @@ pub fn display_number(device_code: &str, order_number: i64) -> String {
 
 /// The display number for an order the server sent with only `order_number` +
 /// `order_ref`: a device-numbered order's ref is `<BR>-<YYMMDD>-<DEV>-<RRRR>` with
-/// `RRRR == order_number`, so the device code is read back from the ref.
+/// `RRRR == order_number`, so the device code is read back from the ref. When two
+/// devices shared a code offline the server stored the second ref as
+/// `…~<4 hex of its device>` (contract §3 R5); that suffix stays on the number,
+/// or the two sales would read as the same `36B-12`.
 pub fn display_number_from_ref(order_ref: Option<&str>, order_number: i64) -> String {
     if let Some(r) = order_ref {
-        let parts: Vec<&str> = r.split('~').next().unwrap_or(r).split('-').collect();
-        if parts.len() == 4 && parts[3].parse::<i64>().ok() == Some(order_number) {
-            return display_number(parts[2], order_number);
+        let (base, suffix) = match r.split_once('~') {
+            Some((b, s)) if !s.is_empty() => (b, Some(s)),
+            _ => (r, None),
+        };
+        let parts: Vec<&str> = base.split('-').collect();
+        // A device ref pads its sequence to 4 digits (`{:04}`); the server's own
+        // legacy ref pads to 3 (`<BR>-<YYMMDD>-<TILL6>-<NNN>`), so a 3-digit tail
+        // is never read as a device code. (A legacy till's 1000th+ order is the
+        // one shape the ref alone cannot tell apart.)
+        if parts.len() == 4
+            && parts[3].len() >= 4
+            && parts[3].parse::<i64>().ok() == Some(order_number)
+        {
+            let n = display_number(parts[2], order_number);
+            return match suffix {
+                Some(s) => format!("{n}~{s}"),
+                None => n,
+            };
         }
     }
     order_number.to_string()

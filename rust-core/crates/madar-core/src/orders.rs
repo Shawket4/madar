@@ -136,6 +136,11 @@ pub struct OrderSummaryView {
     pub price_flagged: bool,
     /// Optional human order ref (server-assigned) shown under the order number.
     pub order_ref: Option<String>,
+    /// The number people read: `36B-12` for a device-numbered sale (with the
+    /// server's `~AB12` when two devices shared a code offline), the plain
+    /// server number otherwise, empty while a legacy queued sale has none.
+    #[serde(default)]
+    pub display_number: String,
 }
 
 /// One line of a fetched order (item + its chosen modifiers) — the expanded
@@ -582,6 +587,10 @@ pub(crate) fn from_server(o: &models::Order) -> OrderSummaryView {
         price_flagged: o.price_flagged.unwrap_or(false),
         customer_name: o.customer_name.clone().flatten().filter(|s| !s.is_empty()),
         order_ref: o.order_ref.clone().flatten().filter(|s| !s.is_empty()),
+        display_number: crate::checkout::display_number_from_ref(
+            o.order_ref.clone().flatten().as_deref(),
+            o.order_number as i64,
+        ),
     }
 }
 
@@ -635,11 +644,21 @@ pub(crate) fn queued(store: &Store, till_id: &str) -> CoreResult<Vec<OrderSummar
             // dedup this row against its synced server twin (same ref) during the
             // lost-response window; without it the order double-shows + double-counts.
             order_ref: flat(&r.order_ref).filter(|s| !s.is_empty()),
+            display_number: queued_display_number(&cmd),
         });
     }
     // Outbox is oldest-first; show the latest-rung sale on top.
     out.reverse();
     Ok(out)
+}
+
+/// A queued sale's number: the device stamp it was rung with (legacy queued
+/// sales carry none and are numbered by the server when they land).
+fn queued_display_number(cmd: &crate::checkout::CheckoutCommand) -> String {
+    cmd.device
+        .as_ref()
+        .map(|d| crate::checkout::display_number(&d.device_code, d.order_number))
+        .unwrap_or_default()
 }
 
 /// Every still-queued offline order ACROSS shifts (newest first) — the search /
@@ -682,6 +701,7 @@ pub(crate) fn queued_all(store: &Store) -> CoreResult<Vec<OrderSummaryView>> {
             price_flagged: false,
             customer_name: flat(&r.customer_name).filter(|s| !s.is_empty()),
             order_ref: flat(&r.order_ref).filter(|s| !s.is_empty()),
+            display_number: queued_display_number(&cmd),
         });
     }
     out.reverse();
@@ -742,7 +762,21 @@ mod tests {
             price_flagged: false,
             customer_name: None,
             order_ref: None,
+            display_number: String::new(),
         }
+    }
+
+    #[test]
+    fn history_rows_carry_the_device_display_number() {
+        let mut o = models::Order::default();
+        o.order_number = 12;
+        o.order_ref = Some(Some("MAA-260913-36B-0012".into()));
+        assert_eq!(from_server(&o).display_number, "36B-12");
+        o.order_ref = Some(Some("MAA-260913-36B-0012~AB12".into()));
+        assert_eq!(from_server(&o).display_number, "36B-12~AB12");
+        o.order_ref = Some(Some("MAA-260913-ABCDEF-007".into()));
+        o.order_number = 7;
+        assert_eq!(from_server(&o).display_number, "7", "server-numbered (legacy) ref");
     }
 
     #[test]

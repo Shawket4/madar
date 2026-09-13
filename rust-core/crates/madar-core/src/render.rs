@@ -684,10 +684,11 @@ impl Renderer {
             self.rule();
             self.center(&lab.orders.to_uppercase(), SZ_SMALL, Weight::SEMIBOLD);
             for o in orders {
-                let num = o
-                    .order_number
-                    .map(|n| format!("#{n}"))
-                    .unwrap_or_else(|| "—".to_string());
+                let num = match o.order_number {
+                    _ if !o.display_number.is_empty() => format!("#{}", o.display_number),
+                    Some(n) => format!("#{n}"),
+                    None => "—".to_string(),
+                };
                 let left = format!(
                     "{}  {}",
                     num,
@@ -1255,6 +1256,7 @@ mod tests {
             customer_name: None,
             price_flagged: false,
             order_ref: None,
+            display_number: String::new(),
         };
         let mut labels = till_labels();
         labels.tz = tz;

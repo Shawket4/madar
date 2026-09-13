@@ -414,6 +414,7 @@ List<OrderSummaryView> _orders({required int queued}) => [
       queued: i < queued,
       tellerName: 'Sara',
       priceFlagged: false,
+      displayNumber: '',
       orderType: 'dine_in',
     ),
 ];
@@ -470,6 +471,7 @@ List<OrderSummaryView> _historyOrders() => [
       queued: false,
       tellerName: 'Sara',
       priceFlagged: false,
+      displayNumber: '',
       orderType: ['dine_in', 'takeaway', 'delivery'][i % 3],
     ),
 ];

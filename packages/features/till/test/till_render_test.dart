@@ -249,6 +249,7 @@ List<OrderSummaryView> _orders({required int queued}) => [
       queued: i < queued,
       tellerName: 'Sara',
       priceFlagged: false,
+      displayNumber: '',
       orderType: 'dine_in',
     ),
 ];

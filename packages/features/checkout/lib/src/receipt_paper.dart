@@ -54,9 +54,14 @@ class ReceiptPaper extends ConsumerWidget {
 
   String _money(int minor) => Money.format(minor, currency: currency);
 
-  /// "Order #12" when the server assigned a number, else the local order
-  /// id's first uuid segment (the natives' orderTitle).
+  /// "Order #36B-12" — the per-device number the core minted (or read back
+  /// from the server's ref) — else "Order #12" when only the server number is
+  /// known, else the local order id's first uuid segment (the natives'
+  /// orderTitle).
   String _orderTitle(String label) {
+    if (receipt.displayNumber.isNotEmpty) {
+      return '$label #${receipt.displayNumber}';
+    }
     final number = receipt.orderNumber;
     if (number != null) return '$label #$number';
     return '$label ${receipt.localOrderId.split('-').first.toUpperCase()}';

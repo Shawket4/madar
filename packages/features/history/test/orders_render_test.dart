@@ -91,6 +91,7 @@ OrderSummaryView _order(
   String type = 'dine_in',
   String? customer,
   String? ref,
+  String display = '',
 }) => OrderSummaryView(
   id: queued ? 'local-$n' : 'o-$n',
   orderNumber: queued ? null : n,
@@ -103,6 +104,7 @@ OrderSummaryView _order(
   queued: queued,
   tellerName: queued ? null : 'Sara',
   priceFlagged: flagged,
+  displayNumber: display,
   orderType: type,
   customerName: customer,
   orderRef: ref,

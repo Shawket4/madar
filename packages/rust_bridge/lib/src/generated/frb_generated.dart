@@ -11122,8 +11122,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   OrderSummaryView dco_decode_order_summary_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 14)
-      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
     return OrderSummaryView(
       id: dco_decode_String(arr[0]),
       orderNumber: dco_decode_opt_box_autoadd_i_32(arr[1]),
@@ -11139,6 +11139,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       customerName: dco_decode_opt_String(arr[11]),
       priceFlagged: dco_decode_bool(arr[12]),
       orderRef: dco_decode_opt_String(arr[13]),
+      displayNumber: dco_decode_String(arr[14]),
     );
   }
 
@@ -14772,6 +14773,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_customerName = sse_decode_opt_String(deserializer);
     var var_priceFlagged = sse_decode_bool(deserializer);
     var var_orderRef = sse_decode_opt_String(deserializer);
+    var var_displayNumber = sse_decode_String(deserializer);
     return OrderSummaryView(
       id: var_id,
       orderNumber: var_orderNumber,
@@ -14787,6 +14789,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       customerName: var_customerName,
       priceFlagged: var_priceFlagged,
       orderRef: var_orderRef,
+      displayNumber: var_displayNumber,
     );
   }
 
@@ -18111,6 +18114,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.customerName, serializer);
     sse_encode_bool(self.priceFlagged, serializer);
     sse_encode_opt_String(self.orderRef, serializer);
+    sse_encode_String(self.displayNumber, serializer);
   }
 
   @protected

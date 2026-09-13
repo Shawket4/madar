@@ -258,6 +258,7 @@ pub struct _OrderSummaryView {
     pub price_flagged: bool,
     /// Optional human order ref (server-assigned) shown under the order number.
     pub order_ref: Option<String>,
+    pub display_number: String,
 }
 
 /// One line of a fetched order (item + its chosen modifiers).

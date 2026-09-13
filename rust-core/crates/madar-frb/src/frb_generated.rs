@@ -11995,6 +11995,7 @@ const _: fn() = || {
         let _: Option<String> = OrderSummaryView.customer_name;
         let _: bool = OrderSummaryView.price_flagged;
         let _: Option<String> = OrderSummaryView.order_ref;
+        let _: String = OrderSummaryView.display_number;
     }
     {
         let OutboxItemView = None::<crate::api::sync::OutboxItemView>.unwrap();
@@ -15161,6 +15162,7 @@ impl SseDecode for crate::api::orders::OrderSummaryView {
         let mut var_customerName = <Option<String>>::sse_decode(deserializer);
         let mut var_priceFlagged = <bool>::sse_decode(deserializer);
         let mut var_orderRef = <Option<String>>::sse_decode(deserializer);
+        let mut var_displayNumber = <String>::sse_decode(deserializer);
         return crate::api::orders::OrderSummaryView {
             id: var_id,
             order_number: var_orderNumber,
@@ -15176,6 +15178,7 @@ impl SseDecode for crate::api::orders::OrderSummaryView {
             customer_name: var_customerName,
             price_flagged: var_priceFlagged,
             order_ref: var_orderRef,
+            display_number: var_displayNumber,
         };
     }
 }
@@ -19155,6 +19158,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::OrderSumma
             self.0.customer_name.into_into_dart().into_dart(),
             self.0.price_flagged.into_into_dart().into_dart(),
             self.0.order_ref.into_into_dart().into_dart(),
+            self.0.display_number.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -22208,6 +22212,7 @@ impl SseEncode for crate::api::orders::OrderSummaryView {
         <Option<String>>::sse_encode(self.customer_name, serializer);
         <bool>::sse_encode(self.price_flagged, serializer);
         <Option<String>>::sse_encode(self.order_ref, serializer);
+        <String>::sse_encode(self.display_number, serializer);
     }
 }
 

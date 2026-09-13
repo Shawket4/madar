@@ -9317,7 +9317,7 @@ mod lifecycle_tests {
             checkout::display_number_from_ref(Some("MAA-260913-36B-0012"), 12),
             "36B-12"
         );
-        assert_eq!(checkout::display_number_from_ref(Some("MAA-260913-36B-0012~AB12"), 12), "36B-12");
+        assert_eq!(checkout::display_number_from_ref(Some("MAA-260913-36B-0012~AB12"), 12), "36B-12~AB12");
         assert_eq!(checkout::display_number_from_ref(None, 7), "7");
         let cmd = checkout::CheckoutCommand {
             request: madar_api::models::CreateOrderRequest::new(

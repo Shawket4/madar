@@ -370,6 +370,7 @@ class OrderSummaryView {
 
   /// Optional human order ref (server-assigned) shown under the order number.
   final String? orderRef;
+  final String displayNumber;
 
   const OrderSummaryView({
     required this.id,
@@ -386,6 +387,7 @@ class OrderSummaryView {
     this.customerName,
     required this.priceFlagged,
     this.orderRef,
+    required this.displayNumber,
   });
 
   @override
@@ -403,7 +405,8 @@ class OrderSummaryView {
       orderType.hashCode ^
       customerName.hashCode ^
       priceFlagged.hashCode ^
-      orderRef.hashCode;
+      orderRef.hashCode ^
+      displayNumber.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -423,7 +426,8 @@ class OrderSummaryView {
           orderType == other.orderType &&
           customerName == other.customerName &&
           priceFlagged == other.priceFlagged &&
-          orderRef == other.orderRef;
+          orderRef == other.orderRef &&
+          displayNumber == other.displayNumber;
 }
 
 /// One component of a bundle line on the receipt, with its own modifiers.

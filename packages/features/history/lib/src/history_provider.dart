@@ -629,7 +629,8 @@ class HistoryNotifier extends Notifier<HistoryState> {
     bool matchesSearch(OrderSummaryView o) {
       if (query.isEmpty) return true;
       if (qNumber.isNotEmpty &&
-          (o.orderNumber?.toString().contains(qNumber) ?? false)) {
+          ((o.orderNumber?.toString().contains(qNumber) ?? false) ||
+              o.displayNumber.toLowerCase().contains(qNumber))) {
         return true;
       }
       return (o.customerName?.toLowerCase().contains(ql) ?? false) ||

@@ -18,17 +18,25 @@ String orderTypeLabel(MadarBridge bridge, String orderType) =>
       _ => orderType,
     };
 
-/// "#1042", or the word for a sale that has no number yet.
-String saleNumber(MadarBridge bridge, OrderSummaryView o) =>
-    o.orderNumber != null
-    ? '#${o.orderNumber}'
-    : historyTr(bridge, 'history.order');
+/// The number a sale is read by, as the core words it: `36B-12` for a
+/// device-numbered sale (`36B-12~AB12` when two devices shared a code), else
+/// the server's number; null while it has none.
+String? saleNumberText(OrderSummaryView o) => o.displayNumber.isNotEmpty
+    ? o.displayNumber
+    : o.orderNumber?.toString();
 
-/// "Sale #1042" for a title — or just "Sale" while the server has not
-/// numbered it yet; the QUEUED tag under the title says the rest.
+/// "#36B-12", or the word for a sale that has no number yet.
+String saleNumber(MadarBridge bridge, OrderSummaryView o) =>
+    switch (saleNumberText(o)) {
+      final n? => '#$n',
+      null => historyTr(bridge, 'history.order'),
+    };
+
+/// "Sale #36B-12" for a title — or just "Sale" while the sale has no number
+/// yet; the QUEUED tag under the title says the rest.
 String saleTitle(MadarBridge bridge, OrderSummaryView o) {
   final sale = historyTr(bridge, 'history.sale');
-  final n = o.orderNumber;
+  final n = saleNumberText(o);
   return n == null ? sale : '$sale ${ltrIsland('#$n')}';
 }
 
