@@ -388,7 +388,7 @@ class TillNotifier extends Notifier<TillState> {
   static Future<T?> _quiet<T>(Future<T> Function() call) async {
     try {
       return await call();
-    } on Exception catch (_) {
+    } on Object catch (_) {
       return null;
     }
   }
@@ -557,7 +557,7 @@ class OpenTillNotifier extends Notifier<OpenTillState> {
     TillElsewhereView? elsewhere;
     try {
       elsewhere = await _bridge.checkTillElsewhere();
-    } on Exception catch (_) {
+    } on Object catch (_) {
       return;
     }
     if (_disposed) return;
@@ -570,7 +570,7 @@ class OpenTillNotifier extends Notifier<OpenTillState> {
     OpenBillsNoticeView? notice;
     try {
       notice = await _bridge.openBillsNotice();
-    } on Exception catch (_) {
+    } on Object catch (_) {
       return;
     }
     if (_disposed) return;
@@ -969,7 +969,9 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
     try {
       final preview = await _bridge.closeTillPreview();
       if (!_disposed) state = state.copyWith(preview: preview);
-    } on Exception catch (_) {}
+    } on Object catch (_) {
+      // No preview: the count still closes; there is nothing to check.
+    }
     try {
       final orders = await _bridge.listTillOrders();
       final stats = await _bridge.tillStats(orders: orders);

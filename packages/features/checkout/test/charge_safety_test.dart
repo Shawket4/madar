@@ -57,6 +57,8 @@ const _openTill = TillView(
   openedAt: '2026-09-13T09:00:00Z',
   status: 'open',
   isOpen: true,
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 const _ticket = TicketView(
@@ -90,6 +92,7 @@ ReceiptView _receipt() => const ReceiptView(
   queuedOffline: false,
   createdAt: '2026-09-13T10:05:00Z',
   payments: [],
+  displayNumber: '',
 );
 
 class _Fake implements MadarBridge {
@@ -119,7 +122,6 @@ class _Fake implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(
         branchName: 'Rue',
-        tillId: 'till-1',
         reconfiguring: false,
         configured: true,
       );

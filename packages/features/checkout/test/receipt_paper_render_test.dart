@@ -92,6 +92,7 @@ ReceiptView _r({
   tellerName: 'Sara',
   queuedOffline: false,
   createdAt: '2026-09-10T19:45:00Z',
+  displayNumber: '',
 );
 
 final _cases = <String, ReceiptView>{

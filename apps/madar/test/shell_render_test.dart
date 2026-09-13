@@ -338,6 +338,8 @@ const _till = TillView(
   openedAt: _openedAt,
   status: 'open',
   isOpen: true,
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 TillReportView _report({required bool fromServer}) => TillReportView(
@@ -374,6 +376,9 @@ TillReportView _report({required bool fromServer}) => TillReportView(
   ],
   cashMovements: const [],
   fromServer: fromServer,
+  reconciliation: const [],
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 const _movements = <CashMovementView>[
@@ -438,6 +443,8 @@ List<TillSummaryView> _pastTills(bool ar) {
       discrepancyMinor: delta,
       status: 'closed',
       isOpen: false,
+      verification: 'server',
+      openedWhileAnotherOpen: false,
     );
   }
 
@@ -709,7 +716,6 @@ class _FakeBridge implements MadarBridge {
     if (name == #deviceConfig) {
       return DeviceConfigView(
         branchName: rtl ? 'شارع الزمالك' : 'Rue Zamalek',
-        tillId: _waiter ? null : 't-1',
         reconfiguring: false,
         configured: true,
       );
@@ -718,23 +724,24 @@ class _FakeBridge implements MadarBridge {
     if (name == #baseUrl) return 'https://api.madar-pos.cloud';
     if (name == #version) return '0.5.1';
     if (name == #environment) return 'prod';
-    if (name == #listTills) {
-      return Future<List<TillView>>.value(const [
-        TillView(id: 't-1', name: 'Till 1', isDefault: true, isActive: true),
-      ]);
-    }
     if (name == #kdsListStations) {
       return Future<List<KdsStationView>>.value(const []);
     }
     // ── connectivity, sync ─────────────────────────────────────────────────
     if (name == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        SyncStatusView(
-          pending: pending,
-          failed: failed,
-          blocked: 0,
-          online: online,
-          authPaused: authPaused,
+      return SyncStatusView(
+        pendingOutbox: pending,
+        deadOutbox: failed,
+        blocked: 0,
+        online: online,
+        authPaused: authPaused,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }

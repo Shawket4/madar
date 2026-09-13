@@ -32,8 +32,8 @@ const int _skewBannerMinutes = 5;
 /// than raw, so the row still reads as words.
 String outboxOpLabel(MadarBridge bridge, String op) {
   final key = switch (op) {
-    'open_till' || 'open_shift' => 'sync.op_open_shift',
-    'close_till' || 'close_shift' => 'sync.op_close_shift',
+    'open_till' || 'open_shift' => 'sync.op_open_till',
+    'close_till' || 'close_shift' => 'sync.op_close_till',
     'create_order' => 'sync.op_create_order',
     'void_order' => 'sync.op_void_order',
     'cash_movement' => 'sync.op_cash_movement',

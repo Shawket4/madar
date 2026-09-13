@@ -112,7 +112,7 @@ class DrawersCard extends ConsumerWidget {
       );
     } else if (drawers.isEmpty) {
       card = MadarCard(
-        child: EmptyState(icon: 'tray', title: t('shifts.empty')),
+        child: EmptyState(icon: 'tray', title: t('tills.empty')),
       );
     } else {
       card = MadarCard.column(

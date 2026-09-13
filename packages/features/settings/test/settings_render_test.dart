@@ -77,6 +77,20 @@ const _session = SessionSnapshot(
   permissionsLoaded: true,
 );
 
+const _manager = SessionSnapshot(
+  userId: 'u3',
+  displayName: 'Mona',
+  role: 'branch_manager',
+  currencyCode: 'EGP',
+  taxRate: 0.14,
+  taxInclusive: true,
+  serviceChargeRate: 0.12,
+  serviceChargeTaxable: false,
+  requireTableForOrders: true,
+  online: true,
+  permissionsLoaded: true,
+);
+
 const _waiter = SessionSnapshot(
   userId: 'u2',
   displayName: 'Ahmed',
@@ -94,7 +108,6 @@ const _waiter = SessionSnapshot(
 const _config = DeviceConfigView(
   branchId: 'b1',
   branchName: 'Rue Zamalek',
-  tillId: 't1',
   printerHost: '192.168.1.50',
   printerPort: 9100,
   printerBrand: 'epson',
@@ -102,11 +115,6 @@ const _config = DeviceConfigView(
   reconfiguring: false,
   configured: true,
 );
-
-const _tills = [
-  TillView(id: 't1', name: 'Till 1', isDefault: true, isActive: true),
-  TillView(id: 't2', name: 'Till 2', isDefault: false, isActive: true),
-];
 
 /// A teller's queue: two sales waiting, a cash-out mid-send, a charge the
 /// server refused, and one sale stranded behind a dead till opening.
@@ -216,20 +224,33 @@ final _bills = <TicketView>[
   ),
 ];
 
+SyncStatusView _status() => SyncStatusView(
+  pendingOutbox: 2,
+  deadOutbox: 1,
+  blocked: 1,
+  online: true,
+  authPaused: false,
+  phase: 'idle',
+  assets: AssetSyncView(
+    needed: 0,
+    missing: 0,
+    downloading: false,
+    bytesDone: BigInt.zero,
+    bytesTotal: BigInt.zero,
+  ),
+);
+
 class _FakeBridge implements MadarBridge {
   _FakeBridge({
     this.lang = 'en',
     this.session = _session,
     this.outbox = _tellerOutbox,
-    this.status = const SyncStatusView(
-      pending: 2,
-      failed: 1,
-      blocked: 1,
-      online: true,
-      authPaused: false,
-    ),
+    SyncStatusView? status,
     this.tillOpen = true,
-  });
+  }) : status = status ?? _status();
+
+  /// Recorded full re-downloads (long-press Sync).
+  int fullSyncs = 0;
 
   final String lang;
   final SessionSnapshot session;
@@ -267,6 +288,10 @@ class _FakeBridge implements MadarBridge {
     if (name == #appRoute) return const AppRoute.order();
     if (name == #deviceConfig) return _config;
     if (name == #deviceCode) return 'T1';
+    if (name == #syncFull) {
+      fullSyncs += 1;
+      return status;
+    }
     if (name == #currentTill) {
       return Future<TillView?>.value(
         tillOpen
@@ -279,11 +304,12 @@ class _FakeBridge implements MadarBridge {
                 openedAt: '2026-09-11T09:00:00Z',
                 status: 'open',
                 isOpen: true,
+                verification: 'server',
+                openedWhileAnotherOpen: false,
               )
             : null,
       );
     }
-    if (name == #listTills) return Future<List<TillView>>.value(_tills);
     if (name == #kdsListStations) {
       return Future<List<KdsStationView>>.value(const []);
     }
@@ -303,7 +329,7 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #listOutbox) return Future<List<OutboxItemView>>.value(outbox);
-    if (name == #syncStatus) return Future<SyncStatusView>.value(status);
+    if (name == #syncStatus) return status;
     if (name == #formatTime) {
       final at = invocation.namedArguments[#rfc3339] as String? ?? '';
       return at.length >= 16 ? at.substring(11, 16) : at;
@@ -497,12 +523,20 @@ void main() {
       home: const SyncScreen(),
       bridge: _FakeBridge(
         outbox: const [],
-        status: const SyncStatusView(
-          pending: 0,
-          failed: 0,
+        status: SyncStatusView(
+          pendingOutbox: 0,
+          deadOutbox: 0,
           blocked: 0,
           online: true,
           authPaused: false,
+          phase: 'idle',
+          assets: AssetSyncView(
+            needed: 0,
+            missing: 0,
+            downloading: false,
+            bytesDone: BigInt.zero,
+            bytesTotal: BigInt.zero,
+          ),
         ),
       ),
       name: 'sync-clear',
@@ -521,12 +555,20 @@ void main() {
         session: _waiter,
         outbox: _waiterOutbox,
         tillOpen: false,
-        status: const SyncStatusView(
-          pending: 2,
-          failed: 1,
+        status: SyncStatusView(
+          pendingOutbox: 2,
+          deadOutbox: 1,
           blocked: 0,
           online: true,
           authPaused: false,
+          phase: 'idle',
+          assets: AssetSyncView(
+            needed: 0,
+            missing: 0,
+            downloading: false,
+            bytesDone: BigInt.zero,
+            bytesTotal: BigInt.zero,
+          ),
         ),
       ),
       name: 'me-tablet',
@@ -549,12 +591,20 @@ void main() {
         session: _waiter,
         outbox: _waiterOutbox,
         tillOpen: false,
-        status: const SyncStatusView(
-          pending: 2,
-          failed: 1,
+        status: SyncStatusView(
+          pendingOutbox: 2,
+          deadOutbox: 1,
           blocked: 0,
           online: true,
           authPaused: false,
+          phase: 'idle',
+          assets: AssetSyncView(
+            needed: 0,
+            missing: 0,
+            downloading: false,
+            bytesDone: BigInt.zero,
+            bytesTotal: BigInt.zero,
+          ),
         ),
       ),
       name: 'me-phone-ar',
@@ -587,8 +637,63 @@ void main() {
     await open('Printer', 'Test print', 'sheet-printer');
     await open('Diagnostics', 'Environment', 'sheet-diagnostics');
     await open('Device', 'Reconfigure device', 'sheet-device');
-    await open('Till', 'Till 2', 'sheet-till');
     await open('Legal', 'Privacy Policy', 'sheet-legal');
+  });
+
+  testWidgets('settings_has_no_till_picker', (tester) async {
+    // A till is a person's session now, not a drawer the device is bound
+    // to: Settings offers no till to pick.
+    await _shoot(
+      tester,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      home: const SettingsScreen(),
+      bridge: _FakeBridge(),
+      name: 'settings-no-till-picker',
+    );
+    expect(find.text(_en['settings.till'] ?? 'settings.till'), findsNothing);
+    expect(find.text('Printer'), findsOneWidget);
+  });
+
+  testWidgets('settings_long_press_full_sync_confirms', (tester) async {
+    final bridge = _FakeBridge(session: _manager);
+    await _shoot(
+      tester,
+      size: _phone,
+      theme: MadarTheme.light(),
+      home: const SyncScreen(),
+      bridge: bridge,
+      name: 'sync-full-confirm-base',
+    );
+    final button = find.widgetWithText(MadarButton, _en['sync.push']!);
+    await tester.longPress(button);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text(_en['sync.full_confirm_title']!), findsOneWidget);
+    expect(find.text(_en['sync.full_confirm_body']!), findsOneWidget);
+    await _save(tester, 'sync-full-confirm');
+    // Nothing downloads until the manager says yes.
+    expect(bridge.fullSyncs, 0);
+    await tester.tap(find.text(_en['sync.push']!).last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(bridge.fullSyncs, 1);
+  });
+
+  testWidgets('a teller long-pressing Sync downloads nothing', (tester) async {
+    final bridge = _FakeBridge();
+    await _shoot(
+      tester,
+      size: _phone,
+      theme: MadarTheme.light(),
+      home: const SyncScreen(),
+      bridge: bridge,
+      name: 'sync-teller-longpress',
+    );
+    await tester.longPress(find.widgetWithText(MadarButton, _en['sync.push']!));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text(_en['sync.full_confirm_title']!), findsNothing);
+    expect(bridge.fullSyncs, 0);
   });
 
   testWidgets('discarding a refused action asks first', (tester) async {

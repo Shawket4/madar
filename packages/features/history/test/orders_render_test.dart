@@ -76,6 +76,8 @@ const _till = TillView(
   openedAt: _openedAt,
   status: 'open',
   isOpen: true,
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 OrderSummaryView _order(
@@ -215,6 +217,7 @@ const _receipt1042 = ReceiptView(
   queuedOffline: false,
   createdAt: '2026-09-12T19:31:00Z',
   payments: [],
+  displayNumber: '',
 );
 
 /// A bridge that answers what Orders asks, from fixtures. [online] false is
@@ -331,7 +334,6 @@ class _FakeBridge implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(
         branchName: 'Rue Zamalek',
-        tillId: 't-1',
         reconfiguring: false,
         configured: true,
       );
@@ -416,13 +418,19 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        SyncStatusView(
-          pending: online ? 0 : 1,
-          failed: 0,
-          blocked: 0,
-          online: online,
-          authPaused: false,
+      return SyncStatusView(
+        pendingOutbox: online ? 0 : 1,
+        deadOutbox: 0,
+        blocked: 0,
+        online: online,
+        authPaused: false,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }

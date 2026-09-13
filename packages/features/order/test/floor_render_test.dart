@@ -278,13 +278,19 @@ class _Fake implements MadarBridge {
     }
     if (n == #refreshConnectivity) return Future<bool>.value(true);
     if (n == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        const SyncStatusView(
-          pending: 0,
-          failed: 0,
-          blocked: 0,
-          online: true,
-          authPaused: false,
+      return SyncStatusView(
+        pendingOutbox: 0,
+        deadOutbox: 0,
+        blocked: 0,
+        online: true,
+        authPaused: false,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }

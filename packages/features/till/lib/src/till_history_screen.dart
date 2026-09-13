@@ -35,7 +35,7 @@ class TillHistoryScreen extends ConsumerWidget {
     final toast = ref.watch(tillHistoryProvider.select((s) => s.toast));
     final branch = bridge.deviceConfig().branchName?.trim() ?? '';
     return MadarPageScaffold(
-      title: t('shifts.title'),
+      title: t('tills.title'),
       subtitle: branch.isEmpty ? null : branch,
       width: MadarContentWidth.reading,
       body: const Padding(
@@ -81,19 +81,19 @@ List<TillSummaryView> _rowsWithLocalOpen(
 MadarStatus tillStatus(MadarBridge bridge, TillSummaryView s) {
   String t(String key) => bridge.tr(key: key);
   if (s.isOpen) {
-    return MadarStatus(t('shifts.open_now'), tone: MadarTone.accent);
+    return MadarStatus(t('tills.open_now'), tone: MadarTone.accent);
   }
   if (s.status == 'force_closed') {
-    return MadarStatus(t('shifts.force_closed'), tone: MadarTone.danger);
+    return MadarStatus(t('tills.force_closed'), tone: MadarTone.danger);
   }
   final d = s.discrepancyMinor;
-  if (d == null) return MadarStatus(t('shifts.closed'));
+  if (d == null) return MadarStatus(t('tills.closed'));
   if (d == 0) {
-    return MadarStatus(t('shifts.balanced'), tone: MadarTone.success);
+    return MadarStatus(t('tills.balanced'), tone: MadarTone.success);
   }
   return d < 0
-      ? MadarStatus(t('shifts.short'), tone: MadarTone.danger)
-      : MadarStatus(t('shifts.over'), tone: MadarTone.warning);
+      ? MadarStatus(t('tills.short'), tone: MadarTone.danger)
+      : MadarStatus(t('tills.over'), tone: MadarTone.warning);
 }
 
 /// The one table. Rows expand to the till's orders, loaded on first open.
@@ -182,7 +182,7 @@ class _Tills extends ConsumerWidget {
         ),
         MadarColumn(
           id: 'length',
-          label: t('shifts.length'),
+          label: t('tills.length'),
           text: (s) => s.closedAt == null
               ? bridge.formatElapsedSince(rfc3339: s.openedAt)
               : bridge.formatElapsed(
@@ -197,7 +197,7 @@ class _Tills extends ConsumerWidget {
         ),
         MadarColumn(
           id: 'declared',
-          label: t('shifts.declared'),
+          label: t('tills.declared'),
           text: (s) => money(s.closingDeclaredMinor),
           width: 144,
           align: MadarColumnAlign.end,
@@ -227,8 +227,8 @@ class _Tills extends ConsumerWidget {
       rowKey: (s) => s.id,
       empty: MadarEmptyContent(
         icon: 'clock.arrow.circlepath',
-        title: t('shifts.empty'),
-        message: t('shifts.empty_message'),
+        title: t('tills.empty'),
+        message: t('tills.empty_message'),
       ),
       rail: (s) => switch (tillStatus(bridge, s).tone) {
         MadarTone.danger => MadarTone.danger,
@@ -314,7 +314,7 @@ class _TillOrders extends ConsumerWidget {
       state: state,
       framed: false,
       scrollable: false,
-      empty: MadarEmptyContent(title: t('shifts.no_orders')),
+      empty: MadarEmptyContent(title: t('tills.no_orders')),
       onTap: (o) => unawaited(_preview(context, bridge, o)),
       trailing: (context, o) => MadarGlyphTile(
         glyph: MadarGlyph.printer,

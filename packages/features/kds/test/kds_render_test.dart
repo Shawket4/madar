@@ -302,13 +302,19 @@ class _FakeBridge implements MadarBridge {
       return Future<void>.value();
     }
     if (name == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        SyncStatusView(
-          pending: outbox.where((o) => o.status != 'dead').length,
-          failed: outbox.where((o) => o.status == 'dead').length,
-          blocked: 0,
-          online: online,
-          authPaused: false,
+      return SyncStatusView(
+        pendingOutbox: outbox.where((o) => o.status != 'dead').length,
+        deadOutbox: outbox.where((o) => o.status == 'dead').length,
+        blocked: 0,
+        online: online,
+        authPaused: false,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }

@@ -37,7 +37,7 @@ class _OpenTillPage extends ConsumerWidget {
     });
     return MadarPageScaffold(
       width: MadarContentWidth.form,
-      title: orderWord(bridge, 'sell.open_shift'),
+      title: orderWord(bridge, 'sell.open_till'),
       bodyInset: false,
       body: const OpenTillScreen(embedded: true),
     );

@@ -423,7 +423,7 @@ class _Links extends ConsumerWidget {
             ],
             const MadarHairline.row(),
             MadarListRow.nav(
-              title: t('shifts.title'),
+              title: t('tills.title'),
               glyph: MadarGlyph.clock,
               onTap: onPastTills,
             ),

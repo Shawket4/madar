@@ -24,6 +24,8 @@ const _till = TillView(
   openedAt: '2026-09-12T15:02:00Z',
   status: 'open',
   isOpen: true,
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 class _CoreBridge implements MadarBridge {
@@ -57,6 +59,9 @@ class _CoreBridge implements MadarBridge {
       paymentLines: const [],
       cashMovements: const [],
       fromServer: false,
+      reconciliation: const [],
+      verification: 'server',
+      openedWhileAnotherOpen: false,
     );
   }
 
@@ -170,13 +175,19 @@ class _CoreBridge implements MadarBridge {
     }
     if (name == #listTills) return Future<List<TillView>>.value(const []);
     if (name == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        const SyncStatusView(
-          pending: 1,
-          failed: 0,
-          blocked: 0,
-          online: false,
-          authPaused: false,
+      return SyncStatusView(
+        pendingOutbox: 1,
+        deadOutbox: 0,
+        blocked: 0,
+        online: false,
+        authPaused: false,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }

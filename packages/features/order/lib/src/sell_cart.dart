@@ -962,7 +962,7 @@ class SellNoTillNotice extends ConsumerWidget {
       text: text,
       icon: 'lock',
       onTap: () => unawaited(openTillFromSell(context, ref)),
-      trailing: BannerActionPill(label: orderWord(bridge, 'sell.open_shift')),
+      trailing: BannerActionPill(label: orderWord(bridge, 'sell.open_till')),
     );
   }
 }

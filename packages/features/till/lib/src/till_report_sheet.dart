@@ -237,10 +237,10 @@ class _Report extends ConsumerWidget {
           currency: currency,
           compact: phone,
           status: diff == 0
-              ? MadarStatus(t('shifts.balanced'), tone: MadarTone.success)
+              ? MadarStatus(t('tills.balanced'), tone: MadarTone.success)
               : diff! < 0
-              ? MadarStatus(t('shifts.short'), tone: MadarTone.danger)
-              : MadarStatus(t('shifts.over'), tone: MadarTone.warning),
+              ? MadarStatus(t('tills.short'), tone: MadarTone.danger)
+              : MadarStatus(t('tills.over'), tone: MadarTone.warning),
         ),
     ];
 
@@ -588,7 +588,7 @@ class _Orders extends ConsumerWidget {
       spacing: Space.md,
       children: [
         MadarSectionHeader(
-          text: t('shifts.orders'),
+          text: t('tills.orders'),
           trailing: MadarButton(
             label: t(state.expanded ? 'till.hide_orders' : 'till.show_orders'),
             glyph: state.expanded
@@ -605,7 +605,7 @@ class _Orders extends ConsumerWidget {
             currency: bridge.currentSession()?.currencyCode ?? '',
             state: table,
             scrollable: false,
-            empty: MadarEmptyContent(title: t('shifts.no_orders')),
+            empty: MadarEmptyContent(title: t('tills.no_orders')),
             onTap: (o) => unawaited(_preview(context, bridge, o)),
             trailing: (context, o) => MadarGlyphTile(
               glyph: MadarGlyph.printer,

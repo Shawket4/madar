@@ -64,6 +64,103 @@ void _loadWords() {
 
 // ── Fixture data ───────────────────────────────────────────────────────
 
+const _methods = [
+  CloseTillMethodView(
+    method: 'Cash',
+    label: 'Cash',
+    isCash: true,
+    systemTotalMinor: 238000,
+    orderCount: 18,
+  ),
+  CloseTillMethodView(
+    method: 'CIB – counter',
+    label: 'CIB – counter',
+    isCash: false,
+    systemTotalMinor: 481000,
+    orderCount: 24,
+  ),
+  CloseTillMethodView(
+    method: 'InstaPay',
+    label: 'InstaPay',
+    isCash: false,
+    systemTotalMinor: 62000,
+    orderCount: 3,
+  ),
+];
+
+const _branchTills = [
+  BranchOpenTillView(
+    tillId: 'sh-1',
+    tellerId: 'u-1',
+    tellerName: 'Sara',
+    deviceCode: '36B',
+    openedAt: '2026-09-12T15:02:00Z',
+    isThisDevice: true,
+    source: 'both',
+  ),
+  BranchOpenTillView(
+    tillId: 'sh-2',
+    tellerId: 'u-2',
+    tellerName: 'Hany',
+    deviceCode: '12A',
+    deviceLabel: 'Terrace iPad',
+    openedAt: '2026-09-12T14:30:00Z',
+    isThisDevice: false,
+    source: 'server',
+  ),
+];
+
+const _elsewhere = TillElsewhereView(
+  tillId: 'sh-9',
+  deviceCode: '12A',
+  deviceLabel: 'Terrace iPad',
+  openedAt: '2026-09-12T09:10:00Z',
+  source: 'server',
+);
+
+const _notice = OpenBillsNoticeView(
+  openBillsCount: 4,
+  openBillsAmountMinor: 128000,
+  oldestOpenedAt: '2026-09-11T20:05:00Z',
+  oldBillsCount: 2,
+  oldBillHours: 3,
+  seatedTablesCount: 3,
+  since: '2026-09-11T23:40:00Z',
+);
+
+const _lastTill = LastTillWarningView(
+  openBillsCount: 4,
+  openBillsAmountMinor: 128000,
+  seatedTablesCount: 3,
+);
+
+const _syncDone = TillOpenSyncView(
+  state: 'done',
+  tillId: 'sh-1',
+  startedAt: '2026-09-12T15:02:00Z',
+  finishedAt: '2026-09-12T15:02:04Z',
+  changesApplied: 12,
+  pendingOutbox: 0,
+);
+
+const _syncRunning = TillOpenSyncView(
+  state: 'running',
+  tillId: 'sh-1',
+  startedAt: '2026-09-12T15:02:00Z',
+  changesApplied: 0,
+  pendingOutbox: 2,
+);
+
+const _syncStale = TillOpenSyncView(
+  state: 'stale',
+  tillId: 'sh-1',
+  startedAt: '2026-09-12T15:02:00Z',
+  finishedAt: '2026-09-12T15:02:09Z',
+  staleReason: 'offline',
+  changesApplied: 0,
+  pendingOutbox: 3,
+);
+
 const _openedAt = '2026-09-12T15:02:00Z';
 
 const _till = TillView(
@@ -75,6 +172,8 @@ const _till = TillView(
   openedAt: _openedAt,
   status: 'open',
   isOpen: true,
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 TillReportView _report({required bool fromServer}) => TillReportView(
@@ -112,6 +211,9 @@ TillReportView _report({required bool fromServer}) => TillReportView(
   ],
   cashMovements: const [],
   fromServer: fromServer,
+  reconciliation: const [],
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 const _movements = <CashMovementView>[
@@ -159,6 +261,8 @@ const _drawers = <TillSummaryView>[
     openingCashMinor: 85000,
     status: 'open',
     isOpen: true,
+    verification: 'server',
+    openedWhileAnotherOpen: false,
   ),
   TillSummaryView(
     id: 'sh-2',
@@ -167,6 +271,8 @@ const _drawers = <TillSummaryView>[
     openingCashMinor: 85000,
     status: 'open',
     isOpen: true,
+    verification: 'server',
+    openedWhileAnotherOpen: false,
   ),
   TillSummaryView(
     id: 'sh-0',
@@ -179,6 +285,8 @@ const _drawers = <TillSummaryView>[
     discrepancyMinor: 0,
     status: 'closed',
     isOpen: false,
+    verification: 'server',
+    openedWhileAnotherOpen: false,
   ),
 ];
 
@@ -190,7 +298,33 @@ class _FakeBridge implements MadarBridge {
     this.role = 'teller',
     this.online = true,
     this.arabic = false,
+    this.elsewhere,
+    this.notice,
+    this.lastTill,
+    this.sync,
+    this.methods = _methods,
   });
+
+  /// The person's till is open on another device.
+  final TillElsewhereView? elsewhere;
+
+  /// Bills left open at the branch.
+  final OpenBillsNoticeView? notice;
+
+  /// Closing this till leaves the branch with none open.
+  final LastTillWarningView? lastTill;
+
+  /// The sync opening a till started.
+  final TillOpenSyncView? sync;
+
+  final List<BranchOpenTillView> branchTills = _branchTills;
+  final List<CloseTillMethodView> methods;
+
+  /// What reached the core.
+  final List<List<ReconciliationInput>> closes = [];
+  final List<String> forceClosed = [];
+  int opens = 0;
+  int syncNows = 0;
 
   final TillView? till;
   final String role;
@@ -305,7 +439,6 @@ class _FakeBridge implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(
         branchName: 'Rue Zamalek',
-        tillId: 't-1',
         reconfiguring: false,
         configured: true,
       );
@@ -344,21 +477,22 @@ class _FakeBridge implements MadarBridge {
       return Future<List<CashMovementView>>.value(_movements);
     }
     if (name == #listTills) {
-      return Future<List<TillView>>.value(const [
-        TillView(id: 't-1', name: 'Till 1', isDefault: true, isActive: true),
-      ]);
-    }
-    if (name == #listTills) {
       return Future<List<TillSummaryView>>.value(_drawers);
     }
     if (name == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        SyncStatusView(
-          pending: online ? 0 : 3,
-          failed: 0,
-          blocked: 0,
-          online: online,
-          authPaused: false,
+      return SyncStatusView(
+        pendingOutbox: online ? 0 : 3,
+        deadOutbox: 0,
+        blocked: 0,
+        online: online,
+        authPaused: false,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }
@@ -366,6 +500,53 @@ class _FakeBridge implements MadarBridge {
     if (name == #refreshConnectivity) return Future<bool>.value(online);
     if (name == #lanStop || name == #logout) return Future<void>.value();
     if (name == #pendingOutboxCount) return Future<int>.value(0);
+    if (name == #checkTillElsewhere) {
+      return Future<TillElsewhereView?>.value(elsewhere);
+    }
+    if (name == #openBillsNotice) {
+      return Future<OpenBillsNoticeView?>.value(notice);
+    }
+    if (name == #branchOpenTills) {
+      return Future<List<BranchOpenTillView>>.value(branchTills);
+    }
+    if (name == #syncOnTillOpenStatus) return sync ?? _syncDone;
+    if (name == #syncNow) {
+      syncNows += 1;
+      return Future<SyncStatusView>.error(const MadarError.offline(detail: ''));
+    }
+    if (name == #openTill) {
+      opens += 1;
+      return Future<OpenTillOutcome>.value(
+        OpenTillOutcome(
+          till: elsewhere == null ? _till : null,
+          verification: 'server',
+          openElsewhere: elsewhere,
+        ),
+      );
+    }
+    if (name == #forceCloseTill) {
+      forceClosed.add(invocation.namedArguments[#tillId] as String);
+      return Future<void>.value();
+    }
+    if (name == #closeTillPreview) {
+      return Future<CloseTillPreviewView>.value(
+        CloseTillPreviewView(
+          till: _till,
+          expectedCashMinor: 238000,
+          methods: methods,
+          lastTillWarning: lastTill,
+          fromServer: online,
+        ),
+      );
+    }
+    if (name == #closeTill) {
+      closes.add(
+        invocation.namedArguments[#reconciliation] as List<ReconciliationInput>,
+      );
+      return Future<CloseTillOutcomeView>.value(
+        const CloseTillOutcomeView(queued: false, reconciliation: []),
+      );
+    }
     return null;
   }
 }
@@ -491,7 +672,7 @@ void main() {
       theme: MadarTheme.light(),
       name: 'ipad-manager',
     );
-    expect(find.text('Hany'), findsOneWidget);
+    expect(find.text('Hany'), findsWidgets);
     expect(find.text('Mona'), findsOneWidget);
     expect(find.text('DRAWERS'), findsOneWidget);
   });
@@ -507,7 +688,7 @@ void main() {
     );
     expect(find.byType(DrawersCard), findsNothing);
     // Unwired Orders row: the count is there, the chevron is not.
-    expect(find.text('Orders this shift'), findsOneWidget);
+    expect(find.text(_en['till.orders_this_shift']!), findsOneWidget);
   });
 
   testWidgets('no shift: the Till is the open-shift card', (tester) async {
@@ -519,7 +700,10 @@ void main() {
       theme: MadarTheme.light(),
       name: 'ipad-no-shift',
     );
-    expect(find.text('Open shift'), findsOneWidget);
+    expect(
+      find.widgetWithText(MadarButton, _en['till.open_button']!),
+      findsOneWidget,
+    );
     expect(find.byType(CashInOutPanel), findsNothing);
     // The carry-over from the last close is the count until edited.
     final field = tester.widget<TextField>(find.byType(TextField).first);
@@ -535,7 +719,10 @@ void main() {
       theme: MadarTheme.light(),
       name: 'phone-no-shift-manager',
     );
-    expect(find.text('Open shift'), findsOneWidget);
+    expect(
+      find.widgetWithText(MadarButton, _en['till.open_button']!),
+      findsOneWidget,
+    );
     expect(find.byType(DrawersCard), findsOneWidget);
   });
 
@@ -608,5 +795,323 @@ void main() {
       find.widgetWithText(MadarButton, 'تسجيل السحب'),
     );
     expect(record.enabled, isFalse);
+  });
+
+  // ── Tills rework flows ────────────────────────────────────────────────
+
+  Future<void> tapButton(WidgetTester tester, String label) async {
+    final button = find.widgetWithText(MadarButton, label).last;
+    await tester.ensureVisible(button);
+    await tester.pump();
+    await tester.tap(button);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+
+  Future<void> typeInto(WidgetTester tester, Key key, String text) async {
+    final field = find.descendant(
+      of: find.byKey(key),
+      matching: find.byType(TextField),
+    );
+    await tester.ensureVisible(field);
+    await tester.pump();
+    await tester.enterText(field, text);
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+
+  for (final (label, size, arabic, dark) in [
+    ('ipad', _ipad, false, false),
+    ('ipad-ar-dark', _ipad, true, true),
+    ('phone', _phone, false, true),
+    ('phone-ar', _phone, true, false),
+  ]) {
+    testWidgets('open till, blocked elsewhere + bills left open, $label', (
+      tester,
+    ) async {
+      await _shoot(
+        tester,
+        screen: const TillScreen(),
+        bridge: _FakeBridge(
+          till: null,
+          arabic: arabic,
+          role: 'branch_manager',
+          elsewhere: _elsewhere,
+          notice: _notice,
+          sync: _syncStale,
+        ),
+        size: size,
+        theme: dark ? MadarTheme.dark() : MadarTheme.light(),
+        name: 'open-blocked-$label',
+      );
+      expect(find.byType(TillElsewherePanel), findsOneWidget);
+      expect(find.byType(OpenBillsNoticeBanner), findsOneWidget);
+    });
+
+    testWidgets('close till with payment checks, $label', (tester) async {
+      await _shoot(
+        tester,
+        screen: const CloseTillScreen(),
+        bridge: _FakeBridge(arabic: arabic),
+        size: size,
+        theme: dark ? MadarTheme.dark() : MadarTheme.light(),
+        name: 'close-checks-$label',
+        then: (tester) async {
+          await tester.enterText(find.byType(TextField).first, '2380');
+          await tester.pump(const Duration(milliseconds: 100));
+          final words = arabic ? _ar : _en;
+          final disagree = find
+              .widgetWithText(MadarButton, words['till.reconcile_disagree']!)
+              .first;
+          await tester.ensureVisible(disagree);
+          await tester.pump();
+          await tester.tap(disagree);
+          await tester.pump(const Duration(milliseconds: 300));
+          await typeInto(
+            tester,
+            const ValueKey('declared-CIB – counter'),
+            '4700',
+          );
+          await tester.pump(const Duration(milliseconds: 100));
+          await tester.ensureVisible(
+            find.byKey(const ValueKey('declared-CIB – counter')),
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 300));
+        },
+      );
+      expect(find.byType(MadarSegmented<String>), findsNWidgets(2));
+    });
+
+    testWidgets('the Till with the branch open tills, $label', (tester) async {
+      await _shoot(
+        tester,
+        screen: TillScreen(onOpenOrders: () {}),
+        bridge: _FakeBridge(arabic: arabic, notice: _notice),
+        size: size,
+        theme: dark ? MadarTheme.dark() : MadarTheme.light(),
+        name: 'branch-tills-$label',
+        then: (tester) async {
+          await tester.scrollUntilVisible(
+            find.text('Hany'),
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.pump(const Duration(milliseconds: 300));
+        },
+      );
+      expect(find.text('Hany'), findsOneWidget);
+    });
+  }
+
+  testWidgets('open_till_screen_shows_open_elsewhere_panel', (tester) async {
+    final teller = _FakeBridge(till: null, elsewhere: _elsewhere);
+    await _shoot(
+      tester,
+      screen: const TillScreen(),
+      bridge: teller,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'flow-elsewhere-teller',
+    );
+    expect(find.text(_en['till.open_elsewhere_title']!), findsOneWidget);
+    expect(find.textContaining('Terrace iPad'), findsOneWidget);
+    // Opening here is off, and a teller gets no force close.
+    final open = tester.widget<MadarButton>(
+      find.widgetWithText(MadarButton, _en['till.open_button']!),
+    );
+    expect(open.enabled, isFalse);
+    expect(
+      find.widgetWithText(MadarButton, _en['till.force_close_elsewhere']!),
+      findsNothing,
+    );
+  });
+
+  testWidgets('a manager force-closes the till open elsewhere', (tester) async {
+    final manager = _FakeBridge(
+      till: null,
+      elsewhere: _elsewhere,
+      role: 'branch_manager',
+    );
+    await _shoot(
+      tester,
+      screen: const TillScreen(),
+      bridge: manager,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'flow-elsewhere-manager',
+    );
+    await tapButton(tester, _en['till.force_close_elsewhere']!);
+    // A confirm first; nothing is closed until it is answered.
+    expect(manager.forceClosed, isEmpty);
+    await tapButton(tester, _en['till.force_close_elsewhere']!);
+    expect(manager.forceClosed, ['sh-9']);
+  });
+
+  testWidgets('open_till_screen_shows_open_bills_banner', (tester) async {
+    await _shoot(
+      tester,
+      screen: const TillScreen(),
+      bridge: _FakeBridge(till: null, notice: _notice),
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'flow-bills-banner',
+    );
+    expect(find.byType(OpenBillsNoticeBanner), findsOneWidget);
+    // The count, and the old ones against the branch's hours.
+    final banner = tester.widget<NoticeBanner>(
+      find.descendant(
+        of: find.byType(OpenBillsNoticeBanner),
+        matching: find.byType(NoticeBanner),
+      ),
+    );
+    expect(banner.text, contains(MadarFormat.ltr('4')));
+    expect(banner.text, contains(MadarFormat.ltr('2')));
+    expect(banner.tone, ChipTone.warning);
+    // Bills never block opening.
+    final open = tester.widget<MadarButton>(
+      find.widgetWithText(MadarButton, _en['till.open_button']!),
+    );
+    expect(open.enabled, isTrue);
+  });
+
+  for (final (view, key) in [
+    (_syncRunning, 'sync.running'),
+    (_syncDone, 'sync.done'),
+  ]) {
+    testWidgets('open_till_sync_strip_states: ${view.state}', (tester) async {
+      await _shoot(
+        tester,
+        screen: const TillScreen(),
+        bridge: _FakeBridge(till: null, sync: view),
+        size: _ipad,
+        theme: MadarTheme.light(),
+        name: 'flow-sync-${view.state}',
+      );
+      expect(find.text(_en[key]!), findsOneWidget);
+    });
+  }
+
+  testWidgets('open_till_sync_strip_states: stale', (tester) async {
+    final stale = _FakeBridge(till: null, sync: _syncStale);
+    await _shoot(
+      tester,
+      screen: const TillScreen(),
+      bridge: stale,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'flow-sync-stale',
+    );
+    expect(
+      find.textContaining(_en['sync.stale_offline']!.split('{')[0]),
+      findsOneWidget,
+    );
+    await tapButton(tester, _en['sync.retry']!);
+    expect(stale.syncNows, 1);
+  });
+
+  testWidgets('sync_strip_never_blocks_selling', (tester) async {
+    final bridge = _FakeBridge(till: null, sync: _syncRunning);
+    await _shoot(
+      tester,
+      screen: const TillScreen(),
+      bridge: bridge,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'flow-sync-open',
+    );
+    expect(find.text(_en['sync.running']!), findsOneWidget);
+    await tapButton(tester, _en['till.open_button']!);
+    expect(bridge.opens, 1);
+    // The sell header shows it too, for its first minute, and then lets go.
+    final started = DateTime.parse('2026-09-12T15:02:04Z');
+    expect(tillSyncShowsInHeader(_syncRunning, started), isTrue);
+    expect(
+      tillSyncShowsInHeader(
+        _syncDone,
+        started.add(const Duration(seconds: 30)),
+      ),
+      isTrue,
+    );
+    expect(
+      tillSyncShowsInHeader(_syncDone, started.add(const Duration(minutes: 2))),
+      isFalse,
+    );
+  });
+
+  testWidgets('close_till_screen_requires_note_on_disagree', (tester) async {
+    final bridge = _FakeBridge();
+    await _shoot(
+      tester,
+      screen: const CloseTillScreen(),
+      bridge: bridge,
+      size: _phone,
+      theme: MadarTheme.light(),
+      name: 'flow-close-note',
+    );
+    await tester.enterText(find.byType(TextField).first, '2380');
+    await tester.pump(const Duration(milliseconds: 100));
+    Finder choice(String key) => find.widgetWithText(MadarButton, _en[key]!);
+    // CIB does not match; InstaPay is checked.
+    await tester.ensureVisible(choice('till.reconcile_disagree').first);
+    await tester.pump();
+    await tester.tap(choice('till.reconcile_disagree').first);
+    await tester.pump(const Duration(milliseconds: 200));
+    await typeInto(tester, const ValueKey('declared-CIB – counter'), '4700');
+    await tester.ensureVisible(choice('till.reconcile_checked').last);
+    await tester.pump();
+    await tester.tap(choice('till.reconcile_checked').last);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tapButton(tester, _en['till.close_title']!);
+    expect(bridge.closes, isEmpty);
+    expect(find.text(_en['till.reconcile_note_required']!), findsWidgets);
+    await typeInto(
+      tester,
+      const ValueKey('note-CIB – counter'),
+      'Machine batch cut early',
+    );
+    await tapButton(tester, _en['till.close_title']!);
+    expect(bridge.closes, hasLength(1));
+    final sent = bridge.closes.single;
+    expect(sent.map((r) => r.method), ['CIB – counter', 'InstaPay']);
+    expect(sent.first.status, 'disagreed');
+    expect(sent.first.declaredAmountMinor, 470000);
+    expect(sent.first.note, 'Machine batch cut early');
+    expect(sent.last.status, 'checked');
+    expect(sent.last.declaredAmountMinor, isNull);
+  });
+
+  testWidgets('close_till_last_till_warning_is_non_blocking', (tester) async {
+    final bridge = _FakeBridge(methods: [_methods.first], lastTill: _lastTill);
+    await _shoot(
+      tester,
+      screen: const CloseTillScreen(),
+      bridge: bridge,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'flow-close-last',
+    );
+    await tester.enterText(find.byType(TextField).first, '2380');
+    await tester.pump(const Duration(milliseconds: 100));
+    await tapButton(tester, _en['till.close_title']!);
+    expect(find.text(_en['till.last_till_title']!), findsOneWidget);
+    expect(bridge.closes, isEmpty);
+    await _capture(tester, 'flow-close-last-dialog');
+    await tapButton(tester, _en['till.close_anyway']!);
+    expect(bridge.closes, hasLength(1));
+  });
+}
+
+Future<void> _capture(WidgetTester tester, String name) async {
+  if (!_render) return;
+  final boundary =
+      tester.renderObject(find.byKey(const ValueKey('shot')))
+          as RenderRepaintBoundary;
+  await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 2);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    final dir = Directory('build/render')..createSync(recursive: true);
+    File(
+      '${dir.path}/till-$name.png',
+    ).writeAsBytesSync(bytes!.buffer.asUint8List());
   });
 }

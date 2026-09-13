@@ -72,7 +72,7 @@ class TillSyncNotifier extends Notifier<TillSyncState> {
     state = TillSyncState(view: state.view, retrying: true);
     try {
       await _bridge.syncNow();
-    } on Exception catch (_) {
+    } on Object catch (_) {
       // The status the core reports next says what went wrong.
     }
     if (_disposed) return;

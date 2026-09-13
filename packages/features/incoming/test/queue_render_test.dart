@@ -433,6 +433,8 @@ class _FakeBridge implements MadarBridge {
           openedAt: '2026-09-10T17:00:00Z',
           status: 'open',
           isOpen: true,
+          verification: 'server',
+          openedWhileAnotherOpen: false,
         ),
       );
     }
@@ -475,13 +477,19 @@ class _FakeBridge implements MadarBridge {
       return Future<List<KdsStationView>>.value(const []);
     }
     if (name == #syncStatus) {
-      return Future<SyncStatusView>.value(
-        const SyncStatusView(
-          online: true,
-          pending: 0,
-          failed: 0,
-          blocked: 0,
-          authPaused: false,
+      return SyncStatusView(
+        online: true,
+        pendingOutbox: 0,
+        deadOutbox: 0,
+        blocked: 0,
+        authPaused: false,
+        phase: 'idle',
+        assets: AssetSyncView(
+          needed: 0,
+          missing: 0,
+          downloading: false,
+          bytesDone: BigInt.zero,
+          bytesTotal: BigInt.zero,
         ),
       );
     }

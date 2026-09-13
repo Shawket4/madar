@@ -247,6 +247,7 @@ ReceiptView _receipt({required bool queued, int? number}) => ReceiptView(
   isDelivery: false,
   queuedOffline: queued,
   createdAt: '2026-09-10T19:45:00Z',
+  displayNumber: '',
 );
 
 const _session = SessionSnapshot(
@@ -302,7 +303,6 @@ class _FakeBridge implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(
         branchName: 'Rue Zamalek',
-        tillId: 'till-1',
         reconfiguring: false,
         configured: true,
       );
@@ -355,6 +355,8 @@ class _FakeBridge implements MadarBridge {
                 openedAt: '2026-09-10T09:00:00Z',
                 status: 'open',
                 isOpen: true,
+                verification: 'server',
+                openedWhileAnotherOpen: false,
               )
             : null,
       );

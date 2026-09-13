@@ -16,6 +16,8 @@ const _till = TillView(
   openedAt: '2026-09-12T15:02:00Z',
   status: 'open',
   isOpen: true,
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 TillReportView _report(int expected) => TillReportView(
@@ -39,6 +41,9 @@ TillReportView _report(int expected) => TillReportView(
   paymentLines: const [],
   cashMovements: const [],
   fromServer: true,
+  reconciliation: const [],
+  verification: 'server',
+  openedWhileAnotherOpen: false,
 );
 
 const _offline = MadarError.offline(detail: 'offline');
@@ -153,7 +158,9 @@ class _Bridge implements MadarBridge {
     }
     if (name == #closeTill) {
       closes.add(args[#closingCashMinor] as int);
-      return Future<void>.value();
+      return Future<CloseTillOutcomeView>.value(
+        const CloseTillOutcomeView(queued: false, reconciliation: []),
+      );
     }
     if (name == #listTills) return Future<List<TillView>>.value(const []);
     return null;
