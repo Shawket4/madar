@@ -584,6 +584,7 @@ mod tests {
             opened_at: chrono::Utc::now().fixed_offset(),
             ready_at: None,
             settled_at: None,
+            timezone: None,
             items: vec![
                 models::OpenTicketItemView {
                     id: uuid::Uuid::from_u128(0xA),
@@ -718,6 +719,7 @@ mod tests {
             opened_at: chrono::Utc::now().fixed_offset(),
             ready_at: None,
             settled_at: None,
+            timezone: None,
             items: vec![],
         };
         let tv = to_view(&v, false);

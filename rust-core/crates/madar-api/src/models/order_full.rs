@@ -94,6 +94,9 @@ pub struct OrderFull {
     pub teller_id: uuid::Uuid,
     #[serde(rename = "teller_name")]
     pub teller_name: String,
+    /// The branch's effective IANA timezone (see `crate::tz`) — the zone every timestamp on this payload is shown and printed in. Additive: older clients ignore it; `null` only where a write path does not resolve it.
+    #[serde(rename = "timezone", skip_serializing_if = "Option::is_none")]
+    pub timezone: Option<String>,
     #[serde(rename = "tip_amount", skip_serializing_if = "Option::is_none")]
     pub tip_amount: Option<i32>,
     #[serde(rename = "tip_payment_method", skip_serializing_if = "Option::is_none")]
@@ -123,6 +126,14 @@ pub struct OrderFull {
     pub delivery: Option<Option<Box<models::OrderDeliveryInfo>>>,
     #[serde(rename = "items")]
     pub items: Vec<models::OrderItemFull>,
+    /// Set only on the response to a REPLAYED sale whose rewards the points could not pay for: the covered lines stayed covered, no points moved, the order is flagged. The till shows this sentence to the teller.
+    #[serde(
+        rename = "loyalty_redemption_refused",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub loyalty_redemption_refused: Option<Option<String>>,
     /// Non-fatal warnings raised while placing the order — currently used to flag ingredients that were oversold (stock driven below zero). Empty for reads/refunds.
     #[serde(rename = "warnings", skip_serializing_if = "Option::is_none")]
     pub warnings: Option<Vec<String>>,
@@ -181,6 +192,7 @@ impl OrderFull {
             tax_amount,
             teller_id,
             teller_name,
+            timezone: None,
             tip_amount: None,
             tip_payment_method: None,
             total_amount,
@@ -192,6 +204,7 @@ impl OrderFull {
             waiter_name: None,
             delivery: None,
             items,
+            loyalty_redemption_refused: None,
             warnings: None,
         }
     }

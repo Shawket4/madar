@@ -35,6 +35,7 @@ Name | Type | Description | Notes
 **tax_amount** | **i32** |  | 
 **teller_id** | **uuid::Uuid** |  | 
 **teller_name** | **String** |  | 
+**timezone** | Option<**String**> | The branch's effective IANA timezone (see `crate::tz`) — the zone every timestamp on this payload is shown and printed in. Additive: older clients ignore it; `null` only where a write path does not resolve it. | [optional]
 **tip_amount** | Option<**i32**> |  | [optional]
 **tip_payment_method** | Option<**String**> |  | [optional]
 **total_amount** | **i32** |  | 

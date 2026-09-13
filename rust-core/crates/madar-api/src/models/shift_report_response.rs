@@ -86,6 +86,14 @@ pub struct ShiftReportResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub suggested_safe_drop: Option<Option<i64>>,
+    /// The zone this report's times print in (the shift's branch) — see `crate::tz`. Additive; mirrors `shift.timezone`.
+    #[serde(
+        rename = "timezone",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub timezone: Option<Option<String>>,
     #[serde(rename = "total_payments")]
     pub total_payments: i64,
     /// Tips, as a standalone figure — never folded into a method bucket, and never part of `total_payments`/`net_payments`. Mirrors `total_tips` on the sales reports so the two screens agree on what \"revenue\" means.
@@ -134,6 +142,7 @@ impl ShiftReportResponse {
             shift: Box::new(shift),
             standard_float: None,
             suggested_safe_drop: None,
+            timezone: None,
             total_payments,
             total_tips,
             voided_amount,

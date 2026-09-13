@@ -26,6 +26,7 @@ Name | Type | Description | Notes
 **teller_name** | **String** |  | 
 **till_id** | Option<**uuid::Uuid**> | The till (drawer) this shift is on. Populated by the read/list/open endpoints; mutation responses that build the row via RETURNING may leave `till_name` null (same convention as `branch_name`). | [optional]
 **till_name** | Option<**String**> |  | [optional]
+**timezone** | Option<**String**> | The branch's effective IANA timezone (see `crate::tz`) — the zone every timestamp on this payload is shown and printed in. Additive: older clients ignore it; `null` only where a write path does not resolve it. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

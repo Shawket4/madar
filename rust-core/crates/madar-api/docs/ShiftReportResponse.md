@@ -23,6 +23,7 @@ Name | Type | Description | Notes
 **shift** | [**models::Shift**](Shift.md) |  | 
 **standard_float** | Option<**i64**> | The till's standard float, when the shop has set one: what should stay in the drawer at close. `None` means \"not decided\" — propose nothing. | [optional]
 **suggested_safe_drop** | Option<**i64**> | For an OPEN shift on a till with a standard float: how much of `expected_cash` to drop into the safe so the drawer closes at the float. Never negative — a drawer under its float has nothing to drop. `None` when the shift is closed or the till has no float. | [optional]
+**timezone** | Option<**String**> | The zone this report's times print in (the shift's branch) — see `crate::tz`. Additive; mirrors `shift.timezone`. | [optional]
 **total_payments** | **i64** |  | 
 **total_tips** | **i64** | Tips, as a standalone figure — never folded into a method bucket, and never part of `total_payments`/`net_payments`. Mirrors `total_tips` on the sales reports so the two screens agree on what \"revenue\" means. | 
 **voided_amount** | **i64** |  | 

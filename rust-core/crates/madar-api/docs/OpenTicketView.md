@@ -26,6 +26,7 @@ Name | Type | Description | Notes
 **subtotal** | **i32** |  | 
 **table_id** | Option<**uuid::Uuid**> |  | [optional]
 **ticket_ref** | Option<**String**> |  | [optional]
+**timezone** | Option<**String**> | The branch's effective IANA timezone (see `crate::tz`) — the zone this ticket's times are shown in. Additive. | [optional]
 **void_note** | Option<**String**> |  | [optional]
 **void_reason** | Option<**String**> | Categorised like an order void, so void-rate reports read dine-in and counter alike. | [optional]
 **voided_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]

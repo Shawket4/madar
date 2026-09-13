@@ -94,6 +94,9 @@ pub struct OrderExport {
     pub teller_id: uuid::Uuid,
     #[serde(rename = "teller_name")]
     pub teller_name: String,
+    /// The branch's effective IANA timezone (see `crate::tz`) — the zone every timestamp on this payload is shown and printed in. Additive: older clients ignore it; `null` only where a write path does not resolve it.
+    #[serde(rename = "timezone", skip_serializing_if = "Option::is_none")]
+    pub timezone: Option<String>,
     #[serde(rename = "tip_amount", skip_serializing_if = "Option::is_none")]
     pub tip_amount: Option<i32>,
     #[serde(rename = "tip_payment_method", skip_serializing_if = "Option::is_none")]
@@ -173,6 +176,7 @@ impl OrderExport {
             tax_amount,
             teller_id,
             teller_name,
+            timezone: None,
             tip_amount: None,
             tip_payment_method: None,
             total_amount,

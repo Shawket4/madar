@@ -129,6 +129,14 @@ pub struct Shift {
         skip_serializing_if = "Option::is_none"
     )]
     pub till_name: Option<Option<String>>,
+    /// The branch's effective IANA timezone (see `crate::tz`) — the zone every timestamp on this payload is shown and printed in. Additive: older clients ignore it; `null` only where a write path does not resolve it.
+    #[serde(
+        rename = "timezone",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub timezone: Option<Option<String>>,
 }
 
 impl Shift {
@@ -165,6 +173,7 @@ impl Shift {
             teller_name,
             till_id: None,
             till_name: None,
+            timezone: None,
         }
     }
 }

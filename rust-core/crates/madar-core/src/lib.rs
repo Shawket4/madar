@@ -580,6 +580,7 @@ impl MadarCore {
             )
             .await
             {
+                timefmt::remember_tz(&self.store, o.timezone.as_deref().unwrap_or(""));
                 cache_views(&self.store, &key, std::slice::from_ref(&o));
                 return Ok(o);
             }
@@ -5082,6 +5083,7 @@ impl MadarCore {
             )
             .await;
             if let Ok(report) = res {
+                timefmt::remember_payload_tz(&self.store, &report.timezone);
                 // Remember it: a later close that happens offline needs to know
                 // what this shift actually took, not just what we have queued.
                 // Same key the past-shift report path uses.
@@ -6151,6 +6153,9 @@ impl MadarCore {
         let resp = orders_api::list_orders(&self.api.config(), params)
             .await
             .map_err(net::map_api_error)?;
+        if let Some(o) = resp.data.first() {
+            timefmt::remember_payload_tz(&self.store, &o.timezone);
+        }
         let mut orders: Vec<_> = resp.data.iter().map(orders::from_server).collect();
         let mut total = resp.total.max(0) as u32;
         let has_more = resp.page * resp.per_page < resp.total;
@@ -6202,6 +6207,7 @@ impl MadarCore {
             )
             .await
             {
+                timefmt::remember_payload_tz(&self.store, &report.timezone);
                 cache_views(&self.store, &key, std::slice::from_ref(&report));
                 // A partially-synced past shift may still hold queued cash not in
                 // the (cached) server report — add it, else expected_cash is
@@ -6666,6 +6672,7 @@ impl MadarCore {
         )
         .await
         {
+            timefmt::remember_payload_tz(&self.store, &report.timezone);
             cache_views(
                 &self.store,
                 &shift::report_cache_key(shift_id),
@@ -7335,6 +7342,9 @@ impl MadarCore {
         .await
         {
             Ok(list) => {
+                if let Some(t) = list.first() {
+                    timefmt::remember_payload_tz(&self.store, &t.timezone);
+                }
                 cache_views(&self.store, "cache:open_tickets", &list);
                 let _ = self.store.kv_put(K_OPEN_TICKETS_STALE, "");
                 list

@@ -128,6 +128,14 @@ pub struct OpenTicketView {
         skip_serializing_if = "Option::is_none"
     )]
     pub ticket_ref: Option<Option<String>>,
+    /// The branch's effective IANA timezone (see `crate::tz`) — the zone this ticket's times are shown in. Additive.
+    #[serde(
+        rename = "timezone",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub timezone: Option<Option<String>>,
     #[serde(
         rename = "void_note",
         default,
@@ -185,6 +193,7 @@ impl OpenTicketView {
             subtotal,
             table_id: None,
             ticket_ref: None,
+            timezone: None,
             void_note: None,
             void_reason: None,
             voided_at: None,

@@ -35,6 +35,7 @@ Name | Type | Description | Notes
 **tax_amount** | **i32** |  | 
 **teller_id** | **uuid::Uuid** |  | 
 **teller_name** | **String** |  | 
+**timezone** | Option<**String**> | The branch's effective IANA timezone (see `crate::tz`) — the zone every timestamp on this payload is shown and printed in. Additive: older clients ignore it; `null` only where a write path does not resolve it. | [optional]
 **tip_amount** | Option<**i32**> |  | [optional]
 **tip_payment_method** | Option<**String**> |  | [optional]
 **total_amount** | **i32** |  | 
@@ -46,6 +47,7 @@ Name | Type | Description | Notes
 **waiter_name** | Option<**String**> |  | [optional]
 **delivery** | Option<[**models::OrderDeliveryInfo**](OrderDeliveryInfo.md)> | Delivery context (customer phone, address, channel, zone), populated only on the single-order detail endpoint and only when the order originated from a delivery order. `null`/absent for dine-in orders. | [optional]
 **items** | [**Vec<models::OrderItemFull>**](OrderItemFull.md) |  | 
+**loyalty_redemption_refused** | Option<**String**> | Set only on the response to a REPLAYED sale whose rewards the points could not pay for: the covered lines stayed covered, no points moved, the order is flagged. The till shows this sentence to the teller. | [optional]
 **warnings** | Option<**Vec<String>**> | Non-fatal warnings raised while placing the order — currently used to flag ingredients that were oversold (stock driven below zero). Empty for reads/refunds. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

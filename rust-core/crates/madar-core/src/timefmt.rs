@@ -43,24 +43,19 @@ pub(crate) fn branch_tz(store: &Store) -> chrono_tz::Tz {
     }
 }
 
-/// The zone to show a payload in: the payload's own effective `timezone` when it
-/// carries a valid one (also refreshing the cache), else the cached branch zone.
-pub(crate) fn resolve_tz(store: &Store, payload_tz: Option<&str>) -> chrono_tz::Tz {
-    match payload_tz.and_then(|s| s.parse::<chrono_tz::Tz>().ok()) {
-        Some(tz) => {
-            remember_tz(store, tz.name());
-            tz
-        }
-        None => branch_tz(store),
-    }
-}
-
 /// Cache a server-sent effective timezone (ignored when not a valid IANA name).
 pub(crate) fn remember_tz(store: &Store, iana: &str) {
     if iana.parse::<chrono_tz::Tz>().is_ok()
         && store.kv_get(KEY_BRANCH_TZ).ok().flatten().as_deref() != Some(iana)
     {
         let _ = store.kv_put(KEY_BRANCH_TZ, iana);
+    }
+}
+
+/// [`remember_tz`] for a generated-client `timezone` field (absent / null skip).
+pub(crate) fn remember_payload_tz(store: &Store, tz: &Option<Option<String>>) {
+    if let Some(Some(name)) = tz {
+        remember_tz(store, name);
     }
 }
 
@@ -197,6 +192,18 @@ mod tests {
             format(&store, "2026-01-20T10:00:00+00:00", TimeStyle::Time, "en"),
             "05:00 AM"
         );
+    }
+
+    #[test]
+    fn a_payload_zone_refreshes_the_cache_and_garbage_does_not() {
+        let store = Store::open("").unwrap();
+        store.kv_put(KEY_BRANCH_TZ, "Africa/Cairo").unwrap();
+        remember_payload_tz(&store, &Some(Some("Asia/Dubai".into())));
+        assert_eq!(branch_tz(&store), chrono_tz::Asia::Dubai);
+        remember_payload_tz(&store, &Some(Some("Not/AZone".into())));
+        remember_payload_tz(&store, &Some(None));
+        remember_payload_tz(&store, &None);
+        assert_eq!(branch_tz(&store), chrono_tz::Asia::Dubai);
     }
 
     #[test]

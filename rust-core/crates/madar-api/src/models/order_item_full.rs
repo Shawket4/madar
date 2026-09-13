@@ -27,6 +27,9 @@ pub struct OrderItemFull {
     pub deductions_snapshot: Option<serde_json::Value>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// A loyalty reward paid for some or all of this line. The receipt and the kitchen say \"Reward\" beside it.
+    #[serde(rename = "is_reward", skip_serializing_if = "Option::is_none")]
+    pub is_reward: Option<bool>,
     #[serde(rename = "item_name")]
     pub item_name: String,
     /// Full line COGS in piastres (recipe + addons + optionals + components). `null` ⟺ unknown.
@@ -44,6 +47,9 @@ pub struct OrderItemFull {
     pub order_id: uuid::Uuid,
     #[serde(rename = "quantity")]
     pub quantity: i32,
+    /// How many of `quantity` the reward covered.
+    #[serde(rename = "reward_units", skip_serializing_if = "Option::is_none")]
+    pub reward_units: Option<i32>,
     #[serde(rename = "size_label", skip_serializing_if = "Option::is_none")]
     pub size_label: Option<String>,
     /// Recipe-only cost per unit in piastres (incl. swaps). `null` ⟺ unknown or bundle line.
@@ -79,6 +85,7 @@ impl OrderItemFull {
             cost_missing,
             deductions_snapshot,
             id,
+            is_reward: None,
             item_name,
             line_cost: None,
             line_total,
@@ -87,6 +94,7 @@ impl OrderItemFull {
             notes: None,
             order_id,
             quantity,
+            reward_units: None,
             size_label: None,
             unit_cost: None,
             unit_price,
