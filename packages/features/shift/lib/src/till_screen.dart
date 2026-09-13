@@ -239,9 +239,10 @@ class _StatCards extends ConsumerWidget {
     final report = ref.watch(tillProvider.select((s) => s.report));
     final stats = ref.watch(tillProvider.select((s) => s.stats));
     final queued = ref.watch(tillProvider.select((s) => s.queuedOrders));
-    String money(int minor) => MadarFormat.ltr(
-      bridge.formatMoney(minor: minor, currency: currency, signed: false),
-    );
+    // The core's string is already safe in a sentence (Arabic isolates its
+    // figure); wrapping it again flipped the label and the minus.
+    String money(int minor) =>
+        bridge.formatMoney(minor: minor, currency: currency, signed: false);
 
     // "Cash EGP 1,420.00 · Card EGP 4,810.00" from the report's own lines.
     final byMethod = report?.paymentLines
@@ -261,7 +262,8 @@ class _StatCards extends ConsumerWidget {
           '${t('shift.paid_in')} ${money(report.cashInMinor)}',
         if (report.cashOutMinor > 0)
           '${t('shift.paid_out')} ${money(-report.cashOutMinor)}',
-      ].join(' · ');
+        // A wrap breaks BETWEEN terms, never inside "Paid out −EGP 90.00".
+      ].map((term) => term.replaceAll(' ', '\u00A0')).join(' · ');
     }
     final phone = context.madarLayout.isPhone;
     final Widget sales = stats == null
