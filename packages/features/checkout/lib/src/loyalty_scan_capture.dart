@@ -67,6 +67,29 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
   bool _phoneMode = false;
   MobileScannerController? _camera;
 
+  /// A capture handed on and not yet answered. The caller's `busy` flag
+  /// only arrives a frame later, and a camera decodes one pass many times a
+  /// second — without this one card became several lookups (and, on the
+  /// award sheet, several awards).
+  bool _inFlight = false;
+
+  /// The last token handed on, and when, so the same pass held under the
+  /// camera is not retried on every frame — only once it has been out of
+  /// view for a moment (a deliberate second try).
+  String? _lastToken;
+  DateTime _lastTokenAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  static const Duration _sameCardPause = Duration(seconds: 2);
+
+  /// Clears a wedge buffer that stopped growing without becoming a card. A
+  /// misread used to stay in the field forever, and every later scan was
+  /// appended to it — so no scan ever matched again.
+  Timer? _wedgeReset;
+
+  /// A wedge types a whole card in well under this; a person typing slower
+  /// is not a scanner, and a stalled buffer is garbage.
+  static const Duration _wedgeIdle = Duration(milliseconds: 400);
+
   /// The camera plugin exists on these platforms only. Checked once so a
   /// Windows till never constructs a controller that would throw.
   static final bool _cameraSupported =
@@ -94,6 +117,7 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
 
   @override
   void dispose() {
+    _wedgeReset?.cancel();
     unawaited(_camera?.dispose());
     _wedge.dispose();
     _wedgeFocus.dispose();
@@ -106,18 +130,70 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
   /// Called on every wedge keystroke as well as on Enter, which is what makes
   /// the cheap imagers work: the ones that never send Enter still fire the
   /// moment the buffer becomes a whole card.
-  Future<void> _offer(String raw) async {
-    if (widget.busy) return; // in-flight guard: sequencing, not domain logic
+  ///
+  /// [complete] is true when the input says it is finished — Enter, the
+  /// Look up button, the phone field's submit. Only then may a string be
+  /// taken as a PHONE: a card's digits typed by a wedge pass through
+  /// phone-shaped prefixes on the way to being a whole card.
+  Future<void> _offer(String raw, {bool complete = false}) async {
+    // In-flight guard: sequencing, not domain logic.
+    if (widget.busy || _inFlight) return;
     final parsed = ref.read(bridgeProvider).classifyLoyaltyInput(raw: raw);
     switch (parsed.kind) {
       case 'token':
         _wedge.clear();
-        await widget.onCaptured(token: parsed.value);
-      case 'phone':
-        await widget.onCaptured(phone: parsed.value);
+        _wedgeReset?.cancel();
+        await _hand(token: parsed.value);
+      case 'phone' when complete:
+        await _hand(phone: parsed.value);
       default:
         return; // still mid-scan, or not a card — keep collecting
     }
+  }
+
+  Future<void> _hand({String? token, String? phone}) async {
+    _inFlight = true;
+    try {
+      await widget.onCaptured(token: token, phone: phone);
+    } finally {
+      _inFlight = false;
+    }
+  }
+
+  /// A camera frame. The same pass decodes on frame after frame: one lookup
+  /// per pass until a DIFFERENT code is shown.
+  void _onCamera(String code) {
+    final now = DateTime.now();
+    final recent = now.difference(_lastTokenAt) < _sameCardPause;
+    if (code == _lastToken && recent) {
+      _lastTokenAt = now; // still held up: keep it quiet
+      return;
+    }
+    final parsed = ref.read(bridgeProvider).classifyLoyaltyInput(raw: code);
+    if (parsed.kind != 'token') return;
+    _lastToken = code;
+    _lastTokenAt = now;
+    unawaited(_offer(code, complete: true));
+  }
+
+  /// A wedge keystroke: offer the buffer, and start the idle clock that
+  /// throws away a buffer which never became a card.
+  void _onWedgeChanged(String value) {
+    _wedgeReset?.cancel();
+    if (value.isNotEmpty) {
+      _wedgeReset = Timer(_wedgeIdle, () {
+        if (mounted) _wedge.clear();
+      });
+    }
+    unawaited(_offer(value));
+  }
+
+  /// Enter from the wedge: whatever the buffer is, it is finished — hand it
+  /// on if it is one, and start the next scan from an empty field.
+  void _onWedgeSubmitted(String value) {
+    _wedgeReset?.cancel();
+    _wedge.clear();
+    unawaited(_offer(value, complete: true));
   }
 
   @override
@@ -167,7 +243,7 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
                           color: colors.textMuted,
                         ),
                       ),
-                      onSubmitted: (v) => unawaited(_offer(v)),
+                      onSubmitted: (v) => unawaited(_offer(v, complete: true)),
                     ),
                   ),
                 ),
@@ -177,7 +253,7 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
           MadarButton(
             label: t('loyalty.look_up'),
             enabled: !widget.busy,
-            onTap: () => unawaited(_offer(_phone.text)),
+            onTap: () => unawaited(_offer(_phone.text, complete: true)),
           ),
         ] else ...[
           if (_camera != null)
@@ -191,7 +267,7 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
                     // The platform decoder gives us a string; the core says
                     // whether it is one of ours.
                     final code = capture.barcodes.firstOrNull?.rawValue;
-                    if (code != null) unawaited(_offer(code));
+                    if (code != null) _onCamera(code);
                   },
                 ),
               ),
@@ -238,8 +314,8 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
                 showCursor: false,
                 enableInteractiveSelection: false,
                 // Every keystroke, not just Enter — see [_offer].
-                onChanged: (v) => unawaited(_offer(v)),
-                onSubmitted: (v) => unawaited(_offer(v)),
+                onChanged: _onWedgeChanged,
+                onSubmitted: _onWedgeSubmitted,
               ),
             ),
           ),
