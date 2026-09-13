@@ -21,7 +21,6 @@ class TellerHeldStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
-    final notifier = ref.read(orderProvider.notifier);
     final drafts = ref.watch(orderProvider.select((s) => s.drafts));
     final cartStartedAtIso = ref.watch(
       orderProvider.select((s) => s.cartStartedAtIso),
@@ -60,7 +59,7 @@ class TellerHeldStrip extends ConsumerWidget {
                 : () => unawaited(_renameDraft(context, ref, draft)),
             onClose: draft.lockedByOther
                 ? null
-                : () => unawaited(notifier.discardDraft(draft.id)),
+                : () => unawaited(_confirmDiscard(context, ref, draft)),
           ),
         if (hasLines)
           HeldOrderTab(
@@ -113,6 +112,30 @@ class TellerHeldStrip extends ConsumerWidget {
       MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
     );
     await notifier.pointCartAtTakeaway();
+  }
+
+  /// Discarding a parked order loses its lines for good — it confirms,
+  /// naming the order and what goes with it.
+  Future<void> _confirmDiscard(
+    BuildContext context,
+    WidgetRef ref,
+    DraftView draft,
+  ) async {
+    final bridge = ref.read(bridgeProvider);
+    final name =
+        _chipTitle(_customName(draft.name), draft.tableLabel) ??
+        bridge.tr(key: 'drafts.this_order');
+    final ok = await showMadarConfirm(
+      context,
+      title: bridge.tr(key: 'drafts.discard_title').replaceAll('{name}', name),
+      body: bridge
+          .tr(key: 'drafts.discard_body')
+          .replaceAll('{count}', '${draft.itemCount}'),
+      confirmLabel: bridge.tr(key: 'drafts.discard'),
+      cancelLabel: bridge.tr(key: 'common.cancel'),
+    );
+    if (!ok) return;
+    await ref.read(orderProvider.notifier).discardDraft(draft.id);
   }
 
   /// Rename one PARKED order. A name is a label — this moves nothing else:

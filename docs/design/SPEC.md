@@ -245,6 +245,24 @@ actions).
 rows 0.985) and sheets. All motion honours `MediaQuery.disableAnimations` (durations go to
 zero; feedback tones down, never disappears).
 
+## 14a. Confirmations
+
+One entry point: `showMadarConfirm` (design_system) — danger-filled verb
+button, not dismissible by tapping past it, `false` on anything but the verb.
+The title names what is lost ("Clear 3 items from the cart?", "Discard
+Ahmed?"); strings come from core i18n, EN and AR.
+
+**Confirms:** clear cart · remove a cart line (swipe) · discard a parked
+order · void a bill / a line (reason sheet) · unseat · cancel a queued table
+transfer · move onto an occupied table · decline a delivery (reason sheet) ·
+discard a stuck sync item · sign out · reconfigure device · a cash-drawer
+movement · refund (its own sheet).
+
+**Does not confirm** (cheap, reversible, or already its own screen): qty −
+on a line that stays above zero, rename, hold/park, move to a free table
+(Undo toast), mark a table cleared, remove a discount or member (re-add in
+one tap), close shift (a full screen with a count and a Close button).
+
 ## 15. Screen map
 
 | Screen | Width | Header | Body components |

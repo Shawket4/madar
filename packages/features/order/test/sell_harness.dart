@@ -398,6 +398,9 @@ class _FakeBridge implements MadarBridge {
   /// How many times the menu was read from the core.
   int menuReads = 0;
 
+  /// The parked orders discarded, by id.
+  final List<String> discarded = [];
+
   /// How many times a cart was emptied.
   int cleared = 0;
 
@@ -436,7 +439,9 @@ class _FakeBridge implements MadarBridge {
       if (real != key) return real;
       return (rtl ? _ar[key] : null) ?? _en[key] ?? key;
     }
-    if (name == #cartNote) return Future<String?>.value('Birthday — bring the cake last');
+    if (name == #cartNote) {
+      return Future<String?>.value('Birthday — bring the cake last');
+    }
     if (name == #isRtl) return rtl;
     if (name == #locale) return rtl ? 'ar' : 'en';
     if (name == #setLocale) {
@@ -478,6 +483,10 @@ class _FakeBridge implements MadarBridge {
       parked.add(invocation.namedArguments[#tableId] as String?);
       _inHand.clear();
       return Future<bool>.value(false);
+    }
+    if (name == #discardDraft) {
+      discarded.add(invocation.namedArguments[#id] as String);
+      return Future<void>.value();
     }
     if (name == #cartClear) {
       cleared += 1;

@@ -110,7 +110,12 @@ Future<void> _confirmClearCart(BuildContext context, WidgetRef ref) async {
   final bridge = ref.read(bridgeProvider);
   final ok = await showMadarConfirm(
     context,
-    title: bridge.tr(key: 'order.clear_cart_title'),
+    title: bridge
+        .tr(key: 'order.clear_cart_title')
+        .replaceAll(
+          '{count}',
+          '${ref.read(orderProvider).cartTotals.itemCount}',
+        ),
     body: bridge.tr(key: 'order.clear_cart_body'),
     confirmLabel: bridge.tr(key: 'order.clear_cart'),
     cancelLabel: bridge.tr(key: 'common.cancel'),

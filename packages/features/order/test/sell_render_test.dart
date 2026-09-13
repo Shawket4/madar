@@ -46,6 +46,76 @@ Future<void> _settle(WidgetTester tester) async {
 void main() {
   setUpAll(_loadFonts);
 
+  group('destructive acts confirm', () {
+    testWidgets('clearing the cart asks, and Cancel keeps it', (tester) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const SellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      Future<void> openClear() async {
+        // Invoked directly: the tap lands on the header, not the glyph tile.
+        tester
+            .widget<MadarGlyphTile>(
+              find
+                  .byWidgetPredicate(
+                    (w) => w is MadarGlyphTile && w.glyph == MadarGlyph.more,
+                  )
+                  .first,
+            )
+            .onTap();
+        await _settle(tester);
+        await tester.tap(find.text(coreWord('order.clear')).last);
+        await _settle(tester);
+      }
+
+      await openClear();
+      expect(find.textContaining('items from the cart?'), findsOneWidget);
+      expect(bridge.cleared, 0, reason: 'nothing goes before the answer');
+      await tester.tap(find.text(coreWord('common.cancel')).last);
+      await _settle(tester);
+      expect(bridge.cleared, 0, reason: 'Cancel keeps the cart');
+
+      await openClear();
+      await tester.tap(find.text(coreWord('order.clear_cart')).last);
+      await _settle(tester);
+      expect(bridge.cleared, 1);
+    });
+
+    testWidgets('discarding a parked order asks, and Cancel keeps it', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge();
+      await _mount(
+        tester,
+        screen: const SellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      Future<void> tapClose() async {
+        await tester.tap(
+          find
+              .byWidgetPredicate((w) => w is MadarIcon && w.name == 'xmark')
+              .first,
+        );
+        await _settle(tester);
+      }
+
+      await tapClose();
+      expect(find.text('Discard Ahmed?'), findsOneWidget);
+      await tester.tap(find.text(coreWord('common.cancel')).last);
+      await _settle(tester);
+      expect(bridge.discarded, isEmpty);
+
+      await tapClose();
+      await tester.tap(find.text(coreWord('drafts.discard')).last);
+      await _settle(tester);
+      expect(bridge.discarded, ['d1']);
+    });
+  });
+
   for (final (device, size) in _devices) {
     for (final ar in [false, true]) {
       for (final dark in [false, true]) {

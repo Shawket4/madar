@@ -282,7 +282,7 @@ fn en(key: &str) -> Option<&'static str> {
         // Confirmations for the acts that cannot be walked back. Each says
         // what is LOST, not just what the button is called: a dialog that
         // only repeats the verb adds a tap and no information.
-        "order.clear_cart_title" => "Clear the cart?",
+        "order.clear_cart_title" => "Clear {count} items from the cart?",
         "order.clear_cart_body" => {
             "Every line goes, including anything already configured. The \
              order itself has not been sent anywhere, so nothing is refunded \
@@ -563,7 +563,10 @@ fn en(key: &str) -> Option<&'static str> {
         // Discarding a PARKED order, which is not the sync centre's
         // "discard this stuck command" — same word, different thing, and
         // the two were sharing a key.
-        "drafts.discard_title" => "Discard this order?",
+        "drafts.discard_title" => "Discard {name}?",
+        "drafts.discard_body" => "Its {count} items are gone for good. Nothing was sent, so nothing is refunded or voided.",
+        "drafts.on_table" => "Held on {table}",
+        "drafts.this_order" => "this order",
         "drafts.discard" => "Discard",
         "drafts.rename" => "Name this order",
         // side-rail labels + section captions
@@ -1293,7 +1296,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "order.customer_hint" => "اسم العميل (اختياري)",
         "order.notes_hint" => "ملاحظات الطلب (اختياري)",
         "order.remove_line" => "حذف الصنف",
-        "order.clear_cart_title" => "هل تريد تفريغ السلة؟",
+        "order.clear_cart_title" => "تفريغ {count} من الأصناف من السلة؟",
         "order.clear_cart_body" => {
             "ستُحذف كل الأصناف بما فيها ما تم تخصيصه. الطلب لم يُرسل إلى أي \
              مكان، فلا يوجد استرداد ولا إبطال — سيختفي فقط."
@@ -1574,7 +1577,10 @@ fn ar(key: &str) -> Option<&'static str> {
         "drafts.hold" => "تعليق هذا الطلب",
         "drafts.empty" => "لا توجد طلبات معلّقة.",
         "drafts.current" => "الحالي",
-        "drafts.discard_title" => "هل تريد إلغاء هذا الطلب؟",
+        "drafts.discard_title" => "إلغاء {name}؟",
+        "drafts.discard_body" => "ستُحذف أصنافه ({count}) نهائيًا. لم يُرسل شيء، فلا استرداد ولا إبطال.",
+        "drafts.on_table" => "مُعلّق على {table}",
+        "drafts.this_order" => "هذا الطلب",
         "drafts.discard" => "إلغاء الطلب",
         "drafts.rename" => "اسم هذا الطلب",
         "nav.incoming" => "الوارد",
