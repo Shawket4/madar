@@ -672,7 +672,7 @@ class _CartFooter extends ConsumerWidget {
     final isBusy = ref.watch(cartProvider(tableId).select((c) => c.isBusy));
     final itemsWord = bridge.tr(key: 'waiter.items');
     return ColoredBox(
-      color: colors.surface,
+      color: colors.bg,
       child: Padding(
         padding: const EdgeInsetsDirectional.all(Space.lg),
         child: Column(
@@ -846,7 +846,7 @@ class SellBar extends ConsumerWidget {
         Space.sm,
       ),
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: colors.bg,
         border: Border(top: BorderSide(color: colors.border)),
       ),
       child: SafeArea(
@@ -997,7 +997,7 @@ class _CartSummary extends ConsumerWidget {
         .value;
     final note = ref.watch(_cartNoteProvider((tableId, lineCount))).value;
     return ColoredBox(
-      color: colors.surface,
+      color: colors.bg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -325,6 +325,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
     await showMadarSheet<void>(
       context,
       size: SheetSize.large,
+      // The cart paints the page ground; the handle strip must match it.
+      tone: MadarSheetTone.ground,
       builder: (sheetContext) => CartAnchorScope(
         anchors: _anchors,
         child: SellCart(

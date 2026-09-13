@@ -63,13 +63,18 @@ Future<T?> showMadarSheet<T>(
   required WidgetBuilder builder,
   SheetSize size = SheetSize.auto,
   double maxWidth = Responsive.sheetMaxWidth,
+  MadarSheetTone tone = MadarSheetTone.surface,
 }) {
   // A surface, not a page: the root navigator, over the whole window and
   // its chrome (tab_stack.dart).
-  return Navigator.of(
-    context,
-    rootNavigator: true,
-  ).push(MadarSheetRoute<T>(builder: builder, size: size, maxWidth: maxWidth));
+  return Navigator.of(context, rootNavigator: true).push(
+    MadarSheetRoute<T>(
+      builder: builder,
+      size: size,
+      maxWidth: maxWidth,
+      tone: tone,
+    ),
+  );
 }
 
 /// Closing a sheet (or drawer) from its content, ALWAYS with the slide-out.
@@ -98,6 +103,11 @@ abstract final class MadarSheet {
   }
 }
 
+/// What a sheet's card is filled with: the raised [surface] (default), or
+/// the page [ground] for content that is itself laid out like a page (the
+/// phone's cart).
+enum MadarSheetTone { surface, ground }
+
 /// A surface page that knows how to animate itself out — see [MadarSheet].
 abstract interface class DismissibleSurface {
   /// Plays the exit and pops the route with [result].
@@ -115,8 +125,13 @@ class MadarSheetRoute<T> extends ModalRoute<T> {
     required this.builder,
     this.size = SheetSize.auto,
     this.maxWidth = Responsive.sheetMaxWidth,
+    this.tone = MadarSheetTone.surface,
     super.settings,
   });
+
+  /// The card's fill — the handle strip included, so it never shows a band
+  /// of a different colour above content painted on the page ground.
+  final MadarSheetTone tone;
 
   /// Builds the sheet content, laid out below the drag handle.
   final WidgetBuilder builder;
@@ -355,7 +370,10 @@ class _MadarSheetPageState<T> extends State<_MadarSheetPage<T>>
 
     final card = DecoratedBox(
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: switch (widget.route.tone) {
+          MadarSheetTone.surface => colors.surface,
+          MadarSheetTone.ground => colors.bg,
+        },
         borderRadius: _cardRadius,
         border: Border.all(color: colors.borderLight),
         boxShadow: MadarElevation.raised.shadows(colors, dark: dark),
