@@ -1187,6 +1187,43 @@ void main() {
     });
   });
 
+  group('a global page opens in the tab that owns it', () {
+    List<MadarRailTab> railTabs(WidgetTester tester) =>
+        tester.widgetList<MadarRailTab>(find.byType(MadarRailTab)).toList();
+
+    testWidgets('Sync from the pill: no rail tab claims it, a second tap '
+        'does not stack it, and Sell is still the counter', (tester) async {
+      final bridge = _FakeBridge();
+      final container = await _mount(tester, bridge: bridge, size: _ipad);
+      expect(railTabs(tester).singleWhere((t) => t.selected).tab.key, 'sell');
+      final pill = find.byType(MadarOutboxPill);
+      await tester.tap(pill.first);
+      await _settle(tester);
+      expect(find.byType(SyncScreen), findsOneWidget);
+      expect(
+        railTabs(tester).where((t) => t.selected),
+        isEmpty,
+        reason: 'Sell must not be lit over Sync',
+      );
+
+      await tester.tap(pill.first);
+      await _settle(tester);
+      expect(find.byType(SyncScreen), findsOneWidget, reason: 'deduped');
+      final stack = _pageStack(tester)..pop();
+      await _settle(tester);
+      expect(stack.canPop(), isFalse, reason: 'only one Sync was pushed');
+
+      // Back to Sell: the counter, not a page left over from elsewhere.
+      await container.read(orderProvider.notifier).pointCartAtTable('t1', 'T1');
+      await _tab(tester, 'sell');
+      expect(find.byType(SyncScreen), findsNothing);
+      expect(find.byType(SettingsScreen), findsNothing);
+      expect(_pageStack(tester).canPop(), isFalse);
+      expect(container.read(orderProvider).cartTableId, isNull);
+      expect(railTabs(tester).singleWhere((t) => t.selected).tab.key, 'sell');
+    });
+  });
+
   group('every page pays the status-bar inset through the page shell', () {
     testWidgets('teller tabs on a notched phone', (tester) async {
       _notch(tester);

@@ -191,7 +191,9 @@ final tillNameProvider = FutureProvider<String?>((ref) async {
   final bridge = ref.localizedBridge;
   // Re-resolve when the session moves (a reconfigure lands here too).
   ref.watch(shellProvider.select((s) => s.session?.userId));
-  final tillId = bridge.deviceConfig().tillId;
+  // …and when Settings re-binds the device to another till: the top bar
+  // must not keep naming the drawer it left.
+  final tillId = ref.watch(settingsProvider.select((s) => s.config.tillId));
   if (tillId == null) return null;
   try {
     final tills = await bridge.listTills();
@@ -227,7 +229,12 @@ enum _Tab {
   queue('nav.queue', MadarGlyph.inbox),
   till('nav.till', MadarGlyph.wallet),
   bills('nav.bills', MadarGlyph.receipt),
-  me('nav.me', MadarGlyph.user);
+  me('nav.me', MadarGlyph.user),
+
+  /// Off the rail: the teller's Settings (and Sync under it), owned by the
+  /// person button. While it is in front no rail tab is lit — the rail
+  /// never claims a page belongs to Sell when it does not.
+  settings('settings.title', MadarGlyph.settings);
 
   const _Tab(this.labelKey, this.glyph);
 
@@ -334,8 +341,58 @@ class _RoleShellState extends ConsumerState<RoleShell> {
 
   // ── navigation ─────────────────────────────────────────────────────────────
 
-  /// The shell's own pushes (Settings, Sync, the close-shift hand-off) land
-  /// on the tab in front, inside the chrome — never over it.
+  /// Where a global page lives. Shift and cash pages belong to the Till;
+  /// Settings and Sync to the person — the waiter's Me tab, the teller's
+  /// off-rail Settings stack. They used to be pushed onto whichever tab was
+  /// in front, so the rail said Sell over Settings, and coming back to Sell
+  /// showed Settings instead of the counter.
+  _Tab _ownerOf(_OwnedPage page) => switch (page) {
+    _OwnedPage.orders || _OwnedPage.closeShift => _Tab.till,
+    _OwnedPage.settings ||
+    _OwnedPage.sync => _kind == ShellKind.waiter ? _Tab.me : _Tab.settings,
+  };
+
+  /// Open [page] in its owning tab: bring that tab to the front, then show
+  /// the page on its stack. A page already on the stack is returned to
+  /// rather than pushed again, so a double tap never stacks two copies.
+  void _openOwned(_OwnedPage page) {
+    final owner = _ownerOf(page);
+    // The teller's Settings stack's ROOT is Settings itself.
+    final isRoot = owner == _Tab.settings && page == _OwnedPage.settings;
+    if (_current != owner) {
+      setState(() => _chosen = owner);
+    }
+    void show() {
+      if (!mounted) return;
+      final stack = _stacks[owner]!.currentState;
+      if (stack == null) return;
+      if (isRoot) {
+        stack.popUntil((r) => r.isFirst);
+        return;
+      }
+      var present = false;
+      stack.popUntil((r) {
+        if (r.settings.name == page.name) present = true;
+        return present || r.isFirst;
+      });
+      if (present) return;
+      stack.push(
+        MaterialPageRoute<void>(
+          settings: RouteSettings(name: page.name),
+          builder: (_) => page.build(),
+        ),
+      );
+    }
+
+    // The owner's stack may not exist until the frame that mounts it.
+    if (_stacks[owner]!.currentState == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => show());
+    } else {
+      show();
+    }
+  }
+
+  /// Debug-only pushes that belong to no tab.
   void _push(Widget Function() build) {
     unawaited(MadarPages.push<void>(context, (_) => build()));
   }
@@ -452,10 +509,11 @@ class _RoleShellState extends ConsumerState<RoleShell> {
         onOpenBill: _openBill,
       ),
       _Tab.till => TillScreen(
-        onOpenOrders: () => _push(() => const OrderHistoryScreen()),
+        onOpenOrders: () => _openOwned(_OwnedPage.orders),
       ),
       _Tab.bills => const BillsScreen(canCharge: false),
       _Tab.me => const MeScreen(),
+      _Tab.settings => const SettingsScreen(),
     };
   }
 
@@ -475,14 +533,21 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       builder: (sheetContext) => _PersonSheet(
         onSettings: () {
           Navigator.of(sheetContext).maybePop();
-          _push(() => const SettingsScreen());
+          _openOwned(_OwnedPage.settings);
         },
         onSignOut: () {
           Navigator.of(sheetContext).maybePop();
-          unawaited(_signOut());
+          unawaited(_confirmThenSignOut());
         },
       ),
     );
+  }
+
+  /// The person sheet's Sign out asks the same question Settings and Me do.
+  Future<void> _confirmThenSignOut() async {
+    if (!mounted) return;
+    if (!await confirmSignOut(context, ref)) return;
+    await _signOut();
   }
 
   Future<void> _signOut() async {
@@ -593,7 +658,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
         } on Exception catch (_) {}
         if (!mounted) return;
         if (shift?.isOpen ?? false) {
-          _push(() => const CloseShiftScreen());
+          _openOwned(_OwnedPage.closeShift);
         } else {
           await _signOut();
         }
@@ -677,8 +742,11 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       requireTable: session?.requireTableForOrders ?? false,
       noShift: route is AppRoute_OpenShift,
     );
+    // Every stack the shell keeps: the rail's tabs plus the teller's
+    // off-rail Settings owner.
+    final stackTabs = [...tabs, if (kind == ShellKind.teller) _Tab.settings];
     var current = _chosen ?? home;
-    if (!tabs.contains(current)) current = home;
+    if (!stackTabs.contains(current)) current = home;
     _bodies.putIfAbsent(current, () => _body(current));
     _current = current;
     final stackCanPop = _stacks[current]!.currentState?.canPop() ?? false;
@@ -745,9 +813,9 @@ class _RoleShellState extends ConsumerState<RoleShell> {
             ),
           Expanded(
             child: IndexedStack(
-              index: tabs.indexOf(current),
+              index: stackTabs.indexOf(current),
               children: [
-                for (final tab in tabs)
+                for (final tab in stackTabs)
                   KeyedSubtree(
                     key: ValueKey(tab),
                     child: _bodies[tab] == null
@@ -808,7 +876,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
                   state: outbox.state,
                   label: pillWord,
                   count: outbox.count,
-                  onTap: () => _push(() => const SyncScreen()),
+                  onTap: () => _openOwned(_OwnedPage.sync),
                 ),
               ),
               body: body,
@@ -837,8 +905,24 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       final bound = bridge.deviceConfig().branchName?.trim();
       if (bound != null && bound.isNotEmpty) return bound;
     } on Object catch (_) {}
-    return session?.branchId ?? '';
+    // Never the raw id: a UUID is not a place anybody works.
+    return bridge.tr(key: 'login.branch');
   }
+}
+
+/// A page the shell opens from outside any tab, with the tab that owns it.
+enum _OwnedPage {
+  settings,
+  sync,
+  orders,
+  closeShift;
+
+  Widget build() => switch (this) {
+    _OwnedPage.settings => const SettingsScreen(),
+    _OwnedPage.sync => const SyncScreen(),
+    _OwnedPage.orders => const OrderHistoryScreen(),
+    _OwnedPage.closeShift => const CloseShiftScreen(),
+  };
 }
 
 /// The name sheet: who is signed in, Language, Settings, Sign out. That is
