@@ -82,6 +82,12 @@ fn keys_in(src: &str) -> BTreeSet<String> {
         {
             continue;
         }
+        // An identifier, not a word: `debugLabel: 'kds.stack'`,
+        // `ValueKey('bill.table_actions')`.
+        let before = src[..idx].trim_end();
+        if before.ends_with("debugLabel:") || before.ends_with("Key(") {
+            continue;
+        }
         // Two or three dotted segments, each non-empty.
         let parts: Vec<&str> = lit.split('.').collect();
         if parts.len() < 2 || parts.len() > 3 || parts.iter().any(|p| p.is_empty()) {
