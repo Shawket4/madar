@@ -96,6 +96,22 @@ pub struct Order {
     pub discount_value: i64,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// The loyalty member this sale redeemed for (or was scanned for).
+    #[serde(
+        rename = "loyalty_customer_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub loyalty_customer_id: Option<Option<uuid::Uuid>>,
+    /// That member's name, for the order detail. `None` once forgotten.
+    #[serde(
+        rename = "loyalty_member_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub loyalty_member_name: Option<Option<String>>,
     #[serde(
         rename = "notes",
         default,
@@ -257,6 +273,8 @@ impl Order {
             discount_type: None,
             discount_value,
             id,
+            loyalty_customer_id: None,
+            loyalty_member_name: None,
             notes: None,
             order_number,
             order_ref: None,

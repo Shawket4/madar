@@ -13,11 +13,29 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`delete_loyalty_member`]
+#[derive(Clone, Debug)]
+pub struct DeleteLoyaltyMemberParams {
+    /// Member ID
+    pub id: String,
+}
+
 /// struct for passing parameters to the method [`delete_loyalty_settings`]
 #[derive(Clone, Debug)]
 pub struct DeleteLoyaltySettingsParams {
     /// Omit for the org-wide default; supply a branch for its override.
     pub branch_id: Option<String>,
+}
+
+/// struct for passing parameters to the method [`get_loyalty_analytics`]
+#[derive(Clone, Debug)]
+pub struct GetLoyaltyAnalyticsParams {
+    /// Omit for the whole organisation; supply a branch to narrow the redemption figures to it (the liability is org-wide either way — a balance can be spent at any branch).
+    pub branch_id: Option<String>,
+    /// Inclusive start of the range. Defaults to 30 days before `to`.
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    /// Exclusive end of the range. Defaults to now.
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
 }
 
 /// struct for passing parameters to the method [`get_loyalty_google_object`]
@@ -115,10 +133,36 @@ pub struct RefreshLoyaltyGooglePassParams {
     pub id: String,
 }
 
+/// struct for typed errors of method [`delete_loyalty_member`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteLoyaltyMemberError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`delete_loyalty_settings`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteLoyaltySettingsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_loyalty_analytics`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetLoyaltyAnalyticsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -297,6 +341,45 @@ pub enum RefreshLoyaltyGooglePassError {
     UnknownValue(serde_json::Value),
 }
 
+/// A void corrects a sale; this corrects a membership — someone asked the shop to stop holding their details, or an admin is clearing a test signup. The person is scrubbed and the books are kept: see [`model::forget`] for exactly what goes and what stays, and why the ledger is not the member's data.  204 twice in a row: forgetting someone already forgotten is not a failure, and telling the caller \"no such member\" would confirm that a phone number used to be one.
+pub async fn delete_loyalty_member(
+    configuration: &configuration::Configuration,
+    params: DeleteLoyaltyMemberParams,
+) -> Result<(), Error<DeleteLoyaltyMemberError>> {
+    let uri_str = format!(
+        "{}/loyalty/members/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteLoyaltyMemberError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn delete_loyalty_settings(
     configuration: &configuration::Configuration,
     params: DeleteLoyaltySettingsParams,
@@ -326,6 +409,58 @@ pub async fn delete_loyalty_settings(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteLoyaltySettingsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_loyalty_analytics(
+    configuration: &configuration::Configuration,
+    params: GetLoyaltyAnalyticsParams,
+) -> Result<models::LoyaltyAnalytics, Error<GetLoyaltyAnalyticsError>> {
+    let uri_str = format!("{}/loyalty/analytics", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.branch_id {
+        req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::LoyaltyAnalytics`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::LoyaltyAnalytics`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetLoyaltyAnalyticsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

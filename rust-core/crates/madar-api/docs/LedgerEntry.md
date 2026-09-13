@@ -8,6 +8,8 @@ Name | Type | Description | Notes
 **branch_id** | **uuid::Uuid** |  | 
 **branch_name** | Option<**String**> |  | [optional]
 **created_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
+**created_by** | Option<**uuid::Uuid**> | Who wrote the row: the teller who applied a reward or rang the sale, the admin who adjusted by hand. `None` for the system (birthday, win-back, a trigger with no actor). | [optional]
+**created_by_name** | Option<**String**> |  | [optional]
 **currency** | **String** | `\"points\"` or `\"visits\"` — which balance this row moved. | 
 **id** | **uuid::Uuid** |  | 
 **kind** | **String** | `earn`, `redeem`, `adjust`, or `reverse_earn` / `reverse_redeem` / `reverse_adjust` — the last three undo the row named in `reverses_id`. | 

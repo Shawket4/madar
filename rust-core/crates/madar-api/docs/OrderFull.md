@@ -20,6 +20,8 @@ Name | Type | Description | Notes
 **discount_type** | Option<**String**> |  | [optional]
 **discount_value** | **i64** | LEGACY SPELLING — an integer, 0-100 for a percentage. See `discounts::wire`: every shipped till was generated against `integer`, and a double here fails to deserialise the whole ORDER, not just this field. Read [`Order::discount_rate`] for the stored number. | 
 **id** | **uuid::Uuid** |  | 
+**loyalty_customer_id** | Option<**uuid::Uuid**> | The loyalty member this sale redeemed for (or was scanned for). | [optional]
+**loyalty_member_name** | Option<**String**> | That member's name, for the order detail. `None` once forgotten. | [optional]
 **notes** | Option<**String**> |  | [optional]
 **order_number** | **i32** |  | 
 **order_ref** | Option<**String**> | Human-readable, org-unique reference (e.g. \"DT-260614-0042\"). Additive alongside the per-shift order_number. Optional only during the rollout window before the historical backfill runs; never null afterwards. | [optional]

@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct LookupRequest {
     #[serde(rename = "branch_id")]
     pub branch_id: uuid::Uuid,
+    /// A member the till already identified, re-read before a charge so the balance and catalogue it prices against are the server's current ones.
+    #[serde(
+        rename = "customer_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub customer_id: Option<Option<uuid::Uuid>>,
     /// Manual fallback for a customer whose phone is dead.
     #[serde(
         rename = "phone",
@@ -37,6 +45,7 @@ impl LookupRequest {
     pub fn new(branch_id: uuid::Uuid) -> LookupRequest {
         LookupRequest {
             branch_id,
+            customer_id: None,
             phone: None,
             token: None,
         }

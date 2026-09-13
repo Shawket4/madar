@@ -33,6 +33,21 @@ pub struct LedgerEntry {
     pub branch_name: Option<Option<String>>,
     #[serde(rename = "created_at")]
     pub created_at: chrono::DateTime<chrono::FixedOffset>,
+    /// Who wrote the row: the teller who applied a reward or rang the sale, the admin who adjusted by hand. `None` for the system (birthday, win-back, a trigger with no actor).
+    #[serde(
+        rename = "created_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub created_by: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "created_by_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub created_by_name: Option<Option<String>>,
     /// `\"points\"` or `\"visits\"` — which balance this row moved.
     #[serde(rename = "currency")]
     pub currency: String,
@@ -93,6 +108,8 @@ impl LedgerEntry {
             branch_id,
             branch_name: None,
             created_at,
+            created_by: None,
+            created_by_name: None,
             currency,
             id,
             kind,

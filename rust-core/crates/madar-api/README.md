@@ -159,7 +159,9 @@ Class | Method | HTTP request | Description
 *KitchenApi* | [**set_routing_mode**](docs/KitchenApi.md#set_routing_mode) | **PUT** /kitchen/routing-mode | 
 *KitchenApi* | [**unbump**](docs/KitchenApi.md#unbump) | **POST** /kitchen/items/{item_id}/unbump | 
 *KitchenApi* | [**update_station**](docs/KitchenApi.md#update_station) | **PATCH** /kitchen/stations/{id} | 
+*LoyaltyApi* | [**delete_loyalty_member**](docs/LoyaltyApi.md#delete_loyalty_member) | **DELETE** /loyalty/members/{id} | Forget a member. **Admin only.**
 *LoyaltyApi* | [**delete_loyalty_settings**](docs/LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
+*LoyaltyApi* | [**get_loyalty_analytics**](docs/LoyaltyApi.md#get_loyalty_analytics) | **GET** /loyalty/analytics | 
 *LoyaltyApi* | [**get_loyalty_google_object**](docs/LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
 *LoyaltyApi* | [**get_loyalty_member**](docs/LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
 *LoyaltyApi* | [**get_loyalty_reward_items**](docs/LoyaltyApi.md#get_loyalty_reward_items) | **GET** /loyalty/reward-items | 
@@ -669,6 +671,7 @@ Class | Method | HTTP request | Description
  - [LoginResponse](docs/LoginResponse.md)
  - [LookupRequest](docs/LookupRequest.md)
  - [LowStockRow](docs/LowStockRow.md)
+ - [LoyaltyAnalytics](docs/LoyaltyAnalytics.md)
  - [LoyaltyRedemptionInput](docs/LoyaltyRedemptionInput.md)
  - [LoyaltySettings](docs/LoyaltySettings.md)
  - [ManualRecordRequest](docs/ManualRecordRequest.md)
@@ -754,6 +757,7 @@ Class | Method | HTTP request | Description
  - [Permission](docs/Permission.md)
  - [PermissionMatrix](docs/PermissionMatrix.md)
  - [PoLineInput](docs/PoLineInput.md)
+ - [PointsLiability](docs/PointsLiability.md)
  - [PrepTimeInput](docs/PrepTimeInput.md)
  - [PresenceRow](docs/PresenceRow.md)
  - [PresetInfo](docs/PresetInfo.md)
@@ -886,6 +890,7 @@ Class | Method | HTTP request | Description
  - [Till](docs/Till.md)
  - [TimeseriesPoint](docs/TimeseriesPoint.md)
  - [TopPer](docs/TopPer.md)
+ - [TopReward](docs/TopReward.md)
  - [TransferView](docs/TransferView.md)
  - [TransfersSyncResponse](docs/TransfersSyncResponse.md)
  - [Transform](docs/Transform.md)

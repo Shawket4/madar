@@ -18,6 +18,7 @@ Name | Type | Description | Notes
 **notes** | Option<**String**> |  | [optional]
 **order_id** | **uuid::Uuid** |  | 
 **quantity** | **i32** |  | 
+**reward_covered** | Option<**i32**> | Minor units the reward took off this line (0 for a paid line). | [optional]
 **reward_units** | Option<**i32**> | How many of `quantity` the reward covered. | [optional]
 **size_label** | Option<**String**> |  | [optional]
 **unit_cost** | Option<**i64**> | Recipe-only cost per unit in piastres (incl. swaps). `null` ⟺ unknown or bundle line. | [optional]

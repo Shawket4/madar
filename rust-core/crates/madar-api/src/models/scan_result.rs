@@ -20,6 +20,17 @@ pub struct ScanResult {
     /// What one line costs when `any_item` is on, in the branch's currency.
     #[serde(rename = "any_item_cost")]
     pub any_item_cost: i32,
+    /// Whether a programme runs at this branch at all. A till that attached a member before the programme was switched off learns it on the refresh.
+    #[serde(rename = "enabled")]
+    pub enabled: bool,
+    /// The shop's ceiling on reward ITEMS per order, if it set one. The till enforces it before Charge so the server's refusal is never the first the teller hears of it.
+    #[serde(
+        rename = "max_rewards_per_order",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_rewards_per_order: Option<Option<i32>>,
     #[serde(rename = "member")]
     pub member: Box<models::MemberView>,
     /// Recent history, so a teller can answer \"where did my points go?\".
@@ -35,6 +46,7 @@ impl ScanResult {
     pub fn new(
         any_item: bool,
         any_item_cost: i32,
+        enabled: bool,
         member: models::MemberView,
         recent: Vec<models::LedgerEntry>,
         rewards: Vec<models::RewardItem>,
@@ -42,6 +54,8 @@ impl ScanResult {
         ScanResult {
             any_item,
             any_item_cost,
+            enabled,
+            max_rewards_per_order: None,
             member: Box::new(member),
             recent,
             rewards,

@@ -4,7 +4,9 @@ All URIs are relative to *http://localhost:8080*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
+[**delete_loyalty_member**](LoyaltyApi.md#delete_loyalty_member) | **DELETE** /loyalty/members/{id} | Forget a member. **Admin only.**
 [**delete_loyalty_settings**](LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
+[**get_loyalty_analytics**](LoyaltyApi.md#get_loyalty_analytics) | **GET** /loyalty/analytics | 
 [**get_loyalty_google_object**](LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
 [**get_loyalty_member**](LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
 [**get_loyalty_reward_items**](LoyaltyApi.md#get_loyalty_reward_items) | **GET** /loyalty/reward-items | 
@@ -19,6 +21,36 @@ Method | HTTP request | Description
 [**put_loyalty_settings**](LoyaltyApi.md#put_loyalty_settings) | **PUT** /loyalty/settings | 
 [**refresh_loyalty_google_pass**](LoyaltyApi.md#refresh_loyalty_google_pass) | **POST** /loyalty/members/{id}/google-refresh | Provision this member's Google card and report every word of it. **Super admin only.**
 
+
+
+## delete_loyalty_member
+
+> delete_loyalty_member(id)
+Forget a member. **Admin only.**
+
+A void corrects a sale; this corrects a membership — someone asked the shop to stop holding their details, or an admin is clearing a test signup. The person is scrubbed and the books are kept: see [`model::forget`] for exactly what goes and what stays, and why the ledger is not the member's data.  204 twice in a row: forgetting someone already forgotten is not a failure, and telling the caller \"no such member\" would confirm that a phone number used to be one.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Member ID | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## delete_loyalty_settings
@@ -36,6 +68,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
  (empty response body)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_loyalty_analytics
+
+> models::LoyaltyAnalytics get_loyalty_analytics(branch_id, from, to)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**branch_id** | Option<**uuid::Uuid**> | Omit for the whole organisation; supply a branch to narrow the redemption figures to it (the liability is org-wide either way — a balance can be spent at any branch). |  |
+**from** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Inclusive start of the range. Defaults to 30 days before `to`. |  |
+**to** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Exclusive end of the range. Defaults to now. |  |
+
+### Return type
+
+[**models::LoyaltyAnalytics**](LoyaltyAnalytics.md)
 
 ### Authorization
 

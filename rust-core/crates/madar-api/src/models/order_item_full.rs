@@ -47,6 +47,9 @@ pub struct OrderItemFull {
     pub order_id: uuid::Uuid,
     #[serde(rename = "quantity")]
     pub quantity: i32,
+    /// Minor units the reward took off this line (0 for a paid line).
+    #[serde(rename = "reward_covered", skip_serializing_if = "Option::is_none")]
+    pub reward_covered: Option<i32>,
     /// How many of `quantity` the reward covered.
     #[serde(rename = "reward_units", skip_serializing_if = "Option::is_none")]
     pub reward_units: Option<i32>,
@@ -94,6 +97,7 @@ impl OrderItemFull {
             notes: None,
             order_id,
             quantity,
+            reward_covered: None,
             reward_units: None,
             size_label: None,
             unit_cost: None,

@@ -234,6 +234,7 @@ docs/LoginRequest.md
 docs/LoginResponse.md
 docs/LookupRequest.md
 docs/LowStockRow.md
+docs/LoyaltyAnalytics.md
 docs/LoyaltyApi.md
 docs/LoyaltyPublicApi.md
 docs/LoyaltyRedemptionInput.md
@@ -328,6 +329,7 @@ docs/Permission.md
 docs/PermissionMatrix.md
 docs/PermissionsApi.md
 docs/PoLineInput.md
+docs/PointsLiability.md
 docs/PrepTimeInput.md
 docs/PresenceRow.md
 docs/PresetInfo.md
@@ -471,6 +473,7 @@ docs/Till.md
 docs/TillsApi.md
 docs/TimeseriesPoint.md
 docs/TopPer.md
+docs/TopReward.md
 docs/TransferView.md
 docs/TransfersSyncResponse.md
 docs/Transform.md
@@ -793,6 +796,7 @@ src/models/login_request.rs
 src/models/login_response.rs
 src/models/lookup_request.rs
 src/models/low_stock_row.rs
+src/models/loyalty_analytics.rs
 src/models/loyalty_redemption_input.rs
 src/models/loyalty_settings.rs
 src/models/manual_record_request.rs
@@ -879,6 +883,7 @@ src/models/period_status_request.rs
 src/models/permission.rs
 src/models/permission_matrix.rs
 src/models/po_line_input.rs
+src/models/points_liability.rs
 src/models/prep_time_input.rs
 src/models/presence_row.rs
 src/models/preset_info.rs
@@ -1011,6 +1016,7 @@ src/models/ticket_bill.rs
 src/models/till.rs
 src/models/timeseries_point.rs
 src/models/top_per.rs
+src/models/top_reward.rs
 src/models/transfer_view.rs
 src/models/transfers_sync_response.rs
 src/models/transform.rs
