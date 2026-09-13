@@ -31,7 +31,7 @@ const double _sheetMaxWidth = 520;
 
 /// "19:31 · Dine-in · Sara · Cash" — the facts under a sale's title.
 String _saleMeta(MadarBridge bridge, OrderSummaryView o) => [
-  ltrIsland(bridge.formatStamp(rfc3339: o.createdAt)),
+  MadarFormat.isolate(bridge.formatStamp(rfc3339: o.createdAt)),
   if (o.orderRef case final ref?) ltrIsland(ref),
   orderTypeLabel(bridge, o.orderType),
   ?o.tellerName,

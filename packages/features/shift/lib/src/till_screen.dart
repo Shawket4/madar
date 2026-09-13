@@ -58,7 +58,7 @@ class TillScreen extends ConsumerWidget {
     if (hasShift && shift != null) {
       final since = bridge.formatStamp(rfc3339: shift.openedAt);
       subtitle =
-          '${shift.tellerName} · ${t('till.open_since')} ${MadarFormat.ltr(since)}';
+          '${shift.tellerName} · ${t('till.open_since')} ${MadarFormat.isolate(since)}';
       if (layout.isTablet) {
         actions = [
           MadarButton(

@@ -248,7 +248,7 @@ class CashLedger extends ConsumerWidget {
               title: cashMovementTitle(bridge, m),
               meta: [
                 m.movedByName,
-                MadarFormat.ltr(bridge.formatStamp(rfc3339: m.createdAt)),
+                MadarFormat.isolate(bridge.formatStamp(rfc3339: m.createdAt)),
               ].join(' · '),
               minor: m.amountMinor,
               currency: currency,

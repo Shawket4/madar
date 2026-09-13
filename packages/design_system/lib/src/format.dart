@@ -31,6 +31,14 @@ abstract final class MadarFormat {
   /// "المبيعات 42 ·" bug).
   static String ltr(String s) => '$lri$s$pdi';
 
+  /// U+2068 FIRST STRONG ISOLATE.
+  static const String fsi = '\u2068';
+
+  /// [s] isolated in its OWN direction — for a stamp (`12 سبتمبر · 18:02`
+  /// / `Sep 12 · 18:02`) dropped into a sentence. Never [ltr] a stamp: an
+  /// LTR isolate flips an Arabic stamp into "سبتمبر 12".
+  static String isolate(String s) => '$fsi$s$pdi';
+
   /// Whether [locale] (`ar`, `ar-EG`, `ar_EG`) is Arabic.
   static bool isArabic(String locale) =>
       locale.split(RegExp('[-_]')).first.toLowerCase() == 'ar';

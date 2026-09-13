@@ -235,7 +235,7 @@ class _Bill extends ConsumerWidget {
       title: bill.customerName ?? bill.ticketRef ?? bill.id,
       meta: [
         if (round > 0) '${t('tables.round')} ${MadarFormat.ltr('$round')}',
-        MadarFormat.ltr(bridge.formatStamp(rfc3339: bill.openedAt)),
+        MadarFormat.isolate(bridge.formatStamp(rfc3339: bill.openedAt)),
       ].join(' · '),
       minor: bill.subtotalMinor,
       currency: currency,

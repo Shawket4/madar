@@ -255,7 +255,7 @@ class _DrawerState extends State<_Drawer> {
       title: s.tellerName ?? '—',
       meta:
           '${t('shift.opened_at')} '
-          '${MadarFormat.ltr(bridge.formatStamp(rfc3339: s.openedAt))}',
+          '${MadarFormat.isolate(bridge.formatStamp(rfc3339: s.openedAt))}',
       minor: s.closingDeclaredMinor,
       currency: widget.currency,
       status: status,

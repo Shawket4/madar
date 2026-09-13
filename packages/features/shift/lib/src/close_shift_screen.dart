@@ -96,7 +96,7 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen> {
       ?tillName,
       if (shift != null) shift.tellerName,
       if (shift != null)
-        '${t('till.open_since')} ${MadarFormat.ltr(bridge.formatStamp(rfc3339: shift.openedAt))}',
+        '${t('till.open_since')} ${MadarFormat.isolate(bridge.formatStamp(rfc3339: shift.openedAt))}',
       if (orderCount != null)
         '${MadarFormat.ltr('$orderCount')} ${t('shift.orders')}',
     ].join(' · ');

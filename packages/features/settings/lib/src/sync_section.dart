@@ -357,7 +357,7 @@ class _WaitingItem extends ConsumerWidget {
     return MadarListRow.bill(
       title: outboxOpLabel(bridge, item.opType),
       meta: [
-        MadarFormat.ltr(bridge.formatStamp(rfc3339: item.eventAt)),
+        MadarFormat.isolate(bridge.formatStamp(rfc3339: item.eventAt)),
         // A first try is not news; a second one is.
         if (tries > 1)
           '${MadarFormat.ltr('$tries')} ${bridge.tr(key: 'sync.tries')}',
@@ -401,7 +401,7 @@ class _StuckItem extends ConsumerWidget {
         MadarListRow.bill(
           title: outboxOpLabel(bridge, item.opType),
           meta: [
-            MadarFormat.ltr(bridge.formatStamp(rfc3339: item.eventAt)),
+            MadarFormat.isolate(bridge.formatStamp(rfc3339: item.eventAt)),
             if (item.attempts > 1)
               '${MadarFormat.ltr('${item.attempts}')} ${bridge.tr(key: 'sync.tries')}',
           ].join(' · '),

@@ -70,7 +70,7 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
         ? null
         : [
             report.tellerName,
-            '${t('till.open_since')} ${MadarFormat.ltr(bridge.formatStamp(rfc3339: report.openedAt))}',
+            '${t('till.open_since')} ${MadarFormat.isolate(bridge.formatStamp(rfc3339: report.openedAt))}',
           ].join(' · ');
 
     final Widget body;
