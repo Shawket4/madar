@@ -13,6 +13,7 @@ publish = false
 # Exactly one: which POS release's generated models are being checked.
 v051 = []
 v060 = []
+v061 = []
 
 [dependencies]
 madar-api = { path = "@MADAR_API@" }

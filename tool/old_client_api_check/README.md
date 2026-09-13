@@ -2,7 +2,7 @@
 
 Harness used by `tool/old_client_api_check.sh` (tills rework compat guard).
 Not a workspace member: the script copies it beside a temp `git worktree` of an old
-release (v0.5.1 = tag `v0.5.1`, v0.6.0 = commit `97c4a29`), fills `Cargo.toml.in`
+release (v0.5.1 = tag `v0.5.1`, v0.6.0 = commit `97c4a29`, v0.6.1 = tag `v0.6.1`), fills `Cargo.toml.in`
 with that worktree's `rust-core/crates/madar-api`, pins its `Cargo.lock`, then:
 
 - `tests/golden_parse.rs` — decodes `MadarRust/tests/fixtures/legacy_till_api/*.json`
@@ -11,7 +11,7 @@ with that worktree's `rust-core/crates/madar-api`, pins its `Cargo.lock`, then:
   `MadarRust/tests/fixtures/legacy_replay/<release>/`.
 
 ```
-tool/old_client_api_check.sh                 # both releases
+tool/old_client_api_check.sh                 # every release
 tool/old_client_api_check.sh v0.6.0          # one
 tool/old_client_api_check.sh --regen-envelopes
 MADAR_RUST=/path/MadarRust GOLDEN_DIR=/dir tool/old_client_api_check.sh

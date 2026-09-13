@@ -32,11 +32,11 @@ fn parse(model: &str, v: Value) -> Result<(), String> {
         "FinalizeResponse" => p!(models::FinalizeResponse),
         "DeliveryOrder" => p!(models::DeliveryOrder),
         "Vec<DeliveryOrder>" => p!(Vec<models::DeliveryOrder>),
-        #[cfg(feature = "v060")]
+        #[cfg(any(feature = "v060", feature = "v061"))]
         "OrderRefunds" => p!(models::OrderRefunds),
-        #[cfg(feature = "v060")]
+        #[cfg(any(feature = "v060", feature = "v061"))]
         "ShiftRefunds" => p!(models::ShiftRefunds),
-        #[cfg(feature = "v060")]
+        #[cfg(any(feature = "v060", feature = "v061"))]
         "RefundIssued" => p!(models::RefundIssued),
         // The drain only needs a JSON object with a top-level string `id`.
         "ReplayCreateOrderAck" => match v.get("id").and_then(|x| x.as_str()) {
@@ -52,7 +52,13 @@ fn golden_responses_parse_into_old_models() {
     let dir = std::env::var("GOLDEN_DIR").expect("GOLDEN_DIR not set");
     let manifest: Value =
         serde_json::from_str(&std::fs::read_to_string(format!("{dir}/manifest.json")).unwrap()).unwrap();
-    let release = if cfg!(feature = "v051") { "v0.5.1" } else { "v0.6.0" };
+    let release = if cfg!(feature = "v051") {
+        "v0.5.1"
+    } else if cfg!(feature = "v061") {
+        "v0.6.1"
+    } else {
+        "v0.6.0"
+    };
     let mut checked = 0;
     let mut failures = vec![];
     for entry in manifest["files"].as_array().unwrap() {

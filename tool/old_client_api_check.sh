@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Old-client API compatibility check (tills rework guard).
 #
-# POS v0.5.1 and v0.6.0 are in the field and must keep working against the new
+# POS v0.5.1, v0.6.0 and v0.6.1 are in the field and must keep working against the new
 # backend. This checks out the madar-api crate (generated models) of each old
 # release into a temp git worktree, builds a tiny harness against it, and:
 #   1. (always) deserializes every golden backend response in
@@ -11,7 +11,7 @@
 #      core produces into MadarRust/tests/fixtures/legacy_replay/<release>/.
 #
 # Usage:
-#   tool/old_client_api_check.sh                      # check both releases
+#   tool/old_client_api_check.sh                      # check every release
 #   tool/old_client_api_check.sh v0.6.0               # one release
 #   tool/old_client_api_check.sh --regen-envelopes    # also rewrite envelope fixtures
 #   MADAR_RUST=/path/to/MadarRust GOLDEN_DIR=/other/dir tool/old_client_api_check.sh
@@ -27,14 +27,14 @@ GOLDEN_DIR="${GOLDEN_DIR:-$MADAR_RUST/tests/fixtures/legacy_till_api}"
 TARGET="${CARGO_TARGET_DIR:-${TMPDIR:-/tmp}/old_client_api_check_target}"
 
 # release label -> git ref : cargo feature
-declare -a RELEASES=("v0.5.1:v0.5.1:v051" "v0.6.0:97c4a29:v060")
+declare -a RELEASES=("v0.5.1:v0.5.1:v051" "v0.6.0:97c4a29:v060" "v0.6.1:v0.6.1:v061")
 
 REGEN=0
 ONLY=""
 for a in "$@"; do
   case "$a" in
     --regen-envelopes) REGEN=1 ;;
-    v0.5.1|v0.6.0) ONLY="$a" ;;
+    v0.5.1|v0.6.0|v0.6.1) ONLY="$a" ;;
     -h|--help) sed -n 2,21p "$0"; exit 0 ;;
     *) echo "unknown arg $a" >&2; exit 2 ;;
   esac

@@ -1,4 +1,4 @@
-//! Regenerates the `/sync/replay` envelopes an OLD POS core (v0.5.1 / v0.6.0)
+//! Regenerates the `/sync/replay` envelopes an OLD POS core (v0.5.1 / v0.6.0 / v0.6.1)
 //! puts on the wire, using THAT release's generated `madar-api` models and the
 //! same field assignments its `madar-core` makes (checkout.rs `prepare`,
 //! lib.rs `open_shift`/`close_shift`/`cash_movement`/`void_order`/
@@ -8,6 +8,10 @@
 //!
 //! Usage (via tool/old_client_api_check.sh --regen-envelopes):
 //!   cargo run --features v060 --bin gen_envelopes -- <out_dir>
+//!
+//! v0.6.1 (tag `v0.6.1`) sends everything v0.6.0 does, plus: a sale carries the
+//! cart's own order note (checkout.rs `prepare`: `.or(cart::note(..))`), and
+//! `fire_open_ticket` / `add_ticket_round` envelopes carry `origin_device_id`.
 
 use madar_api::models;
 use serde_json::{json, Value};
@@ -62,7 +66,7 @@ fn cash_movement_request(amount: i32, note: &str, kind: Option<&str>, corrects: 
     let mut r = models::CashMovementRequest::new(amount, note.to_string());
     r.client_ref = Some(Some(u(CLIENT_REF)));
     r.created_at = Some(Some(ts("2026-09-13T11:00:00.5+00:00")));
-    #[cfg(feature = "v060")]
+    #[cfg(any(feature = "v060", feature = "v061"))]
     {
         use models::CashMovementKind as K;
         r.kind = kind
@@ -169,7 +173,7 @@ fn settle_request(method: &str, cash: bool, tip: Option<(i32, &str)>, splits: Ve
     r.discount_type = None;
     r.discount_value = None;
     r.loyalty_customer_id = if loyalty { Some(Some(u(CUSTOMER))) } else { None };
-    #[cfg(feature = "v060")]
+    #[cfg(any(feature = "v060", feature = "v061"))]
     if !splits.is_empty() {
         r.payment_splits = Some(Some(
             splits
@@ -189,7 +193,7 @@ fn settle_request(method: &str, cash: bool, tip: Option<(i32, &str)>, splits: Ve
 }
 
 fn void_request() -> models::VoidOrderRequest {
-    #[cfg(feature = "v060")]
+    #[cfg(any(feature = "v060", feature = "v061"))]
     let mut r = models::VoidOrderRequest::new(models::VoidReason::WrongOrder.to_string());
     #[cfg(feature = "v051")]
     let mut r = models::VoidOrderRequest::new("wrong_order".to_string());
@@ -220,7 +224,7 @@ fn cases() -> Vec<(&'static str, Value)> {
         out.push(("cash_movement_in", json!({ "op": "cash_movement", "teller_id": t, "shift_id": shift, "request": cash_movement_request(5_000, "float top-up", None, false) })));
         out.push(("cash_movement_out", json!({ "op": "cash_movement", "teller_id": t, "shift_id": shift, "request": cash_movement_request(-2_000, "milk", None, false) })));
     }
-    #[cfg(feature = "v060")]
+    #[cfg(any(feature = "v060", feature = "v061"))]
     {
         out.push(("cash_movement_pay_in", json!({ "op": "cash_movement", "teller_id": t, "shift_id": shift, "request": cash_movement_request(5_000, "float top-up", Some("pay_in"), false) })));
         out.push(("cash_movement_pay_out", json!({ "op": "cash_movement", "teller_id": t, "shift_id": shift, "request": cash_movement_request(-2_000, "milk", Some("pay_out"), false) })));
@@ -241,10 +245,10 @@ fn cases() -> Vec<(&'static str, Value)> {
     let ticket = u(TICKET).to_string();
     out.push(("settle_open_ticket_cash", json!({ "op": "settle_open_ticket", "teller_id": t, "ticket_id": ticket, "request": settle_request("Cash", true, None, vec![], false) })));
     out.push(("settle_open_ticket_tip_loyalty", json!({ "op": "settle_open_ticket", "teller_id": t, "ticket_id": ticket, "request": settle_request("Card", false, Some((2_000, "Card")), vec![], true) })));
-    #[cfg(feature = "v060")]
+    #[cfg(any(feature = "v060", feature = "v061"))]
     out.push(("settle_open_ticket_split", json!({ "op": "settle_open_ticket", "teller_id": t, "ticket_id": ticket, "request": settle_request("Cash", true, None, vec![(15_000, "Cash"), (10_000, "Card")], false) })));
     out.push(("void_order", json!({ "op": "void_order", "teller_id": t, "order_id": u(ORDER).to_string(), "request": void_request() })));
-    #[cfg(feature = "v060")]
+    #[cfg(any(feature = "v060", feature = "v061"))]
     {
         // lib.rs refund_order
         let mut r = models::CreateRefundRequest::new(4_000, "Cash".into(), u(ORDER), models::RefundReason::QualityIssue);
@@ -253,6 +257,25 @@ fn cases() -> Vec<(&'static str, Value)> {
         r.client_ref = Some(Some(u(CLIENT_REF + 1)));
         r.shift_id = Some(Some(u(SHIFT)));
         out.push(("refund_order", json!({ "op": "refund_order", "teller_id": t, "request": r })));
+    }
+    #[cfg(feature = "v061")]
+    {
+        // checkout.rs prepare: the cart's order note fills `notes` when the teller typed none.
+        let mut r = create_order_request(&Sale { method: "Cash", cash: true, tip: None, splits: vec![], loyalty: false, discount: false });
+        r.notes = Some(Some("no sugar".into()));
+        out.push(("create_order_note", json!({ "op": "create_order", "teller_id": t, "request": r })));
+        // lib.rs send_outbox_item: open-ticket ops name the queuing device.
+        let lan_device = u(60).to_string(); // lib.rs lan_device_id(): a UUID string
+        let mut fire = models::CreateOpenTicketRequest::new(u(BRANCH), items());
+        fire.guest_count = Some(Some(2));
+        fire.idempotency_key = Some(Some(u(TICKET)));
+        fire.round_idempotency_key = Some(Some(u(TICKET + 1)));
+        fire.table_id = Some(Some(u(TICKET + 2)));
+        fire.notes = Some(None);
+        out.push(("fire_open_ticket", json!({ "op": "fire_open_ticket", "teller_id": t, "request": fire, "origin_device_id": lan_device })));
+        let mut round = models::AddRoundRequest::new(items());
+        round.idempotency_key = Some(Some(u(TICKET + 3)));
+        out.push(("add_ticket_round", json!({ "op": "add_ticket_round", "teller_id": t, "ticket_id": u(TICKET).to_string(), "request": round, "origin_device_id": lan_device })));
     }
     out
 }
