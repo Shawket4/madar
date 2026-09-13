@@ -385,7 +385,15 @@ Future<ProviderContainer> _mount(
           theme: dark ? MadarTheme.dark() : MadarTheme.light(),
           home: Directionality(
             textDirection: fake.rtl ? TextDirection.rtl : TextDirection.ltr,
-            child: screen ?? const KitchenDisplayScreen(stationId: 'st-grill'),
+            // The app's locale, without pulling in the Material delegates.
+            child: Builder(
+              builder: (context) => Localizations.override(
+                context: context,
+                locale: Locale(fake.rtl ? 'ar' : 'en'),
+                child:
+                    screen ?? const KitchenDisplayScreen(stationId: 'st-grill'),
+              ),
+            ),
           ),
         ),
       ),
@@ -477,9 +485,10 @@ void main() {
   testWidgets('the board in Arabic, mirrored', (tester) async {
     await _mount(tester, size: _ipad, bridge: _FakeBridge(rtl: true));
     expect(find.text('الشواية'), findsOneWidget);
-    // The age figure stays an LTR island inside the Arabic card.
-    final age = tester.widget<Text>(find.text('7د').first);
-    expect(age.textDirection, TextDirection.ltr);
+    // The age reads in the Queue's elapsed format, laid out RTL (never
+    // forced LTR — MadarFormat.elapsed's Arabic contract).
+    final age = tester.widget<Text>(find.text('7 د').first);
+    expect(age.textDirection, isNull);
     await _snap(tester, 'ipad-ar');
   });
 

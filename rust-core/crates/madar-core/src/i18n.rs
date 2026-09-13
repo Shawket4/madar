@@ -966,6 +966,7 @@ fn en(key: &str) -> Option<&'static str> {
         "kds.refused" => "bumps refused",
         "kds.retry" => "Retry",
         "kds.discard" => "Discard",
+        "kds.load_failed" => "Couldn't load the kitchen board",
         // sync (waiting / stuck / blocked), settings rows, me, roles
         "sync.live_on" => "live updates",
         "sync.live_off" => "no live updates",
@@ -1954,6 +1955,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "kds.refused" => "إنهاءات مرفوضة",
         "kds.retry" => "إعادة المحاولة",
         "kds.discard" => "تجاهل",
+        "kds.load_failed" => "تعذّر تحميل لوحة المطبخ",
         // sync (waiting / stuck / blocked), settings rows, me, roles
         "sync.live_on" => "تحديثات مباشرة",
         "sync.live_off" => "بدون تحديثات مباشرة",
