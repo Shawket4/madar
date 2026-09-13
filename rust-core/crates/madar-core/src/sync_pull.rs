@@ -503,6 +503,7 @@ impl MadarCore {
                 .and_then(|v| v.parse().ok())
         };
         let mut applied = 0u32;
+        let mut bundle: Option<serde_json::Value> = None;
         loop {
             self.set_phase("pulling");
             let body = serde_json::json!({ "branch_id": branch, "device_id": device_id });
@@ -514,6 +515,9 @@ impl MadarCore {
             self.set_phase("applying");
             let protected = protected_rows(&self.store);
             applied += apply_page(&self.store, &branch, &resp, &protected, true)?;
+            if resp.full && resp.asset_bundle.is_some() {
+                bundle = resp.asset_bundle.clone();
+            }
             if resp.full {
                 since = resp.next;
                 if resp.has_more {
@@ -542,6 +546,16 @@ impl MadarCore {
             self.store
                 .kv_put(&format!("{K_LAST_OK}{branch}"), &chrono::Utc::now().to_rfc3339())?;
             self.sync_state.lock().unwrap_or_else(|e| e.into_inner()).stale_reason = stale;
+            // §11.7: after rows land, fetch the files they reference (non-fatal).
+            let b = bundle.as_ref().and_then(|v| {
+                Some((
+                    v.get("url")?.as_str()?.to_string(),
+                    v.get("seq")?.as_i64()?,
+                    v.get("bytes")?.as_u64()?,
+                    v.get("sha256")?.as_str()?.to_string(),
+                ))
+            });
+            let _ = self.sync_assets_after_pull(b).await;
             return Ok(applied);
         }
     }

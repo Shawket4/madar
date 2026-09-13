@@ -986,6 +986,11 @@ fn migrate_tills_v1(conn: &Connection) -> CoreResult<()> {
     conn.execute_batch(
         "BEGIN IMMEDIATE;
          UPDATE outbox SET till_id = shift_id WHERE till_id IS NULL AND shift_id IS NOT NULL;
+         -- v0.6 chained every open behind the previous shift's close (one drawer per
+         -- branch). Tills are independent now: drop that cross-till gate only.
+         UPDATE outbox SET depends_on_seq = NULL
+          WHERE op_type = 'open_shift' AND status IN ('pending','inflight','dead')
+            AND depends_on_seq IN (SELECT seq FROM outbox WHERE op_type = 'close_shift');
          UPDATE outbox SET op_type = 'open_till'  WHERE op_type = 'open_shift'  AND status IN ('pending','inflight','dead');
          UPDATE outbox SET op_type = 'close_till' WHERE op_type = 'close_shift' AND status IN ('pending','inflight','dead');",
     )?;

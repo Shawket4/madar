@@ -67,7 +67,9 @@ pub trait RealtimePlayer: Send + Sync {
 /// kitchen; a KDS sees the kitchen. The backend still intersects with granted topics.
 pub fn topics_for_role(role: &str) -> Vec<String> {
     match role {
-        "kitchen" => vec!["kitchen".into()],
+        // Every role also hears `sync` (`sync.changed {branch_id}`, §10.2): the
+        // host answers it with `sync_now`, the one incremental pull.
+        "kitchen" => vec!["kitchen".into(), "sync".into()],
         // A waiter works the floor too: `floor` carries table/held-order/
         // layout changes (a manager re-arranging the room in the dashboard,
         // another till seating a party) so the canvas is never stale.
@@ -78,6 +80,7 @@ pub fn topics_for_role(role: &str) -> Vec<String> {
             "kitchen".into(),
             "floor".into(),
             "bookings".into(),
+            "sync".into(),
         ],
         // teller / till (and any other operating role): the full set.
         _ => vec![
@@ -87,6 +90,8 @@ pub fn topics_for_role(role: &str) -> Vec<String> {
             "orders".into(),
             "floor".into(),
             "bookings".into(),
+            "tills".into(),
+            "sync".into(),
         ],
     }
 }
@@ -891,16 +896,16 @@ mod tests {
     #[test]
     fn topics_are_role_scoped() {
         // A KDS stays kitchen-only — it has no floor surface.
-        assert_eq!(topics_for_role("kitchen"), ["kitchen"]);
+        assert_eq!(topics_for_role("kitchen"), ["kitchen", "sync"]);
         // Anyone who works the floor also gets `floor` (table state, held
         // orders, and dashboard layout edits), so canvases never go stale.
         assert_eq!(
             topics_for_role("waiter"),
-            ["tickets", "kitchen", "floor", "bookings"]
+            ["tickets", "kitchen", "floor", "bookings", "sync"]
         );
         // teller / unknown → the full operating set.
         for topic in [
-            "delivery", "kitchen", "tickets", "orders", "floor", "bookings",
+            "delivery", "kitchen", "tickets", "orders", "floor", "bookings", "tills", "sync",
         ] {
             assert!(
                 topics_for_role("teller").contains(&topic.to_string()),
