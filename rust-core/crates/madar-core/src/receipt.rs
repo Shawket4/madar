@@ -1671,9 +1671,18 @@ mod tests {
 
     #[test]
     fn fmt_dt_in_arabic_says_am_pm_in_arabic() {
-        assert_eq!(fmt_dt_in("2026-06-20T13:05:00Z", "ar"), "20/06/2026 01:05 م");
-        assert_eq!(fmt_dt_in("2026-01-09T00:00:00Z", "ar-EG"), "09/01/2026 12:00 ص");
-        assert_eq!(fmt_dt_in("2026-06-20T13:05:00Z", "en"), "20/06/2026 01:05 PM");
+        assert_eq!(
+            fmt_dt_in("2026-06-20T13:05:00Z", "ar"),
+            "20/06/2026 01:05 م"
+        );
+        assert_eq!(
+            fmt_dt_in("2026-01-09T00:00:00Z", "ar-EG"),
+            "09/01/2026 12:00 ص"
+        );
+        assert_eq!(
+            fmt_dt_in("2026-06-20T13:05:00Z", "en"),
+            "20/06/2026 01:05 PM"
+        );
     }
 
     #[test]

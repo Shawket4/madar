@@ -300,8 +300,7 @@ class SettleMark extends StatefulWidget {
   State<SettleMark> createState() => _SettleMarkState();
 }
 
-class _SettleMarkState extends State<SettleMark>
-    with TickerProviderStateMixin {
+class _SettleMarkState extends State<SettleMark> with TickerProviderStateMixin {
   late final AnimationController _play = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1300),

@@ -955,7 +955,10 @@ mod tests {
     fn a_split_charge_total_still_carries_the_tip() {
         let t = tender_summary(17_500, 2_000, false, 0, &[10_000, 7_500]);
         assert_eq!(t.charge_total_minor, 19_500);
-        assert_eq!(t.split_remaining_minor, 0, "the legs cover the due, not the tip");
+        assert_eq!(
+            t.split_remaining_minor, 0,
+            "the legs cover the due, not the tip"
+        );
         assert_eq!(t.split_allocated_minor, 17_500);
     }
 
@@ -969,7 +972,10 @@ mod tests {
         assert_eq!(card_tip.due_cash_minor, 17_500);
         assert_eq!(card_tip.short_minor, 500);
         // A negative leg never counts toward the split.
-        assert_eq!(tender_summary(100, 0, false, 0, &[-50, 60]).split_remaining_minor, 40);
+        assert_eq!(
+            tender_summary(100, 0, false, 0, &[-50, 60]).split_remaining_minor,
+            40
+        );
     }
 
     #[test]

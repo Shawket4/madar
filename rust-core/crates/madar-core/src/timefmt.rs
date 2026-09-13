@@ -114,7 +114,10 @@ mod tests {
                                                               // 10:00 UTC is 12:00 in Cairo — display must show the BRANCH wall-clock.
         let utc = "2026-01-20T10:00:00+00:00";
         assert_eq!(format(&store, utc, TimeStyle::Time, "en"), "12:00 PM");
-        assert_eq!(format(&store, utc, TimeStyle::DateTime, "en"), "Jan 20, 12:00 PM");
+        assert_eq!(
+            format(&store, utc, TimeStyle::DateTime, "en"),
+            "Jan 20, 12:00 PM"
+        );
         assert_eq!(format(&store, utc, TimeStyle::DateShort, "en"), "Jan 20");
         assert_eq!(
             format(&store, utc, TimeStyle::Receipt, "en"),
@@ -143,7 +146,10 @@ mod tests {
             "12:00 PM"
         );
         // Unparseable input is returned as-is, never panics.
-        assert_eq!(format(&store, "not-a-date", TimeStyle::Time, "ar"), "not-a-date");
+        assert_eq!(
+            format(&store, "not-a-date", TimeStyle::Time, "ar"),
+            "not-a-date"
+        );
     }
 
     #[test]
@@ -153,7 +159,10 @@ mod tests {
         let morning = "2026-01-20T08:05:00+00:00"; // 10:05 Cairo
         let evening = "2026-09-12T17:30:00+00:00"; // 20:30 Cairo (UTC+3 in summer)
         assert_eq!(format(&store, morning, TimeStyle::Time, "ar"), "10:05 ص");
-        assert_eq!(format(&store, morning, TimeStyle::DateShort, "ar-EG"), "يناير 20");
+        assert_eq!(
+            format(&store, morning, TimeStyle::DateShort, "ar-EG"),
+            "يناير 20"
+        );
         assert_eq!(
             format(&store, evening, TimeStyle::Receipt, "ar"),
             "12/09/2026 08:30 م"
@@ -177,10 +186,7 @@ mod tests {
         let at = "2026-09-12T22:05:00+00:00"; // 01:05 on the 13th, Cairo
         assert_eq!(format_stamp(&store, at, "en", now), "01:05");
         let yesterday = "2026-09-12T15:02:00+00:00"; // 18:02 on the 12th, Cairo
-        assert_eq!(
-            format_stamp(&store, yesterday, "en", now),
-            "Sep 12 · 18:02"
-        );
+        assert_eq!(format_stamp(&store, yesterday, "en", now), "Sep 12 · 18:02");
         assert_eq!(
             format_stamp(&store, yesterday, "ar", now),
             "12 سبتمبر · 18:02"

@@ -495,7 +495,11 @@ impl Renderer {
                 Weight::NORMAL,
             ),
             _ => self.center(
-                &format!("{}: {}", lab.printed_at, fmt_dt_in(&r.printed_at, &lab.locale)),
+                &format!(
+                    "{}: {}",
+                    lab.printed_at,
+                    fmt_dt_in(&r.printed_at, &lab.locale)
+                ),
                 SZ_SMALL,
                 Weight::NORMAL,
             ),
@@ -504,11 +508,21 @@ impl Renderer {
 
         // ── shift info ──
         self.row(&lab.teller, &r.teller_name, SZ_BODY, Weight::NORMAL);
-        self.row(&lab.opened, &fmt_dt_in(&r.opened_at, &lab.locale), SZ_SMALL, Weight::NORMAL);
+        self.row(
+            &lab.opened,
+            &fmt_dt_in(&r.opened_at, &lab.locale),
+            SZ_SMALL,
+            Weight::NORMAL,
+        );
         if r.is_open {
             self.center(&format!("— {} —", lab.interim), SZ_SMALL, Weight::NORMAL);
         } else if let Some(c) = &r.closed_at {
-            self.row(&lab.closed, &fmt_dt_in(c, &lab.locale), SZ_SMALL, Weight::NORMAL);
+            self.row(
+                &lab.closed,
+                &fmt_dt_in(c, &lab.locale),
+                SZ_SMALL,
+                Weight::NORMAL,
+            );
         }
         self.rule();
 
