@@ -52,6 +52,7 @@ const Map<String, String> coreDetailKeys = {
   'no such parked order': 'err.parked_gone',
   'that line is no longer in the cart': 'err.line_gone',
   'unknown payment method': 'err.unknown_payment',
+  'payment method not available here': 'err.payment_method_unavailable',
   'scan a card or type a phone number': 'err.scan_or_phone',
   'a reward can only be redeemed online': 'loyalty.reward_offline',
   'no order to add points to': 'err.no_order_points',

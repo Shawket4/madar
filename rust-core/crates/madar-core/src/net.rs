@@ -461,8 +461,31 @@ pub(crate) fn is_connectivity_failure(e: &CoreError) -> bool {
     }
 }
 
+/// The refusal for a payment method outside the effective set (the backend's
+/// 422 `PAYMENT_METHOD_UNAVAILABLE`, or the core's own check before queueing).
+/// One detail for both, so the host shows one sentence for it.
+pub(crate) fn payment_method_unavailable() -> CoreError {
+    CoreError::Validation {
+        field: "payment_method".into(),
+        detail: PAYMENT_METHOD_UNAVAILABLE_DETAIL.into(),
+    }
+}
+pub(crate) const PAYMENT_METHOD_UNAVAILABLE_DETAIL: &str = "payment method not available here";
+
+/// The machine code in our error envelope (`ErrorBody.code`), when present.
+fn extract_error_code(body: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(body)
+        .ok()?
+        .get("code")?
+        .as_str()
+        .map(str::to_string)
+}
+
 /// Map an HTTP status + raw body to a `CoreError` variant.
 pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
+    if extract_error_code(body).as_deref() == Some("PAYMENT_METHOD_UNAVAILABLE") {
+        return payment_method_unavailable();
+    }
     // Our backend ALWAYS answers an error with the `{ "error": "…" }` envelope
     // (`errors.rs::ErrorBody`); a captive portal / transparent proxy answers with
     // HTML, a redirect stub, or an empty body. `extract_error_message` is `Some`
@@ -716,6 +739,18 @@ mod tests {
                 assert_eq!(action, "insufficient role");
             }
             other => panic!("expected Forbidden, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn payment_method_unavailable_is_one_refusal() {
+        let body = r#"{"error":"Payment method `CIB` is not available at this till","code":"PAYMENT_METHOD_UNAVAILABLE"}"#;
+        match status_to_error(422, body) {
+            CoreError::Validation { field, detail } => {
+                assert_eq!(field, "payment_method");
+                assert_eq!(detail, PAYMENT_METHOD_UNAVAILABLE_DETAIL);
+            }
+            other => panic!("expected Validation, got {other:?}"),
         }
     }
 

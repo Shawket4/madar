@@ -4992,6 +4992,11 @@ impl MadarCore {
             .await?;
         }
 
+        self.ensure_methods_available(
+            std::iter::once(input.payment_method_id.as_str())
+                .chain(input.splits.iter().map(|s| s.payment_method_id.as_str()))
+                .chain(input.tip_payment_method_id.as_deref()),
+        )?;
         let now = self.corrected_now().to_rfc3339();
         let prepared = checkout::prepare(
             &self.store,
@@ -6658,6 +6663,11 @@ impl MadarCore {
             self.verify_rewards(loyalty_customer_id.as_deref(), &lines, &loyalty_redemptions)
                 .await?;
         }
+        self.ensure_methods_available(
+            std::iter::once(payment_method_id.as_str())
+                .chain(splits.iter().map(|s| s.payment_method_id.as_str()))
+                .chain(tip_payment_method_id.as_deref()),
+        )?;
         let payment_method = checkout::raw_payment_method(&self.store, &payment_method_id)?
             .map(|p| p.name)
             .ok_or_else(|| CoreError::Validation {
@@ -9177,6 +9187,51 @@ mod lifecycle_tests {
         let cash = sent.iter().find(|b| b["op"] == "cash_movement").unwrap();
         assert_eq!(cash["till_id"], sid);
         assert!(cash.get("shift_id").is_none());
+    }
+
+    /// Decision 10: a method outside branch ∩ person ∩ device is refused before
+    /// the sale is queued (replay never re-checks), with the one refusal the
+    /// host words as "not available on this till".
+    #[tokio::test]
+    async fn restricted_payment_method_is_refused_before_queueing() {
+        let core = signed_in_offline_core().await;
+        let branch = core.current_session().unwrap().branch_id.unwrap();
+        let (cash, card) = (
+            "00000000-0000-0000-0000-00000000c001",
+            "00000000-0000-0000-0000-00000000c002",
+        );
+        core.store
+            .kv_put(
+                menu::K_PAYMENT_METHODS,
+                &serde_json::json!([
+                    {"id": cash, "name": "Cash", "is_cash": true, "is_active": true},
+                    {"id": card, "name": "CIB", "is_cash": false, "is_active": true}
+                ])
+                .to_string(),
+            )
+            .unwrap();
+        assert!(core.ensure_methods_available([card]).is_ok(), "no rows: unrestricted");
+        core.store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES('payment_availability',?1,?1,1,?2)",
+                    rusqlite::params![
+                        branch,
+                        serde_json::json!({"id": branch, "scope": "branch", "payment_method_ids": [cash]}).to_string()
+                    ],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        assert!(core.ensure_methods_available([cash]).is_ok());
+        match core.ensure_methods_available([cash, card]) {
+            Err(CoreError::Validation { detail, .. }) => {
+                assert_eq!(detail, net::PAYMENT_METHOD_UNAVAILABLE_DETAIL)
+            }
+            other => panic!("expected the refusal, got {other:?}"),
+        }
+        // A method the catalogue does not know is the caller's own error.
+        assert!(core.ensure_methods_available(["nope"]).is_ok());
     }
 
     /// Contract §10.3 A6: once a full snapshot landed, the floor, the open bills

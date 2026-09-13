@@ -840,6 +840,28 @@ impl MadarCore {
         Ok(all.into_iter().filter(|m| keep.contains(&m.id)).collect())
     }
 
+    /// Refuse a method this branch / person / device may not take (decision 10)
+    /// before a sale is queued: replay never re-checks availability, so this is
+    /// the check that stops it. A method the catalogue does not know is left to
+    /// the caller's own "unknown payment method".
+    pub(crate) fn ensure_methods_available<'a>(
+        &self,
+        ids: impl IntoIterator<Item = &'a str>,
+    ) -> Result<(), CoreError> {
+        let active: std::collections::HashSet<String> =
+            self.list_payment_methods()?.into_iter().map(|m| m.id).collect();
+        let offered: std::collections::HashSet<String> =
+            self.available_payment_methods()?.into_iter().map(|m| m.id).collect();
+        match ids
+            .into_iter()
+            .filter(|id| !id.is_empty())
+            .find(|id| active.contains(*id) && !offered.contains(*id))
+        {
+            Some(_) => Err(net::payment_method_unavailable()),
+            None => Ok(()),
+        }
+    }
+
     /// Set the device code; also registers the device with the server when online.
     pub fn set_device_code(&self, code: String) {
         let clean: String = code

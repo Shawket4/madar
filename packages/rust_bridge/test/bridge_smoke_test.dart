@@ -92,6 +92,16 @@ void main() {
     }
   });
 
+  test('a refused payment method reads as one clear sentence', () {
+    const refused = MadarError.validation(
+      field: 'payment_method',
+      detail: 'payment method not available here',
+    );
+    final words = core.bridge.humanMessage(refused);
+    expect(words, core.bridge.tr(key: 'err.payment_method_unavailable'));
+    expect(words, isNot(contains('payment_method')));
+  });
+
   test('realtime is gated on auth', () async {
     expect(core.startRealtime, throwsA(isA<MadarError_Unauthenticated>()));
   });
