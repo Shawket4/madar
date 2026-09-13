@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **closed_records** | [**Vec<models::AttendanceRecord>**](AttendanceRecord.md) | Records already closed today. | 
 **open_record** | Option<[**models::AttendanceRecord**](AttendanceRecord.md)> | The still-open record, when the employee is currently clocked in. | [optional]
 **scheduled** | [**Vec<models::ResolvedShift>**](ResolvedShift.md) | Shifts rostered for today. Empty = a rest day. | 
+**timezone** | Option<**String**> | The IANA timezone this payload's instants are shown in (see `crate::tz`). Additive; older clients ignore it. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

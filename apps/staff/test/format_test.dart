@@ -61,5 +61,21 @@ void main() {
       expect(formatClock(''), '—');
       expect(formatClock('not-a-date'), '—');
     });
+
+    test('an instant reads in the branch zone, never the device zone', () {
+      // Fixture: 23:30 UTC on Sep 12 is 02:30 on Sep 13 in Cairo (UTC+3).
+      final seen = <String>[];
+      branchClock = (s) {
+        seen.add(s);
+        return '02:30';
+      };
+      addTearDown(() => branchClock = null);
+      expect(formatClock('2026-09-12T23:30:00Z'), '02:30');
+      expect(seen, ['2026-09-12T23:30:00Z']);
+    });
+
+    test('without a core it is UTC, not the device clock', () {
+      expect(formatClock('2026-09-12T23:30:00+03:00'), '20:30');
+    });
   });
 }

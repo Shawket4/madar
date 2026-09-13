@@ -4079,6 +4079,12 @@ impl MadarCore {
         timefmt::format(&self.store, &rfc3339, style, &self.current_locale())
     }
 
+    /// `HH:mm` (24h) of an instant in the branch zone — the staff app's clock
+    /// rows. Empty or unparseable input reads `—`.
+    pub fn format_clock(&self, rfc3339: String) -> String {
+        timefmt::hhmm_in(timefmt::branch_tz(&self.store), &rfc3339).unwrap_or_else(|| "—".into())
+    }
+
     /// A row's stamp in the branch zone by the corrected clock: `18:02` today,
     /// `Sep 12 · 18:02` otherwise. See `display::format_stamp`.
     pub fn format_stamp(&self, rfc3339: String) -> String {
@@ -10551,6 +10557,7 @@ impl MadarCore {
         let t = staff_api::my_today(&self.api.config())
             .await
             .map_err(net::map_api_error)?;
+        timefmt::remember_payload_tz(&self.store, &t.timezone);
         Ok(staff::today_view(t))
     }
 
@@ -10818,6 +10825,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
+        timefmt::remember_payload_tz(&self.store, &row.timezone);
         Ok(staff::team_presence_view(row))
     }
 

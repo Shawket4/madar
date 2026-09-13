@@ -37,14 +37,22 @@ String fmtAxisMoney(double value, {required String locale}) {
 }
 
 /// Short axis label for a timeseries period string: "9/7" (daily) or the hour
-/// (hourly). Falls back to the raw string if it isn't a parseable date.
+/// (hourly). The server sends the bucket as the BRANCH's wall-clock
+/// (`2026-09-12T14:00:00`, no offset), so the figures are read straight off
+/// the string — never through `DateTime`, which would shift a stamp that
+/// carried an offset into UTC or the device's zone. Falls back to the raw
+/// string if it isn't a parseable date.
 String fmtAxisDate(
   String period, {
   required bool hourly,
   required String locale,
 }) {
-  final dt = DateTime.tryParse(period);
-  if (dt == null) return period.length > 5 ? period.substring(5) : period;
-  if (hourly) return fmtInt(dt.hour, locale: locale);
-  return '${fmtInt(dt.day, locale: locale)}/${fmtInt(dt.month, locale: locale)}';
+  final m = RegExp(
+    r'^\d{4}-(\d{2})-(\d{2})(?:[T ](\d{2}))?',
+  ).firstMatch(period);
+  if (m == null) return period.length > 5 ? period.substring(5) : period;
+  final month = int.parse(m.group(1)!);
+  final day = int.parse(m.group(2)!);
+  if (hourly) return fmtInt(int.parse(m.group(3) ?? '0'), locale: locale);
+  return '${fmtInt(day, locale: locale)}/${fmtInt(month, locale: locale)}';
 }

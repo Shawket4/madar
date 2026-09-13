@@ -59,6 +59,14 @@ pub struct MyAttendanceToday {
     /// Shifts rostered for today. Empty = a rest day.
     #[serde(rename = "scheduled")]
     pub scheduled: Vec<models::ResolvedShift>,
+    /// The IANA timezone this payload's instants are shown in (see `crate::tz`). Additive; older clients ignore it.
+    #[serde(
+        rename = "timezone",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub timezone: Option<Option<String>>,
 }
 
 impl MyAttendanceToday {
@@ -80,6 +88,7 @@ impl MyAttendanceToday {
             closed_records,
             open_record: None,
             scheduled,
+            timezone: None,
         }
     }
 }

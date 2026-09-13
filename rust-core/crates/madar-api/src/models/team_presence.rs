@@ -30,6 +30,14 @@ pub struct TeamPresence {
     pub present: i64,
     #[serde(rename = "rows")]
     pub rows: Vec<models::PresenceRow>,
+    /// The IANA timezone this payload's instants are shown in (see `crate::tz`). Additive; older clients ignore it.
+    #[serde(
+        rename = "timezone",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub timezone: Option<Option<String>>,
     /// Minutes actually worked so far today across the team.
     #[serde(rename = "worked_minutes")]
     pub worked_minutes: i64,
@@ -55,6 +63,7 @@ impl TeamPresence {
             planned_minutes,
             present,
             rows,
+            timezone: None,
             worked_minutes,
         }
     }

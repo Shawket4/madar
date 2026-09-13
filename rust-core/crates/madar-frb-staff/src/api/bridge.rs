@@ -112,6 +112,13 @@ impl MadarBridge {
         self.inner.is_rtl()
     }
 
+    /// `HH:mm` of an instant in the BRANCH's timezone (learned from the staff
+    /// payloads), never the phone's. `—` for an empty or bad timestamp.
+    #[frb(sync)]
+    pub fn format_clock(&self, rfc3339: String) -> String {
+        self.inner.format_clock(rfc3339)
+    }
+
     // ── connectivity ─────────────────────────────────────────────────────────
 
     /// Ping /health; updates the online flag. True when reachable.

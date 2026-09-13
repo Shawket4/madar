@@ -20,6 +20,10 @@ String coreVersion() => StaffBridge.instance.api.crateApiBridgeCoreVersion();
 abstract class MadarBridge implements RustOpaqueInterface {
   SessionSnapshot? currentSession();
 
+  /// `HH:mm` of an instant in the BRANCH's timezone (learned from the staff
+  /// payloads), never the phone's. `—` for an empty or bad timestamp.
+  String formatClock({required String rfc3339});
+
   /// Whether the signed-in user holds a permission — what decides between the
   /// employee's five tabs and the manager's four.
   ///

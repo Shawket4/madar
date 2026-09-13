@@ -75,16 +75,21 @@ String _weekday(DateTime d, {bool short = false}) {
 /// `HH:mm` of a wall-clock time — a picked time, the live clock.
 String formatTimeOfDay(int hour, int minute) => '${_two(hour)}:${_two(minute)}';
 
-/// `HH:mm` from an RFC3339 instant, in the device's local zone.
-///
-/// The BUSINESS date always comes from the server (in the branch's timezone);
-/// only the wall-clock rendering of an instant is local, which is what someone
-/// looking at their phone expects to see.
+/// Renders an instant's `HH:mm` in the BRANCH's timezone. Wired to the core
+/// at boot (`MadarBridge.formatClock`, which reads the zone the staff payloads
+/// carry) — the same formatter the till prints with.
+String Function(String rfc3339)? branchClock;
+
+/// `HH:mm` from an RFC3339 instant, in the branch's timezone — never the
+/// phone's. A phone abroad still shows the shop's clock. Without a core
+/// (unit tests) the instant reads in UTC, never device-local.
 String formatClock(String rfc3339) {
   if (rfc3339.isEmpty) return '—';
   final parsed = DateTime.tryParse(rfc3339);
   if (parsed == null) return '—';
-  final t = parsed.toLocal();
+  final viaCore = branchClock;
+  if (viaCore != null) return viaCore(rfc3339);
+  final t = parsed.toUtc();
   return formatTimeOfDay(t.hour, t.minute);
 }
 

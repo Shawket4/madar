@@ -195,6 +195,16 @@ mod tests {
     }
 
     #[test]
+    fn clock_and_dates_read_the_next_calendar_day_after_a_late_utc_instant() {
+        let cairo = chrono_tz::Africa::Cairo;
+        let late = "2026-09-12T23:30:00Z"; // 02:30 on Sep 13, Cairo summer (UTC+3)
+        assert_eq!(hhmm_in(cairo, late).as_deref(), Some("02:30"));
+        assert_eq!(date_in(cairo, late), "13/09/2026");
+        assert_eq!(yymmdd_in(cairo, late).as_deref(), Some("260913"));
+        assert_eq!(format_in(cairo, late, TimeStyle::Time, "en"), "02:30 AM");
+    }
+
+    #[test]
     fn a_payload_zone_refreshes_the_cache_and_garbage_does_not() {
         let store = Store::open("").unwrap();
         store.kv_put(KEY_BRANCH_TZ, "Africa/Cairo").unwrap();

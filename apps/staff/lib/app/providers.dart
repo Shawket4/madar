@@ -31,7 +31,9 @@ final locationProvider = Provider<LocationService>(
 class LocaleNotifier extends Notifier<String> {
   @override
   String build() {
-    final stored = ref.read(coreProvider).bridge.locale();
+    final bridge = ref.read(coreProvider).bridge;
+    branchClock = (rfc3339) => bridge.formatClock(rfc3339: rfc3339);
+    final stored = bridge.locale();
     if (stored.isNotEmpty) return formatLocale = stored;
     final device = PlatformDispatcher.instance.locale.languageCode;
     final resolved = device == 'ar' ? 'ar' : 'en';
