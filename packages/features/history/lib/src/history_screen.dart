@@ -1,11 +1,13 @@
 /// Orders — this shift's sales, and every shift's when online, with the
-/// selected sale beside the list.
+/// selected sale beside the table.
 ///
-/// One screen replaces the old History page and the cross-shift Search
-/// page: a This shift / All segment, one search box, one chip row. On a
-/// tablet the list takes the start half and the sale opens beside it as a
-/// card (master-detail); on a phone the list is the screen and a row pushes
-/// the sale ([SaleScreen]). The two paths are the same [SalePanel].
+/// On the spec grid (docs/design/SPEC.md §15): the header carries the scope
+/// line; the search box and the This shift / All segments sit in the header's
+/// `below` slot; the body is the one [OrdersTable] — the same table a past
+/// shift nests — with the type chips over it. Where the page is wide enough
+/// (an iPad in landscape, a desktop) a selected sale opens in a 560 pane on
+/// the trailing side; narrower, a row pushes the sale ([SaleScreen]). The two
+/// are the same [SalePanel].
 ///
 /// State lives in [historyProvider]. The screen is paramless beyond an
 /// optional starting scope and bridges via `ref.bridge`.
@@ -17,32 +19,22 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_history/src/history_provider.dart';
 import 'package:feature_history/src/history_strings.dart';
+import 'package:feature_history/src/orders_table.dart';
 import 'package:feature_history/src/sale_panel.dart';
 import 'package:feature_history/src/widgets.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// The list column beside the sale on a tablet (canvas: 560 of 1194). It
-/// gives way on a narrower tablet so the sale keeps a readable width.
-const double _listColumnWidth = 560;
-const double _listColumnMinWidth = 380;
+/// The sale pane beside the table (SPEC §3).
+const double _detailWidth = 560;
 
-/// Below this body width the sale is pushed over the list rather than
-/// drawn beside it — an iPad in portrait behind its rail is about here.
-const double _splitMinWidth = Responsive.wide;
+/// The table keeps at least this much beside the pane; below it the sale is
+/// pushed instead (an iPad in portrait).
+const double _tableMinWidth = 440;
 
-/// The search box at the header's end on a tablet (canvas: 360).
-const double _searchWidth = 360;
-
-/// Row cells (canvas grid: 70 / 52 / 1fr / 64 / 80, 12 gaps).
-const double _numberColWidth = 76;
-const double _timeColWidth = 56;
-const double _paymentColWidth = 60;
-const double _amountColWidth = 124;
-
-/// The selected row's start-edge bar.
-const double _selectBarWidth = 4;
+/// The segments beside the search on a tablet.
+const double _segmentsWidth = 280;
 
 /// The Orders screen — This shift / All, search, and the sale beside it.
 class OrderHistoryScreen extends ConsumerStatefulWidget {
@@ -95,25 +87,12 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     super.dispose();
   }
 
-  /// A row tap on a phone: select, then push the sale over the list. The
-  /// provider stays alive underneath, so the pushed screen reads the same
-  /// selection and the list is exactly where it was on the way back.
-  void _openOnPhone(BuildContext context, OrderSummaryView order) {
+  /// A row tap where there is no room beside the table: select, then push
+  /// the sale. The provider stays alive underneath, so the pushed screen
+  /// reads the same selection and the table is where it was on the way back.
+  void _push(BuildContext context, OrderSummaryView order) {
     ref.read(historyProvider.notifier).select(order);
-    MadarPages.navigatorOf(context).push(
-      PageRouteBuilder<void>(
-        pageBuilder: (_, _, _) => const SaleScreen(),
-        transitionsBuilder: (_, animation, _, child) => SlideTransition(
-          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-              .animate(
-                CurvedAnimation(parent: animation, curve: MotionSpec.springOut),
-              ),
-          child: child,
-        ),
-        transitionDuration: MotionSpec.standardDuration,
-        reverseTransitionDuration: MotionSpec.standardDuration,
-      ),
-    );
+    unawaited(MadarPages.push<void>(context, (_) => const SaleScreen()));
   }
 
   @override
@@ -121,6 +100,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     final bridge = ref.bridge;
     final layout = context.madarLayout;
     final notifier = ref.read(historyProvider.notifier);
+    final scope = ref.watch(historyProvider.select((s) => s.scope));
     String t(String key) => historyTr(bridge, key);
 
     final search = MadarField(
@@ -129,58 +109,49 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
       glyph: MadarGlyph.search,
       onChanged: notifier.setSearch,
     );
+    final segments = MadarSegmented<OrdersScope>(
+      items: [
+        MadarSegmentItem(OrdersScope.thisShift, t('history.this_shift')),
+        MadarSegmentItem(OrdersScope.all, t('order.all')),
+      ],
+      value: scope,
+      onChanged: notifier.setScope,
+    );
 
     return MadarPageScaffold(
       title: t('history.title'),
       subtitle: _scopeLine(ref, bridge),
-      actions: [
-        if (layout.isTablet) SizedBox(width: _searchWidth, child: search),
-      ],
-      below: layout.isPhone ? search : null,
+      width: MadarContentWidth.full,
+      glyph: MadarGlyph.receipt,
+      below: layout.isTablet
+          ? Row(
+              spacing: Space.md,
+              children: [
+                Expanded(child: search),
+                SizedBox(width: _segmentsWidth, child: segments),
+              ],
+            )
+          : Column(spacing: Space.md, children: [search, segments]),
       overlay: const _HistoryToastHost(),
       body: Padding(
-        padding: EdgeInsetsDirectional.only(
-          start: layout.gutter,
-          end: layout.gutter,
-          top: Space.lg,
-          bottom: layout.gutter,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.lg,
-          children: [
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final split = constraints.maxWidth >= _splitMinWidth;
-                  if (!split) {
-                    return _ListColumn(onOpen: (o) => _openOnPhone(context, o));
-                  }
-                  final listWidth = (constraints.maxWidth * 0.52).clamp(
-                    _listColumnMinWidth,
-                    _listColumnWidth,
-                  );
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: Space.lg,
-                    children: [
-                      SizedBox(
-                        width: listWidth,
-                        child: _ListColumn(onOpen: notifier.select),
-                      ),
-                      const Expanded(child: _SaleCard()),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
+        padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final roomBeside =
+                layout.isTablet &&
+                constraints.maxWidth - _detailWidth - Space.lg >=
+                    _tableMinWidth;
+            return _Body(
+              split: roomBeside,
+              onOpen: roomBeside ? notifier.select : (o) => _push(context, o),
+            );
+          },
         ),
       ),
     );
   }
 
-  /// The header's second line: "this shift · 42 sales · EGP 6230.00", or
+  /// The header's second line: "This shift · 42 sales · EGP 6,230.00", or
   /// "All · 318 found", or the honest "No shift open".
   String? _scopeLine(WidgetRef ref, MadarBridge bridge) {
     final scope = ref.watch(historyProvider.select((s) => s.scope));
@@ -202,7 +173,13 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
                 'history.sales_count',
               ).replaceAll('{count}', ltrIsland('${stats.orderCount}')),
             )
-            ..add(Money.format(stats.salesMinor, currency: currency));
+            ..add(
+              bridge.formatMoney(
+                minor: stats.salesMinor,
+                currency: currency,
+                signed: false,
+              ),
+            );
         }
         return parts.join(' · ');
       case OrdersScope.all:
@@ -232,34 +209,48 @@ class _HistoryToastHost extends ConsumerWidget {
   }
 }
 
-/// The sale beside the list on a tablet: a card holding the panel, or the
-/// prompt to pick one.
-class _SaleCard extends ConsumerWidget {
-  const _SaleCard();
+/// Chips, notice and table — and the sale pane beside them when [split] and
+/// a sale is selected. Nothing selected, the table takes the whole width: an
+/// empty pane saying "pick one" is a column of nothing.
+class _Body extends ConsumerWidget {
+  const _Body({required this.split, required this.onOpen});
+
+  final bool split;
+  final ValueChanged<OrderSummaryView> onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.bridge;
     final selected = ref.watch(historyProvider.select((s) => s.selected));
-    return MadarCard(
-      padding: EdgeInsetsDirectional.zero,
-      child: selected == null
-          ? EmptyState(
-              icon: 'receipt',
-              title: historyTr(bridge, 'history.select_prompt'),
-            )
-          : SalePanel(order: selected),
+    final master = _Master(onOpen: onOpen, split: split);
+    if (!split || selected == null) return master;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.lg,
+      children: [
+        Expanded(child: master),
+        SizedBox(
+          width: _detailWidth,
+          child: MadarContentFrame(
+            gutter: false,
+            child: MadarCard(
+              padding: EdgeInsetsDirectional.zero,
+              child: SalePanel(
+                order: selected,
+                onClose: ref.read(historyProvider.notifier).clearSelection,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
 
-// ── The list column: segment, chips, rows ────────────────────────────────
+class _Master extends ConsumerWidget {
+  const _Master({required this.onOpen, required this.split});
 
-class _ListColumn extends ConsumerWidget {
-  const _ListColumn({required this.onOpen});
-
-  /// A row tap. Selects beside the list on a tablet; pushes on a phone.
-  final void Function(OrderSummaryView) onOpen;
+  final ValueChanged<OrderSummaryView> onOpen;
+  final bool split;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -267,58 +258,6 @@ class _ListColumn extends ConsumerWidget {
     final notifier = ref.read(historyProvider.notifier);
     final scope = ref.watch(historyProvider.select((s) => s.scope));
     final filter = ref.watch(historyProvider.select((s) => s.filter));
-    String t(String key) => historyTr(bridge, key);
-
-    Widget chip(OrdersFilter f, String label) => MadarChip(
-      label: label,
-      selected: filter == f,
-      onTap: () => notifier.setFilter(f),
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.md,
-      children: [
-        MadarSegmented<OrdersScope>(
-          items: [
-            MadarSegmentItem(OrdersScope.thisShift, t('history.this_shift')),
-            MadarSegmentItem(OrdersScope.all, t('order.all')),
-          ],
-          value: scope,
-          onChanged: notifier.setScope,
-        ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          // The chips must not clip their tactile press, and the last chip
-          // must not kiss the column's edge when it scrolls.
-          clipBehavior: Clip.none,
-          child: Row(
-            spacing: Space.sm,
-            children: [
-              chip(OrdersFilter.all, t('history.type.all')),
-              chip(OrdersFilter.dineIn, t('history.type.dine_in')),
-              chip(OrdersFilter.takeaway, t('history.type.takeaway')),
-              chip(OrdersFilter.online, t('history.type.online')),
-              chip(OrdersFilter.voided, t('history.voided')),
-            ],
-          ),
-        ),
-        Expanded(child: _Rows(onOpen: onOpen)),
-      ],
-    );
-  }
-}
-
-class _Rows extends ConsumerWidget {
-  const _Rows({required this.onOpen});
-
-  final void Function(OrderSummaryView) onOpen;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.bridge;
-    final notifier = ref.read(historyProvider.notifier);
-    final scope = ref.watch(historyProvider.select((s) => s.scope));
     final loading = ref.watch(historyProvider.select((s) => s.loading));
     final loadingMore = ref.watch(historyProvider.select((s) => s.loadingMore));
     final error = ref.watch(historyProvider.select((s) => s.error));
@@ -329,64 +268,74 @@ class _Rows extends ConsumerWidget {
       historyProvider.select((s) => s.visibleLimit),
     );
     final hasMore = ref.watch(historyProvider.select((s) => s.hasMore));
+    final hasShift = ref.watch(historyProvider.select((s) => s.hasShift));
     final selectedId = ref.watch(historyProvider.select((s) => s.selectedId));
     final currency = ref.watch(
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
-    final compact = context.isPhone;
     String t(String key) => historyTr(bridge, key);
 
-    // The honest states first: a first load, a refusal, no network.
+    Widget chip(OrdersFilter f, String label) => MadarChip(
+      label: label,
+      selected: filter == f,
+      onTap: () => notifier.setFilter(f),
+    );
+
+    // The honest states first: a first load, a refusal, no network, no shift.
+    final visible = scope == OrdersScope.thisShift
+        ? filtered.take(visibleLimit).toList()
+        : filtered;
+    final more = scope == OrdersScope.thisShift
+        ? filtered.length > visible.length
+        : hasMore;
+    var empty = MadarEmptyContent(
+      icon: rowsEmpty ? 'tray' : 'line.3.horizontal.decrease.circle',
+      title: rowsEmpty ? t('history.empty') : t('history.no_match'),
+      message: rowsEmpty ? t('history.empty_message') : null,
+    );
+    final MadarTableState<OrderSummaryView> state;
     if (loading && rowsEmpty) {
-      return const Align(alignment: Alignment.topCenter, child: SkeletonList());
-    }
-    if (error != null && rowsEmpty) {
-      return ErrorState(
+      state = const MadarTableState.loading();
+    } else if (error != null && rowsEmpty) {
+      state = MadarTableState.error(
         message: error.of(bridge),
         retryLabel: t('history.retry'),
         onRetry: notifier.load,
       );
-    }
-    if (scope == OrdersScope.all && !online && rowsEmpty) {
-      return EmptyState(
+    } else if (scope == OrdersScope.all && !online && rowsEmpty) {
+      empty = MadarEmptyContent(
         icon: 'wifi.slash',
         title: t('history.offline_search'),
         actionLabel: t('history.retry'),
         onAction: notifier.load,
       );
-    }
-    final hasShift = ref.watch(historyProvider.select((s) => s.hasShift));
-    if (scope == OrdersScope.thisShift && !hasShift) {
+      state = const MadarTableState.data([]);
+    } else if (scope == OrdersScope.thisShift && !hasShift) {
       // No shift is a place to be, not an error: say so and offer every
       // shift, where yesterday's sale is.
-      return EmptyState(
+      empty = MadarEmptyContent(
         icon: 'lock',
         title: t('history.no_shift'),
         actionLabel: t('order.all'),
         onAction: () => notifier.setScope(OrdersScope.all),
       );
-    }
-    if (filtered.isEmpty && !(scope == OrdersScope.all && hasMore)) {
-      return EmptyState(
-        icon: rowsEmpty ? 'tray' : 'line.3.horizontal.decrease.circle',
-        title: rowsEmpty ? t('history.empty') : t('history.no_match'),
+      state = const MadarTableState.data([]);
+    } else {
+      state = MadarTableState.data(
+        visible,
+        hasMore: more,
+        loadingMore: loadingMore,
+        onLoadMore: notifier.showMore,
       );
     }
 
-    final visible = scope == OrdersScope.thisShift
-        ? filtered.take(visibleLimit).toList()
-        : filtered;
-    final remaining = scope == OrdersScope.thisShift
-        ? filtered.length - visible.length
-        : (hasMore ? 1 : 0);
-
     // A notice above the rows when the list is stale or partial, in words.
-    final Widget? notice = switch ((scope, online, error)) {
-      (OrdersScope.all, false, _) => NoticeBanner(
+    final Widget? notice = switch ((scope, online, error, rowsEmpty)) {
+      (OrdersScope.all, false, _, false) => NoticeBanner(
         text: t('history.offline_cached'),
         icon: 'wifi.slash',
       ),
-      (OrdersScope.all, true, final UiText message) => NoticeBanner(
+      (OrdersScope.all, true, final UiText message, false) => NoticeBanner(
         text: message.of(bridge),
         tone: ChipTone.danger,
         icon: 'exclamationmark.triangle',
@@ -399,278 +348,36 @@ class _Rows extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          // The chips must not clip their tactile press.
+          clipBehavior: Clip.none,
+          child: Row(
+            spacing: Space.sm,
+            children: [
+              chip(OrdersFilter.all, t('history.type.all')),
+              chip(OrdersFilter.dineIn, t('history.type.dine_in')),
+              chip(OrdersFilter.takeaway, t('history.type.takeaway')),
+              chip(OrdersFilter.online, t('history.type.online')),
+              chip(OrdersFilter.voided, t('history.voided')),
+            ],
+          ),
+        ),
         ?notice,
-        Expanded(
-          child: MadarCard(
-            flush: true,
-            // Lazy on purpose: "Show more" grows the list without bound.
-            child: ListView.builder(
-              padding: EdgeInsetsDirectional.zero,
-              itemCount: visible.length + (remaining > 0 ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index >= visible.length) {
-                  // One word for one action in both scopes.
-                  return _MoreRow(
-                    label: t('search.load_more'),
-                    loading: loadingMore,
-                    onTap: notifier.showMore,
-                  );
-                }
-                final o = visible[index];
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (index > 0) const MadarHairline(light: true),
-                    _SaleRow(
-                      order: o,
-                      bridge: bridge,
-                      currency: currency,
-                      selected: o.id == selectedId,
-                      compact: compact,
-                      showDate: scope == OrdersScope.all,
-                      onTap: () => onOpen(o),
-                    ),
-                  ],
-                );
-              },
-            ),
+        Flexible(
+          child: OrdersTable(
+            bridge: bridge,
+            currency: currency,
+            state: state,
+            empty: empty,
+            onTap: onOpen,
+            selectedId: split ? selectedId : null,
+            // Beside the pane the table narrows; it drops columns by
+            // priority rather than turning into phone rows.
+            collapse: context.madarLayout.isPhone ? null : false,
           ),
         ),
       ],
-    );
-  }
-}
-
-/// The last row of the card: one more page.
-class _MoreRow extends StatelessWidget {
-  const _MoreRow({
-    required this.label,
-    required this.loading,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool loading;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const MadarHairline(light: true),
-        Padding(
-          padding: const EdgeInsetsDirectional.all(Space.md),
-          child: MadarButton(
-            label: label,
-            variant: MadarButtonVariant.ghost,
-            size: MadarButtonSize.compact,
-            glyph: MadarGlyph.chevronDown,
-            loading: loading,
-            onTap: onTap,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// One sale in the list. 64 tall; the number and the time are mono, the
-/// origin and who bought it are words, the payment method is quiet and the
-/// money sits at the end. The selected row carries a teal bar on its start
-/// edge and the accent wash — the row's colour lives there and nowhere else.
-///
-/// [compact] is the phone's two-line arrangement: the five columns do not
-/// fit in 358 points, and a wrapped money figure is a misread figure.
-class _SaleRow extends StatelessWidget {
-  const _SaleRow({
-    required this.order,
-    required this.bridge,
-    required this.currency,
-    required this.selected,
-    required this.compact,
-    required this.showDate,
-    required this.onTap,
-  });
-
-  final OrderSummaryView order;
-  final MadarBridge bridge;
-  final String currency;
-  final bool selected;
-  final bool compact;
-
-  /// Under All the day matters; under This shift it is today.
-  final bool showDate;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final o = order;
-    final state = SaleState.of(o);
-    final voided = state == SaleState.voided;
-    final time = bridge.formatTime(rfc3339: o.createdAt, style: TimeStyle.time);
-    final date = showDate
-        ? bridge.formatTime(rfc3339: o.createdAt, style: TimeStyle.dateShort)
-        : null;
-
-    // "T5 · dine-in" in the design; the table is not on the view, so the
-    // origin leads and the ref (an online order's) or the customer follows.
-    final meta = <String>[
-      if (o.orderRef case final ref?) ltrIsland(ref),
-      orderTypeLabel(bridge, o.orderType),
-      ?o.customerName,
-      ?date,
-    ].join(' · ');
-
-    final number = state == SaleState.queued
-        ? MadarGlyphIcon(
-            MadarGlyph.half,
-            size: IconSize.xl,
-            color: colors.warning,
-          )
-        : Text(
-            saleNumber(bridge, o),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textDirection: TextDirection.ltr,
-            style: MadarType.numLg.copyWith(
-              fontWeight: FontWeight.w700,
-              color: voided ? colors.textMuted : colors.textPrimary,
-            ),
-          );
-    final timeText = Text(
-      time,
-      textDirection: TextDirection.ltr,
-      style: MadarType.num.copyWith(
-        fontWeight: FontWeight.w500,
-        color: colors.textSecondary,
-      ),
-    );
-    final metaText = Text(
-      meta,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: MadarType.body.copyWith(
-        color: voided ? colors.textMuted : colors.textPrimary,
-      ),
-    );
-    final payment = Text(
-      bridge.paymentMethodLabel(code: o.paymentLabel),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-    );
-    final money = Text(
-      Money.format(o.totalMinor, currency: currency),
-      textDirection: TextDirection.ltr,
-      textAlign: TextAlign.end,
-      style: MadarType.money.copyWith(
-        fontSize: 16,
-        color: voided ? colors.textMuted : colors.textPrimary,
-        decoration: voided ? TextDecoration.lineThrough : null,
-      ),
-    );
-    final tag = state != null
-        ? SaleStateTag(state: state, bridge: bridge)
-        : o.priceFlagged
-        // Only when there is no state to show: a voided or still-queued sale
-        // has something more urgent to say, and two tags on one row is a row
-        // nobody reads. The sale itself always shows it — see `_Flags`.
-        ? PriceFlagTag(bridge: bridge)
-        : null;
-
-    final Widget content;
-    if (compact) {
-      content = Row(
-        spacing: Space.md,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 2,
-              children: [
-                Row(
-                  spacing: Space.sm,
-                  children: [
-                    number,
-                    timeText,
-                    if (tag != null) Flexible(child: tag),
-                  ],
-                ),
-                metaText,
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            spacing: 2,
-            children: [money, payment],
-          ),
-        ],
-      );
-    } else {
-      content = Row(
-        spacing: Space.md,
-        children: [
-          SizedBox(
-            width: _numberColWidth,
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: number,
-            ),
-          ),
-          SizedBox(width: _timeColWidth, child: timeText),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 2,
-              children: [metaText, ?tag],
-            ),
-          ),
-          SizedBox(width: _paymentColWidth, child: payment),
-          SizedBox(width: _amountColWidth, child: money),
-        ],
-      );
-    }
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: TactileScale(
-        scale: 0.985,
-        onTap: onTap,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: AnimatedContainer(
-                duration: MotionSpec.standardDuration,
-                curve: MotionSpec.standardCurve,
-                color: selected ? colors.accentBg : colors.surface,
-              ),
-            ),
-            if (selected)
-              PositionedDirectional(
-                start: 0,
-                top: 0,
-                bottom: 0,
-                child: SizedBox(
-                  width: _selectBarWidth,
-                  child: ColoredBox(color: colors.accent),
-                ),
-              ),
-            Container(
-              constraints: const BoxConstraints(minHeight: Metrics.rowHeight),
-              padding: const EdgeInsetsDirectional.symmetric(
-                horizontal: Space.lg,
-                vertical: Space.sm,
-              ),
-              alignment: AlignmentDirectional.centerStart,
-              child: content,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

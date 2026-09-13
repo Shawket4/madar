@@ -5,7 +5,6 @@ library;
 
 import 'package:design_system/design_system.dart';
 import 'package:feature_history/src/history_strings.dart';
-import 'package:flutter/widgets.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 /// "dine-in" / "Online" / "Takeaway" for a summary's `orderType`. The wire
@@ -76,41 +75,4 @@ enum SaleState {
     SaleState.failed => MadarGlyph.alertCircle,
     SaleState.queued => MadarGlyph.half,
   };
-}
-
-/// The uppercase state tag for a row or the sale header.
-/// "Offline price" — this sale was rung against a catalogue that has since
-/// moved.
-///
-/// NOT a [SaleState]: those are exclusive and describe what happened to the
-/// sale, while this describes how it was PRICED and can sit on a perfectly
-/// ordinary settled one. It can only happen offline — a live sale is priced by
-/// the server and the till has no way to name a price of its own — so it
-/// always means the same thing: this till was out of touch when something
-/// changed, and somebody may want to look.
-class PriceFlagTag extends StatelessWidget {
-  const PriceFlagTag({required this.bridge, super.key});
-
-  final MadarBridge bridge;
-
-  @override
-  Widget build(BuildContext context) => MadarTag(
-    label: historyTr(bridge, 'history.price_flagged'),
-    tone: MadarTone.warning,
-    glyph: MadarGlyph.percent,
-  );
-}
-
-class SaleStateTag extends StatelessWidget {
-  const SaleStateTag({required this.state, required this.bridge, super.key});
-
-  final SaleState state;
-  final MadarBridge bridge;
-
-  @override
-  Widget build(BuildContext context) => MadarTag(
-    label: state.label(bridge),
-    tone: state.tone,
-    glyph: state.glyph,
-  );
 }

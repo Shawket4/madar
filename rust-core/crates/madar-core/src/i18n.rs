@@ -995,6 +995,17 @@ fn en(key: &str) -> Option<&'static str> {
         "cash.kind.correction" => "Correction",
         "history.refund_method_pick" => "Choose how the money goes back.",
         "history.refund_other_shift" => "This sale is from an earlier shift — the refund comes out of today's drawer.",
+        // ── Spec migration: till, shifts, orders, settings, sign-in ──
+        "common.close" => "Close",
+        "history.col_number" => "#",
+        "history.col_time" => "Time",
+        "history.col_type" => "Type",
+        "history.col_payment" => "Payment",
+        "history.col_status" => "Status",
+        "history.empty_message" => "Sales you ring up appear here.",
+        "history.refund_left_label" => "Left to refund",
+        "history.status_paid" => "Paid",
+        "history.status_part_refunded" => "Partly refunded",
         _ => return None,
     })
 }
@@ -1913,6 +1924,17 @@ fn ar(key: &str) -> Option<&'static str> {
         "cash.kind.correction" => "تصحيح",
         "history.refund_method_pick" => "اختر طريقة إرجاع المبلغ.",
         "history.refund_other_shift" => "هذه البيعة من وردية سابقة — يُصرف الاسترداد من درج اليوم.",
+        // ── Spec migration: till, shifts, orders, settings, sign-in ──
+        "common.close" => "إغلاق",
+        "history.col_number" => "#",
+        "history.col_time" => "الوقت",
+        "history.col_type" => "النوع",
+        "history.col_payment" => "الدفع",
+        "history.col_status" => "الحالة",
+        "history.empty_message" => "تظهر هنا المبيعات التي تسجّلها.",
+        "history.refund_left_label" => "المتبقي للاسترداد",
+        "history.status_paid" => "مدفوع",
+        "history.status_part_refunded" => "مُسترد جزئيًا",
         _ => return None,
     })
 }

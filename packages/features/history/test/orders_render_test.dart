@@ -21,6 +21,7 @@ import 'package:feature_history/feature_history.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -33,168 +34,34 @@ const Size _ipad = Size(1194, 834);
 /// A phone — the real fallback.
 const Size _phone = Size(390, 844);
 
-// ── Fixture words (the core's own keys; the new ones come from the
-// package's fallback table) ─────────────────────────────────────────────
+// ── The core's words ───────────────────────────────────────────────────
+//
+// Read from the core's own tables (`i18n.rs`), so the pictures carry the
+// words a device shows and a key the core lacks shows up as a raw key.
 
-const _en = <String, String>{
-  'history.failed_hint': 'The server refused this sale — see Sync.',
-  'history.price_flagged': 'Offline price',
-  'history.queued_hint': 'Will send when back online.',
-  'history.refund_reason_customer': 'Customer asked',
-  'history.refund_reason_other': 'Something else',
-  'history.refund_reason_overcharged': 'Overcharged',
-  'history.refund_reason_quality': 'Quality',
-  'history.refund_reason_wrong': 'Wrong order',
-  'history.sales_count': '{count} sales',
-  'history.voided_hint': 'This sale was voided.',
-  'chrome.view': 'View',
-  'history.found_count': '{count} found',
-  'history.more': 'More',
-  'history.no_shift': 'No shift open',
-  'history.offline_cached': 'Offline — showing what was loaded.',
-  'history.offline_search': 'Searching past shifts needs a connection.',
-  'history.paid_at': 'Paid {time}',
-  'history.price_flagged_hint':
-      'Rung offline against an older menu — the price differs from the menu today.',
-  'history.refund_all': 'Already refunded in full.',
-  'history.refund_amount': 'Amount to return',
-  'history.refund_confirm': 'Refund',
-  'history.refund_left': '{amount} left to refund',
-  'history.refund_over': 'More than the sale was for.',
-  'history.refund_queued': 'Waiting to send',
-  'history.refund_reason': 'Why',
-  'history.refund_sale': 'Refund',
-  'history.refund_teach': 'Refund returns money on a sale that stands.',
-  'history.refunded': 'Refunded',
-  'history.reprint': 'Reprint',
-  'history.retry': 'Try again',
-  'history.sale': 'Sale',
-  'history.search_hint': 'Number, customer or amount',
-  'history.select_prompt': 'Tap a sale to see it here.',
-  'history.service': 'Service',
-  'history.this_shift': 'This shift',
-  'history.tip': 'Tip',
-  'history.type.online': 'Online',
-  'history.type.takeaway': 'Takeaway',
-  'history.vat_included': 'VAT included',
-  'history.void_cannot_failed':
-      'This sale never reached the server; there is nothing to void.',
-  'history.void_cannot_queued':
-      'A queued sale cannot be voided until it reaches the server.',
-  'history.void_cannot_voided': 'Already voided.',
-  'history.void_sale': 'Void sale',
-  'history.void_teach': 'Void removes a mistaken sale as if it never happened.',
-  'receipt.no_printer': 'Set a printer in Settings',
-  'receipt.print_failed': "Couldn't reach the printer",
-  'receipt.printed': 'Sent to printer',
-  'history.title': 'Orders',
-  'history.empty': 'No orders this shift yet.',
-  'history.queued': 'Queued',
-  'history.failed': 'Failed',
-  'history.voided': 'Voided',
-  'history.order': 'Order',
-  'history.no_match': 'No matching orders',
-  'history.show_more': 'Show {count} more',
-  'history.type.all': 'All',
-  'history.type.dine_in': 'Dine-in',
-  'search.load_more': 'Load more',
-  'order.all': 'All',
-  'order.subtotal': 'Subtotal',
-  'order.tax': 'VAT',
-  'order.total': 'Total',
-  'order.discount': 'Discount',
-  'loyalty.add_points': 'Add points',
-  'void.title': 'Void order',
-  'void.reason': 'Reason',
-  'void.reason_mistake': 'Order mistake',
-  'void.reason_customer': 'Customer changed their mind',
-  'void.reason_quality': 'Quality issue',
-  'void.reason_other': 'Other',
-  'void.note': 'Note (optional)',
-  'void.restock': 'Restock ingredients',
-  'void.confirm': 'Void order',
-  'void.cancel': 'Cancel',
-};
+late final Map<String, String> _en;
+late final Map<String, String> _ar;
 
-const _ar = <String, String>{
-  'chrome.view': 'عرض',
-  'history.found_count': 'عدد النتائج: {count}',
-  'history.more': 'المزيد',
-  'history.no_shift': 'لا توجد وردية مفتوحة',
-  'history.offline_cached': 'غير متصل — تُعرض النتائج المحمّلة سابقاً.',
-  'history.offline_search': 'البحث في الورديات السابقة يحتاج اتصالاً بالخادم.',
-  'history.paid_at': 'دُفعت {time}',
-  'history.price_flagged_hint':
-      'سُجّلت دون اتصال بأسعار قائمة أقدم — السعر يختلف عن القائمة الحالية.',
-  'history.refund_all': 'تم استرداد المبلغ بالكامل.',
-  'history.refund_amount': 'المبلغ المسترد',
-  'history.refund_confirm': 'استرداد',
-  'history.refund_left': 'متبقٍ للاسترداد {amount}',
-  'history.refund_over': 'أكبر من قيمة عملية البيع.',
-  'history.refund_queued': 'بانتظار الإرسال',
-  'history.refund_reason': 'السبب',
-  'history.refund_sale': 'استرداد',
-  'history.refund_teach': 'الاسترداد يرجع المال مع بقاء عملية البيع.',
-  'history.refunded': 'مُسترد',
-  'history.reprint': 'إعادة طباعة',
-  'history.retry': 'أعد المحاولة',
-  'history.sale': 'بيع',
-  'history.search_hint': 'الرقم أو العميل أو المبلغ',
-  'history.select_prompt': 'اختر عملية بيع لعرضها هنا.',
-  'history.service': 'الخدمة',
-  'history.this_shift': 'هذه الوردية',
-  'history.tip': 'بقشيش',
-  'history.type.online': 'أونلاين',
-  'history.type.takeaway': 'تيك أواي',
-  'history.vat_included': 'شامل الضريبة',
-  'history.void_cannot_failed':
-      'لم تصل عملية البيع هذه إلى الخادم؛ لا شيء لإبطاله.',
-  'history.void_cannot_queued':
-      'لا يمكن إبطال عملية في الانتظار قبل وصولها إلى الخادم.',
-  'history.void_cannot_voided': 'أُبطلت بالفعل.',
-  'history.void_sale': 'إبطال البيع',
-  'history.void_teach': 'الإبطال يزيل عملية بيع خاطئة كأنها لم تحدث.',
-  'receipt.no_printer': 'اضبط الطابعة في الإعدادات',
-  'receipt.print_failed': 'تعذّر الوصول إلى الطابعة',
-  'receipt.printed': 'تم الإرسال إلى الطابعة',
-  'history.failed_hint': 'رفض الخادم عملية البيع هذه — راجع المزامنة.',
-  'history.price_flagged': 'سعر غير محدّث',
-  'history.queued_hint': 'سيُرسل عند عودة الاتصال.',
-  'history.refund_reason_customer': 'طلب العميل',
-  'history.refund_reason_other': 'سبب آخر',
-  'history.refund_reason_overcharged': 'زيادة في الحساب',
-  'history.refund_reason_quality': 'الجودة',
-  'history.refund_reason_wrong': 'طلب خاطئ',
-  'history.sales_count': 'عدد المبيعات: {count}',
-  'history.voided_hint': 'أُبطلت عملية البيع هذه.',
-  'history.title': 'الطلبات',
-  'history.empty': 'لا توجد طلبات في هذه الوردية بعد.',
-  'history.queued': 'في الانتظار',
-  'history.failed': 'فشل',
-  'history.voided': 'ملغى',
-  'history.order': 'طلب',
-  'history.no_match': 'لا توجد طلبات مطابقة',
-  'history.show_more': 'عرض {count} إضافية',
-  'history.type.all': 'الكل',
-  'history.type.dine_in': 'محلي',
-  'search.load_more': 'تحميل المزيد',
-  'order.all': 'الكل',
-  'order.subtotal': 'المجموع الفرعي',
-  'order.tax': 'الضريبة',
-  'order.total': 'الإجمالي',
-  'order.discount': 'خصم',
-  'loyalty.add_points': 'إضافة نقاط',
-  'void.title': 'إبطال الطلب',
-  'void.reason': 'السبب',
-  'void.reason_mistake': 'خطأ في الطلب',
-  'void.reason_customer': 'تغيّر رأي العميل',
-  'void.reason_quality': 'مشكلة في الجودة',
-  'void.reason_other': 'أخرى',
-  'void.note': 'ملاحظة (اختياري)',
-  'void.restock': 'إعادة المكونات للمخزون',
-  'void.confirm': 'إبطال الطلب',
-  'void.cancel': 'إلغاء',
-};
+Map<String, String> _words(String src, String fnSig) {
+  final start = src.indexOf(fnSig);
+  if (start < 0) return const {};
+  var body = src.substring(start + fnSig.length);
+  final end = body.indexOf('\nfn ');
+  if (end >= 0) body = body.substring(0, end);
+  final arm = RegExp(r'"([a-z0-9_.]+)"\s*=>\s*(?:\{\s*)?"((?:[^"\\]|\\.)*)"');
+  return {
+    for (final m in arm.allMatches(body))
+      m.group(1)!: m.group(2)!.replaceAll(r'\"', '"').replaceAll(r'\n', '\n'),
+  };
+}
+
+void _loadWords() {
+  final src = File(
+    '../../../rust-core/crates/madar-core/src/i18n.rs',
+  ).readAsStringSync();
+  _en = _words(src, "fn en(key: &str) -> Option<&'static str> {");
+  _ar = _words(src, "fn ar(key: &str) -> Option<&'static str> {");
+}
 
 // ── Fixture data ───────────────────────────────────────────────────────
 
@@ -430,6 +297,20 @@ class _FakeBridge implements MadarBridge {
       return (arabic ? _ar[key] : _en[key]) ?? key;
     }
     if (name == #locale) return arabic ? 'ar' : 'en';
+    final lang = arabic ? 'ar' : 'en';
+    if (name == #formatMoney) {
+      final a = invocation.namedArguments;
+      return MadarFormat.money(
+        a[#minor] as int,
+        currency: a[#currency] as String,
+        signed: a[#signed] as bool,
+        locale: lang,
+      );
+    }
+    if (name == #formatStamp) {
+      final at = DateTime.parse(invocation.namedArguments[#rfc3339] as String);
+      return MadarFormat.stamp(at, DateTime(at.year, 9, 12), locale: lang);
+    }
     if (name == #isRtl) return arabic;
     if (name == #appRoute) return const AppRoute.order();
     if (name == #currentSession) {
@@ -596,6 +477,9 @@ Future<void> _shoot(
         overrides: [bridgeProvider.overrideWithValue(bridge)],
         child: MaterialApp(
           theme: theme,
+          locale: Locale(bridge.arabic ? 'ar' : 'en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           home: Directionality(
             textDirection: bridge.arabic
                 ? TextDirection.rtl
@@ -635,20 +519,22 @@ Future<void> _capture(WidgetTester tester, String name) async {
   });
 }
 
+/// A figure's text, with or without its LTR isolate — a table sets mono
+/// cells as isolated figures.
+Finder _ref(String text) => find.byWidgetPredicate(
+  (w) =>
+      w is Text &&
+      (w.data ?? '').replaceAll('\u2066', '').replaceAll('\u2069', '') == text,
+);
+
 /// Taps the row for order [number] and lets the detail land.
 Future<void> _open(WidgetTester tester, int number) async {
-  await tester.tap(find.text('#$number'));
+  await tester.tap(_ref('#$number'));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));
   await tester.pump(const Duration(milliseconds: 400));
 }
 
-/// Opens the ⋯ sheet on the selected sale.
-Future<void> _more(WidgetTester tester) async {
-  await tester.tap(find.byType(MoreTile));
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 600));
-}
 
 /// Loads the design system's Plex faces so the boards render real type —
 /// without them the test binding's block font hides everything the picture
@@ -666,7 +552,10 @@ Future<void> _loadFonts() async {
 }
 
 void main() {
-  setUpAll(_loadFonts);
+  setUpAll(() async {
+    _loadWords();
+    await _loadFonts();
+  });
 
   testWidgets('the iPad: this shift beside the selected sale', (tester) async {
     await _shoot(
@@ -684,13 +573,13 @@ void main() {
       findsOneWidget,
     );
     // The list: a queued sale carries no number, a voided one is tagged.
-    expect(find.text('#1043'), findsNothing);
-    expect(find.text('QUEUED'), findsOneWidget);
-    expect(find.text('VOIDED'), findsOneWidget);
+    expect(_ref('#1043'), findsNothing);
+    expect(find.text('Queued'), findsOneWidget);
+    expect(find.widgetWithText(MadarStatusPill, 'Voided'), findsOneWidget);
     // The sale beside it: lines, service from the receipt, VAT under the
     // total because THIS SALE's figures are inclusive — no rate: today's
     // branch rate is not what an old sale paid.
-    expect(find.text('Latte'), findsOneWidget);
+    expect(find.textContaining('Latte'), findsOneWidget);
     expect(find.text('Large · Oat milk'), findsOneWidget);
     expect(find.text('Service'), findsOneWidget);
     expect(find.text('VAT included'), findsOneWidget);
@@ -700,12 +589,14 @@ void main() {
     // about giving back more.
     // A sale rung offline against an older menu says so — on the row, and on
     // the sale with the sentence explaining what it means.
-    expect(find.text('OFFLINE PRICE'), findsWidgets);
-    expect(find.text('Refunded'), findsOneWidget);
-    expect(find.text('− EGP 50.00'), findsOneWidget);
-    expect(find.text('Sara · Cash'), findsOneWidget);
-    expect(find.text('EGP 190.00 left to refund'), findsOneWidget);
-    expect(find.textContaining('Void removes a mistaken sale'), findsOneWidget);
+    expect(find.text('Offline price'), findsWidgets);
+    expect(find.text('REFUNDED'), findsOneWidget);
+    expect(find.text('\u2212EGP 50.00'), findsOneWidget);
+    expect(find.text('Left to refund'), findsOneWidget);
+    expect(find.text('EGP 190.00'), findsWidgets);
+    // Void and Refund are buttons on the sale, not behind a ⋯ tile.
+    expect(find.widgetWithText(MadarButton, 'Void sale'), findsOneWidget);
+    expect(find.widgetWithText(MadarButton, 'Refund'), findsOneWidget);
   });
 
   testWidgets('a sale refunded in full is not offered another refund', (
@@ -718,47 +609,15 @@ void main() {
       size: _ipad,
       theme: MadarTheme.light(),
       name: 'ipad-refunded-full',
-      then: (t) async {
-        await _open(t, 1042);
-        await _more(t);
-      },
+      then: (t) => _open(t, 1042),
     );
-    // The row is still there, saying why it does nothing — a missing row
+    // The button is still there, disabled, saying why — a missing button
     // reads as a missing feature.
-    expect(find.text('Refund'), findsOneWidget);
+    final refund = tester.widget<MadarButton>(
+      find.widgetWithText(MadarButton, 'Refund'),
+    );
+    expect(refund.enabled, isFalse);
     expect(find.text('Already refunded in full.'), findsWidgets);
-  });
-
-  testWidgets('the ⋯ sheet offers Void and Refund, each saying what it does', (
-    tester,
-  ) async {
-    await _shoot(
-      tester,
-      screen: const OrderHistoryScreen(),
-      bridge: _FakeBridge(),
-      size: _ipad,
-      theme: MadarTheme.light(),
-      name: 'ipad-more',
-      then: (t) async {
-        await _open(t, 1042);
-        await _more(t);
-      },
-    );
-    expect(find.text('Void sale'), findsOneWidget);
-    expect(
-      find.textContaining('Paid \u2066Sep 12 · 19:31\u2069'),
-      findsOneWidget,
-    );
-    // BOTH acts are offered now. The sheet used to carry a sentence about the
-    // refund it could not do, because the core had a void and no refund; it
-    // has one, so the sentence is a row.
-    expect(find.text('Refund'), findsOneWidget);
-    // Twice: the panel teaches the difference between the two acts, and the
-    // sheet's Refund row repeats what it does under its own title.
-    expect(
-      find.textContaining('Refund returns money on a sale that stands'),
-      findsNWidgets(2),
-    );
   });
 
   testWidgets('the void sheet: reason chips, restock, one danger button', (
@@ -773,8 +632,7 @@ void main() {
       name: 'ipad-void',
       then: (t) async {
         await _open(t, 1042);
-        await _more(t);
-        await t.tap(find.text('Void sale'));
+        await t.tap(find.widgetWithText(MadarButton, 'Void sale'));
         await t.pump();
         await t.pump(const Duration(milliseconds: 600));
         await t.pump(const Duration(milliseconds: 600));
@@ -797,17 +655,21 @@ void main() {
       theme: MadarTheme.light(),
       name: 'ipad-queued',
       then: (t) async {
-        // The queued row has no number; its tag is the handle.
-        await t.tap(find.text('QUEUED'));
+        // The queued row has no number; its pill is the handle.
+        await t.tap(find.text('Queued'));
         await t.pump();
         await t.pump(const Duration(milliseconds: 400));
-        await _more(t);
       },
     );
-    // Twice: a sale the server has never seen can be neither voided nor
-    // refunded, and each row says so in its own place rather than one of them
-    // sitting there enabled and failing.
-    expect(find.textContaining('cannot be voided'), findsNWidgets(2));
+    // A sale the server has never seen can be neither voided nor refunded:
+    // both buttons stand disabled and the reason is written under them.
+    expect(find.textContaining('cannot be voided'), findsOneWidget);
+    for (final label in ['Void sale', 'Refund']) {
+      final b = tester.widget<MadarButton>(
+        find.widgetWithText(MadarButton, label),
+      );
+      expect(b.enabled, isFalse, reason: label);
+    }
     expect(find.text('Reprint'), findsNothing);
   });
 
@@ -825,7 +687,7 @@ void main() {
     );
     expect(find.text('All · \u2066318\u2069 found'), findsOneWidget);
     // The next-page row is the last in a lazy list: scroll it in.
-    await tester.drag(find.byType(ListView), const Offset(0, -800));
+    await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -800));
     await tester.pump();
     expect(find.text('Load more'), findsOneWidget);
     expect(find.textContaining('Sep 11'), findsWidgets);
@@ -863,8 +725,8 @@ void main() {
         await t.pump(const Duration(milliseconds: 400));
       },
     );
-    expect(find.text('#1039'), findsOneWidget);
-    expect(find.text('#1042'), findsNothing);
+    expect(_ref('#1039'), findsOneWidget);
+    expect(_ref('#1042'), findsNothing);
   });
 
   testWidgets('Dine-in and Takeaway are separate chips now', (tester) async {
@@ -882,11 +744,11 @@ void main() {
       },
     );
     // The counter sale, and the queued one that is also a counter sale.
-    expect(find.text('#1041'), findsOneWidget);
-    expect(find.text('QUEUED'), findsOneWidget);
+    expect(_ref('#1041'), findsOneWidget);
+    expect(find.text('Queued'), findsOneWidget);
     // Not the table's bill, and not the online order.
-    expect(find.text('#1042'), findsNothing);
-    expect(find.text('#D-118'), findsNothing);
+    expect(_ref('#1042'), findsNothing);
+    expect(_ref('#D-118'), findsNothing);
   });
 
   testWidgets('search finds a sale by number, customer or amount', (
@@ -905,8 +767,8 @@ void main() {
         await t.pump(const Duration(milliseconds: 400));
       },
     );
-    expect(find.text('#1042'), findsOneWidget);
-    expect(find.text('#1041'), findsNothing);
+    expect(_ref('#1042'), findsOneWidget);
+    expect(_ref('#1041'), findsNothing);
   });
 
   testWidgets('the phone in Arabic: the list, mirrored', (tester) async {
@@ -926,12 +788,14 @@ void main() {
       // "عدد المبيعات: 42", not "42 مبيعات" — Arabic has six plural forms
       // and `tr` carries no count to choose between them, so the count is
       // named rather than agreed with. See i18n.rs.
-      find.text('هذه الوردية · عدد المبيعات: \u206642\u2069 · EGP 6,230.00'),
+      find.text(
+        'هذه الوردية · عدد المبيعات: \u206642\u2069 · '
+        '\u20666,230.00\u2069 ج.م',
+      ),
       findsOneWidget,
     );
     // Figures stay LTR islands inside the Arabic row.
-    final number = tester.widget<Text>(find.text('#1042'));
-    expect(number.textDirection, TextDirection.ltr);
+    expect(_ref('#1042'), findsOneWidget);
     // No sale is drawn beside the list on a phone.
     expect(find.byType(SalePanel), findsNothing);
   });
@@ -952,6 +816,6 @@ void main() {
     expect(find.byType(SaleScreen), findsOneWidget);
     expect(find.text('بيع \u2066#1042\u2069'), findsOneWidget);
     expect(find.text('إعادة طباعة'), findsOneWidget);
-    expect(find.byType(MoreTile), findsOneWidget);
+    expect(find.text('إبطال البيع'), findsOneWidget);
   });
 }

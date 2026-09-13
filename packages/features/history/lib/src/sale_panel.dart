@@ -1,18 +1,16 @@
-/// The sale — the settled order opened from the Orders list.
+/// The sale — the settled order opened from the Orders table.
 ///
-/// [SalePanel] is the one body: header (number, time, origin, teller, how
-/// it was paid), the lines, the money ending in the total, then Reprint and
-/// Add points. On a tablet it fills the card beside the list; on a phone
-/// [SaleScreen] pushes it full-screen with the same content.
+/// [SalePanel] is the one body, in the pane beside the table on a wide page
+/// and inside [SaleScreen] where it is pushed: a header (the sale, and when,
+/// what, who and how it was paid), the lines as rows, the totals under them,
+/// what was already given back, and the actions — Reprint, Preview, Add
+/// points, and Void and Refund as buttons you can see. They used to live
+/// behind a ⋯ tile that scrolled away with the header.
 ///
-/// A REFUND IS NOT A VOID, and this is where the till says so. A void
-/// corrects a mistake — the sale is removed as if it never happened. A
-/// refund returns money already taken and the sale stands. Both are drawn
-/// now — the core grew `refundOrder`, so the sentence explaining the refund
-/// this screen could not do has been replaced by the refund itself.
-/// Void lives in the ⋯ sheet, which explains what it does, says when it
-/// cannot apply, and names the refund it is not — so a teller does not
-/// reach for the wrong correction.
+/// A REFUND IS NOT A VOID, and the two sheets say so: a void corrects a
+/// mistake, the sale is removed as if it never happened; a refund returns
+/// money already taken and the sale stands. When one does not apply the
+/// button is disabled and the reason is written under it.
 library;
 
 import 'dart:async';
@@ -22,31 +20,56 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_history/src/history_provider.dart';
 import 'package:feature_history/src/history_strings.dart';
+import 'package:feature_history/src/orders_table.dart';
 import 'package:feature_history/src/widgets.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// A line's height and its quantity column (canvas: 40 / 32).
-const double _lineHeight = 40;
-const double _qtyColWidth = 32;
-
-/// A totals row (canvas: 30).
-const double _totalsRowHeight = 30;
-
-/// The ⋯ and void sheets' width cap.
+/// The void and refund sheets' width cap.
 const double _sheetMaxWidth = 520;
 
-/// Restock switch track (44×26) and thumb (20) — tokens-only stand-in for
-/// the material Switch, as on the old void overlay.
+/// "19:31 · Dine-in · Sara · Cash" — the facts under a sale's title.
+String _saleMeta(MadarBridge bridge, OrderSummaryView o) => [
+  ltrIsland(bridge.formatStamp(rfc3339: o.createdAt)),
+  if (o.orderRef case final ref?) ltrIsland(ref),
+  orderTypeLabel(bridge, o.orderType),
+  ?o.tellerName,
+  bridge.paymentMethodLabel(code: o.paymentLabel),
+  ?o.customerName,
+].join(' · ');
 
-/// The sale, as a body: fills whatever the host gives it.
+/// Why Void does not apply to [o], in words — or null when it does. The one
+/// refusal the till cannot see ahead (a closed shift) comes back from the
+/// server and lands in the void sheet's banner.
+String? _voidBlocked(MadarBridge bridge, OrderSummaryView o) =>
+    switch (SaleState.of(o)) {
+      SaleState.voided => historyTr(bridge, 'history.void_cannot_voided'),
+      SaleState.queued => historyTr(bridge, 'history.void_cannot_queued'),
+      SaleState.failed => historyTr(bridge, 'history.void_cannot_failed'),
+      null => null,
+    };
+
+/// The sale, as a body: fills whatever the host gives it. [onClose] draws a
+/// close tile in the pane's header; a pushed [SaleScreen] has its own back.
 class SalePanel extends ConsumerWidget {
   /// Creates the panel for [order]; its detail comes from [historyProvider].
-  const SalePanel({required this.order, super.key});
+  const SalePanel({
+    required this.order,
+    this.onClose,
+    this.header = true,
+    super.key,
+  });
 
   /// The selected row.
   final OrderSummaryView order;
+
+  /// Closes the pane.
+  final VoidCallback? onClose;
+
+  /// Draw the panel's own header. Off inside [SaleScreen], whose page header
+  /// already names the sale.
+  final bool header;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -54,168 +77,294 @@ class SalePanel extends ConsumerWidget {
     final bridge = ref.bridge;
     final detail = ref.watch(historyProvider.select((s) => s.detail));
     final receipt = ref.watch(historyProvider.select((s) => s.receipt));
+    final refunds = ref.watch(historyProvider.select((s) => s.refunds));
     final loading = ref.watch(historyProvider.select((s) => s.detailLoading));
     final session = ref.watch(shellProvider.select((s) => s.session));
     final currency = session?.currencyCode ?? '';
     final o = order;
     final state = SaleState.of(o);
-    final phone = context.isPhone;
     String t(String key) => historyTr(bridge, key);
+
+    Widget note(MadarStatus status, String text) => Padding(
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.card),
+      child: Row(
+        spacing: Space.md,
+        children: [
+          MadarStatusPill(status),
+          Expanded(
+            child: Text(
+              text,
+              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (header)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Space.card,
+              Space.md,
+              Space.md,
+              0,
+            ),
+            child: MadarHeader(
+              title: saleTitle(bridge, o),
+              subtitle: _saleMeta(bridge, o),
+              actions: [
+                if (onClose != null)
+                  MadarHeaderAction(
+                    glyph: MadarGlyph.close,
+                    tooltip: t('common.close'),
+                    onTap: onClose!,
+                  ),
+              ],
+            ),
+          ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsetsDirectional.all(Space.card),
+            padding: const EdgeInsetsDirectional.only(
+              top: Space.lg,
+              bottom: Space.lg,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: Space.md,
               children: [
-                // The phone's header carries the number; here it is the card's
-                // own title beside ⋯.
-                if (!phone) _PanelTitle(order: o, bridge: bridge),
-                _MetaLine(order: o, bridge: bridge, forPhone: phone),
-                if (state != null)
-                  Row(
-                    spacing: Space.md,
-                    children: [
-                      SaleStateTag(state: state, bridge: bridge),
-                      Expanded(
-                        child: Text(
-                          state.hint(bridge),
-                          style: MadarType.bodySm.copyWith(
-                            color: colors.textSecondary,
-                          ),
-                        ),
+                if (!header)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: Space.card,
+                    ),
+                    child: Text(
+                      _saleMeta(bridge, o),
+                      style: MadarType.bodySm.copyWith(
+                        color: colors.textSecondary,
                       ),
-                    ],
+                    ),
                   ),
-                // Always on the sale, even beside a state, because this is the
-                // screen somebody opens to find out what happened to it.
+                if (state != null)
+                  note(orderStatus(bridge, o), state.hint(bridge)),
+                // Always on the sale, even beside a state, because this is
+                // the screen somebody opens to find out what happened to it.
                 if (o.priceFlagged)
-                  Row(
-                    spacing: Space.md,
-                    children: [
-                      PriceFlagTag(bridge: bridge),
-                      Expanded(
-                        child: Text(
-                          t('history.price_flagged_hint'),
-                          style: MadarType.bodySm.copyWith(
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
+                  note(
+                    MadarStatus(
+                      t('history.price_flagged'),
+                      tone: MadarTone.warning,
+                      glyph: MadarGlyph.percent,
+                    ),
+                    t('history.price_flagged_hint'),
                   ),
                 if (loading)
-                  const SkeletonList(count: 3)
+                  const Padding(
+                    padding: EdgeInsetsDirectional.symmetric(
+                      horizontal: Space.card,
+                    ),
+                    child: SkeletonList(count: 3),
+                  )
                 else if (detail != null && detail.lines.isNotEmpty)
                   Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      for (final line in detail.lines)
-                        _LineRow(line: line, currency: currency),
+                      const MadarHairline.row(),
+                      for (final line in detail.lines) ...[
+                        MadarListRow.bill(
+                          title: '${ltrIsland('${line.qty}×')} ${line.name}',
+                          meta: _mods(line),
+                          minor: line.lineTotalMinor,
+                          currency: currency,
+                          chevron: false,
+                        ),
+                        const MadarHairline.row(),
+                      ],
                     ],
                   ),
-                const MadarHairline(),
-                _Totals(
-                  order: o,
-                  detail: detail,
-                  receipt: receipt,
-                  session: session,
-                  currency: currency,
-                  bridge: bridge,
+                Padding(
+                  padding: const EdgeInsetsDirectional.symmetric(
+                    horizontal: Space.card,
+                  ),
+                  child: _Totals(
+                    order: o,
+                    detail: detail,
+                    receipt: receipt,
+                    currency: currency,
+                    bridge: bridge,
+                  ),
                 ),
+                // What has already gone back, before anything is offered
+                // about giving more back.
+                if (refunds != null && refunds.refundedMinor > 0)
+                  _Refunded(refunds: refunds, currency: currency),
               ],
             ),
           ),
         ),
+        const MadarHairline(),
         _Actions(order: o, receipt: receipt),
       ],
     );
   }
+
+  static String? _mods(OrderDetailLineView line) {
+    final mods = <String>[?line.sizeLabel, ...line.addons, ...line.optionals];
+    return mods.isEmpty ? null : mods.join(' · ');
+  }
 }
 
-/// "Sale #1042" with ⋯ at the end.
-class _PanelTitle extends ConsumerWidget {
-  const _PanelTitle({required this.order, required this.bridge});
+/// Subtotal · Discount · Service · Tax · Total · Tip. The detail view has
+/// subtotal / discount / tax / total; the receipt projection adds the
+/// service charge and the tip, so those lines appear only once it is in
+/// hand and only when non-zero. Tax reads "VAT included" under an inclusive
+/// policy and sits under the total because it added nothing.
+class _Totals extends StatelessWidget {
+  const _Totals({
+    required this.order,
+    required this.detail,
+    required this.receipt,
+    required this.currency,
+    required this.bridge,
+  });
 
   final OrderSummaryView order;
+  final OrderDetailView? detail;
+  final ReceiptView? receipt;
+  final String currency;
   final MadarBridge bridge;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    return Row(
-      spacing: Space.md,
+  Widget build(BuildContext context) {
+    String t(String key) => historyTr(bridge, key);
+    final subtotal = detail?.subtotalMinor ?? order.subtotalMinor;
+    final discount = detail?.discountMinor ?? receipt?.discountMinor ?? 0;
+    final tax = detail?.taxMinor ?? order.taxMinor;
+    final service = receipt?.serviceChargeMinor ?? 0;
+    final tip = receipt?.tipMinor ?? 0;
+    // The sale's OWN tax: inclusive or not is read from its figures, and no
+    // rate is printed — today's branch rate is not what an old sale paid.
+    final inclusive = bridge.saleTaxInclusive(
+      subtotalMinor: subtotal,
+      discountMinor: discount,
+      serviceMinor: service,
+      deliveryMinor: receipt?.deliveryFeeMinor ?? 0,
+      taxMinor: tax,
+      totalMinor: order.totalMinor,
+    );
+    final voided = order.status == 'voided';
+    MadarSummaryLine line(String label, int minor, {bool muted = false}) =>
+        MadarSummaryLine(
+          label: label,
+          minor: minor,
+          currency: currency,
+          muted: muted,
+        );
+    final vatLabel = inclusive ? t('history.vat_included') : t('order.tax');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(text: '${historyTr(bridge, 'history.sale')} '),
-                if (order.orderNumber case final n?)
-                  TextSpan(
-                    text: ltrIsland('#$n'),
-                    style: MadarType.moneyLg.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-              ],
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: MadarType.h2.copyWith(color: colors.textPrimary),
+        line(t('order.subtotal'), subtotal),
+        if (discount > 0)
+          MadarSummaryLine(
+            label: t('order.discount'),
+            minor: -discount,
+            currency: currency,
+            tone: MadarTone.success,
           ),
+        if (service > 0) line(t('history.service'), service),
+        if (!inclusive) line(vatLabel, tax),
+        MadarSummaryLine(
+          label: t('order.total'),
+          minor: order.totalMinor,
+          currency: currency,
+          emphasis: true,
+          strike: voided,
         ),
-        MoreTile(order: order),
+        if (inclusive) line(vatLabel, tax, muted: true),
+        if (tip > 0) line(t('history.tip'), tip, muted: true),
       ],
     );
   }
 }
 
-/// The ⋯ tile: opens the sheet that holds Void and says what it is not.
-class MoreTile extends ConsumerWidget {
-  /// Creates the ⋯ tile for [order].
-  const MoreTile({required this.order, super.key});
+/// What has already gone back on this sale: one ledger row per refund, and
+/// what is LEFT — the server's arithmetic, not this screen's.
+class _Refunded extends ConsumerWidget {
+  const _Refunded({required this.refunds, required this.currency});
 
-  /// The sale the sheet is about.
-  final OrderSummaryView order;
+  final OrderRefundsView refunds;
+  final String currency;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
-    return MadarGlyphTile(
-      glyph: MadarGlyph.more,
-      semanticLabel: historyTr(bridge, 'history.more'),
-      onTap: () => unawaited(_openMore(context, ref, order)),
+    String t(String key) => historyTr(bridge, key);
+    final remaining = refunds.refundableRemainingMinor;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Space.card,
+            Space.md,
+            Space.card,
+            Space.md,
+          ),
+          child: MadarSectionHeader(text: t('history.refunded')),
+        ),
+        const MadarHairline.row(),
+        for (final r in refunds.refunds) ...[
+          MadarListRow.ledger(
+            title: bridge.paymentMethodLabel(code: r.method),
+            meta: [
+              r.issuedByName,
+              if (r.queued) t('history.refund_queued'),
+            ].where((p) => p.isNotEmpty).join(' · '),
+            minor: -r.amountMinor,
+            currency: currency,
+          ),
+          const MadarHairline.row(),
+        ],
+        Padding(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Space.card,
+          ),
+          child: remaining <= 0
+              ? MadarSummaryLine(
+                  label: t('history.refund_all'),
+                  minor: refunds.refundedMinor,
+                  currency: currency,
+                  muted: true,
+                )
+              : MadarSummaryLine(
+                  label: t('history.refund_left_label'),
+                  minor: remaining,
+                  currency: currency,
+                ),
+        ),
+      ],
     );
   }
+}
 
-  Future<void> _openMore(
-    BuildContext context,
-    WidgetRef ref,
-    OrderSummaryView order,
-  ) async {
-    final choice = await showMadarSheet<_MoreChoice>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: _sheetMaxWidth,
-      builder: (_) => _MoreSheet(order: order),
-    );
-    if (choice == null || !context.mounted) return;
-    if (choice == _MoreChoice.refundSale) {
-      final refunded = await showMadarSheet<bool>(
-        context,
-        size: SheetSize.hug,
-        maxWidth: _sheetMaxWidth,
-        builder: (_) => _RefundSheet(order: order),
-      );
-      if ((refunded ?? false) && context.mounted) {
-        await ref.read(historyProvider.notifier).reloadAfterVoid();
-      }
-      return;
-    }
+/// Reprint · Preview · Add points, then Void and Refund — visible, each
+/// disabled with its reason written under it when it does not apply.
+///
+/// Reprint needs the receipt projection, which a queued sale does not have
+/// yet (it is not on the server); a failed sale never will. Add points is
+/// offered on a queued sale too — the award names it by the client key it
+/// was rung under — and disappears on its own when the core's 24-hour
+/// window closes.
+class _Actions extends ConsumerWidget {
+  const _Actions({required this.order, required this.receipt});
+
+  final OrderSummaryView order;
+  final ReceiptView? receipt;
+
+  Future<void> _void(BuildContext context, WidgetRef ref) async {
     final voided = await showMadarSheet<bool>(
       context,
       size: SheetSize.hug,
@@ -226,306 +375,18 @@ class MoreTile extends ConsumerWidget {
       await ref.read(historyProvider.notifier).reloadAfterVoid();
     }
   }
-}
 
-/// What has already gone back on this sale.
-///
-/// Drawn before the actions, not after: a teller about to give money back
-/// needs to know what was given back already, and the number that matters is
-/// what is LEFT, which is the server's arithmetic rather than this screen's.
-class _RefundedBlock extends StatelessWidget {
-  const _RefundedBlock({
-    required this.refunds,
-    required this.currency,
-    required this.t,
-    required this.methodLabel,
-  });
-
-  final String Function(String code) methodLabel;
-  final OrderRefundsView refunds;
-  final String currency;
-  final String Function(String) t;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final remaining = refunds.refundableRemainingMinor;
-    return Container(
-      padding: const EdgeInsetsDirectional.all(Space.md),
-      decoration: BoxDecoration(
-        color: colors.bg,
-        borderRadius: BorderRadius.circular(Radii.sm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.sm,
-        children: [
-          Row(
-            spacing: Space.sm,
-            children: [
-              Expanded(
-                child: Text(
-                  t('history.refunded'),
-                  style: MadarType.title.copyWith(color: colors.textPrimary),
-                ),
-              ),
-              Text(
-                '− ${Money.format(refunds.refundedMinor, currency: currency)}',
-                style: MadarType.money.copyWith(color: colors.danger),
-              ),
-            ],
-          ),
-          for (final r in refunds.refunds)
-            Row(
-              spacing: Space.sm,
-              children: [
-                Expanded(
-                  child: Text(
-                    [
-                      r.issuedByName,
-                      methodLabel(r.method),
-                      if (r.queued) t('history.refund_queued'),
-                    ].where((p) => p.isNotEmpty).join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.bodySm.copyWith(
-                      color: r.queued ? colors.warning : colors.textSecondary,
-                    ),
-                  ),
-                ),
-                Text(
-                  Money.format(r.amountMinor, currency: currency),
-                  style: MadarType.num.copyWith(color: colors.textSecondary),
-                ),
-              ],
-            ),
-          Text(
-            remaining <= 0
-                ? t('history.refund_all')
-                : t('history.refund_left').replaceAll(
-                    '{amount}',
-                    Money.format(remaining, currency: currency),
-                  ),
-            style: MadarType.bodySm.copyWith(color: colors.textMuted),
-          ),
-        ],
-      ),
+  Future<void> _refund(BuildContext context, WidgetRef ref) async {
+    final refunded = await showMadarSheet<bool>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: _sheetMaxWidth,
+      builder: (_) => _RefundSheet(order: order),
     );
-  }
-}
-
-/// "19:31 · dine-in · Sara · Cash · Omar". On the phone the number is in
-/// the header, so the time leads here as well.
-class _MetaLine extends StatelessWidget {
-  const _MetaLine({
-    required this.order,
-    required this.bridge,
-    required this.forPhone,
-  });
-
-  final OrderSummaryView order;
-  final MadarBridge bridge;
-  final bool forPhone;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final o = order;
-    final parts = <String>[
-      ltrIsland(
-        bridge.formatTime(rfc3339: o.createdAt, style: TimeStyle.dateTime),
-      ),
-      if (o.orderRef case final ref?) ltrIsland(ref),
-      orderTypeLabel(bridge, o.orderType),
-      ?o.tellerName,
-      bridge.paymentMethodLabel(code: o.paymentLabel),
-      ?o.customerName,
-    ];
-    return Text(
-      parts.join(' · '),
-      style: (forPhone ? MadarType.body : MadarType.bodySm).copyWith(
-        color: colors.textSecondary,
-      ),
-    );
-  }
-}
-
-/// One line: "2×" mono in its column, the name, its choices under it, the
-/// line total at the end.
-class _LineRow extends StatelessWidget {
-  const _LineRow({required this.line, required this.currency});
-
-  final OrderDetailLineView line;
-  final String currency;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    final mods = <String>[?line.sizeLabel, ...line.addons, ...line.optionals];
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: _lineHeight),
-      child: Row(
-        spacing: Space.md,
-        children: [
-          SizedBox(
-            width: _qtyColWidth,
-            child: Text(
-              '${line.qty}×',
-              textDirection: TextDirection.ltr,
-              style: MadarType.numMd.copyWith(color: colors.textSecondary),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  line.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.title.copyWith(color: colors.textPrimary),
-                ),
-                if (mods.isNotEmpty)
-                  Text(
-                    mods.join(' · '),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.bodySm.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          MoneyText(
-            line.lineTotalMinor,
-            currency: currency,
-            style: MadarType.money.copyWith(fontSize: 16),
-            color: colors.textPrimary,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Subtotal · Discount · Service · Total · VAT · Tip. The detail view has
-/// subtotal / discount / tax / total; the receipt projection adds the
-/// service charge and the tip, so those rows appear only once it is in
-/// hand and only when non-zero. Tax reads "VAT included" under an
-/// inclusive policy — the same words Charge uses — and sits under the total
-/// because it added nothing; otherwise it is a line above the total.
-class _Totals extends StatelessWidget {
-  const _Totals({
-    required this.order,
-    required this.detail,
-    required this.receipt,
-    required this.session,
-    required this.currency,
-    required this.bridge,
-  });
-
-  final OrderSummaryView order;
-  final OrderDetailView? detail;
-  final ReceiptView? receipt;
-  final SessionSnapshot? session;
-  final String currency;
-  final MadarBridge bridge;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    String t(String key) => historyTr(bridge, key);
-    final subtotal = detail?.subtotalMinor ?? order.subtotalMinor;
-    final discount = detail?.discountMinor ?? receipt?.discountMinor ?? 0;
-    final tax = detail?.taxMinor ?? order.taxMinor;
-    final service = receipt?.serviceChargeMinor ?? 0;
-    final tip = receipt?.tipMinor ?? 0;
-    // The sale's OWN tax: inclusive or not is read from its figures, and no
-    // rate is printed — today's branch rate is not what an old sale paid,
-    // and a rounded 12.5 % read as 13 %.
-    final inclusive = bridge.saleTaxInclusive(
-      subtotalMinor: subtotal,
-      discountMinor: discount,
-      serviceMinor: service,
-      deliveryMinor: receipt?.deliveryFeeMinor ?? 0,
-      taxMinor: tax,
-      totalMinor: order.totalMinor,
-    );
-    final voided = order.status == 'voided';
-
-    Widget row(
-      String label,
-      int minor, {
-      bool muted = false,
-      bool negative = false,
-      bool hero = false,
-    }) {
-      final fg = muted ? colors.textMuted : colors.textPrimary;
-      return SizedBox(
-        height: hero ? _lineHeight : _totalsRowHeight,
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: (hero ? MadarType.h3 : MadarType.body).copyWith(
-                  color: fg,
-                ),
-              ),
-            ),
-            Text(
-              '${negative ? '− ' : ''}${Money.format(minor, currency: currency)}',
-              textDirection: TextDirection.ltr,
-              style: (hero ? MadarType.moneyLg : MadarType.money).copyWith(
-                color: negative
-                    ? colors.success
-                    : hero && voided
-                    ? colors.textMuted
-                    : fg,
-                decoration: hero && voided ? TextDecoration.lineThrough : null,
-              ),
-            ),
-          ],
-        ),
-      );
+    if ((refunded ?? false) && context.mounted) {
+      await ref.read(historyProvider.notifier).reloadAfterVoid();
     }
-
-    final vatLabel = inclusive ? t('history.vat_included') : t('order.tax');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        row(t('order.subtotal'), subtotal),
-        if (discount > 0) row(t('order.discount'), discount, negative: true),
-        if (service > 0) row(t('history.service'), service),
-        if (!inclusive) row(vatLabel, tax),
-        row(t('order.total'), order.totalMinor, hero: true),
-        if (inclusive) row(vatLabel, tax, muted: true),
-        if (tip > 0) row(t('history.tip'), tip, muted: true),
-      ],
-    );
   }
-}
-
-/// Reprint · Add points, then the two sentences that keep a void from
-/// being used as a refund.
-///
-/// Reprint needs the receipt projection, which a queued sale does not have
-/// yet (it is not on the server); a failed sale never will. Add points is
-/// offered on a queued sale too — the award names it by the client key it
-/// was rung under — and disappears on its own when the core's 24-hour
-/// window closes.
-///
-/// Reprint is SINGLE TAP → prints straight away, LONG PRESS → the shared
-/// preview with Print in its own footer (what a tap used to do here). A
-/// long-press on a button that also says "Reprint" is easy to never find,
-/// so the small View glyph beside it opens the same preview for anyone who
-/// wouldn't think to hold the button down.
-class _Actions extends ConsumerWidget {
-  const _Actions({required this.order, required this.receipt});
-
-  final OrderSummaryView order;
-  final ReceiptView? receipt;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -534,10 +395,6 @@ class _Actions extends ConsumerWidget {
     final o = order;
     final state = SaleState.of(o);
     final canReprint = state != SaleState.queued && state != SaleState.failed;
-    final refunds = ref.watch(historyProvider.select((s) => s.refunds));
-    final currency = ref.watch(
-      shellProvider.select((s) => s.session?.currencyCode ?? ''),
-    );
     final canAward =
         ref.watch(historyProvider.select((s) => s.loyaltyOffered)) &&
         state != SaleState.voided &&
@@ -547,16 +404,23 @@ class _Actions extends ConsumerWidget {
           now: DateTime.now().toUtc().toIso8601String(),
         );
     String t(String key) => historyTr(bridge, key);
+    final voidBlocked = _voidBlocked(bridge, o);
+    // Refund shares Void's three states, and adds one: a sale already given
+    // back in full has nothing left to refund.
+    final refundBlocked =
+        voidBlocked ??
+        switch (ref.watch(historyProvider.select((s) => s.refunds))) {
+          final r? when r.orderId == o.id && r.refundableRemainingMinor <= 0 =>
+            t('history.refund_all'),
+          _ => null,
+        };
+    final blocked = {?voidBlocked, ?refundBlocked}.join(' ');
 
     return Padding(
-      padding: const EdgeInsetsDirectional.only(
-        start: Space.card,
-        end: Space.card,
-        bottom: Space.card,
-      ),
+      padding: const EdgeInsetsDirectional.all(Space.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.md,
+        spacing: Space.sm,
         children: [
           if (canReprint || canAward)
             Row(
@@ -566,8 +430,6 @@ class _Actions extends ConsumerWidget {
                   Expanded(
                     child: _ReprintButton(order: o, receipt: receipt),
                   ),
-                  // Preview says so: an unlabeled glyph (or a long press) is
-                  // not a way in anybody finds.
                   Expanded(
                     child: MadarButton(
                       label: t('history.preview_receipt'),
@@ -583,14 +445,15 @@ class _Actions extends ConsumerWidget {
                   Expanded(
                     child: MadarButton(
                       label: t('loyalty.add_points'),
-                      variant: MadarButtonVariant.secondary,
+                      variant: MadarButtonVariant.ghost,
+                      size: MadarButtonSize.compact,
                       glyph: MadarGlyph.star,
                       onTap: () => unawaited(
                         showMadarSheet<bool>(
                           context,
                           builder: (_) => LoyaltyAwardSheet(
-                            // A queued sale has no server id yet — it is known
-                            // by the client key it was rung under.
+                            // A queued sale has no server id yet — it is
+                            // known by the client key it was rung under.
                             orderId: o.queued ? null : o.id,
                             orderKey: o.queued ? o.id : null,
                             orderCreatedAt: o.createdAt,
@@ -601,41 +464,35 @@ class _Actions extends ConsumerWidget {
                   ),
               ],
             ),
-          // What has already gone back on this sale, before anything is
-          // offered about giving more back.
-          if (refunds != null && refunds.refundedMinor > 0)
-            _RefundedBlock(
-              refunds: refunds,
-              currency: currency,
-              t: t,
-              methodLabel: (code) => bridge.paymentMethodLabel(code: code),
-            ),
-          if (state != SaleState.voided)
-            Container(
-              padding: const EdgeInsetsDirectional.all(Space.md),
-              decoration: BoxDecoration(
-                color: colors.bg,
-                borderRadius: BorderRadius.circular(Radii.sm),
+          Row(
+            spacing: Space.sm,
+            children: [
+              Expanded(
+                child: MadarButton(
+                  label: t('history.refund_sale'),
+                  glyph: MadarGlyph.receipt,
+                  variant: MadarButtonVariant.secondary,
+                  size: MadarButtonSize.compact,
+                  enabled: refundBlocked == null,
+                  onTap: () => unawaited(_refund(context, ref)),
+                ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: Space.sm,
-                children: [
-                  MadarGlyphIcon(
-                    MadarGlyph.alertCircle,
-                    size: IconSize.md,
-                    color: colors.textSecondary,
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${t('history.void_teach')} ${t('history.refund_teach')}',
-                      style: MadarType.bodySm.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
+              Expanded(
+                child: MadarButton(
+                  label: t('history.void_sale'),
+                  glyph: MadarGlyph.trash,
+                  variant: MadarButtonVariant.danger,
+                  size: MadarButtonSize.compact,
+                  enabled: voidBlocked == null,
+                  onTap: () => unawaited(_void(context, ref)),
+                ),
               ),
+            ],
+          ),
+          if (blocked.isNotEmpty)
+            Text(
+              blocked,
+              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
             ),
         ],
       ),
@@ -762,13 +619,12 @@ class _ReprintButtonState extends ConsumerState<_ReprintButton> {
   }
 }
 
-// ── The phone's sale screen ────────────────────────────────────────────────
+// ── The pushed sale screen ─────────────────────────────────────────────────
 
-/// The sale pushed over the list on a phone. Reads the selection from
-/// [historyProvider]; pops itself if the selection is gone (the shift
-/// reloaded without it).
+/// The sale pushed over the table where there is no room beside it (a phone,
+/// an iPad in portrait). Reads the selection from [historyProvider].
 class SaleScreen extends ConsumerWidget {
-  /// Creates the phone's sale screen.
+  /// Creates the sale screen.
   const SaleScreen({super.key});
 
   @override
@@ -778,6 +634,7 @@ class SaleScreen extends ConsumerWidget {
     if (selected == null) {
       return MadarPageScaffold(
         title: historyTr(bridge, 'history.title'),
+        width: MadarContentWidth.form,
         body: EmptyState(
           icon: 'receipt',
           title: historyTr(bridge, 'history.select_prompt'),
@@ -786,131 +643,13 @@ class SaleScreen extends ConsumerWidget {
     }
     return MadarPageScaffold(
       title: saleTitle(bridge, selected),
-      actions: [MoreTile(order: selected)],
-      body: SalePanel(order: selected),
-    );
-  }
-}
-
-// ── The ⋯ sheet ─────────────────────────────────────────────────────────────
-
-enum _MoreChoice { voidSale, refundSale }
-
-/// What ⋯ offers: Void, with what it does under it and why it may not
-/// apply; and the sentence about the refund it is not. The sale's paid time
-/// sits above so the teller sees how old the sale is before correcting it.
-class _MoreSheet extends ConsumerWidget {
-  const _MoreSheet({required this.order});
-
-  final OrderSummaryView order;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.bridge;
-    final currency = ref.watch(
-      shellProvider.select((s) => s.session?.currencyCode ?? ''),
-    );
-    final o = order;
-    final state = SaleState.of(o);
-    String t(String key) => historyTr(bridge, key);
-
-    // Why Void does not apply, in words — or null when it does. The one
-    // refusal the till cannot see ahead (a closed shift) comes back from
-    // the server and lands in the void sheet's banner.
-    final blocked = switch (state) {
-      SaleState.voided => t('history.void_cannot_voided'),
-      SaleState.queued => t('history.void_cannot_queued'),
-      SaleState.failed => t('history.void_cannot_failed'),
-      null => null,
-    };
-    // And the one Void does not share: a sale already given back in full has
-    // nothing left to refund. The server refuses it; saying so here saves the
-    // teller typing an amount in front of a customer first.
-    final refundBlocked =
-        blocked ??
-        switch (ref.watch(historyProvider.select((s) => s.refunds))) {
-          final r? when r.orderId == o.id && r.refundableRemainingMinor <= 0 =>
-            t('history.refund_all'),
-          _ => null,
-        };
-
-    return Padding(
-      padding: const EdgeInsetsDirectional.all(Space.xl),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.lg,
-        children: [
-          Row(
-            spacing: Space.md,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: Space.xs,
-                  children: [
-                    Text(
-                      saleTitle(bridge, o),
-                      style: MadarType.h2.copyWith(color: colors.textPrimary),
-                    ),
-                    Text(
-                      '${t('history.paid_at').replaceAll('{time}', ltrIsland(bridge.formatTime(rfc3339: o.createdAt, style: TimeStyle.dateTime)))}'
-                      ' · ${Money.format(o.totalMinor, currency: currency)}',
-                      style: MadarType.bodySm.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              MadarGlyphTile(
-                glyph: MadarGlyph.close,
-                onTap: () => Navigator.of(context).maybePop(),
-              ),
-            ],
-          ),
-          MadarCard(
-            flush: true,
-            child: Opacity(
-              opacity: blocked == null ? 1 : Opacities.disabled,
-              child: MadarRow(
-                title: t('history.void_sale'),
-                subtitle: blocked ?? t('history.void_teach'),
-                glyph: MadarGlyph.trash,
-                onTap: blocked == null
-                    ? () => Navigator.of(context).maybePop(_MoreChoice.voidSale)
-                    : null,
-                chevron: blocked == null,
-                titleStyle: MadarType.title.copyWith(
-                  color: blocked == null ? colors.danger : colors.textPrimary,
-                ),
-              ),
-            ),
-          ),
-          // A REFUND IS NOT A VOID, and this is where a teller learns the
-          // difference: the two sit side by side with what each one does to
-          // the books written under it. Refund is blocked by the same three
-          // states as void — you cannot give money back on a sale the server
-          // has never seen, nor on one already undone.
-          MadarCard(
-            flush: true,
-            child: Opacity(
-              opacity: refundBlocked == null ? 1 : Opacities.disabled,
-              child: MadarRow(
-                title: t('history.refund_sale'),
-                subtitle: refundBlocked ?? t('history.refund_teach'),
-                glyph: MadarGlyph.receipt,
-                onTap: refundBlocked == null
-                    ? () =>
-                          Navigator.of(context).maybePop(_MoreChoice.refundSale)
-                    : null,
-                chevron: refundBlocked == null,
-                titleStyle: MadarType.title.copyWith(color: colors.textPrimary),
-              ),
-            ),
-          ),
-        ],
+      width: MadarContentWidth.form,
+      body: Padding(
+        padding: const EdgeInsetsDirectional.only(bottom: Space.lg),
+        child: MadarCard(
+          padding: EdgeInsetsDirectional.zero,
+          child: SalePanel(order: selected, header: false),
+        ),
       ),
     );
   }
@@ -1148,6 +887,8 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
     );
     final o = widget.order;
     String t(String key) => historyTr(bridge, key);
+    String money(int minor) =>
+        bridge.formatMoney(minor: minor, currency: currency, signed: false);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1159,45 +900,26 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: Space.lg,
               children: [
-                Row(
-                  spacing: Space.md,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: Space.xs,
-                        children: [
-                          Text(
-                            t('history.refund_sale'),
-                            style: MadarType.h2.copyWith(
-                              color: colors.textPrimary,
-                            ),
-                          ),
-                          Text(
-                            [
-                              saleTitle(bridge, o),
-                              Money.format(o.totalMinor, currency: currency),
-                              // What is left, whenever it differs from the
-                              // sale — the figure this sheet is bounded by.
-                              if (_remainingMinor case final left?
-                                  when left != o.totalMinor && left <= 0)
-                                t('history.refund_all'),
-                              if (_remainingMinor case final left?
-                                  when left != o.totalMinor && left > 0)
-                                t('history.refund_left').replaceAll(
-                                  '{amount}',
-                                  Money.format(left, currency: currency),
-                                ),
-                            ].join(' · '),
-                            style: MadarType.bodySm.copyWith(
-                              color: colors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    MadarGlyphTile(
+                MadarHeader(
+                  title: t('history.refund_sale'),
+                  subtitle: [
+                    saleTitle(bridge, o),
+                    money(o.totalMinor),
+                    // What is left, whenever it differs from the sale — the
+                    // figure this sheet is bounded by.
+                    if (_remainingMinor case final left?
+                        when left != o.totalMinor && left <= 0)
+                      t('history.refund_all'),
+                    if (_remainingMinor case final left?
+                        when left != o.totalMinor && left > 0)
+                      t(
+                        'history.refund_left',
+                      ).replaceAll('{amount}', money(left)),
+                  ].join(' · '),
+                  actions: [
+                    MadarHeaderAction(
                       glyph: MadarGlyph.close,
+                      tooltip: t('common.close'),
                       onTap: () => Navigator.of(context).maybePop(false),
                     ),
                   ],
@@ -1343,6 +1065,8 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
     );
     final o = widget.order;
     String t(String key) => historyTr(bridge, key);
+    String money(int minor) =>
+        bridge.formatMoney(minor: minor, currency: currency, signed: false);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1353,32 +1077,13 @@ class _VoidSheetState extends ConsumerState<_VoidSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: Space.lg,
               children: [
-                Row(
-                  spacing: Space.md,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: Space.xs,
-                        children: [
-                          Text(
-                            t('void.title'),
-                            style: MadarType.h2.copyWith(
-                              color: colors.textPrimary,
-                            ),
-                          ),
-                          Text(
-                            '${saleTitle(bridge, o)}'
-                            ' · ${Money.format(o.totalMinor, currency: currency)}',
-                            style: MadarType.bodySm.copyWith(
-                              color: colors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    MadarGlyphTile(
+                MadarHeader(
+                  title: t('void.title'),
+                  subtitle: '${saleTitle(bridge, o)} · ${money(o.totalMinor)}',
+                  actions: [
+                    MadarHeaderAction(
                       glyph: MadarGlyph.close,
+                      tooltip: t('common.close'),
                       onTap: () => Navigator.of(context).maybePop(false),
                     ),
                   ],

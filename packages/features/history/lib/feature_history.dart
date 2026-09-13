@@ -27,4 +27,6 @@ export 'src/history_provider.dart'
         kHistoryPageSize;
 export 'src/history_screen.dart' show OrderHistoryScreen, OrderSearchScreen;
 export 'src/history_strings.dart' show historyTr;
-export 'src/sale_panel.dart' show MoreTile, SalePanel, SaleScreen;
+export 'src/orders_table.dart'
+    show OrdersTable, orderColumns, orderRail, orderStatus;
+export 'src/sale_panel.dart' show SalePanel, SaleScreen;
