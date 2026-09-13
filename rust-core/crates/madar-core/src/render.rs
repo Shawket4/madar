@@ -72,7 +72,7 @@ pub fn render_till_report(
     width: u32,
 ) -> Bitmap {
     let mut r = Renderer::new(width);
-    r.build_shift(report, store, currency, labels, orders);
+    r.build_till(report, store, currency, labels, orders);
     r.canvas.into_bitmap()
 }
 
@@ -355,6 +355,7 @@ impl Renderer {
 
         // ── order meta ──
         let title = match r.order_number {
+            _ if !r.display_number.is_empty() => format!("{} #{}", lab.order, r.display_number),
             Some(n) => format!("{} #{}", lab.order, n),
             None => format!("{} {}", lab.order, short_id(&r.local_order_id)),
         };
@@ -467,7 +468,7 @@ impl Renderer {
     /// method + order count, total collected, transactions) → DRAWER OPERATIONS
     /// (pay-in/out + itemised movements with times) → CASH RECONCILIATION
     /// (opening, expected, actual, over/short) → voided → end.
-    fn build_shift(
+    fn build_till(
         &mut self,
         r: &TillReportView,
         store: &str,
@@ -508,8 +509,22 @@ impl Renderer {
         }
         self.rule();
 
-        // ── shift info ──
+        // ── till info ──
+        let t = |k: &str| crate::i18n::tr(&lab.locale, k);
         self.row(&lab.teller, &r.teller_name, SZ_BODY, Weight::NORMAL);
+        if let Some(code) = r.device_code.as_deref().filter(|c| !c.is_empty()) {
+            let range = match (r.order_number_first, r.order_number_last) {
+                (Some(a), Some(b)) => format!("{code}  #{code}-{a} … #{code}-{b}"),
+                _ => code.to_string(),
+            };
+            self.row(&t("till.z_device"), &range, SZ_SMALL, Weight::NORMAL);
+        }
+        if r.opened_while_another_open {
+            self.center(&format!("! {}", t("till.flagged_badge")), SZ_SMALL, Weight::SEMIBOLD);
+        }
+        if r.verification == "unverified" {
+            self.center(&t("till.unverified_badge"), SZ_SMALL, Weight::NORMAL);
+        }
         self.row(
             &lab.opened,
             &fmt_dt_z(lab, &r.opened_at),
@@ -629,6 +644,30 @@ impl Renderer {
                 self.row(label, &m(amount), SZ_BODY, Weight::BOLD);
             }
             None => self.center(&format!("({})", lab.not_closed), SZ_SMALL, Weight::NORMAL),
+        }
+        // ── payment check (per-method close reconciliation) ──
+        if !r.reconciliation.is_empty() {
+            self.rule();
+            self.center(&t("till.z_reconciliation").to_uppercase(), SZ_SMALL, Weight::SEMIBOLD);
+            for l in &r.reconciliation {
+                let label = if l.label.is_empty() { &l.method } else { &l.label };
+                self.row(label, &m(l.system_total_minor), SZ_BODY, Weight::NORMAL);
+                match l.status.as_str() {
+                    "checked" => self.indented(&format!("✓ {}", t("till.reconcile_checked")), SZ_SMALL, 16),
+                    "disagreed" => {
+                        let declared = l.declared_amount_minor.map(|v| m(v)).unwrap_or_default();
+                        self.indented(&format!("✗ {} {}", t("till.reconcile_disagree"), declared), SZ_SMALL, 16);
+                        if let Some(n) = l.note.as_deref().filter(|n| !n.trim().is_empty()) {
+                            self.indented(n, SZ_SMALL, 32);
+                        }
+                    }
+                    _ => self.indented(&t("till.reconcile_unreviewed"), SZ_SMALL, 16),
+                }
+            }
+        }
+        if let Some(old) = r.old_bills_count {
+            self.rule();
+            self.row(&t("till.z_old_bills"), &old.to_string(), SZ_BODY, Weight::NORMAL);
         }
         if r.voided_amount_minor > 0 {
             self.rule();
@@ -866,6 +905,7 @@ mod tests {
         ReceiptView {
             local_order_id: "abcdef12-0000-0000-0000-000000000000".into(),
             order_number: Some(42),
+            display_number: String::new(),
             order_ref: None,
             is_voided: false,
             lines: vec![ReceiptLineView {
@@ -968,7 +1008,7 @@ mod tests {
         assert!(bmp.rows > 200);
     }
 
-    fn shift_labels() -> TillReportLabels {
+    fn till_labels() -> TillReportLabels {
         TillReportLabels {
             title: "Till Close Report".into(),
             business_date: "Business Date".into(),
@@ -976,7 +1016,7 @@ mod tests {
             teller: "Teller".into(),
             opened: "Opened".into(),
             closed: "Closed".into(),
-            interim: "Interim Report (Shift Still Open)".into(),
+            interim: "Interim Report (Till Still Open)".into(),
             payments: "Payments".into(),
             orders: "orders".into(),
             total_collected: "Total Collected".into(),
@@ -989,7 +1029,7 @@ mod tests {
             opening_reason: "Reason".into(),
             expected: "Expected in Drawer".into(),
             actual: "Actual in Drawer".into(),
-            not_closed: "Shift not yet closed".into(),
+            not_closed: "Till not yet closed".into(),
             difference: "Difference".into(),
             short_by: "Short by".into(),
             over_by: "Over by".into(),
@@ -1050,16 +1090,80 @@ mod tests {
                 created_at: "2026-06-24T19:00:00+03:00".into(),
             }],
             from_server: true,
+            device_code: None,
+            order_number_first: None,
+            order_number_last: None,
+            reconciliation: vec![],
+            old_bills_count: None,
+            open_bills_count: None,
+            opened_while_another_open: false,
+            verification: "server".into(),
         }
     }
 
     #[test]
-    fn renders_shift_report_bitmap() {
+    fn z_report_renders_reconciliation_and_old_bills() {
+        let mut report = till_report();
+        report.device_code = Some("36B".into());
+        report.order_number_first = Some(1);
+        report.order_number_last = Some(42);
+        report.old_bills_count = Some(3);
+        report.opened_while_another_open = true;
+        report.reconciliation = vec![
+            crate::till::ReconciliationLineView {
+                method: "Card".into(),
+                label: "CIB – counter".into(),
+                is_cash: false,
+                system_total_minor: 8000,
+                status: "disagreed".into(),
+                declared_amount_minor: Some(7500),
+                note: Some("machine batch cut early".into()),
+                changed_after_close: false,
+            },
+            crate::till::ReconciliationLineView {
+                method: "Wallet".into(),
+                label: "Wallet".into(),
+                is_cash: false,
+                system_total_minor: 500,
+                status: "checked".into(),
+                declared_amount_minor: None,
+                note: None,
+                changed_after_close: false,
+            },
+        ];
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build_till(&report, "Store", "EGP", &till_labels(), &[]);
+        let text = r.shaped.join("\n");
+        for want in [
+            "Payment check".to_uppercase().as_str(),
+            "CIB – counter",
+            "machine batch cut early",
+            "Checked",
+            "Old open bills",
+            "#36B-1",
+            "#36B-42",
+            "Opened while another till was open",
+        ] {
+            assert!(text.contains(want), "missing {want:?} in:\n{text}");
+        }
+    }
+
+    #[test]
+    fn receipt_prints_the_device_display_number() {
+        let mut rc = receipt();
+        rc.display_number = "36B-12".into();
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build(&rc, &ctx(), None);
+        assert!(r.shaped.iter().any(|l| l.contains("#36B-12")));
+    }
+
+    #[test]
+    fn renders_till_report_bitmap() {
         let bmp = render_till_report(
             &till_report(),
             "Cafe Madar",
             "EGP",
-            &shift_labels(),
+            &till_labels(),
             &[],
             PRINT_WIDTH,
         );
@@ -1067,7 +1171,7 @@ mod tests {
         assert!(bmp.rows > 150);
         assert!(
             bmp.bytes.iter().any(|&b| b != 0),
-            "shift report bitmap is blank"
+            "till report bitmap is blank"
         );
     }
 
@@ -1098,7 +1202,7 @@ mod tests {
                 &till_report(),
                 "Cafe Madar",
                 "EGP",
-                &shift_labels(),
+                &till_labels(),
                 &[],
                 PRINT_WIDTH,
             ),
@@ -1130,7 +1234,7 @@ mod tests {
     /// 23:30 UTC on Sep 12 is 02:30 on Sep 13 in Cairo (UTC+3, summer time).
     const LATE: &str = "2026-09-12T23:30:00+00:00";
 
-    fn printed_shift(tz: chrono_tz::Tz, at: &str) -> Vec<String> {
+    fn printed_till(tz: chrono_tz::Tz, at: &str) -> Vec<String> {
         let mut report = till_report();
         report.opened_at = at.into();
         report.printed_at = at.into();
@@ -1152,10 +1256,10 @@ mod tests {
             price_flagged: false,
             order_ref: None,
         };
-        let mut labels = shift_labels();
+        let mut labels = till_labels();
         labels.tz = tz;
         let mut r = Renderer::new(PRINT_WIDTH);
-        r.build_shift(&report, "Store", "EGP", &labels, &[order]);
+        r.build_till(&report, "Store", "EGP", &labels, &[order]);
         r.shaped
     }
 
@@ -1177,7 +1281,7 @@ mod tests {
             receipt.iter().any(|t| t == "13/09/2026 02:30 AM"),
             "{receipt:?}"
         );
-        let z = printed_shift(cairo, LATE);
+        let z = printed_till(cairo, LATE);
         assert!(z.iter().any(|t| t == "#7  02:30 AM"), "order row: {z:?}");
         assert!(z.iter().any(|t| t == "  02:30 AM"), "cash move: {z:?}");
         assert!(z.iter().any(|t| t.ends_with("13/09/2026")), "date: {z:?}");
@@ -1212,7 +1316,7 @@ mod tests {
             .iter()
             .any(|t| t == "08/03/2026 03:00 AM"));
         // 2026-11-01 05:30 UTC = 01:30 EDT; 06:30 UTC = 01:30 EST (fall back).
-        let z = printed_shift(ny, "2026-11-01T06:30:00Z");
+        let z = printed_till(ny, "2026-11-01T06:30:00Z");
         assert!(z.iter().any(|t| t == "#7  01:30 AM"), "{z:?}");
         // Cairo: 2026-04-23 21:59 UTC = 23:59 EET (last Friday of April); the clock then jumps to 01:00 EEST.
         let cairo = chrono_tz::Africa::Cairo;

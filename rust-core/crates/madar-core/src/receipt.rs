@@ -171,6 +171,7 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
         &lab.locale,
     );
     let id_label = match receipt.order_number {
+        _ if !receipt.display_number.is_empty() => format!("{} #{}", lab.order, receipt.display_number),
         Some(n) => format!("{} #{}", lab.order, n),
         None => format!("{} {}", lab.order, short_id(&receipt.local_order_id)),
     };
@@ -375,7 +376,7 @@ pub struct TillReportLabels {
 }
 
 /// Render the shift report (Z-report) to ESC/POS bytes.
-pub fn escpos_shift_report(
+pub fn escpos_till_report(
     report: &TillReportView,
     store: &str,
     currency: &str,
@@ -757,7 +758,7 @@ mod tests {
     use crate::checkout::{ReceiptComponentView, ReceiptLineView, ReceiptPaymentView, ReceiptView};
 
     #[test]
-    fn shift_report_layout_has_drawer_lines_and_methods() {
+    fn till_report_layout_has_drawer_lines_and_methods() {
         let report = TillReportView {
             teller_name: "Mona".into(),
             opened_at: "t".into(),
@@ -801,6 +802,14 @@ mod tests {
                 },
             ],
             from_server: true,
+            device_code: None,
+            order_number_first: None,
+            order_number_last: None,
+            reconciliation: vec![],
+            old_bills_count: None,
+            open_bills_count: None,
+            opened_while_another_open: false,
+            verification: "server".into(),
         };
         let labels = z_labels();
         let lines = layout_till_report(&report, "Cafe Madar", "EGP", 32, &labels);
@@ -850,7 +859,7 @@ mod tests {
     }
 
     #[test]
-    fn a_shift_with_no_refunds_says_nothing_about_them() {
+    fn a_till_with_no_refunds_says_nothing_about_them() {
         let joined: String = layout_till_report(&z_report(), "Cafe Madar", "EGP", 32, &z_labels())
             .iter()
             .map(|l| l.text.clone())
@@ -887,6 +896,14 @@ mod tests {
             payment_lines: Vec::new(),
             cash_movements: Vec::new(),
             from_server: true,
+            device_code: None,
+            order_number_first: None,
+            order_number_last: None,
+            reconciliation: vec![],
+            old_bills_count: None,
+            open_bills_count: None,
+            opened_while_another_open: false,
+            verification: "server".into(),
         }
     }
 
@@ -947,6 +964,7 @@ mod tests {
         ReceiptView {
             local_order_id: "1a2b3c4d-0000-0000-0000-000000000000".into(),
             order_number: None,
+            display_number: String::new(),
             order_ref: None,
             is_voided: false,
             lines: vec![line("Latte", 2, 9000), line("Croissant", 1, 3500)],
@@ -1677,7 +1695,7 @@ mod tests {
 
     fn z_labels() -> TillReportLabels {
         TillReportLabels {
-            title: "Shift Report".into(),
+            title: "Till Report".into(),
             business_date: "Business Date".into(),
             printed_at: "Printed at".into(),
             teller: "Teller".into(),
@@ -1739,11 +1757,19 @@ mod tests {
             payment_lines: vec![],
             cash_movements: vec![],
             from_server: true,
+            device_code: None,
+            order_number_first: None,
+            order_number_last: None,
+            reconciliation: vec![],
+            old_bills_count: None,
+            open_bills_count: None,
+            opened_while_another_open: false,
+            verification: "server".into(),
         }
     }
 
     #[test]
-    fn layout_shift_report_minimal_has_core_rows_no_optional_sections() {
+    fn layout_till_report_minimal_has_core_rows_no_optional_sections() {
         let lines = layout_till_report(&empty_report(), "Cafe", "EGP", 32, &z_labels());
         let text: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
         // Title + opening + payments + expected always present.
@@ -1762,7 +1788,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_shift_report_cash_in_only_shows_in_not_out() {
+    fn layout_till_report_cash_in_only_shows_in_not_out() {
         let mut rep = empty_report();
         rep.cash_in_minor = 2500;
         rep.cash_out_minor = 0;
@@ -1774,7 +1800,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_shift_report_cash_out_prints_negative_signed() {
+    fn layout_till_report_cash_out_prints_negative_signed() {
         let mut rep = empty_report();
         rep.cash_out_minor = 1800; // stored positive, printed negated
         let lines = layout_till_report(&rep, "Cafe", "EGP", 32, &z_labels());
@@ -1784,7 +1810,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_shift_report_blank_note_movement_labels_by_name() {
+    fn layout_till_report_blank_note_movement_labels_by_name() {
         let mut rep = empty_report();
         rep.cash_movements = vec![crate::till::TillReportCashLine {
             amount_minor: 500,
@@ -1802,7 +1828,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_shift_report_voided_block_only_when_positive() {
+    fn layout_till_report_voided_block_only_when_positive() {
         let mut rep = empty_report();
         rep.voided_amount_minor = 750;
         let lines = layout_till_report(&rep, "Cafe", "EGP", 32, &z_labels());
@@ -1817,7 +1843,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_shift_report_header_is_double_size_bold() {
+    fn layout_till_report_header_is_double_size_bold() {
         let lines = layout_till_report(&empty_report(), "Cafe Madar", "EGP", 32, &z_labels());
         assert_eq!(lines[0].text, "Cafe Madar");
         assert_eq!(lines[0].size, Size::Double);
@@ -1826,7 +1852,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_shift_report_clamps_width_to_sixteen() {
+    fn layout_till_report_clamps_width_to_sixteen() {
         let lines = layout_till_report(&empty_report(), "Cafe", "EGP", 1, &z_labels());
         // Dividers reflect the clamped 16-col width.
         assert!(lines.iter().any(|l| l.text == "-".repeat(16)));
