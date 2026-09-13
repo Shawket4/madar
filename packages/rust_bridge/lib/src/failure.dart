@@ -55,6 +55,10 @@ const Map<String, String> coreDetailKeys = {
   'scan a card or type a phone number': 'err.scan_or_phone',
   'no order to add points to': 'err.no_order_points',
   'table is taken': 'err.table_taken',
+  'both tables are empty': 'err.move_both_empty',
+  'table needs clearing first': 'err.move_dirty',
+  'table is held for a booking': 'err.move_booked',
+  'pick two different tables': 'err.move_same',
   'this party already has a waiting transfer': 'err.transfer_waiting',
   'open a shift first so the stranded orders can move onto it':
       'err.shift_for_stranded',

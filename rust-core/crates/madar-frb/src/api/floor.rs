@@ -66,9 +66,18 @@ impl MadarBridge {
 
     /// Swap whatever sits on two tables (held orders and/or waiter tickets);
     /// one empty side = a move. Offline-safe (queued; the server arbitrates).
-    pub fn swap_floor_tables(&self, table_a: String, table_b: String) -> Result<(), MadarError> {
+    ///
+    /// Drains at once: an error means the server refused the move (its reason
+    /// is the message) and the room was re-pulled; `Ok` means it landed or is
+    /// queued offline.
+    pub async fn swap_floor_tables(
+        &self,
+        table_a: String,
+        table_b: String,
+    ) -> Result<(), MadarError> {
         self.inner
             .swap_tables(table_a, table_b)
+            .await
             .map_err(MadarError::from)
     }
 
@@ -104,9 +113,10 @@ impl MadarBridge {
     }
 
     /// Seat a waiting party on `table_id` (must satisfy its wish and be free).
-    pub fn fulfill_transfer(&self, id: String, table_id: String) -> Result<(), MadarError> {
+    pub async fn fulfill_transfer(&self, id: String, table_id: String) -> Result<(), MadarError> {
         self.inner
             .fulfill_transfer(id, table_id)
+            .await
             .map_err(MadarError::from)
     }
 
@@ -121,8 +131,11 @@ impl MadarBridge {
     /// Clear a bussed table — the one human act a table's status cannot
     /// derive. Everything else follows from the ticket sitting on it.
     /// Offline-safe: optimistic locally, queued for the server.
-    pub fn clear_table(&self, table_id: String) -> Result<(), MadarError> {
-        self.inner.clear_table(table_id).map_err(MadarError::from)
+    pub async fn clear_table(&self, table_id: String) -> Result<(), MadarError> {
+        self.inner
+            .clear_table(table_id)
+            .await
+            .map_err(MadarError::from)
     }
     /// SEAT a party: take the table, and nothing else.
     ///
@@ -130,9 +143,11 @@ impl MadarBridge {
     /// and on every other one once it drains. It raises no kitchen ticket and
     /// opens no tab — sitting down is not a bill. The party's FIRST ROUND
     /// starts the tab and claims the table they are already at.
-    pub async fn seat_table(&self, table_id: String) -> Result<(), MadarError> {
+    /// `covers`: how many sat down, when the host counted — kept on every
+    /// device and on the server's hold.
+    pub async fn seat_table(&self, table_id: String, covers: Option<i32>) -> Result<(), MadarError> {
         self.inner
-            .seat_table(table_id)
+            .seat_table(table_id, covers)
             .await
             .map_err(MadarError::from)
     }
@@ -188,6 +203,10 @@ pub struct _FloorTableStateView {
     pub booking_starts_at: Option<String>,
     pub booking_held_from: Option<String>,
     pub booking_status: Option<String>,
+    /// RFC3339: when the party at this table sat down. `None` unless seated.
+    pub seated_at: Option<String>,
+    /// How many sat down (covers), when anyone counted.
+    pub covers: Option<i32>,
 }
 
 /// The whole branch layout + occupancy, offline.
@@ -225,8 +244,11 @@ pub struct _TransferQueueView {
 pub struct TableSittingView {
     pub ticket_id: String,
     pub ticket_ref: Option<String>,
-    /// RFC3339. The closest the server has to when the party sat down.
+    /// RFC3339: when the bill was opened.
     pub opened_at: String,
+    /// RFC3339: when the party sat down (the hold's stamp, else the bill's
+    /// opening) — what a row's date and time read.
+    pub seated_at: String,
     /// RFC3339; `None` while the bill is still open.
     pub closed_at: Option<String>,
     pub minutes: i64,
@@ -235,6 +257,10 @@ pub struct TableSittingView {
     pub customer_name: Option<String>,
     pub guest_count: Option<i32>,
     pub order_ref: Option<String>,
+    /// What a person calls this sitting: the sale's `#number` once it was
+    /// paid, else the last part of the ticket ref (`T-0001`), never the raw
+    /// `T-BRANCH-260913-0001` that fills a phone row with a code.
+    pub display_ref: String,
     /// Minor units. `None` for a bill that took no money.
     pub total_minor: Option<i64>,
 }
@@ -280,9 +306,18 @@ impl MadarBridge {
                 .sittings
                 .into_iter()
                 .map(|s| TableSittingView {
+                    display_ref: match (s.order_number.flatten(), s.ticket_ref.clone().flatten()) {
+                        (Some(n), _) => format!("#{n}"),
+                        (None, Some(r)) => match r.rsplit_once('-') {
+                            Some((_, tail)) if !tail.is_empty() => format!("T-{tail}"),
+                            _ => r,
+                        },
+                        (None, None) => String::new(),
+                    },
                     ticket_id: s.open_ticket_id.to_string(),
                     ticket_ref: s.ticket_ref.flatten(),
                     opened_at: s.opened_at.to_rfc3339(),
+                    seated_at: s.seated_at.to_rfc3339(),
                     closed_at: s.closed_at.flatten().map(|d| d.to_rfc3339()),
                     minutes: s.minutes,
                     status: s.status,

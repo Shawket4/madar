@@ -48,13 +48,14 @@ impl MadarBridge {
     /// The party arrived: mark the booking seated (optionally on another
     /// table). Optimistic-local + queued. Fire their ticket with `booking_id`
     /// to link it.
-    pub fn seat_booking(
+    pub async fn seat_booking(
         &self,
         booking_id: String,
         table_id: Option<String>,
     ) -> Result<(), MadarError> {
         self.inner
             .seat_booking(booking_id, table_id)
+            .await
             .map_err(MadarError::from)
     }
 

@@ -229,6 +229,16 @@ fn en(key: &str) -> Option<&'static str> {
             "Takings need a connection — this one is not cached, so it can \
              never show you last week's numbers by mistake."
         }
+        "tables.history_forbidden" => "Your role can't see this table's takings.",
+        "tables.history_missing" => "This table is no longer on the floor.",
+        "tables.history_unreadable" => "This app can't read the history the server sent. Update the app.",
+        "tables.move_failed" => "Couldn't move the table",
+        "floor.open_bill" => "Open bill",
+        "floor.bill_so_far" => "Bill so far",
+        "err.move_both_empty" => "Both tables are empty. Nothing to move.",
+        "err.move_dirty" => "That table still needs clearing.",
+        "err.move_booked" => "That table is held for a booking.",
+        "err.move_same" => "Pick a different table.",
         "tables.covers" => "Covers",
         "tables.takings" => "Takings",
         "tables.avg_bill" => "Average bill",
@@ -1164,6 +1174,16 @@ fn ar(key: &str) -> Option<&'static str> {
             "تحتاج الأرقام إلى اتصال — وهي غير محفوظة محليًا حتى لا تعرض \
              أرقام الأسبوع الماضي بالخطأ."
         }
+        "tables.history_forbidden" => "دورك لا يسمح برؤية إيرادات هذه الطاولة.",
+        "tables.history_missing" => "هذه الطاولة لم تعد في الصالة.",
+        "tables.history_unreadable" => "لا يستطيع التطبيق قراءة السجل الذي أرسله الخادم. حدّث التطبيق.",
+        "tables.move_failed" => "تعذّر نقل الطاولة",
+        "floor.open_bill" => "افتح الفاتورة",
+        "floor.bill_so_far" => "الفاتورة حتى الآن",
+        "err.move_both_empty" => "الطاولتان فارغتان. لا شيء لنقله.",
+        "err.move_dirty" => "هذه الطاولة ما زالت تحتاج تنظيفًا.",
+        "err.move_booked" => "هذه الطاولة محجوزة لحجز.",
+        "err.move_same" => "اختر طاولة أخرى.",
         "tables.covers" => "عدد الأفراد",
         "tables.takings" => "الإيراد",
         "tables.avg_bill" => "متوسط الفاتورة",

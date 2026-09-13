@@ -26,8 +26,10 @@ pub struct _TicketView {
     pub id: String,
     pub ticket_ref: Option<String>,
     pub table_id: Option<String>,
-    /// open | ready | settled | voided | queued (the last = still in the outbox).
+    /// The bill: open | settled | voided | queued (still in the outbox).
     pub status: String,
+    /// The kitchen has plated every round — the floor's "ready" state.
+    pub ready: bool,
     pub customer_name: Option<String>,
     /// The WAITER who opened this ticket (`open_tickets.opened_by` → user name),
     /// so the teller can see who took the table. `null` if the name is unknown.
