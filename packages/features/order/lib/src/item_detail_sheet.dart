@@ -933,17 +933,6 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                                 _RecipeRow(line: line),
                                 const SizedBox(height: Space.sm),
                               ],
-                              // How it's made, under the amounts. The
-                              // animations were cached by the last sync, so
-                              // this draws with no network.
-                              if (_item.recipeSteps.isNotEmpty) ...[
-                                const SizedBox(height: Space.xs),
-                                MadarSectionHeader(
-                                  text: bridge.tr(key: 'order.steps'),
-                                ),
-                                const SizedBox(height: Space.sm),
-                                _StepList(steps: _item.recipeSteps),
-                              ],
                               const SizedBox(height: Space.xs),
                             ],
                           )
@@ -962,6 +951,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                               sub: Money.format(
                                 size.priceMinor,
                                 currency: currency,
+                                locale: MadarFormat.localeOf(context),
                               ),
                               active: config.size == size.label,
                               onTap: () => notifier.selectSize(size.label),
@@ -1009,6 +999,15 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
                     selected: config.optionals,
                     onToggle: notifier.toggleOptional,
                   ),
+                  // How it's made — after the choices, not hidden behind the
+                  // amounts toggle, and shown for an item with steps but no
+                  // costed recipe. Animations were cached by the last sync.
+                  if (_item.recipeSteps.isNotEmpty) ...[
+                    MadarSectionHeader(text: bridge.tr(key: 'order.steps')),
+                    const SizedBox(height: Space.sm),
+                    _StepList(steps: _item.recipeSteps),
+                    const SizedBox(height: Space.lg),
+                  ],
                   if (!widget.isConfiguring) ...[
                     MadarSectionHeader(text: bridge.tr(key: 'order.notes')),
                     const SizedBox(height: Space.sm),
@@ -1530,7 +1529,7 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
                 const SizedBox(width: Space.sm),
                 StatusChip(label: '≤${g.maxSel}'),
               ],
-              if (count > 0) ...[
+              if (g.isMulti && count > 0) ...[
                 const SizedBox(width: Space.sm),
                 StatusChip(label: '$count', tone: ChipTone.accent),
               ],
@@ -1564,6 +1563,24 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
                                   : widget.selectedSingle == a.addonItemId),
                         )
                         .toList(growable: false);
+              // One of several (a milk swap family, any max-1 group): radio
+              // rows, so the choice reads as a REPLACEMENT, never an extra.
+              if (!g.isMulti) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final addon in shown)
+                      MadarListRow.pick(
+                        title: addon.name,
+                        meta: widget.charged(addon.addonItemId) > 0
+                            ? '+${Money.format(widget.charged(addon.addonItemId), currency: widget.currency, locale: MadarFormat.localeOf(context))}'
+                            : null,
+                        selected: widget.selectedSingle == addon.addonItemId,
+                        onTap: () => widget.onToggleSingle(addon.addonItemId),
+                      ),
+                  ],
+                );
+              }
               return Wrap(
                 spacing: Space.sm,
                 runSpacing: Space.sm,
@@ -2069,7 +2086,7 @@ class _StepRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final path = step.localAnimationPath;
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final reduceMotion = motionReduced(context);
     return Semantics(
       button: onTap != null,
       label: '$index. ${step.name}',
@@ -2125,7 +2142,9 @@ class _StepRow extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      step.name,
+                      // The number rides with the name while an animation
+                      // holds the box, so the order never rests on the art.
+                      path == null ? step.name : '$index. ${step.name}',
                       style: MadarType.label.copyWith(
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
