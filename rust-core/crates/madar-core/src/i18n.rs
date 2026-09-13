@@ -758,6 +758,11 @@ fn en(key: &str) -> Option<&'static str> {
         "charge.reason_method" => "Pick how they are paying",
         "charge.rest_here" => "Rest here",
         "charge.new_sale" => "New sale",
+        // selling redesign: queue
+        "queue.col_status" => "Status",
+        "queue.col_open_for" => "Open for",
+        "queue.open_bill" => "Open the bill",
+        "queue.empty_bills_hint" => "Bills appear here when a table's first round goes to the kitchen.",
         // floor
         "floor.title" => "Floor",
         "floor.seat" => "Seat",
@@ -1725,6 +1730,11 @@ fn ar(key: &str) -> Option<&'static str> {
         "charge.reason_method" => "اختر طريقة الدفع",
         "charge.rest_here" => "الباقي هنا",
         "charge.new_sale" => "بيع جديد",
+        // selling redesign: queue
+        "queue.col_status" => "الحالة",
+        "queue.col_open_for" => "مفتوحة منذ",
+        "queue.open_bill" => "افتح الفاتورة",
+        "queue.empty_bills_hint" => "تظهر الفواتير هنا عندما تُرسل أول جولة لطاولة إلى المطبخ.",
         // bill + the waiter's bills tab
         "bill.title" => "الفاتورة",
         "bill.void_bill" => "إبطال الفاتورة",

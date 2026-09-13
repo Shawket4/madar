@@ -20,6 +20,7 @@ import 'package:feature_incoming/feature_incoming.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -441,6 +442,15 @@ class _FakeBridge implements MadarBridge {
       final at = invocation.namedArguments[#rfc3339] as String? ?? '';
       return at.length >= 16 ? at.substring(11, 16) : '19:02';
     }
+    if (name == #formatElapsedSince) {
+      final at = DateTime.tryParse(
+        invocation.namedArguments[#rfc3339] as String? ?? '',
+      );
+      return MadarFormat.elapsed(
+        at == null ? Duration.zero : DateTime.now().difference(at),
+        locale: arabic ? 'ar' : 'en',
+      );
+    }
     if (name == #appRoute) return const AppRoute.order();
     if (name == #currentSession) {
       return const SessionSnapshot(
@@ -516,6 +526,9 @@ Future<void> _shoot(
         child: MaterialApp(
           theme: theme,
           debugShowCheckedModeBanner: false,
+          locale: Locale(bridge.arabic ? 'ar' : 'en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           home: Directionality(
             textDirection: bridge.arabic
                 ? TextDirection.rtl
@@ -573,6 +586,37 @@ Future<void> _loadFonts() async {
 
 void main() {
   setUpAll(_loadFonts);
+
+  // The redesign matrix: Bills and Online at every size class, both
+  // languages, both themes.
+  for (final (device, size) in const [
+    ('ipad', _ipad),
+    ('ipadp', Size(834, 1194)),
+    ('desktop', Size(1280, 800)),
+    ('phone', _phone),
+  ]) {
+    for (final arabic in [false, true]) {
+      for (final dark in [false, true]) {
+        final tag = '$device-${arabic ? 'ar' : 'en'}-${dark ? 'dark' : 'light'}';
+        for (final segment in [QueueSegment.bills, QueueSegment.online]) {
+          testWidgets('matrix ${segment.name} $tag', (tester) async {
+            await _shoot(
+              tester,
+              size: size,
+              theme: dark ? MadarTheme.dark() : MadarTheme.light(),
+              name: 'm-${segment.name}-$tag',
+              bridge: _FakeBridge(
+                arabic: arabic,
+                orders: _orders,
+                tickets: _tickets,
+              ),
+              segment: segment,
+            );
+          });
+        }
+      }
+    }
+  }
 
   testWidgets('Online on an iPad, light: every live state on one board', (
     tester,

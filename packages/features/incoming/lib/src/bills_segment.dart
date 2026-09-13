@@ -118,12 +118,16 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
     ref.read(shellProvider.notifier).refresh();
   }
 
+  /// The bill shown in the pane beside the list (wide layouts only).
+  String? _selectedId;
+
   @override
   Widget build(BuildContext context) {
     final bridge = ref.bridge;
     final bills = ref.watch(
       incomingProvider.select((s) => s.settleableTickets),
     );
+    final loaded = ref.watch(incomingProvider.select((s) => s.ticketsLoaded));
     final labels = ref.watch(incomingProvider.select((s) => s.tableLabels));
     final hasFloor = ref.watch(incomingProvider.select((s) => s.hasFloor));
     final shiftOpen = ref.watch(incomingProvider.select((s) => s.shiftOpen));
@@ -132,175 +136,261 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
     final layout = context.madarLayout;
-    return ListView(
-      padding: EdgeInsetsDirectional.symmetric(
-        horizontal: layout.gutter,
-        vertical: Space.lg,
+    String t(String key) => bridge.tr(key: key);
+
+    String titleOf(TicketView b) {
+      final label = b.tableId == null ? null : labels[b.tableId!];
+      final guest = b.customerName;
+      return label ??
+          ((guest != null && guest.isNotEmpty)
+              ? guest
+              : (b.ticketRef ?? bridge.trOr(QueueKeys.noTable)));
+    }
+
+    MadarStatus statusOf(TicketView b) {
+      if (b.queuedOffline) {
+        return MadarStatus(
+          t('waiter.queued'),
+          tone: MadarTone.warning,
+          glyph: MadarGlyph.wifiOff,
+        );
+      }
+      return MadarStatus(
+        t('ticket.status.${b.status}'),
+        tone: ticketTone(b.status),
+      );
+    }
+
+    final chargeReady = shiftOpen ?? false;
+    Widget chargeFor(TicketView b) => MadarButton(
+      label: bridge.trOr(QueueKeys.chargeBill),
+      size: MadarButtonSize.compact,
+      // A bill still queued offline cannot be settled yet: the button used
+      // to look ready and end in an error. Its status says why.
+      enabled: chargeReady && !b.queuedOffline,
+      tooltip: b.queuedOffline
+          ? t('queue.bill_not_synced')
+          : chargeReady
+          ? null
+          : bridge.trOr(QueueKeys.needShift),
+      onTap: () => unawaited(_guarded(() => _charge(b))),
+    );
+
+    final MadarTableState<TicketView> tableState;
+    if (!loaded) {
+      tableState = const MadarTableState.loading(rows: 4);
+    } else if (error != null && bills.isEmpty) {
+      tableState = MadarTableState.error(
+        message: error.of(bridge),
+        retryLabel: t('history.retry'),
+        onRetry: () =>
+            unawaited(ref.read(incomingProvider.notifier).loadOpenTickets()),
+      );
+    } else {
+      tableState = MadarTableState.data(bills);
+    }
+
+    // Wide enough for the list AND a readable bill beside it: the bill opens
+    // in place and the row keeps its one Charge. Narrower, a row opens the
+    // Bill as before.
+    final split = !layout.isPhone && MediaQuery.sizeOf(context).width >= 1000;
+    final selected = split
+        ? bills.where((b) => b.id == _selectedId).firstOrNull ??
+              bills.firstOrNull
+        : null;
+
+    final table = MadarDataTable<TicketView>(
+      state: tableState,
+      rowKey: (b) => b.id,
+      empty: MadarEmptyContent(
+        title: bridge.trOr(QueueKeys.emptyBills),
+        message: t('queue.empty_bills_hint'),
       ),
-      children: [
-        // Leading, not centred: the list starts on the same edge as the
-        // title and the segments above it.
-        Align(
-          alignment: AlignmentDirectional.topStart,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: Responsive.contentMaxWidth,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.md,
-              children: [
-                // Charge books onto THIS till's shift. Say so once, at the
-                // top, instead of forty disabled buttons with no reason.
-                if (shiftOpen == false)
-                  NoticeBanner(
-                    text: bridge.trOr(QueueKeys.needShift),
-                    icon: 'lock',
-                  ),
-                if (error != null)
-                  NoticeBanner(
-                    text: error.of(ref.bridge),
-                    tone: ChipTone.danger,
-                    icon: 'exclamationmark.circle',
-                  ),
-                if (bills.isEmpty)
-                  QuietEmpty(bridge.trOr(QueueKeys.emptyBills))
-                else
-                  MadarCard(
+      columns: [
+        MadarColumn(
+          id: 'table',
+          label: hasFloor ? t('order.table') : t('order.customer'),
+          text: titleOf,
+          emphasis: true,
+          flex: 2,
+          phone: MadarPhoneRole.title,
+        ),
+        MadarColumn.status(
+          id: 'status',
+          label: t('queue.col_status'),
+          status: statusOf,
+          width: 150,
+        ),
+        MadarColumn(
+          id: 'waiter',
+          label: t('order.waiter'),
+          // A name is its own direction: isolated, a Latin name in an Arabic
+          // meta line no longer drags the figures beside it out of order.
+          text: (b) => b.waiterName == null ? '' : '\u2068${b.waiterName}\u2069',
+          flex: 2,
+          priority: 2,
+        ),
+        MadarColumn(
+          id: 'opened',
+          label: t('queue.col_open_for'),
+          text: (b) => bridge.formatElapsedSince(rfc3339: b.openedAt),
+          mono: true,
+          muted: true,
+          width: 96,
+          priority: 1,
+        ),
+        MadarColumn.money(
+          id: 'total',
+          label: t('order.total'),
+          // The server's priced total — what Charge will take — when it has
+          // one; only an unsynced fire shows its subtotal.
+          minor: (b) => b.bill?.totalMinor ?? b.subtotalMinor,
+          currency: currency,
+          width: 132,
+        ),
+        // The row's ONE action, in its own column so every row's Charge
+        // lines up and a row without a status never knocks the figures over.
+        MadarColumn(
+          id: 'charge',
+          label: '',
+          cell: (context, b) => chargeFor(b),
+          width: 116,
+          align: MadarColumnAlign.end,
+          phone: MadarPhoneRole.hidden,
+        ),
+      ],
+      rail: (b) => b.queuedOffline ? MadarTone.warning : ticketTone(b.status),
+      selected: split ? (b) => b.id == selected?.id : null,
+      onTap: (b) => split
+          ? setState(() => _selectedId = b.id)
+          : unawaited(_guarded(() => _open(b))),
+      chevron: false,
+      // The phone's collapsed rows carry Charge in the trailing slot; the
+      // wide table has its column.
+      trailing: layout.isPhone ? (context, b) => chargeFor(b) : null,
+    );
+
+    final banners = <Widget>[
+      // Charge books onto THIS till's shift. Say so once, at the top, instead
+      // of every row's button greyed with no reason.
+      if (shiftOpen == false)
+        NoticeBanner(text: bridge.trOr(QueueKeys.needShift), icon: 'lock'),
+      if (error != null && bills.isNotEmpty)
+        NoticeBanner(
+          text: error.of(bridge),
+          tone: ChipTone.danger,
+          icon: 'exclamationmark.circle',
+        ),
+    ];
+
+    final list = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [...banners, Flexible(child: table)],
+    );
+
+    final Widget body;
+    if (split) {
+      body = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: Space.lg,
+        children: [
+          Expanded(child: list),
+          SizedBox(
+            width: _paneWidth,
+            child: selected == null
+                ? const SizedBox.shrink()
+                : MadarCard(
                     flush: true,
-                    child: Column(
-                      children: [
-                        for (final (i, t) in bills.indexed) ...[
-                          if (i > 0) const MadarHairline.row(),
-                          _BillRow(
-                            key: ValueKey(t.id),
-                            ticket: t,
-                            tableLabel: t.tableId == null
-                                ? null
-                                : labels[t.tableId!],
-                            hasFloor: hasFloor,
-                            currency: currency,
-                            chargeEnabled: shiftOpen ?? false,
-                            onOpen: () => unawaited(_guarded(() => _open(t))),
-                            onCharge: () =>
-                                unawaited(_guarded(() => _charge(t))),
-                          ),
-                        ],
-                      ],
+                    child: TicketDetailsSheet(
+                      key: ValueKey('pane-${selected.id}'),
+                      ticket: selected,
+                      tableLabel: selected.tableId == null
+                          ? null
+                          : labels[selected.tableId!],
+                      footer: _PaneFooter(
+                        ticket: selected,
+                        currency: currency,
+                        chargeReady: chargeReady,
+                        onCharge: () =>
+                            unawaited(_guarded(() => _charge(selected))),
+                        onOpenBill: widget.onOpenBill == null
+                            ? null
+                            : () => unawaited(
+                                _guarded(
+                                  () => widget.onOpenBill!(context, selected),
+                                ),
+                              ),
+                      ),
                     ),
                   ),
-              ],
-            ),
           ),
-        ),
-        const SizedBox(height: Space.xxl),
-      ],
+        ],
+      );
+    } else {
+      body = list;
+    }
+
+    return Padding(
+      padding: EdgeInsetsDirectional.fromSTEB(
+        layout.gutter,
+        Space.lg,
+        layout.gutter,
+        Space.lg,
+      ),
+      child: body,
     );
   }
 }
 
-/// One bill: bar = state, title = table (or guest / ref), meta = state ·
-/// covers · waiter · opened-at, figure = subtotal, then Charge.
-class _BillRow extends ConsumerWidget {
-  const _BillRow({
+/// The detail pane's width beside the list (SPEC §3: 560 on an iPad split).
+const double _paneWidth = 440;
+
+/// Under the bill in the pane: Charge with the figure it takes, and the way
+/// into the full Bill (rounds, voids, moves).
+class _PaneFooter extends ConsumerWidget {
+  const _PaneFooter({
     required this.ticket,
-    required this.tableLabel,
-    required this.hasFloor,
     required this.currency,
-    required this.chargeEnabled,
-    required this.onOpen,
+    required this.chargeReady,
     required this.onCharge,
-    super.key,
+    required this.onOpenBill,
   });
 
   final TicketView ticket;
-  final String? tableLabel;
-  final bool hasFloor;
   final String currency;
-  final bool chargeEnabled;
-  final VoidCallback onOpen;
+  final bool chargeReady;
   final VoidCallback onCharge;
+  final VoidCallback? onOpenBill;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.bridge;
-    final t = ticket;
-    final tone = ticketTone(t.status);
-    final guest = t.customerName;
-    final waiter = t.waiterName;
-    final phone = context.isPhone;
-    // Title: the table where there is one; a floorless shop (or a bill fired
-    // without a table) leads with the guest, then the ref.
-    final title =
-        tableLabel ??
-        ((guest != null && guest.isNotEmpty)
-            ? guest
-            : (t.ticketRef ?? bridge.trOr(QueueKeys.noTable)));
-    final meta = <String>[
-      if (t.queuedOffline)
-        bridge.tr(key: 'waiter.queued')
-      else
-        bridge.tr(key: 'ticket.status.${t.status}'),
-      // A phone row has room for the state and the clock; covers, guest
-      // and waiter wait for the Bill (or a tablet).
-      if (t.guestCount case final n? when !phone && n > 0)
-        '$n ${bridge.tr(key: 'waiter.covers')}',
-      if (!phone && tableLabel != null && guest != null && guest.isNotEmpty)
-        guest,
-      if (!phone && waiter != null && waiter.isNotEmpty) waiter,
-      clockLabel(bridge, t.openedAt),
-    ].where((s) => s.isNotEmpty).toList(growable: false);
-    return MadarRow(
-      bar: tone.color(colors),
-      title: title,
-      subtitle: meta.join(' · '),
-      onTap: onOpen,
-      // The row's own Charge is the affordance; a chevron beside a button
-      // is two arrows pointing at one thing.
-      chevron: !phone,
-      value: MoneyText(
-        // The server's priced total — what Charge will take — when it has
-        // one; only an unsynced fire shows its subtotal.
-        t.bill?.totalMinor ?? t.subtotalMinor,
-        currency: currency,
-        style: phone ? MadarType.money : MadarType.moneyMd,
-        color: colors.textPrimary,
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: Space.sm,
-        children: [
-          // The word for the state rides as a tag where there is room; on
-          // a phone the bar's colour and the meta line already carry it,
-          // and the title needs the width more.
-          if (!phone && t.queuedOffline)
-            MadarTag(
-              label: bridge.tr(key: 'waiter.queued'),
-              tone: MadarTone.warning,
-              glyph: MadarGlyph.half,
-            )
-          else if (!phone && t.status == 'ready')
-            MadarTag(
-              label: bridge.tr(key: 'ticket.status.ready'),
-              tone: MadarTone.success,
-              glyph: MadarGlyph.check,
-            ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.sm,
+      children: [
+        MadarMoneyBar(
+          label: bridge.trOr(QueueKeys.chargeBill),
+          amountMinor: ticket.bill?.totalMinor ?? ticket.subtotalMinor,
+          currency: currency,
+          enabled: chargeReady && !ticket.queuedOffline,
+          reason: ticket.queuedOffline
+              ? bridge.tr(key: 'queue.bill_not_synced')
+              : chargeReady
+              ? null
+              : bridge.trOr(QueueKeys.needShift),
+          onTap: onCharge,
+        ),
+        if (onOpenBill != null)
           MadarButton(
-            label: bridge.trOr(QueueKeys.chargeBill),
-            size: MadarButtonSize.compact,
-            // A bill still queued offline cannot be settled yet: the button
-            // used to look ready and end in an error.
-            enabled: chargeEnabled && !t.queuedOffline,
-            tooltip: t.queuedOffline
-                ? bridge.tr(key: 'queue.bill_not_synced')
-                : chargeEnabled
-                ? null
-                : bridge.trOr(QueueKeys.needShift),
-            onTap: onCharge,
+            label: bridge.tr(key: 'queue.open_bill'),
+            glyph: MadarGlyph.receipt,
+            variant: MadarButtonVariant.secondary,
+            onTap: onOpenBill!,
           ),
-        ],
-      ),
+      ],
     );
   }
 }

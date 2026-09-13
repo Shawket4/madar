@@ -51,6 +51,7 @@ class IncomingState {
     this.deliverySettings,
     this.notices = const {},
     this.openTickets = const [],
+    this.ticketsLoaded = false,
     this.tableLabels = const {},
     this.hasFloor = false,
     this.shiftOpen,
@@ -67,6 +68,10 @@ class IncomingState {
   /// Orders with a lifecycle call in flight — the card's own button spins,
   /// the rest of the board stays live.
   final Set<String> busyOrderIds;
+
+  /// The bills list has answered at least once (with bills or a failure) —
+  /// until then the list draws skeleton rows, never "nothing waiting".
+  final bool ticketsLoaded;
 
   /// Banner text from the last failed bridge call.
   final UiText? error;
@@ -158,6 +163,7 @@ class IncomingState {
     DeliverySettingsView? deliverySettings,
     Map<String, UiText>? notices,
     List<TicketView>? openTickets,
+    bool? ticketsLoaded,
     Map<String, String>? tableLabels,
     bool? hasFloor,
     bool? shiftOpen,
@@ -174,6 +180,7 @@ class IncomingState {
       deliverySettings: deliverySettings ?? this.deliverySettings,
       notices: notices ?? this.notices,
       openTickets: openTickets ?? this.openTickets,
+      ticketsLoaded: ticketsLoaded ?? this.ticketsLoaded,
       tableLabels: tableLabels ?? this.tableLabels,
       hasFloor: hasFloor ?? this.hasFloor,
       shiftOpen: shiftOpen ?? this.shiftOpen,
@@ -476,12 +483,16 @@ class IncomingNotifier extends Notifier<IncomingState> {
       final tickets = await _bridge.listOpenTickets();
       // Two ticks close together: only the newer answer lands.
       if (gen != _ticketsGen) return;
-      state = state.copyWith(openTickets: tickets);
+      state = state.copyWith(openTickets: tickets, ticketsLoaded: true);
     } on MadarError catch (e) {
       // The cached list stands until the next tick — but a failure the teller
       // should know about (not a dropped connection) is said.
-      if (gen != _ticketsGen || isTransportError(e)) return;
-      state = state.copyWith(error: _fail(e));
+      if (gen != _ticketsGen) return;
+      if (isTransportError(e)) {
+        state = state.copyWith(ticketsLoaded: true);
+        return;
+      }
+      state = state.copyWith(error: _fail(e), ticketsLoaded: true);
     }
   }
 

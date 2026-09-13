@@ -457,12 +457,18 @@ class _OnlineCardState extends ConsumerState<_OnlineCard> {
               children: [
                 for (final m in prepChoices)
                   Expanded(
-                    child: MadarChip.tile(
-                      label: bridge
-                          .tr(key: 'queue.prep_minutes')
-                          .replaceAll('{count}', '$m'),
-                      selected: (chosen ?? prepChoices.first) == m,
-                      onTap: () => _readyIn.value = m,
+                    // Scales down rather than overflowing a narrow card: four
+                    // "20 min" tiles did not fit a phone or a portrait iPad
+                    // column in English.
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: MadarChip.tile(
+                        label: bridge
+                            .tr(key: 'queue.prep_minutes')
+                            .replaceAll('{count}', '$m'),
+                        selected: (chosen ?? prepChoices.first) == m,
+                        onTap: () => _readyIn.value = m,
+                      ),
                     ),
                   ),
               ],

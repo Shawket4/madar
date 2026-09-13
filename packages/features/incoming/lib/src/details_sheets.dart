@@ -1,5 +1,6 @@
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_incoming/src/widgets.dart' show ticketTone;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -30,9 +31,18 @@ const double _totalSize = 20;
 /// Rendered as the body of a LARGE MadarSheet; an optional [footer] (e.g.
 /// the Settle CTA) pins under the scrolling details.
 class TicketDetailsSheet extends ConsumerWidget {
-  const TicketDetailsSheet({required this.ticket, this.footer, super.key});
+  const TicketDetailsSheet({
+    required this.ticket,
+    this.footer,
+    this.tableLabel,
+    super.key,
+  });
 
   final TicketView ticket;
+
+  /// The table's name from the floor ("T5"); the raw id never reaches a
+  /// person.
+  final String? tableLabel;
 
   /// Pinned CTA under the details (stays on screen while details scroll).
   final Widget? footer;
@@ -44,13 +54,16 @@ class TicketDetailsSheet extends ConsumerWidget {
       shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
     String tr(String key) => bridge.tr(key: key);
+    final locale = MadarFormat.localeOf(context);
+    String money(int minor) =>
+        MadarFormat.money(minor, currency: currency, locale: locale);
     final ctx = <(String, String)>[
       // Who took the table — the waiter who opened the ticket.
       if (ticket.waiterName case final w? when w.isNotEmpty)
         ('fork.knife', '${tr('order.waiter')}: $w'),
       if (ticket.customerName case final name? when name.isNotEmpty)
         ('person.fill', name),
-      if (ticket.tableId case final table? when table.isNotEmpty)
+      if (tableLabel case final table? when table.isNotEmpty)
         ('square.grid.2x2', '${tr('order.table')} $table'),
       if (ticket.guestCount case final covers? when covers > 0)
         ('person.2.fill', '$covers ${tr('waiter.covers')}'),
@@ -63,9 +76,11 @@ class TicketDetailsSheet extends ConsumerWidget {
           icon: 'doc.text',
           title: ticket.ticketRef ?? tr('waiter.ticket'),
           chips: [
-            StatusChip(
-              label: tr('ticket.status.${ticket.status}'),
-              tone: ticketStatusTone(ticket.status),
+            MadarStatusPill(
+              MadarStatus(
+                tr('ticket.status.${ticket.status}'),
+                tone: ticketTone(ticket.status),
+              ),
             ),
             if (ticket.queuedOffline)
               StatusChip(
@@ -87,13 +102,36 @@ class TicketDetailsSheet extends ConsumerWidget {
           ),
         // Line items card — the real ticket lines. Voided lines strike.
         OrderLinesCard(lines: ticket.lines, currency: currency, tr: tr),
-        // Totals — a ticket carries a single frozen subtotal (== total).
-        TotalsBlock(
-          rows: const [],
-          totalMinor: ticket.subtotalMinor,
-          currency: currency,
-          totalLabel: tr('order.total'),
-        ),
+        // Totals — the server's priced bill, line by line, ending on the
+        // figure Charge takes. A fire the server has not priced yet shows its
+        // subtotal, and says it is one.
+        if (ticket.bill case final bill?)
+          TotalsBlock(
+            rows: [
+              (tr('order.subtotal'), money(bill.subtotalMinor)),
+              if (bill.discountMinor > 0)
+                (tr('order.discount'), money(-bill.discountMinor)),
+              if (bill.serviceChargeMinor > 0)
+                (tr('order.service_charge'), money(bill.serviceChargeMinor)),
+              if (bill.taxMinor > 0)
+                (
+                  bill.taxInclusive
+                      ? tr('charge.vat_included')
+                      : tr('order.tax'),
+                  money(bill.taxMinor),
+                ),
+            ],
+            totalMinor: bill.totalMinor,
+            currency: currency,
+            totalLabel: tr('order.total'),
+          )
+        else
+          TotalsBlock(
+            rows: const [],
+            totalMinor: ticket.subtotalMinor,
+            currency: currency,
+            totalLabel: tr('order.subtotal'),
+          ),
       ],
     );
   }
@@ -179,17 +217,21 @@ class DeliveryDetailsSheet extends ConsumerWidget {
           rows: [
             (
               tr('order.subtotal'),
-              Money.format(o.subtotalMinor, currency: currency),
+              MadarFormat.money(o.subtotalMinor, currency: currency, locale: MadarFormat.localeOf(context)),
             ),
             if (o.discountMinor > 0)
               (
                 tr('order.discount'),
-                '−${Money.format(o.discountMinor, currency: currency)}',
+                MadarFormat.money(
+                  -o.discountMinor,
+                  currency: currency,
+                  locale: MadarFormat.localeOf(context),
+                ),
               ),
             if (o.deliveryFeeMinor > 0)
               (
                 tr('receipt.delivery_fee'),
-                Money.format(o.deliveryFeeMinor, currency: currency),
+                MadarFormat.money(o.deliveryFeeMinor, currency: currency, locale: MadarFormat.localeOf(context)),
               ),
           ],
           totalMinor: o.totalMinor,
