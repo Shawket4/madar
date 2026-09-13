@@ -22,6 +22,7 @@
 library;
 
 import 'package:design_system/src/focus.dart';
+import 'package:design_system/src/format.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/icons.dart';
 import 'package:design_system/src/money.dart';
@@ -694,18 +695,23 @@ class _MadarFieldState extends State<MadarField>
 class MadarAmountField extends StatefulWidget {
   const MadarAmountField({
     required this.amountMinor,
-    required this.onAmountMinor,
     required this.currencyCode,
+    this.onAmountMinor,
+    this.onAmount,
     this.autofocus = false,
     this.onSubmitted,
     super.key,
   });
 
-  /// Current value in minor units.
-  final int amountMinor;
+  /// Current value in minor units; null (or 0) shows the blank field.
+  final int? amountMinor;
 
-  /// Emitted on every edit, in minor units.
-  final ValueChanged<int> onAmountMinor;
+  /// Emitted on every edit, in minor units — a blank field is 0.
+  final ValueChanged<int>? onAmountMinor;
+
+  /// Emitted on every edit — a blank field is NULL, not 0. For a figure where
+  /// "nothing typed yet" and "zero" mean different things (a drawer count).
+  final ValueChanged<int?>? onAmount;
 
   /// ISO code shown ahead of the figure.
   final String currencyCode;
@@ -723,8 +729,11 @@ class MadarAmountField extends StatefulWidget {
 class _MadarAmountFieldState extends State<MadarAmountField>
     with EntranceFocus<MadarAmountField> {
   late final TextEditingController _controller = TextEditingController(
-    text: widget.amountMinor == 0 ? '' : minorToText(widget.amountMinor),
+    text: _textFor(widget.amountMinor),
   );
+
+  static String _textFor(int? minor) =>
+      minor == null || minor == 0 ? '' : minorToText(minor);
   final FocusNode _focus = FocusNode();
 
   /// The last amount this field and its owner agreed on. Set in initState,
@@ -732,7 +741,7 @@ class _MadarAmountFieldState extends State<MadarAmountField>
   /// didUpdateWidget, where `widget` is already the NEW widget, so a value
   /// that arrives after mount (the open-shift carry-over) compares equal to
   /// itself and never reaches the text.
-  late int _lastEmitted;
+  late int? _lastEmitted;
 
   @override
   void initState() {
@@ -748,9 +757,7 @@ class _MadarAmountFieldState extends State<MadarAmountField>
   void didUpdateWidget(MadarAmountField oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.amountMinor != _lastEmitted) {
-      _controller.text = widget.amountMinor == 0
-          ? ''
-          : minorToText(widget.amountMinor);
+      _controller.text = _textFor(widget.amountMinor);
       _lastEmitted = widget.amountMinor;
     }
   }
@@ -763,9 +770,10 @@ class _MadarAmountFieldState extends State<MadarAmountField>
   }
 
   void _changed(String value) {
-    final minor = textToMinor(value);
+    final minor = amountTextToMinor(value);
     _lastEmitted = minor;
-    widget.onAmountMinor(minor);
+    widget.onAmount?.call(minor);
+    widget.onAmountMinor?.call(minor ?? 0);
   }
 
   @override
@@ -797,7 +805,10 @@ class _MadarAmountFieldState extends State<MadarAmountField>
             spacing: Space.md,
             children: [
               Text(
-                widget.currencyCode.toUpperCase(),
+                MadarFormat.currencyLabel(
+                  widget.currencyCode,
+                  locale: MadarFormat.localeOf(context),
+                ),
                 style: MadarType.title.copyWith(color: colors.textMuted),
               ),
               Expanded(
@@ -847,6 +858,11 @@ int textToMinor(String s) {
   final major = double.tryParse(cleaned) ?? 0;
   return (major * 100).round();
 }
+
+/// Like [textToMinor], but a field with no digits in it is null — blank is
+/// not zero.
+int? amountTextToMinor(String s) =>
+    s.codeUnits.any((u) => u >= 0x30 && u <= 0x39) ? textToMinor(s) : null;
 
 /// Minor units to the editable major-unit text ("12.50", whole "12").
 String minorToText(int minor) {

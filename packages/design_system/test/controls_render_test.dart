@@ -1096,5 +1096,34 @@ void main() {
     expect(textToMinor('1,234.5'), 123450);
     expect(textToMinor('EGP 12.50'), 1250);
     expect(textToMinor(''), 0);
+    expect(amountTextToMinor(''), isNull);
+    expect(amountTextToMinor('EGP '), isNull);
+    expect(amountTextToMinor('0'), 0);
+  });
+
+  testWidgets('a cleared amount field says null, not zero', (tester) async {
+    final seen = <int?>[];
+    final zeros = <int>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MadarTheme.light(),
+        home: Material(
+          child: MadarAmountField(
+            amountMinor: null,
+            currencyCode: 'EGP',
+            onAmount: seen.add,
+            onAmountMinor: zeros.add,
+          ),
+        ),
+      ),
+    );
+    final field = find.byType(TextField);
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    await tester.enterText(field, '12.5');
+    await tester.enterText(field, '0');
+    await tester.enterText(field, '');
+    expect(seen, [1250, 0, null]);
+    // The int callback keeps its old meaning for callers that want it.
+    expect(zeros, [1250, 0, 0]);
   });
 }
