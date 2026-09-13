@@ -113,11 +113,11 @@ void main() {
   });
 
   test('checkout produces a receipt and clears the cart (M5 gate)', () async {
-    // An open shift is required — adopt the branch's shift or open one,
-    // exactly like the open-shift screen.
-    final shift = await core.bridge.refreshShift();
-    if (!(shift?.isOpen ?? false)) {
-      await core.bridge.openShift(openingCashMinor: 50000);
+    // An open till is required — adopt the branch's till or open one,
+    // exactly like the open-till screen.
+    final till = await core.bridge.refreshTill();
+    if (!(till?.isOpen ?? false)) {
+      await core.bridge.openTill(openingCashMinor: 50000);
     }
 
     await core.bridge.cartClear();
@@ -162,12 +162,15 @@ void main() {
     );
     expect(bytes, isNotEmpty);
 
-    // Close the shift — the close-shift screen's call — and confirm the
+    // Close the till — the close-till screen's call — and confirm the
     // route machine leaves the order surface.
-    final report = await core.bridge.shiftReport();
+    final report = await core.bridge.tillReport();
     expect(report.isOpen, isTrue);
-    await core.bridge.closeShift(closingCashMinor: report.expectedCashMinor);
-    final after = await core.bridge.currentShift();
+    await core.bridge.closeTill(
+      closingCashMinor: report.expectedCashMinor,
+      reconciliation: const [],
+    );
+    final after = await core.bridge.currentTill();
     expect(after?.isOpen ?? false, isFalse);
   });
 

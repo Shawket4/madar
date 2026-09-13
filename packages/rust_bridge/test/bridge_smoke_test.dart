@@ -74,14 +74,14 @@ void main() {
 
   test('async reads run on the worker pool', () async {
     expect(await core.bridge.pendingOutboxCount(), 0);
-    final status = await core.bridge.syncStatus();
-    expect(status.pending, 0);
-    expect(status.failed, 0);
+    final status = core.bridge.syncStatus();
+    expect(status.pendingOutbox, 0);
+    expect(status.deadOutbox, 0);
   });
 
   test('typed errors cross the boundary with localized messages', () async {
     try {
-      await core.bridge.openShift(openingCashMinor: 0);
+      await core.bridge.openTill(openingCashMinor: 0);
       fail('open_shift must throw while signed out');
     } on MadarError catch (e) {
       expect(

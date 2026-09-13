@@ -91,9 +91,9 @@ void main() {
       ),
     );
     await core.bridge.refreshCatalog();
-    final shift = await core.bridge.refreshShift();
-    if (!(shift?.isOpen ?? false)) {
-      await core.bridge.openShift(openingCashMinor: 10000);
+    final till = await core.bridge.refreshTill();
+    if (!(till?.isOpen ?? false)) {
+      await core.bridge.openTill(openingCashMinor: 10000);
     }
     final items = await core.bridge.listMenuItems();
     final espresso = items.firstWhere((i) => i.name == 'Espresso');
@@ -148,13 +148,13 @@ void main() {
       await Future<void>.delayed(const Duration(seconds: 1));
       pending = await core.bridge.pendingOutboxCount();
     }
-    final status = await core.bridge.syncStatus();
+    final status = core.bridge.syncStatus();
     expect(
       pending,
       0,
       reason:
-          'outbox must drain once online (status: pending=${status.pending} '
-          'failed=${status.failed} authPaused=${status.authPaused})',
+          'outbox must drain once online (status: pending=${status.pendingOutbox} '
+          'failed=${status.deadOutbox} authPaused=${status.authPaused})',
     );
   });
 }
