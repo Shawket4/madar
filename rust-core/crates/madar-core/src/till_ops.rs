@@ -204,7 +204,6 @@ impl MadarCore {
             verification: Some(verification.to_string()),
             ..Default::default()
         };
-        till::save(&self.store, &local)?;
         let cmd = till::OpenTillCommand {
             branch_id: sp.branch_id.clone(),
             device_id: dev.clone(),
@@ -221,7 +220,7 @@ impl MadarCore {
             },
         };
         let (user_id, clock_offset_ms) = self.outbox_meta();
-        self.store.enqueue(&store::NewOutboxOp {
+        let op = store::NewOutboxOp {
             id: till_id.to_string(),
             op_type: "open_till".into(),
             idempotency_key: till_id.to_string(),
@@ -231,9 +230,24 @@ impl MadarCore {
             clock_offset_ms,
             till_id: Some(till_id.to_string()),
             device_id: Some(dev),
-            entity_type: Some("till".into()),
+            entity_type: Some(crate::ledger::T_TILL.into()),
             entity_id: Some(till_id.to_string()),
             ..Default::default()
+        };
+        // The till's row, the person's device slot and the queued open commit
+        // together: the till cannot exist without its open, nor the reverse.
+        let record = serde_json::to_value(&local)?;
+        self.store.with_tx_touch(|tx, touched| {
+            crate::ledger::local::commit_open_till(tx, &op, &record)?;
+            if !local.teller_id.is_empty() {
+                tx.execute(
+                    "INSERT INTO kv(k, v, updated_at) VALUES(?1, ?2, ?3)
+                     ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at",
+                    rusqlite::params![till::device_till_key(&local.teller_id), local.id, chrono::Utc::now().to_rfc3339()],
+                )?;
+            }
+            touched.extend(crate::changes::tables_for_op("open_till"));
+            Ok(())
         })?;
         self.lan_sync_open_tills();
         self.spawn_till_open_sync(till_id.to_string());
@@ -375,7 +389,26 @@ impl MadarCore {
             request,
         };
         let (user_id, clock_offset_ms) = self.outbox_meta();
-        self.store.enqueue(&store::NewOutboxOp {
+        let teller_name = self.current_session().map(|s| s.display_name).unwrap_or_default();
+        let wire_kind = cmd
+            .request
+            .kind
+            .flatten()
+            .map(|k| k.to_string())
+            .unwrap_or_else(|| if amount_minor < 0 { "pay_out".into() } else { "pay_in".into() });
+        let row = serde_json::json!({
+            "id": client_ref.to_string(),
+            "client_ref": client_ref.to_string(),
+            "till_id": t.id,
+            "amount": amount_minor,
+            "kind": wire_kind,
+            "corrects_id": cmd.request.corrects_id.flatten().map(|u| u.to_string()),
+            "note": note,
+            "moved_by_name": teller_name,
+            "created_at": created_at.to_rfc3339(),
+            "device_id": dev,
+        });
+        let op = store::NewOutboxOp {
             id: client_ref.to_string(),
             op_type: "cash_movement".into(),
             idempotency_key: client_ref.to_string(),
@@ -386,7 +419,13 @@ impl MadarCore {
             clock_offset_ms,
             till_id: Some(t.id.clone()),
             device_id: Some(dev),
-            ..Default::default()
+            entity_type: Some(crate::ledger::T_CASH.into()),
+            entity_id: Some(client_ref.to_string()),
+        };
+        self.store.with_tx_touch(|tx, touched| {
+            crate::ledger::local::commit_cash(tx, &op, &row)?;
+            touched.extend(crate::changes::tables_for_op("cash_movement"));
+            Ok(())
         })?;
         let _ = self.drain_outbox().await;
         Ok(till::CashMovementView {
@@ -579,7 +618,6 @@ impl MadarCore {
             device_id: uuid::Uuid::parse_str(&dev).ok().map(Some),
             reconciliation: Some(Some(inputs.clone())),
         };
-        till::close_local(&self.store)?;
         crate::cart::clear_all(&self.store)?;
         till::cache_suggested_opening_cash(&self.store, closing_cash_minor)?;
         let cmd = till::CloseTillCommand {
@@ -589,7 +627,7 @@ impl MadarCore {
         };
         let (user_id, clock_offset_ms) = self.outbox_meta();
         let close_id = format!("{}:close", t.id);
-        self.store.enqueue(&store::NewOutboxOp {
+        let op = store::NewOutboxOp {
             id: close_id.clone(),
             op_type: "close_till".into(),
             idempotency_key: close_id.clone(),
@@ -600,8 +638,14 @@ impl MadarCore {
             clock_offset_ms,
             till_id: Some(t.id.clone()),
             device_id: Some(dev),
-            entity_type: Some("till".into()),
+            entity_type: Some(crate::ledger::T_TILL.into()),
             entity_id: Some(t.id.clone()),
+        };
+        let at = closed_at.to_rfc3339();
+        self.store.with_tx_touch(|tx, touched| {
+            crate::ledger::local::commit_close_till(tx, &op, &at, closing_cash_minor)?;
+            touched.extend(crate::changes::tables_for_op("close_till"));
+            Ok(())
         })?;
         let _ = self.drain_outbox().await;
         self.lan_sync_open_tills();

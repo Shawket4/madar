@@ -13,12 +13,12 @@ use serde_json::{json, Value};
 use super::{s, stored, write_row, Origin, T_CASH, T_ORDER, T_REFUND, T_TILL};
 use crate::checkout::CheckoutCommand;
 use crate::error::CoreResult;
-use crate::menu::CachedPaymentMethod;
+use super::report::Method;
 use crate::store::{enqueue_on, NewOutboxOp};
 
 /// The server's `is_cash_of`: the org method of that NAME decides; a name the
 /// catalogue does not know is cash only when it is literally `cash`.
-pub(crate) fn is_cash_of(methods: &[CachedPaymentMethod], name: &str) -> bool {
+pub(crate) fn is_cash_of(methods: &[Method], name: &str) -> bool {
     methods
         .iter()
         .find(|m| m.name == name)
@@ -39,7 +39,7 @@ pub(crate) struct Ringer<'a> {
 /// A queued sale as the changefeed will later project it. `is_cash` is resolved
 /// NOW, from the catalogue at the moment of the sale, exactly as the server
 /// snapshots it on insert — so the drawer never depends on a later catalogue.
-pub(crate) fn order_json(cmd: &CheckoutCommand, okey: &str, who: &Ringer<'_>, methods: &[CachedPaymentMethod]) -> Value {
+pub(crate) fn order_json(cmd: &CheckoutCommand, okey: &str, who: &Ringer<'_>, methods: &[Method]) -> Value {
     let r = &cmd.request;
     let total = flat(&r.total_amount).unwrap_or(0) as i64;
     let legs: Vec<Value> = match flat(&r.payment_splits) {
@@ -141,6 +141,52 @@ fn void_fields(v: &mut Value, voided_at: &str, reason: &str, note: Option<&str>)
         m.insert("void_reason".into(), json!(reason));
         m.insert("void_note".into(), json!(note));
     }
+}
+
+/// A settled bill as its paid order, before the server has priced it: the bill
+/// the cashier saw (`total`), the tender, keyed by the TICKET id — the server
+/// uses the ticket id as the order's idempotency key, so the feed's row lands on
+/// this one.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn settle_json(
+    ticket_id: &str,
+    branch_id: &str,
+    till_id: &str,
+    who: &Ringer<'_>,
+    payment_method: &str,
+    splits: &[(String, i64)],
+    total: i64,
+    tip: i64,
+    tip_method: Option<&str>,
+    at: &str,
+    methods: &[Method],
+) -> Value {
+    let legs: Vec<Value> = if splits.is_empty() {
+        vec![json!({ "method": payment_method, "amount": total, "is_cash": is_cash_of(methods, payment_method) })]
+    } else {
+        splits.iter().map(|(m, a)| json!({ "method": m, "amount": a, "is_cash": is_cash_of(methods, m) })).collect()
+    };
+    json!({
+        "id": ticket_id,
+        "idempotency_key": ticket_id,
+        "open_ticket_id": ticket_id,
+        "branch_id": branch_id,
+        "till_id": till_id,
+        "shift_id": till_id,
+        "teller_id": who.teller_id,
+        "teller_name": who.teller_name,
+        "status": "completed",
+        "order_type": "dine_in",
+        "total_amount": total,
+        "tip_amount": tip,
+        "tip_payment_method": tip_method,
+        "tip_is_cash": (tip > 0).then(|| is_cash_of(methods, tip_method.unwrap_or(payment_method))),
+        "payment_method": payment_method,
+        "payment_legs": legs,
+        "price_flagged": false,
+        "created_at": at,
+        "items": [],
+    })
 }
 
 /// Queue a void: the op, and the order row reading `voided` (when this device

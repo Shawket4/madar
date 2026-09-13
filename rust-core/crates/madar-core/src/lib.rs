@@ -931,7 +931,8 @@ impl MadarCore {
             self.store.mark_inflight(item.seq)?;
             self.sends_attempted
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let outcome = self.send_outbox_item(&item).await;
+            let mut body = None;
+            let outcome = self.send_outbox_item_body(&item, &mut body).await;
             // A REAL outbox send is the authority for the online banner: a clean ack
             // proves we're online; a transport failure proves we're offline. (A
             // 4xx/5xx/401 reached the server — those are handled by the arms below
@@ -945,12 +946,22 @@ impl MadarCore {
             match outcome {
                 // Applied server-side (or idempotently already-applied).
                 SendOutcome::Acked(server_id) => {
-                    self.store.mark_acked(item.seq, server_id.as_deref())?;
+                    // The ack and the server's answer land in ONE transaction:
+                    // the op leaves the queue and its row becomes the server's
+                    // version together, so an acked sale never disappears.
+                    let methods = ledger::views::payment_method_rows(&self.store);
+                    self.store.with_tx_touch(|tx, touched| {
+                        store::mark_acked_on(tx, item.seq, server_id.as_deref())?;
+                        touched.extend(ledger::fold::fold(tx, &item, body.as_ref(), &methods)?);
+                        Ok(())
+                    })?;
                     acked_any = true;
                 }
                 // Permanent rejection — surface in the stuck list, never silently drop.
                 SendOutcome::Dead(err) => {
                     self.store.mark_dead(item.seq, &err)?;
+                    self.store
+                        .emit_changes(changes::tables_for_op(&item.op_type));
                     self.push_diag("error", format!("{} rejected: {err}", item.op_type));
                     // A dead open_till is transport/auth (the server never refuses
                     // one): it holds only its own till's ops until retried with
@@ -1084,7 +1095,19 @@ impl MadarCore {
             .collect()
     }
 
+    /// [`Self::send_outbox_item_body`] without the response body.
+    #[cfg(test)]
     async fn send_outbox_item(&self, item: &store::OutboxItem) -> SendOutcome {
+        self.send_outbox_item_body(item, &mut None).await
+    }
+
+    /// Send one op; `body` receives the backend's JSON answer when there was one
+    /// (the entity the op created or changed — folded into the ledger on ack).
+    async fn send_outbox_item_body(
+        &self,
+        item: &store::OutboxItem,
+        body_out: &mut Option<serde_json::Value>,
+    ) -> SendOutcome {
         let delta = self.rebase_delta_ms(item);
 
         // Every queued op flushes through ONE endpoint — `POST /sync/replay` —
@@ -1461,6 +1484,7 @@ impl MadarCore {
                     Some(v) => v,
                     None => return SendOutcome::Offline,
                 };
+                *body_out = Some(json.clone());
                 let obj = &json;
                 match item.op_type.as_str() {
                     // Cache the server's authoritative shift so the device reflects
@@ -1468,24 +1492,10 @@ impl MadarCore {
                     // object we can't decode as a Shift still means the open LANDED
                     // (replay is idempotent) — count it, don't loop forever.
                     "open_till" | "open_shift" => {
+                        // The ledger row is folded from the body in the ack's
+                        // transaction (`ledger::fold`), keeping a queued close.
                         match serde_json::from_value::<till::TillRecord>(obj.clone()) {
-                            Ok(server) if !server.id.is_empty() => {
-                                // Refresh the stored record with the server's view
-                                // (flag, verification, device snapshot) without
-                                // moving any person's slot.
-                                if till::record(&self.store, &server.id).is_some() {
-                                    let mut merged = server.clone();
-                                    if merged.status != "open" {
-                                        // keep a local close that has not synced yet
-                                    } else if let Some(local) = till::record(&self.store, &server.id) {
-                                        if local.status != "open" {
-                                            merged.status = local.status;
-                                        }
-                                    }
-                                    let _ = till::update_record(&self.store, &merged);
-                                }
-                                SendOutcome::Acked(Some(server.id))
-                            }
+                            Ok(server) if !server.id.is_empty() => SendOutcome::Acked(Some(server.id)),
                             _ => SendOutcome::Acked(None),
                         }
                     }
@@ -1498,9 +1508,6 @@ impl MadarCore {
                             let id = resp.till.id.to_string();
                             if let Ok(raw) = serde_json::to_string(&resp) {
                                 let _ = self.store.kv_put(&till::close_result_key(&id), &raw);
-                            }
-                            if till::record(&self.store, &id).is_some() {
-                                let _ = till::update_record(&self.store, &till::TillRecord::from_api(&resp.till));
                             }
                         }
                         SendOutcome::Acked(None)
@@ -5084,17 +5091,36 @@ impl MadarCore {
         // the outbox `id` and the in-body `idempotency_key`), gated behind the
         // till's open if that hasn't synced yet.
         let (user_id, clock_offset_ms) = self.outbox_meta();
-        self.store.enqueue(&store::NewOutboxOp {
-            id: prepared.order_id.to_string(),
+        let okey = prepared.order_id.to_string();
+        let op = store::NewOutboxOp {
+            id: okey.clone(),
             op_type: "create_order".into(),
-            idempotency_key: prepared.order_id.to_string(),
+            idempotency_key: okey.clone(),
             payload: serde_json::to_string(&prepared.command)?,
             event_at: prepared.event_at.clone(),
             depends_on_seq: self.store.live_seq_of(&shift.id)?,
-            user_id,
+            user_id: user_id.clone(),
             clock_offset_ms,
             till_id: Some(shift.id.clone()),
+            entity_type: Some(ledger::T_ORDER.into()),
+            entity_id: Some(okey.clone()),
             ..Default::default()
+        };
+        // The sale's row and its outbox op commit together (offline plan B §5):
+        // the history, the drawer and the Z report see it the instant it is rung.
+        let row = ledger::local::order_json(
+            &prepared.command,
+            &okey,
+            &ledger::local::Ringer {
+                teller_id: user_id.as_deref().unwrap_or(""),
+                teller_name: &teller_name,
+            },
+            &ledger::views::payment_method_rows(&self.store),
+        );
+        self.store.with_tx_touch(|tx, touched| {
+            ledger::local::commit_order(tx, &op, &row)?;
+            touched.extend(changes::tables_for_op("create_order"));
+            Ok(())
         })?;
         // The sale is committed locally; the cart is now spent.
         cart::clear(&self.store, table_id.as_deref())?;
@@ -5982,7 +6008,16 @@ impl MadarCore {
             request,
         };
         let (user_id, clock_offset_ms) = self.outbox_meta();
-        self.store.enqueue(&store::NewOutboxOp {
+        // The void is held against the sale's ONE row, whatever id the screen
+        // named it by (the server id of a synced sale, the client key of a
+        // queued one).
+        let okey = self
+            .store
+            .with_conn(|c| ledger::order_key_for(c, &order_id))?
+            .unwrap_or_else(|| order_id.clone());
+        let reason_word = cmd.request.reason.clone();
+        let note = cmd.request.note.clone().flatten();
+        let op = store::NewOutboxOp {
             id: format!("{order_id}:void"),
             op_type: "void_order".into(),
             idempotency_key: format!("{order_id}:void"),
@@ -5997,7 +6032,15 @@ impl MadarCore {
             // could replay before the void and freeze the Z-report's
             // closing_cash_system too high (the voided sale still counted).
             till_id: till::current(&self.store)?.map(|s| s.id),
+            entity_type: Some(ledger::T_ORDER.into()),
+            entity_id: Some(okey),
             ..Default::default()
+        };
+        let at = voided_at.to_rfc3339();
+        self.store.with_tx_touch(|tx, touched| {
+            ledger::local::commit_void(tx, &op, &at, &reason_word, note.as_deref())?;
+            touched.extend(changes::tables_for_op("void_order"));
+            Ok(())
         })?;
         let _ = self.drain_outbox().await;
         Ok(())
@@ -6165,9 +6208,26 @@ impl MadarCore {
             },
         )?));
 
+        let methods = ledger::views::payment_method_rows(&self.store);
+        let row = serde_json::json!({
+            "id": client_ref.to_string(),
+            "client_ref": client_ref.to_string(),
+            "order_id": order_id,
+            "branch_id": open_till.branch_id,
+            "till_id": open_till.id,
+            "amount": amount_minor,
+            "method": request.method,
+            "is_cash": ledger::local::is_cash_of(&methods, &request.method),
+            "reason": request.reason.to_string(),
+            "note": request.note.clone().flatten(),
+            "issued_by_name": self.current_session().map(|s| s.display_name).unwrap_or_default(),
+            "issued_at": issued_at.to_rfc3339(),
+            "created_at": issued_at.to_rfc3339(),
+            "lines": [],
+        });
         let cmd = orders::RefundOrderCommand { request };
         let (user_id, clock_offset_ms) = self.outbox_meta();
-        self.store.enqueue(&store::NewOutboxOp {
+        let op = store::NewOutboxOp {
             id: format!("{order_id}:refund:{client_ref}"),
             op_type: "refund_order".into(),
             idempotency_key: client_ref.to_string(),
@@ -6179,7 +6239,14 @@ impl MadarCore {
             // Same reasoning as a void: the close must wait for it, or the
             // Z-report freezes a drawer that still counts money since given back.
             till_id: Some(open_till.id),
+            entity_type: Some(ledger::T_REFUND.into()),
+            entity_id: Some(client_ref.to_string()),
             ..Default::default()
+        };
+        self.store.with_tx_touch(|tx, touched| {
+            ledger::local::commit_refund(tx, &op, &row)?;
+            touched.extend(changes::tables_for_op("refund_order"));
+            Ok(())
         })?;
         let _ = self.drain_outbox().await;
         Ok(())
@@ -6764,6 +6831,7 @@ impl MadarCore {
             .as_deref()
             .and_then(|s| uuid::Uuid::parse_str(s).ok())
             .map(Some);
+        let discount_type_for_row = discount_type.clone();
         request.discount_type = discount_type.filter(|s| !s.trim().is_empty()).map(Some);
         request.discount_value = discount_value.map(Some);
         request.loyalty_customer_id = loyalty_customer_id
@@ -6810,6 +6878,40 @@ impl MadarCore {
                     .collect(),
             );
         }
+        // The paid order this settle produces, as a local row keyed by the ticket
+        // (the server's idempotency key for it): the drawer holds the money the
+        // moment the cashier takes it, offline too.
+        let methods = ledger::views::payment_method_rows(&self.store);
+        let settle_total = self
+            .bill_with_rewards(ticket_id.clone(), loyalty_redemptions.clone(), discount_type_for_row.clone(), discount_value)
+            .ok()
+            .flatten()
+            .map(|b| b.total_minor)
+            .or_else(|| self.cached_ticket(&ticket_id).map(|(_, v)| v.subtotal_minor))
+            .unwrap_or(0);
+        let (settle_user, _) = self.outbox_meta();
+        let teller_name = self.current_session().map(|s| s.display_name).unwrap_or_default();
+        let settle_legs: Vec<(String, i64)> = request
+            .payment_splits
+            .clone()
+            .flatten()
+            .unwrap_or_default()
+            .iter()
+            .map(|l| (l.method.clone(), l.amount as i64))
+            .collect();
+        let settle_row = ledger::local::settle_json(
+            &ticket_id,
+            &self.session_branch_id().unwrap_or_default(),
+            &till_id,
+            &ledger::local::Ringer { teller_id: settle_user.as_deref().unwrap_or(""), teller_name: &teller_name },
+            &request.payment_method,
+            &settle_legs,
+            settle_total,
+            request.tip_amount.flatten().unwrap_or(0) as i64,
+            request.tip_payment_method.clone().flatten().as_deref(),
+            &self.corrected_now().to_rfc3339(),
+            &methods,
+        );
         let cmd = tickets::SettleTicketCommand {
             ticket_id: ticket_id.clone(),
             request,
@@ -6817,7 +6919,7 @@ impl MadarCore {
 
         let (user_id, clock_offset_ms) = self.outbox_meta();
         let op_id = format!("{ticket_id}:settle");
-        self.store.enqueue(&store::NewOutboxOp {
+        let settle_op = store::NewOutboxOp {
             id: op_id.clone(),
             op_type: "settle_open_ticket".into(),
             idempotency_key: op_id.clone(),
@@ -6840,7 +6942,14 @@ impl MadarCore {
             user_id,
             clock_offset_ms,
             till_id: Some(till_id.clone()),
+            entity_type: Some(ledger::T_ORDER.into()),
+            entity_id: Some(ticket_id.clone()),
             ..Default::default()
+        };
+        self.store.with_tx_touch(|tx, touched| {
+            ledger::local::commit_order(tx, &settle_op, &settle_row)?;
+            touched.extend(changes::tables_for_op("settle_open_ticket"));
+            Ok(())
         })?;
         let _ = self.drain_outbox().await;
         // The paid order the settle produced, when it acked — that is what a

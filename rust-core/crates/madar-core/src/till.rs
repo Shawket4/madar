@@ -19,7 +19,8 @@ pub(crate) const ACTIVE_USER_KEY: &str = "till:active_user";
 /// till's declared closing (cash continuity).
 pub(crate) const SUGGESTED_OPEN_CASH_KEY: &str = "shift:suggested_open_cash";
 
-/// kv key for one till record (`TillRecord` JSON).
+/// PRE-B kv key for one till record (`TillRecord` JSON); read once by the
+/// ledger backfill (store step 4) and never written since.
 pub(crate) fn record_key(till_id: &str) -> String {
     format!("till:rec:{till_id}")
 }
@@ -783,7 +784,7 @@ pub(crate) fn migrate_legacy_current(store: &Store) -> CoreResult<()> {
     };
     if raw != "null" {
         if let Ok(t) = serde_json::from_str::<TillRecord>(&raw) {
-            if !t.id.is_empty() && store.kv_get(&record_key(&t.id))?.is_none() {
+            if !t.id.is_empty() && record(store, &t.id).is_none() {
                 save(store, &t)?;
             }
         }
@@ -791,13 +792,14 @@ pub(crate) fn migrate_legacy_current(store: &Store) -> CoreResult<()> {
     store.kv_delete(LEGACY_CURRENT_SHIFT_KEY)
 }
 
-/// A till record by id (any person, any status).
+/// A till record by id (any person, any status) — the till's ledger row
+/// (offline plan B; the pre-B `till:rec:<id>` kv rows are moved there once).
 pub(crate) fn record(store: &Store, till_id: &str) -> Option<TillRecord> {
     store
-        .kv_get(&record_key(till_id))
+        .with_conn(|c| crate::ledger::stored(c, crate::ledger::T_TILL, till_id))
         .ok()
         .flatten()
-        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .and_then(|row| serde_json::from_value(row.raw).ok())
 }
 
 /// The signed-in person's till on this device (open or locally closed).
@@ -816,9 +818,11 @@ pub(crate) fn current(store: &Store) -> CoreResult<Option<TillView>> {
     Ok(current_record(store)?.as_ref().map(view_from))
 }
 
-/// Persist a till record and point its teller's device slot at it.
+/// Persist a till record the SERVER holds (a resumed or adopted till) and point
+/// its teller's device slot at it. A row a live op still holds keeps the
+/// device's state; the server's version is remembered for it.
 pub(crate) fn save(store: &Store, till: &TillRecord) -> CoreResult<()> {
-    store.kv_put(&record_key(&till.id), &serde_json::to_string(till)?)?;
+    update_record(store, till)?;
     if !till.teller_id.is_empty() {
         store.kv_put(&device_till_key(&till.teller_id), &till.id)?;
     }
@@ -826,9 +830,20 @@ pub(crate) fn save(store: &Store, till: &TillRecord) -> CoreResult<()> {
 }
 
 /// Update a stored record without moving any device slot (a late ack of a till
-/// that is no longer anyone's current one).
+/// that is no longer anyone's current one, a force-close).
 pub(crate) fn update_record(store: &Store, till: &TillRecord) -> CoreResult<()> {
-    store.kv_put(&record_key(&till.id), &serde_json::to_string(till)?)
+    let v = serde_json::to_value(till)?;
+    store.with_tx_touch(|tx, touched| {
+        use crate::ledger::{self as l, T_TILL};
+        if l::is_protected(tx, T_TILL, &till.id)? && l::stored(tx, T_TILL, &till.id)?.is_some() {
+            l::shadow(tx, T_TILL, &till.id, &v, 0)?;
+        } else {
+            l::write_row(tx, T_TILL, &till.id, &v, l::Origin::Fetch, None)?;
+            l::local::reapply_pending(tx, T_TILL, &till.id)?;
+        }
+        touched.push(crate::changes::TILLS);
+        Ok(())
+    })
 }
 
 /// Drop the signed-in person's device slot (server says none / force-closed).
@@ -849,11 +864,21 @@ pub(crate) fn clear_till(store: &Store, till_id: &str) -> CoreResult<()> {
     Ok(())
 }
 
-/// Mark the signed-in person's till closed optimistically. No-op without one.
+/// Mark the signed-in person's till closed optimistically (no op; the close
+/// verb commits the op and this change together). No-op without one.
 pub(crate) fn close_local(store: &Store) -> CoreResult<()> {
-    if let Some(mut t) = current_record(store)? {
-        t.status = "closed".into();
-        update_record(store, &t)?;
+    if let Some(t) = current_record(store)? {
+        let now = chrono::Utc::now().to_rfc3339();
+        store.with_tx_touch(|tx, touched| {
+            crate::ledger::local::modify(tx, crate::ledger::T_TILL, &t.id, |v| {
+                v["status"] = serde_json::json!("closed");
+                if v.get("closed_at").map(serde_json::Value::is_null).unwrap_or(true) {
+                    v["closed_at"] = serde_json::json!(now);
+                }
+            })?;
+            touched.push(crate::changes::TILLS);
+            Ok(())
+        })?;
     }
     Ok(())
 }

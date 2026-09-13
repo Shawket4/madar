@@ -127,19 +127,12 @@ pub(crate) fn fold(conn: &Connection, item: &OutboxItem, body: Option<&Value>, m
             touched.extend([c::ORDERS, c::TILLS]);
         }
         ("settle_open_ticket", Some(b)) if s(b, "id").is_some() => {
-            // The paid order the settle produced: on the till at once.
-            let key = super::key_of(T_ORDER, b).unwrap_or_default();
-            if super::is_protected(conn, T_ORDER, &key)? {
-                return Ok(touched);
-            }
-            let mut row = b.clone();
-            row["payment_legs"] = legs_with_cash(b, None, methods);
-            if let Some(id) = s(b, "id") {
-                if b.get("items").map(Value::is_array).unwrap_or(false) {
-                    put_order_detail(conn, id, b)?;
-                }
-            }
-            write_row(conn, T_ORDER, &key, &row, Origin::Ack, None)?;
+            // The paid order the settle produced, keyed by its ticket (the
+            // server's idempotency key for it), on the till at once.
+            let key = key
+                .or_else(|| s(b, "open_ticket_id").map(str::to_string))
+                .unwrap_or_else(|| s(b, "id").unwrap().to_string());
+            fold_order_body(conn, &key, b, methods)?;
             touched.extend([c::ORDERS, c::TILLS, c::OPEN_TICKETS]);
         }
         ("void_order", Some(b)) if s(b, "id").is_some() => {

@@ -1002,6 +1002,15 @@ pub(crate) fn enqueue_on(conn: &Connection, op: &NewOutboxOp) -> CoreResult<i64>
     Ok(conn.query_row("SELECT seq FROM outbox WHERE id=?1", [&op.id], |r| r.get(0))?)
 }
 
+/// Mark an op acked on `conn` (inside the fold transaction).
+pub(crate) fn mark_acked_on(conn: &Connection, seq: i64, server_id: Option<&str>) -> CoreResult<()> {
+    conn.execute(
+        "UPDATE outbox SET status='acked', server_id=?2, synced_at=?3 WHERE seq=?1",
+        params![seq, server_id, now_ms()],
+    )?;
+    Ok(())
+}
+
 /// The column list every `OutboxItem` SELECT shares (kept in sync with `map_item`).
 const COLS: &str = "seq,id,op_type,idempotency_key,payload,event_at,status,attempts,last_error,\
                     server_id,depends_on_seq,next_attempt_at,user_id,clock_offset_ms,till_id,\

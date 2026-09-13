@@ -253,6 +253,15 @@ pub(crate) const ALL_TYPES: &[&str] = &[
     "category", "menu_item", "bundle", "ingredient", "payment_method", "payment_availability",
     "discount", "branch_settings", "device", "teller", "floor_section", "floor_table",
     "table_occupancy", "table_transfer", "open_ticket", "kitchen_ticket", "delivery", "booking",
+    "till", "cash_movement", "order", "refund", "addon_item",
+];
+/// The types a snapshot must list to count as COMPLETE (and move the cursor):
+/// the contract's original set. A type added later (`addon_item`) is applied
+/// when a server sends it, but a server that predates it still completes.
+pub(crate) const REQUIRED_TYPES: &[&str] = &[
+    "category", "menu_item", "bundle", "ingredient", "payment_method", "payment_availability",
+    "discount", "branch_settings", "device", "teller", "floor_section", "floor_table",
+    "table_occupancy", "table_transfer", "open_ticket", "kitchen_ticket", "delivery", "booking",
     "till", "cash_movement", "order", "refund",
 ];
 /// Ledger types: never checksummed; replaced only inside the full snapshot's window.
@@ -394,18 +403,34 @@ pub(crate) fn apply_page_with(
     move_cursor: bool,
     hook: &mut dyn FnMut(u32) -> CoreResult<()>,
 ) -> CoreResult<u32> {
-    store.with_tx(|tx| {
+    if store.future_schema() {
+        return Err(CoreError::Internal {
+            detail: "local store was written by a newer build; sync apply is off".into(),
+        });
+    }
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    store.with_tx_touch(|tx, touched| {
         let mut n = 0u32;
         let is_prot = |ty: &str, id: &str| protected.contains(&(ty.to_string(), id.to_string()));
         let next = resp.next.flatten();
         let types = resp.types.clone().unwrap_or_default();
+        let stream_window_from = stream_window(tx, branch)?;
         if resp.full {
             let window = resp
                 .ledger_window
                 .clone()
                 .flatten()
                 .and_then(|w| parse_ts(&w.from));
-            for ty in &types {
+            let ctx = crate::ledger::apply::PageCtx {
+                full: true,
+                window_from: window,
+                stream_window_from,
+                now_ms,
+            };
+            // Tills first: a movement or refund is swept by its till's state.
+            let mut ordered: Vec<&String> = types.iter().collect();
+            ordered.sort_by_key(|t| if t.as_str() == crate::ledger::T_TILL { 0 } else { 1 });
+            for ty in ordered {
                 let rows: Vec<serde_json::Value> = resp
                     .data
                     .as_ref()
@@ -413,6 +438,22 @@ pub(crate) fn apply_page_with(
                     .and_then(|v| v.as_array())
                     .cloned()
                     .unwrap_or_default();
+                if crate::ledger::is_ledger_type(ty) {
+                    let mut present = std::collections::HashSet::new();
+                    for r in &rows {
+                        let seq = r.get("seq").and_then(|v| v.as_i64()).unwrap_or(0);
+                        if let Some(key) = crate::ledger::key_of(ty, r) {
+                            present.insert(key);
+                        }
+                        if crate::ledger::apply::upsert(tx, ty, r, seq, &ctx)? {
+                            n += 1;
+                        }
+                        hook(n)?;
+                    }
+                    n += crate::ledger::apply::sweep_absent(tx, branch, ty, &present, &ctx)?;
+                    touched.push(crate::changes::table_for_sync_type(ty));
+                    continue;
+                }
                 let mut present = std::collections::HashSet::new();
                 for r in &rows {
                     let id = r.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -427,32 +468,14 @@ pub(crate) fn apply_page_with(
                     hook(n)?;
                 }
                 // delete server-origin rows absent from the snapshot (non-protected)
-                let mut stmt = tx.prepare("SELECT id, data FROM sync_rows WHERE branch_id=?1 AND type=?2")?;
-                let existing: Vec<(String, String)> = stmt
-                    .query_map(rusqlite::params![branch, ty], |r| Ok((r.get(0)?, r.get(1)?)))?
+                let mut stmt = tx.prepare("SELECT id FROM sync_rows WHERE branch_id=?1 AND type=?2")?;
+                let existing: Vec<String> = stmt
+                    .query_map(rusqlite::params![branch, ty], |r| r.get(0))?
                     .collect::<Result<_, _>>()?;
                 drop(stmt);
-                for (id, data) in existing {
+                for id in existing {
                     if present.contains(&id) || is_prot(ty, &id) {
                         continue;
-                    }
-                    if is_ledger(ty) {
-                        // only rows inside the window are replaced; older stay
-                        let changed = serde_json::from_str::<serde_json::Value>(&data)
-                            .ok()
-                            .and_then(|v| {
-                                ["updated_at", "closed_at", "created_at", "opened_at"]
-                                    .iter()
-                                    .find_map(|k| v.get(*k).and_then(|x| x.as_str()).and_then(parse_ts))
-                            });
-                        let inside = match (&window, changed) {
-                            (Some(w), Some(c)) => c >= *w,
-                            (None, _) => true,
-                            _ => false,
-                        };
-                        if !inside {
-                            continue;
-                        }
                     }
                     tx.execute(
                         "DELETE FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
@@ -460,27 +483,56 @@ pub(crate) fn apply_page_with(
                     )?;
                     n += 1;
                 }
+                touched.push(crate::changes::table_for_sync_type(ty));
             }
-            let all = ALL_TYPES.iter().all(|t| types.iter().any(|x| x == t));
+            let all = REQUIRED_TYPES.iter().all(|t| types.iter().any(|x| x == t));
             if move_cursor && all {
                 if let Some(next) = next {
                     put_kv(tx, &format!("{K_NEXT}{branch}"), &next.to_string())?;
                 }
                 put_kv(tx, &format!("{K_LAST_FULL}{branch}"), &chrono::Utc::now().to_rfc3339())?;
+                if let Some(w) = window {
+                    set_stream_window(tx, branch, &w)?;
+                }
+                touched.push(crate::changes::SYNC);
             }
         } else {
+            let ctx = crate::ledger::apply::PageCtx {
+                full: false,
+                window_from: None,
+                stream_window_from,
+                now_ms,
+            };
             for c in resp.changes.as_deref().unwrap_or_default() {
                 let id = c.id.to_string();
+                if crate::ledger::is_ledger_type(&c.r#type) {
+                    let changed = if c.op == "delete" || c.data.is_null() {
+                        crate::ledger::apply::delete(tx, &c.r#type, &id, &ctx)?
+                    } else {
+                        crate::ledger::apply::upsert(tx, &c.r#type, &c.data, c.seq, &ctx)?
+                    };
+                    if changed {
+                        n += 1;
+                        touched.push(crate::changes::table_for_sync_type(&c.r#type));
+                    }
+                    hook(n)?;
+                    continue;
+                }
                 let prot = is_prot(&c.r#type, &id);
                 if c.op == "delete" || c.data.is_null() {
                     if !prot {
-                        n += tx.execute(
+                        let k = tx.execute(
                             "DELETE FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
                             rusqlite::params![branch, c.r#type, id],
                         )? as u32;
+                        if k > 0 {
+                            touched.push(crate::changes::table_for_sync_type(&c.r#type));
+                        }
+                        n += k;
                     }
                 } else if upsert_row(tx, branch, &c.r#type, &id, c.seq, &c.data, prot)? {
                     n += 1;
+                    touched.push(crate::changes::table_for_sync_type(&c.r#type));
                 }
                 hook(n)?;
             }
@@ -492,6 +544,28 @@ pub(crate) fn apply_page_with(
         }
         Ok(n)
     })
+}
+
+/// The ledger window of the stream's last complete snapshot.
+fn stream_window(tx: &rusqlite::Connection, branch: &str) -> CoreResult<Option<chrono::DateTime<chrono::Utc>>> {
+    use rusqlite::OptionalExtension;
+    let w: Option<Option<String>> = tx
+        .query_row(
+            "SELECT window_from FROM sync_streams WHERE stream=?1",
+            [format!("branch:{branch}")],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(w.flatten().as_deref().and_then(parse_ts))
+}
+
+fn set_stream_window(tx: &rusqlite::Connection, branch: &str, w: &chrono::DateTime<chrono::Utc>) -> CoreResult<()> {
+    tx.execute(
+        "INSERT INTO sync_streams(stream, scope_key, window_from) VALUES(?1, ?2, ?3)
+         ON CONFLICT(stream) DO UPDATE SET window_from=excluded.window_from",
+        rusqlite::params![format!("branch:{branch}"), branch, w.to_rfc3339()],
+    )?;
+    Ok(())
 }
 
 /// An RFC 3339 instant (row timestamps and the ledger window compare as times,
@@ -1024,26 +1098,36 @@ mod tests {
     fn ledger_rows_compare_the_window_as_instants() {
         let store = Store::open("").unwrap();
         // Same instant spelled two ways: Postgres `+00:00` with micros vs `Z`.
-        let inside = serde_json::json!({"id": uid("o1"), "created_at": "2026-09-11T10:00:00.5+00:00"});
-        let older = serde_json::json!({"id": uid("o2"), "created_at": "2026-09-11T09:59:59Z"});
+        // Ledger types are rows in the ledger tables (offline plan B), written
+        // there as the feed would have.
+        let inside = serde_json::json!({"id": uid("o1"), "branch_id": B, "till_id": "T", "status": "completed",
+            "payment_method": "Cash", "created_at": "2026-09-11T10:00:00.5+00:00"});
+        let older = serde_json::json!({"id": uid("o2"), "branch_id": B, "till_id": "T", "status": "completed",
+            "payment_method": "Cash", "created_at": "2026-09-11T09:59:59Z"});
         store
-            .with_conn(|c| {
-                for (id, d) in [("o1", &inside), ("o2", &older)] {
-                    c.execute(
-                        "INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES('order',?1,?2,1,?3)",
-                        rusqlite::params![uid(id), B, d.to_string()],
-                    )?;
+            .with_tx(|tx| {
+                for d in [&inside, &older] {
+                    let key = crate::ledger::key_of("order", d).unwrap();
+                    crate::ledger::write_row(tx, "order", &key, d, crate::ledger::Origin::Feed(1), None)?;
                 }
                 Ok(())
             })
             .unwrap();
+        let ledger_row = |id: &str| -> bool {
+            store
+                .with_conn(|c| {
+                    Ok(c.query_row("SELECT COUNT(*) FROM ledger_orders WHERE okey=?1", [uid(id)], |r| r.get::<_, i64>(0))?)
+                })
+                .unwrap()
+                > 0
+        };
         let mut snap = full(&["order"], vec![], 9);
         snap.ledger_window = Some(Some(Box::new(madar_api::models::LedgerWindow {
             from: "2026-09-11T10:00:00Z".into(),
         })));
         apply_page(&store, B, &snap, &Protected::new(), true).unwrap();
-        assert!(row(&store, "order", "o1").is_none(), "inside the window and absent: replaced");
-        assert!(row(&store, "order", "o2").is_some(), "older than the window: kept until pruning");
+        assert!(!ledger_row("o1"), "inside the window and absent: replaced");
+        assert!(ledger_row("o2"), "older than the window: kept until pruning");
     }
 
     #[test]
