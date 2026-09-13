@@ -176,34 +176,68 @@ pub struct CartTotals {
 // ── cart contexts ────────────────────────────────────────────────────────────
 //
 // There is not one cart, there is one cart PER CONTEXT: the counter's takeaway
-// cart, and one for every table. Exactly one context is active; every cart
-// operation (lines, discount, undo stash, park, fire, checkout) reads and
-// writes the active context's cart. Switching the context never copies a
-// line — it only changes which cart is in hand — so a half-built takeaway can
-// not become table 5's first round, and two tables tapped in a row can not
-// share one basket. The takeaway context keeps the legacy keys, so a cart that
-// was persisted before contexts existed is still the counter's after upgrade.
+// cart, and one for every table. There is NO active context: every cart
+// operation (lines, discount, note, meta, undo stash, park, fire, checkout)
+// names the context it acts on (`None` = takeaway, `Some(table_id)`). The
+// host's screens own which cart they show, so the Sell tab can never inherit a
+// table from a previous launch or a previous user. The takeaway context keeps
+// the legacy keys, so a cart persisted before contexts existed is still the
+// counter's after upgrade.
 
-/// kv key — the active context: "" (takeaway) or a table id.
-pub(crate) const K_CONTEXT: &str = "cart:context";
+/// A cart context: `None` is the counter's takeaway cart, `Some(id)` a table's.
+pub type Ctx<'a> = Option<&'a str>;
+
+/// kv key — the retired GLOBAL active context. Ignored; deleted once on load.
+pub(crate) const K_LEGACY_CONTEXT: &str = "cart:context";
 /// kv key — JSON array of table ids that have (or had) a cart of their own,
 /// so a sign-out / shift close can empty every one of them.
 const K_CONTEXT_TABLES: &str = "cart:context_tables";
+/// kv key — the context's cart meta (JSON `CartMeta`).
+const K_META: &str = "cart:meta";
 
-/// The active context's table id, or `None` for takeaway.
-pub(crate) fn context(store: &Store) -> CoreResult<Option<String>> {
-    Ok(store.kv_get(K_CONTEXT)?.filter(|s| !s.is_empty()))
+/// The identity a context's cart carries while it is being built: what it is
+/// called, which parked order it came from, and the table/booking it belongs
+/// to. Persisted per context so it survives a restart with its lines.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CartMeta {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub draft_id: Option<String>,
+    #[serde(default)]
+    pub booking_id: Option<String>,
+    #[serde(default)]
+    pub table_label: Option<String>,
+    #[serde(default)]
+    pub guest_name: Option<String>,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub covers: Option<i32>,
 }
 
-fn key_for(table: Option<&str>, base: &str) -> String {
-    match table {
+/// Drop the retired global-context key (idempotent; called on core open).
+pub(crate) fn forget_legacy_context(store: &Store) -> CoreResult<()> {
+    if store.kv_get(K_LEGACY_CONTEXT)?.is_some() {
+        store.kv_delete(K_LEGACY_CONTEXT)?;
+    }
+    Ok(())
+}
+
+fn norm(ctx: Ctx<'_>) -> Ctx<'_> {
+    ctx.filter(|s| !s.is_empty())
+}
+
+fn key_for(table: Ctx<'_>, base: &str) -> String {
+    match norm(table) {
         None => base.to_string(),
         Some(id) => format!("{base}@table:{id}"),
     }
 }
 
-fn ctx_key(store: &Store, base: &str) -> CoreResult<String> {
-    Ok(key_for(context(store)?.as_deref(), base))
+fn ctx_key(ctx: Ctx<'_>, base: &str) -> CoreResult<String> {
+    Ok(key_for(ctx, base))
 }
 
 fn context_tables(store: &Store) -> CoreResult<Vec<String>> {
@@ -213,22 +247,44 @@ fn context_tables(store: &Store) -> CoreResult<Vec<String>> {
     })
 }
 
-/// Activate a context's cart (`None` = takeaway). Never moves lines: each
-/// context's cart stays exactly as it was left. Returns the now-active lines.
-pub(crate) fn set_context(store: &Store, table_id: Option<&str>) -> CoreResult<Vec<CartLineView>> {
-    let table_id = table_id.filter(|s| !s.is_empty());
-    if let Some(id) = table_id {
+/// Remember a table context so `clear_all` can find its cart later.
+fn track(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
+    if let Some(id) = norm(ctx) {
         let mut known = context_tables(store)?;
         if !known.iter().any(|k| k == id) {
             known.push(id.to_string());
             store.kv_put(K_CONTEXT_TABLES, &serde_json::to_string(&known)?)?;
         }
     }
-    store.kv_put(K_CONTEXT, table_id.unwrap_or(""))?;
-    lines(store)
+    Ok(())
 }
 
-/// Empty EVERY context's cart and fall back to takeaway (sign-out, shift close).
+/// The context's cart meta (default when none was set).
+pub(crate) fn meta(store: &Store, ctx: Ctx<'_>) -> CoreResult<CartMeta> {
+    Ok(match store.kv_get(&key_for(ctx, K_META))? {
+        Some(j) => serde_json::from_str(&j).unwrap_or_default(),
+        None => CartMeta::default(),
+    })
+}
+
+/// Replace the context's cart meta.
+pub(crate) fn set_meta(store: &Store, ctx: Ctx<'_>, meta: &CartMeta) -> CoreResult<()> {
+    track(store, ctx)?;
+    store.kv_put(&key_for(ctx, K_META), &serde_json::to_string(meta)?)
+}
+
+/// Every table context that currently holds lines.
+pub(crate) fn table_contexts_with_lines(store: &Store) -> CoreResult<Vec<String>> {
+    let mut out = Vec::new();
+    for t in context_tables(store)? {
+        if !load(store, Some(&t))?.is_empty() {
+            out.push(t);
+        }
+    }
+    Ok(out)
+}
+
+/// Empty EVERY context's cart and meta (sign-out, shift close).
 pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
     let tables = context_tables(store)?;
     for t in std::iter::once(None).chain(tables.iter().map(|t| Some(t.as_str()))) {
@@ -236,20 +292,22 @@ pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
         store.kv_put(&key_for(t, K_DISCOUNT), "")?;
         store.kv_put(&key_for(t, K_NOTE), "")?;
         store.kv_put(&key_for(t, K_LAST_REMOVED), "[]")?;
+        store.kv_put(&key_for(t, K_META), "{}")?;
     }
     store.kv_put(K_CONTEXT_TABLES, "[]")?;
-    store.kv_put(K_CONTEXT, "")
+    forget_legacy_context(store)
 }
 
-fn load(store: &Store) -> CoreResult<Vec<StoredLine>> {
-    match store.kv_get(&ctx_key(store, K_CART)?)? {
+fn load(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<StoredLine>> {
+    match store.kv_get(&ctx_key(ctx, K_CART)?)? {
         Some(json) => Ok(serde_json::from_str(&json).unwrap_or_default()),
         None => Ok(Vec::new()),
     }
 }
 
-fn save(store: &Store, lines: &[StoredLine]) -> CoreResult<()> {
-    store.kv_put(&ctx_key(store, K_CART)?, &serde_json::to_string(lines)?)
+fn save(store: &Store, ctx: Ctx<'_>, lines: &[StoredLine]) -> CoreResult<()> {
+    track(store, ctx)?;
+    store.kv_put(&ctx_key(ctx, K_CART)?, &serde_json::to_string(lines)?)
 }
 
 // ── pricing helpers (the line-money rules, mirrored from cart.dart) ───────────
@@ -982,19 +1040,19 @@ pub(crate) fn validate_group_selections(
 
 // ── operations (store in, updated views out) ─────────────────────────────────
 
-pub(crate) fn lines(store: &Store) -> CoreResult<Vec<CartLineView>> {
-    Ok(view(&load(store)?))
+pub(crate) fn lines(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<CartLineView>> {
+    Ok(view(&load(store, ctx)?))
 }
 
 /// Push a resolved line, merging into an identical existing line (same key).
-pub(crate) fn add_resolved(store: &Store, line: StoredLine) -> CoreResult<Vec<CartLineView>> {
-    let mut lines = load(store)?;
+pub(crate) fn add_resolved(store: &Store, ctx: Ctx<'_>, line: StoredLine) -> CoreResult<Vec<CartLineView>> {
+    let mut lines = load(store, ctx)?;
     let sig = signature(&line);
     match lines.iter_mut().find(|l| signature(l) == sig) {
         Some(l) => l.qty += line.qty,
         None => lines.push(line),
     }
-    save(store, &lines)?;
+    save(store, ctx, &lines)?;
     Ok(view(&lines))
 }
 
@@ -1011,10 +1069,11 @@ pub(crate) fn add_resolved(store: &Store, line: StoredLine) -> CoreResult<Vec<Ca
 /// exactly as a fresh add would.
 pub(crate) fn replace_resolved(
     store: &Store,
+    ctx: Ctx<'_>,
     line_key: &str,
     line: StoredLine,
 ) -> CoreResult<Vec<CartLineView>> {
-    let mut lines = load(store)?;
+    let mut lines = load(store, ctx)?;
     let Some(at) = lines.iter().position(|l| signature(l) == line_key) else {
         return Err(CoreError::Validation {
             field: "line".into(),
@@ -1027,7 +1086,7 @@ pub(crate) fn replace_resolved(
         Some(l) => l.qty += line.qty,
         None => lines.insert(at.min(lines.len()), line),
     }
-    save(store, &lines)?;
+    save(store, ctx, &lines)?;
     Ok(view(&lines))
 }
 
@@ -1062,12 +1121,14 @@ pub(crate) fn preview_line(line: &StoredLine) -> LinePreviewView {
 /// Add one unit of an option-less item (the basic catalog tap).
 pub(crate) fn add(
     store: &Store,
+    ctx: Ctx<'_>,
     item_id: &str,
     name: &str,
     unit_price_minor: i64,
 ) -> CoreResult<Vec<CartLineView>> {
     add_resolved(
         store,
+        ctx,
         StoredLine {
             item_id: item_id.to_string(),
             name: name.to_string(),
@@ -1084,14 +1145,14 @@ pub(crate) fn add(
 }
 
 /// Set the absolute quantity for a line (by its key); `qty <= 0` removes it.
-pub(crate) fn set_qty(store: &Store, line_key: &str, qty: i64) -> CoreResult<Vec<CartLineView>> {
-    let mut lines = load(store)?;
+pub(crate) fn set_qty(store: &Store, ctx: Ctx<'_>, line_key: &str, qty: i64) -> CoreResult<Vec<CartLineView>> {
+    let mut lines = load(store, ctx)?;
     if qty <= 0 {
         lines.retain(|l| signature(l) != line_key);
     } else if let Some(l) = lines.iter_mut().find(|l| signature(l) == line_key) {
         l.qty = qty;
     }
-    save(store, &lines)?;
+    save(store, ctx, &lines)?;
     Ok(view(&lines))
 }
 
@@ -1100,8 +1161,8 @@ const K_LAST_REMOVED: &str = "cart:last_removed";
 
 /// Remove a line entirely (by its key), stashing it so the host can offer an
 /// "Undo" (see `restore_last_removed`).
-pub(crate) fn remove(store: &Store, line_key: &str) -> CoreResult<Vec<CartLineView>> {
-    let mut lines = load(store)?;
+pub(crate) fn remove(store: &Store, ctx: Ctx<'_>, line_key: &str) -> CoreResult<Vec<CartLineView>> {
+    let mut lines = load(store, ctx)?;
     let removed: Vec<StoredLine> = lines
         .iter()
         .filter(|l| signature(l) == line_key)
@@ -1110,40 +1171,41 @@ pub(crate) fn remove(store: &Store, line_key: &str) -> CoreResult<Vec<CartLineVi
     lines.retain(|l| signature(l) != line_key);
     if !removed.is_empty() {
         store.kv_put(
-            &ctx_key(store, K_LAST_REMOVED)?,
+            &ctx_key(ctx, K_LAST_REMOVED)?,
             &serde_json::to_string(&removed)?,
         )?;
     }
-    save(store, &lines)?;
+    save(store, ctx, &lines)?;
     Ok(view(&lines))
 }
 
 /// Re-insert the most recently `remove`d line(s) — the Undo for a swipe-delete.
 /// Merges back into an identical line (same signature) if one exists, else
 /// re-appends. Clears the stash; a no-op when nothing was stashed.
-pub(crate) fn restore_last_removed(store: &Store) -> CoreResult<Vec<CartLineView>> {
-    let stash: Vec<StoredLine> = match store.kv_get(&ctx_key(store, K_LAST_REMOVED)?)? {
+pub(crate) fn restore_last_removed(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<CartLineView>> {
+    let stash: Vec<StoredLine> = match store.kv_get(&ctx_key(ctx, K_LAST_REMOVED)?)? {
         Some(j) => serde_json::from_str(&j).unwrap_or_default(),
         None => Vec::new(),
     };
-    let mut lines = load(store)?;
+    let mut lines = load(store, ctx)?;
     for r in stash {
         match lines.iter_mut().find(|l| signature(l) == signature(&r)) {
             Some(l) => l.qty += r.qty,
             None => lines.push(r),
         }
     }
-    store.kv_put(&ctx_key(store, K_LAST_REMOVED)?, "[]")?; // consume the stash (no double-undo)
-    save(store, &lines)?;
+    store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // consume the stash (no double-undo)
+    save(store, ctx, &lines)?;
     Ok(view(&lines))
 }
 
 /// Empty the cart + its discount (e.g. after checkout or on sign-out).
-pub(crate) fn clear(store: &Store) -> CoreResult<()> {
-    clear_discount(store)?;
-    set_note(store, None)?;
-    store.kv_put(&ctx_key(store, K_LAST_REMOVED)?, "[]")?; // a stale undo must not resurrect a sold line
-    save(store, &[])
+pub(crate) fn clear(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
+    clear_discount(store, ctx)?;
+    set_note(store, ctx, None)?;
+    store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // a stale undo must not resurrect a sold line
+    store.kv_put(&key_for(ctx, K_META), "{}")?; // the spent cart forgets its name/draft/booking
+    save(store, ctx, &[])
 }
 
 // ── cart payload (the wire shape a held order carries) ───────────────────────
@@ -1154,12 +1216,12 @@ pub(crate) fn clear(store: &Store) -> CoreResult<()> {
 // a payload written by any till restores bit-identically on any other.
 
 /// Snapshot the current cart (lines + discount) as the held-order payload.
-pub(crate) fn cart_payload(store: &Store) -> CoreResult<serde_json::Value> {
-    let lines = load(store)?;
+pub(crate) fn cart_payload(store: &Store, ctx: Ctx<'_>) -> CoreResult<serde_json::Value> {
+    let lines = load(store, ctx)?;
     Ok(serde_json::json!({
         "lines": serde_json::to_value(&lines)?,
-        "discount_id": discount_id(store)?,
-        "note": note(store)?,
+        "discount_id": discount_id(store, ctx)?,
+        "note": note(store, ctx)?,
     }))
 }
 
@@ -1168,6 +1230,7 @@ pub(crate) fn cart_payload(store: &Store) -> CoreResult<serde_json::Value> {
 /// Returns the restored cart view.
 pub(crate) fn set_cart_payload(
     store: &Store,
+    ctx: Ctx<'_>,
     payload: &serde_json::Value,
 ) -> CoreResult<Vec<CartLineView>> {
     let lines: Vec<StoredLine> = payload
@@ -1176,12 +1239,12 @@ pub(crate) fn set_cart_payload(
         .map(|v| serde_json::from_value(v).unwrap_or_default())
         .unwrap_or_default();
     match payload.get("discount_id").and_then(|v| v.as_str()) {
-        Some(d) if !d.is_empty() => set_discount(store, d)?,
-        _ => clear_discount(store)?,
+        Some(d) if !d.is_empty() => set_discount(store, ctx, d)?,
+        _ => clear_discount(store, ctx)?,
     }
-    set_note(store, payload.get("note").and_then(|v| v.as_str()))?;
-    store.kv_put(&ctx_key(store, K_LAST_REMOVED)?, "[]")?; // a stale undo must not leak across orders
-    save(store, &lines)?;
+    set_note(store, ctx, payload.get("note").and_then(|v| v.as_str()))?;
+    store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // a stale undo must not leak across orders
+    save(store, ctx, &lines)?;
     Ok(view(&lines))
 }
 
@@ -1272,8 +1335,8 @@ fn save_drafts(store: &Store, drafts: &[StoredDraft]) -> CoreResult<()> {
 /// Park the current cart as a named draft and empty the cart. `id`/`now` are
 /// host-supplied (the core stays free of clock/uuid). Errors if the cart is empty.
 #[cfg_attr(not(test), allow(dead_code))] // legacy path: exercised by tests + kept for reference
-pub(crate) fn hold(store: &Store, id: String, name: String, now: String) -> CoreResult<()> {
-    let lines = load(store)?;
+pub(crate) fn hold(store: &Store, ctx: Ctx<'_>, id: String, name: String, now: String) -> CoreResult<()> {
+    let lines = load(store, ctx)?;
     if lines.is_empty() {
         return Err(crate::error::CoreError::Validation {
             field: "cart".into(),
@@ -1288,7 +1351,7 @@ pub(crate) fn hold(store: &Store, id: String, name: String, now: String) -> Core
         lines,
     });
     save_drafts(store, &drafts)?;
-    clear(store)
+    clear(store, ctx)
 }
 
 /// The parked drafts, newest first.
@@ -1342,15 +1405,15 @@ pub(crate) fn take_legacy_drafts(
 /// Restore a draft into the cart (replacing any current lines) and drop it from
 /// the drafts list. Returns the new cart view.
 #[cfg_attr(not(test), allow(dead_code))] // legacy path: exercised by tests + kept for reference
-pub(crate) fn restore_draft(store: &Store, id: &str) -> CoreResult<Vec<CartLineView>> {
+pub(crate) fn restore_draft(store: &Store, ctx: Ctx<'_>, id: &str) -> CoreResult<Vec<CartLineView>> {
     let mut drafts = load_drafts(store)?;
     let Some(pos) = drafts.iter().position(|d| d.id == id) else {
-        return Ok(view(&load(store)?));
+        return Ok(view(&load(store, ctx)?));
     };
     let draft = drafts.remove(pos);
     save_drafts(store, &drafts)?;
-    clear_discount(store)?;
-    save(store, &draft.lines)?;
+    clear_discount(store, ctx)?;
+    save(store, ctx, &draft.lines)?;
     Ok(view(&draft.lines))
 }
 
@@ -1364,27 +1427,27 @@ pub(crate) fn discard_draft(store: &Store, id: &str) -> CoreResult<()> {
 
 // ── discount ─────────────────────────────────────────────────────────────────
 
-pub(crate) fn set_discount(store: &Store, discount_id: &str) -> CoreResult<()> {
-    store.kv_put(&ctx_key(store, K_DISCOUNT)?, discount_id)
+pub(crate) fn set_discount(store: &Store, ctx: Ctx<'_>, discount_id: &str) -> CoreResult<()> {
+    store.kv_put(&ctx_key(ctx, K_DISCOUNT)?, discount_id)
 }
-pub(crate) fn clear_discount(store: &Store) -> CoreResult<()> {
-    store.kv_put(&ctx_key(store, K_DISCOUNT)?, "")
+pub(crate) fn clear_discount(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
+    store.kv_put(&ctx_key(ctx, K_DISCOUNT)?, "")
 }
 /// Set (or, with `None` / blank, clear) the order note of the cart in hand.
-pub(crate) fn set_note(store: &Store, note: Option<&str>) -> CoreResult<()> {
+pub(crate) fn set_note(store: &Store, ctx: Ctx<'_>, note: Option<&str>) -> CoreResult<()> {
     let note = note.map(str::trim).unwrap_or("");
-    store.kv_put(&ctx_key(store, K_NOTE)?, note)
+    store.kv_put(&ctx_key(ctx, K_NOTE)?, note)
 }
 /// The cart's order note, or `None` when blank.
-pub(crate) fn note(store: &Store) -> CoreResult<Option<String>> {
+pub(crate) fn note(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<String>> {
     Ok(store
-        .kv_get(&ctx_key(store, K_NOTE)?)?
+        .kv_get(&ctx_key(ctx, K_NOTE)?)?
         .filter(|s| !s.trim().is_empty()))
 }
 /// The selected discount id, or `None`.
-pub(crate) fn discount_id(store: &Store) -> CoreResult<Option<String>> {
+pub(crate) fn discount_id(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<String>> {
     Ok(store
-        .kv_get(&ctx_key(store, K_DISCOUNT)?)?
+        .kv_get(&ctx_key(ctx, K_DISCOUNT)?)?
         .filter(|s| !s.is_empty() && s != "null"))
 }
 
@@ -1414,8 +1477,8 @@ pub(crate) fn discount_rate(d: &models::Discount) -> f64 {
     }
 }
 
-pub(crate) fn discount(store: &Store) -> CoreResult<(DiscountKind, f64)> {
-    let id = match discount_id(store)? {
+pub(crate) fn discount(store: &Store, ctx: Ctx<'_>) -> CoreResult<(DiscountKind, f64)> {
+    let id = match discount_id(store, ctx)? {
         Some(id) => id,
         None => return Ok((DiscountKind::None, 0.0)),
     };
@@ -1484,11 +1547,11 @@ fn priced(l: &StoredLine) -> pricing::CartLine {
 
 /// Price the cart under `policy` via the pricing engine, applying the selected
 /// discount before tax.
-pub(crate) fn totals(store: &Store, policy: &crate::tax::TaxPolicy) -> CoreResult<CartTotals> {
+pub(crate) fn totals(store: &Store, ctx: Ctx<'_>, policy: &crate::tax::TaxPolicy) -> CoreResult<CartTotals> {
     use rust_decimal::prelude::ToPrimitive;
-    let lines = load(store)?;
+    let lines = load(store, ctx)?;
     let item_count = lines.iter().map(|l| l.qty).sum();
-    let (discount_kind, discount_value) = discount(store)?;
+    let (discount_kind, discount_value) = discount(store, ctx)?;
     let priced = pricing::price_cart(PriceCartInput {
         lines: lines.iter().map(priced).collect(),
         discount_kind,

@@ -369,6 +369,7 @@ use rust_decimal::prelude::ToPrimitive;
 
 pub(crate) fn prepare(
     store: &Store,
+    ctx: cart::Ctx<'_>,
     locale: &str,
     branch_id: &str,
     shift_id: &str,
@@ -378,7 +379,7 @@ pub(crate) fn prepare(
 ) -> CoreResult<Prepared> {
     let payment_method_id = &input.payment_method_id;
     let amount_tendered_minor = input.amount_tendered_minor;
-    let lines = cart::lines(store)?;
+    let lines = cart::lines(store, ctx)?;
     if lines.is_empty() {
         return Err(CoreError::Validation {
             field: "cart".into(),
@@ -415,7 +416,7 @@ pub(crate) fn prepare(
     // Price through the engine (the money source of truth). Cash carries the
     // tender + change; non-cash records neither. The cart's discount applies
     // before tax (the engine clamps it).
-    let (discount_kind, discount_value) = cart::discount(store)?;
+    let (discount_kind, discount_value) = cart::discount(store, ctx)?;
     let tendered = if is_cash {
         Some(amount_tendered_minor)
     } else {
@@ -538,7 +539,7 @@ pub(crate) fn prepare(
         .notes
         .clone()
         .filter(|s| !s.trim().is_empty())
-        .or(crate::cart::note(store)?)
+        .or(crate::cart::note(store, ctx)?)
         .map(Some);
     // Split payments: resolve each leg's method to its raw name.
     if !input.splits.is_empty() {
@@ -568,7 +569,7 @@ pub(crate) fn prepare(
             DiscountKind::Fixed => "fixed",
             DiscountKind::None => "",
         };
-        request.discount_id = cart::discount_id(store)?
+        request.discount_id = cart::discount_id(store, ctx)?
             .and_then(|id| uuid::Uuid::parse_str(&id).ok())
             .map(Some);
         request.discount_type = Some(Some(dtype.into()));

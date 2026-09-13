@@ -206,6 +206,10 @@ impl Store {
         )?;
         Ok(())
     }
+    pub fn kv_delete(&self, key: &str) -> CoreResult<()> {
+        self.lock().execute("DELETE FROM kv WHERE k=?1", [key])?;
+        Ok(())
+    }
     pub fn kv_get(&self, key: &str) -> CoreResult<Option<String>> {
         Ok(self
             .lock()

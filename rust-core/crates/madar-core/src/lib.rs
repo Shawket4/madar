@@ -317,6 +317,8 @@ impl MadarCore {
     #[cfg_attr(feature = "uniffi-ffi", uniffi::constructor)]
     pub fn new(config: MadarConfig) -> Result<Arc<Self>, error::CoreError> {
         let store = Arc::new(store::Store::open(&config.db_path)?);
+        // The retired global cart context: ignored, and forgotten once.
+        let _ = cart::forget_legacy_context(&store);
         // Bring crash reporting up as early as the store allows (its queue lives
         // in that SQLite file). Deliberately AFTER `Store::open` and BEFORE
         // anything else: a store that won't open is a hard boot failure the host
@@ -2922,18 +2924,19 @@ impl MadarCore {
 #[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
     /// The current cart lines (empty when none).
-    pub fn cart_lines(&self) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::lines(&self.store)
+    pub fn cart_lines(&self, table_id: Option<String>) -> Result<Vec<cart::CartLineView>, CoreError> {
+        cart::lines(&self.store, table_id.as_deref())
     }
     /// Add one unit of a menu item (merges into the matching line). The host
     /// passes the resolved display name + unit price so the cart is self-contained.
     pub fn cart_add(
         &self,
+        table_id: Option<String>,
         item_id: String,
         name: String,
         unit_price_minor: i64,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::add(&self.store, &item_id, &name, unit_price_minor)
+        cart::add(&self.store, table_id.as_deref(), &item_id, &name, unit_price_minor)
     }
     /// Add a CONFIGURED line (size + addons + optionals + notes). The core
     /// resolves the charged prices from the cached catalog (size unit price;
@@ -2942,6 +2945,7 @@ impl MadarCore {
     /// resolved here, not trusted from the host.
     pub fn cart_add_configured(
         &self,
+        table_id: Option<String>,
         item_id: String,
         size_label: Option<String>,
         addons: Vec<cart::AddonSelection>,
@@ -2967,7 +2971,7 @@ impl MadarCore {
             qty,
             notes,
         );
-        cart::add_resolved(&self.store, line)
+        cart::add_resolved(&self.store, table_id.as_deref(), line)
     }
     /// EDIT a configured line: resolve the new configuration, then swap it in
     /// for `line_key` in one write. Anything that fails — an item no longer on
@@ -2976,6 +2980,7 @@ impl MadarCore {
     #[allow(clippy::too_many_arguments)]
     pub fn cart_replace_configured(
         &self,
+        table_id: Option<String>,
         line_key: String,
         item_id: String,
         size_label: Option<String>,
@@ -3003,7 +3008,7 @@ impl MadarCore {
             qty,
             notes,
         );
-        cart::replace_resolved(&self.store, &line_key, line)
+        cart::replace_resolved(&self.store, table_id.as_deref(), &line_key, line)
     }
     /// What a configured line would cost — the item sheet's figures, priced by
     /// the same resolver the add uses. Adds nothing.
@@ -3038,8 +3043,8 @@ impl MadarCore {
     /// "Bill so far" under a round: what the bill already carries plus what
     /// this round adds, both as subtotals (the ticket view prices nothing
     /// else). Summed here so the cart footer shows a figure, not arithmetic.
-    pub fn cart_bill_so_far_minor(&self, ticket_subtotal_minor: i64) -> Result<i64, CoreError> {
-        let totals = self.cart_totals()?;
+    pub fn cart_bill_so_far_minor(&self, table_id: Option<String>, ticket_subtotal_minor: i64) -> Result<i64, CoreError> {
+        let totals = self.cart_totals(table_id)?;
         Ok(ticket_subtotal_minor.saturating_add(totals.subtotal_minor))
     }
     /// Add a configured BUNDLE line: the fixed bundle price + each component's
@@ -3048,6 +3053,7 @@ impl MadarCore {
     /// the bundle price covers it) and merges identical bundle configs.
     pub fn cart_add_bundle(
         &self,
+        table_id: Option<String>,
         bundle_id: String,
         components: Vec<cart::BundleComponentSelection>,
         qty: i64,
@@ -3063,7 +3069,7 @@ impl MadarCore {
             })?;
         let line =
             cart::resolve_bundle_line(bundle, &catalog.items, &catalog.addons, &components, qty);
-        cart::add_resolved(&self.store, line)
+        cart::add_resolved(&self.store, table_id.as_deref(), line)
     }
     /// Active addons offered for an item, with their CHARGED price resolved (swap
     /// delta / full) — the customization sheet groups these by `addon_type`.
@@ -3166,36 +3172,46 @@ impl MadarCore {
     /// Set a line's absolute quantity (by its key); `qty <= 0` removes the line.
     pub fn cart_set_qty(
         &self,
+        table_id: Option<String>,
         item_id: String,
         qty: i64,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::set_qty(&self.store, &item_id, qty)
+        cart::set_qty(&self.store, table_id.as_deref(), &item_id, qty)
     }
     /// Remove a line entirely (stashed for undo — see `cart_restore_removed`).
-    pub fn cart_remove(&self, item_id: String) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::remove(&self.store, &item_id)
+    pub fn cart_remove(&self, table_id: Option<String>, item_id: String) -> Result<Vec<cart::CartLineView>, CoreError> {
+        cart::remove(&self.store, table_id.as_deref(), &item_id)
     }
     /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
     /// nothing was removed (or it was already restored / the cart was cleared).
-    pub fn cart_restore_removed(&self) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::restore_last_removed(&self.store)
+    pub fn cart_restore_removed(&self, table_id: Option<String>) -> Result<Vec<cart::CartLineView>, CoreError> {
+        cart::restore_last_removed(&self.store, table_id.as_deref())
     }
-    /// Empty the ACTIVE context's cart (other contexts are untouched).
-    pub fn cart_clear(&self) -> Result<(), CoreError> {
-        cart::clear(&self.store)
+    /// Empty one context's cart + meta (other contexts are untouched).
+    pub fn cart_clear(&self, table_id: Option<String>) -> Result<(), CoreError> {
+        cart::clear(&self.store, table_id.as_deref())
     }
-    /// Switch which cart is in hand: `None` = the counter's takeaway cart,
-    /// `Some(table_id)` = that table's own cart. Never copies lines between
-    /// contexts. Returns the now-active cart's lines.
-    pub fn cart_set_context(
+    /// The cart meta of one context (`None` = takeaway): its name, the parked
+    /// order it came from, table label, booking, guest, covers, started_at.
+    /// Persisted with the cart, so it survives a restart.
+    pub fn cart_meta(&self, table_id: Option<String>) -> Result<cart::CartMeta, CoreError> {
+        cart::meta(&self.store, table_id.as_deref())
+    }
+    /// Replace one context's cart meta (cleared again when that cart is spent).
+    pub fn cart_set_meta(
         &self,
         table_id: Option<String>,
-    ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::set_context(&self.store, table_id.as_deref())
+        meta: cart::CartMeta,
+    ) -> Result<(), CoreError> {
+        cart::set_meta(&self.store, table_id.as_deref(), &meta)
     }
-    /// The active cart context: `None` = takeaway, else the table id.
-    pub fn cart_context(&self) -> Result<Option<String>, CoreError> {
-        cart::context(&self.store)
+    /// Every table context that currently holds unsent lines.
+    pub fn cart_table_contexts(&self) -> Result<Vec<String>, CoreError> {
+        cart::table_contexts_with_lines(&self.store)
+    }
+    /// Empty EVERY context's cart and meta (sign-out / shift close).
+    pub fn cart_clear_all(&self) -> Result<(), CoreError> {
+        cart::clear_all(&self.store)
     }
     // ── held orders (server-backed parked carts, branch-shared) ───────────
     //
@@ -3207,11 +3223,12 @@ impl MadarCore {
     /// keep a re-parked (previously restored) draft's identity + strip position.
     pub fn hold_cart(
         &self,
+        table_id: Option<String>,
         name: String,
         draft_id: Option<String>,
         started_at: Option<String>,
     ) -> Result<(), CoreError> {
-        self.hold_cart_on_table(name, draft_id, started_at, None)
+        self.hold_cart_on_table(table_id, name, draft_id, started_at, None)
             .map(|_| ())
     }
 
@@ -3221,13 +3238,14 @@ impl MadarCore {
     /// shows a "table was taken" toast). The queued op re-arbitrates on sync.
     pub fn hold_cart_on_table(
         &self,
+        table_id: Option<String>,
         name: String,
         draft_id: Option<String>,
         started_at: Option<String>,
-        table_id: Option<String>,
+        onto_table_id: Option<String>,
     ) -> Result<bool, CoreError> {
         let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
-        self.hold_cart_on_table_locked(name, draft_id, started_at, table_id)
+        self.hold_cart_on_table_locked(table_id.as_deref(), name, draft_id, started_at, onto_table_id)
     }
 
     /// Resume a parked order in ONE call, parking whatever is in the way first.
@@ -3241,13 +3259,19 @@ impl MadarCore {
     /// Nothing is touched unless the resume can succeed: a missing draft, one
     /// already finished, or one another till has open refuses first.
     ///
-    /// * `park_in_hand` — park the ACTIVE context's cart (if it has lines)
-    ///   under this identity before leaving it. `None` leaves it where it is.
+    /// * `from_table_id` — the context the host is leaving (`None` = takeaway).
+    /// * `park_in_hand` — park THAT context's cart (if it has lines) under this
+    ///   identity before leaving it. `None` leaves it where it is.
     /// * `park_at_target` — the identity for any lines already sitting in the
     ///   draft's own context (its table's cart), which must be parked rather
     ///   than overwritten.
+    ///
+    /// Nothing is "activated": the draft's lines and meta land in its own
+    /// context's cart, and the returned `table_id` names that context so the
+    /// host shows it.
     pub fn switch_to_draft(
         &self,
+        from_table_id: Option<String>,
         id: String,
         park_in_hand: Option<cart::HeldParkInput>,
         park_at_target: Option<cart::HeldParkInput>,
@@ -3272,25 +3296,27 @@ impl MadarCore {
             });
         }
         let mut table_taken = false;
+        let from = from_table_id.filter(|s| !s.is_empty());
         if let Some(park) = park_in_hand {
             // A re-tap on the chip already in hand is not a second park.
             let same = park.draft_id.as_deref() == Some(id.as_str());
-            if !same && !cart::lines(&self.store)?.is_empty() {
-                let context = cart::context(&self.store)?;
+            if !same && !cart::lines(&self.store, from.as_deref())?.is_empty() {
                 table_taken |= self.hold_cart_on_table_locked(
+                    from.as_deref(),
                     park.name,
                     park.draft_id,
                     park.started_at,
-                    context,
+                    from.clone(),
                 )?;
             }
         }
-        let target_table = draft.table_id.clone();
-        cart::set_context(&self.store, target_table.as_deref())?;
+        let target_table = draft.table_id.clone().filter(|s| !s.is_empty());
+        let target = target_table.as_deref();
         if let Some(park) = park_at_target {
             let same = park.draft_id.as_deref() == Some(id.as_str());
-            if !same && !cart::lines(&self.store)?.is_empty() {
+            if !same && !cart::lines(&self.store, target)?.is_empty() {
                 table_taken |= self.hold_cart_on_table_locked(
+                    target,
                     park.name,
                     park.draft_id,
                     park.started_at,
@@ -3300,7 +3326,13 @@ impl MadarCore {
         }
         let now = self.corrected_now().to_rfc3339();
         let payload = held::claim_local(&self.store, &id, &device, &now)?;
-        let lines = cart::set_cart_payload(&self.store, &payload)?;
+        let lines = cart::set_cart_payload(&self.store, target, &payload)?;
+        let mut meta = cart::meta(&self.store, target)?;
+        meta.name = draft.name.clone();
+        meta.draft_id = Some(id.clone());
+        meta.table_label = draft.table_label.clone();
+        meta.started_at = Some(draft.created_at.clone());
+        cart::set_meta(&self.store, target, &meta)?;
         Ok(cart::DraftSwitchView {
             lines,
             table_id: target_table,
@@ -3313,13 +3345,14 @@ impl MadarCore {
 
     fn hold_cart_on_table_locked(
         &self,
+        ctx: cart::Ctx<'_>,
         name: String,
         draft_id: Option<String>,
         started_at: Option<String>,
         table_id: Option<String>,
     ) -> Result<bool, CoreError> {
         let branch = self.session_branch_id()?;
-        let payload = cart::cart_payload(&self.store)?;
+        let payload = cart::cart_payload(&self.store, ctx)?;
         if payload
             .get("lines")
             .and_then(|l| l.as_array())
@@ -3356,7 +3389,7 @@ impl MadarCore {
         // the sync screen's list. Its TABLE is a different matter; see
         // `sync_hold_occupancy`.
         self.sync_hold_occupancy(was_on, entry.table_id.clone(), false)?;
-        cart::clear(&self.store)?;
+        cart::clear(&self.store, ctx)?;
         Ok(conflict)
     }
 
@@ -3370,11 +3403,11 @@ impl MadarCore {
 
     /// Restore a held order into the cart (claims it for this till so no other
     /// till edits it concurrently). Errors when another till holds the claim.
-    pub fn restore_draft(&self, id: String) -> Result<Vec<cart::CartLineView>, CoreError> {
+    pub fn restore_draft(&self, table_id: Option<String>, id: String) -> Result<Vec<cart::CartLineView>, CoreError> {
         let device = self.lan_device_id();
         let now = self.corrected_now().to_rfc3339();
         let payload = held::claim_local(&self.store, &id, &device, &now)?;
-        let lines = cart::set_cart_payload(&self.store, &payload)?;
+        let lines = cart::set_cart_payload(&self.store, table_id.as_deref(), &payload)?;
         // Device-local: nothing to queue (see `hold_cart_on_table`).
         Ok(lines)
     }
@@ -3825,35 +3858,35 @@ impl MadarCore {
         let _ = lifted;
     }
     /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
-    pub fn cart_set_discount(&self, discount_id: String) -> Result<(), CoreError> {
-        cart::set_discount(&self.store, &discount_id)
+    pub fn cart_set_discount(&self, table_id: Option<String>, discount_id: String) -> Result<(), CoreError> {
+        cart::set_discount(&self.store, table_id.as_deref(), &discount_id)
     }
     /// Remove the cart discount.
-    pub fn cart_clear_discount(&self) -> Result<(), CoreError> {
-        cart::clear_discount(&self.store)
+    pub fn cart_clear_discount(&self, table_id: Option<String>) -> Result<(), CoreError> {
+        cart::clear_discount(&self.store, table_id.as_deref())
     }
     /// Set or clear (None / blank) the note for the whole order in hand. It
     /// persists with the cart, rides a held order's payload, and is carried on
     /// the checkout and the fired ticket (both take order notes).
-    pub fn cart_set_note(&self, note: Option<String>) -> Result<(), CoreError> {
-        cart::set_note(&self.store, note.as_deref())
+    pub fn cart_set_note(&self, table_id: Option<String>, note: Option<String>) -> Result<(), CoreError> {
+        cart::set_note(&self.store, table_id.as_deref(), note.as_deref())
     }
     /// The cart's order note, or `None`.
-    pub fn cart_note(&self) -> Result<Option<String>, CoreError> {
-        cart::note(&self.store)
+    pub fn cart_note(&self, table_id: Option<String>) -> Result<Option<String>, CoreError> {
+        cart::note(&self.store, table_id.as_deref())
     }
     /// The selected discount id (for the tender UI), or `None`.
-    pub fn cart_discount_id(&self) -> Result<Option<String>, CoreError> {
-        cart::discount_id(&self.store)
+    pub fn cart_discount_id(&self, table_id: Option<String>) -> Result<Option<String>, CoreError> {
+        cart::discount_id(&self.store, table_id.as_deref())
     }
     /// Priced cart summary under the session's tax policy (tax-free when
     /// signed out), computed through the shared engine.
-    pub fn cart_totals(&self) -> Result<cart::CartTotals, CoreError> {
+    pub fn cart_totals(&self, table_id: Option<String>) -> Result<cart::CartTotals, CoreError> {
         let policy = self
             .current_session()
             .map(|s| s.tax_policy())
             .unwrap_or_default();
-        cart::totals(&self.store, &policy)
+        cart::totals(&self.store, table_id.as_deref(), &policy)
     }
 }
 
@@ -5372,6 +5405,7 @@ impl MadarCore {
     /// the cart is empty, or the payment method is unknown.
     pub async fn checkout(
         &self,
+        table_id: Option<String>,
         input: checkout::CheckoutInput,
     ) -> Result<checkout::ReceiptView, CoreError> {
         let (branch_id, tax_policy, teller_name) = {
@@ -5403,6 +5437,7 @@ impl MadarCore {
         let now = self.corrected_now().to_rfc3339();
         let prepared = checkout::prepare(
             &self.store,
+            table_id.as_deref(),
             &self.current_locale(),
             &branch_id,
             &shift.id,
@@ -5427,7 +5462,7 @@ impl MadarCore {
             shift_id: Some(shift.id.clone()),
         })?;
         // The sale is committed locally; the cart is now spent.
-        cart::clear(&self.store)?;
+        cart::clear(&self.store, table_id.as_deref())?;
 
         // Best-effort: send now if online (offline leaves it queued).
         let _ = self.drain_outbox().await;
@@ -6811,7 +6846,7 @@ impl MadarCore {
             field: "branch_id".into(),
             detail: "bad branch id".into(),
         })?;
-        let lines = cart::lines(&self.store)?;
+        let lines = cart::lines(&self.store, table_id.as_deref())?;
         if lines.is_empty() {
             return Err(CoreError::Validation {
                 field: "cart".into(),
@@ -6822,7 +6857,7 @@ impl MadarCore {
         // A note passed in wins; otherwise the cart's order note rides the ticket.
         let notes = notes
             .filter(|s| !s.trim().is_empty())
-            .or(cart::note(&self.store)?);
+            .or(cart::note(&self.store, table_id.as_deref())?);
         let ticket_id = uuid::Uuid::new_v4();
         let round_id = uuid::Uuid::new_v4();
         let table_uuid = table_id
@@ -6865,7 +6900,7 @@ impl MadarCore {
             clock_offset_ms,
             shift_id: None, // the waiter holds no shift
         })?;
-        cart::clear(&self.store)?;
+        cart::clear(&self.store, table_id.as_deref())?;
         // Instant LAN delivery → the KDS sees the fire NOW. `data` is a projection of
         // the ticket with the SAME derived ids the server will mint (so it dedups on
         // reconnect); `replay_op` lets a kitchen peer mirror it for durability. The
@@ -6903,9 +6938,10 @@ impl MadarCore {
     /// path as `fire_ticket`; gated behind the original fire if it hasn't synced.
     pub async fn add_ticket_round(
         &self,
+        table_id: Option<String>,
         ticket_id: String,
     ) -> Result<tickets::TicketFiredView, CoreError> {
-        let lines = cart::lines(&self.store)?;
+        let lines = cart::lines(&self.store, table_id.as_deref())?;
         if lines.is_empty() {
             return Err(CoreError::Validation {
                 field: "cart".into(),
@@ -6934,7 +6970,7 @@ impl MadarCore {
             clock_offset_ms,
             shift_id: None,
         })?;
-        cart::clear(&self.store)?;
+        cart::clear(&self.store, table_id.as_deref())?;
         // Instant LAN delivery of the new round — its own kitchen ticket (derived
         // from THIS round's id), projected for offline visibility + a mirror envelope.
         let projection = kds::build_fire_projection(
