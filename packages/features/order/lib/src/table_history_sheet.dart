@@ -54,7 +54,9 @@ class TableHistorySheet extends ConsumerStatefulWidget {
 class _TableHistorySheetState extends ConsumerState<TableHistorySheet> {
   TableHistoryView? _history;
   bool _loading = true;
-  bool _failed = false;
+
+  /// The i18n key that says why the history is not here, or null.
+  String? _failedKey;
 
   @override
   void initState() {
@@ -68,11 +70,22 @@ class _TableHistorySheetState extends ConsumerState<TableHistorySheet> {
           .read(bridgeProvider)
           .tableHistory(tableId: widget.tableId);
       if (mounted) setState(() => (_history = h, _loading = false));
+    } on MadarError catch (e) {
+      // Say WHICH no. Every failure used to read "needs a connection", which
+      // sent a manager to check the wifi over a permissions problem.
+      final key = switch (e) {
+        MadarError_Offline() ||
+        MadarError_Transient() => 'tables.history_offline',
+        MadarError_Forbidden() => 'tables.history_forbidden',
+        MadarError_Server(status: 404) => 'tables.history_missing',
+        MadarError_Internal() => 'tables.history_unreadable',
+        _ => 'err.generic',
+      };
+      if (mounted) setState(() => (_failedKey = key, _loading = false));
     } on Object {
-      // Offline, or the branch has no history to give. Either way the sheet
-      // says so rather than showing zeroes that read as "this table earns
-      // nothing".
-      if (mounted) setState(() => (_failed = true, _loading = false));
+      if (mounted) {
+        setState(() => (_failedKey = 'err.generic', _loading = false));
+      }
     }
   }
 
@@ -85,17 +98,18 @@ class _TableHistorySheetState extends ConsumerState<TableHistorySheet> {
     );
     final h = _history;
 
-    final body = switch ((_loading, _failed, h)) {
+    final body = switch ((_loading, _failedKey, h)) {
       (true, _, _) => const SkeletonList(count: 4),
-      (_, true, _) => EmptyState(
-        icon: 'wifi.slash',
-        title: t('tables.history_offline'),
+      (_, final String key, _) => EmptyState(
+        icon: key == 'tables.history_offline' ? 'wifi.slash' : 'xmark.circle',
+        title: t(key),
       ),
       (_, _, final TableHistoryView v) when v.sittings.isEmpty => EmptyState(
         icon: 'clock',
         title: t('tables.history_empty'),
       ),
       (_, _, final TableHistoryView v) => _Body(
+        bridge: bridge,
         history: v,
         currency: currency,
         tr: t,
@@ -132,8 +146,10 @@ class _Body extends StatelessWidget {
     required this.history,
     required this.currency,
     required this.tr,
+    required this.bridge,
   });
 
+  final MadarBridge bridge;
   final TableHistoryView history;
   final String currency;
   final String Function(String) tr;
@@ -159,7 +175,15 @@ class _Body extends StatelessWidget {
         ),
         const SizedBox(height: Space.sm),
         for (final s in h.sittings)
-          _SittingRow(sitting: s, currency: currency, tr: tr),
+          _SittingRow(
+            sitting: s,
+            currency: currency,
+            tr: tr,
+            when: (iso) =>
+                bridge.formatTime(rfc3339: iso, style: TimeStyle.dateTime),
+            clock: (iso) =>
+                bridge.formatTime(rfc3339: iso, style: TimeStyle.time),
+          ),
       ],
     );
   }
@@ -245,7 +269,13 @@ class _SittingRow extends StatelessWidget {
     required this.sitting,
     required this.currency,
     required this.tr,
+    required this.when,
+    required this.clock,
   });
+
+  /// Branch-zone date + time, and time alone, for an RFC3339 instant.
+  final String Function(String) when;
+  final String Function(String) clock;
 
   final TableSittingView sitting;
   final String currency;
@@ -256,12 +286,19 @@ class _SittingRow extends StatelessWidget {
     final colors = context.madarColors;
     final s = sitting;
     final who = s.customerName?.trim();
+    final ref = s.displayRef.isEmpty ? null : s.displayRef;
     final title = (who?.isNotEmpty ?? false)
         ? who!
-        : (s.ticketRef ?? tr('tables.sittings'));
+        : (ref ?? tr('tables.sittings'));
     final covers = s.guestCount ?? 0;
+    // When they sat, and until when — the row is a moment in the room's day.
+    final span = s.closedAt == null
+        ? when(s.seatedAt)
+        : '${when(s.seatedAt)}–${clock(s.closedAt!)}';
     final parts = <String>[
+      span,
       formatSeatedFor(Duration(minutes: s.minutes), units: _units(tr)),
+      if ((who?.isNotEmpty ?? false) && ref != null) ref,
       if (covers > 0) '$covers ${tr('tables.guests')}',
     ];
     return MadarRow(

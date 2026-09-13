@@ -517,6 +517,12 @@ class _SellScreenState extends ConsumerState<SellScreen>
       anchors: _anchors,
       child: MadarPageScaffold(
         safeTop: widget.forTable,
+        // On the spec grid (SPEC §3, Sell = full): the title sits where every
+        // other page's does, the tab's glyph (or the back tile) beside it.
+        // The body lays its own gutters — the cart column runs to the edge.
+        width: MadarContentWidth.full,
+        glyph: MadarGlyph.bag,
+        bodyInset: false,
         title: pageTitle,
         subtitle: pageSubtitle,
         actions: headerActions,

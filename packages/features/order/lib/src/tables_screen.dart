@@ -30,20 +30,28 @@ class TablePick {
 /// Grid picker over the branch layout, grouped by section. Occupied tables are
 /// disabled (except [currentTableId] — the order's own table stays pickable so
 /// "keep it" is obvious). Returns null when dismissed without a choice.
+///
+/// [forMove]: picking where the party on [currentTableId] goes. Any other
+/// table that is not waiting to be cleared or kept for a booking is a target —
+/// an occupied one SWAPS — and the party's own table is not.
 Future<TablePick?> showTablePickerSheet(
   BuildContext context,
   WidgetRef ref, {
   String? currentTableId,
   bool allowClear = true,
+  bool forMove = false,
 }) async {
   final bridge = ref.read(bridgeProvider);
   final layout = ref.read(orderProvider).floorLayout;
+  final tickets = ref.read(orderProvider).openTickets;
   if (layout == null) return null;
   return await showMadarSheet<TablePick>(
     context,
     size: SheetSize.hug,
     builder: (sheetContext) => _TablePickerBody(
       layout: layout,
+      tickets: tickets,
+      forMove: forMove,
       currentTableId: currentTableId,
       allowClear: allowClear,
       title: bridge.tr(key: 'tables.pick'),
@@ -61,6 +69,8 @@ Future<TablePick?> showTablePickerSheet(
 class _TablePickerBody extends StatefulWidget {
   const _TablePickerBody({
     required this.layout,
+    required this.tickets,
+    required this.forMove,
     required this.currentTableId,
     required this.allowClear,
     required this.title,
@@ -71,6 +81,8 @@ class _TablePickerBody extends StatefulWidget {
   });
 
   final FloorLayoutView layout;
+  final List<TicketView> tickets;
+  final bool forMove;
   final String? currentTableId;
   final bool allowClear;
   final String title;
@@ -180,11 +192,27 @@ class _TablePickerBodyState extends State<_TablePickerBody> {
                 tables: tables,
                 seatsWord: widget.seatsWord,
                 words: widget.words,
-                tickets: const [],
-                // A table is pickable when nothing sits on it — or it's the
-                // order's OWN current table ("keep it" stays obvious).
-                enabledOf: (t) =>
-                    t.status != 'seated' || t.id == widget.currentTableId,
+                // The bills, so a table with one reads (and counts) as taken.
+                tickets: widget.tickets,
+                enabledOf: (t) => widget.forMove
+                    ? tableIsMoveTarget(
+                        t,
+                        from: widget.currentTableId,
+                        tickets: widget.tickets,
+                      )
+                    // A table is pickable when nothing sits on it — or it's
+                    // the order's OWN current table ("keep it" stays obvious).
+                    : t.id == widget.currentTableId ||
+                          urgencyOf(
+                                t,
+                                widget.tickets
+                                    .where(
+                                      (x) =>
+                                          x.tableId == t.id && isLiveTicket(x),
+                                    )
+                                    .firstOrNull,
+                              ) ==
+                              FloorUrgency.free,
                 selectedId: widget.currentTableId,
                 onTap: (t) {
                   MadarHaptics.selection();
@@ -273,6 +301,23 @@ bool tableIsReserved(FloorTableStateView t, {DateTime? now}) {
   final from = DateTime.tryParse(t.bookingHeldFrom ?? '');
   if (from == null) return false;
   return !from.isAfter(now ?? DateTime.now());
+}
+
+/// Can the party on [from] move to [t]? Not onto itself, not onto plates,
+/// not onto a table kept for a booking. An occupied table is fine: that is a
+/// swap. The server refuses the same three, so the picker says no first.
+bool tableIsMoveTarget(
+  FloorTableStateView t, {
+  required String? from,
+  required List<TicketView> tickets,
+  DateTime? now,
+}) {
+  if (t.id == from) return false;
+  final ticket = tickets
+      .where((x) => x.tableId == t.id && isLiveTicket(x))
+      .firstOrNull;
+  final u = urgencyOf(t, ticket, now: now);
+  return u != FloorUrgency.needsClearing && u != FloorUrgency.reserved;
 }
 
 /// A booked party was seated (the POS said so) but no ticket sits on the
@@ -951,7 +996,7 @@ class _TableCell extends StatelessWidget {
     // it pulled a seated table from the server and never saw the seating, so
     // it has no stamp of its own and the bill is the only witness left.
     final howLong = elapsedLabel(
-      table.heldSince ?? ticket?.openedAt,
+      table.seatedAt ?? table.heldSince ?? ticket?.openedAt,
       units: words.units,
       nowWord: words.now,
     );

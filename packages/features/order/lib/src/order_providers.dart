@@ -1195,7 +1195,9 @@ class OrderNotifier extends Notifier<OrderState> {
     bool bindCart = true,
   }) async {
     try {
-      await _bridge.seatTable(tableId: t.id);
+      // The covers ride the hold: every device and the bill's first round
+      // read them from the core, not from this till's memory.
+      await _bridge.seatTable(tableId: t.id, covers: covers);
     } on MadarError catch (e) {
       // A taken table comes back as a conflict, and the message names it. The
       // canvas is reloaded so the teller sees who has it rather than being told
@@ -1580,25 +1582,56 @@ class OrderNotifier extends Notifier<OrderState> {
     return true;
   }
 
-  /// Swap whatever sits on two tables (held orders and/or waiter tickets).
-  Future<void> swapTables(String tableA, String tableB) async {
+  /// Move the party on [tableA] to [tableB], or swap the two parties.
+  ///
+  /// Says "Moved" only when the core says it moved (or queued it offline);
+  /// a refusal says why, and the room is re-read either way. Returns whether
+  /// it moved.
+  Future<bool> swapTables(String tableA, String tableB) async {
+    var ok = true;
     try {
       await _bridge.swapFloorTables(tableA: tableA, tableB: tableB);
+    } on MadarError catch (e) {
+      ok = false;
+      showToast(
+        '${_tr('tables.move_failed')} · ${_bridge.humanMessage(e)}',
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+    }
+    if (ok) {
+      // Device-local covers follow their party too, until the core's arrive.
+      final pa = state.pendingCovers[tableA];
+      final pb = state.pendingCovers[tableB];
+      final next = Map<String, int>.of(state.pendingCovers)
+        ..remove(tableA)
+        ..remove(tableB);
+      if (pa != null) next[tableB] = pa;
+      if (pb != null) next[tableA] = pb;
+      state = state.copyWith(pendingCovers: next);
+    }
+    // Both roles: see the note in `init`. A floor without its bills is a floor
+    // that cannot tell you which tables have ordered.
+    await Future.wait([loadDrafts(), loadFloor(), loadOpenTickets()]);
+    if (ok) {
       showToast(
         _tr('tables.moved'),
         tone: ChipTone.success,
         icon: 'checkmark.circle',
       );
-    } on MadarError catch (e) {
-      showToast(
-        _bridge.humanMessage(e),
-        tone: ChipTone.danger,
-        icon: 'xmark.circle',
-      );
     }
-    // Both roles: see the note in `init`. A floor without its bills is a floor
-    // that cannot tell you which tables have ordered.
-    await Future.wait([loadDrafts(), loadFloor(), loadOpenTickets()]);
+    return ok;
+  }
+
+  /// The covers known for [tableId]: the core's (the host's count, kept on
+  /// the table and sent to the server), else this till's pending count.
+  int? coversOn(String? tableId) {
+    if (tableId == null) return null;
+    final onTable = state.floorLayout?.tables
+        .where((t) => t.id == tableId)
+        .firstOrNull
+        ?.covers;
+    return onTable ?? state.pendingCovers[tableId];
   }
 
   /// Queue a party for a move (a section, or one specific table).
@@ -1718,7 +1751,7 @@ class OrderNotifier extends Notifier<OrderState> {
         notes: notes,
         // The covers picked at seating, if nobody said otherwise since. This
         // is the moment the number reaches the server.
-        guestCount: guestCount ?? state.pendingCovers[tableId],
+        guestCount: guestCount ?? coversOn(tableId),
         // The booking this order seats, if the waiter tapped "Seat this party".
         bookingId: state.cartBookingId,
       );

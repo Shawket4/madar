@@ -36,6 +36,7 @@ TicketView _ticket(String tableId) => TicketView(
   tableId: tableId,
   ticketRef: 'T-04127',
   status: 'open',
+  ready: false,
   customerName: 'A rather long customer name indeed',
   waiterName: 'Abdelrahman',
   guestCount: 6,

@@ -126,8 +126,8 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
     final me = state.displayName.trim();
     final live = state.openTickets.where(isLiveTicket).toList(growable: false)
       ..sort((a, b) {
-        final ar = a.status == 'ready' ? 0 : 1;
-        final br = b.status == 'ready' ? 0 : 1;
+        final ar = a.ready ? 0 : 1;
+        final br = b.ready ? 0 : 1;
         if (ar != br) return ar - br;
         return a.openedAt.compareTo(b.openedAt);
       });
@@ -245,7 +245,7 @@ class _BillRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final t = ticket;
-    final ready = t.status == 'ready';
+    final ready = t.ready;
     final queued = t.queuedOffline || t.status == 'queued';
     final bar = ready
         ? colors.success
@@ -276,8 +276,9 @@ class _BillRow extends StatelessWidget {
       bar: bar,
       title: tableLabel ?? t.customerName ?? t.ticketRef ?? '',
       subtitle: subtitle,
-      value: t.subtotalMinor > 0
-          ? MoneyText(t.subtotalMinor, currency: currency)
+      // What the party owes, as the server priced it — not the lines alone.
+      value: (t.bill?.totalMinor ?? t.subtotalMinor) > 0
+          ? MoneyText(t.bill?.totalMinor ?? t.subtotalMinor, currency: currency)
           : null,
       trailing: queued
           ? MadarGlyphIcon(

@@ -21,6 +21,8 @@ TableSittingView _sitting({
   ticketId: ref,
   ticketRef: ref,
   openedAt: '2026-09-12T18:00:00Z',
+  seatedAt: '2026-09-12T18:00:00Z',
+  displayRef: ref,
   closedAt: '2026-09-12T19:00:00Z',
   minutes: minutes,
   status: status,
@@ -31,20 +33,26 @@ TableSittingView _sitting({
 );
 
 class _FakeBridge implements MadarBridge {
-  _FakeBridge({this.history, this.throws = false});
+  _FakeBridge({this.history, bool throws = false})
+    : error = throws ? const MadarError.offline(detail: 'no route') : null;
+
+  _FakeBridge.failing(MadarError this.error) : history = null;
 
   final TableHistoryView? history;
-  final bool throws;
+  final MadarError? error;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
     final name = invocation.memberName;
     if (name == #tr) return invocation.namedArguments[#key] as String? ?? '';
     if (name == #isRtl) return false;
+    if (name == #formatTime) {
+      return invocation.namedArguments[#rfc3339] as String? ?? '';
+    }
     if (name == #currentSession) return null;
     if (name == #appRoute) return const AppRoute.order();
     if (name == #tableHistory) {
-      if (throws) return Future<TableHistoryView>.error(StateError('offline'));
+      if (error != null) return Future<TableHistoryView>.error(error!);
       return Future<TableHistoryView>.value(history);
     }
     return null;
@@ -77,6 +85,24 @@ void main() {
       reason: 'a figure nobody could fetch must not be printed as a figure',
     );
   });
+
+  for (final (error, key) in const [
+    (
+      MadarError.forbidden(resource: 'api', action: 'no'),
+      'tables.history_forbidden',
+    ),
+    (
+      MadarError.server(status: 404, code: 'x', detail: 'gone'),
+      'tables.history_missing',
+    ),
+    (MadarError.internal(detail: 'decode'), 'tables.history_unreadable'),
+  ]) {
+    testWidgets('a refusal says which refusal: $key', (tester) async {
+      await _pump(tester, _FakeBridge.failing(error));
+      expect(find.text(key), findsOneWidget);
+      expect(find.text('tables.history_offline'), findsNothing);
+    });
+  }
 
   testWidgets('an empty table says nothing sat here, not zero takings', (
     tester,

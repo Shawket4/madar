@@ -18,6 +18,7 @@ import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_screen.dart';
+import 'package:feature_order/src/table_history_sheet.dart';
 import 'package:feature_order/src/tables_screen.dart' show showTablePickerSheet;
 import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:feature_order/src/words.dart';
@@ -29,9 +30,18 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// One bill, full screen. A 640 column centred on an iPad; the width on a
 /// phone.
 class BillScreen extends ConsumerStatefulWidget {
-  const BillScreen({required this.ticketId, this.canCharge, super.key});
+  const BillScreen({
+    required this.ticketId,
+    this.canCharge,
+    this.chargeOnOpen = false,
+    super.key,
+  });
 
   final String ticketId;
+
+  /// Opened from a table's Charge: go straight to the tender drawer once the
+  /// bill is in hand (when this shell charges at all).
+  final bool chargeOnOpen;
 
   /// Whether Charge is offered. The SHELL that mounted the bill decides —
   /// the teller's says yes, the waiter's says no — so the role never has to
@@ -56,7 +66,16 @@ class _BillScreenState extends ConsumerState<BillScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(
-        _notifier.ensureInit().then((_) => _notifier.loadOpenTickets()),
+        _notifier.ensureInit().then((_) => _notifier.loadOpenTickets()).then((
+          _,
+        ) {
+          if (!mounted || !widget.chargeOnOpen) return;
+          final s = ref.read(orderProvider);
+          final t = _ticketOf(s);
+          if (t != null && (widget.canCharge ?? !s.isWaiter) && s.shiftOpen) {
+            unawaited(_charge(t, _tableLabel(s, t) ?? t.ticketRef ?? ''));
+          }
+        }),
       );
     });
     _clock = Timer.periodic(const Duration(seconds: 60), (_) {
@@ -153,6 +172,7 @@ class _BillScreenState extends ConsumerState<BillScreen>
       ref,
       currentTableId: t.tableId,
       allowClear: false,
+      forMove: true,
     );
     final to = pick?.tableId;
     if (to == null || to == t.tableId || !mounted) return;
@@ -263,7 +283,7 @@ class _BillScreenState extends ConsumerState<BillScreen>
         ticket.customerName!,
     ].join(' · ');
     final rounds = groupBillByRound(ticket.lines);
-    final ready = ticket.status == 'ready';
+    final ready = ticket.ready;
     final queued = ticket.queuedOffline || ticket.status == 'queued';
 
     final headerActions = <Widget>[
@@ -278,6 +298,27 @@ class _BillScreenState extends ConsumerState<BillScreen>
           label: orderWord(bridge, 'bill.queued'),
           tone: MadarTone.warning,
           glyph: MadarGlyph.half,
+        ),
+      // The table's own doors, from its bill: where it has been, and where the
+      // party goes next. (Unseating a table with a bill is voiding the bill,
+      // which is under ⋯.)
+      if (ticket.tableId != null && tableLabel != null)
+        MadarGlyphTile(
+          glyph: MadarGlyph.clock,
+          semanticLabel: bridge.tr(key: 'tables.history'),
+          onTap: () => unawaited(
+            showTableHistory(
+              context,
+              tableId: ticket.tableId!,
+              label: tableLabel,
+            ),
+          ),
+        ),
+      if (ticket.tableId != null && state.hasFloor)
+        MadarGlyphTile(
+          glyph: MadarGlyph.move,
+          semanticLabel: bridge.tr(key: 'tables.move'),
+          onTap: () => unawaited(_move(ticket)),
         ),
       MadarGlyphTile(
         glyph: MadarGlyph.more,

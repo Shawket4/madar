@@ -12,6 +12,10 @@ FloorTableStateView _table({
   String status = 'free',
   String? bookingId,
   String? heldOrderId,
+  String? bookingStatus,
+  String? bookingHeldFrom,
+  String? seatedAt,
+  int? covers,
 }) => FloorTableStateView(
   id: id,
   label: label,
@@ -25,7 +29,13 @@ FloorTableStateView _table({
   rotation: 0,
   heldLockedByOther: false,
   bookingId: bookingId,
+  bookingStatus: bookingId == null ? null : (bookingStatus ?? 'confirmed'),
+  bookingHeldFrom: bookingId == null
+      ? null
+      : (bookingHeldFrom ?? '2026-09-09T19:45:00Z'),
   heldOrderId: heldOrderId,
+  seatedAt: seatedAt,
+  covers: covers,
 );
 
 TicketView _ticket({
@@ -36,7 +46,8 @@ TicketView _ticket({
 }) => TicketView(
   id: 'tk-$tableId',
   tableId: tableId,
-  status: status,
+  status: status == 'ready' ? 'open' : status,
+  ready: status == 'ready',
   subtotalMinor: subtotal,
   openedAt: openedAt,
   queuedOffline: false,
@@ -91,6 +102,94 @@ void main() {
     expect(formatSeatedFor(rows.first.seatedFor(now)!), '1h 00m');
     expect(formatSeatedFor(rows.last.seatedFor(now)!), '2m');
   });
+
+  test('a booking reserves its table only once its hold has begun', () {
+    final rows = rowsFor([
+      _table(id: 'a', bookingId: 'bk-1'),
+      _table(
+        id: 'b',
+        label: 'T2',
+        bookingId: 'bk-2',
+        bookingHeldFrom: '2026-09-09T23:00:00Z',
+      ),
+      _table(id: 'c', label: 'T3', bookingId: 'bk-3', bookingStatus: 'seated'),
+    ], const {});
+    final by = {for (final r in rows) r.table.id: r.urgency};
+    expect(by['a'], FloorUrgency.reserved, reason: 'the hold has begun');
+    expect(by['b'], FloorUrgency.free, reason: 'tonight is not now');
+    expect(by['c'], FloorUrgency.seated, reason: 'the party is at the table');
+  });
+
+  test(
+    'the seating clock orders the seated, and the row shows the bill total',
+    () {
+      final rows = rowsFor(
+        [
+          // Sat an hour ago with no bill yet: the table's own clock.
+          _table(
+            id: 'a',
+            status: 'seated',
+            seatedAt: '2026-09-09T19:00:00Z',
+            covers: 3,
+          ),
+          // A bill opened 20 minutes ago.
+          _table(id: 'b', label: 'T2', status: 'seated'),
+        ],
+        {
+          'b': const TicketView(
+            id: 'tk-b',
+            tableId: 'b',
+            status: 'open',
+            ready: false,
+            subtotalMinor: 1000,
+            bill: TicketBillView(
+              subtotalMinor: 1000,
+              discountMinor: 0,
+              serviceChargeMinor: 0,
+              taxMinor: 140,
+              totalMinor: 1140,
+              taxRate: 0.14,
+              serviceChargeRate: 0,
+              taxInclusive: false,
+            ),
+            openedAt: '2026-09-09T19:40:00Z',
+            queuedOffline: false,
+            lines: [],
+          ),
+        },
+      );
+      expect(rows.first.table.id, 'a', reason: 'the longest-seated leads');
+      expect(rows.first.model.covers, 3);
+      expect(
+        rows.last.model.billTotalMinor,
+        1140,
+        reason: 'the total, not 1000',
+      );
+    },
+  );
+
+  test(
+    'an occupied table always offers its bill; every state offers history',
+    () {
+      // Seated, but this device has not heard of a bill (stale list).
+      final stale = FloorTableModel(
+        table: _table(id: 'a', status: 'seated'),
+        ticket: null,
+      );
+      expect(stale.actions(canCharge: true), contains(FloorAction.openBill));
+      expect(stale.actions(canCharge: true), contains(FloorAction.unseat));
+      for (final status in ['free', 'dirty', 'seated']) {
+        expect(
+          FloorTableModel(
+            table: _table(id: 'x', status: status),
+            ticket: null,
+          ).actions(canCharge: false),
+          contains(FloorAction.history),
+          reason: status,
+        );
+      }
+    },
+  );
 
   test('T10 sorts after T9, not between T1 and T2', () {
     // A plain string sort puts T10 second in a room that goes up to T12, which

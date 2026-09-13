@@ -51,20 +51,140 @@ class FloorRow {
   final String? sectionName;
 
   /// How long the party has been sitting, or null when nobody is.
-  ///
-  /// Best source first: a parked order's own start or this device's seated
-  /// stamp (both arrive as `heldSince`), then the bill's opened_at. The list
-  /// used to read the BILL only, so a party seated with nothing ordered yet —
-  /// the commonest state on a floor, and the one where the number matters
-  /// most — showed no clock at all.
-  Duration? seatedFor(DateTime now) {
-    final since =
-        DateTime.tryParse(table.heldSince ?? '') ??
-        DateTime.tryParse(ticket?.openedAt ?? '');
+  Duration? seatedFor(DateTime now) => FloorTableModel.seatedForOf(
+    table,
+    ticket,
+    now,
+    occupied:
+        urgency == FloorUrgency.seated || urgency == FloorUrgency.foodReady,
+  );
+
+  /// The table's whole state, for a row, a sheet or an inspector.
+  FloorTableModel get model => FloorTableModel(table: table, ticket: ticket);
+}
+
+/// Everything a surface needs to say about one table — status, clock,
+/// covers, server, bill total, ready — and what can be done with it. The
+/// floor's sheets read this today; an inspector panel reads the same thing.
+@immutable
+class FloorTableModel {
+  const FloorTableModel({required this.table, required this.ticket, this.now});
+
+  final FloorTableStateView table;
+
+  /// The live bill on the table, if this device knows one.
+  final TicketView? ticket;
+
+  /// The clock the model is read at (null = the wall clock).
+  final DateTime? now;
+
+  FloorUrgency get urgency => urgencyOf(table, ticket, now: now);
+
+  /// A party is here: a bill, a parked draft, a seated table or a seated
+  /// booking. The bill-less cases are the ones a stale ticket list hides.
+  bool get occupied =>
+      urgency == FloorUrgency.seated || urgency == FloorUrgency.foodReady;
+
+  bool get hasBill => ticket != null;
+
+  /// The kitchen has plated the whole bill.
+  bool get ready => ticket?.ready ?? false;
+
+  /// RFC3339: when the party sat. See [seatedForOf].
+  String? get seatedAt => occupied ? _sinceOf(table, ticket) : null;
+
+  Duration? seatedFor(DateTime at) =>
+      seatedForOf(table, ticket, at, occupied: occupied);
+
+  /// Covers: the host's count on the table, else the bill's guest count.
+  int? get covers {
+    final n = table.covers ?? ticket?.guestCount;
+    return (n != null && n > 0) ? n : null;
+  }
+
+  String? get server {
+    final w = ticket?.waiterName?.trim();
+    return (w == null || w.isEmpty) ? null : w;
+  }
+
+  /// What the party owes: the server-priced total, else (a queued fire) the
+  /// running subtotal. Null with no bill or nothing on it.
+  int? get billTotalMinor {
+    final t = ticket;
+    if (t == null) return null;
+    final v = t.bill?.totalMinor ?? t.subtotalMinor;
+    return v > 0 ? v : null;
+  }
+
+  /// What can be done with this table right now, most likely first.
+  /// [canCharge]: this shell takes money.
+  List<FloorAction> actions({required bool canCharge}) => switch (urgency) {
+    FloorUrgency.needsClearing => const [
+      FloorAction.cleared,
+      FloorAction.history,
+    ],
+    FloorUrgency.reserved => const [
+      FloorAction.seatBooking,
+      FloorAction.noShow,
+      FloorAction.walkIn,
+      FloorAction.history,
+    ],
+    FloorUrgency.free => const [FloorAction.seat, FloorAction.history],
+    FloorUrgency.seated || FloorUrgency.foodReady => [
+      if (hasBill) ...[
+        FloorAction.openBill,
+        if (canCharge) FloorAction.charge,
+        FloorAction.addRound,
+      ] else ...[
+        FloorAction.takeOrder,
+        // A bill this device has not heard of yet (the list is stale or
+        // offline) is still reachable: the door re-reads the bills.
+        FloorAction.openBill,
+      ],
+      FloorAction.move,
+      if (!hasBill) FloorAction.unseat,
+      FloorAction.history,
+    ],
+  };
+
+  /// Seating clock, best source first: the table's own seated stamp (the
+  /// server's occupancy, or this device's seating), a parked order's start,
+  /// then the bill's opening.
+  static String? _sinceOf(FloorTableStateView t, TicketView? ticket) {
+    for (final s in [t.seatedAt, t.heldSince, ticket?.openedAt]) {
+      if (s != null && s.isNotEmpty) return s;
+    }
+    return null;
+  }
+
+  static Duration? seatedForOf(
+    FloorTableStateView t,
+    TicketView? ticket,
+    DateTime now, {
+    required bool occupied,
+  }) {
+    if (!occupied) return null;
+    final since = DateTime.tryParse(_sinceOf(t, ticket) ?? '');
     if (since == null) return null;
     final d = now.difference(since.toLocal());
     return d.isNegative ? Duration.zero : d;
   }
+}
+
+/// A thing a person can do with a table.
+enum FloorAction {
+  seat,
+  takeOrder,
+  openBill,
+  charge,
+  addRound,
+  move,
+  unseat,
+  cleared,
+  seatBooking,
+  noShow,
+  walkIn,
+  history,
 }
 
 /// Sort the room into a worklist.
@@ -82,7 +202,7 @@ List<FloorRow> buildFloorRows({
   final rows = <FloorRow>[];
   for (final t in tables) {
     final ticket = ticketOn(t.id);
-    final urgency = _urgencyOf(t, ticket);
+    final urgency = urgencyOf(t, ticket, now: now);
     rows.add(
       FloorRow(
         table: t,
@@ -100,12 +220,16 @@ List<FloorRow> buildFloorRows({
         a.table.label,
       ).compareTo(_naturalLabel(b.table.label));
     }
-    // Longest first: `openedAt` is RFC3339, so the EARLIER string sorts first
-    // and that is exactly the table that has been waiting longest.
-    final ao = a.ticket?.openedAt ?? '';
-    final bo = b.ticket?.openedAt ?? '';
-    final byAge = ao.compareTo(bo);
-    if (byAge != 0) return byAge;
+    // Longest first, by when the party SAT — the same clock the row shows. A
+    // party with no clock yet sorts after every timed one, not before them.
+    final ad = a.seatedFor(now);
+    final bd = b.seatedFor(now);
+    if (ad != null || bd != null) {
+      if (ad == null) return 1;
+      if (bd == null) return -1;
+      final byAge = bd.compareTo(ad);
+      if (byAge != 0) return byAge;
+    }
     return _naturalLabel(a.table.label).compareTo(_naturalLabel(b.table.label));
   });
   return rows;
@@ -155,19 +279,24 @@ List<BillRound> groupBillByRound(List<TicketLineView> lines) {
 /// A ticket that is still somebody's live bill.
 ///
 /// `queued` belongs here: a round fired with no network is a real bill on a
-/// real table, and every "is anyone there" check that looked only for
-/// `open`/`ready` read the table it had just taken as empty.
+/// real table, and every "is anyone there" check that looked only for `open`
+/// read the table it had just taken as empty. Whether the kitchen is done is
+/// [TicketView.ready]; a `ready` status only survives in an old cache, and it
+/// is still a live bill.
 bool isLiveTicket(TicketView t) =>
-    t.status == 'open' || t.status == 'ready' || t.status == 'queued';
+    t.status == 'open' || t.status == 'queued' || t.status == 'ready';
 
-FloorUrgency _urgencyOf(FloorTableStateView t, TicketView? ticket) {
+/// Where a table sits in the worklist.
+FloorUrgency urgencyOf(
+  FloorTableStateView t,
+  TicketView? ticket, {
+  DateTime? now,
+}) {
   // A live occupant outranks a stored `dirty`. That can happen honestly — a
   // party seated onto a table the last one left dirty — and telling a teller to
   // bus an occupied table would have them clear people who are still eating.
   if (ticket != null) {
-    return ticket.status == 'ready'
-        ? FloorUrgency.foodReady
-        : FloorUrgency.seated;
+    return ticket.ready ? FloorUrgency.foodReady : FloorUrgency.seated;
   }
   // A PARKED DRAFT occupies a table with no ticket on it: the cart's Hold
   // button parks an order against its table. Reading that as free would offer
@@ -178,8 +307,19 @@ FloorUrgency _urgencyOf(FloorTableStateView t, TicketView? ticket) {
   // with no ticket and no draft this device can see — which is exactly what
   // the two checks above would read as an empty table.
   if (t.status == 'seated') return FloorUrgency.seated;
+  // A booked party the host has seated is a party at the table.
+  if (t.bookingId != null && t.bookingStatus == 'seated') {
+    return FloorUrgency.seated;
+  }
   if (t.status == 'dirty') return FloorUrgency.needsClearing;
-  if (t.bookingId != null) return FloorUrgency.reserved;
+  // Reserved only once the booking's hold has begun — the same clock rule the
+  // plan draws by. A booking for tonight does not make a table taken at noon.
+  if (t.bookingId != null && t.bookingStatus == 'confirmed') {
+    final from = DateTime.tryParse(t.bookingHeldFrom ?? '');
+    if (from != null && !from.isAfter(now ?? DateTime.now())) {
+      return FloorUrgency.reserved;
+    }
+  }
   return FloorUrgency.free;
 }
 
@@ -344,7 +484,6 @@ class _FloorRowTile extends StatelessWidget {
     final colors = context.madarColors;
     final tone = _toneOf(colors, row.urgency);
     final seated = row.seatedFor(now);
-    final ticket = row.ticket;
 
     return Semantics(
       button: true,
@@ -430,10 +569,10 @@ class _FloorRowTile extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (ticket != null && ticket.subtotalMinor > 0) ...[
+                  if (row.model.billTotalMinor case final total?) ...[
                     const SizedBox(height: 2),
                     MoneyText(
-                      ticket.subtotalMinor,
+                      total,
                       currency: currency,
                       style: MadarType.money.copyWith(fontSize: 14),
                     ),
@@ -456,6 +595,9 @@ class _FloorRowTile extends StatelessWidget {
       // plainly taken.
       final held = row.table.heldOrderName?.trim();
       if (held != null && held.isNotEmpty) return held;
+      if (row.model.covers case final n? when row.model.occupied) {
+        return '$n ${words.guests}';
+      }
       if (row.urgency == FloorUrgency.reserved) {
         return row.table.bookingGuest ?? words.reserved;
       }
@@ -463,13 +605,12 @@ class _FloorRowTile extends StatelessWidget {
       return '${row.table.seats} ${words.seats}';
     }
     final parts = <String>[
-      if (t.guestCount != null && t.guestCount! > 0)
-        '${t.guestCount} ${words.guests}'
+      if (row.model.covers case final n?)
+        '$n ${words.guests}'
       else
         '${row.table.seats} ${words.seats}',
       if (t.customerName?.trim().isNotEmpty ?? false) t.customerName!.trim(),
-      if (t.waiterName?.trim().isNotEmpty ?? false) t.waiterName!.trim(),
-      if (t.ticketRef?.trim().isNotEmpty ?? false) t.ticketRef!.trim(),
+      ?row.model.server,
     ];
     return parts.join(' · ');
   }

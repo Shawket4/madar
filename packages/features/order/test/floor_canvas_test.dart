@@ -69,7 +69,8 @@ TicketView _liveTicket({
 }) => TicketView(
   id: 'tk-$tableId',
   tableId: tableId,
-  status: status,
+  status: status == 'ready' ? 'open' : status,
+  ready: status == 'ready',
   customerName: customerName,
   subtotalMinor: 0,
   openedAt: '2026-09-09T19:00:00Z',

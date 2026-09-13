@@ -30,6 +30,7 @@ import 'package:feature_order/src/tables_screen.dart'
         showTablePickerSheet,
         tableBookingSeated,
         tableHasBooking,
+        tableIsMoveTarget,
         tableIsReserved,
         tableNeedsClearing;
 import 'package:feature_order/src/words.dart';
@@ -103,12 +104,22 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
   Future<void> _onTable(FloorTableStateView t, TicketView? ticket) async {
     final from = _moveFrom;
     if (from != null) {
+      if (from == t.id) {
+        setState(() => _moveFrom = null);
+        return;
+      }
+      final tickets = ref.read(orderProvider).openTickets;
+      if (!tableIsMoveTarget(t, from: from, tickets: tickets)) {
+        // Say why rather than silently doing nothing; stay in move mode.
+        _notifier.showToast(
+          _tr(tableNeedsClearing(t) ? 'err.move_dirty' : 'err.move_booked'),
+          tone: ChipTone.warning,
+          icon: 'xmark.circle',
+        );
+        return;
+      }
       setState(() => _moveFrom = null);
-      if (from != t.id) await _notifier.swapTables(from, t.id);
-      return;
-    }
-    if (ticket != null) {
-      await _openBill(ticket.id);
+      await _notifier.swapTables(from, t.id);
       return;
     }
     // A cart parked on the table by the old flow. Nothing writes this any
@@ -132,8 +143,8 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       await _dirtySheet(t);
       return;
     }
-    if (t.status == 'seated' || tableBookingSeated(t)) {
-      await _seatedSheet(t);
+    if (FloorTableModel(table: t, ticket: ticket).occupied) {
+      await _occupiedSheet(t, ticket);
       return;
     }
     if (tableHasBooking(t) && tableIsReserved(t)) {
@@ -143,11 +154,32 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
     await _freeSheet(t);
   }
 
-  Future<void> _openBill(String ticketId) async {
+  Future<void> _openBill(String ticketId, {bool charge = false}) async {
     await MadarPages.push<void>(
       context,
-      (_) => BillScreen(ticketId: ticketId, canCharge: widget.canCharge),
+      (_) => BillScreen(
+        ticketId: ticketId,
+        canCharge: widget.canCharge,
+        chargeOnOpen: charge,
+      ),
     );
+  }
+
+  /// The bill on [tableId], re-reading the bills first when this device does
+  /// not know one: a stale or offline list must never lock a party's bill
+  /// away from the room. Says so when there really is none yet.
+  Future<void> _openBillOn(String tableId, {bool charge = false}) async {
+    var ticket = _ticketOn(ref.read(orderProvider).openTickets, tableId);
+    if (ticket == null) {
+      await _notifier.loadOpenTickets();
+      ticket = _ticketOn(ref.read(orderProvider).openTickets, tableId);
+    }
+    if (!mounted) return;
+    if (ticket == null) {
+      _notifier.showToast(_w('floor.no_bill_yet'), icon: 'doc.text');
+      return;
+    }
+    await _openBill(ticket.id, charge: charge);
   }
 
   /// Taking an order FOR A TABLE opens its own screen, not the Sell tab.
@@ -178,6 +210,8 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheet) => _StateSheet(
           title: t.label,
+          historyFor: t.id,
+          historyLabel: _tr('tables.history'),
           subtitle: ['${t.seats} ${_tr('tables.seats')}', ?section].join(' · '),
           children: [
             MadarSectionHeader(text: _w('floor.party_size')),
@@ -219,64 +253,126 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
     await _notifier.seatTable(t, covers: seat, bindCart: false);
   }
 
-  /// SEATED, no bill yet: take the first order, move, or unseat.
-  Future<void> _seatedSheet(FloorTableStateView t) async {
-    final since = t.heldSince ?? t.bookingStartsAt;
-    final opened = since == null ? null : DateTime.tryParse(since);
-    final ago = opened == null
-        ? null
-        : formatSeatedFor(
-            DateTime.now().toUtc().difference(opened.toUtc()),
-            units: DurationUnits.of(_bridge),
-          );
-    final covers = ref.read(orderProvider).pendingCovers[t.id];
-    final guest = t.bookingGuest?.trim();
-    await showMadarSheet<void>(
+  /// OCCUPIED — a party with or without a bill. One sheet, contents by what
+  /// the table allows ([FloorTableModel.actions]): the bill (its total, open
+  /// it, charge it, add a round) or the first order; move; unseat when there
+  /// is no bill; history always.
+  Future<void> _occupiedSheet(FloorTableStateView t, TicketView? ticket) async {
+    final model = FloorTableModel(table: t, ticket: ticket);
+    final canCharge = widget.canCharge ?? !ref.read(orderProvider).isWaiter;
+    final state = ref.read(orderProvider);
+    final covers = model.covers ?? state.pendingCovers[t.id];
+    final seatedFor = model.seatedFor(DateTime.now());
+    final guest = (ticket?.customerName ?? t.bookingGuest)?.trim();
+    final total = model.billTotalMinor;
+    final picked = await showMadarSheet<FloorAction>(
       context,
       size: SheetSize.hug,
       maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (sheetContext) => _StateSheet(
-        title: t.label,
-        historyFor: t.id,
-        historyLabel: _tr('tables.history'),
-        subtitle: [
-          _tr('tables.seated'),
-          ?ago,
-          if (covers != null) '$covers ${_tr('tables.guests')}',
-          if (guest != null && guest.isNotEmpty) guest,
-        ].join(' · '),
-        children: [
-          MadarButton(
+      builder: (sheetContext) {
+        void pick(FloorAction a) => Navigator.of(sheetContext).pop(a);
+        Widget button(FloorAction a) => switch (a) {
+          FloorAction.openBill => MadarButton(
+            label: _w('floor.open_bill'),
+            glyph: MadarGlyph.receipt,
+            variant: model.hasBill
+                ? MadarButtonVariant.primary
+                : MadarButtonVariant.ghost,
+            onTap: () => pick(a),
+          ),
+          FloorAction.charge => MadarButton(
+            label: orderWord(_bridge, 'sell.charge'),
+            glyph: MadarGlyph.check,
+            variant: MadarButtonVariant.secondary,
+            onTap: () => pick(a),
+          ),
+          FloorAction.addRound => MadarButton(
+            label: _tr('tables.add_round'),
+            glyph: MadarGlyph.plus,
+            variant: MadarButtonVariant.ghost,
+            onTap: () => pick(a),
+          ),
+          FloorAction.takeOrder => MadarButton(
             label: _w('floor.take_order'),
             glyph: MadarGlyph.receipt,
-            onTap: () {
-              Navigator.of(sheetContext).maybePop();
-              unawaited(() async {
-                await _notifier.pointCartAtTable(t.id, t.label);
-                await _toSell();
-              }());
-            },
+            onTap: () => pick(a),
           ),
-          MadarButton(
+          FloorAction.move => MadarButton(
             label: _tr('tables.move'),
             glyph: MadarGlyph.move,
             variant: MadarButtonVariant.ghost,
-            onTap: () {
-              Navigator.of(sheetContext).maybePop();
-              setState(() => _moveFrom = t.id);
-            },
+            onTap: () => pick(a),
           ),
-          MadarButton(
+          FloorAction.unseat => MadarButton(
             label: _w('floor.unseat'),
             variant: MadarButtonVariant.ghost,
-            onTap: () {
-              Navigator.of(sheetContext).maybePop();
-              unawaited(_confirmUnseat(t));
-            },
+            onTap: () => pick(a),
           ),
-        ],
-      ),
+          _ => const SizedBox.shrink(),
+        };
+        return _StateSheet(
+          title: t.label,
+          historyFor: t.id,
+          historyLabel: _tr('tables.history'),
+          subtitle: [
+            if (model.ready)
+              orderWord(_bridge, 'bill.ready')
+            else
+              _tr('tables.seated'),
+            if (seatedFor != null)
+              formatSeatedFor(seatedFor, units: DurationUnits.of(_bridge)),
+            if (covers != null) '$covers ${_tr('tables.guests')}',
+            ?model.server,
+            if (guest != null && guest.isNotEmpty) guest,
+          ].join(' · '),
+          children: [
+            if (total != null) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _w('floor.bill_so_far'),
+                      style: MadarType.body.copyWith(
+                        color: context.madarColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  MoneyText(total, currency: state.currency),
+                ],
+              ),
+              const SizedBox(height: Space.md),
+            ],
+            for (final a in model.actions(canCharge: canCharge))
+              if (a != FloorAction.history) button(a),
+          ],
+        );
+      },
     );
+    if (picked == null || !mounted) return;
+    switch (picked) {
+      case FloorAction.openBill:
+        await _openBillOn(t.id);
+      case FloorAction.charge:
+        await _openBillOn(t.id, charge: true);
+      case FloorAction.addRound:
+        await _notifier.pointCartAtTable(t.id, t.label);
+        if (ticket != null) _notifier.selectTicket(ticket.id);
+        await _toSell();
+      case FloorAction.takeOrder:
+        await _notifier.pointCartAtTable(t.id, t.label);
+        await _toSell();
+      case FloorAction.move:
+        setState(() => _moveFrom = t.id);
+      case FloorAction.unseat:
+        await _confirmUnseat(t);
+      case FloorAction.seat ||
+          FloorAction.cleared ||
+          FloorAction.seatBooking ||
+          FloorAction.noShow ||
+          FloorAction.walkIn ||
+          FloorAction.history:
+        break;
+    }
   }
 
   /// Unseating says nobody is there any more — the one act on this sheet a
@@ -716,6 +812,12 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
           words: TableStatusWords.of(_bridge),
           zoomable: true,
           swapArmedId: _moveFrom,
+          // While moving, the tables a party cannot go to read as such.
+          enabledOf: _moveFrom == null
+              ? null
+              : (x) =>
+                    x.id == _moveFrom ||
+                    tableIsMoveTarget(x, from: _moveFrom, tickets: tickets),
           onTap: (t) => unawaited(_onTable(t, _ticketOn(tickets, t.id))),
         ),
       );
