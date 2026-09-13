@@ -91,6 +91,11 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? notes,
   });
 
+  /// The bill's subtotal so far plus this round's.
+  Future<PlatformInt64> cartBillSoFarMinor({
+    required PlatformInt64 ticketSubtotalMinor,
+  });
+
   /// Empty the ACTIVE context's cart (other tables / takeaway untouched).
   Future<void> cartClear();
 
@@ -108,6 +113,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Remove a line entirely (stashed for undo — see `cart_restore_removed`).
   Future<List<CartLineView>> cartRemove({required String itemId});
+
+  /// EDIT a configured line: resolve, then swap it in for `line_key` in one
+  /// write. A failure leaves the original line in the cart.
+  Future<List<CartLineView>> cartReplaceConfigured({
+    required String lineKey,
+    required String itemId,
+    String? sizeLabel,
+    required List<AddonSelection> addons,
+    required List<String> optionalFieldIds,
+    required PlatformInt64 qty,
+    String? notes,
+  });
 
   /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
   /// nothing was removed (or it was already restored / the cart was cleared).
@@ -135,15 +152,22 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// `send_to_printer` right after a CASH sale's receipt so the till pops.
   Future<Uint8List> cashDrawerKick({required PrinterBrand brand});
 
+  /// Place the current cart as an order: price it (client-authoritative),
+  /// queue an idempotent `create_order` command, clear the cart, and try to
+  /// send now. Works offline — the order stays queued and `queued_offline`
+  /// is `true` on the receipt until it syncs.
+  /// The round notes offered beside Exact: the two smallest that cover the
+  /// due (one equal to it included), scaled by the currency's minor digits.
+  List<CashQuickTenderView> cashQuickTenders({
+    required PlatformInt64 dueMinor,
+    required String currency,
+  });
+
   /// Themed style (icon key + gradient palette) for a category/item name —
   /// the host maps `icon` to a glyph and paints the gradient. Pure; mirrors
   /// Flutter's `CatStyle.of`. `dark` picks the dark-mode palette.
   CatStyleView categoryStyle({required String name, required bool dark});
 
-  /// Place the current cart as an order: price it (client-authoritative),
-  /// queue an idempotent `create_order` command, clear the cart, and try to
-  /// send now. Works offline — the order stays queued and `queued_offline`
-  /// is `true` on the receipt until it syncs.
   Future<ReceiptView> checkout({required CheckoutInput input});
 
   /// Decide what a captured string is: a whole member token, a phone number,
@@ -203,6 +227,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? targetTableId,
     String? note,
   });
+
+  /// The currency label in the current language (`EGP` / `ج.م`).
+  String currencyLabel({required String code});
 
   SessionSnapshot? currentSession();
 
@@ -309,6 +336,24 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String shiftId,
     required String reason,
   });
+
+  /// A duration in seconds: `42m`, `1h 05m`, `2d 03h` (Arabic `42 د`…).
+  String formatElapsed({required PlatformInt64 secs});
+
+  /// Elapsed since `rfc3339` by the corrected clock: `42m`, `1h 05m`.
+  String formatElapsedSince({required String rfc3339});
+
+  /// THE money string in the current language — `display::format_money`.
+  /// The design system's `MadarFormat.money` is the synchronous mirror.
+  String formatMoney({
+    required PlatformInt64 minor,
+    required String currency,
+    required bool signed,
+  });
+
+  /// A row's stamp in the branch zone, 24-hour: `18:02` today,
+  /// `Sep 12 · 18:02` otherwise (Arabic `12 سبتمبر · 18:02`).
+  String formatStamp({required String rfc3339});
 
   /// Format a stored RFC3339 timestamp for DISPLAY in the BRANCH's timezone
   /// (not the device's) — the single source of truth so every host renders
@@ -559,6 +604,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
   Future<String?> orgLogoUrl();
 
   Future<int> pendingOutboxCount();
+
+  /// What a configured line would cost (unit, extras, whole line) — priced
+  /// by the resolver the add uses. Adds nothing.
+  Future<LinePreviewView> previewConfiguredLine({
+    required String itemId,
+    String? sizeLabel,
+    required List<AddonSelection> addons,
+    required List<String> optionalFieldIds,
+    required PlatformInt64 qty,
+  });
 
   /// Print pre-rendered ESC/POS bytes to the DEVICE's configured printer
   /// (from the core device config). Errors if no printer is bound.
@@ -836,6 +891,15 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String tableB,
   });
 
+  /// Resume a parked order in one call: park the cart in hand (if asked),
+  /// switch to the draft's context, park anything already there, restore.
+  /// Refuses before touching anything when the draft cannot be resumed.
+  Future<DraftSwitchView> switchToDraft({
+    required String id,
+    HeldParkInput? parkInHand,
+    HeldParkInput? parkAtTarget,
+  });
+
   /// Force a sync now — drains the outbox. Cancellable/idempotent.
   Future<void> syncNow();
 
@@ -850,6 +914,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// services, and a stale copy would quietly answer a question about money
   /// with last week's numbers.
   Future<TableHistoryView> tableHistory({required String tableId});
+
+  /// Price the tender in hand: the bar's total (tip included, split or not),
+  /// the cash due, change / short, and what a split still has to allocate.
+  TenderSummaryView tenderSummary({
+    required PlatformInt64 dueMinor,
+    required PlatformInt64 tipMinor,
+    required bool tipIsCash,
+    required PlatformInt64 tenderedMinor,
+    required List<CheckoutSplit> splits,
+  });
 
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).
   String tr({required String key});

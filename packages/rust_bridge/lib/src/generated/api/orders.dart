@@ -6,6 +6,27 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// One round-note button beside Exact on the cash tender.
+class CashQuickTenderView {
+  final PlatformInt64 amountMinor;
+
+  /// The note as a person says it: `200`, never `200.00`.
+  final String label;
+
+  const CashQuickTenderView({required this.amountMinor, required this.label});
+
+  @override
+  int get hashCode => amountMinor.hashCode ^ label.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CashQuickTenderView &&
+          runtimeType == other.runtimeType &&
+          amountMinor == other.amountMinor &&
+          label == other.label;
+}
+
 /// Everything the tender screen collects for a checkout.
 class CheckoutInput {
   /// The (primary) payment method id.
@@ -505,6 +526,25 @@ class ReceiptModifierView {
           priceMinor == other.priceMinor;
 }
 
+/// One tender on a split receipt.
+class ReceiptPaymentView {
+  final String label;
+  final PlatformInt64 amountMinor;
+
+  const ReceiptPaymentView({required this.label, required this.amountMinor});
+
+  @override
+  int get hashCode => label.hashCode ^ amountMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReceiptPaymentView &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          amountMinor == other.amountMinor;
+}
+
 /// The order confirmation / receipt summary.
 class ReceiptView {
   /// Client-generated order id (the outbox idempotency key).
@@ -559,6 +599,9 @@ class ReceiptView {
   final bool queuedOffline;
   final String createdAt;
 
+  /// Every tender of a split sale; empty for a single payment.
+  final List<ReceiptPaymentView> payments;
+
   const ReceiptView({
     required this.localOrderId,
     this.orderNumber,
@@ -588,6 +631,7 @@ class ReceiptView {
     this.deliveryNotes,
     required this.queuedOffline,
     required this.createdAt,
+    required this.payments,
   });
 
   @override
@@ -619,7 +663,8 @@ class ReceiptView {
       paymentHint.hashCode ^
       deliveryNotes.hashCode ^
       queuedOffline.hashCode ^
-      createdAt.hashCode;
+      createdAt.hashCode ^
+      payments.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -653,7 +698,8 @@ class ReceiptView {
           paymentHint == other.paymentHint &&
           deliveryNotes == other.deliveryNotes &&
           queuedOffline == other.queuedOffline &&
-          createdAt == other.createdAt;
+          createdAt == other.createdAt &&
+          payments == other.payments;
 }
 
 class RefundLineView {
@@ -791,4 +837,44 @@ class ShiftRefundsView {
           refundedMinor == other.refundedMinor &&
           refundedCashMinor == other.refundedCashMinor &&
           refunds == other.refunds;
+}
+
+/// The tender screen's figures.
+class TenderSummaryView {
+  final PlatformInt64 chargeTotalMinor;
+  final PlatformInt64 dueCashMinor;
+  final PlatformInt64 changeMinor;
+  final PlatformInt64 shortMinor;
+  final PlatformInt64 splitAllocatedMinor;
+  final PlatformInt64 splitRemainingMinor;
+
+  const TenderSummaryView({
+    required this.chargeTotalMinor,
+    required this.dueCashMinor,
+    required this.changeMinor,
+    required this.shortMinor,
+    required this.splitAllocatedMinor,
+    required this.splitRemainingMinor,
+  });
+
+  @override
+  int get hashCode =>
+      chargeTotalMinor.hashCode ^
+      dueCashMinor.hashCode ^
+      changeMinor.hashCode ^
+      shortMinor.hashCode ^
+      splitAllocatedMinor.hashCode ^
+      splitRemainingMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TenderSummaryView &&
+          runtimeType == other.runtimeType &&
+          chargeTotalMinor == other.chargeTotalMinor &&
+          dueCashMinor == other.dueCashMinor &&
+          changeMinor == other.changeMinor &&
+          shortMinor == other.shortMinor &&
+          splitAllocatedMinor == other.splitAllocatedMinor &&
+          splitRemainingMinor == other.splitRemainingMinor;
 }

@@ -15,7 +15,7 @@
 use madar_api::models;
 use serde::{Deserialize, Serialize};
 
-use crate::error::CoreResult;
+use crate::error::{CoreError, CoreResult};
 use crate::menu;
 use crate::pricing::{self, DiscountKind, PriceCartInput};
 use crate::store::Store;
@@ -995,6 +995,67 @@ pub(crate) fn add_resolved(store: &Store, line: StoredLine) -> CoreResult<Vec<Ca
     Ok(view(&lines))
 }
 
+/// Replace the line keyed `line_key` with `line`, in ONE write.
+///
+/// Editing a line used to be two bridge calls — remove, then add — so an add
+/// that failed (an item gone from the menu, a stale catalogue) left the cart
+/// with the line DELETED and nothing in its place. Here the old line is only
+/// dropped in the same save that puts the new one down; a key that is no
+/// longer in the cart refuses before anything is touched.
+///
+/// The edited line keeps its position. If the new configuration is identical
+/// to ANOTHER line already in the cart, it merges into that one (qty added),
+/// exactly as a fresh add would.
+pub(crate) fn replace_resolved(
+    store: &Store,
+    line_key: &str,
+    line: StoredLine,
+) -> CoreResult<Vec<CartLineView>> {
+    let mut lines = load(store)?;
+    let Some(at) = lines.iter().position(|l| signature(l) == line_key) else {
+        return Err(CoreError::Validation {
+            field: "line".into(),
+            detail: "that line is no longer in the cart".into(),
+        });
+    };
+    lines.remove(at);
+    let sig = signature(&line);
+    match lines.iter_mut().find(|l| signature(l) == sig) {
+        Some(l) => l.qty += line.qty,
+        None => lines.insert(at.min(lines.len()), line),
+    }
+    save(store, &lines)?;
+    Ok(view(&lines))
+}
+
+/// What a configured line WOULD cost, without adding it — the item sheet's
+/// header and footer figures.
+///
+/// The sheet used to add the charged prices up itself, and got a different
+/// number from the cart whenever a swap family collapsed (the recipe's milk
+/// plus the picked milk). This resolves through the same [resolve_line] the
+/// add uses, so the sheet and the cart can never disagree.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LinePreviewView {
+    /// One unit: the size's price plus every extra.
+    pub unit_total_minor: i64,
+    /// One unit's extras only (addons + optionals) — what a bundle component
+    /// charges on top of the bundle price.
+    pub extras_minor: i64,
+    /// The whole line at its quantity.
+    pub line_total_minor: i64,
+}
+
+pub(crate) fn preview_line(line: &StoredLine) -> LinePreviewView {
+    let extras = line_extras(line);
+    LinePreviewView {
+        unit_total_minor: line.unit_price_minor + extras,
+        extras_minor: extras,
+        line_total_minor: line_total(line),
+    }
+}
+
 /// Add one unit of an option-less item (the basic catalog tap).
 pub(crate) fn add(
     store: &Store,
@@ -1163,6 +1224,33 @@ pub struct DraftView {
     /// True when ANOTHER till is editing this order right now (resume claim
     /// held elsewhere) — the chip renders locked and cannot be restored.
     pub locked_by_other: bool,
+}
+
+/// The identity a cart is parked under: its free-text name (may be empty), the
+/// draft it was restored from (a re-park keeps that draft), and when it was
+/// started (the strip's order).
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeldParkInput {
+    pub name: String,
+    pub draft_id: Option<String>,
+    pub started_at: Option<String>,
+}
+
+/// What `switch_to_draft` left in hand: the restored lines and the order's own
+/// identity, so the host adopts it without a second read.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DraftSwitchView {
+    pub lines: Vec<CartLineView>,
+    /// The context now active — the draft's table, or `None` for the counter.
+    pub table_id: Option<String>,
+    pub table_label: Option<String>,
+    pub name: String,
+    pub created_at: String,
+    /// A cart parked on the way asked for a table that was already taken; it
+    /// parked without it.
+    pub table_taken: bool,
 }
 
 fn load_drafts(store: &Store) -> CoreResult<Vec<StoredDraft>> {
@@ -1751,6 +1839,89 @@ mod tests {
         assert!(key.contains("latte|Large"));
         let v = set_qty(&s, &key, 5).unwrap();
         assert_eq!(v.iter().find(|l| l.key == key).unwrap().qty, 5);
+    }
+
+    fn configured(milk: &str, qty: i64) -> StoredLine {
+        resolve_line(
+            &item(),
+            &catalog(),
+            Some("Large".into()),
+            &[AddonSelection {
+                addon_item_id: milk.into(),
+                qty: 1,
+            }],
+            &[],
+            qty,
+            None,
+        )
+    }
+
+    /// An edit replaces the line where it stood, in one write.
+    #[test]
+    fn replace_swaps_the_line_in_place() {
+        let s = store();
+        add(&s, "tea", "Tea", 2000).unwrap();
+        let v = add_resolved(&s, configured("almond", 1)).unwrap();
+        add(&s, "cake", "Cake", 3000).unwrap();
+        let key = v[1].key.clone();
+        let v = replace_resolved(&s, &key, configured("whole", 2)).unwrap();
+        assert_eq!(names(&v), vec!["Teax1", "Lattex2", "Cakex1"]);
+        assert!(v[1].key.contains("whole"), "the new milk: {}", v[1].key);
+        assert!(!v.iter().any(|l| l.key == key), "the old line is gone");
+    }
+
+    /// The bug: a failed edit used to delete the line. A key the cart no longer
+    /// holds refuses and leaves every line exactly as it was.
+    #[test]
+    fn replace_of_a_missing_line_refuses_and_keeps_the_cart() {
+        let s = store();
+        let before = add_resolved(&s, configured("almond", 1)).unwrap();
+        let err = replace_resolved(&s, "not-a-key", configured("whole", 1));
+        assert!(matches!(err, Err(CoreError::Validation { .. })));
+        assert_eq!(lines(&s).unwrap(), before);
+    }
+
+    /// An edit that makes a line identical to another one merges, like an add.
+    #[test]
+    fn replace_into_an_identical_line_merges() {
+        let s = store();
+        add_resolved(&s, configured("whole", 1)).unwrap();
+        let v = add_resolved(&s, configured("almond", 1)).unwrap();
+        let almond = v.iter().find(|l| l.key.contains("almond")).unwrap();
+        let v = replace_resolved(&s, &almond.key.clone(), configured("whole", 3)).unwrap();
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].qty, 4);
+    }
+
+    /// The sheet's figure is the cart's figure, swap collapse included.
+    #[test]
+    fn preview_matches_what_the_cart_charges() {
+        let s = store();
+        // The recipe's oat AND a picked almond: the core keeps one milk.
+        let line = resolve_line(
+            &item(),
+            &catalog(),
+            Some("Large".into()),
+            &[
+                AddonSelection {
+                    addon_item_id: "oat".into(),
+                    qty: 1,
+                },
+                AddonSelection {
+                    addon_item_id: "almond".into(),
+                    qty: 1,
+                },
+            ],
+            &["van".into()],
+            2,
+            None,
+        );
+        let p = preview_line(&line);
+        let v = add_resolved(&s, line).unwrap();
+        assert_eq!(p.line_total_minor, v[0].line_total_minor);
+        assert_eq!(p.extras_minor, 500 + 300);
+        assert_eq!(p.unit_total_minor, 6000 + 800);
+        assert_eq!(p.line_total_minor, 13_600);
     }
 
     #[test]

@@ -7,8 +7,8 @@ use crate::api::bridge::MadarBridge;
 use crate::api::error::MadarError;
 
 pub use madar_core::checkout::{
-    CheckoutInput, CheckoutSplit, ReceiptComponentView, ReceiptLineView, ReceiptModifierView,
-    ReceiptView,
+    CashQuickTenderView, CheckoutInput, CheckoutSplit, ReceiptComponentView, ReceiptLineView,
+    ReceiptModifierView, ReceiptPaymentView, ReceiptView, TenderSummaryView,
 };
 pub use madar_core::orders::{
     OrderDetailLineView, OrderDetailView, OrderRefundsView, OrderSearchPage, OrderSummaryView,
@@ -145,6 +145,34 @@ pub struct _ReceiptView {
     /// `true` while the order is still queued (offline); `false` once sent.
     pub queued_offline: bool,
     pub created_at: String,
+    /// Every tender of a split sale; empty for a single payment.
+    pub payments: Vec<ReceiptPaymentView>,
+}
+
+/// One tender on a split receipt.
+#[frb(mirror(ReceiptPaymentView))]
+pub struct _ReceiptPaymentView {
+    pub label: String,
+    pub amount_minor: i64,
+}
+
+/// One round-note button beside Exact on the cash tender.
+#[frb(mirror(CashQuickTenderView))]
+pub struct _CashQuickTenderView {
+    pub amount_minor: i64,
+    /// The note as a person says it: `200`, never `200.00`.
+    pub label: String,
+}
+
+/// The tender screen's figures.
+#[frb(mirror(TenderSummaryView))]
+pub struct _TenderSummaryView {
+    pub charge_total_minor: i64,
+    pub due_cash_minor: i64,
+    pub change_minor: i64,
+    pub short_minor: i64,
+    pub split_allocated_minor: i64,
+    pub split_remaining_minor: i64,
 }
 
 /// One leg of a split payment (a method + the amount paid on it).
@@ -271,6 +299,34 @@ impl MadarBridge {
     /// queue an idempotent `create_order` command, clear the cart, and try to
     /// send now. Works offline — the order stays queued and `queued_offline`
     /// is `true` on the receipt until it syncs.
+    /// The round notes offered beside Exact: the two smallest that cover the
+    /// due (one equal to it included), scaled by the currency's minor digits.
+    #[frb(sync)]
+    pub fn cash_quick_tenders(&self, due_minor: i64, currency: String) -> Vec<CashQuickTenderView> {
+        madar_core::checkout::cash_quick_tenders(due_minor, &currency)
+    }
+
+    /// Price the tender in hand: the bar's total (tip included, split or not),
+    /// the cash due, change / short, and what a split still has to allocate.
+    #[frb(sync)]
+    pub fn tender_summary(
+        &self,
+        due_minor: i64,
+        tip_minor: i64,
+        tip_is_cash: bool,
+        tendered_minor: i64,
+        splits: Vec<CheckoutSplit>,
+    ) -> TenderSummaryView {
+        let amounts: Vec<i64> = splits.iter().map(|leg| leg.amount_minor).collect();
+        madar_core::checkout::tender_summary(
+            due_minor,
+            tip_minor,
+            tip_is_cash,
+            tendered_minor,
+            &amounts,
+        )
+    }
+
     pub async fn checkout(&self, input: CheckoutInput) -> Result<ReceiptView, MadarError> {
         self.inner.checkout(input).await.map_err(MadarError::from)
     }

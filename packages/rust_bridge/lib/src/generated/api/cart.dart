@@ -308,8 +308,46 @@ class ComputedRecipeLineView {
           isBase == other.isBase;
 }
 
-/// A parked cart, summarized for the drafts list. Now server-backed: shared
-/// across the branch's tills, optionally owning a floor table.
+/// What `switch_to_draft` left in hand.
+class DraftSwitchView {
+  final List<CartLineView> lines;
+  final String? tableId;
+  final String? tableLabel;
+  final String name;
+  final String createdAt;
+  final bool tableTaken;
+
+  const DraftSwitchView({
+    required this.lines,
+    this.tableId,
+    this.tableLabel,
+    required this.name,
+    required this.createdAt,
+    required this.tableTaken,
+  });
+
+  @override
+  int get hashCode =>
+      lines.hashCode ^
+      tableId.hashCode ^
+      tableLabel.hashCode ^
+      name.hashCode ^
+      createdAt.hashCode ^
+      tableTaken.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DraftSwitchView &&
+          runtimeType == other.runtimeType &&
+          lines == other.lines &&
+          tableId == other.tableId &&
+          tableLabel == other.tableLabel &&
+          name == other.name &&
+          createdAt == other.createdAt &&
+          tableTaken == other.tableTaken;
+}
+
 class DraftView {
   final String id;
   final String name;
@@ -398,6 +436,27 @@ class GroupViolationView {
           selected == other.selected;
 }
 
+/// The identity a cart is parked under.
+class HeldParkInput {
+  final String name;
+  final String? draftId;
+  final String? startedAt;
+
+  const HeldParkInput({required this.name, this.draftId, this.startedAt});
+
+  @override
+  int get hashCode => name.hashCode ^ draftId.hashCode ^ startedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is HeldParkInput &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          draftId == other.draftId &&
+          startedAt == other.startedAt;
+}
+
 /// An addon offered for an item, with its CHARGED price already resolved (swap
 /// delta / full) — so the customization sheet just displays it, no pricing rules
 /// in the UI. Grouped by `addon_type` by the host (per slot / global card).
@@ -430,6 +489,34 @@ class ItemAddonView {
           name == other.name &&
           addonType == other.addonType &&
           chargedPriceMinor == other.chargedPriceMinor;
+}
+
+/// A parked cart, summarized for the drafts list. Now server-backed: shared
+/// across the branch's tills, optionally owning a floor table.
+/// What a configured line would cost — the item sheet's figures.
+class LinePreviewView {
+  final PlatformInt64 unitTotalMinor;
+  final PlatformInt64 extrasMinor;
+  final PlatformInt64 lineTotalMinor;
+
+  const LinePreviewView({
+    required this.unitTotalMinor,
+    required this.extrasMinor,
+    required this.lineTotalMinor,
+  });
+
+  @override
+  int get hashCode =>
+      unitTotalMinor.hashCode ^ extrasMinor.hashCode ^ lineTotalMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LinePreviewView &&
+          runtimeType == other.runtimeType &&
+          unitTotalMinor == other.unitTotalMinor &&
+          extrasMinor == other.extrasMinor &&
+          lineTotalMinor == other.lineTotalMinor;
 }
 
 /// How a modifier group's selections are submitted at add-to-cart time.

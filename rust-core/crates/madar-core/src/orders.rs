@@ -467,6 +467,18 @@ pub(crate) fn order_to_receipt(
             .filter(|s| !s.is_empty()),
         queued_offline: false,
         created_at: o.created_at.to_rfc3339(),
+        // Only a SPLIT lists its legs; one leg is the payment line already.
+        payments: if o.payment_legs.len() > 1 {
+            o.payment_legs
+                .iter()
+                .map(|leg| crate::checkout::ReceiptPaymentView {
+                    label: leg.method.clone(),
+                    amount_minor: leg.amount as i64,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        },
     }
 }
 

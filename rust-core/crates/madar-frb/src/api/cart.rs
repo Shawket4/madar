@@ -8,8 +8,8 @@ use crate::api::error::MadarError;
 
 pub use madar_core::cart::{
     AddonSelection, BundleComponentSelection, CartAddonView, CartBundleComponentView, CartLineView,
-    CartOptionalView, CartTotals, DraftView, GroupViolationView, ItemAddonView, ModifierGroupKind,
-    ModifierGroupView, ModifierOptionView,
+    CartOptionalView, CartTotals, DraftSwitchView, DraftView, GroupViolationView, HeldParkInput,
+    ItemAddonView, LinePreviewView, ModifierGroupKind, ModifierGroupView, ModifierOptionView,
 };
 pub use madar_core::recipe::ComputedRecipeLineView;
 
@@ -145,6 +145,33 @@ pub struct _BundleComponentSelection {
 
 /// A parked cart, summarized for the drafts list. Now server-backed: shared
 /// across the branch's tills, optionally owning a floor table.
+/// What a configured line would cost — the item sheet's figures.
+#[frb(mirror(LinePreviewView))]
+pub struct _LinePreviewView {
+    pub unit_total_minor: i64,
+    pub extras_minor: i64,
+    pub line_total_minor: i64,
+}
+
+/// The identity a cart is parked under.
+#[frb(mirror(HeldParkInput))]
+pub struct _HeldParkInput {
+    pub name: String,
+    pub draft_id: Option<String>,
+    pub started_at: Option<String>,
+}
+
+/// What `switch_to_draft` left in hand.
+#[frb(mirror(DraftSwitchView))]
+pub struct _DraftSwitchView {
+    pub lines: Vec<CartLineView>,
+    pub table_id: Option<String>,
+    pub table_label: Option<String>,
+    pub name: String,
+    pub created_at: String,
+    pub table_taken: bool,
+}
+
 #[frb(mirror(DraftView))]
 pub struct _DraftView {
     pub id: String,
@@ -208,6 +235,54 @@ impl MadarBridge {
     ) -> Result<Vec<CartLineView>, MadarError> {
         self.inner
             .cart_add_configured(item_id, size_label, addons, optional_field_ids, qty, notes)
+            .map_err(MadarError::from)
+    }
+
+    /// EDIT a configured line: resolve, then swap it in for `line_key` in one
+    /// write. A failure leaves the original line in the cart.
+    #[allow(clippy::too_many_arguments)]
+    pub fn cart_replace_configured(
+        &self,
+        line_key: String,
+        item_id: String,
+        size_label: Option<String>,
+        addons: Vec<AddonSelection>,
+        optional_field_ids: Vec<String>,
+        qty: i64,
+        notes: Option<String>,
+    ) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner
+            .cart_replace_configured(
+                line_key,
+                item_id,
+                size_label,
+                addons,
+                optional_field_ids,
+                qty,
+                notes,
+            )
+            .map_err(MadarError::from)
+    }
+
+    /// What a configured line would cost (unit, extras, whole line) — priced
+    /// by the resolver the add uses. Adds nothing.
+    pub fn preview_configured_line(
+        &self,
+        item_id: String,
+        size_label: Option<String>,
+        addons: Vec<AddonSelection>,
+        optional_field_ids: Vec<String>,
+        qty: i64,
+    ) -> Result<LinePreviewView, MadarError> {
+        self.inner
+            .preview_configured_line(item_id, size_label, addons, optional_field_ids, qty)
+            .map_err(MadarError::from)
+    }
+
+    /// The bill's subtotal so far plus this round's.
+    pub fn cart_bill_so_far_minor(&self, ticket_subtotal_minor: i64) -> Result<i64, MadarError> {
+        self.inner
+            .cart_bill_so_far_minor(ticket_subtotal_minor)
             .map_err(MadarError::from)
     }
 
@@ -353,6 +428,20 @@ impl MadarBridge {
     /// this till. Errors when another till is editing it.
     pub fn restore_draft(&self, id: String) -> Result<Vec<CartLineView>, MadarError> {
         self.inner.restore_draft(id).map_err(MadarError::from)
+    }
+
+    /// Resume a parked order in one call: park the cart in hand (if asked),
+    /// switch to the draft's context, park anything already there, restore.
+    /// Refuses before touching anything when the draft cannot be resumed.
+    pub fn switch_to_draft(
+        &self,
+        id: String,
+        park_in_hand: Option<HeldParkInput>,
+        park_at_target: Option<HeldParkInput>,
+    ) -> Result<DraftSwitchView, MadarError> {
+        self.inner
+            .switch_to_draft(id, park_in_hand, park_at_target)
+            .map_err(MadarError::from)
     }
 
     /// Give a restored draft's claim back without changes (the "never mind"

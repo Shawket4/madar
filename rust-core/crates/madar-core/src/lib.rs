@@ -241,6 +241,10 @@ pub struct MadarCore {
     /// `refresh_catalog` after the kv commit + image phase — the only
     /// production writer of the catalog mirrors.
     catalog_cache: Mutex<Option<Arc<CatalogSnapshot>>>,
+    /// Serialises the multi-step cart verbs (edit a line, park-and-switch) so
+    /// two taps landing on two FFI threads cannot interleave their reads and
+    /// writes — the double-park that left a ghost draft behind.
+    cart_ops: Mutex<()>,
     /// `true` after a drain hit a 401: the outbox is parked (no retry budget
     /// burned, no heartbeat hammering) until the next successful login clears it.
     auth_paused: std::sync::atomic::AtomicBool,
@@ -352,6 +356,7 @@ impl MadarCore {
             images,
             animations,
             catalog_cache: Mutex::new(None),
+            cart_ops: Mutex::new(()),
             offline_probe_fails: std::sync::atomic::AtomicU32::new(0),
             auth_paused: std::sync::atomic::AtomicBool::new(false),
             borrowed_token: std::sync::atomic::AtomicBool::new(false),
@@ -2955,6 +2960,79 @@ impl MadarCore {
         );
         cart::add_resolved(&self.store, line)
     }
+    /// EDIT a configured line: resolve the new configuration, then swap it in
+    /// for `line_key` in one write. Anything that fails — an item no longer on
+    /// the menu, a line already gone from the cart — fails BEFORE the cart is
+    /// touched, so the original line is still there to try again with.
+    #[allow(clippy::too_many_arguments)]
+    pub fn cart_replace_configured(
+        &self,
+        line_key: String,
+        item_id: String,
+        size_label: Option<String>,
+        addons: Vec<cart::AddonSelection>,
+        optional_field_ids: Vec<String>,
+        qty: i64,
+        notes: Option<String>,
+    ) -> Result<Vec<cart::CartLineView>, CoreError> {
+        let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
+        let catalog = self.catalog()?;
+        let item = catalog
+            .items
+            .iter()
+            .find(|i| i.id == item_id)
+            .ok_or_else(|| CoreError::Validation {
+                field: "item".into(),
+                detail: "unknown item".into(),
+            })?;
+        let line = cart::resolve_line(
+            item,
+            &catalog.addons,
+            size_label,
+            &addons,
+            &optional_field_ids,
+            qty,
+            notes,
+        );
+        cart::replace_resolved(&self.store, &line_key, line)
+    }
+    /// What a configured line would cost — the item sheet's figures, priced by
+    /// the same resolver the add uses. Adds nothing.
+    pub fn preview_configured_line(
+        &self,
+        item_id: String,
+        size_label: Option<String>,
+        addons: Vec<cart::AddonSelection>,
+        optional_field_ids: Vec<String>,
+        qty: i64,
+    ) -> Result<cart::LinePreviewView, CoreError> {
+        let catalog = self.catalog()?;
+        let item = catalog
+            .items
+            .iter()
+            .find(|i| i.id == item_id)
+            .ok_or_else(|| CoreError::Validation {
+                field: "item".into(),
+                detail: "unknown item".into(),
+            })?;
+        let line = cart::resolve_line(
+            item,
+            &catalog.addons,
+            size_label,
+            &addons,
+            &optional_field_ids,
+            qty,
+            None,
+        );
+        Ok(cart::preview_line(&line))
+    }
+    /// "Bill so far" under a round: what the bill already carries plus what
+    /// this round adds, both as subtotals (the ticket view prices nothing
+    /// else). Summed here so the cart footer shows a figure, not arithmetic.
+    pub fn cart_bill_so_far_minor(&self, ticket_subtotal_minor: i64) -> Result<i64, CoreError> {
+        let totals = self.cart_totals()?;
+        Ok(ticket_subtotal_minor.saturating_add(totals.subtotal_minor))
+    }
     /// Add a configured BUNDLE line: the fixed bundle price + each component's
     /// chosen item/size/addons/optionals. The core resolves the component
     /// up-charges from the catalog (component base/size price is never charged —
@@ -3133,6 +3211,98 @@ impl MadarCore {
     /// mirror (the park itself always succeeds — data beats position; the host
     /// shows a "table was taken" toast). The queued op re-arbitrates on sync.
     pub fn hold_cart_on_table(
+        &self,
+        name: String,
+        draft_id: Option<String>,
+        started_at: Option<String>,
+        table_id: Option<String>,
+    ) -> Result<bool, CoreError> {
+        let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
+        self.hold_cart_on_table_locked(name, draft_id, started_at, table_id)
+    }
+
+    /// Resume a parked order in ONE call, parking whatever is in the way first.
+    ///
+    /// This was three or four bridge calls sequenced from Dart — park the cart
+    /// in hand, switch to the draft's table, park THAT table's cart, restore —
+    /// and two quick taps on two chips interleaved them: both parks read the
+    /// same cart before either cleared it, and a second draft of the same
+    /// order appeared on the strip. Under one lock, in one call, it cannot.
+    ///
+    /// Nothing is touched unless the resume can succeed: a missing draft, one
+    /// already finished, or one another till has open refuses first.
+    ///
+    /// * `park_in_hand` — park the ACTIVE context's cart (if it has lines)
+    ///   under this identity before leaving it. `None` leaves it where it is.
+    /// * `park_at_target` — the identity for any lines already sitting in the
+    ///   draft's own context (its table's cart), which must be parked rather
+    ///   than overwritten.
+    pub fn switch_to_draft(
+        &self,
+        id: String,
+        park_in_hand: Option<cart::HeldParkInput>,
+        park_at_target: Option<cart::HeldParkInput>,
+    ) -> Result<cart::DraftSwitchView, CoreError> {
+        let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
+        let device = self.lan_device_id();
+        let draft = held::get(&self.store, &id)?.ok_or_else(|| CoreError::Validation {
+            field: "draft".into(),
+            detail: "held order not found".into(),
+        })?;
+        if !draft.is_live() {
+            return Err(CoreError::Validation {
+                field: "draft".into(),
+                detail: format!("held order is already {}", draft.status),
+            });
+        }
+        if draft.status == "resumed" && draft.claimed_by_device.as_deref() != Some(device.as_str())
+        {
+            return Err(CoreError::Validation {
+                field: "draft".into(),
+                detail: "held order is being edited on another till".into(),
+            });
+        }
+        let mut table_taken = false;
+        if let Some(park) = park_in_hand {
+            // A re-tap on the chip already in hand is not a second park.
+            let same = park.draft_id.as_deref() == Some(id.as_str());
+            if !same && !cart::lines(&self.store)?.is_empty() {
+                let context = cart::context(&self.store)?;
+                table_taken |= self.hold_cart_on_table_locked(
+                    park.name,
+                    park.draft_id,
+                    park.started_at,
+                    context,
+                )?;
+            }
+        }
+        let target_table = draft.table_id.clone();
+        cart::set_context(&self.store, target_table.as_deref())?;
+        if let Some(park) = park_at_target {
+            let same = park.draft_id.as_deref() == Some(id.as_str());
+            if !same && !cart::lines(&self.store)?.is_empty() {
+                table_taken |= self.hold_cart_on_table_locked(
+                    park.name,
+                    park.draft_id,
+                    park.started_at,
+                    target_table.clone(),
+                )?;
+            }
+        }
+        let now = self.corrected_now().to_rfc3339();
+        let payload = held::claim_local(&self.store, &id, &device, &now)?;
+        let lines = cart::set_cart_payload(&self.store, &payload)?;
+        Ok(cart::DraftSwitchView {
+            lines,
+            table_id: target_table,
+            table_label: draft.table_label,
+            name: draft.name,
+            created_at: draft.created_at,
+            table_taken,
+        })
+    }
+
+    fn hold_cart_on_table_locked(
         &self,
         name: String,
         draft_id: Option<String>,
@@ -8321,6 +8491,80 @@ mod lifecycle_tests {
 
         assert_eq!(core.store.pending().unwrap().len(), before);
         assert_eq!(core.store.dead_count().unwrap(), 0);
+    }
+
+    fn put_one_line(core: &MadarCore, name: &str) {
+        cart::set_cart_payload(
+            &core.store,
+            &serde_json::json!({
+                "lines": [{
+                    "item_id": format!("item-{name}"),
+                    "name": name, "unit_price_minor": 5000, "qty": 1,
+                    "addons": [], "optionals": []
+                }]
+            }),
+        )
+        .unwrap();
+    }
+
+    fn park_as(name: &str, draft_id: Option<String>) -> cart::HeldParkInput {
+        cart::HeldParkInput {
+            name: name.into(),
+            draft_id,
+            started_at: None,
+        }
+    }
+
+    /// Switching to a parked order parks the cart in hand ONCE and brings the
+    /// other one in, in one call.
+    #[tokio::test]
+    async fn switch_to_draft_parks_the_cart_in_hand_once_and_restores_the_other() {
+        let core = signed_in_offline_core().await;
+        put_one_line(&core, "Latte");
+        core.hold_cart_on_table("A".into(), None, None, None)
+            .unwrap();
+        let a = core.list_drafts().unwrap()[0].id.clone();
+        put_one_line(&core, "Tea");
+
+        let view = core
+            .switch_to_draft(a.clone(), Some(park_as("B", None)), None)
+            .unwrap();
+        assert_eq!(view.lines.len(), 1);
+        assert_eq!(view.lines[0].name, "Latte");
+        assert_eq!(view.name, "A");
+        let drafts = core.list_drafts().unwrap();
+        assert_eq!(drafts.len(), 1, "only B is parked; A is in hand: {drafts:?}");
+        assert_eq!(drafts[0].name, "B");
+
+        // A second tap on the same chip parks nothing more.
+        let again = core
+            .switch_to_draft(a.clone(), Some(park_as("A", Some(a.clone()))), None)
+            .unwrap();
+        assert_eq!(again.lines[0].name, "Latte");
+        assert_eq!(core.list_drafts().unwrap().len(), 1, "no ghost draft");
+    }
+
+    /// A resume that cannot succeed touches nothing — the cart in hand stays.
+    #[tokio::test]
+    async fn switch_to_a_missing_draft_leaves_the_cart_in_hand() {
+        let core = signed_in_offline_core().await;
+        put_one_line(&core, "Tea");
+        let err = core.switch_to_draft("nope".into(), Some(park_as("B", None)), None);
+        assert!(err.is_err());
+        assert_eq!(core.cart_lines().unwrap().len(), 1, "Tea is still in hand");
+        assert!(core.list_drafts().unwrap().is_empty(), "nothing was parked");
+    }
+
+    /// A parked order's name can be taken back off; the chip then reads its time.
+    #[tokio::test]
+    async fn a_parked_order_name_can_be_cleared() {
+        let core = signed_in_offline_core().await;
+        put_one_line(&core, "Tea");
+        core.hold_cart_on_table("Wrong".into(), None, None, None)
+            .unwrap();
+        let id = core.list_drafts().unwrap()[0].id.clone();
+        core.rename_draft(id, "  ".into()).unwrap();
+        assert_eq!(core.list_drafts().unwrap()[0].name, "");
     }
 
     /// Two free tables in the floor mirror — enough for the occupancy to have

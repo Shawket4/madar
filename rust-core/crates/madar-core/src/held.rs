@@ -357,13 +357,10 @@ pub(crate) fn rename_local(
     device: &str,
     now: &str,
 ) -> CoreResult<HeldWire> {
+    // An empty name CLEARS the label: a parked order may be nameless (parking
+    // takes an empty name too), and its chip then reads its time. Refusing it
+    // left a teller no way to take a wrong name back off.
     let name = name.trim();
-    if name.is_empty() {
-        return Err(CoreError::Validation {
-            field: "name".into(),
-            detail: "a parked order needs a name".into(),
-        });
-    }
     let mut list = load_held(store)?;
     let entry = get_mut(&mut list, id).ok_or_else(|| CoreError::Validation {
         field: "draft".into(),

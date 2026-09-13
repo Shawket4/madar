@@ -119,6 +119,19 @@ pub struct ReceiptView {
     /// sent to the server. The host hints "saved — will sync" vs "sent".
     pub queued_offline: bool,
     pub created_at: String,
+    /// Every tender of a SPLIT sale, in order — empty for a single payment.
+    /// A split paid partly in cash has no one "cash tendered" figure, so the
+    /// receipt lists the legs instead of a `Cash 0.00 / Change 0.00` pair.
+    pub payments: Vec<ReceiptPaymentView>,
+}
+
+/// One tender on a split receipt: the method as the customer reads it, and
+/// what it paid.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReceiptPaymentView {
+    pub label: String,
+    pub amount_minor: i64,
 }
 
 /// One leg of a split payment (a method + the amount paid on it).
@@ -598,6 +611,16 @@ pub(crate) fn prepare(
         delivery_notes: None,
         queued_offline: true, // the FFI flips this to false if the drain sends it now
         created_at: now_rfc3339.clone(),
+        payments: input
+            .splits
+            .iter()
+            .filter(|leg| leg.amount_minor > 0)
+            .map(|leg| ReceiptPaymentView {
+                label: display_label(store, locale, &leg.payment_method_id)
+                    .unwrap_or_else(|| leg.payment_method_id.clone()),
+                amount_minor: leg.amount_minor,
+            })
+            .collect(),
     };
 
     Ok(Prepared {
@@ -825,6 +848,88 @@ pub(crate) fn raw_payment_method(
 }
 
 /// The localized label for the receipt (falls back to the raw name).
+/// How many minor digits a currency's amounts carry (ISO 4217). Most carry
+/// two; the Gulf's dinars three; the yen none. An unknown code is two.
+pub fn currency_minor_digits(currency: &str) -> u32 {
+    match currency.trim().to_ascii_uppercase().as_str() {
+        "BHD" | "IQD" | "JOD" | "KWD" | "LYD" | "OMR" | "TND" => 3,
+        "JPY" | "KRW" | "VND" | "CLP" | "ISK" | "UGX" | "XAF" | "XOF" => 0,
+        _ => 2,
+    }
+}
+
+/// One round-note button beside Exact on the cash tender.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CashQuickTenderView {
+    pub amount_minor: i64,
+    /// The note as a person says it: `200`, never `200.00`.
+    pub label: String,
+}
+
+/// The notes people actually hand over, in major units.
+const CASH_NOTES: [i64; 9] = [5, 10, 20, 50, 100, 200, 500, 1000, 2000];
+
+/// The two smallest round notes that COVER `due_minor`, including one that is
+/// exactly the due — a customer paying 50.00 with a 50 is the commonest cash
+/// sale, and skipping that note offered only 100 and 200. Scaled by the
+/// currency's own minor digits rather than assuming hundredths.
+pub fn cash_quick_tenders(due_minor: i64, currency: &str) -> Vec<CashQuickTenderView> {
+    if due_minor <= 0 {
+        return Vec::new();
+    }
+    let scale = 10_i64.pow(currency_minor_digits(currency));
+    CASH_NOTES
+        .iter()
+        .map(|note| note * scale)
+        .filter(|amount| *amount >= due_minor)
+        .take(2)
+        .map(|amount| CashQuickTenderView {
+            amount_minor: amount,
+            label: (amount / scale).to_string(),
+        })
+        .collect()
+}
+
+/// The tender screen's figures for what the teller has picked and typed.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct TenderSummaryView {
+    /// What the Charge bar takes: the due plus the tip, split or not — a split
+    /// allocates the DUE across methods and the tip still rides on top.
+    pub charge_total_minor: i64,
+    /// What the cash in hand must reach: the due, plus the tip when the tip is
+    /// paid in cash (it comes out of the same drawer).
+    pub due_cash_minor: i64,
+    pub change_minor: i64,
+    pub short_minor: i64,
+    pub split_allocated_minor: i64,
+    /// Must reach zero before a split can charge. Negative when over-allocated.
+    pub split_remaining_minor: i64,
+}
+
+/// Price the tender in hand. Pure arithmetic over what the screen holds, kept
+/// here so the Charge sheet renders figures instead of computing them.
+pub fn tender_summary(
+    due_minor: i64,
+    tip_minor: i64,
+    tip_is_cash: bool,
+    tendered_minor: i64,
+    split_amounts: &[i64],
+) -> TenderSummaryView {
+    let tip = tip_minor.max(0);
+    let due_cash = due_minor + if tip_is_cash { tip } else { 0 };
+    let allocated: i64 = split_amounts.iter().copied().filter(|a| *a > 0).sum();
+    TenderSummaryView {
+        charge_total_minor: due_minor + tip,
+        due_cash_minor: due_cash,
+        change_minor: (tendered_minor - due_cash).max(0),
+        short_minor: (due_cash - tendered_minor).max(0),
+        split_allocated_minor: allocated,
+        split_remaining_minor: due_minor - allocated,
+    }
+}
+
 fn display_label(store: &Store, locale: &str, id: &str) -> Option<String> {
     menu::payment_methods(store, locale)
         .ok()?
@@ -844,6 +949,56 @@ mod tests {
     }
 
     use super::*;
+
+    /// The bug: in split mode the bar dropped the tip while the charge sent it.
+    #[test]
+    fn a_split_charge_total_still_carries_the_tip() {
+        let t = tender_summary(17_500, 2_000, false, 0, &[10_000, 7_500]);
+        assert_eq!(t.charge_total_minor, 19_500);
+        assert_eq!(t.split_remaining_minor, 0, "the legs cover the due, not the tip");
+        assert_eq!(t.split_allocated_minor, 17_500);
+    }
+
+    #[test]
+    fn a_cash_tip_is_due_in_cash_and_moves_the_change() {
+        let t = tender_summary(17_500, 2_000, true, 20_000, &[]);
+        assert_eq!(t.due_cash_minor, 19_500);
+        assert_eq!(t.change_minor, 500);
+        assert_eq!(t.short_minor, 0);
+        let card_tip = tender_summary(17_500, 2_000, false, 17_000, &[]);
+        assert_eq!(card_tip.due_cash_minor, 17_500);
+        assert_eq!(card_tip.short_minor, 500);
+        // A negative leg never counts toward the split.
+        assert_eq!(tender_summary(100, 0, false, 0, &[-50, 60]).split_remaining_minor, 40);
+    }
+
+    #[test]
+    fn quick_tenders_include_the_note_that_is_exactly_the_due() {
+        let v = cash_quick_tenders(5000, "EGP");
+        let amounts: Vec<i64> = v.iter().map(|t| t.amount_minor).collect();
+        assert_eq!(amounts, vec![5000, 10000]);
+        assert_eq!(v[0].label, "50");
+    }
+
+    #[test]
+    fn quick_tenders_cover_the_due_with_the_two_smallest_notes() {
+        let v = cash_quick_tenders(17_550, "EGP");
+        let labels: Vec<&str> = v.iter().map(|t| t.label.as_str()).collect();
+        assert_eq!(labels, vec!["200", "500"]);
+    }
+
+    #[test]
+    fn quick_tenders_scale_by_the_currency_digits() {
+        // 12.500 KWD in fils: the notes are 20.000 and 50.000.
+        let v = cash_quick_tenders(12_500, "KWD");
+        assert_eq!(v[0].amount_minor, 20_000);
+        assert_eq!(v[0].label, "20");
+        // Yen carry no minor digits at all.
+        let v = cash_quick_tenders(700, "JPY");
+        assert_eq!(v[0].amount_minor, 1000);
+        assert!(cash_quick_tenders(0, "EGP").is_empty());
+        assert_eq!(currency_minor_digits("egp"), 2);
+    }
 
     const BRANCH: &str = "00000000-0000-0000-0000-0000000000b0";
     const SHIFT: &str = "00000000-0000-0000-0000-0000000000c0";

@@ -50,7 +50,7 @@ const Map<String, String> coreDetailKeys = {
   'held order is being edited on another till': 'err.held_elsewhere',
   'held order not found': 'err.parked_gone',
   'no such parked order': 'err.parked_gone',
-  'a parked order needs a name': 'err.parked_name',
+  'that line is no longer in the cart': 'err.line_gone',
   'unknown payment method': 'err.unknown_payment',
   'scan a card or type a phone number': 'err.scan_or_phone',
   'no order to add points to': 'err.no_order_points',

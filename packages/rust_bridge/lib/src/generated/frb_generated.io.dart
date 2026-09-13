@@ -104,6 +104,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   double dco_decode_box_autoadd_f_64(dynamic raw);
 
   @protected
+  HeldParkInput dco_decode_box_autoadd_held_park_input(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_i_32(dynamic raw);
 
   @protected
@@ -173,6 +176,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CashMovementView dco_decode_cash_movement_view(dynamic raw);
 
   @protected
+  CashQuickTenderView dco_decode_cash_quick_tender_view(dynamic raw);
+
+  @protected
   CatStyleView dco_decode_cat_style_view(dynamic raw);
 
   @protected
@@ -209,6 +215,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   DiscountView dco_decode_discount_view(dynamic raw);
 
   @protected
+  DraftSwitchView dco_decode_draft_switch_view(dynamic raw);
+
+  @protected
   DraftView dco_decode_draft_view(dynamic raw);
 
   @protected
@@ -225,6 +234,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   GroupViolationView dco_decode_group_violation_view(dynamic raw);
+
+  @protected
+  HeldParkInput dco_decode_held_park_input(dynamic raw);
 
   @protected
   int dco_decode_i_32(dynamic raw);
@@ -249,6 +261,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   KitchenChit dco_decode_kitchen_chit(dynamic raw);
+
+  @protected
+  LinePreviewView dco_decode_line_preview_view(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -298,6 +313,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CashMovementView> dco_decode_list_cash_movement_view(dynamic raw);
+
+  @protected
+  List<CashQuickTenderView> dco_decode_list_cash_quick_tender_view(dynamic raw);
 
   @protected
   List<CategoryView> dco_decode_list_category_view(dynamic raw);
@@ -397,6 +415,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<ReceiptModifierView> dco_decode_list_receipt_modifier_view(dynamic raw);
 
   @protected
+  List<ReceiptPaymentView> dco_decode_list_receipt_payment_view(dynamic raw);
+
+  @protected
   List<RecipeLineView> dco_decode_list_recipe_line_view(dynamic raw);
 
   @protected
@@ -486,6 +507,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
   @protected
+  HeldParkInput? dco_decode_opt_box_autoadd_held_park_input(dynamic raw);
+
+  @protected
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
 
   @protected
@@ -551,6 +575,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ReceiptModifierView dco_decode_receipt_modifier_view(dynamic raw);
 
   @protected
+  ReceiptPaymentView dco_decode_receipt_payment_view(dynamic raw);
+
+  @protected
   ReceiptView dco_decode_receipt_view(dynamic raw);
 
   @protected
@@ -597,6 +624,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   TableSittingView dco_decode_table_sitting_view(dynamic raw);
+
+  @protected
+  TenderSummaryView dco_decode_tender_summary_view(dynamic raw);
 
   @protected
   TicketBillView dco_decode_ticket_bill_view(dynamic raw);
@@ -703,6 +733,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
+  HeldParkInput sse_decode_box_autoadd_held_park_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
@@ -788,6 +823,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CashMovementView sse_decode_cash_movement_view(SseDeserializer deserializer);
 
   @protected
+  CashQuickTenderView sse_decode_cash_quick_tender_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CatStyleView sse_decode_cat_style_view(SseDeserializer deserializer);
 
   @protected
@@ -834,6 +874,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   DiscountView sse_decode_discount_view(SseDeserializer deserializer);
 
   @protected
+  DraftSwitchView sse_decode_draft_switch_view(SseDeserializer deserializer);
+
+  @protected
   DraftView sse_decode_draft_view(SseDeserializer deserializer);
 
   @protected
@@ -854,6 +897,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   GroupViolationView sse_decode_group_violation_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  HeldParkInput sse_decode_held_park_input(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
@@ -878,6 +924,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   KitchenChit sse_decode_kitchen_chit(SseDeserializer deserializer);
+
+  @protected
+  LinePreviewView sse_decode_line_preview_view(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -943,6 +992,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CashMovementView> sse_decode_list_cash_movement_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CashQuickTenderView> sse_decode_list_cash_quick_tender_view(
     SseDeserializer deserializer,
   );
 
@@ -1092,6 +1146,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<ReceiptPaymentView> sse_decode_list_receipt_payment_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<RecipeLineView> sse_decode_list_recipe_line_view(
     SseDeserializer deserializer,
   );
@@ -1213,6 +1272,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
+  HeldParkInput? sse_decode_opt_box_autoadd_held_park_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
@@ -1294,6 +1358,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  ReceiptPaymentView sse_decode_receipt_payment_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ReceiptView sse_decode_receipt_view(SseDeserializer deserializer);
 
   @protected
@@ -1344,6 +1413,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   TableSittingView sse_decode_table_sitting_view(SseDeserializer deserializer);
+
+  @protected
+  TenderSummaryView sse_decode_tender_summary_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   TicketBillView sse_decode_ticket_bill_view(SseDeserializer deserializer);
@@ -1465,6 +1539,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_held_park_input(
+    HeldParkInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
 
   @protected
@@ -1579,6 +1659,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_cash_quick_tender_view(
+    CashQuickTenderView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_cat_style_view(CatStyleView self, SseSerializer serializer);
 
   @protected
@@ -1633,6 +1719,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_discount_view(DiscountView self, SseSerializer serializer);
 
   @protected
+  void sse_encode_draft_switch_view(
+    DraftSwitchView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_draft_view(DraftView self, SseSerializer serializer);
 
   @protected
@@ -1663,6 +1755,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_held_park_input(HeldParkInput self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
@@ -1688,6 +1783,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_kitchen_chit(KitchenChit self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_line_preview_view(
+    LinePreviewView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
@@ -1773,6 +1874,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_cash_movement_view(
     List<CashMovementView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_cash_quick_tender_view(
+    List<CashQuickTenderView> self,
     SseSerializer serializer,
   );
 
@@ -1960,6 +2067,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_receipt_payment_view(
+    List<ReceiptPaymentView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_recipe_line_view(
     List<RecipeLineView> self,
     SseSerializer serializer,
@@ -2110,6 +2223,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_held_park_input(
+    HeldParkInput? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
 
   @protected
@@ -2224,6 +2343,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_receipt_payment_view(
+    ReceiptPaymentView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_receipt_view(ReceiptView self, SseSerializer serializer);
 
   @protected
@@ -2307,6 +2432,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_table_sitting_view(
     TableSittingView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_tender_summary_view(
+    TenderSummaryView self,
     SseSerializer serializer,
   );
 

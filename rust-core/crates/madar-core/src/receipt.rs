@@ -282,6 +282,14 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
 
     // ── footer ──────────────────────────────────────────────────────────────
     out.push(Line::plain(row(&lab.payment, &receipt.payment_label, w)));
+    // A split lists what each method paid, indented under the payment line.
+    for leg in &receipt.payments {
+        out.push(Line::plain(row(
+            &format!("  {}", leg.label),
+            &money(leg.amount_minor, cur),
+            w,
+        )));
+    }
     if !receipt.is_delivery {
         if let Some(v) = &receipt.customer_name {
             out.push(Line::plain(row(&lab.customer, v, w)));
@@ -750,7 +758,7 @@ pub(crate) fn fmt_dt_in(rfc3339: &str, locale: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::checkout::{ReceiptComponentView, ReceiptLineView, ReceiptView};
+    use crate::checkout::{ReceiptComponentView, ReceiptLineView, ReceiptPaymentView, ReceiptView};
 
     #[test]
     fn shift_report_layout_has_drawer_lines_and_methods() {
@@ -967,6 +975,7 @@ mod tests {
             delivery_notes: None,
             queued_offline: false,
             created_at: "2026-06-20T10:00:00Z".into(),
+            payments: vec![],
         }
     }
 
@@ -992,6 +1001,29 @@ mod tests {
         assert_eq!(r.chars().count(), 24);
         assert!(r.ends_with("9.00 EGP"));
         assert!(r.contains(' ')); // at least one column gap survives
+    }
+
+    #[test]
+    fn a_split_receipt_lists_each_leg() {
+        let mut r = cash_receipt();
+        r.payments = vec![
+            ReceiptPaymentView {
+                label: "Cash".into(),
+                amount_minor: 10000,
+            },
+            ReceiptPaymentView {
+                label: "Card".into(),
+                amount_minor: 4250,
+            },
+        ];
+        let lines = layout(&r, &ctx());
+        let text: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
+        assert!(text
+            .iter()
+            .any(|t| t.starts_with("  Cash") && t.ends_with("100.00 EGP")));
+        assert!(text
+            .iter()
+            .any(|t| t.starts_with("  Card") && t.ends_with("42.50 EGP")));
     }
 
     #[test]

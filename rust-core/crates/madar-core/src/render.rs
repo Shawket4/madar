@@ -868,6 +868,7 @@ mod tests {
             delivery_notes: None,
             queued_offline: false,
             created_at: "2026-06-24T18:30:00+03:00".into(),
+            payments: vec![],
         }
     }
 
