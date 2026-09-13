@@ -22,10 +22,6 @@ import 'package:feature_settings/src/sync_section.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The two-column split on a tablet: Sync takes the narrower start column.
-const int _syncFlex = 5;
-const int _prefsFlex = 6;
-
 /// The settings screen. All state flows from [settingsProvider] (plus the
 /// Signing a till out mid-service. Queued sales survive on the device and go
 /// when the next person signs in, so nothing is lost — but nobody can ring up
@@ -71,13 +67,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final bridge = ref.bridge;
-    final layout = context.madarLayout;
     // Pushed as its own route, so it re-derives direction from the locale
     // provider — the live en↔ar switch below re-flips it in place.
     final locale = ref.watch(localeProvider);
     final sync = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.lg,
+      spacing: Space.md,
       children: [
         MadarSectionHeader(
           text: bridge.tr(key: 'sync.title'),
@@ -91,39 +86,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         SyncSection(compact: true, onSeeAll: _openSync),
       ],
     );
-    const prefs = _Preferences();
     return Directionality(
       textDirection: locale.rtl ? TextDirection.rtl : TextDirection.ltr,
       child: MadarPageScaffold(
         title: bridge.tr(key: 'settings.title'),
-        body: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: EdgeInsetsDirectional.all(layout.gutter),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: layout.pick(
-                    phone: Responsive.billMaxWidth,
-                    tablet: Responsive.contentMaxWidth + Space.xxl,
-                  ),
-                ),
-                child: layout.isTablet
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: Space.xl,
-                        children: [
-                          Expanded(flex: _syncFlex, child: sync),
-                          const Expanded(flex: _prefsFlex, child: prefs),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: Space.xl,
-                        children: [sync, prefs],
-                      ),
-              ),
-            ),
+        width: MadarContentWidth.reading,
+        body: SingleChildScrollView(
+          padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.xl,
+            children: [const _Preferences(), sync],
           ),
         ),
       ),
@@ -158,7 +131,7 @@ class _Preferences extends ConsumerWidget {
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.lg,
+      spacing: Space.xl,
       children: [
         if (error != null)
           NoticeBanner(
@@ -173,14 +146,34 @@ class _Preferences extends ConsumerWidget {
             icon: 'exclamationmark.triangle',
             onTap: ref.read(settingsProvider.notifier).clearWriteError,
           ),
-        const _AccountCard(),
-        MadarSectionHeader(text: t('settings.language')),
-        const LanguageSegment(),
-        MadarSectionHeader(text: t('settings.theme')),
-        const ThemeSegment(),
-        MadarSectionHeader(text: t('settings.motion')),
-        const MotionSegment(),
-        const _RowList(),
+        const ProfileCard(),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
+          children: [
+            MadarSectionHeader(text: t('settings.this_device')),
+            const _RowList(),
+          ],
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
+          children: [
+            MadarSectionHeader(text: t('settings.language')),
+            const LanguageSegment(),
+          ],
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
+          children: [
+            MadarSectionHeader(text: t('settings.theme')),
+            const ThemeSegment(),
+            const SizedBox(height: Space.sm),
+            MadarSectionHeader(text: t('settings.motion')),
+            const MotionSegment(),
+          ],
+        ),
         MadarButton(
           label: t('settings.sign_out'),
           glyph: MadarGlyph.signOut,
@@ -200,9 +193,11 @@ class _Preferences extends ConsumerWidget {
   }
 }
 
-/// Who is signed in, where: avatar initial, name, role · branch.
-class _AccountCard extends ConsumerWidget {
-  const _AccountCard();
+/// Who is signed in, where: avatar initial, name, role · branch. The profile
+/// card on Settings and Me alike.
+class ProfileCard extends ConsumerWidget {
+  /// Creates the card.
+  const ProfileCard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -386,37 +381,37 @@ class _RowList extends ConsumerWidget {
       if ((config.branchName ?? '').isNotEmpty) config.branchName!,
     ].join(' · ');
     final server = Uri.tryParse(bridge.baseUrl())?.host ?? bridge.baseUrl();
-    final diagnosticsMeta = 'v${bridge.version()} · $server';
+    final diagnosticsMeta = MadarFormat.ltr('v${bridge.version()} · $server');
     final rows = <Widget>[
-      MadarRow(
+      MadarListRow.nav(
         title: t('settings.printer'),
-        subtitle: printerSummary(bridge, config),
+        meta: printerSummary(bridge, config),
         glyph: MadarGlyph.printer,
         onTap: () => unawaited(showPrinterSheet(context)),
       ),
       if (!isKitchen && tills.isNotEmpty)
-        MadarRow(
+        MadarListRow.nav(
           title: t('settings.till'),
-          subtitle: tillName,
+          meta: tillName,
           glyph: MadarGlyph.wallet,
           onTap: () => unawaited(showTillSheet(context)),
         ),
       if (isKitchen && stations.isNotEmpty)
-        MadarRow(
+        MadarListRow.nav(
           title: t('setup.choose_station'),
-          subtitle: stationName,
+          meta: stationName,
           glyph: MadarGlyph.flame,
           onTap: () => unawaited(showStationSheet(context)),
         ),
-      MadarRow(
+      MadarListRow.nav(
         title: t('settings.device'),
-        subtitle: deviceMeta.isEmpty ? null : deviceMeta,
+        meta: deviceMeta.isEmpty ? null : deviceMeta,
         glyph: MadarGlyph.tag,
         onTap: () => unawaited(showDeviceSheet(context)),
       ),
-      MadarRow(
+      MadarListRow.nav(
         title: t('settings.diagnostics'),
-        subtitle: diagnosticsMeta,
+        meta: diagnosticsMeta,
         glyph: MadarGlyph.alertCircle,
         // A shop that expected a Floor tab and has none, or a feed with
         // warnings in it, gets a mark on the row so the answer is one tap
@@ -429,7 +424,7 @@ class _RowList extends ConsumerWidget {
             : null,
         onTap: () => unawaited(showDiagnosticsSheet(context)),
       ),
-      MadarRow(
+      MadarListRow.nav(
         title: t('settings.legal'),
         glyph: MadarGlyph.note,
         onTap: () => unawaited(showLegalSheet(context)),

@@ -1577,6 +1577,9 @@ const _specPages = <String>{
   'close-shift',
   'shift-history',
   'cash-in-out',
+  'settings',
+  'sync',
+  'waiter-me',
 };
 
 /// Pages still drawing the kit header by hand rather than through the

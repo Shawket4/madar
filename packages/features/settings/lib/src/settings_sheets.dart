@@ -80,7 +80,6 @@ class _SheetFrame extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // A write the core refused is said where it was made.
     final writeError = ref.watch(settingsProvider.select((s) => s.writeError));
-    final colors = context.madarColors;
     final layout = context.madarLayout;
     return Padding(
       padding: EdgeInsetsDirectional.fromSTEB(
@@ -93,20 +92,13 @@ class _SheetFrame extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            spacing: Space.md,
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.h2.copyWith(color: colors.textPrimary),
-                ),
-              ),
-              MadarGlyphTile(
+          MadarHeader(
+            title: title,
+            actions: [
+              MadarHeaderAction(
                 glyph: MadarGlyph.close,
-                onTap: () => Navigator.of(context).maybePop(),
+                tooltip: ref.bridge.tr(key: 'common.close'),
+                onTap: () => MadarSheet.close<void>(context),
               ),
             ],
           ),
@@ -162,46 +154,6 @@ class _Choice<T> extends StatelessWidget {
         MadarSectionHeader(text: label),
         MadarSegmented<T>(items: items, value: value, onChanged: onChanged),
       ],
-    );
-  }
-}
-
-/// Quiet label / value row for diagnostics. The value is a figure or an
-/// address: LTR, mono, ellipsised from the start so a long URL keeps its
-/// host visible.
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value, this.tone});
-
-  final String label;
-  final String value;
-  final Color? tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: Metrics.chipHeight),
-      child: Row(
-        spacing: Space.md,
-        children: [
-          Text(
-            label,
-            style: MadarType.body.copyWith(color: colors.textSecondary),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              textDirection: TextDirection.ltr,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: MadarType.numMd.copyWith(
-                color: tone ?? colors.textPrimary,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -337,7 +289,6 @@ class _BluetoothPicker extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.bridge;
     final notifier = ref.read(settingsProvider.notifier);
     final devices = ref.watch(settingsProvider.select((s) => s.pairedDevices));
@@ -365,8 +316,8 @@ class _BluetoothPicker extends ConsumerWidget {
               children: [
                 for (final (index, device) in devices.indexed) ...[
                   if (index > 0) const MadarHairline.row(),
-                  _PickRow(
-                    label: device.name,
+                  MadarListRow.pick(
+                    title: device.name,
                     selected: device.address == selected,
                     onTap: () => unawaited(notifier.selectBtDevice(device)),
                   ),
@@ -377,55 +328,11 @@ class _BluetoothPicker extends ConsumerWidget {
         // A bound device missing from the (unscanned / stale) list — still
         // name what is bound, so the binding is visible without a scan.
         if (selected != null && !devices.any((d) => d.address == selected))
-          _InfoRow(
+          MadarSummaryLine(
             label: bridge.tr(key: 'settings.printer_bluetooth'),
             value: config.printerBtName ?? selected,
-            tone: colors.textPrimary,
           ),
       ],
-    );
-  }
-}
-
-/// A radio-style row: the chosen one carries a check.
-class _PickRow extends StatelessWidget {
-  const _PickRow({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return MadarRow(
-      title: label,
-      dense: true,
-      chevron: false,
-      // The pick springs in rather than swapping (the pre-rebuild settings'
-      // animated selection); reduced motion swaps it in place.
-      leading: AnimatedSwitcher(
-        duration: motionReduced(context)
-            ? Duration.zero
-            : MotionSpec.standardDuration,
-        switchInCurve: MotionSpec.springOut,
-        transitionBuilder: (child, animation) => ScaleTransition(
-          scale: Tween<double>(begin: 0.6, end: 1).animate(animation),
-          child: FadeTransition(opacity: animation, child: child),
-        ),
-        child: MadarGlyphIcon(
-          selected ? MadarGlyph.checkCircle : MadarGlyph.ring,
-          key: ValueKey<bool>(selected),
-          size: IconSize.xl,
-          color: selected ? colors.accent : colors.textMuted,
-          filled: selected,
-        ),
-      ),
-      onTap: onTap,
     );
   }
 }
@@ -458,15 +365,15 @@ class _TillSheet extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _PickRow(
-                label: bridge.tr(key: 'settings.till_default'),
+              MadarListRow.pick(
+                title: bridge.tr(key: 'settings.till_default'),
                 selected: tillId == null,
                 onTap: () => unawaited(notifier.bindTill(null)),
               ),
               for (final till in tills) ...[
                 const MadarHairline.row(),
-                _PickRow(
-                  label: till.name,
+                MadarListRow.pick(
+                  title: till.name,
                   selected: tillId == till.id,
                   onTap: () => unawaited(notifier.bindTill(till.id)),
                 ),
@@ -502,8 +409,8 @@ class _StationSheet extends ConsumerWidget {
             children: [
               for (final (index, station) in stations.indexed) ...[
                 if (index > 0) const MadarHairline.row(),
-                _PickRow(
-                  label: station.name,
+                MadarListRow.pick(
+                  title: station.name,
                   selected: stationId == station.id,
                   onTap: () => unawaited(notifier.bindStation(station.id)),
                 ),
@@ -561,7 +468,6 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final notifier = ref.read(settingsProvider.notifier);
@@ -588,10 +494,9 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
           onChanged: notifier.setDeviceCode,
         ),
         _Caption(t('settings.device_code_caption')),
-        _InfoRow(
+        MadarSummaryLine(
           label: t('login.branch'),
           value: config.branchName ?? '—',
-          tone: colors.textPrimary,
         ),
         MadarSectionHeader(text: t('settings.lan')),
         MadarField(
@@ -602,12 +507,12 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
           onChanged: (value) => unawaited(notifier.setLanHub(value)),
         ),
         _Caption(t('settings.lan_caption')),
-        _InfoRow(
+        MadarSummaryLine(
           label: t(lanActive ? 'settings.lan_active' : 'settings.lan_offline'),
           value: lanActive
               ? '${bridge.lanPeerCount()} ${t('settings.lan_peers')}'
               : '—',
-          tone: lanActive ? colors.success : colors.textSecondary,
+          tone: lanActive ? MadarTone.success : null,
         ),
         MadarButton(
           label: t('settings.reconfigure'),
@@ -658,41 +563,47 @@ class _DiagnosticsSheet extends ConsumerWidget {
         MadarCard.column(
           spacing: 0,
           children: [
-            _InfoRow(label: t('settings.version'), value: bridge.version()),
-            _InfoRow(label: t('settings.server'), value: bridge.baseUrl()),
-            _InfoRow(
+            MadarSummaryLine(
+              label: t('settings.version'),
+              value: bridge.version(),
+            ),
+            MadarSummaryLine(
+              label: t('settings.server'),
+              value: bridge.baseUrl(),
+            ),
+            MadarSummaryLine(
               label: t('settings.environment'),
               value: bridge.environment(),
             ),
-            _InfoRow(
+            MadarSummaryLine(
               label: t('settings.clock'),
               value: skew == 0
                   ? t('settings.clock_ok')
                   : '${skew.abs()} ${t('settings.minutes_off')}',
-              tone: skew.abs() >= 5 ? colors.warning : null,
+              tone: skew.abs() >= 5 ? MadarTone.warning : null,
             ),
-            _InfoRow(
+            MadarSummaryLine(
               label: t('settings.realtime'),
               value: t(live ? 'settings.realtime_on' : 'settings.realtime_off'),
-              tone: live ? colors.success : colors.textSecondary,
+              tone: live ? MadarTone.success : null,
             ),
-            _InfoRow(
+            MadarSummaryLine(
               label: t('settings.lan'),
               value: lanActive
                   ? '${bridge.lanPeerCount()} ${t('settings.lan_peers')}'
                   : t('settings.lan_offline'),
-              tone: lanActive ? colors.success : colors.textSecondary,
+              tone: lanActive ? MadarTone.success : null,
             ),
             // Why there is (or is not) a Kitchen segment on the Queue — the
             // exact question this sheet exists to answer. Read-only: the mode
             // belongs to the branch, and the dashboard owns it.
             if (routing != null)
-              _InfoRow(
+              MadarSummaryLine(
                 label: t('settings.kitchen_routing'),
                 value: t('settings.routing_$routing'),
-                tone: routing == 'off' ? colors.textSecondary : null,
+                muted: routing == 'off',
               ),
-            _InfoRow(label: t('settings.pending'), value: '$pending'),
+            MadarSummaryLine(label: t('settings.pending'), value: '$pending'),
           ],
         ),
         // Tablets lock to ONE landscape; this flips between the two. Phones
@@ -700,8 +611,8 @@ class _DiagnosticsSheet extends ConsumerWidget {
         MadarCard.column(
           children: [
             if (OrientationController.instance.canFlip)
-              const _OrientationFlipRow(),
-            const _TabletThresholdRow(),
+              const _OrientationFlip(),
+            const _TabletThreshold(),
           ],
         ),
         if (diagnostics.isNotEmpty) ...[
@@ -747,8 +658,8 @@ class _DiagnosticsSheet extends ConsumerWidget {
 }
 
 /// Flips the locked landscape orientation on tablets.
-class _OrientationFlipRow extends ConsumerWidget {
-  const _OrientationFlipRow();
+class _OrientationFlip extends ConsumerWidget {
+  const _OrientationFlip();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -781,8 +692,8 @@ class _OrientationFlipRow extends ConsumerWidget {
 
 /// Diagonal-inch cutoff between phone and tablet orientation behaviour.
 /// Two keys around the inch figure; half-inch steps.
-class _TabletThresholdRow extends ConsumerWidget {
-  const _TabletThresholdRow();
+class _TabletThreshold extends ConsumerWidget {
+  const _TabletThreshold();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

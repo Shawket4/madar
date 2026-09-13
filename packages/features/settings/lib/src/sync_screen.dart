@@ -19,7 +19,6 @@ class SyncScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
-    final layout = context.madarLayout;
     // Pushed as its own route — re-derive direction from the locale
     // provider so the screen is RTL-correct wherever it's presented.
     final rtl = ref.watch(localeProvider.select((s) => s.rtl));
@@ -27,19 +26,10 @@ class SyncScreen extends ConsumerWidget {
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       child: MadarPageScaffold(
         title: bridge.tr(key: 'sync.title'),
-        body: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: EdgeInsetsDirectional.all(layout.gutter),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: Responsive.billMaxWidth,
-                ),
-                child: const SyncSection(),
-              ),
-            ),
-          ),
+        width: MadarContentWidth.reading,
+        body: const SingleChildScrollView(
+          padding: EdgeInsetsDirectional.only(bottom: Space.xl),
+          child: SyncSection(),
         ),
       ),
     );

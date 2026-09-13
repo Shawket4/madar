@@ -170,7 +170,7 @@ class _SyncSectionState extends ConsumerState<SyncSection> {
               children: [
                 for (final (index, item) in stuckRows.indexed) ...[
                   if (index > 0) const MadarHairline.row(),
-                  _StuckRow(item: item),
+                  _StuckItem(item: item),
                 ],
               ],
             ),
@@ -195,16 +195,14 @@ class _SyncSectionState extends ConsumerState<SyncSection> {
               children: [
                 for (final (index, item) in shown.indexed) ...[
                   if (index > 0) const MadarHairline.row(),
-                  _WaitingRow(item: item),
+                  _WaitingItem(item: item),
                 ],
                 if (capped) ...[
                   const MadarHairline.row(),
-                  MadarRow(
-                    dense: true,
+                  MadarListRow.nav(
                     title: bridge.tr(key: 'sync.more'),
-                    leading: SyncFigure(
+                    valueText: MadarFormat.ltr(
                       '${waitingRows.length - _compactWaitingCap}',
-                      style: MadarType.numMd,
                     ),
                     onTap: widget.onSeeAll,
                   ),
@@ -344,53 +342,42 @@ class _HealthCard extends ConsumerWidget {
   }
 }
 
-/// A queued or in-flight row: what it is, when it happened, how many tries.
-class _WaitingRow extends ConsumerWidget {
-  const _WaitingRow({required this.item});
+/// A queued or in-flight item: what it is, when, how many tries, as a bill
+/// row with its state pill.
+class _WaitingItem extends ConsumerWidget {
+  const _WaitingItem({required this.item});
 
   final OutboxItemView item;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
     final bridge = ref.bridge;
     final sending = item.status == 'inflight';
     final tries = item.attempts;
-    // A first try is not news; a second one is.
-    final subtitle = sending
-        ? bridge.tr(key: 'sync.sending')
-        : tries > 1
-        ? '$tries ${bridge.tr(key: 'sync.tries')}'
-        : bridge.tr(key: 'sync.queued');
-    return MadarRow(
+    return MadarListRow.bill(
       title: outboxOpLabel(bridge, item.opType),
-      subtitle: subtitle,
-      leading: MadarGlyphIcon(
-        MadarGlyph.half,
-        size: IconSize.xl,
-        color: colors.accent,
-      ),
-      value: SyncFigure(
-        bridge.formatTime(rfc3339: item.eventAt, style: TimeStyle.time),
-        style: MadarType.numMd,
-        color: colors.textPrimary,
-      ),
+      meta: [
+        MadarFormat.ltr(bridge.formatStamp(rfc3339: item.eventAt)),
+        // A first try is not news; a second one is.
+        if (tries > 1)
+          '${MadarFormat.ltr('$tries')} ${bridge.tr(key: 'sync.tries')}',
+      ].join(' · '),
+      status: sending
+          ? MadarStatus(bridge.tr(key: 'sync.sending'), tone: MadarTone.accent)
+          : MadarStatus(bridge.tr(key: 'sync.queued')),
+      chevron: false,
     );
   }
 }
 
-/// A refused row: the op, its time, the server's sentence, and Discard.
+/// A refused item: the op, its time, the server's sentence, and Discard.
 /// Retry is at the section head (all-or-nothing on the bridge).
-class _StuckRow extends ConsumerWidget {
-  const _StuckRow({required this.item});
+class _StuckItem extends ConsumerWidget {
+  const _StuckItem({required this.item});
 
   final OutboxItemView item;
 
   Future<void> _confirmDiscard(BuildContext context, WidgetRef ref) async {
-    // The shared confirm, not a hand-rolled modal. This screen had the only
-    // other confirmation dialog in the app and it was a different widget with
-    // the same job — so a teller met two shapes of "are you sure" depending
-    // on which destructive thing they touched.
     final bridge = ref.read(bridgeProvider);
     final ok = await showMadarConfirm(
       context,
@@ -411,20 +398,29 @@ class _StuckRow extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        MadarRow(
+        MadarListRow.bill(
           title: outboxOpLabel(bridge, item.opType),
-          bar: colors.danger,
-          leading: MadarGlyphIcon(
-            MadarGlyph.xCircle,
-            size: IconSize.xl,
-            color: colors.danger,
+          meta: [
+            MadarFormat.ltr(bridge.formatStamp(rfc3339: item.eventAt)),
+            if (item.attempts > 1)
+              '${MadarFormat.ltr('${item.attempts}')} ${bridge.tr(key: 'sync.tries')}',
+          ].join(' · '),
+          status: MadarStatus(
+            bridge.tr(key: 'sync.stuck'),
+            tone: MadarTone.danger,
           ),
-          value: SyncFigure(
-            bridge.formatTime(rfc3339: item.eventAt, style: TimeStyle.time),
-            style: MadarType.numMd,
-            color: colors.textPrimary,
+          rail: MadarTone.danger,
+          chevron: false,
+          trailing: MadarButton(
+            label: bridge.tr(key: 'sync.discard'),
+            variant: MadarButtonVariant.danger,
+            size: MadarButtonSize.compact,
+            glyph: MadarGlyph.trash,
+            onTap: () => unawaited(_confirmDiscard(context, ref)),
           ),
         ),
+        // The server's own words — a dead item with no detail still gets a
+        // sentence.
         Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(
             Space.card,
@@ -432,36 +428,9 @@ class _StuckRow extends ConsumerWidget {
             Space.card,
             Space.lg,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: Space.md,
-            children: [
-              // The server's own words — the thing the old client threw
-              // away. A dead row with no detail still gets a sentence.
-              Text(
-                sentence.isEmpty ? bridge.tr(key: 'sync.refused') : sentence,
-                style: MadarType.body.copyWith(color: colors.textPrimary),
-              ),
-              Row(
-                children: [
-                  if (item.attempts > 1)
-                    Text(
-                      '${item.attempts} ${bridge.tr(key: 'sync.tries')}',
-                      style: MadarType.bodySm.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  const Spacer(),
-                  MadarButton(
-                    label: bridge.tr(key: 'sync.discard'),
-                    variant: MadarButtonVariant.danger,
-                    size: MadarButtonSize.compact,
-                    glyph: MadarGlyph.trash,
-                    onTap: () => unawaited(_confirmDiscard(context, ref)),
-                  ),
-                ],
-              ),
-            ],
+          child: Text(
+            sentence.isEmpty ? bridge.tr(key: 'sync.refused') : sentence,
+            style: MadarType.body.copyWith(color: colors.textPrimary),
           ),
         ),
       ],

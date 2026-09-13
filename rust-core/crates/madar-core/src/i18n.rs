@@ -1042,6 +1042,8 @@ fn en(key: &str) -> Option<&'static str> {
         "shift.hide_orders" => "Hide orders",
         "chrome.see_all" => "See all",
         "cash.empty_message" => "Pay-ins and pay-outs you record appear here.",
+        "settings.this_device" => "This device",
+        "me.no_bills_message" => "Bills you open on the floor appear here.",
         _ => return None,
     })
 }
@@ -2007,6 +2009,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "shift.hide_orders" => "إخفاء الطلبات",
         "chrome.see_all" => "عرض الكل",
         "cash.empty_message" => "تظهر هنا المبالغ التي تُدخلها إلى الدرج أو تُخرجها منه.",
+        "settings.this_device" => "هذا الجهاز",
+        "me.no_bills_message" => "تظهر هنا الفواتير التي تفتحها في الصالة.",
         _ => return None,
     })
 }

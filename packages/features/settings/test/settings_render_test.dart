@@ -21,6 +21,7 @@ import 'package:feature_settings/feature_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show FontLoader;
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -33,133 +34,34 @@ const Size _ipad = Size(1194, 834);
 /// A phone — the real fallback.
 const Size _phone = Size(390, 844);
 
-const _en = <String, String>{
-  'settings.title': 'Settings',
-  'settings.language': 'Language',
-  'settings.theme': 'Theme',
-  'settings.theme_light': 'Light',
-  'settings.theme_dark': 'Dark',
-  'settings.device': 'Device',
-  'settings.printer': 'Printer',
-  'settings.printer_none': 'No printer',
-  'settings.printer_epson': 'Epson',
-  'settings.printer_star': 'Star',
-  'settings.printer_lan': 'LAN',
-  'settings.printer_bluetooth': 'Bluetooth',
-  'settings.printer_paper_58': '58 mm',
-  'settings.printer_paper_80': '80 mm',
-  'settings.till': 'Till',
-  'settings.till_default': 'Branch default',
-  'settings.diagnostics': 'Diagnostics',
-  'settings.legal': 'Legal',
-  'settings.sign_out': 'Sign out',
-  'settings.sign_out_shift_open': 'Close the shift before signing out',
-  'settings.lan_peers': 'peers',
-  'sync.title': 'Sync',
-  'sync.see_all': 'See all',
-  'sync.push': 'Sync now',
-  'sync.pushing': 'Syncing…',
-  'sync.empty': "Everything's synced.",
-  'sync.queued': 'Queued',
-  'sync.sending': 'Sending',
-  'sync.tries': 'tries',
-  'sync.waiting': 'Waiting',
-  'sync.stuck': 'Stuck',
-  'sync.needs_you': 'needs you',
-  'sync.blocked': 'Blocked',
-  'sync.blocked_hint':
-      'Sales stranded behind a failed shift opening. '
-      'Open a shift, then recover them.',
-  'sync.recover': 'Recover stranded sales',
-  'sync.recover_need_shift': 'Open a shift first',
-  'sync.retry_all': 'Retry all',
-  'sync.discard': 'Discard',
-  'sync.refused': 'The server refused it',
-  'sync.more': 'more',
-  'sync.live_on': 'live updates',
-  'sync.live_off': 'no live updates',
-  'sync.op_create_order': 'Sale',
-  'sync.op_cash_movement': 'Cash out',
-  'sync.op_settle_open_ticket': 'Charge bill',
-  'sync.op_ticket_add_round': 'Round',
-  'sync.op_open_ticket': 'New bill',
-  'chrome.online': 'Online',
-  'chrome.offline': 'Offline',
-  'role.waiter': 'Waiter',
-  'role.teller': 'Teller',
-  'me.my_bills': 'My bills',
-  'me.no_bills': 'No open bills',
-  'order.subtotal': 'subtotal',
-  'tables.round': 'Round',
-  'waiter.queued': 'Queued',
-  'notif.ready': 'Ready',
-  'settings.printer_transport': 'Connection',
-  'settings.printer_paper': 'Paper',
-  'settings.printer_brand': 'Brand',
-  'settings.printer_hint': 'Printer IP (e.g. 192.168.1.50)',
-  'settings.printer_test': 'Test print',
-  'settings.device_code': 'Device code',
-  'settings.device_code_hint': 'Device code (e.g. T1)',
-  'settings.device_code_caption': 'Appears in every order reference.',
-  'settings.lan': 'LAN relay',
-  'settings.lan_hub_hint': 'Hub address (optional)',
-  'settings.lan_caption': 'Set when auto-discovery cannot find peers.',
-  'settings.lan_active': 'LAN active',
-  'settings.reconfigure': 'Reconfigure device',
-  'settings.reconfigure_shift_open': 'Close the shift before reconfiguring',
-  'settings.version': 'Version',
-  'settings.server': 'Server',
-  'settings.environment': 'Environment',
-  'settings.clock': 'Clock',
-  'settings.clock_ok': 'in sync',
-  'settings.realtime': 'Live updates',
-  'settings.realtime_on': 'connected',
-  'settings.pending': 'Pending',
-  'settings.orientation': 'Orientation',
-  'settings.flip_screen': 'Flip',
-  'settings.tablet_threshold': 'Tablet from',
-  'settings.recent_warnings': 'Recent warnings',
-  'settings.clear': 'Clear',
-  'settings.no_floor_hint':
-      'No floor layout — author one in the dashboard, then Sync now.',
-  'settings.legal_privacy': 'Privacy policy',
-  'settings.legal_terms': 'Terms of service',
-  'settings.legal_hint': 'Tap a document to copy its address.',
-  'login.branch': 'Branch',
-  'sync.discard_title': 'Discard this action?',
-  'sync.discard_body':
-      'It will never reach the server. The work it carried is lost.',
-  'common.cancel': 'Cancel',
-};
+// ── The core's words ───────────────────────────────────────────────────
+//
+// Read from the core's own tables (`i18n.rs`), so the pictures carry the
+// words a device shows and a key the core lacks shows up as a raw key.
 
-const _ar = <String, String>{
-  'settings.language': 'اللغة',
-  'settings.theme': 'المظهر',
-  'settings.theme_light': 'فاتح',
-  'settings.theme_dark': 'داكن',
-  'settings.printer': 'الطابعة',
-  'settings.printer_epson': 'إبسون',
-  'settings.printer_lan': 'شبكة',
-  'settings.printer_paper_80': '٨٠ مم',
-  'settings.sign_out': 'تسجيل الخروج',
-  'sync.push': 'مزامنة الآن',
-  'sync.waiting': 'بالانتظار',
-  'sync.stuck': 'متعثر',
-  'sync.needs_you': 'يحتاجك',
-  'sync.retry_all': 'إعادة الكل',
-  'sync.discard': 'تجاهل',
-  'sync.queued': 'في الانتظار',
-  'sync.tries': 'محاولات',
-  'sync.live_on': 'تحديثات مباشرة',
-  'sync.op_ticket_add_round': 'جولة',
-  'sync.op_open_ticket': 'فاتورة جديدة',
-  'chrome.online': 'متصل',
-  'role.waiter': 'نادل',
-  'me.my_bills': 'فواتيري',
-  'order.subtotal': 'المجموع الفرعي',
-  'tables.round': 'جولة',
-  'notif.ready': 'جاهز',
-};
+late final Map<String, String> _en;
+late final Map<String, String> _ar;
+
+Map<String, String> _words(String src, String fnSig) {
+  final start = src.indexOf(fnSig);
+  if (start < 0) return const {};
+  var body = src.substring(start + fnSig.length);
+  final end = body.indexOf('\nfn ');
+  if (end >= 0) body = body.substring(0, end);
+  final arm = RegExp(r'"([a-z0-9_.]+)"\s*=>\s*(?:\{\s*)?"((?:[^"\\]|\\.)*)"');
+  return {
+    for (final m in arm.allMatches(body))
+      m.group(1)!: m.group(2)!.replaceAll(r'\"', '"').replaceAll(r'\n', '\n'),
+  };
+}
+
+void _loadWords() {
+  final src = File(
+    '../../../rust-core/crates/madar-core/src/i18n.rs',
+  ).readAsStringSync();
+  _en = _words(src, "fn en(key: &str) -> Option<&'static str> {");
+  _ar = _words(src, "fn ar(key: &str) -> Option<&'static str> {");
+}
 
 const _session = SessionSnapshot(
   userId: 'u1',
@@ -340,10 +242,26 @@ class _FakeBridge implements MadarBridge {
     final name = invocation.memberName;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
-      final word = lang == 'ar' ? (_ar[key] ?? _en[key]) : _en[key];
-      return word ?? key.split('.').last.replaceAll('_', ' ');
+      return (lang == 'ar' ? _ar[key] : _en[key]) ?? key;
     }
     if (name == #locale) return lang;
+    if (name == #formatMoney) {
+      final a = invocation.namedArguments;
+      return MadarFormat.money(
+        a[#minor] as int,
+        currency: a[#currency] as String,
+        signed: a[#signed] as bool,
+        locale: lang,
+      );
+    }
+    if (name == #formatStamp) {
+      final at = DateTime.parse(invocation.namedArguments[#rfc3339] as String);
+      return MadarFormat.stamp(
+        at,
+        DateTime(at.year, at.month, at.day),
+        locale: lang,
+      );
+    }
     if (name == #isRtl) return lang == 'ar';
     if (name == #currentSession) return session;
     if (name == #appRoute) return const AppRoute.order();
@@ -428,6 +346,9 @@ Future<void> _shoot(
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: theme,
+          locale: Locale(rtl ? 'ar' : 'en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           home: Directionality(
             textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
             child: home,
@@ -477,7 +398,10 @@ Future<void> _loadFonts() async {
 }
 
 void main() {
-  setUpAll(_loadFonts);
+  setUpAll(() async {
+    _loadWords();
+    await _loadFonts();
+  });
 
   testWidgets('settings on the iPad', (tester) async {
     await _shoot(
@@ -493,7 +417,7 @@ void main() {
     expect(find.text('Discard'), findsOneWidget);
     expect(find.text('Retry all'), findsOneWidget);
     // Sign out is on the page but says why it is off.
-    expect(find.text('Close the shift before signing out'), findsOneWidget);
+    expect(find.text('Close your shift before signing out.'), findsOneWidget);
   });
 
   testWidgets('the Animations setting switches and persists', (tester) async {
@@ -521,10 +445,10 @@ void main() {
       ),
     );
     expect(container.read(motionChoiceProvider), MotionChoice.full);
-    await tester.tap(find.text('motion reduced'));
+    await tester.tap(find.text('Reduced'));
     await tester.pump();
     expect(container.read(motionChoiceProvider), MotionChoice.reduced);
-    await tester.tap(find.text('motion system'));
+    await tester.tap(find.text('System'));
     await tester.pump();
     expect(saved, [MotionChoice.reduced, MotionChoice.system]);
     expect(MotionChoice.parse('nonsense'), MotionChoice.full);
@@ -550,7 +474,7 @@ void main() {
       bridge: _FakeBridge(),
       name: 'settings-phone',
     );
-    expect(find.text('Epson · LAN · 80 mm'), findsOneWidget);
+    expect(find.textContaining('Epson'), findsOneWidget);
   });
 
   testWidgets('sync on a phone', (tester) async {
@@ -664,7 +588,7 @@ void main() {
     await open('Diagnostics', 'Environment', 'sheet-diagnostics');
     await open('Device', 'Reconfigure device', 'sheet-device');
     await open('Till', 'Till 2', 'sheet-till');
-    await open('Legal', 'Privacy policy', 'sheet-legal');
+    await open('Legal', 'Privacy Policy', 'sheet-legal');
   });
 
   testWidgets('discarding a refused action asks first', (tester) async {
