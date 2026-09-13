@@ -1572,12 +1572,34 @@ pub(crate) fn totals(
     ctx: Ctx<'_>,
     policy: &crate::tax::TaxPolicy,
 ) -> CoreResult<CartTotals> {
+    totals_with_rewards(store, ctx, policy, &Default::default())
+}
+
+/// [`totals`] with loyalty rewards covering units of some lines (by cart
+/// position): covered first, then the discount on what is left — the
+/// Charge screen's hero, change and split all read this.
+pub(crate) fn totals_with_rewards(
+    store: &Store,
+    ctx: Ctx<'_>,
+    policy: &crate::tax::TaxPolicy,
+    reward_units: &std::collections::HashMap<usize, i64>,
+) -> CoreResult<CartTotals> {
     use rust_decimal::prelude::ToPrimitive;
     let lines = load(store, ctx)?;
     let item_count = lines.iter().map(|l| l.qty).sum();
     let (discount_kind, discount_value) = discount(store, ctx)?;
     let priced = pricing::price_cart(PriceCartInput {
-        lines: lines.iter().map(priced).collect(),
+        lines: lines
+            .iter()
+            .enumerate()
+            .map(|(i, l)| {
+                let mut line = priced(l);
+                if !line.is_bundle {
+                    line.reward_units = reward_units.get(&i).copied().unwrap_or(0);
+                }
+                line
+            })
+            .collect(),
         discount_kind,
         discount_value,
         tax_rate: policy.tax_rate.to_f64().unwrap_or(0.0),

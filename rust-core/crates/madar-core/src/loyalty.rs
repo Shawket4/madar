@@ -438,6 +438,12 @@ pub fn scan_view(s: &madar_api::models::ScanResult, locale: &str) -> LoyaltyScan
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RewardLineInput {
+    /// For the rewards section's row.
+    pub name: String,
+    /// Position in the cart (the server indexes a cart's lines by position).
+    pub cart_index: Option<u32>,
+    /// `open_ticket_items.id` for a bill line (a settle names lines by id).
+    pub ticket_line_id: Option<String>,
     /// `None` for a bundle or a line with no menu item — never coverable.
     pub menu_item_id: Option<String>,
     pub qty: i32,
@@ -494,6 +500,86 @@ pub struct RewardBoardView {
     pub covered_minor: i64,
     /// The asked picks did not all survive; says why, in the till's language.
     pub adjusted_reason: Option<String>,
+}
+
+/// A cart's lines, in the order the server indexes them.
+pub fn reward_lines_from_cart(lines: &[crate::cart::CartLineView]) -> Vec<RewardLineInput> {
+    lines
+        .iter()
+        .enumerate()
+        .map(|(i, l)| RewardLineInput {
+            name: l.name.clone(),
+            cart_index: Some(i as u32),
+            ticket_line_id: None,
+            menu_item_id: Some(l.item_id.clone()).filter(|s| !s.is_empty()),
+            qty: l.qty as i32,
+            line_total_minor: l.line_total_minor,
+            is_bundle: l.bundle_id.is_some(),
+        })
+        .collect()
+}
+
+/// A bill's lines a reward could name: live (not voided), synced (an id the
+/// server can resolve), and carrying a menu item. Rounds added later simply
+/// appear; a line voided after the tap drops out and its reward with it.
+pub fn reward_lines_from_ticket(lines: &[crate::tickets::TicketLineView]) -> Vec<RewardLineInput> {
+    lines
+        .iter()
+        .filter(|l| !l.voided && !l.id.is_empty())
+        .map(|l| RewardLineInput {
+            name: l.name.clone(),
+            cart_index: None,
+            ticket_line_id: Some(l.id.clone()),
+            is_bundle: l.menu_item_id.is_none(),
+            menu_item_id: l.menu_item_id.clone(),
+            qty: l.qty,
+            line_total_minor: l.line_total_minor,
+        })
+        .collect()
+}
+
+/// The asked redemptions as picks into `lines` — by cart position or by
+/// ticket line id. A redemption naming nothing in `lines` becomes a pick past
+/// the end, which the board drops and names.
+pub fn picks_from_redemptions(
+    lines: &[RewardLineInput],
+    asked: &[crate::checkout::CheckoutRedemption],
+) -> Vec<RewardPick> {
+    asked
+        .iter()
+        .map(|r| {
+            let found = match &r.ticket_line_id {
+                Some(id) => lines
+                    .iter()
+                    .position(|l| l.ticket_line_id.as_deref() == Some(id)),
+                None => lines
+                    .iter()
+                    .position(|l| l.cart_index == Some(r.item_index)),
+            };
+            RewardPick {
+                line: found.unwrap_or(lines.len()) as u32,
+                units: r.units,
+            }
+        })
+        .collect()
+}
+
+/// The board's picks in the shape a checkout or settle sends.
+pub fn redemptions_from_picks(
+    lines: &[RewardLineInput],
+    picks: &[RewardPick],
+) -> Vec<crate::checkout::CheckoutRedemption> {
+    picks
+        .iter()
+        .filter_map(|p| {
+            let l = lines.get(p.line as usize)?;
+            Some(crate::checkout::CheckoutRedemption {
+                item_index: l.cart_index.unwrap_or(0),
+                ticket_line_id: l.ticket_line_id.clone(),
+                units: p.units,
+            })
+        })
+        .collect()
 }
 
 /// What one unit of `line` costs, if this balance's programme lets it be taken.
@@ -654,6 +740,24 @@ pub fn toggle_reward(
         None => {}
     }
     next
+}
+
+/// What the teller reads when a sale's rewards were recorded without points.
+pub fn refusal_notice(reason: &str, locale: &str) -> String {
+    format!(
+        "{}: {reason}",
+        crate::i18n::tr(locale, "loyalty.reward_refused")
+    )
+}
+
+/// "Reward" or "Reward ×2", for a receipt or kitchen line.
+pub fn reward_label(units: i64, locale: &str) -> String {
+    let word = crate::i18n::tr(locale, "loyalty.reward");
+    if units > 1 {
+        format!("{word} ×{units}")
+    } else {
+        word
+    }
 }
 
 fn cap_reason(cap: i64, locale: &str) -> String {
@@ -887,6 +991,9 @@ mod tests {
 
     fn line(item: &str, qty: i32, total: i64) -> RewardLineInput {
         RewardLineInput {
+            name: item.into(),
+            cart_index: None,
+            ticket_line_id: None,
             menu_item_id: Some(item.into()),
             qty,
             line_total_minor: total,

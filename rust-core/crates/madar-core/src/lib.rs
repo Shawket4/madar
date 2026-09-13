@@ -3952,7 +3952,12 @@ impl MadarCore {
             .iter()
             .filter_map(|r| {
                 let l = rewards.get(r.item_index as usize)?;
-                (!l.is_bundle).then(|| (r.item_index as usize, (r.units as i64).clamp(0, l.qty as i64)))
+                (!l.is_bundle).then(|| {
+                    (
+                        r.item_index as usize,
+                        (r.units as i64).clamp(0, l.qty as i64),
+                    )
+                })
             })
             .collect();
         cart::totals_with_rewards(&self.store, table_id.as_deref(), &policy, &units)
@@ -4017,7 +4022,11 @@ impl MadarCore {
             .iter()
             .filter_map(|p| {
                 let l = lines.get(p.line as usize)?;
-                Some(loyalty::covered_minor(l.line_total_minor, l.qty as i64, p.units as i64))
+                Some(loyalty::covered_minor(
+                    l.line_total_minor,
+                    l.qty as i64,
+                    p.units as i64,
+                ))
             })
             .sum();
         let (dtype, dvalue) = match discount_type.as_deref() {
@@ -9306,6 +9315,75 @@ mod lifecycle_tests {
         .await;
         core.api.set_bearer(Some("test-token".into()));
         core
+    }
+
+    /// A reward is never claimed blind: an offline till refuses it with a
+    /// sentence the teller can act on, and queues nothing.
+    #[tokio::test]
+    async fn a_reward_is_refused_offline_on_every_path() {
+        let core = draining_core("http://127.0.0.1:9".into()).await;
+        let lines = vec![loyalty::RewardLineInput {
+            name: "Latte".into(),
+            cart_index: Some(0),
+            ticket_line_id: None,
+            menu_item_id: Some("x".into()),
+            qty: 1,
+            line_total_minor: 1000,
+            is_bundle: false,
+        }];
+        let asked = vec![checkout::CheckoutRedemption {
+            item_index: 0,
+            ticket_line_id: None,
+            units: 1,
+        }];
+        let err = core
+            .verify_rewards(Some("00000000-0000-0000-0000-00000000c0de"), &lines, &asked)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(&err, CoreError::Validation { detail, .. } if detail == REWARD_OFFLINE),
+            "{err:?}"
+        );
+        let settle = core
+            .settle_ticket(
+                "00000000-0000-0000-0000-0000000000f1".into(),
+                "00000000-0000-0000-0000-0000000000c0".into(),
+                "cash".into(),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some("00000000-0000-0000-0000-00000000c0de".into()),
+                vec![checkout::CheckoutRedemption {
+                    item_index: 0,
+                    ticket_line_id: Some("00000000-0000-0000-0000-0000000000f2".into()),
+                    units: 1,
+                }],
+                vec![],
+            )
+            .await;
+        assert!(settle.is_err());
+        assert_eq!(core.store.pending().unwrap().len(), 0, "nothing queued");
+        // No rewards, no check: a plain sale is never held up by loyalty.
+        assert!(core.verify_rewards(None, &lines, &[]).await.is_ok());
+    }
+
+    /// A replayed sale the server recorded without points is said out loud, in
+    /// the till's language, against the op that rang it.
+    #[tokio::test]
+    async fn a_reward_recorded_without_points_reaches_the_teller() {
+        let core = draining_core("http://127.0.0.1:9".into()).await;
+        core.note_loyalty_refusal(
+            "order-1",
+            &serde_json::json!({ "id": "x", "loyalty_redemption_refused": "Ali has 2; those rewards cost 5" }),
+        );
+        core.note_loyalty_refusal("order-2", &serde_json::json!({ "id": "y" }));
+        let notice = core.loyalty_refusal("order-1".into()).unwrap();
+        assert!(notice.starts_with("Reward given without points"));
+        assert!(notice.contains("has 2"));
+        assert_eq!(core.loyalty_refusal("order-2".into()), None);
     }
 
     /// The server said no to a move somebody asked for: they are told, with

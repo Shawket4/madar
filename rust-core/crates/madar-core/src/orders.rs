@@ -408,6 +408,9 @@ pub(crate) fn order_to_receipt(
                 size_label: it.size_label.clone().filter(|s| !s.is_empty()),
                 line_total_minor: it.line_total as i64,
                 is_bundle: it.bundle_id.is_some(),
+                reward_label: it.is_reward.unwrap_or(false).then(|| {
+                    crate::loyalty::reward_label(it.reward_units.unwrap_or(0) as i64, locale)
+                }),
                 addons,
                 optionals,
                 components,
@@ -468,6 +471,11 @@ pub(crate) fn order_to_receipt(
         queued_offline: false,
         created_at: o.created_at.to_rfc3339(),
         // Only a SPLIT lists its legs; one leg is the payment line already.
+        loyalty_notice: o
+            .loyalty_redemption_refused
+            .clone()
+            .flatten()
+            .map(|why| crate::loyalty::refusal_notice(&why, locale)),
         payments: if o.payment_legs.len() > 1 {
             o.payment_legs
                 .iter()

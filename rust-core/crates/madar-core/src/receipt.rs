@@ -217,6 +217,9 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
             &money(l.line_total_minor, cur),
             w,
         )));
+        if let Some(reward) = &l.reward_label {
+            out.push(Line::plain(format!("  * {reward}")));
+        }
         if l.is_bundle {
             for c in &l.components {
                 let cname = match &c.size_label {
@@ -933,6 +936,7 @@ mod tests {
             size_label: None,
             line_total_minor: total,
             is_bundle: false,
+            reward_label: None,
             addons: vec![],
             optionals: vec![],
             components: vec![],
@@ -969,6 +973,7 @@ mod tests {
             delivery_notes: None,
             queued_offline: false,
             created_at: "2026-06-20T10:00:00Z".into(),
+            loyalty_notice: None,
             payments: vec![],
         }
     }

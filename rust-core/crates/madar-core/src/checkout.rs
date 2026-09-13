@@ -62,6 +62,9 @@ pub struct ReceiptLineView {
     pub line_total_minor: i64,
     /// A bundle/combo line — its breakdown is in `components`, not `addons`.
     pub is_bundle: bool,
+    /// "Reward" (or "Reward ×2") when a loyalty reward paid for units of this
+    /// line — printed under it, on the receipt and the kitchen chit alike.
+    pub reward_label: Option<String>,
     pub addons: Vec<ReceiptModifierView>,
     pub optionals: Vec<ReceiptModifierView>,
     pub components: Vec<ReceiptComponentView>,
@@ -123,6 +126,10 @@ pub struct ReceiptView {
     /// A split paid partly in cash has no one "cash tendered" figure, so the
     /// receipt lists the legs instead of a `Cash 0.00 / Change 0.00` pair.
     pub payments: Vec<ReceiptPaymentView>,
+    /// Set when the server recorded this sale's rewards WITHOUT taking points
+    /// (the balance was spent elsewhere first, or the programme was switched
+    /// off). The sale stands at what was collected; the teller should know.
+    pub loyalty_notice: Option<String>,
 }
 
 /// One tender on a split receipt: the method as the customer reads it, and
@@ -386,6 +393,7 @@ pub(crate) fn prepare(
 
     let branch_uuid = parse_uuid(branch_id, "branch_id")?;
     let shift_uuid = parse_uuid(shift_id, "shift_id")?;
+    let reward_units = reward_units_by_line(&lines, &input.loyalty_redemptions)?;
 
     // The wire wants the raw `name` column (the backend validates against it),
     // NOT the localized label — resolve from the cached payment-method catalog.
@@ -422,11 +430,12 @@ pub(crate) fn prepare(
     let priced = pricing::price_cart(PriceCartInput {
         lines: lines
             .iter()
-            .map(|l| pricing::CartLine {
+            .enumerate()
+            .map(|(i, l)| pricing::CartLine {
                 quantity: l.qty,
                 unit_price: l.unit_price_minor,
                 is_bundle: l.bundle_id.is_some(),
-                reward_units: 0,
+                reward_units: reward_units.get(&i).copied().unwrap_or(0),
                 addons: l
                     .addons
                     .iter()
@@ -588,7 +597,20 @@ pub(crate) fn prepare(
         order_number: mint_number,
         order_ref: mint_ref,
         is_voided: false,
-        lines: lines.iter().map(receipt_line_from_cart).collect(),
+        lines: lines
+            .iter()
+            .enumerate()
+            .map(|(i, l)| {
+                let mut line = receipt_line_from_cart(l);
+                let units = reward_units.get(&i).copied().unwrap_or(0);
+                if units > 0 {
+                    line.line_total_minor -=
+                        crate::loyalty::covered_minor(l.line_total_minor, l.qty, units);
+                    line.reward_label = Some(crate::loyalty::reward_label(units, locale));
+                }
+                line
+            })
+            .collect(),
         payment_label,
         subtotal_minor: priced.subtotal_minor,
         discount_minor: priced.discount_minor,
@@ -612,6 +634,7 @@ pub(crate) fn prepare(
         delivery_notes: None,
         queued_offline: true, // the FFI flips this to false if the drain sends it now
         created_at: now_rfc3339.clone(),
+        loyalty_notice: None,
         payments: input
             .splits
             .iter()
@@ -630,6 +653,38 @@ pub(crate) fn prepare(
         receipt,
         event_at: now_rfc3339,
     })
+}
+
+/// The reward units the checkout asks for, per cart line, checked for shape:
+/// a line that exists, is not a bundle, one reward per line, and no more
+/// units than the line holds. Affordability, the catalogue and the shop's cap
+/// are [`crate::loyalty::reward_board`]'s, checked against a fresh lookup
+/// before the sale is queued.
+pub(crate) fn reward_units_by_line(
+    lines: &[cart::CartLineView],
+    asked: &[CheckoutRedemption],
+) -> CoreResult<std::collections::HashMap<usize, i64>> {
+    let mut out = std::collections::HashMap::new();
+    for r in asked {
+        let i = r.item_index as usize;
+        let bad = |detail: &str| CoreError::Validation {
+            field: "loyalty".into(),
+            detail: detail.into(),
+        };
+        let line = lines
+            .get(i)
+            .ok_or_else(|| bad("a reward names a line that is not in the cart"))?;
+        if line.bundle_id.is_some() {
+            return Err(bad("a bundle cannot be taken as a reward"));
+        }
+        if r.units < 1 || r.units as i64 > line.qty {
+            return Err(bad("a reward covers more units than the line holds"));
+        }
+        if out.insert(i, r.units as i64).is_some() {
+            return Err(bad("one reward per line"));
+        }
+    }
+    Ok(out)
 }
 
 /// Project a cart line into its printable receipt line — bundle-aware, carrying
@@ -689,6 +744,7 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
         size_label: l.size_label.clone().filter(|s| !s.is_empty()),
         line_total_minor: l.line_total_minor,
         is_bundle: l.bundle_id.is_some(),
+        reward_label: None,
         addons,
         optionals,
         components,
@@ -1652,6 +1708,123 @@ mod tests {
         .unwrap();
         assert_eq!(p.receipt.tip_minor, 0);
         assert_eq!(p.command.request.tip_amount, None); // tip <= 0 → not set on the wire
+    }
+
+    // ── rewards ───────────────────────────────────────────────────────────────
+
+    const CAKE: &str = "00000000-0000-0000-0000-0000000000a2";
+
+    /// Three lattes (two free) and a cake, 10% off, 14% on top. The till must
+    /// send — and collect — what the server records: covered first, then the
+    /// discount on what is left (the order `loyalty_reward_vectors.json` pins).
+    #[test]
+    fn a_reward_sale_is_priced_covered_first_then_discounted() {
+        let store = Store::open("").unwrap();
+        seed_methods(&store);
+        seed_discounts(&store);
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
+        cart::set_qty(&store, None, ITEM, 3).unwrap();
+        cart::add(&store, None, CAKE, "Cake", 2000).unwrap();
+        cart::set_discount(&store, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        let mut input = mk_input(CASH, 5000);
+        input.loyalty_customer_id = Some("00000000-0000-0000-0000-00000000c0de".into());
+        input.loyalty_redemptions = vec![CheckoutRedemption {
+            item_index: 0,
+            ticket_line_id: None,
+            units: 2,
+        }];
+        let p = prepare(
+            &store,
+            None,
+            "en",
+            BRANCH,
+            SHIFT,
+            &input,
+            &tax_policy_at(0.14),
+            "2026-06-20T12:00:00+00:00".into(),
+        )
+        .unwrap();
+        let r = &p.command.request;
+        assert_eq!(r.subtotal, Some(Some(3000)), "1 latte + the cake");
+        assert_eq!(r.discount_amount, Some(Some(300)), "10% of what is left");
+        assert_eq!(r.tax_amount, Some(Some(378)));
+        assert_eq!(r.total_amount, Some(Some(3078)));
+        assert_eq!(
+            r.change_given,
+            Some(Some(1922)),
+            "change on the reduced total"
+        );
+        assert_eq!(p.receipt.total_minor, 3078);
+        assert_eq!(
+            p.receipt.lines[0].reward_label.as_deref(),
+            Some("Reward ×2")
+        );
+        assert_eq!(p.receipt.lines[0].line_total_minor, 1000);
+        assert_eq!(p.receipt.lines[1].reward_label, None);
+        // The Charge screen's figure is the same number.
+        let units = [(0usize, 2i64)].into_iter().collect();
+        let t = cart::totals_with_rewards(&store, None, &tax_policy_at(0.14), &units).unwrap();
+        assert_eq!(t.total_minor, 3078);
+        // Splits reconcile against it, as the server requires.
+        let mut split = input.clone();
+        split.splits = vec![
+            CheckoutSplit {
+                payment_method_id: CASH.into(),
+                amount_minor: 2000,
+            },
+            CheckoutSplit {
+                payment_method_id: CARD.into(),
+                amount_minor: 1078,
+            },
+        ];
+        let legs = prepare(
+            &store,
+            None,
+            "en",
+            BRANCH,
+            SHIFT,
+            &split,
+            &tax_policy_at(0.14),
+            "2026-06-20T12:00:00+00:00".into(),
+        )
+        .unwrap();
+        let sum: i32 = legs
+            .command
+            .request
+            .payment_splits
+            .clone()
+            .flatten()
+            .unwrap()
+            .iter()
+            .map(|l| l.amount)
+            .sum();
+        assert_eq!(Some(Some(sum)), legs.command.request.total_amount);
+    }
+
+    #[test]
+    fn a_reward_the_cart_cannot_hold_is_refused_before_anything_is_queued() {
+        let store = Store::open("").unwrap();
+        seed_methods(&store);
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
+        for (index, units) in [(0u32, 2), (3, 1), (0, 0)] {
+            let mut input = mk_input(CASH, 5000);
+            input.loyalty_redemptions = vec![CheckoutRedemption {
+                item_index: index,
+                ticket_line_id: None,
+                units,
+            }];
+            let err = prepare(
+                &store,
+                None,
+                "en",
+                BRANCH,
+                SHIFT,
+                &input,
+                &tax_policy_at(0.14),
+                "2026-06-20T12:00:00+00:00".into(),
+            );
+            assert!(matches!(err, Err(CoreError::Validation { .. })));
+        }
     }
 
     // ── discount kinds carried verbatim onto the wire ─────────────────────────

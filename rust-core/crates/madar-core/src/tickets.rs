@@ -287,6 +287,29 @@ fn reprice(
     v: &models::OpenTicketView,
     service_charge_taxable: bool,
 ) -> TicketBillView {
+    reprice_with(
+        b,
+        subtotal,
+        flat(&v.discount_type).as_deref(),
+        flat(&v.discount_value),
+        service_charge_taxable,
+    )
+}
+
+/// The waiter's discount on a cached bill, for a settle that does not name one.
+pub(crate) fn waiter_discount(v: &models::OpenTicketView) -> (Option<String>, Option<f64>) {
+    (flat(&v.discount_type), flat(&v.discount_value))
+}
+
+/// [`reprice`] under an explicit discount — a settle's cashier override, or the
+/// waiter's. Rewards first, then this discount, as the server settles it.
+pub(crate) fn reprice_with(
+    b: &TicketBillView,
+    subtotal: i64,
+    discount_type: Option<&str>,
+    discount_value: Option<f64>,
+    service_charge_taxable: bool,
+) -> TicketBillView {
     use std::str::FromStr;
     let dec = |f: f64| rust_decimal::Decimal::from_str(&f.to_string()).unwrap_or_default();
     let policy = crate::tax::TaxPolicy {
@@ -297,7 +320,7 @@ fn reprice(
         service_charge_rate: dec(b.service_charge_rate),
         service_charge_taxable,
     };
-    let discount = match (flat(&v.discount_type).as_deref(), flat(&v.discount_value)) {
+    let discount = match (discount_type, discount_value) {
         (Some("percentage"), Some(val)) => crate::tax::Discount::Percentage(dec(val)),
         (Some("fixed"), Some(val)) => crate::tax::Discount::Fixed(dec(val)),
         _ => crate::tax::Discount::None,

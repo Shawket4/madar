@@ -690,6 +690,9 @@ impl Renderer {
             SZ_BODY,
             Weight::BOLD,
         );
+        if let Some(reward) = &line.reward_label {
+            self.indented(&format!("★ {reward}"), SZ_SMALL, 16);
+        }
         if line.is_bundle {
             for c in &line.components {
                 self.indented(
@@ -871,6 +874,7 @@ mod tests {
                 size_label: Some("Large".into()),
                 line_total_minor: 12000,
                 is_bundle: false,
+                reward_label: None,
                 addons: vec![ReceiptModifierView {
                     name: "Extra cheese".into(),
                     price_minor: 500,
@@ -901,6 +905,7 @@ mod tests {
             delivery_notes: None,
             queued_offline: false,
             created_at: "2026-06-24T18:30:00+03:00".into(),
+            loyalty_notice: None,
             payments: vec![],
         }
     }
