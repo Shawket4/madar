@@ -1516,6 +1516,7 @@ impl MadarCore {
                             ) {
                                 checkout::bump_order_base(&self.store, sid, n);
                             }
+                            self.note_loyalty_refusal(&item.id, &obj);
                             SendOutcome::Acked(Some(id.to_string()))
                         }
                         None => SendOutcome::Offline,
@@ -1535,6 +1536,7 @@ impl MadarCore {
                                 // after settling.
                                 if item.op_type == "settle_open_ticket" {
                                     let _ = self.store.id_map_put("order", &item.id, id);
+                                    self.note_loyalty_refusal(&item.id, &obj);
                                 }
                                 SendOutcome::Acked(Some(id.to_string()))
                             }
@@ -3930,6 +3932,173 @@ impl MadarCore {
             .unwrap_or_default();
         cart::totals(&self.store, table_id.as_deref(), &policy)
     }
+
+    /// [`Self::cart_totals`] with rewards applied: the figure Charge collects,
+    /// the receipt prints and the change and split are computed from.
+    pub fn cart_totals_with_rewards(
+        &self,
+        table_id: Option<String>,
+        redemptions: Vec<checkout::CheckoutRedemption>,
+    ) -> Result<cart::CartTotals, CoreError> {
+        let policy = self
+            .current_session()
+            .map(|s| s.tax_policy())
+            .unwrap_or_default();
+        let lines = cart::lines(&self.store, table_id.as_deref())?;
+        let rewards = loyalty::reward_lines_from_cart(&lines);
+        // Only what survives the shape rules is priced; the board already
+        // trimmed anything else before it reached here.
+        let units = redemptions
+            .iter()
+            .filter_map(|r| {
+                let l = rewards.get(r.item_index as usize)?;
+                (!l.is_bundle).then(|| (r.item_index as usize, (r.units as i64).clamp(0, l.qty as i64)))
+            })
+            .collect();
+        cart::totals_with_rewards(&self.store, table_id.as_deref(), &policy, &units)
+    }
+
+    /// The lines of a cart a reward could name, in the server's order.
+    pub fn cart_reward_lines(
+        &self,
+        table_id: Option<String>,
+    ) -> Result<Vec<loyalty::RewardLineInput>, CoreError> {
+        Ok(loyalty::reward_lines_from_cart(&cart::lines(
+            &self.store,
+            table_id.as_deref(),
+        )?))
+    }
+
+    /// The raw cached bill for `ticket_id`, and its projected view.
+    fn cached_ticket(
+        &self,
+        ticket_id: &str,
+    ) -> Option<(madar_api::models::OpenTicketView, tickets::TicketView)> {
+        let line_voids = tickets::pending_line_voids(&self.store).unwrap_or_default();
+        let sc_taxable = self.service_charge_taxable();
+        cached_views::<madar_api::models::OpenTicketView>(&self.store, "cache:open_tickets")
+            .into_iter()
+            .find(|v| v.id.to_string() == ticket_id)
+            .map(|v| {
+                let view = tickets::to_view_with(&v, false, &line_voids, sc_taxable);
+                (v, view)
+            })
+    }
+
+    /// The lines of a bill a reward could name.
+    pub fn ticket_reward_lines(
+        &self,
+        ticket_id: String,
+    ) -> Result<Vec<loyalty::RewardLineInput>, CoreError> {
+        Ok(self
+            .cached_ticket(&ticket_id)
+            .map(|(_, view)| loyalty::reward_lines_from_ticket(&view.lines))
+            .unwrap_or_default())
+    }
+
+    /// A bill re-priced with rewards on it, under the discount the settle will
+    /// carry (the cashier's pick, `"none"`, or — absent — the waiter's).
+    /// `None` for a bill the server has not priced yet.
+    pub fn bill_with_rewards(
+        &self,
+        ticket_id: String,
+        redemptions: Vec<checkout::CheckoutRedemption>,
+        discount_type: Option<String>,
+        discount_value: Option<f64>,
+    ) -> Result<Option<tickets::TicketBillView>, CoreError> {
+        let Some((raw, view)) = self.cached_ticket(&ticket_id) else {
+            return Ok(None);
+        };
+        let Some(bill) = view.bill.clone() else {
+            return Ok(None);
+        };
+        let lines = loyalty::reward_lines_from_ticket(&view.lines);
+        let covered: i64 = loyalty::picks_from_redemptions(&lines, &redemptions)
+            .iter()
+            .filter_map(|p| {
+                let l = lines.get(p.line as usize)?;
+                Some(loyalty::covered_minor(l.line_total_minor, l.qty as i64, p.units as i64))
+            })
+            .sum();
+        let (dtype, dvalue) = match discount_type.as_deref() {
+            Some("none") => (None, None),
+            Some(_) => (discount_type.clone(), discount_value),
+            None => tickets::waiter_discount(&raw),
+        };
+        Ok(Some(tickets::reprice_with(
+            &bill,
+            bill.subtotal_minor - covered,
+            dtype.as_deref(),
+            dvalue,
+            self.service_charge_taxable(),
+        )))
+    }
+
+    /// Refresh the attached member and check the rewards a sale is about to
+    /// claim against the server's CURRENT balance, catalogue, cap and
+    /// programme — right before the sale is queued, so a stale screen is
+    /// corrected at the counter, not refused (or given away) afterwards.
+    async fn verify_rewards(
+        &self,
+        customer_id: Option<&str>,
+        lines: &[loyalty::RewardLineInput],
+        asked: &[checkout::CheckoutRedemption],
+    ) -> Result<(), CoreError> {
+        if asked.is_empty() {
+            return Ok(());
+        }
+        let locale = self.current_locale();
+        let refuse = |key: &str| CoreError::Validation {
+            field: String::new(),
+            detail: i18n::tr(&locale, key),
+        };
+        if !self.current_session().map(|s| s.online).unwrap_or(false) {
+            return Err(CoreError::Validation {
+                field: String::new(),
+                detail: REWARD_OFFLINE.into(),
+            });
+        }
+        let customer_id = customer_id.ok_or_else(|| refuse("loyalty.reward_member_changed"))?;
+        if !self.loyalty_settings().await?.enabled {
+            return Err(refuse("loyalty.reward_programme_off"));
+        }
+        let scan = self.loyalty_refresh(customer_id.to_string()).await?;
+        let picks = loyalty::picks_from_redemptions(lines, asked);
+        let board = loyalty::reward_board(lines, &scan, &picks, &locale);
+        let norm = |mut p: Vec<loyalty::RewardPick>| {
+            p.sort_by_key(|x| x.line);
+            p
+        };
+        if norm(board.picks.clone()) != norm(picks) {
+            return Err(CoreError::Validation {
+                field: String::new(),
+                detail: board
+                    .adjusted_reason
+                    .unwrap_or_else(|| i18n::tr(&locale, "loyalty.reward_member_changed")),
+            });
+        }
+        Ok(())
+    }
+
+    /// Why the server recorded a sale's rewards without points, once its op
+    /// acked — by the op id (`create_order`: the local order id; settle:
+    /// `{ticket}:settle`). `None` when the rewards were paid for normally.
+    pub fn loyalty_refusal(&self, op_id: String) -> Option<String> {
+        self.store
+            .kv_get(&loyalty_refusal_key(&op_id))
+            .ok()
+            .flatten()
+            .filter(|s| !s.is_empty())
+            .map(|why| loyalty::refusal_notice(&why, &self.current_locale()))
+    }
+}
+
+/// The detail a reward refused for want of a connection carries; the host
+/// maps it to `loyalty.reward_offline` (see `coreDetailKeys`).
+pub const REWARD_OFFLINE: &str = "a reward can only be redeemed online";
+
+fn loyalty_refusal_key(op_id: &str) -> String {
+    format!("loyalty_refused:{op_id}")
 }
 
 /// A queued/failed outbox command, projected for the sync center.
@@ -5483,6 +5652,18 @@ impl MadarCore {
                 detail: "no open shift".into(),
             })?;
 
+        // Rewards give away goods against a balance any till can spend: refused
+        // offline, and re-checked against the server's current card first.
+        if !input.loyalty_redemptions.is_empty() {
+            let lines = cart::lines(&self.store, table_id.as_deref())?;
+            self.verify_rewards(
+                input.loyalty_customer_id.as_deref(),
+                &loyalty::reward_lines_from_cart(&lines),
+                &input.loyalty_redemptions,
+            )
+            .await?;
+        }
+
         let now = self.corrected_now().to_rfc3339();
         let prepared = checkout::prepare(
             &self.store,
@@ -5522,7 +5703,22 @@ impl MadarCore {
         let mut receipt = prepared.receipt;
         receipt.queued_offline = still_pending;
         receipt.teller_name = Some(teller_name).filter(|s| !s.trim().is_empty());
+        receipt.loyalty_notice = self.loyalty_refusal(order_id);
         Ok(receipt)
+    }
+
+    /// A replayed sale whose rewards the server recorded without points: kept
+    /// for the screen that rang it ([`Self::loyalty_refusal`]) and said in the
+    /// sync log, never swallowed.
+    fn note_loyalty_refusal(&self, op_id: &str, ack: &serde_json::Value) {
+        if let Some(why) = ack
+            .get("loyalty_redemption_refused")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+        {
+            let _ = self.store.kv_put(&loyalty_refusal_key(op_id), why);
+            self.push_diag("warn", format!("reward recorded without points: {why}"));
+        }
     }
 
     /// Force a sync now — drains the outbox. Cancellable/idempotent.
@@ -5870,6 +6066,40 @@ impl MadarCore {
                 detail: "scan a card or type a phone number".into(),
             });
         }
+        let result = loyalty_api::loyalty_lookup(
+            &self.api.config(),
+            loyalty_api::LoyaltyLookupParams {
+                lookup_request: request,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
+        Ok(loyalty::scan_view(&result, &self.current_locale()))
+    }
+
+    /// Re-read a member already attached to this sale, by id: the balance, the
+    /// catalogue and the shop's per-order cap as the server holds them NOW.
+    /// Online-only, like the scan.
+    pub async fn loyalty_refresh(
+        &self,
+        customer_id: String,
+    ) -> Result<loyalty::LoyaltyScanView, CoreError> {
+        use madar_api::apis::loyalty_api;
+        let branch = self.session_branch_id()?;
+        if !self.current_session().map(|s| s.online).unwrap_or(false) {
+            return Err(CoreError::Validation {
+                field: String::new(),
+                detail: REWARD_OFFLINE.into(),
+            });
+        }
+        let bad = |f: &str| CoreError::Validation {
+            field: f.into(),
+            detail: "not a uuid".into(),
+        };
+        let branch_uuid = uuid::Uuid::parse_str(&branch).map_err(|_| bad("branch_id"))?;
+        let member = uuid::Uuid::parse_str(&customer_id).map_err(|_| bad("customer_id"))?;
+        let mut request = madar_api::models::LookupRequest::new(branch_uuid);
+        request.customer_id = Some(Some(member));
         let result = loyalty_api::loyalty_lookup(
             &self.api.config(),
             loyalty_api::LoyaltyLookupParams {
@@ -7195,12 +7425,13 @@ impl MadarCore {
         // cannot be settled blind. Refused here rather than queued: a queued
         // redemption would be discovered to be unaffordable long after the
         // customer walked out with the item.
-        if !loyalty_redemptions.is_empty()
-            && !self.current_session().map(|s| s.online).unwrap_or(false)
-        {
-            return Err(CoreError::Offline {
-                detail: "a reward can only be redeemed online".into(),
-            });
+        if !loyalty_redemptions.is_empty() {
+            let lines = self
+                .cached_ticket(&ticket_id)
+                .map(|(_, view)| loyalty::reward_lines_from_ticket(&view.lines))
+                .unwrap_or_default();
+            self.verify_rewards(loyalty_customer_id.as_deref(), &lines, &loyalty_redemptions)
+                .await?;
         }
         let payment_method = checkout::raw_payment_method(&self.store, &payment_method_id)?
             .map(|p| p.name)
@@ -10504,17 +10735,11 @@ impl MadarCore {
         )
     }
 
-    /// Today's service date (`YYYY-MM-DD`) in the branch zone, 05:00 → 05:00
-    /// like the backend, so a 00:30 booking still belongs to tonight.
+    /// Today's calendar date (`YYYY-MM-DD`) in the branch zone, midnight →
+    /// midnight like the backend, so a 00:30 booking lists under its own date.
     fn service_date_today(&self) -> String {
-        use chrono::Timelike;
         let tz = timefmt::branch_tz(&self.store);
-        let now = self.corrected_now().with_timezone(&tz);
-        let date = if now.hour() < 5 {
-            now.date_naive() - chrono::Duration::days(1)
-        } else {
-            now.date_naive()
-        };
+        let date = self.corrected_now().with_timezone(&tz).date_naive();
         timefmt::iso_date(date)
     }
 }
