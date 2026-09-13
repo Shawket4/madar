@@ -619,6 +619,29 @@ void main() {
     }
   }
 
+  // The Kitchen segment beside them: iPad and phone, both languages.
+  for (final (device, size) in const [('ipad', _ipad), ('phone', _phone)]) {
+    for (final arabic in [false, true]) {
+      final tag = '$device-${arabic ? 'ar' : 'en'}';
+      testWidgets('matrix kitchen $tag', (tester) async {
+        await _shoot(
+          tester,
+          size: size,
+          theme: MadarTheme.light(),
+          name: 'm-kitchen-$tag',
+          bridge: _FakeBridge(
+            arabic: arabic,
+            orders: _orders,
+            tickets: _tickets,
+            routingMode: 'till',
+            kitchen: _kitchen,
+          ),
+          segment: QueueSegment.kitchen,
+        );
+      });
+    }
+  }
+
   testWidgets('Online on an iPad, light: every live state on one board', (
     tester,
   ) async {

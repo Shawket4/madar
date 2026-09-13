@@ -45,6 +45,7 @@ class KdsState {
     this.tickets = const [],
     this.stations = const [],
     this.loaded = false,
+    this.loadFailed = false,
     this.busyLineIds = const {},
     this.bumpingAllIds = const {},
     this.queuedBumps = 0,
@@ -64,6 +65,10 @@ class KdsState {
   /// The first fetch has landed. Before it the board shows nothing rather
   /// than a false "all caught up".
   final bool loaded;
+
+  /// The last fetch failed with no board yet on screen — the body offers a
+  /// retry instead of spinning forever.
+  final bool loadFailed;
 
   /// Lines with a bump / unbump in flight — the row shows a spinner instead
   /// of its check and ignores a second tap.
@@ -129,6 +134,7 @@ class KdsState {
     List<KdsTicketView>? tickets,
     List<KdsStationView>? stations,
     bool? loaded,
+    bool? loadFailed,
     Set<String>? busyLineIds,
     Set<String>? bumpingAllIds,
     int? queuedBumps,
@@ -141,6 +147,7 @@ class KdsState {
       tickets: tickets ?? this.tickets,
       stations: stations ?? this.stations,
       loaded: loaded ?? this.loaded,
+      loadFailed: loadFailed ?? this.loadFailed,
       busyLineIds: busyLineIds ?? this.busyLineIds,
       bumpingAllIds: bumpingAllIds ?? this.bumpingAllIds,
       queuedBumps: queuedBumps ?? this.queuedBumps,
@@ -184,12 +191,15 @@ class KdsNotifier extends Notifier<KdsState> {
       state = state.copyWith(
         tickets: tickets,
         loaded: true,
+        loadFailed: false,
         clockSkewMinutes: _skew(),
       );
     } on MadarError catch (e) {
       ref.read(connectivityRefreshProvider.notifier).reportError(e);
+      if (!state.loaded) state = state.copyWith(loadFailed: true);
     } on Object {
       // Keep the previous tickets.
+      if (!state.loaded) state = state.copyWith(loadFailed: true);
     }
     await loadOutbox();
   }

@@ -153,7 +153,14 @@ class _KdsBoardBodyState extends ConsumerState<KdsBoardBody>
               ),
             Expanded(
               child: switch ((state.loaded, state.tickets.isEmpty)) {
-                (false, _) => const SizedBox.shrink(),
+                // Same three states as Queue's tables: spinner, error with
+                // a retry, then the board (or its all-clear).
+                (false, _) when state.loadFailed => ErrorState(
+                  message: bridge.tr(key: 'kds.load_failed'),
+                  retryLabel: bridge.tr(key: 'history.retry'),
+                  onRetry: () => unawaited(_board.load()),
+                ),
+                (false, _) => const Center(child: MadarSpinner(size: 28)),
                 (true, true) => _AllClear(
                   title: bridge.tr(key: 'kds.all_clear'),
                 ),

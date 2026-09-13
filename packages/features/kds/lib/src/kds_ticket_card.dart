@@ -141,7 +141,6 @@ class _Header extends ConsumerWidget {
     final fg = tone.color(colors);
     final label = ticket.tableLabel ?? ticket.kitchenRef;
     final roundWord = bridge.trMaybe(KdsKeys.round);
-    final unit = bridge.trMaybe(KdsKeys.ageMin);
     final fromWaiter = ticket.sourceType == 'open_ticket';
     return Container(
       height: Metrics.rowHeight,
@@ -150,32 +149,42 @@ class _Header extends ConsumerWidget {
       child: Row(
         spacing: Space.sm,
         children: [
-          Flexible(
-            child: Text(
-              // A card with neither a table nor a kitchen ref (an old
-              // teller order) is named by its round, the way it always was.
-              label ?? '#${ticket.roundNumber}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: MadarType.h2.copyWith(color: colors.textPrimary),
+          // The name side takes the rest; the age keeps its natural width,
+          // so a long elapsed never squeezes the table label out.
+          Expanded(
+            child: Row(
+              spacing: Space.sm,
+              children: [
+                Flexible(
+                  child: Text(
+                    // A card with neither a table nor a kitchen ref (an old
+                    // teller order) is named by its round, the way it always was.
+                    label ?? '#${ticket.roundNumber}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MadarType.h2.copyWith(color: colors.textPrimary),
+                  ),
+                ),
+                if (fromWaiter && label != null)
+                  _RoundTag(word: roundWord, round: ticket.roundNumber, fg: fg),
+                if (fromWaiter)
+                  MadarGlyphIcon(
+                    MadarGlyph.user,
+                    size: IconSize.md,
+                    color: fg,
+                    semanticLabel: bridge.tr(key: 'kds.waiter'),
+                  ),
+              ],
             ),
           ),
-          if (fromWaiter && label != null)
-            _RoundTag(word: roundWord, round: ticket.roundNumber, fg: fg),
-          if (fromWaiter)
-            MadarGlyphIcon(
-              MadarGlyph.user,
-              size: IconSize.md,
-              color: fg,
-              semanticLabel: bridge.tr(key: 'kds.waiter'),
-            ),
-          const Spacer(),
-          if (unit == null)
-            MadarGlyphIcon(MadarGlyph.clock, size: IconSize.md, color: fg),
+          MadarGlyphIcon(MadarGlyph.clock, size: IconSize.md, color: fg),
+          // The Queue's elapsed format (`42m`, `1h 05m`; Arabic `42 د`) —
+          // laid out in the ambient direction, never forced LTR.
           Text(
-            unit == null ? '$ageMinutes' : '$ageMinutes$unit',
-            // The figure is an LTR island in both scripts.
-            textDirection: TextDirection.ltr,
+            MadarFormat.elapsed(
+              Duration(minutes: ageMinutes),
+              locale: MadarFormat.localeOf(context),
+            ),
             style: MadarType.moneyMd.copyWith(color: fg),
           ),
         ],

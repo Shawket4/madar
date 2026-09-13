@@ -12,6 +12,7 @@ import 'package:app_core/app_core.dart';
 import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/feature_order.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -157,6 +158,20 @@ TicketView _ticket(
   waiterName: waiter,
   guestCount: guests,
   subtotalMinor: minor,
+  // Priced by the server (a queued fire is not yet), so the preview reads
+  // Total — the figure Charge carries.
+  bill: offline
+      ? null
+      : TicketBillView(
+          subtotalMinor: minor,
+          discountMinor: 0,
+          serviceChargeMinor: 0,
+          taxMinor: minor * 14 ~/ 100,
+          totalMinor: minor + minor * 14 ~/ 100,
+          taxRate: 0.14,
+          serviceChargeRate: 0,
+          taxInclusive: false,
+        ),
   openedAt: _ago(ago),
   queuedOffline: offline,
   lines: [
@@ -353,6 +368,9 @@ Future<void> _mount(
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: dark ? MadarTheme.dark() : MadarTheme.light(),
+          locale: Locale(rtl ? 'ar' : 'en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           home: Directionality(
             textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
             child: const FloorScreen(),
