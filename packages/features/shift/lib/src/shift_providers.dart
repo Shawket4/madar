@@ -790,6 +790,8 @@ class CloseShiftNotifier extends Notifier<CloseShiftState> {
         closingCashMinor: counted,
         cashNote: trimmed.isEmpty ? null : trimmed,
       );
+      // The core emptied every cart with the shift; the open screens re-read.
+      ref.read(cartsClearedTickProvider.notifier).bump();
       if (!_disposed) {
         state = state.copyWith(busy: false, closedShiftId: shiftId);
       }

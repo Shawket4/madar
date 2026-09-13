@@ -307,6 +307,12 @@ final drawerTickProvider = NotifierProvider<TickNotifier, int>(
   TickNotifier.new,
 );
 
+/// Bumped when the core emptied every cart outside a sign-in (closing a
+/// shift). Each open cart re-reads its context on it.
+final cartsClearedTickProvider = NotifierProvider<TickNotifier, int>(
+  TickNotifier.new,
+);
+
 /// Where this branch expects a fired round to be SEEN: `kds` (a screen in the
 /// kitchen), `till` (the counter bumps it itself), `both`, or `off` (nothing
 /// is routed at all). `null` until this device has reached the server once.
