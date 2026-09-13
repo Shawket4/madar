@@ -544,7 +544,9 @@ class _FakeBridge implements MadarBridge {
   final int pending;
 
   /// The cart context the shell last switched the core to.
-  String? activeCart;
+  /// Each cart context's lines beyond takeaway's, and every context's meta.
+  final Map<String, List<CartLineView>> tableCarts = {};
+  final Map<String?, CartMeta> metas = {};
   final int failed;
   final bool authPaused;
   final int clockSkew;
@@ -770,19 +772,29 @@ class _FakeBridge implements MadarBridge {
     if (name == #listItemAddons) {
       return Future<List<ItemAddonView>>.value(const []);
     }
+    // One cart per context (null = takeaway); nothing is ever active.
+    final cartTable = invocation.namedArguments[#tableId] as String?;
     if (name == #cartLines) {
-      return Future<List<CartLineView>>.value(_waiter ? const [] : _cart);
+      return Future<List<CartLineView>>.value(
+        _waiter
+            ? const []
+            : cartTable == null
+            ? _cart
+            : tableCarts[cartTable] ?? const [],
+      );
     }
-    // The core's active cart context (null = takeaway); switching is recorded
-    // so the Sell tab's takeaway guarantee can be asserted.
-    if (name == #cartSetContext) {
-      activeCart = invocation.namedArguments[#tableId] as String?;
-      return Future<List<CartLineView>>.value(const []);
+    if (name == #cartMeta) {
+      return Future<CartMeta>.value(
+        metas[cartTable] ?? const CartMeta(name: ''),
+      );
     }
-    if (name == #cartContext) return Future<String?>.value(activeCart);
+    if (name == #cartSetMeta) {
+      metas[cartTable] = invocation.namedArguments[#meta]! as CartMeta;
+      return Future<void>.value();
+    }
     if (name == #cartTotals) {
       return Future<CartTotals>.value(
-        _waiter
+        _waiter || (cartTable != null && tableCarts[cartTable] == null)
             ? const CartTotals(
                 itemCount: 0,
                 subtotalMinor: 0,
@@ -1141,30 +1153,48 @@ void main() {
     await _shot(tester, 'shell-teller-till-ipad');
   });
 
-  testWidgets('the Sell tab is always takeaway, even re-selected', (
+  testWidgets('the Sell tab is always takeaway: a launch, a re-select, and '
+      'ten rapid switches with a table screen on the Floor stack', (
     tester,
   ) async {
-    final bridge = _FakeBridge();
+    final bridge = _FakeBridge()
+      ..tableCarts['t1'] = [_cartLine('latte', 'Latte', 4500, 2)]
+      ..metas['t1'] = const CartMeta(name: 'Nour', tableLabel: 'T1');
     final container = await _mount(tester, bridge: bridge, size: _ipad);
-    final order = container.read(orderProvider.notifier);
+    String? sellTitle() => tester
+        .widget<MadarPageScaffold>(
+          find.descendant(
+            of: find.byType(TakeawaySellScreen, skipOffstage: false),
+            matching: find.byType(MadarPageScaffold, skipOffstage: false),
+            skipOffstage: false,
+          ),
+        )
+        .title;
+    expect(sellTitle(), 'Takeaway', reason: 'a launch opens takeaway');
+    container.read(orderProvider.notifier).setPendingCovers('t1', 4);
 
-    // Tap a table, add nothing, leave for Floor, come back to Sell.
-    await order.pointCartAtTable('t1', 'T1');
     await _tab(tester, 'floor');
-    expect(container.read(orderProvider).cartTableId, 't1');
+    _pageStack(tester).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const TableOrderScreen(tableId: 't1'),
+      ),
+    );
+    await _settle(tester);
+    expect(find.text('T1 · 4 guests'), findsWidgets);
+    for (var i = 0; i < 10; i++) {
+      await _tab(tester, i.isEven ? 'sell' : 'floor');
+    }
+    await _tab(tester, 'sell');
     await _tab(tester, 'sell');
     await _settle(tester);
-    expect(container.read(orderProvider).cartTableId, isNull);
-    expect(bridge.activeCart, isNull);
-
-    // Already ON Sell (IndexedStack: initState does not run again), aimed at
-    // a table from elsewhere — re-tapping the tab still lands on takeaway.
-    await order.pointCartAtTable('t2', 'T2');
-    expect(bridge.activeCart, 't2');
-    await _tab(tester, 'sell');
+    expect(sellTitle(), 'Takeaway');
+    expect(container.read(cartProvider(null)).lines, _cart);
+    await _tab(tester, 'floor');
     await _settle(tester);
-    expect(container.read(orderProvider).cartTableId, isNull);
-    expect(bridge.activeCart, isNull);
+    expect(find.byType(TableOrderScreen), findsOneWidget);
+    expect(find.text('T1 · 4 guests'), findsWidgets);
+    expect(container.read(cartProvider('t1')).lines, hasLength(1));
+    expect(container.read(cartProvider('t1')).name, 'Nour');
   });
 
   testWidgets('every sale on a table: Floor is home; dark; queued pill', (
@@ -1375,30 +1405,29 @@ void main() {
         'a visit to the Sell tab', (tester) async {
       final bridge = _FakeBridge();
       final container = await _mount(tester, bridge: bridge, size: _ipad);
-      final order = container.read(orderProvider.notifier);
       await _tab(tester, 'floor');
-      await order.pointCartAtTable('t2', 'T2');
       _pageStack(tester).push(
-        MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
+        MaterialPageRoute<void>(
+          builder: (_) => const TableOrderScreen(tableId: 't1'),
+        ),
       );
       await _settle(tester);
-      expect(find.text('T2 · Round 1'), findsWidgets);
+      expect(find.text('T1'), findsWidgets);
+      expect(find.text('Round 1'), findsWidgets);
 
       // The Sell tab is the counter.
       await _tab(tester, 'sell');
-      expect(container.read(orderProvider).cartTableId, isNull);
-      expect(bridge.activeCart, isNull);
+      await _settle(tester);
+      expect(find.text('Takeaway'), findsWidgets);
 
-      // Back on Floor: the table's screen is still there, still for T2.
+      // Back on Floor: the table's screen is still there, still for T1.
       await _tab(tester, 'floor');
       await _settle(tester);
-      expect(
-        find.byWidgetPredicate((w) => w is SellScreen && w.forTable),
-        findsOneWidget,
-      );
-      expect(container.read(orderProvider).cartTableId, 't2');
-      expect(bridge.activeCart, 't2');
-      expect(find.text('T2 · Round 1'), findsWidgets);
+      final table = find.byType(TableOrderScreen);
+      expect(table, findsOneWidget);
+      expect(tester.widget<TableOrderScreen>(table).tableId, 't1');
+      expect(find.text('Round 1'), findsWidgets);
+      expect(container.read(cartProvider(null)).lines, _cart);
       _expectChromeStands(tester, 'floor › sell for T2', _ipad);
     });
   });
@@ -1430,12 +1459,12 @@ void main() {
       expect(stack.canPop(), isFalse, reason: 'only one Sync was pushed');
 
       // Back to Sell: the counter, not a page left over from elsewhere.
-      await container.read(orderProvider.notifier).pointCartAtTable('t1', 'T1');
       await _tab(tester, 'sell');
       expect(find.byType(SyncScreen), findsNothing);
       expect(find.byType(SettingsScreen), findsNothing);
       expect(_pageStack(tester).canPop(), isFalse);
-      expect(container.read(orderProvider).cartTableId, isNull);
+      expect(find.text('Takeaway'), findsWidgets);
+      expect(container.read(cartProvider(null)).lines, _cart);
       expect(railTabs(tester).singleWhere((t) => t.selected).tab.key, 'sell');
     });
   });
@@ -1475,10 +1504,10 @@ void main() {
     // Sell is pushed over a waiter's shell (no Sell tab of its own) AND over
     // a teller's, whose Sell tab stays mounted underneath it.
     final pushed = <String, (bool, Widget Function())>{
-      'sell for a table': (true, () => const SellScreen.forTable()),
+      'sell for a table': (true, () => const TableOrderScreen(tableId: 't1')),
       'sell for a table over the Sell tab': (
         false,
-        () => const SellScreen.forTable(),
+        () => const TableOrderScreen(tableId: 't1'),
       ),
       'bill': (
         false,
@@ -1524,7 +1553,12 @@ final _pages = <String, (bool, bool, String?, Widget Function()?)>{
   'till-noshift': (false, false, 'till', null),
   'waiter-bills': (true, true, 'bills', null),
   'waiter-me': (true, true, 'me', null),
-  'sell-for-table': (false, true, null, () => const SellScreen.forTable()),
+  'sell-for-table': (
+    false,
+    true,
+    null,
+    () => const TableOrderScreen(tableId: 't1'),
+  ),
   'bill': (
     false,
     true,
@@ -1558,21 +1592,18 @@ Future<void> _openPage(
   if (pushed != null) {
     // A table's Sell is only ever pushed with a table in hand — seated with
     // its party — so the picture shows what a teller sees, not takeaway.
-    if (pushed().runtimeType == SellScreen) {
-      final container = ProviderScope.containerOf(
+    if (pushed() is TableOrderScreen) {
+      ProviderScope.containerOf(
         tester.element(find.byType(Navigator).first),
-      );
-      final order = container.read(orderProvider.notifier);
-      await order.pointCartAtTable('t2', 'T2');
-      order.setPendingCovers('t2', 4);
+      ).read(orderProvider.notifier).setPendingCovers('t1', 4);
     }
     // Where the app pushes a page: the stack of the tab in front.
     _pageStack(tester).push(MaterialPageRoute<void>(builder: (_) => pushed()));
     await _settle(tester);
-    if (pushed().runtimeType == SellScreen) {
-      // The page title AND the cart header name the table, not takeaway.
-      expect(find.text('T2 · Round 1'), findsWidgets);
-      expect(find.text('4 guests'), findsOneWidget);
+    if (pushed() is TableOrderScreen) {
+      // The page title names the table and its party, not takeaway.
+      expect(find.text('T1 · 4 guests'), findsWidgets);
+      expect(find.text('Round 1'), findsWidgets);
     }
   }
 }
