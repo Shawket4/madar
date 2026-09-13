@@ -121,9 +121,14 @@ pub fn sale_tax_inclusive(
 /// code made readable — never `talabat_online` in front of a teller.
 pub(crate) fn method_label(methods: &[CachedPaymentMethod], code: &str, locale: &str) -> String {
     let trimmed = code.trim();
-    if let Some(m) = methods.iter().find(|m| m.name.eq_ignore_ascii_case(trimmed)) {
+    if let Some(m) = methods
+        .iter()
+        .find(|m| m.name.eq_ignore_ascii_case(trimmed))
+    {
         return menu::resolve(
-            m.label_translations.as_ref().unwrap_or(&serde_json::Value::Null),
+            m.label_translations
+                .as_ref()
+                .unwrap_or(&serde_json::Value::Null),
             &m.name,
             locale,
         );
@@ -290,7 +295,10 @@ mod tests {
     fn a_split_or_aggregator_sale_has_no_default_method() {
         for code in ["mixed", "talabat_online", "old_voucher"] {
             let plan = refund_plan(&methods(), code, "2026-09-12T19:00:00Z", None, "en");
-            assert_eq!(plan.default_code, None, "{code} must be chosen, not guessed");
+            assert_eq!(
+                plan.default_code, None,
+                "{code} must be chosen, not guessed"
+            );
         }
     }
 
@@ -314,7 +322,10 @@ mod tests {
         let m = methods();
         assert_eq!(method_label(&m, "card", "ar"), "بطاقة");
         assert_eq!(method_label(&m, "mixed", "en"), "Split");
-        assert_eq!(method_label(&m, "mixed", "ar"), i18n::tr("ar", "payment.mixed"));
+        assert_eq!(
+            method_label(&m, "mixed", "ar"),
+            i18n::tr("ar", "payment.mixed")
+        );
         assert_eq!(method_label(&m, "digital_wallet", "en"), "Digital wallet");
     }
 
@@ -326,7 +337,10 @@ mod tests {
         assert!(!c.entered);
         assert_eq!(close_count_check(100, Some(100)).verdict, "matches");
         let short = close_count_check(100, Some(0));
-        assert_eq!((short.verdict.as_str(), short.variance_minor), ("short", -100));
+        assert_eq!(
+            (short.verdict.as_str(), short.variance_minor),
+            ("short", -100)
+        );
         assert!(short.needs_reason);
         assert_eq!(close_count_check(100, Some(150)).verdict, "over");
     }

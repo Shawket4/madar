@@ -89,11 +89,11 @@ pub mod staff;
 pub mod store;
 /// Waiter open tickets — fire-now-pay-later dine-in tickets via the outbox.
 pub mod tickets;
-/// Branch-timezone-aware timestamp formatting for display (mirrors Flutter AppTz).
-pub mod timefmt;
 /// Drawer and Orders decisions the screens used to make (labels, refund
 /// method, close count, cash sales, tax inclusivity, shift order paging).
 pub mod till_views;
+/// Branch-timezone-aware timestamp formatting for display (mirrors Flutter AppTz).
+pub mod timefmt;
 
 /// Pure internal functions exposed ONLY to the cargo-fuzz harness. Gated on
 /// `cfg(fuzzing)` (set automatically by `cargo +nightly fuzz`), so it never
@@ -2924,7 +2924,10 @@ impl MadarCore {
 #[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
     /// The current cart lines (empty when none).
-    pub fn cart_lines(&self, table_id: Option<String>) -> Result<Vec<cart::CartLineView>, CoreError> {
+    pub fn cart_lines(
+        &self,
+        table_id: Option<String>,
+    ) -> Result<Vec<cart::CartLineView>, CoreError> {
         cart::lines(&self.store, table_id.as_deref())
     }
     /// Add one unit of a menu item (merges into the matching line). The host
@@ -2936,7 +2939,13 @@ impl MadarCore {
         name: String,
         unit_price_minor: i64,
     ) -> Result<Vec<cart::CartLineView>, CoreError> {
-        cart::add(&self.store, table_id.as_deref(), &item_id, &name, unit_price_minor)
+        cart::add(
+            &self.store,
+            table_id.as_deref(),
+            &item_id,
+            &name,
+            unit_price_minor,
+        )
     }
     /// Add a CONFIGURED line (size + addons + optionals + notes). The core
     /// resolves the charged prices from the cached catalog (size unit price;
@@ -3043,7 +3052,11 @@ impl MadarCore {
     /// "Bill so far" under a round: what the bill already carries plus what
     /// this round adds, both as subtotals (the ticket view prices nothing
     /// else). Summed here so the cart footer shows a figure, not arithmetic.
-    pub fn cart_bill_so_far_minor(&self, table_id: Option<String>, ticket_subtotal_minor: i64) -> Result<i64, CoreError> {
+    pub fn cart_bill_so_far_minor(
+        &self,
+        table_id: Option<String>,
+        ticket_subtotal_minor: i64,
+    ) -> Result<i64, CoreError> {
         let totals = self.cart_totals(table_id)?;
         Ok(ticket_subtotal_minor.saturating_add(totals.subtotal_minor))
     }
@@ -3179,12 +3192,19 @@ impl MadarCore {
         cart::set_qty(&self.store, table_id.as_deref(), &item_id, qty)
     }
     /// Remove a line entirely (stashed for undo — see `cart_restore_removed`).
-    pub fn cart_remove(&self, table_id: Option<String>, item_id: String) -> Result<Vec<cart::CartLineView>, CoreError> {
+    pub fn cart_remove(
+        &self,
+        table_id: Option<String>,
+        item_id: String,
+    ) -> Result<Vec<cart::CartLineView>, CoreError> {
         cart::remove(&self.store, table_id.as_deref(), &item_id)
     }
     /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
     /// nothing was removed (or it was already restored / the cart was cleared).
-    pub fn cart_restore_removed(&self, table_id: Option<String>) -> Result<Vec<cart::CartLineView>, CoreError> {
+    pub fn cart_restore_removed(
+        &self,
+        table_id: Option<String>,
+    ) -> Result<Vec<cart::CartLineView>, CoreError> {
         cart::restore_last_removed(&self.store, table_id.as_deref())
     }
     /// Empty one context's cart + meta (other contexts are untouched).
@@ -3245,7 +3265,13 @@ impl MadarCore {
         onto_table_id: Option<String>,
     ) -> Result<bool, CoreError> {
         let _guard = self.cart_ops.lock().unwrap_or_else(|e| e.into_inner());
-        self.hold_cart_on_table_locked(table_id.as_deref(), name, draft_id, started_at, onto_table_id)
+        self.hold_cart_on_table_locked(
+            table_id.as_deref(),
+            name,
+            draft_id,
+            started_at,
+            onto_table_id,
+        )
     }
 
     /// Resume a parked order in ONE call, parking whatever is in the way first.
@@ -3403,7 +3429,11 @@ impl MadarCore {
 
     /// Restore a held order into the cart (claims it for this till so no other
     /// till edits it concurrently). Errors when another till holds the claim.
-    pub fn restore_draft(&self, table_id: Option<String>, id: String) -> Result<Vec<cart::CartLineView>, CoreError> {
+    pub fn restore_draft(
+        &self,
+        table_id: Option<String>,
+        id: String,
+    ) -> Result<Vec<cart::CartLineView>, CoreError> {
         let device = self.lan_device_id();
         let now = self.corrected_now().to_rfc3339();
         let payload = held::claim_local(&self.store, &id, &device, &now)?;
@@ -3493,11 +3523,14 @@ impl MadarCore {
         let (occ_a, occ_b) = (occupied(&table_a), occupied(&table_b));
         // What the room looked like before the optimistic move, so a refusal
         // puts it back even when the re-pull cannot reach the server.
-        let before: Vec<(&str, Option<String>)> =
-            [held::K_FLOOR_TABLES, held::K_HELD_MIRROR, "cache:open_tickets"]
-                .into_iter()
-                .map(|k| (k, self.store.kv_get(k).ok().flatten()))
-                .collect();
+        let before: Vec<(&str, Option<String>)> = [
+            held::K_FLOOR_TABLES,
+            held::K_HELD_MIRROR,
+            "cache:open_tickets",
+        ]
+        .into_iter()
+        .map(|k| (k, self.store.kv_get(k).ok().flatten()))
+        .collect();
         held::swap_tables_local(&self.store, &table_a, &table_b, occ_a, occ_b, &now)?;
         self.swap_cached_ticket_tables(&table_a, &table_b);
         let cmd = held::SwapCommand {
@@ -3858,7 +3891,11 @@ impl MadarCore {
         let _ = lifted;
     }
     /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
-    pub fn cart_set_discount(&self, table_id: Option<String>, discount_id: String) -> Result<(), CoreError> {
+    pub fn cart_set_discount(
+        &self,
+        table_id: Option<String>,
+        discount_id: String,
+    ) -> Result<(), CoreError> {
         cart::set_discount(&self.store, table_id.as_deref(), &discount_id)
     }
     /// Remove the cart discount.
@@ -3868,7 +3905,11 @@ impl MadarCore {
     /// Set or clear (None / blank) the note for the whole order in hand. It
     /// persists with the cart, rides a held order's payload, and is carried on
     /// the checkout and the fired ticket (both take order notes).
-    pub fn cart_set_note(&self, table_id: Option<String>, note: Option<String>) -> Result<(), CoreError> {
+    pub fn cart_set_note(
+        &self,
+        table_id: Option<String>,
+        note: Option<String>,
+    ) -> Result<(), CoreError> {
         cart::set_note(&self.store, table_id.as_deref(), note.as_deref())
     }
     /// The cart's order note, or `None`.
@@ -5703,7 +5744,10 @@ impl MadarCore {
         let key = format!("cache:shift_orders:{}", shift.id);
         let mut server: Vec<orders::OrderSummaryView> = if online {
             // Every page, not the first 200 (till_views).
-            match self.fetch_shift_orders_all_pages(&branch_id, &shift.id).await {
+            match self
+                .fetch_shift_orders_all_pages(&branch_id, &shift.id)
+                .await
+            {
                 Some(views) => {
                     cache_views(&self.store, &key, &views);
                     views
@@ -6023,7 +6067,10 @@ impl MadarCore {
         let all = orders::queued(&self.store, &shift_id)?;
         let mut server: Vec<orders::OrderSummaryView> = if online {
             // Every page, not the first 200 (till_views).
-            match self.fetch_shift_orders_all_pages(&branch_id, &shift_id).await {
+            match self
+                .fetch_shift_orders_all_pages(&branch_id, &shift_id)
+                .await
+            {
                 Some(views) => {
                     cache_views(&self.store, &key, &views);
                     views
@@ -7613,7 +7660,10 @@ impl MadarCore {
 
     /// An online order's payment hint is a method CODE on the wire (`cash`,
     /// `card_on_delivery`); the Queue shows it in the till's language.
-    fn localize_payment_hint(&self, mut v: delivery::DeliveryOrderView) -> delivery::DeliveryOrderView {
+    fn localize_payment_hint(
+        &self,
+        mut v: delivery::DeliveryOrderView,
+    ) -> delivery::DeliveryOrderView {
         if let Some(code) = v.payment_hint.take() {
             v.payment_hint = Some(self.payment_method_label(code));
         }
@@ -8520,6 +8570,7 @@ mod lifecycle_tests {
         // A cart with something in it — parking refuses an empty one.
         cart::set_cart_payload(
             &core.store,
+            None,
             &serde_json::json!({
                 "lines": [{
                     "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
@@ -8529,7 +8580,7 @@ mod lifecycle_tests {
             }),
         )
         .unwrap();
-        core.hold_cart_on_table("Table 5".into(), None, None, None)
+        core.hold_cart_on_table(None, "Table 5".into(), None, None, None)
             .unwrap();
 
         assert_eq!(
@@ -8562,6 +8613,7 @@ mod lifecycle_tests {
 
         cart::set_cart_payload(
             &core.store,
+            None,
             &serde_json::json!({
                 "lines": [{
                     "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
@@ -8571,7 +8623,7 @@ mod lifecycle_tests {
             }),
         )
         .unwrap();
-        core.hold_cart_on_table("Table 5".into(), None, None, None)
+        core.hold_cart_on_table(None, "Table 5".into(), None, None, None)
             .unwrap();
 
         let id = core
@@ -8584,9 +8636,9 @@ mod lifecycle_tests {
 
         // Every remaining verb, in the order a teller would reach them.
         core.assign_draft_table(id.clone(), None).unwrap();
-        core.restore_draft(id.clone()).unwrap();
+        core.restore_draft(None, id.clone()).unwrap();
         core.release_draft(id.clone()).unwrap();
-        core.restore_draft(id.clone()).unwrap();
+        core.restore_draft(None, id.clone()).unwrap();
         core.complete_draft(id.clone(), None).unwrap();
 
         assert_eq!(
@@ -8609,6 +8661,7 @@ mod lifecycle_tests {
         let before = core.store.pending().unwrap().len();
         cart::set_cart_payload(
             &core.store,
+            None,
             &serde_json::json!({
                 "lines": [{
                     "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
@@ -8618,7 +8671,7 @@ mod lifecycle_tests {
             }),
         )
         .unwrap();
-        core.hold_cart_on_table("Table 9".into(), None, None, None)
+        core.hold_cart_on_table(None, "Table 9".into(), None, None, None)
             .unwrap();
         let id = core.list_drafts().unwrap().first().unwrap().id.clone();
 
@@ -8631,6 +8684,7 @@ mod lifecycle_tests {
     fn put_one_line(core: &MadarCore, name: &str) {
         cart::set_cart_payload(
             &core.store,
+            None,
             &serde_json::json!({
                 "lines": [{
                     "item_id": format!("item-{name}"),
@@ -8656,13 +8710,13 @@ mod lifecycle_tests {
     async fn switch_to_draft_parks_the_cart_in_hand_once_and_restores_the_other() {
         let core = signed_in_offline_core().await;
         put_one_line(&core, "Latte");
-        core.hold_cart_on_table("A".into(), None, None, None)
+        core.hold_cart_on_table(None, "A".into(), None, None, None)
             .unwrap();
         let a = core.list_drafts().unwrap()[0].id.clone();
         put_one_line(&core, "Tea");
 
         let view = core
-            .switch_to_draft(a.clone(), Some(park_as("B", None)), None)
+            .switch_to_draft(None, a.clone(), Some(park_as("B", None)), None)
             .unwrap();
         assert_eq!(view.lines.len(), 1);
         assert_eq!(view.lines[0].name, "Latte");
@@ -8677,10 +8731,46 @@ mod lifecycle_tests {
 
         // A second tap on the same chip parks nothing more.
         let again = core
-            .switch_to_draft(a.clone(), Some(park_as("A", Some(a.clone()))), None)
+            .switch_to_draft(None, a.clone(), Some(park_as("A", Some(a.clone()))), None)
             .unwrap();
         assert_eq!(again.lines[0].name, "Latte");
         assert_eq!(core.list_drafts().unwrap().len(), 1, "no ghost draft");
+    }
+
+    /// Resuming a table's parked order fills THAT table's cart and meta and
+    /// names the context back; the takeaway cart the host was on is untouched.
+    #[tokio::test]
+    async fn switch_to_draft_returns_the_context_it_filled() {
+        let core = signed_in_offline_core().await;
+        seed_two_tables(&core);
+        let t1 = "t1".to_string();
+        core.cart_add(Some(t1.clone()), "a".into(), "Latte".into(), 5000)
+            .unwrap();
+        core.hold_cart_on_table(
+            Some(t1.clone()),
+            "Sara".into(),
+            None,
+            None,
+            Some(t1.clone()),
+        )
+        .unwrap();
+        assert!(core.cart_lines(Some(t1.clone())).unwrap().is_empty());
+        let id = core.list_drafts().unwrap()[0].id.clone();
+        put_one_line(&core, "Tea");
+
+        let view = core.switch_to_draft(None, id.clone(), None, None).unwrap();
+        assert_eq!(view.table_id.as_deref(), Some(t1.as_str()));
+        assert_eq!(core.cart_lines(Some(t1.clone())).unwrap()[0].name, "Latte");
+        assert_eq!(core.cart_lines(None).unwrap()[0].name, "Tea");
+        let meta = core.cart_meta(Some(t1.clone())).unwrap();
+        assert_eq!(meta.draft_id.as_deref(), Some(id.as_str()));
+        assert_eq!(meta.name, "Sara");
+        assert_eq!(core.cart_meta(None).unwrap(), cart::CartMeta::default());
+
+        // Sign-out empties both.
+        core.cart_clear_all().unwrap();
+        assert!(core.cart_lines(None).unwrap().is_empty());
+        assert!(core.cart_lines(Some(t1)).unwrap().is_empty());
     }
 
     /// A resume that cannot succeed touches nothing — the cart in hand stays.
@@ -8688,9 +8778,13 @@ mod lifecycle_tests {
     async fn switch_to_a_missing_draft_leaves_the_cart_in_hand() {
         let core = signed_in_offline_core().await;
         put_one_line(&core, "Tea");
-        let err = core.switch_to_draft("nope".into(), Some(park_as("B", None)), None);
+        let err = core.switch_to_draft(None, "nope".into(), Some(park_as("B", None)), None);
         assert!(err.is_err());
-        assert_eq!(core.cart_lines().unwrap().len(), 1, "Tea is still in hand");
+        assert_eq!(
+            core.cart_lines(None).unwrap().len(),
+            1,
+            "Tea is still in hand"
+        );
         assert!(core.list_drafts().unwrap().is_empty(), "nothing was parked");
     }
 
@@ -8699,7 +8793,7 @@ mod lifecycle_tests {
     async fn a_parked_order_name_can_be_cleared() {
         let core = signed_in_offline_core().await;
         put_one_line(&core, "Tea");
-        core.hold_cart_on_table("Wrong".into(), None, None, None)
+        core.hold_cart_on_table(None, "Wrong".into(), None, None, None)
             .unwrap();
         let id = core.list_drafts().unwrap()[0].id.clone();
         core.rename_draft(id, "  ".into()).unwrap();
@@ -8730,6 +8824,7 @@ mod lifecycle_tests {
 
         cart::set_cart_payload(
             &core.store,
+            None,
             &serde_json::json!({
                 "lines": [{
                     "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
@@ -8739,7 +8834,7 @@ mod lifecycle_tests {
             }),
         )
         .unwrap();
-        core.hold_cart_on_table("Sara".into(), None, None, Some(t1.clone()))
+        core.hold_cart_on_table(None, "Sara".into(), None, None, Some(t1.clone()))
             .unwrap();
         let id = core.list_drafts().unwrap().first().unwrap().id.clone();
 
@@ -8796,6 +8891,7 @@ mod lifecycle_tests {
         seed_two_tables(&core);
         cart::set_cart_payload(
             &core.store,
+            None,
             &serde_json::json!({
                 "lines": [{
                     "key": "k1", "item_id": "00000000-0000-0000-0000-0000000000c1",
@@ -8805,7 +8901,7 @@ mod lifecycle_tests {
             }),
         )
         .unwrap();
-        core.hold_cart_on_table("Sara".into(), None, None, Some("t1".into()))
+        core.hold_cart_on_table(None, "Sara".into(), None, None, Some("t1".into()))
             .unwrap();
         let before = core.store.pending().unwrap().len();
 
@@ -8993,7 +9089,11 @@ mod lifecycle_tests {
         let bills: Vec<madar_api::models::OpenTicketView> =
             cached_views(&core.store, "cache:open_tickets");
         assert_eq!(
-            bills[0].table_id.flatten().map(|u| u.to_string()).as_deref(),
+            bills[0]
+                .table_id
+                .flatten()
+                .map(|u| u.to_string())
+                .as_deref(),
             Some(TA),
             "the bill stays on A"
         );
@@ -9136,8 +9236,8 @@ mod lifecycle_tests {
 
         // EXCLUSIVE: 100.00 on the menu, tax added on top.
         let core = signed_in_offline_core().await;
-        cart::set_cart_payload(&core.store, &line).unwrap();
-        let out = core.cart_totals().unwrap();
+        cart::set_cart_payload(&core.store, None, &line).unwrap();
+        let out = core.cart_totals(None).unwrap();
         assert_eq!(out.subtotal_minor, 10000);
         assert_eq!(out.tax_minor, 1400, "14% added on top");
         assert_eq!(out.total_minor, 11400);
@@ -9149,8 +9249,8 @@ mod lifecycle_tests {
                 "service_charge_rate":0.12,"service_charge_taxable":true}"#,
         )
         .await;
-        cart::set_cart_payload(&core.store, &line).unwrap();
-        let out = core.cart_totals().unwrap();
+        cart::set_cart_payload(&core.store, None, &line).unwrap();
+        let out = core.cart_totals(None).unwrap();
         assert_eq!(out.subtotal_minor, 10000);
         assert_eq!(out.service_charge_minor, 1200, "12% of the bill");
         // Inclusive: the 112.00 the customer pays already contains the tax.
@@ -9495,7 +9595,7 @@ mod lifecycle_tests {
         .unwrap();
 
         core.open_shift(50000, None).await.unwrap();
-        core.cart_add("item-1".into(), "Latte".into(), 1000)
+        core.cart_add(None, "item-1".into(), "Latte".into(), 1000)
             .unwrap();
         assert_eq!(core.app_route(), AppRoute::Order);
 
@@ -9504,7 +9604,7 @@ mod lifecycle_tests {
             .unwrap();
         // Routed back to open-shift, cart dropped, and both commands queued.
         assert_eq!(core.app_route(), AppRoute::OpenShift);
-        assert!(core.cart_lines().unwrap().is_empty());
+        assert!(core.cart_lines(None).unwrap().is_empty());
         assert_eq!(core.pending_outbox_count().unwrap(), 2); // open + close
         assert!(core.shift_command_pending("close_shift").unwrap());
     }
@@ -9560,19 +9660,23 @@ mod lifecycle_tests {
         .await
         .unwrap();
 
-        core.cart_add("c".into(), "Cookie".into(), 300).unwrap();
+        core.cart_add(None, "c".into(), "Cookie".into(), 300)
+            .unwrap();
         let t1 = "00000000-0000-0000-0000-0000000000c1".to_string();
-        core.cart_set_context(Some(t1.clone())).unwrap();
-        core.cart_add("a".into(), "Latte".into(), 5000).unwrap();
+        let t2c = "00000000-0000-0000-0000-0000000000c3".to_string();
+        core.cart_add(Some(t1.clone()), "a".into(), "Latte".into(), 5000)
+            .unwrap();
+        core.cart_add(Some(t2c.clone()), "b".into(), "Mocha".into(), 4000)
+            .unwrap();
         core.fire_ticket(Some(t1.clone()), None, None, None, None)
             .await
             .unwrap();
-        assert!(core.cart_lines().unwrap().is_empty());
-        assert_eq!(core.cart_context().unwrap(), Some(t1));
-        let takeaway = core.cart_set_context(None).unwrap();
+        assert!(core.cart_lines(Some(t1.clone())).unwrap().is_empty());
+        assert_eq!(core.cart_lines(Some(t2c.clone())).unwrap().len(), 1);
+        let takeaway = core.cart_lines(None).unwrap();
         assert_eq!(takeaway.len(), 1);
         assert_eq!(takeaway[0].name, "Cookie");
-
+        assert_eq!(core.cart_table_contexts().unwrap(), vec![t2c.clone()]);
         // Seating carries WHEN the party sat down on its hold op, so another
         // device reads the seating time rather than its own pull time.
         let t2 = "00000000-0000-0000-0000-0000000000c2".to_string();
@@ -9757,11 +9861,11 @@ mod lifecycle_tests {
             &core,
             Some(teller_session(&uuid::Uuid::new_v4().to_string(), Some("b"))),
         );
-        core.cart_add("item-1".into(), "Latte".into(), 1000)
+        core.cart_add(None, "item-1".into(), "Latte".into(), 1000)
             .unwrap();
-        core.cart_add("item-1".into(), "Latte".into(), 1000)
+        core.cart_add(None, "item-1".into(), "Latte".into(), 1000)
             .unwrap(); // qty 2
-        let t = core.cart_totals().unwrap();
+        let t = core.cart_totals(None).unwrap();
         assert_eq!(t.item_count, 2);
         assert_eq!(t.subtotal_minor, 2000);
         assert_eq!(t.tax_minor, 280); // 0.14 * 2000
@@ -9771,8 +9875,8 @@ mod lifecycle_tests {
     #[test]
     fn cart_totals_are_tax_free_when_signed_out() {
         let core = MadarCore::from_env().unwrap();
-        core.cart_add("i".into(), "X".into(), 1000).unwrap();
-        let t = core.cart_totals().unwrap();
+        core.cart_add(None, "i".into(), "X".into(), 1000).unwrap();
+        let t = core.cart_totals(None).unwrap();
         assert_eq!(t.tax_minor, 0);
         assert_eq!(t.total_minor, 1000);
     }

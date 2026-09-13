@@ -1635,8 +1635,8 @@ mod tests {
     fn migrate_legacy_lifts_once() {
         let s = store();
         // Seed a legacy draft through the old path.
-        crate::cart::add(&s, "a", "Latte", 5000).unwrap();
-        crate::cart::hold(&s, "old-1".into(), "Legacy".into(), "t0".into()).unwrap();
+        crate::cart::add(&s, None, "a", "Latte", 5000).unwrap();
+        crate::cart::hold(&s, None, "old-1".into(), "Legacy".into(), "t0".into()).unwrap();
 
         let lifted = migrate_legacy(&s, "b", "dev-a").unwrap();
         assert_eq!(lifted.len(), 1);

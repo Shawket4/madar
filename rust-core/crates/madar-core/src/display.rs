@@ -144,8 +144,18 @@ const EN_MONTHS: [&str; 12] = [
 
 /// Shared with `timefmt` — Egypt's transliterated Gregorian months.
 pub(crate) const AR_MONTHS: [&str; 12] = [
-    "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر",
-    "نوفمبر", "ديسمبر",
+    "يناير",
+    "فبراير",
+    "مارس",
+    "أبريل",
+    "مايو",
+    "يونيو",
+    "يوليو",
+    "أغسطس",
+    "سبتمبر",
+    "أكتوبر",
+    "نوفمبر",
+    "ديسمبر",
 ];
 
 /// A row's timestamp, 24-hour. Today: `18:02`. This year: `Sep 12 · 18:02`

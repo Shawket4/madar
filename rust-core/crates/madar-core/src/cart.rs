@@ -1045,7 +1045,11 @@ pub(crate) fn lines(store: &Store, ctx: Ctx<'_>) -> CoreResult<Vec<CartLineView>
 }
 
 /// Push a resolved line, merging into an identical existing line (same key).
-pub(crate) fn add_resolved(store: &Store, ctx: Ctx<'_>, line: StoredLine) -> CoreResult<Vec<CartLineView>> {
+pub(crate) fn add_resolved(
+    store: &Store,
+    ctx: Ctx<'_>,
+    line: StoredLine,
+) -> CoreResult<Vec<CartLineView>> {
     let mut lines = load(store, ctx)?;
     let sig = signature(&line);
     match lines.iter_mut().find(|l| signature(l) == sig) {
@@ -1145,7 +1149,12 @@ pub(crate) fn add(
 }
 
 /// Set the absolute quantity for a line (by its key); `qty <= 0` removes it.
-pub(crate) fn set_qty(store: &Store, ctx: Ctx<'_>, line_key: &str, qty: i64) -> CoreResult<Vec<CartLineView>> {
+pub(crate) fn set_qty(
+    store: &Store,
+    ctx: Ctx<'_>,
+    line_key: &str,
+    qty: i64,
+) -> CoreResult<Vec<CartLineView>> {
     let mut lines = load(store, ctx)?;
     if qty <= 0 {
         lines.retain(|l| signature(l) != line_key);
@@ -1335,7 +1344,13 @@ fn save_drafts(store: &Store, drafts: &[StoredDraft]) -> CoreResult<()> {
 /// Park the current cart as a named draft and empty the cart. `id`/`now` are
 /// host-supplied (the core stays free of clock/uuid). Errors if the cart is empty.
 #[cfg_attr(not(test), allow(dead_code))] // legacy path: exercised by tests + kept for reference
-pub(crate) fn hold(store: &Store, ctx: Ctx<'_>, id: String, name: String, now: String) -> CoreResult<()> {
+pub(crate) fn hold(
+    store: &Store,
+    ctx: Ctx<'_>,
+    id: String,
+    name: String,
+    now: String,
+) -> CoreResult<()> {
     let lines = load(store, ctx)?;
     if lines.is_empty() {
         return Err(crate::error::CoreError::Validation {
@@ -1405,7 +1420,11 @@ pub(crate) fn take_legacy_drafts(
 /// Restore a draft into the cart (replacing any current lines) and drop it from
 /// the drafts list. Returns the new cart view.
 #[cfg_attr(not(test), allow(dead_code))] // legacy path: exercised by tests + kept for reference
-pub(crate) fn restore_draft(store: &Store, ctx: Ctx<'_>, id: &str) -> CoreResult<Vec<CartLineView>> {
+pub(crate) fn restore_draft(
+    store: &Store,
+    ctx: Ctx<'_>,
+    id: &str,
+) -> CoreResult<Vec<CartLineView>> {
     let mut drafts = load_drafts(store)?;
     let Some(pos) = drafts.iter().position(|d| d.id == id) else {
         return Ok(view(&load(store, ctx)?));
@@ -1547,7 +1566,11 @@ fn priced(l: &StoredLine) -> pricing::CartLine {
 
 /// Price the cart under `policy` via the pricing engine, applying the selected
 /// discount before tax.
-pub(crate) fn totals(store: &Store, ctx: Ctx<'_>, policy: &crate::tax::TaxPolicy) -> CoreResult<CartTotals> {
+pub(crate) fn totals(
+    store: &Store,
+    ctx: Ctx<'_>,
+    policy: &crate::tax::TaxPolicy,
+) -> CoreResult<CartTotals> {
     use rust_decimal::prelude::ToPrimitive;
     let lines = load(store, ctx)?;
     let item_count = lines.iter().map(|l| l.qty).sum();
@@ -1649,78 +1672,144 @@ mod tests {
         v.iter().map(|l| format!("{}x{}", l.name, l.qty)).collect()
     }
 
-    /// Every table and the counter keep their own cart; switching never copies.
+    /// Every table and the counter keep their own cart; nothing is "active".
     #[test]
     fn each_context_keeps_its_own_cart() {
         let s = store();
-        // Takeaway (the default) gets a half-built order.
-        assert_eq!(context(&s).unwrap(), None);
-        add(&s, "c", "Cookie", 300).unwrap();
+        let (t1, t2) = (Some("t1"), Some("t2"));
+        add(&s, None, "c", "Cookie", 300).unwrap();
+        add(&s, t1, "a", "Latte", 5000).unwrap();
+        add(&s, t1, "a", "Latte", 5000).unwrap();
+        add(&s, t1, "b", "Mocha", 4000).unwrap();
+        set_discount(&s, t1, "d1").unwrap();
+        set_note(&s, t1, Some("window")).unwrap();
 
-        // T1: empty, then items.
-        assert!(set_context(&s, Some("t1")).unwrap().is_empty());
-        add(&s, "a", "Latte", 5000).unwrap();
-        add(&s, "a", "Latte", 5000).unwrap();
-        set_discount(&s, "d1").unwrap();
+        // T2: empty, and no T1 discount / note leaks in.
+        assert!(lines(&s, t2).unwrap().is_empty());
+        assert_eq!(discount_id(&s, t2).unwrap(), None);
+        assert_eq!(note(&s, t2).unwrap(), None);
+        assert_eq!(note(&s, None).unwrap(), None);
 
-        // T2: empty, and no T1 discount leaks in.
-        assert!(set_context(&s, Some("t2")).unwrap().is_empty());
-        assert_eq!(discount_id(&s).unwrap(), None);
+        // Takeaway untouched; an empty-string context is takeaway.
+        assert_eq!(names(&lines(&s, None).unwrap()), vec!["Cookiex1"]);
+        assert_eq!(names(&lines(&s, Some("")).unwrap()), vec!["Cookiex1"]);
+        assert_eq!(discount_id(&s, None).unwrap(), None);
 
-        // Takeaway: its own cookie, untouched.
-        assert_eq!(names(&set_context(&s, None).unwrap()), vec!["Cookiex1"]);
-
-        // Back to T1: its items and discount are exactly there.
+        // qty / remove / undo act on their context only.
+        set_qty(&s, None, "c", 3).unwrap();
+        assert_eq!(names(&lines(&s, t1).unwrap()), vec!["Lattex2", "Mochax1"]);
+        remove(&s, t1, "b").unwrap();
+        assert!(restore_last_removed(&s, None).unwrap().len() == 1); // no stash here
         assert_eq!(
-            names(&set_context(&s, Some("t1")).unwrap()),
-            vec!["Lattex2"]
+            names(&restore_last_removed(&s, t1).unwrap()),
+            vec!["Lattex2", "Mochax1"]
         );
-        assert_eq!(context(&s).unwrap().as_deref(), Some("t1"));
-        assert_eq!(discount_id(&s).unwrap().as_deref(), Some("d1"));
+        assert_eq!(names(&lines(&s, None).unwrap()), vec!["Cookiex3"]);
+        assert_eq!(cart_payload(&s, t1).unwrap()["discount_id"], "d1");
 
-        // Firing T1 clears only T1: it starts fresh, takeaway is untouched.
-        clear(&s).unwrap();
-        assert!(lines(&s).unwrap().is_empty());
-        assert_eq!(names(&set_context(&s, None).unwrap()), vec!["Cookiex1"]);
-        assert!(set_context(&s, Some("t1")).unwrap().is_empty());
+        // Firing T1 clears only T1.
+        clear(&s, t1).unwrap();
+        assert!(lines(&s, t1).unwrap().is_empty());
+        assert_eq!(discount_id(&s, t1).unwrap(), None);
+        assert_eq!(names(&lines(&s, None).unwrap()), vec!["Cookiex3"]);
     }
 
-    /// Sign-out / shift close empties every context and returns to takeaway.
+    /// Meta lives per context, survives a reopen of the same db, and is
+    /// forgotten when that cart is spent.
+    #[test]
+    fn meta_is_per_context_and_persists() {
+        let dir = std::env::temp_dir().join(format!("cartmeta-{}", uuid::Uuid::new_v4()));
+        let path = dir.to_string_lossy().to_string();
+        {
+            let s = Store::open(&path).unwrap();
+            s.kv_put(K_LEGACY_CONTEXT, "t1").unwrap();
+            add(&s, None, "c", "Cookie", 300).unwrap();
+            add(&s, Some("t1"), "a", "Latte", 5000).unwrap();
+            let m = CartMeta {
+                name: "Sara".into(),
+                draft_id: Some("d9".into()),
+                booking_id: Some("b1".into()),
+                table_label: Some("T1".into()),
+                guest_name: Some("Sara".into()),
+                started_at: Some("2026-09-13T10:00:00Z".into()),
+                covers: Some(4),
+            };
+            set_meta(&s, Some("t1"), &m).unwrap();
+            set_meta(
+                &s,
+                None,
+                &CartMeta {
+                    name: "Walk-in".into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        }
+        let s = Store::open(&path).unwrap();
+        forget_legacy_context(&s).unwrap();
+        assert_eq!(s.kv_get(K_LEGACY_CONTEXT).unwrap(), None);
+        assert_eq!(names(&lines(&s, None).unwrap()), vec!["Cookiex1"]);
+        assert_eq!(names(&lines(&s, Some("t1")).unwrap()), vec!["Lattex1"]);
+        assert_eq!(meta(&s, Some("t1")).unwrap().covers, Some(4));
+        assert_eq!(
+            meta(&s, Some("t1")).unwrap().draft_id.as_deref(),
+            Some("d9")
+        );
+        assert_eq!(meta(&s, None).unwrap().name, "Walk-in");
+        assert_eq!(meta(&s, Some("t2")).unwrap(), CartMeta::default());
+        assert_eq!(
+            table_contexts_with_lines(&s).unwrap(),
+            vec!["t1".to_string()]
+        );
+        clear(&s, Some("t1")).unwrap();
+        assert_eq!(meta(&s, Some("t1")).unwrap(), CartMeta::default());
+        assert_eq!(meta(&s, None).unwrap().name, "Walk-in");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Sign-out / shift close empties every context and its meta.
     #[test]
     fn clear_all_empties_every_context() {
         let s = store();
-        add(&s, "c", "Cookie", 300).unwrap();
-        set_context(&s, Some("t1")).unwrap();
-        add(&s, "a", "Latte", 5000).unwrap();
+        add(&s, None, "c", "Cookie", 300).unwrap();
+        add(&s, Some("t1"), "a", "Latte", 5000).unwrap();
+        set_meta(
+            &s,
+            Some("t1"),
+            &CartMeta {
+                name: "x".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         clear_all(&s).unwrap();
-        assert_eq!(context(&s).unwrap(), None);
-        assert!(lines(&s).unwrap().is_empty());
-        assert!(set_context(&s, Some("t1")).unwrap().is_empty());
+        assert!(lines(&s, None).unwrap().is_empty());
+        assert!(lines(&s, Some("t1")).unwrap().is_empty());
+        assert_eq!(meta(&s, Some("t1")).unwrap(), CartMeta::default());
     }
-
     #[test]
     fn add_merges_and_appends() {
         let s = store();
-        assert!(lines(&s).unwrap().is_empty());
-        add(&s, "a", "Latte", 5000).unwrap();
-        let v = add(&s, "a", "Latte", 5000).unwrap();
+        assert!(lines(&s, None).unwrap().is_empty());
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        let v = add(&s, None, "a", "Latte", 5000).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].qty, 2);
         assert_eq!(v[0].line_total_minor, 10_000);
         assert_eq!(v[0].key, "a"); // option-less → key is item_id
-        let v = add(&s, "b", "Tea", 3000).unwrap();
+        let v = add(&s, None, "b", "Tea", 3000).unwrap();
         assert_eq!(v.len(), 2);
     }
 
     #[test]
     fn set_qty_and_remove_by_key() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        let v = set_qty(&s, "a", 4).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        let v = set_qty(&s, None, "a", 4).unwrap();
         assert_eq!(v[0].qty, 4);
-        assert!(set_qty(&s, "a", 0).unwrap().is_empty());
-        add(&s, "a", "Latte", 5000).unwrap();
-        assert!(remove(&s, "a").unwrap().is_empty());
+        assert!(set_qty(&s, None, "a", 0).unwrap().is_empty());
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        assert!(remove(&s, None, "a").unwrap().is_empty());
     }
 
     #[test]
@@ -1908,16 +1997,16 @@ mod tests {
                 None,
             )
         };
-        add_resolved(&s, mk("almond")).unwrap();
-        let v = add_resolved(&s, mk("almond")).unwrap(); // same config → merge
+        add_resolved(&s, None, mk("almond")).unwrap();
+        let v = add_resolved(&s, None, mk("almond")).unwrap(); // same config → merge
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].qty, 2);
-        let v = add_resolved(&s, mk("whole")).unwrap(); // different milk → new line
+        let v = add_resolved(&s, None, mk("whole")).unwrap(); // different milk → new line
         assert_eq!(v.len(), 2);
         // qty + remove by the configured key.
         let key = v[0].key.clone();
         assert!(key.contains("latte|Large"));
-        let v = set_qty(&s, &key, 5).unwrap();
+        let v = set_qty(&s, None, &key, 5).unwrap();
         assert_eq!(v.iter().find(|l| l.key == key).unwrap().qty, 5);
     }
 
@@ -1940,11 +2029,11 @@ mod tests {
     #[test]
     fn replace_swaps_the_line_in_place() {
         let s = store();
-        add(&s, "tea", "Tea", 2000).unwrap();
-        let v = add_resolved(&s, configured("almond", 1)).unwrap();
-        add(&s, "cake", "Cake", 3000).unwrap();
+        add(&s, None, "tea", "Tea", 2000).unwrap();
+        let v = add_resolved(&s, None, configured("almond", 1)).unwrap();
+        add(&s, None, "cake", "Cake", 3000).unwrap();
         let key = v[1].key.clone();
-        let v = replace_resolved(&s, &key, configured("whole", 2)).unwrap();
+        let v = replace_resolved(&s, None, &key, configured("whole", 2)).unwrap();
         assert_eq!(names(&v), vec!["Teax1", "Lattex2", "Cakex1"]);
         assert!(v[1].key.contains("whole"), "the new milk: {}", v[1].key);
         assert!(!v.iter().any(|l| l.key == key), "the old line is gone");
@@ -1955,20 +2044,20 @@ mod tests {
     #[test]
     fn replace_of_a_missing_line_refuses_and_keeps_the_cart() {
         let s = store();
-        let before = add_resolved(&s, configured("almond", 1)).unwrap();
-        let err = replace_resolved(&s, "not-a-key", configured("whole", 1));
+        let before = add_resolved(&s, None, configured("almond", 1)).unwrap();
+        let err = replace_resolved(&s, None, "not-a-key", configured("whole", 1));
         assert!(matches!(err, Err(CoreError::Validation { .. })));
-        assert_eq!(lines(&s).unwrap(), before);
+        assert_eq!(lines(&s, None).unwrap(), before);
     }
 
     /// An edit that makes a line identical to another one merges, like an add.
     #[test]
     fn replace_into_an_identical_line_merges() {
         let s = store();
-        add_resolved(&s, configured("whole", 1)).unwrap();
-        let v = add_resolved(&s, configured("almond", 1)).unwrap();
+        add_resolved(&s, None, configured("whole", 1)).unwrap();
+        let v = add_resolved(&s, None, configured("almond", 1)).unwrap();
         let almond = v.iter().find(|l| l.key.contains("almond")).unwrap();
-        let v = replace_resolved(&s, &almond.key.clone(), configured("whole", 3)).unwrap();
+        let v = replace_resolved(&s, None, &almond.key.clone(), configured("whole", 3)).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].qty, 4);
     }
@@ -1997,7 +2086,7 @@ mod tests {
             None,
         );
         let p = preview_line(&line);
-        let v = add_resolved(&s, line).unwrap();
+        let v = add_resolved(&s, None, line).unwrap();
         assert_eq!(p.line_total_minor, v[0].line_total_minor);
         assert_eq!(p.extras_minor, 500 + 300);
         assert_eq!(p.unit_total_minor, 6000 + 800);
@@ -2010,6 +2099,7 @@ mod tests {
         // base 5000 + almond(500) + vanilla(300) = 5800, qty 2 → 11600 subtotal.
         add_resolved(
             &s,
+            None,
             resolve_line(
                 &item(),
                 &catalog(),
@@ -2024,7 +2114,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let t = totals(&s, &tax_policy_at(0.14)).unwrap();
+        let t = totals(&s, None, &tax_policy_at(0.14)).unwrap();
         assert_eq!(t.item_count, 2);
         assert_eq!(t.subtotal_minor, 11_600);
         assert_eq!(t.tax_minor, 1624); // round(11600 * 0.14)
@@ -2418,7 +2508,7 @@ mod tests {
     #[test]
     fn empty_cart_totals_are_zero() {
         let s = store();
-        let t = totals(&s, &tax_policy_at(0.14)).unwrap();
+        let t = totals(&s, None, &tax_policy_at(0.14)).unwrap();
         assert_eq!(
             t,
             CartTotals {
@@ -2446,9 +2536,9 @@ mod tests {
     fn percentage_discount_applies_before_tax() {
         let s = store();
         seed_discounts(&s);
-        add(&s, "a", "Latte", 1000).unwrap();
-        set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
-        let t = totals(&s, &tax_policy_at(0.14)).unwrap();
+        add(&s, None, "a", "Latte", 1000).unwrap();
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        let t = totals(&s, None, &tax_policy_at(0.14)).unwrap();
         assert_eq!(t.subtotal_minor, 1000);
         assert_eq!(t.discount_minor, 100); // 10%
         assert_eq!(t.tax_minor, 126); // round((1000-100) * 0.14)
@@ -2459,9 +2549,9 @@ mod tests {
     fn fixed_discount_taxes_the_discounted_base() {
         let s = store();
         seed_discounts(&s);
-        add(&s, "a", "Latte", 1000).unwrap();
-        set_discount(&s, "00000000-0000-0000-0000-0000000000d2").unwrap();
-        let t = totals(&s, &tax_policy_at(0.14)).unwrap();
+        add(&s, None, "a", "Latte", 1000).unwrap();
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d2").unwrap();
+        let t = totals(&s, None, &tax_policy_at(0.14)).unwrap();
         assert_eq!(t.discount_minor, 250);
         assert_eq!(t.tax_minor, 105); // round(750 * 0.14)
         assert_eq!(t.total_minor, 855);
@@ -2471,50 +2561,66 @@ mod tests {
     fn unknown_or_cleared_discount_is_none() {
         let s = store();
         seed_discounts(&s);
-        add(&s, "a", "Latte", 1000).unwrap();
-        set_discount(&s, "not-a-real-id").unwrap(); // not in the catalog → ignored
-        assert_eq!(totals(&s, &tax_policy_at(0.0)).unwrap().discount_minor, 0);
-        set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
-        assert_eq!(totals(&s, &tax_policy_at(0.0)).unwrap().discount_minor, 100);
-        clear_discount(&s).unwrap();
-        assert_eq!(totals(&s, &tax_policy_at(0.0)).unwrap().discount_minor, 0);
+        add(&s, None, "a", "Latte", 1000).unwrap();
+        set_discount(&s, None, "not-a-real-id").unwrap(); // not in the catalog → ignored
+        assert_eq!(
+            totals(&s, None, &tax_policy_at(0.0))
+                .unwrap()
+                .discount_minor,
+            0
+        );
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        assert_eq!(
+            totals(&s, None, &tax_policy_at(0.0))
+                .unwrap()
+                .discount_minor,
+            100
+        );
+        clear_discount(&s, None).unwrap();
+        assert_eq!(
+            totals(&s, None, &tax_policy_at(0.0))
+                .unwrap()
+                .discount_minor,
+            0
+        );
     }
 
     #[test]
     fn hold_then_restore_roundtrips_the_cart() {
         let s = store();
-        add(&s, "latte", "Latte", 5000).unwrap();
-        add(&s, "bun", "Bun", 2000).unwrap();
+        add(&s, None, "latte", "Latte", 5000).unwrap();
+        add(&s, None, "bun", "Bun", 2000).unwrap();
         hold(
             &s,
+            None,
             "d1".into(),
             "Table 4".into(),
             "2026-06-21T10:00:00Z".into(),
         )
         .unwrap();
         // Held → cart empty, one draft summarizing the two lines.
-        assert!(lines(&s).unwrap().is_empty());
+        assert!(lines(&s, None).unwrap().is_empty());
         let ds = drafts(&s).unwrap();
         assert_eq!(ds.len(), 1);
         assert_eq!(ds[0].name, "Table 4");
         assert_eq!(ds[0].item_count, 2);
         assert_eq!(ds[0].total_minor, 7000);
         // Restore → cart back, draft gone.
-        let restored = restore_draft(&s, "d1").unwrap();
+        let restored = restore_draft(&s, None, "d1").unwrap();
         assert_eq!(restored.len(), 2);
         assert!(drafts(&s).unwrap().is_empty());
         // Holding an empty cart is rejected.
-        clear(&s).unwrap();
-        assert!(hold(&s, "d2".into(), "x".into(), "t".into()).is_err());
+        clear(&s, None).unwrap();
+        assert!(hold(&s, None, "d2".into(), "x".into(), "t".into()).is_err());
     }
 
     #[test]
     fn remove_then_restore_brings_the_line_back() {
         let s = store();
-        add(&s, "latte", "Latte", 5000).unwrap();
-        set_qty(&s, &lines(&s).unwrap()[0].key, 3).unwrap(); // a 3× line
-        add(&s, "bun", "Bun", 2000).unwrap();
-        let key = lines(&s)
+        add(&s, None, "latte", "Latte", 5000).unwrap();
+        set_qty(&s, None, &lines(&s, None).unwrap()[0].key, 3).unwrap(); // a 3× line
+        add(&s, None, "bun", "Bun", 2000).unwrap();
+        let key = lines(&s, None)
             .unwrap()
             .iter()
             .find(|l| l.name == "Latte")
@@ -2522,16 +2628,16 @@ mod tests {
             .key
             .clone();
         // Swipe-remove the latte → one line left.
-        let after = remove(&s, &key).unwrap();
+        let after = remove(&s, None, &key).unwrap();
         assert_eq!(after.len(), 1);
         assert_eq!(after[0].name, "Bun");
         // Undo → the 3× latte is back (qty preserved).
-        let restored = restore_last_removed(&s).unwrap();
+        let restored = restore_last_removed(&s, None).unwrap();
         assert_eq!(restored.len(), 2);
         let latte = restored.iter().find(|l| l.name == "Latte").unwrap();
         assert_eq!(latte.qty, 3);
         // The stash is consumed — a second undo is a no-op.
-        let again = restore_last_removed(&s).unwrap();
+        let again = restore_last_removed(&s, None).unwrap();
         assert_eq!(again.iter().find(|l| l.name == "Latte").unwrap().qty, 3);
     }
 
@@ -2539,10 +2645,10 @@ mod tests {
     fn clearing_the_cart_resets_the_discount() {
         let s = store();
         seed_discounts(&s);
-        add(&s, "a", "Latte", 1000).unwrap();
-        set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
-        clear(&s).unwrap();
-        assert!(discount_id(&s).unwrap().is_none());
+        add(&s, None, "a", "Latte", 1000).unwrap();
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        clear(&s, None).unwrap();
+        assert!(discount_id(&s, None).unwrap().is_none());
     }
 
     fn bundle() -> menu::BundleView {
@@ -2581,8 +2687,8 @@ mod tests {
     fn bundle_line_charges_fixed_price_plus_component_extras() {
         let s = store();
         let line = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[combo_component()], 1);
-        add_resolved(&s, line).unwrap();
-        let lines = lines(&s).unwrap();
+        add_resolved(&s, None, line).unwrap();
+        let lines = lines(&s, None).unwrap();
         assert_eq!(lines.len(), 1);
         let l = &lines[0];
         assert_eq!(l.bundle_id.as_deref(), Some("b1"));
@@ -2598,19 +2704,19 @@ mod tests {
     fn identical_bundle_configs_merge_distinct_ones_dont() {
         let s = store();
         let a = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[combo_component()], 1);
-        add_resolved(&s, a).unwrap();
+        add_resolved(&s, None, a).unwrap();
         // Same config again → merges (qty 2, one line).
         let b = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[combo_component()], 1);
-        add_resolved(&s, b).unwrap();
-        assert_eq!(lines(&s).unwrap().len(), 1);
-        assert_eq!(lines(&s).unwrap()[0].qty, 2);
+        add_resolved(&s, None, b).unwrap();
+        assert_eq!(lines(&s, None).unwrap().len(), 1);
+        assert_eq!(lines(&s, None).unwrap()[0].qty, 2);
         // A different component config → a separate line.
         let mut plain = combo_component();
         plain.addons = vec![];
         plain.optional_field_ids = vec![];
         let c = resolve_bundle_line(&bundle(), &[item()], &catalog(), &[plain], 1);
-        add_resolved(&s, c).unwrap();
-        assert_eq!(lines(&s).unwrap().len(), 2);
+        add_resolved(&s, None, c).unwrap();
+        assert_eq!(lines(&s, None).unwrap().len(), 2);
     }
 
     // ── add / merge edge cases ────────────────────────────────────────────────
@@ -2618,7 +2724,7 @@ mod tests {
     #[test]
     fn add_to_empty_creates_single_line() {
         let s = store();
-        let v = add(&s, "a", "Latte", 5000).unwrap();
+        let v = add(&s, None, "a", "Latte", 5000).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].qty, 1);
         assert_eq!(v[0].line_total_minor, 5000);
@@ -2632,11 +2738,13 @@ mod tests {
         // because the signature for an option-less line is just the item_id.
         add_resolved(
             &s,
+            None,
             resolve_line(&item(), &catalog(), None, &[], &[], 1, None),
         )
         .unwrap();
         let v = add_resolved(
             &s,
+            None,
             resolve_line(&item(), &catalog(), None, &[], &[], 1, None),
         )
         .unwrap();
@@ -2650,8 +2758,8 @@ mod tests {
     #[test]
     fn set_qty_to_one_keeps_line() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        let v = set_qty(&s, "a", 1).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        let v = set_qty(&s, None, "a", 1).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].qty, 1);
     }
@@ -2659,16 +2767,16 @@ mod tests {
     #[test]
     fn set_qty_negative_removes_line() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        assert!(set_qty(&s, "a", -5).unwrap().is_empty());
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        assert!(set_qty(&s, None, "a", -5).unwrap().is_empty());
     }
 
     #[test]
     fn set_qty_on_missing_key_is_noop() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
         // A positive qty on a non-existent key changes nothing.
-        let v = set_qty(&s, "nope", 9).unwrap();
+        let v = set_qty(&s, None, "nope", 9).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].qty, 1);
     }
@@ -2676,19 +2784,19 @@ mod tests {
     #[test]
     fn set_qty_zero_on_missing_key_leaves_others() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        add(&s, "b", "Tea", 3000).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        add(&s, None, "b", "Tea", 3000).unwrap();
         // qty<=0 only retains lines whose signature differs from the key; an
         // unknown key removes nothing.
-        let v = set_qty(&s, "nope", 0).unwrap();
+        let v = set_qty(&s, None, "nope", 0).unwrap();
         assert_eq!(v.len(), 2);
     }
 
     #[test]
     fn set_qty_on_empty_cart_is_noop() {
         let s = store();
-        assert!(set_qty(&s, "a", 3).unwrap().is_empty());
-        assert!(set_qty(&s, "a", 0).unwrap().is_empty());
+        assert!(set_qty(&s, None, "a", 3).unwrap().is_empty());
+        assert!(set_qty(&s, None, "a", 0).unwrap().is_empty());
     }
 
     // ── remove edge cases ─────────────────────────────────────────────────────
@@ -2696,11 +2804,11 @@ mod tests {
     #[test]
     fn remove_missing_key_does_not_stash() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        let v = remove(&s, "nope").unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        let v = remove(&s, None, "nope").unwrap();
         assert_eq!(v.len(), 1); // nothing removed
                                 // Nothing was stashed, so undo is a no-op (cart unchanged).
-        let after = restore_last_removed(&s).unwrap();
+        let after = restore_last_removed(&s, None).unwrap();
         assert_eq!(after.len(), 1);
         assert_eq!(after[0].qty, 1);
     }
@@ -2708,7 +2816,7 @@ mod tests {
     #[test]
     fn remove_from_empty_cart_is_noop() {
         let s = store();
-        assert!(remove(&s, "a").unwrap().is_empty());
+        assert!(remove(&s, None, "a").unwrap().is_empty());
     }
 
     // ── undo (restore_last_removed) edge cases ───────────────────────────────
@@ -2716,8 +2824,8 @@ mod tests {
     #[test]
     fn restore_with_no_stash_is_noop() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        let v = restore_last_removed(&s).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        let v = restore_last_removed(&s, None).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].qty, 1);
     }
@@ -2725,13 +2833,13 @@ mod tests {
     #[test]
     fn restore_merges_back_into_matching_line() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        set_qty(&s, "a", 2).unwrap(); // 2× in cart
-                                      // Remove it (stash = 2×), then re-add one fresh, then undo: the stashed 2
-                                      // merges into the existing 1× for qty 3 in a single line.
-        remove(&s, "a").unwrap();
-        add(&s, "a", "Latte", 5000).unwrap();
-        let restored = restore_last_removed(&s).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        set_qty(&s, None, "a", 2).unwrap(); // 2× in cart
+                                            // Remove it (stash = 2×), then re-add one fresh, then undo: the stashed 2
+                                            // merges into the existing 1× for qty 3 in a single line.
+        remove(&s, None, "a").unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        let restored = restore_last_removed(&s, None).unwrap();
         assert_eq!(restored.len(), 1);
         assert_eq!(restored[0].qty, 3);
     }
@@ -2739,10 +2847,10 @@ mod tests {
     #[test]
     fn clear_drops_the_undo_stash() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        remove(&s, "a").unwrap(); // stash now holds the latte
-        clear(&s).unwrap(); // a stale undo must not resurrect a sold line
-        let after = restore_last_removed(&s).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        remove(&s, None, "a").unwrap(); // stash now holds the latte
+        clear(&s, None).unwrap(); // a stale undo must not resurrect a sold line
+        let after = restore_last_removed(&s, None).unwrap();
         assert!(after.is_empty());
     }
 
@@ -2799,8 +2907,8 @@ mod tests {
             None,
         );
         let s = store();
-        add_resolved(&s, a).unwrap();
-        let v = add_resolved(&s, b).unwrap();
+        add_resolved(&s, None, a).unwrap();
+        let v = add_resolved(&s, None, b).unwrap();
         assert_eq!(v.len(), 1, "reordered options must merge");
         assert_eq!(v[0].qty, 2);
     }
@@ -2811,6 +2919,7 @@ mod tests {
         let s = store();
         add_resolved(
             &s,
+            None,
             resolve_line(
                 &item(),
                 &catalog(),
@@ -2824,6 +2933,7 @@ mod tests {
         .unwrap();
         add_resolved(
             &s,
+            None,
             resolve_line(
                 &item(),
                 &catalog(),
@@ -2835,7 +2945,7 @@ mod tests {
             ),
         )
         .unwrap();
-        assert_eq!(lines(&s).unwrap().len(), 2);
+        assert_eq!(lines(&s, None).unwrap().len(), 2);
     }
 
     #[test]
@@ -2856,8 +2966,8 @@ mod tests {
                 None,
             )
         };
-        add_resolved(&s, mk(1)).unwrap();
-        let v = add_resolved(&s, mk(2)).unwrap();
+        add_resolved(&s, None, mk(1)).unwrap();
+        let v = add_resolved(&s, None, mk(2)).unwrap();
         assert_eq!(v.len(), 2);
     }
 
@@ -2866,6 +2976,7 @@ mod tests {
         let s = store();
         add_resolved(
             &s,
+            None,
             resolve_line(&item(), &catalog(), Some("Large".into()), &[], &[], 1, None),
         )
         .unwrap();
@@ -2873,10 +2984,11 @@ mod tests {
         // the sized line.
         add_resolved(
             &s,
+            None,
             resolve_line(&item(), &catalog(), None, &[], &[], 1, None),
         )
         .unwrap();
-        assert_eq!(lines(&s).unwrap().len(), 2);
+        assert_eq!(lines(&s, None).unwrap().len(), 2);
     }
 
     // ── resolve_line boundaries / malformed input ─────────────────────────────
@@ -3026,10 +3138,11 @@ mod tests {
         let s = store();
         add_resolved(
             &s,
+            None,
             resolve_bundle_line(&bundle(), &[item()], &catalog(), &[combo_component()], 2),
         )
         .unwrap();
-        let t = totals(&s, &tax_policy_at(0.0)).unwrap();
+        let t = totals(&s, None, &tax_policy_at(0.0)).unwrap();
         assert_eq!(t.item_count, 2);
         // (10000 + 500 + 300) × 2 = 21600.
         assert_eq!(t.subtotal_minor, 21600);
@@ -3040,7 +3153,7 @@ mod tests {
     #[test]
     fn hold_empty_cart_errors_with_validation() {
         let s = store();
-        let err = hold(&s, "d1".into(), "x".into(), "now".into()).unwrap_err();
+        let err = hold(&s, None, "d1".into(), "x".into(), "now".into()).unwrap_err();
         match err {
             crate::error::CoreError::Validation { field, detail } => {
                 assert_eq!(field, "cart");
@@ -3053,17 +3166,19 @@ mod tests {
     #[test]
     fn drafts_are_listed_newest_first() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
         hold(
             &s,
+            None,
             "d1".into(),
             "First".into(),
             "2026-06-21T10:00:00Z".into(),
         )
         .unwrap();
-        add(&s, "b", "Tea", 3000).unwrap();
+        add(&s, None, "b", "Tea", 3000).unwrap();
         hold(
             &s,
+            None,
             "d2".into(),
             "Second".into(),
             "2026-06-21T11:00:00Z".into(),
@@ -3084,11 +3199,11 @@ mod tests {
     #[test]
     fn restore_draft_replaces_current_cart_lines() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        hold(&s, "d1".into(), "Held".into(), "t".into()).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        hold(&s, None, "d1".into(), "Held".into(), "t".into()).unwrap();
         // Build a new, different cart, then restore — the draft REPLACES it.
-        add(&s, "b", "Tea", 3000).unwrap();
-        let restored = restore_draft(&s, "d1").unwrap();
+        add(&s, None, "b", "Tea", 3000).unwrap();
+        let restored = restore_draft(&s, None, "d1").unwrap();
         assert_eq!(restored.len(), 1);
         assert_eq!(restored[0].name, "Latte"); // the held line, not the Tea
         assert!(drafts(&s).unwrap().is_empty()); // draft consumed
@@ -3098,19 +3213,19 @@ mod tests {
     fn restore_draft_clears_any_selected_discount() {
         let s = store();
         seed_discounts(&s);
-        add(&s, "a", "Latte", 1000).unwrap();
-        hold(&s, "d1".into(), "Held".into(), "t".into()).unwrap();
+        add(&s, None, "a", "Latte", 1000).unwrap();
+        hold(&s, None, "d1".into(), "Held".into(), "t".into()).unwrap();
         // Pick a discount on the (now empty) cart, then restore the draft.
-        set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
-        restore_draft(&s, "d1").unwrap();
-        assert!(discount_id(&s).unwrap().is_none());
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        restore_draft(&s, None, "d1").unwrap();
+        assert!(discount_id(&s, None).unwrap().is_none());
     }
 
     #[test]
     fn restore_unknown_draft_is_noop_returning_current_cart() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        let v = restore_draft(&s, "ghost").unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        let v = restore_draft(&s, None, "ghost").unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].name, "Latte"); // current cart unchanged
     }
@@ -3118,10 +3233,10 @@ mod tests {
     #[test]
     fn discard_draft_removes_only_the_target() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        hold(&s, "d1".into(), "One".into(), "t".into()).unwrap();
-        add(&s, "b", "Tea", 3000).unwrap();
-        hold(&s, "d2".into(), "Two".into(), "t".into()).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        hold(&s, None, "d1".into(), "One".into(), "t".into()).unwrap();
+        add(&s, None, "b", "Tea", 3000).unwrap();
+        hold(&s, None, "d2".into(), "Two".into(), "t".into()).unwrap();
         discard_draft(&s, "d1").unwrap();
         let ds = drafts(&s).unwrap();
         assert_eq!(ds.len(), 1);
@@ -3131,8 +3246,8 @@ mod tests {
     #[test]
     fn discard_unknown_draft_is_noop() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        hold(&s, "d1".into(), "One".into(), "t".into()).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        hold(&s, None, "d1".into(), "One".into(), "t".into()).unwrap();
         discard_draft(&s, "ghost").unwrap();
         assert_eq!(drafts(&s).unwrap().len(), 1);
     }
@@ -3141,20 +3256,20 @@ mod tests {
     fn hold_clears_the_cart_and_its_discount() {
         let s = store();
         seed_discounts(&s);
-        add(&s, "a", "Latte", 1000).unwrap();
-        set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
-        hold(&s, "d1".into(), "Held".into(), "t".into()).unwrap();
-        assert!(lines(&s).unwrap().is_empty());
-        assert!(discount_id(&s).unwrap().is_none()); // hold → clear → clear_discount
+        add(&s, None, "a", "Latte", 1000).unwrap();
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        hold(&s, None, "d1".into(), "Held".into(), "t".into()).unwrap();
+        assert!(lines(&s, None).unwrap().is_empty());
+        assert!(discount_id(&s, None).unwrap().is_none()); // hold → clear → clear_discount
     }
 
     #[test]
     fn draft_summary_counts_quantities_and_totals() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        set_qty(&s, "a", 3).unwrap();
-        add(&s, "b", "Tea", 2000).unwrap();
-        hold(&s, "d1".into(), "Table".into(), "t".into()).unwrap();
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        set_qty(&s, None, "a", 3).unwrap();
+        add(&s, None, "b", "Tea", 2000).unwrap();
+        hold(&s, None, "d1".into(), "Table".into(), "t".into()).unwrap();
         let ds = drafts(&s).unwrap();
         assert_eq!(ds[0].item_count, 4); // 3 + 1
         assert_eq!(ds[0].total_minor, 17000); // 5000*3 + 2000
@@ -3165,50 +3280,56 @@ mod tests {
     #[test]
     fn the_order_note_persists_rides_the_payload_and_clears_with_the_cart() {
         let s = store();
-        assert!(note(&s).unwrap().is_none());
-        set_note(&s, Some("  no onions for the table  ")).unwrap();
-        assert_eq!(note(&s).unwrap().as_deref(), Some("no onions for the table"));
-        let payload = cart_payload(&s).unwrap();
-        clear(&s).unwrap();
-        assert!(note(&s).unwrap().is_none());
-        set_cart_payload(&s, &payload).unwrap();
-        assert_eq!(note(&s).unwrap().as_deref(), Some("no onions for the table"));
-        set_note(&s, Some("   ")).unwrap();
-        assert!(note(&s).unwrap().is_none());
+        assert!(note(&s, None).unwrap().is_none());
+        set_note(&s, None, Some("  no onions for the table  ")).unwrap();
+        assert_eq!(
+            note(&s, None).unwrap().as_deref(),
+            Some("no onions for the table")
+        );
+        let payload = cart_payload(&s, None).unwrap();
+        clear(&s, None).unwrap();
+        assert!(note(&s, None).unwrap().is_none());
+        set_cart_payload(&s, None, &payload).unwrap();
+        assert_eq!(
+            note(&s, None).unwrap().as_deref(),
+            Some("no onions for the table")
+        );
+        set_note(&s, None, Some("   ")).unwrap();
+        assert!(note(&s, None).unwrap().is_none());
     }
 
     #[test]
     fn discount_id_none_when_unset() {
         let s = store();
-        assert!(discount_id(&s).unwrap().is_none());
+        assert!(discount_id(&s, None).unwrap().is_none());
     }
 
     #[test]
     fn set_then_clear_discount_id() {
         let s = store();
-        set_discount(&s, "abc").unwrap();
-        assert_eq!(discount_id(&s).unwrap().as_deref(), Some("abc"));
-        clear_discount(&s).unwrap();
-        assert!(discount_id(&s).unwrap().is_none());
+        set_discount(&s, None, "abc").unwrap();
+        assert_eq!(discount_id(&s, None).unwrap().as_deref(), Some("abc"));
+        clear_discount(&s, None).unwrap();
+        assert!(discount_id(&s, None).unwrap().is_none());
     }
 
     #[test]
     fn discount_id_treats_literal_null_as_none() {
         let s = store();
-        set_discount(&s, "null").unwrap(); // the string "null" is filtered out
-        assert!(discount_id(&s).unwrap().is_none());
+        set_discount(&s, None, "null").unwrap(); // the string "null" is filtered out
+        assert!(discount_id(&s, None).unwrap().is_none());
     }
 
     #[test]
     fn discount_resolves_kind_and_value_from_catalog() {
         let s = store();
         seed_discounts(&s);
-        set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
-        let (kind, value) = discount(&s).unwrap();
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        let (kind, value) = discount(&s, None).unwrap();
         assert_eq!(kind, DiscountKind::Percentage);
         assert_eq!(value, 0.10);
-        set_discount(&s, "00000000-0000-0000-0000-0000000000d2").unwrap();
-        let (kind, value) = discount(&s).unwrap();
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d2").unwrap();
+        let (kind, value) = discount(&s, None).unwrap();
         assert_eq!(kind, DiscountKind::Fixed);
         assert_eq!(value, 250.0);
     }
@@ -3217,7 +3338,7 @@ mod tests {
     fn discount_none_when_nothing_selected() {
         let s = store();
         seed_discounts(&s);
-        let (kind, value) = discount(&s).unwrap();
+        let (kind, value) = discount(&s, None).unwrap();
         assert_eq!(kind, DiscountKind::None);
         assert_eq!(value, 0.0);
     }
@@ -3226,8 +3347,8 @@ mod tests {
     fn discount_none_when_catalog_missing() {
         // A selected id but no discounts catalog seeded → resolves to none.
         let s = store();
-        set_discount(&s, "00000000-0000-0000-0000-0000000000d1").unwrap();
-        let (kind, value) = discount(&s).unwrap();
+        set_discount(&s, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        let (kind, value) = discount(&s, None).unwrap();
         assert_eq!(kind, DiscountKind::None);
         assert_eq!(value, 0.0);
     }
@@ -3237,11 +3358,11 @@ mod tests {
     #[test]
     fn clear_empties_lines_and_keeps_drafts() {
         let s = store();
-        add(&s, "a", "Latte", 5000).unwrap();
-        hold(&s, "d1".into(), "Held".into(), "t".into()).unwrap(); // parks + clears
-        add(&s, "b", "Tea", 3000).unwrap();
-        clear(&s).unwrap();
-        assert!(lines(&s).unwrap().is_empty());
+        add(&s, None, "a", "Latte", 5000).unwrap();
+        hold(&s, None, "d1".into(), "Held".into(), "t".into()).unwrap(); // parks + clears
+        add(&s, None, "b", "Tea", 3000).unwrap();
+        clear(&s, None).unwrap();
+        assert!(lines(&s, None).unwrap().is_empty());
         // clear() empties the live cart but does NOT touch the drafts stash.
         assert_eq!(drafts(&s).unwrap().len(), 1);
     }

@@ -155,12 +155,18 @@ fn alert_for(event_type: &str, data: &str, locale: &str, tz: &str) -> Option<Ale
     let mut id = pick(&["id", "order_id", "open_ticket_id", "msg_id"]).unwrap_or_default();
     // A fire is one ROUND: tag it by the round, or a ticket's second round (from
     // any device) dedups against its first and never pings.
-    if matches!(event_type, "ticket.fired" | "ticket.round_added" | "kitchen.fired") {
+    if matches!(
+        event_type,
+        "ticket.fired" | "ticket.round_added" | "kitchen.fired"
+    ) {
         if let Some(round) = origin_of(&v).round_key {
             id = round;
         } else if event_type == "ticket.round_added" {
             // An older server with no `origin`: the item count grows every round.
-            let n = v.get("items").and_then(|x| x.as_array()).map_or(0, |a| a.len());
+            let n = v
+                .get("items")
+                .and_then(|x| x.as_array())
+                .map_or(0, |a| a.len());
             id = format!("{id}#{n}");
         }
     }
@@ -997,7 +1003,10 @@ mod tests {
     struct Rec(std::sync::Mutex<Vec<String>>);
     impl EventListener for Rec {
         fn on_event(&self, e: RealtimeEvent) {
-            self.0.lock().unwrap().push(format!("board:{}", e.event_type));
+            self.0
+                .lock()
+                .unwrap()
+                .push(format!("board:{}", e.event_type));
         }
         fn on_connection_changed(&self, _: bool) {}
     }
@@ -1042,7 +1051,11 @@ mod tests {
         };
         l.on_event(ev(round_added("srv-ticket-1", Some("dev-A"), "round-1", 1)));
         assert_eq!(pings(&player), 0, "own fire must not ping");
-        assert_eq!(board.0.lock().unwrap().len(), 1, "but the board still refreshes");
+        assert_eq!(
+            board.0.lock().unwrap().len(),
+            1,
+            "but the board still refreshes"
+        );
 
         // The SAME event on another till pings there.
         let (other, _, other_player) = till("dev-B");
@@ -1063,7 +1076,11 @@ mod tests {
         l.on_event(ev(round_added("srv-t", Some("dev-A"), "round-2", 2)));
         assert_eq!(pings(&player), 0);
         l.on_event(ev(round_added("srv-t", Some("dev-B"), "round-3", 3)));
-        assert_eq!(pings(&player), 1, "another device's later round on the same ticket pings");
+        assert_eq!(
+            pings(&player),
+            1,
+            "another device's later round on the same ticket pings"
+        );
         l.on_event(ev(round_added("srv-t", Some("dev-B"), "round-4", 4)));
         assert_eq!(pings(&player), 2, "and so does the one after it");
         l.on_event(ev(round_added("srv-t", Some("dev-B"), "round-4", 4)));

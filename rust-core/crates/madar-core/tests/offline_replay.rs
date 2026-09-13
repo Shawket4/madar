@@ -239,9 +239,16 @@ async fn place_order(core: &MadarCore) -> ReceiptView {
         .into_iter()
         .next()
         .expect("a menu item");
-    core.cart_add(item.id.clone(), item.name.clone(), item.base_price_minor)
-        .expect("add");
-    core.checkout(cash_checkout(core)).await.expect("checkout")
+    core.cart_add(
+        None,
+        item.id.clone(),
+        item.name.clone(),
+        item.base_price_minor,
+    )
+    .expect("add");
+    core.checkout(None, cash_checkout(core))
+        .await
+        .expect("checkout")
 }
 
 /// REPRO (#1): offline login. Online login on a persistent store must cache the
@@ -519,10 +526,15 @@ async fn offline_backlog_replays_exactly_once_across_a_reconnect() {
         .expect("a menu item");
     for _ in 0..2 {
         offline
-            .cart_add(item.id.clone(), item.name.clone(), item.base_price_minor)
+            .cart_add(
+                None,
+                item.id.clone(),
+                item.name.clone(),
+                item.base_price_minor,
+            )
             .expect("add");
         let r = offline
-            .checkout(cash_checkout(&offline))
+            .checkout(None, cash_checkout(&offline))
             .await
             .expect("offline checkout queues");
         assert!(
@@ -621,10 +633,15 @@ async fn full_offline_day_open_sell_close_replays_in_dependency_order() {
         .next()
         .expect("a menu item");
     offline
-        .cart_add(item.id.clone(), item.name.clone(), item.base_price_minor)
+        .cart_add(
+            None,
+            item.id.clone(),
+            item.name.clone(),
+            item.base_price_minor,
+        )
         .expect("add");
     offline
-        .checkout(cash_checkout(&offline))
+        .checkout(None, cash_checkout(&offline))
         .await
         .expect("checkout queues offline");
     offline
@@ -742,10 +759,15 @@ async fn another_teller_flushes_the_backlog_attributed_to_the_original() {
         .next()
         .expect("a menu item");
     offline
-        .cart_add(item.id.clone(), item.name.clone(), item.base_price_minor)
+        .cart_add(
+            None,
+            item.id.clone(),
+            item.name.clone(),
+            item.base_price_minor,
+        )
         .expect("add");
     offline
-        .checkout(cash_checkout(&offline))
+        .checkout(None, cash_checkout(&offline))
         .await
         .expect("sale queues offline");
     let queued = offline.sync_status().expect("status");
@@ -999,9 +1021,14 @@ async fn offline_orphaned_orders_recover_onto_the_real_shift() {
         .into_iter()
         .next()
         .expect("item");
-    off.cart_add(item.id.clone(), item.name.clone(), item.base_price_minor)
-        .unwrap();
-    off.checkout(cash_checkout(&off))
+    off.cart_add(
+        None,
+        item.id.clone(),
+        item.name.clone(),
+        item.base_price_minor,
+    )
+    .unwrap();
+    off.checkout(None, cash_checkout(&off))
         .await
         .expect("offline order");
     assert!(
@@ -1099,10 +1126,15 @@ async fn offline_receipt_number_and_ref_match_the_server() {
         .into_iter()
         .next()
         .expect("item");
-    off.cart_add(item.id.clone(), item.name.clone(), item.base_price_minor)
-        .unwrap();
+    off.cart_add(
+        None,
+        item.id.clone(),
+        item.name.clone(),
+        item.base_price_minor,
+    )
+    .unwrap();
     let predicted = off
-        .checkout(cash_checkout(&off))
+        .checkout(None, cash_checkout(&off))
         .await
         .expect("offline order");
     eprintln!(
@@ -1295,9 +1327,17 @@ async fn offline_lists_show_last_synced_server_rows() {
         .into_iter()
         .next()
         .expect("item");
-    live.cart_add(item.id.clone(), item.name.clone(), item.base_price_minor)
-        .unwrap();
-    let receipt = live.checkout(cash_checkout(&live)).await.expect("order");
+    live.cart_add(
+        None,
+        item.id.clone(),
+        item.name.clone(),
+        item.base_price_minor,
+    )
+    .unwrap();
+    let receipt = live
+        .checkout(None, cash_checkout(&live))
+        .await
+        .expect("order");
     assert!(!receipt.queued_offline, "the order should sync online");
     live.record_cash_movement(2_500, "online float".into(), None, None)
         .await
@@ -1471,9 +1511,14 @@ async fn offline_opened_and_closed_shift_is_complete_in_history() {
         .into_iter()
         .next()
         .expect("item");
-    off.cart_add(item.id.clone(), item.name.clone(), item.base_price_minor)
-        .unwrap();
-    off.checkout(cash_checkout(&off))
+    off.cart_add(
+        None,
+        item.id.clone(),
+        item.name.clone(),
+        item.base_price_minor,
+    )
+    .unwrap();
+    off.checkout(None, cash_checkout(&off))
         .await
         .expect("order offline");
     off.close_shift(9_500, None).await.expect("close B offline");
@@ -1874,9 +1919,14 @@ async fn offline_close_a_then_open_b_with_orders_all_sync() {
         .into_iter()
         .next()
         .expect("item");
-    off.cart_add(item.id.clone(), item.name.clone(), item.base_price_minor)
-        .unwrap();
-    off.checkout(cash_checkout(&off))
+    off.cart_add(
+        None,
+        item.id.clone(),
+        item.name.clone(),
+        item.base_price_minor,
+    )
+    .unwrap();
+    off.checkout(None, cash_checkout(&off))
         .await
         .expect("A order offline");
     off.close_shift(11_000, None)
@@ -1888,9 +1938,14 @@ async fn offline_close_a_then_open_b_with_orders_all_sync() {
     let b = off.current_shift().unwrap().expect("B local");
     assert_ne!(b.id, a_id, "B is a brand-new shift");
     for _ in 0..2 {
-        off.cart_add(item.id.clone(), item.name.clone(), item.base_price_minor)
-            .unwrap();
-        off.checkout(cash_checkout(&off))
+        off.cart_add(
+            None,
+            item.id.clone(),
+            item.name.clone(),
+            item.base_price_minor,
+        )
+        .unwrap();
+        off.checkout(None, cash_checkout(&off))
             .await
             .expect("B order offline");
     }

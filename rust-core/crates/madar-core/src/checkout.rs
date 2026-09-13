@@ -1138,6 +1138,7 @@ mod tests {
     fn prep(store: &Store, method: &str, tendered: i64) -> CoreResult<Prepared> {
         prepare(
             store,
+            None,
             "en",
             BRANCH,
             SHIFT,
@@ -1151,7 +1152,7 @@ mod tests {
     fn cash_tip_reduces_change_and_records_tip_customer_notes() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
         // total = 1000 + 14% tax = 1140; tendered 1500; cash tip 200 → change 160.
         let mut input = mk_input(CASH, 1500);
         input.tip_minor = 200;
@@ -1159,6 +1160,7 @@ mod tests {
         input.notes = Some("no sugar".into());
         let p = prepare(
             &store,
+            None,
             "en",
             BRANCH,
             SHIFT,
@@ -1180,8 +1182,8 @@ mod tests {
     fn cash_order_assembles_priced_with_change() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
-        cart::set_qty(&store, ITEM, 2).unwrap(); // 2 × 1000 = 2000
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
+        cart::set_qty(&store, None, ITEM, 2).unwrap(); // 2 × 1000 = 2000
 
         let p = prep(&store, CASH, 5000).unwrap();
         let r = &p.command.request;
@@ -1215,7 +1217,7 @@ mod tests {
     fn card_order_records_no_tender_or_change() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1500).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1500).unwrap();
 
         let p = prep(&store, CARD, 9999).unwrap(); // tendered ignored for non-cash
         let r = &p.command.request;
@@ -1231,10 +1233,11 @@ mod tests {
     fn localized_label_resolves_but_wire_uses_raw_name() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
 
         let p = prepare(
             &store,
+            None,
             "ar",
             BRANCH,
             SHIFT,
@@ -1259,7 +1262,7 @@ mod tests {
     fn unknown_payment_method_is_rejected() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
         let err = prep(&store, "00000000-0000-0000-0000-0000000000ee", 1000).unwrap_err();
         assert!(matches!(err, CoreError::Validation { .. }));
     }
@@ -1375,7 +1378,7 @@ mod tests {
     fn idempotency_key_is_the_local_order_id() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
         let p = prep(&store, CASH, 2000).unwrap();
         // The in-body idempotency key IS the client order id, and the receipt's
         // local_order_id mirrors it (the outbox keys the row by the same UUID).
@@ -1517,7 +1520,7 @@ mod tests {
     fn split_payments_resolve_each_legs_raw_method_name() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 2000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 2000).unwrap();
         let mut input = mk_input(CASH, 0);
         input.splits = vec![
             CheckoutSplit {
@@ -1531,6 +1534,7 @@ mod tests {
         ];
         let p = prepare(
             &store,
+            None,
             "en",
             BRANCH,
             SHIFT,
@@ -1556,7 +1560,7 @@ mod tests {
     fn split_legs_with_unknown_method_are_dropped() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 2000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 2000).unwrap();
         let mut input = mk_input(CASH, 0);
         input.splits = vec![
             CheckoutSplit {
@@ -1570,6 +1574,7 @@ mod tests {
         ];
         let p = prepare(
             &store,
+            None,
             "en",
             BRANCH,
             SHIFT,
@@ -1592,7 +1597,7 @@ mod tests {
     fn no_splits_leaves_payment_splits_unset() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
         let p = prep(&store, CASH, 2000).unwrap();
         assert_eq!(p.command.request.payment_splits, None);
     }
@@ -1603,7 +1608,7 @@ mod tests {
     fn card_tip_does_not_reduce_cash_change() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
         // Cash order (total 1140 @14%), tendered 1500, but the tip is paid on CARD
         // → change stays 360 (1500 - 1140), not reduced by the tip.
         let mut input = mk_input(CASH, 1500);
@@ -1611,6 +1616,7 @@ mod tests {
         input.tip_payment_method_id = Some(CARD.into());
         let p = prepare(
             &store,
+            None,
             "en",
             BRANCH,
             SHIFT,
@@ -1632,11 +1638,12 @@ mod tests {
     fn negative_tip_is_clamped_to_zero_and_not_recorded() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
         let mut input = mk_input(CASH, 2000);
         input.tip_minor = -500;
         let p = prepare(
             &store,
+            None,
             "en",
             BRANCH,
             SHIFT,
@@ -1668,10 +1675,11 @@ mod tests {
         let store = Store::open("").unwrap();
         seed_methods(&store);
         seed_discounts(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
-        cart::set_discount(&store, "00000000-0000-0000-0000-0000000000d1").unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
+        cart::set_discount(&store, None, "00000000-0000-0000-0000-0000000000d1").unwrap();
         let p = prepare(
             &store,
+            None,
             "en",
             BRANCH,
             SHIFT,
@@ -1703,10 +1711,11 @@ mod tests {
         let store = Store::open("").unwrap();
         seed_methods(&store);
         seed_discounts(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
-        cart::set_discount(&store, "00000000-0000-0000-0000-0000000000d2").unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
+        cart::set_discount(&store, None, "00000000-0000-0000-0000-0000000000d2").unwrap();
         let p = prepare(
             &store,
+            None,
             "en",
             BRANCH,
             SHIFT,
@@ -1726,7 +1735,7 @@ mod tests {
     fn no_discount_leaves_discount_fields_unset() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
         let p = prep(&store, CASH, 2000).unwrap();
         let r = &p.command.request;
         assert_eq!(r.discount_type, None);
@@ -1982,7 +1991,7 @@ mod tests {
             1,
             None,
         );
-        cart::add_resolved(&store, line).unwrap();
+        cart::add_resolved(&store, None, line).unwrap();
         let p = prep(&store, CASH, 20000).unwrap();
         assert_eq!(p.receipt.lines.len(), 1);
         let rl = &p.receipt.lines[0];
@@ -2041,7 +2050,7 @@ mod tests {
         };
         let line =
             cart::resolve_bundle_line(&cfg_bundle(), &[cfg_item()], &cfg_catalog(), &[comp], 1);
-        cart::add_resolved(&store, line).unwrap();
+        cart::add_resolved(&store, None, line).unwrap();
         let p = prep(&store, CASH, 20000).unwrap();
         let rl = &p.receipt.lines[0];
         assert!(rl.is_bundle);
@@ -2112,7 +2121,7 @@ mod tests {
         };
         let line =
             cart::resolve_bundle_line(&uuid_bundle(), &[uuid_item()], &uuid_catalog(), &[comp], 1);
-        cart::add_resolved(&store, line).unwrap();
+        cart::add_resolved(&store, None, line).unwrap();
         let p = prep(&store, CASH, 20000).unwrap();
         let item = &p.command.request.items[0];
         // Bundle id set, top-level addons/optionals empty (absent or empty vec),
@@ -2157,7 +2166,7 @@ mod tests {
             1,
             None,
         );
-        cart::add_resolved(&store, line).unwrap();
+        cart::add_resolved(&store, None, line).unwrap();
         let p = prep(&store, CASH, 20000).unwrap();
         let item = &p.command.request.items[0];
         assert_eq!(
@@ -2177,11 +2186,12 @@ mod tests {
     fn receipt_filters_blank_customer_name() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        cart::add(&store, ITEM, "Latte", 1000).unwrap();
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
         let mut input = mk_input(CASH, 2000);
         input.customer_name = Some("   ".into()); // whitespace only
         let p = prepare(
             &store,
+            None,
             "en",
             BRANCH,
             SHIFT,
@@ -2200,6 +2210,7 @@ mod tests {
         named.customer_name = Some("Mona".into());
         let p2 = prepare(
             &store,
+            None,
             "en",
             BRANCH,
             SHIFT,
