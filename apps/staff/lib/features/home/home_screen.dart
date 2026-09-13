@@ -234,8 +234,7 @@ class _ClockHero extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Num(
-                '${now.hour.toString().padLeft(2, '0')}:'
-                '${now.minute.toString().padLeft(2, '0')}',
+                formatTimeOfDay(now.hour, now.minute),
                 style: MadarType.numDisplay,
               ),
               const SizedBox(width: 3),

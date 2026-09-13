@@ -42,9 +42,7 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
   bool get _needsFrom => _kind == 'early_departure' || _kind == 'excuse';
   bool get _needsTo => _kind == 'late_arrival' || _kind == 'excuse';
 
-  String _hhmm(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:'
-      '${t.minute.toString().padLeft(2, '0')}';
+  String _hhmm(TimeOfDay t) => formatTimeOfDay(t.hour, t.minute);
 
   Future<void> _submit() async {
     final t = ref.read(tProvider);
@@ -344,9 +342,7 @@ class _Form extends ConsumerWidget {
                       label: kind == 'early_departure'
                           ? t('req.leaveAt')
                           : t('req.from'),
-                      value:
-                          '${fromTime.hour.toString().padLeft(2, '0')}:'
-                          '${fromTime.minute.toString().padLeft(2, '0')}',
+                      value: formatTimeOfDay(fromTime.hour, fromTime.minute),
                       onTap: () async {
                         final picked = await showTimePicker(
                           context: context,
@@ -363,9 +359,7 @@ class _Form extends ConsumerWidget {
                       label: kind == 'late_arrival'
                           ? t('req.arriveBy')
                           : t('req.to'),
-                      value:
-                          '${toTime.hour.toString().padLeft(2, '0')}:'
-                          '${toTime.minute.toString().padLeft(2, '0')}',
+                      value: formatTimeOfDay(toTime.hour, toTime.minute),
                       onTap: () async {
                         final picked = await showTimePicker(
                           context: context,

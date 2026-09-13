@@ -1,3 +1,4 @@
+import '../format.dart';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,15 +32,16 @@ class LocaleNotifier extends Notifier<String> {
   @override
   String build() {
     final stored = ref.read(coreProvider).bridge.locale();
-    if (stored.isNotEmpty) return stored;
+    if (stored.isNotEmpty) return formatLocale = stored;
     final device = PlatformDispatcher.instance.locale.languageCode;
     final resolved = device == 'ar' ? 'ar' : 'en';
     ref.read(coreProvider).bridge.setLocale(locale: resolved);
-    return resolved;
+    return formatLocale = resolved;
   }
 
   void set(String locale) {
     ref.read(coreProvider).bridge.setLocale(locale: locale);
+    formatLocale = locale;
     state = locale;
   }
 

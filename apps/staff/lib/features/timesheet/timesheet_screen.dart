@@ -391,9 +391,7 @@ class _FixButton extends ConsumerWidget {
       await core.bridge.staffCreateRequest(
         kind: 'correction',
         onDate: record.businessDate,
-        toTime:
-            '${picked.hour.toString().padLeft(2, '0')}:'
-            '${picked.minute.toString().padLeft(2, '0')}',
+        toTime: formatTimeOfDay(picked.hour, picked.minute),
         isHalfDay: false,
         attendanceRecordId: record.id,
         reason: t('ts.missingPunch'),
