@@ -533,10 +533,12 @@ pub(crate) fn prepare(
         .clone()
         .filter(|s| !s.trim().is_empty())
         .map(Some);
+    // The teller's typed note wins; otherwise the cart's own order note.
     request.notes = input
         .notes
         .clone()
         .filter(|s| !s.trim().is_empty())
+        .or(crate::cart::note(store)?)
         .map(Some);
     // Split payments: resolve each leg's method to its raw name.
     if !input.splits.is_empty() {

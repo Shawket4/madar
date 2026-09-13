@@ -493,6 +493,16 @@ impl MadarBridge {
         self.inner.cart_clear_discount().map_err(MadarError::from)
     }
 
+    /// Set or clear (None / blank) the note for the whole order in hand.
+    pub fn cart_set_note(&self, note: Option<String>) -> Result<(), MadarError> {
+        self.inner.cart_set_note(note).map_err(MadarError::from)
+    }
+
+    /// The cart's order note, or `None`.
+    pub fn cart_note(&self) -> Result<Option<String>, MadarError> {
+        self.inner.cart_note().map_err(MadarError::from)
+    }
+
     /// The selected discount id (for the tender UI), or `None`.
     pub fn cart_discount_id(&self) -> Result<Option<String>, MadarError> {
         self.inner.cart_discount_id().map_err(MadarError::from)

@@ -24,6 +24,8 @@ use crate::store::Store;
 pub(crate) const K_CART: &str = "cart:lines";
 /// kv key — the selected discount id (empty = none).
 pub(crate) const K_DISCOUNT: &str = "cart:discount";
+/// kv key — the ORDER's note (for the whole sale, not a line); empty = none.
+pub(crate) const K_NOTE: &str = "cart:note";
 /// kv key — parked/held carts (drafts) as a JSON array.
 pub(crate) const K_DRAFTS: &str = "cart:drafts";
 
@@ -232,6 +234,7 @@ pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
     for t in std::iter::once(None).chain(tables.iter().map(|t| Some(t.as_str()))) {
         store.kv_put(&key_for(t, K_CART), "[]")?;
         store.kv_put(&key_for(t, K_DISCOUNT), "")?;
+        store.kv_put(&key_for(t, K_NOTE), "")?;
         store.kv_put(&key_for(t, K_LAST_REMOVED), "[]")?;
     }
     store.kv_put(K_CONTEXT_TABLES, "[]")?;
@@ -1138,6 +1141,7 @@ pub(crate) fn restore_last_removed(store: &Store) -> CoreResult<Vec<CartLineView
 /// Empty the cart + its discount (e.g. after checkout or on sign-out).
 pub(crate) fn clear(store: &Store) -> CoreResult<()> {
     clear_discount(store)?;
+    set_note(store, None)?;
     store.kv_put(&ctx_key(store, K_LAST_REMOVED)?, "[]")?; // a stale undo must not resurrect a sold line
     save(store, &[])
 }
@@ -1155,6 +1159,7 @@ pub(crate) fn cart_payload(store: &Store) -> CoreResult<serde_json::Value> {
     Ok(serde_json::json!({
         "lines": serde_json::to_value(&lines)?,
         "discount_id": discount_id(store)?,
+        "note": note(store)?,
     }))
 }
 
@@ -1174,6 +1179,7 @@ pub(crate) fn set_cart_payload(
         Some(d) if !d.is_empty() => set_discount(store, d)?,
         _ => clear_discount(store)?,
     }
+    set_note(store, payload.get("note").and_then(|v| v.as_str()))?;
     store.kv_put(&ctx_key(store, K_LAST_REMOVED)?, "[]")?; // a stale undo must not leak across orders
     save(store, &lines)?;
     Ok(view(&lines))
@@ -1363,6 +1369,17 @@ pub(crate) fn set_discount(store: &Store, discount_id: &str) -> CoreResult<()> {
 }
 pub(crate) fn clear_discount(store: &Store) -> CoreResult<()> {
     store.kv_put(&ctx_key(store, K_DISCOUNT)?, "")
+}
+/// Set (or, with `None` / blank, clear) the order note of the cart in hand.
+pub(crate) fn set_note(store: &Store, note: Option<&str>) -> CoreResult<()> {
+    let note = note.map(str::trim).unwrap_or("");
+    store.kv_put(&ctx_key(store, K_NOTE)?, note)
+}
+/// The cart's order note, or `None` when blank.
+pub(crate) fn note(store: &Store) -> CoreResult<Option<String>> {
+    Ok(store
+        .kv_get(&ctx_key(store, K_NOTE)?)?
+        .filter(|s| !s.trim().is_empty()))
 }
 /// The selected discount id, or `None`.
 pub(crate) fn discount_id(store: &Store) -> CoreResult<Option<String>> {
@@ -3081,6 +3098,21 @@ mod tests {
     }
 
     // ── discount set / clear / resolve ────────────────────────────────────────
+
+    #[test]
+    fn the_order_note_persists_rides_the_payload_and_clears_with_the_cart() {
+        let s = store();
+        assert!(note(&s).unwrap().is_none());
+        set_note(&s, Some("  no onions for the table  ")).unwrap();
+        assert_eq!(note(&s).unwrap().as_deref(), Some("no onions for the table"));
+        let payload = cart_payload(&s).unwrap();
+        clear(&s).unwrap();
+        assert!(note(&s).unwrap().is_none());
+        set_cart_payload(&s, &payload).unwrap();
+        assert_eq!(note(&s).unwrap().as_deref(), Some("no onions for the table"));
+        set_note(&s, Some("   ")).unwrap();
+        assert!(note(&s).unwrap().is_none());
+    }
 
     #[test]
     fn discount_id_none_when_unset() {

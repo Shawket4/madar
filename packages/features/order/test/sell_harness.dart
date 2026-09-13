@@ -437,6 +437,7 @@ class _FakeBridge implements MadarBridge {
       if (real != key) return real;
       return (rtl ? _ar[key] : null) ?? _en[key] ?? key;
     }
+    if (name == #cartNote) return Future<String?>.value('Birthday — bring the cake last');
     if (name == #isRtl) return rtl;
     if (name == #locale) return rtl ? 'ar' : 'en';
     if (name == #setLocale) {

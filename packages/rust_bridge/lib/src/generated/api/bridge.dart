@@ -112,6 +112,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The current cart lines (empty when none).
   Future<List<CartLineView>> cartLines();
 
+  /// The cart's order note, or `None`.
+  Future<String?> cartNote();
+
   /// Remove a line entirely (stashed for undo — see `cart_restore_removed`).
   Future<List<CartLineView>> cartRemove({required String itemId});
 
@@ -138,6 +141,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
   Future<void> cartSetDiscount({required String discountId});
+
+  /// Set or clear (None / blank) the note for the whole order in hand.
+  Future<void> cartSetNote({String? note});
 
   /// Set a line's absolute quantity (by its key); `qty <= 0` removes the line.
   Future<List<CartLineView>> cartSetQty({

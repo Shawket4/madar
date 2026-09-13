@@ -3832,6 +3832,16 @@ impl MadarCore {
     pub fn cart_clear_discount(&self) -> Result<(), CoreError> {
         cart::clear_discount(&self.store)
     }
+    /// Set or clear (None / blank) the note for the whole order in hand. It
+    /// persists with the cart, rides a held order's payload, and is carried on
+    /// the checkout and the fired ticket (both take order notes).
+    pub fn cart_set_note(&self, note: Option<String>) -> Result<(), CoreError> {
+        cart::set_note(&self.store, note.as_deref())
+    }
+    /// The cart's order note, or `None`.
+    pub fn cart_note(&self) -> Result<Option<String>, CoreError> {
+        cart::note(&self.store)
+    }
     /// The selected discount id (for the tender UI), or `None`.
     pub fn cart_discount_id(&self) -> Result<Option<String>, CoreError> {
         cart::discount_id(&self.store)
@@ -6809,6 +6819,10 @@ impl MadarCore {
             });
         }
         let items = checkout::lines_to_wire_items(&lines);
+        // A note passed in wins; otherwise the cart's order note rides the ticket.
+        let notes = notes
+            .filter(|s| !s.trim().is_empty())
+            .or(cart::note(&self.store)?);
         let ticket_id = uuid::Uuid::new_v4();
         let round_id = uuid::Uuid::new_v4();
         let table_uuid = table_id

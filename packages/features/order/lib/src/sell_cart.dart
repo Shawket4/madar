@@ -176,7 +176,8 @@ class SellCart extends ConsumerWidget {
             const TellerHeldStrip(),
           // Who the sale is for and what comes off it — on the cart, where
           // the teller is looking, not three taps deep inside Charge.
-          if (isCounterFlow && lines.isNotEmpty) const _CartSummary(),
+          if (lines.isNotEmpty)
+            _CartSummary(counter: isCounterFlow, lineCount: lines.length),
           Expanded(
             child: lines.isEmpty && ticket == null
                 // The Lottie was already in the bundle and already supported
@@ -940,11 +941,16 @@ class SellNoShiftNotice extends ConsumerWidget {
   }
 }
 
-/// The counter cart's customer and discount, as two chips under the parked
-/// strip. Unset, each says what it adds; set, it reads the name or the
-/// discount and is lit.
+/// The cart's chips under the parked strip: the order's note on every cart,
+/// and on the counter its customer and discount. Unset, each says what it
+/// adds; set, it reads the name, the discount or the note and is lit.
 class _CartSummary extends ConsumerWidget {
-  const _CartSummary();
+  const _CartSummary({required this.counter, required this.lineCount});
+
+  final bool counter;
+
+  /// Re-asks the core for the note whenever the cart changes shape.
+  final int lineCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -955,6 +961,7 @@ class _CartSummary extends ConsumerWidget {
       orderProvider.select((s) => s.cartTotals.discountMinor),
     );
     final discount = ref.watch(_cartDiscountLabelProvider(discountMinor)).value;
+    final note = ref.watch(_cartNoteProvider(lineCount)).value;
     return ColoredBox(
       color: colors.surface,
       child: Column(
@@ -971,22 +978,33 @@ class _CartSummary extends ConsumerWidget {
             child: Row(
               spacing: Space.sm,
               children: [
+                if (counter) ...[
+                  MadarChip(
+                    label: name ?? orderWord(bridge, 'sell.customer'),
+                    glyph: MadarGlyph.user,
+                    selected: name != null,
+                    onTap: () => unawaited(editLiveOrderName(context, ref)),
+                  ),
+                  MadarChip(
+                    label: discount ?? orderWord(bridge, 'sell.discount'),
+                    glyph: MadarGlyph.percent,
+                    selected: discount != null,
+                    onTap: () => unawaited(() async {
+                      final changed = await showCartDiscountPicker(
+                        context,
+                        ref,
+                      );
+                      if (changed) {
+                        await ref.read(orderProvider.notifier).loadCart();
+                      }
+                    }()),
+                  ),
+                ],
                 MadarChip(
-                  label: name ?? orderWord(bridge, 'sell.customer'),
-                  glyph: MadarGlyph.user,
-                  selected: name != null,
-                  onTap: () => unawaited(editLiveOrderName(context, ref)),
-                ),
-                MadarChip(
-                  label: discount ?? orderWord(bridge, 'sell.discount'),
-                  glyph: MadarGlyph.percent,
-                  selected: discount != null,
-                  onTap: () => unawaited(() async {
-                    final changed = await showCartDiscountPicker(context, ref);
-                    if (changed) {
-                      await ref.read(orderProvider.notifier).loadCart();
-                    }
-                  }()),
+                  label: note ?? orderWord(bridge, 'sell.note'),
+                  glyph: MadarGlyph.note,
+                  selected: note != null,
+                  onTap: () => unawaited(editCartNote(context, ref)),
                 ),
               ],
             ),
@@ -996,6 +1014,49 @@ class _CartSummary extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// The cart's order note, from the core.
+final FutureProviderFamily<String?, int> _cartNoteProvider = FutureProvider
+    .autoDispose
+    .family<String?, int>((ref, _) => ref.read(bridgeProvider).cartNote());
+
+/// Type (or clear) the note for the whole order. The core keeps it with the
+/// cart and carries it on the checkout and the fired ticket.
+Future<void> editCartNote(BuildContext context, WidgetRef ref) async {
+  final bridge = ref.read(bridgeProvider);
+  final controller = TextEditingController(text: await bridge.cartNote() ?? '');
+  if (!context.mounted) return;
+  final saved = await showMadarSheet<String>(
+    context,
+    size: SheetSize.hug,
+    maxWidth: Responsive.sheetCompactMaxWidth,
+    builder: (sheetContext) => Padding(
+      padding: const EdgeInsetsDirectional.all(Space.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.lg,
+        children: [
+          Text(orderWord(bridge, 'sell.note_title'), style: MadarType.h2),
+          MadarField(
+            controller: controller,
+            placeholder: orderWord(bridge, 'sell.note_hint'),
+            icon: 'text.bubble',
+            autofocus: true,
+          ),
+          MadarButton(
+            label: bridge.tr(key: 'common.save'),
+            onTap: () => Navigator.of(sheetContext).pop(controller.text),
+          ),
+        ],
+      ),
+    ),
+  );
+  controller.dispose();
+  if (saved == null) return;
+  await bridge.cartSetNote(note: saved.trim().isEmpty ? null : saved.trim());
+  ref.invalidate(_cartNoteProvider);
 }
 
 /// The applied cart discount's label, or null — re-asked whenever the cart's
