@@ -878,18 +878,54 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
   /// Split on or off. Turning it OFF drops every leg: the amounts typed for a
   /// split must never ride along with the single payment that replaced it.
-  void toggleSplit() => _update(
-    (s) => s.copyWith(
-      splitMode: !s.splitMode,
-      splitAmounts: const {},
-      error: null,
-    ),
-  );
+  void toggleSplit() {
+    _autoLeg = null;
+    _update(
+      (s) => s.copyWith(
+        splitMode: !s.splitMode,
+        splitAmounts: const {},
+        error: null,
+      ),
+    );
+  }
 
+  /// The one leg the drawer filled by itself — it keeps following what is
+  /// left until the teller types into it.
+  String? _autoLeg;
+
+  /// A typed leg. When exactly one method is left untouched (or it is the leg
+  /// the drawer filled), it takes what remains, so a two-way split is one
+  /// amount typed instead of two.
   void setSplitAmount(String id, int minor) {
+    if (id == _autoLeg) _autoLeg = null;
     _update(
       (s) =>
           s.copyWith(splitAmounts: {...s.splitAmounts, id: minor}, error: null),
+    );
+    final s = state;
+    final open = [
+      for (final m in s.paymentMethods)
+        if (m.id != id &&
+            (!s.splitAmounts.containsKey(m.id) || m.id == _autoLeg))
+          m.id,
+    ];
+    if (open.length != 1) return;
+    _autoLeg = open.single;
+    fillSplitRest(open.single, auto: true);
+  }
+
+  /// "Rest here": the core's remaining figure moves onto [id]'s leg.
+  void fillSplitRest(String id, {bool auto = false}) {
+    if (!auto) _autoLeg = null;
+    final s = state;
+    // Relative to this leg's own amount: what is left once every OTHER leg
+    // is counted, as the core's tender summary states it.
+    final rest = (s.splitAmounts[id] ?? 0) + s.splitRemaining;
+    _update(
+      (st) => st.copyWith(
+        splitAmounts: {...st.splitAmounts, id: rest < 0 ? 0 : rest},
+        error: null,
+      ),
     );
   }
 

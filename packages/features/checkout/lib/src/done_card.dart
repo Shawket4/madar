@@ -89,9 +89,39 @@ class _DoneCardState extends ConsumerState<DoneCard> {
   bool _clearing = false;
   String? _clearError;
 
+  /// The card steps aside by itself once nothing is left to answer — the
+  /// next customer is already at the counter. A touch on the card holds it.
+  Timer? _autoDismiss;
+
+  static const Duration _dismissAfter = Duration(seconds: 6);
+
+  void _holdOpen() {
+    _autoDismiss?.cancel();
+    _autoDismiss = null;
+  }
+
+  void _armDismiss() {
+    _holdOpen();
+    // A table still waiting for "cleared?", or paper that did not come out,
+    // is a question for the teller: those cards wait.
+    final o = widget.outcome;
+    if (o.tableId != null) return;
+    if (_print == PrintState.failed || _print == PrintState.noPrinter) return;
+    _autoDismiss = Timer(_dismissAfter, () {
+      if (mounted) widget.onDone(DoneCardResult.notYet);
+    });
+  }
+
+  @override
+  void dispose() {
+    _holdOpen();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
+    _armDismiss();
     // The auto-print is still running in the background: say "Printing…"
     // until it answers. It always answers — a timeout is a state too.
     final job = widget.outcome.printJob;
@@ -100,6 +130,7 @@ class _DoneCardState extends ConsumerState<DoneCard> {
         job.then((result) {
           if (mounted && _print == PrintState.printing) {
             setState(() => _print = result);
+            if (_autoDismiss != null) _armDismiss();
           }
         }),
       );
@@ -231,10 +262,11 @@ class _DoneCardState extends ConsumerState<DoneCard> {
           WidgetSpan(
             alignment: PlaceholderAlignment.baseline,
             baseline: TextBaseline.alphabetic,
-            child: Text(
-              Money.format(o.changeMinor),
-              textDirection: TextDirection.ltr,
-              style: MadarType.numMd.copyWith(color: colors.textSecondary),
+            child: MoneyText(
+              o.changeMinor,
+              currency: o.currency,
+              style: MadarType.money,
+              color: colors.textSecondary,
             ),
           ),
         ],
@@ -274,123 +306,118 @@ class _DoneCardState extends ConsumerState<DoneCard> {
     ];
 
     final table = o.tableId;
-    final clearGroup = table == null
-        ? null
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: Space.sm + 2,
-            children: [
-              Text.rich(
-                TextSpan(
-                  children: [
-                    if (o.tableLabel != null)
-                      TextSpan(
-                        text: '${o.tableLabel} ',
-                        style: MadarType.numLg.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: colors.textPrimary,
+    if (table != null) {
+      // Secondary, beside Reprint: the answer the floor is waiting for. The
+      // primary is the next sale; leaving without it means "not yet", which
+      // never lies about the room.
+      actions.add(
+        MadarButton(
+          label: o.tableLabel == null
+              ? tr('charge.cleared')
+              : '${o.tableLabel} · ${tr('charge.cleared')}',
+          glyph: MadarGlyph.check,
+          size: MadarButtonSize.compact,
+          variant: MadarButtonVariant.secondary,
+          loading: _clearing,
+          onTap: () => unawaited(_clear(table)),
+        ),
+      );
+    }
+    final newSale = MadarButton(
+      label: tr('charge.new_sale'),
+      glyph: MadarGlyph.plus,
+      size: MadarButtonSize.compact,
+      onTap: () => widget.onDone(DoneCardResult.notYet),
+    );
+
+    return Listener(
+      onPointerDown: (_) => _holdOpen(),
+      child: Container(
+        padding: const EdgeInsetsDirectional.all(Space.card),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(Radii.card),
+          border: Border.all(color: colors.border),
+          boxShadow: MadarElevation.raised.shadows(
+            colors,
+            dark: Theme.of(context).brightness == Brightness.dark,
+          ),
+        ),
+        child: Column(
+          // Hugs its content: the card used to stretch to the window.
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.lg,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: Space.md,
+              children: [
+                // The settle mark draws closed and strikes its check once; a
+                // sale parked for the network gets the living amber clock.
+                SizedBox.square(
+                  dimension: _markSize,
+                  child: o.queued
+                      ? const QueuedMark(size: _markSize)
+                      : const SettleMark(size: _markSize),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: Space.xs,
+                    children: [
+                      Text.rich(
+                        headline,
+                        style: MadarType.h3.copyWith(color: colors.textPrimary),
+                      ),
+                      Text.rich(
+                        detail,
+                        style: MadarType.bodySm.copyWith(
+                          color: colors.textSecondary,
                         ),
                       ),
-                    TextSpan(text: tr('charge.cleared_q')),
-                  ],
+                      printStatus,
+                    ],
+                  ),
                 ),
-                style: MadarType.title.copyWith(color: colors.textPrimary),
-              ),
-              MadarButton(
-                label: tr('charge.cleared'),
-                size: MadarButtonSize.compact,
-                loading: _clearing,
-                onTap: () => unawaited(_clear(table)),
-              ),
-              MadarButton(
-                label: tr('charge.not_yet'),
-                size: MadarButtonSize.compact,
-                variant: MadarButtonVariant.ghost,
-                onTap: () => widget.onDone(DoneCardResult.notYet),
-              ),
-            ],
-          );
-
-    return Container(
-      padding: const EdgeInsetsDirectional.all(Space.card),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(Radii.card),
-        border: Border.all(color: colors.border),
-        boxShadow: MadarElevation.raised.shadows(
-          colors,
-          dark: Theme.of(context).brightness == Brightness.dark,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.md + 2,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: Space.md + 2,
-            children: [
-              // The pre-overhaul celebrations, back where a sale ends: the
-              // settle mark draws closed and strikes its check once; a sale
-              // parked for the network gets the living amber clock.
-              SizedBox.square(
-                dimension: _markSize,
-                child: o.queued
-                    ? const QueuedMark(size: _markSize)
-                    : const SettleMark(size: _markSize),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 2,
-                  children: [
-                    Text.rich(
-                      headline,
-                      style: MadarType.h3.copyWith(color: colors.textPrimary),
-                    ),
-                    Text.rich(
-                      detail,
-                      style: MadarType.body.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                    if (phone) printStatus,
-                  ],
-                ),
-              ),
-              if (!phone) printStatus,
-            ],
-          ),
-          if (_clearError case final err?)
-            NoticeBanner(
-              text: err,
-              tone: ChipTone.danger,
-              icon: 'exclamationmark.circle',
+              ],
             ),
-          if (actions.isNotEmpty || clearGroup != null)
+            if (_clearError case final err?)
+              NoticeBanner(
+                text: err,
+                tone: ChipTone.danger,
+                icon: 'exclamationmark.circle',
+              ),
             if (phone)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: Space.sm + 2,
+                spacing: Space.sm,
                 children: [
                   if (actions.isNotEmpty)
-                    Row(
-                      spacing: Space.sm + 2,
-                      children: [for (final a in actions) Expanded(child: a)],
+                    Wrap(
+                      spacing: Space.sm,
+                      runSpacing: Space.sm,
+                      children: actions,
                     ),
-                  if (clearGroup != null)
-                    Align(
-                      alignment: AlignmentDirectional.centerEnd,
-                      child: clearGroup,
-                    ),
+                  newSale,
                 ],
               )
             else
               Row(
-                spacing: Space.sm + 2,
-                children: [...actions, const Spacer(), ?clearGroup],
+                spacing: Space.sm,
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: Space.sm,
+                      runSpacing: Space.sm,
+                      children: actions,
+                    ),
+                  ),
+                  newSale,
+                ],
               ),
-        ],
+          ],
+        ),
       ),
     );
   }

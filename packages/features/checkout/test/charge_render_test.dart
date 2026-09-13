@@ -616,6 +616,22 @@ ChargeOutcome _saleOutcome() => ChargeOutcome(
   printState: PrintState.printed,
 );
 
+ChargeOutcome _counterOutcome() => ChargeOutcome(
+  target: const ChargeTarget.cart(),
+  queued: false,
+  amountMinor: 15390,
+  methodLabel: 'Cash',
+  isCash: true,
+  currency: 'EGP',
+  createdAt: '2026-09-10T19:45:00Z',
+  receipt: _receipt(queued: false, number: 1043),
+  orderId: 'o-1043',
+  orderNumber: 1043,
+  changeMinor: 4610,
+  loyaltyOffered: true,
+  printState: PrintState.printed,
+);
+
 ChargeOutcome _queuedOutcome() => ChargeOutcome(
   target: const ChargeTarget.cart(),
   queued: true,
@@ -851,7 +867,8 @@ void main() {
     final host = tester.element(find.byType(_Host));
     final pending = showDoneCard(host, _saleOutcome());
     await _settle(tester);
-    expect(find.text('Cleared'), findsOneWidget);
+    expect(find.text('T5 · Cleared'), findsOneWidget);
+    expect(find.text('New sale'), findsOneWidget);
     await _capture(tester, 'done-card-sale-tablet');
     // A tap on the floor behind it dismisses it — and means "not yet".
     await tester.tapAt(const Offset(200, 700));
@@ -873,7 +890,7 @@ void main() {
     unawaited(showDoneCard(host, _queuedOutcome()));
     await _settle(tester);
     expect(find.textContaining('Queued'), findsOneWidget);
-    expect(find.text('Cleared'), findsNothing);
+    expect(find.textContaining('Cleared'), findsNothing);
     await _capture(tester, 'done-card-queued-phone');
   });
 
@@ -885,6 +902,21 @@ void main() {
     await _capture(tester, 'done-card-queued-tablet');
   });
 
+  testWidgets('the Done card for a counter sale steps aside by itself', (
+    tester,
+  ) async {
+    await _mount(tester, size: _ipad, bridge: _FakeBridge(), hostTitle: 'Sell');
+    final host = tester.element(find.byType(_Host));
+    final pending = showDoneCard(host, _counterOutcome());
+    await _settle(tester);
+    expect(find.byType(DoneCard), findsOneWidget);
+    await _capture(tester, 'done-card-counter-tablet');
+    await tester.pump(const Duration(seconds: 7));
+    await _settle(tester);
+    expect(await pending, DoneCardResult.notYet);
+    expect(find.byType(DoneCard), findsNothing);
+  });
+
   testWidgets('Cleared on the Done card clears the table and resolves', (
     tester,
   ) async {
@@ -892,7 +924,7 @@ void main() {
     final host = tester.element(find.byType(_Host));
     final pending = showDoneCard(host, _saleOutcome());
     await _settle(tester);
-    await tester.tap(find.text('Cleared'));
+    await tester.tap(find.text('T5 · Cleared'));
     await _settle(tester);
     expect(await pending, DoneCardResult.cleared);
   });
@@ -1012,7 +1044,7 @@ void main() {
       await _settle(tester);
       expect(find.byType(LoyaltyAwardSheet), findsNothing);
       expect(find.byType(DoneCard), findsOneWidget, reason: 'the card stays');
-      await tester.tap(find.text('Not yet'));
+      await tester.tap(find.text('New sale'));
       await _settle(tester);
       expect(await done, DoneCardResult.notYet);
       MadarSheet.close<void>(tester.element(find.byType(ChargeSheet)));

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
@@ -12,8 +13,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// The modal's width on a tablet — the canvas draws it at 620.
-const double _modalWidth = 620;
+/// The modal's width on a tablet: two columns — how they pay on the start
+/// side, what is owed, handed over and given back on the end side.
+const double _modalWidth = 880;
+
+/// The end column of the tablet modal: the figures and the one Charge.
+const double _readoutWidth = 340;
+
+/// The tablet modal's height cap — a two-column body needs a bounded height,
+/// and the figures sit at the foot of the end column where the thumb is.
+const double _modalMaxHeight = 700;
 
 /// How much of the window the modal may take before its middle scrolls.
 const double _modalHeightFraction = 0.92;
@@ -116,14 +125,18 @@ Future<ChargeOutcome?> _showChargeModal(
   return showMadarDialogSurface<ChargeOutcome>(
     context,
     pageBuilder: (context) {
-      final maxHeight =
-          MediaQuery.sizeOf(context).height * _modalHeightFraction;
+      final window = MediaQuery.sizeOf(context);
+      final maxHeight = math.min(
+        window.height * _modalHeightFraction,
+        _modalMaxHeight,
+      );
       return SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: _modalWidth,
+              maxWidth: math.min(_modalWidth, window.width - Space.xl * 2),
               maxHeight: maxHeight,
+              minHeight: maxHeight,
             ),
             child: Material(
               type: MaterialType.transparency,
@@ -133,7 +146,10 @@ Future<ChargeOutcome?> _showChargeModal(
                   borderRadius: BorderRadius.circular(Radii.sheet),
                   boxShadow: MadarElevation.raised.shadows(colors, dark: dark),
                 ),
-                child: ChargeSheet(target: target),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(Radii.sheet),
+                  child: ChargeSheet(target: target),
+                ),
               ),
             ),
           ),
@@ -247,31 +263,171 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
     String tr(String key) => chargeTr(bridge, key);
 
     final block = s.block;
+    // Every dimmed state says why — a grey bar with no words was the audit's
+    // "Charge dim, no reason".
     final reason = switch (block) {
       ChargeBlock.noShift => bridge.tr(key: 'waiter.need_shift'),
       ChargeBlock.noMethods => tr('charge.no_methods'),
+      ChargeBlock.needTender when s.splitMode => tr('charge.reason_split'),
+      ChargeBlock.needTender when s.isCash => tr('charge.reason_cash'),
+      ChargeBlock.needTender => tr('charge.reason_method'),
       _ => null,
     };
     // Money is moving: nothing may close the drawer until it has landed — not
     // the close tile, not system back, not the tablet's scrim.
     final paying = block == ChargeBlock.charging;
 
-    return PopScope<Object?>(
-      canPop: !paying,
-      child: Padding(
+    final quiet = s.takesTender
+        ? _QuietRows(
+            state: s,
+            tr: tr,
+            bridge: bridge,
+            pickedDiscount: notifier.pickedDiscount,
+            onDiscount: () => unawaited(_pickDiscount(context, s)),
+            onMember: () => unawaited(
+              showMadarSheet<void>(
+                context,
+                size: SheetSize.hug,
+                maxWidth: Responsive.sheetCompactMaxWidth,
+                builder: (_) => const LoyaltyScanSheet(),
+              ),
+            ),
+            onRemoveMember: () => unawaited(
+              _confirmRemoveMember(context, bridge, notifier.clearLoyalty),
+            ),
+            onToggleReward: notifier.toggleReward,
+            onOpenTip: notifier.openTip,
+            onCloseTip: notifier.closeTip,
+            onTip: notifier.setTip,
+            onTipMethod: notifier.setTipMethod,
+          )
+        : null;
+    final wide = layout.isTablet;
+    final tender = <Widget>[
+      if (s.paymentMethods.length >= 2)
+        _MethodsRow(
+          state: s,
+          tr: tr,
+          onSelect: notifier.selectMethod,
+          onToggleSplit: notifier.toggleSplit,
+        ),
+      if (s.splitMode)
+        _SplitAllocator(
+          state: s,
+          remainingLabel: bridge.tr(key: 'order.split_remaining'),
+          restLabel: tr('charge.rest_here'),
+          onAmount: notifier.setSplitAmount,
+          onRest: notifier.fillSplitRest,
+        )
+      else if (s.takesTender && s.isCash)
+        _CashSection(
+          state: s,
+          tr: tr,
+          bridge: bridge,
+          layout: layout,
+          showChange: !wide,
+          onTendered: notifier.setTendered,
+          onExact: () => unawaited(notifier.chargeExact()),
+        ),
+    ];
+    final error = s.error == null
+        ? null
+        : NoticeBanner(
+            text: s.error!.of(bridge),
+            tone: ChipTone.danger,
+            icon: 'exclamationmark.circle',
+          );
+    final bar = MadarMoneyBar(
+      label: tr('charge.title'),
+      amountMinor: s.chargeTotalMinor,
+      currency: s.currency,
+      enabled: block == ChargeBlock.none,
+      loading: paying || block == ChargeBlock.loading,
+      reason: reason,
+      onTap: () => unawaited(notifier.charge()),
+    );
+    final oneMethod = s.paymentMethods.length == 1 && s.effectiveMethod != null
+        // One method: no grid — the bar names it.
+        ? Text(
+            s.effectiveMethod!.name,
+            textAlign: TextAlign.center,
+            style: MadarType.bodySm.copyWith(color: colors.textMuted),
+          )
+        : null;
+    final header = _ChargeHeader(
+      target: widget.target,
+      tr: tr,
+      bridge: bridge,
+      closing: !paying,
+      onClose: () => Navigator.of(context).maybePop(),
+    );
+
+    final Widget body;
+    if (wide) {
+      // iPad / desktop: two columns. Start — how they pay: the methods, the
+      // cash notes and the amount, then discount · member · tip. End — the
+      // figures a teller reads aloud (total, received, change) over the one
+      // Charge, which never scrolls away.
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(pad, pad, pad, Space.lg),
+            child: header,
+          ),
+          const MadarHairline(),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _scroll,
+                    padding: EdgeInsetsDirectional.all(pad),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      spacing: Space.xl,
+                      children: [...tender, ?quiet],
+                    ),
+                  ),
+                ),
+                const VerticalDivider(width: 1, thickness: 1),
+                SizedBox(
+                  width: _readoutWidth,
+                  child: ColoredBox(
+                    color: colors.bg,
+                    child: Padding(
+                      padding: EdgeInsetsDirectional.all(pad),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: Space.lg,
+                        children: [
+                          _Hero(state: s, tr: tr, bridge: bridge, flat: true),
+                          if (!s.splitMode && s.takesTender && s.isCash)
+                            _Readout(state: s, bridge: bridge),
+                          const Spacer(),
+                          ?error,
+                          bar,
+                          ?oneMethod,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      body = Padding(
         padding: EdgeInsetsDirectional.all(pad),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.lg,
           children: [
-            _ChargeHeader(
-              target: widget.target,
-              tr: tr,
-              bridge: bridge,
-              closing: !paying,
-              onClose: () => Navigator.of(context).maybePop(),
-            ),
+            header,
             Flexible(
               child: SingleChildScrollView(
                 controller: _scroll,
@@ -280,86 +436,21 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
                   spacing: Space.lg,
                   children: [
                     _Hero(state: s, tr: tr, bridge: bridge),
-                    if (s.takesTender)
-                      _QuietRows(
-                        state: s,
-                        tr: tr,
-                        bridge: bridge,
-                        pickedDiscount: notifier.pickedDiscount,
-                        onDiscount: () => unawaited(_pickDiscount(context, s)),
-                        onMember: () => unawaited(
-                          showMadarSheet<void>(
-                            context,
-                            size: SheetSize.hug,
-                            maxWidth: Responsive.sheetCompactMaxWidth,
-                            builder: (_) => const LoyaltyScanSheet(),
-                          ),
-                        ),
-                        onRemoveMember: () => unawaited(
-                          _confirmRemoveMember(
-                            context,
-                            bridge,
-                            notifier.clearLoyalty,
-                          ),
-                        ),
-                        onToggleReward: notifier.toggleReward,
-                        onOpenTip: notifier.openTip,
-                        onCloseTip: notifier.closeTip,
-                        onTip: notifier.setTip,
-                        onTipMethod: notifier.setTipMethod,
-                      ),
-                    if (s.paymentMethods.length >= 2)
-                      _MethodsRow(
-                        state: s,
-                        tr: tr,
-                        onSelect: notifier.selectMethod,
-                        onToggleSplit: notifier.toggleSplit,
-                      ),
-                    if (s.splitMode)
-                      _SplitAllocator(
-                        state: s,
-                        remainingLabel: bridge.tr(key: 'order.split_remaining'),
-                        onAmount: notifier.setSplitAmount,
-                      )
-                    else if (s.takesTender && s.isCash)
-                      _CashSection(
-                        state: s,
-                        tr: tr,
-                        bridge: bridge,
-                        layout: layout,
-                        onTendered: notifier.setTendered,
-                        onExact: () => unawaited(notifier.chargeExact()),
-                      ),
-                    if (s.error case final error?)
-                      NoticeBanner(
-                        text: error.of(bridge),
-                        tone: ChipTone.danger,
-                        icon: 'exclamationmark.circle',
-                      ),
+                    ?quiet,
+                    ...tender,
+                    ?error,
                   ],
                 ),
               ),
             ),
-            MadarMoneyBar(
-              label: tr('charge.title'),
-              amountMinor: s.chargeTotalMinor,
-              currency: s.currency,
-              enabled: block == ChargeBlock.none,
-              loading: paying || block == ChargeBlock.loading,
-              reason: reason,
-              onTap: () => unawaited(notifier.charge()),
-            ),
-            if (s.paymentMethods.length == 1 && s.effectiveMethod != null)
-              // One method: no grid — the bar names it.
-              Text(
-                s.effectiveMethod!.name,
-                textAlign: TextAlign.center,
-                style: MadarType.bodySm.copyWith(color: colors.textMuted),
-              ),
+            bar,
+            ?oneMethod,
           ],
         ),
-      ),
-    );
+      );
+    }
+
+    return PopScope<Object?>(canPop: !paying, child: body);
   }
 
   /// The discount picker: No discount + every active discount as chips.
@@ -493,11 +584,20 @@ class _ChargeHeader extends StatelessWidget {
 /// TOTAL (or SUBTOTAL, on a bill) as the hero figure, with the one-line
 /// breakdown under it worded per the tax policy.
 class _Hero extends StatelessWidget {
-  const _Hero({required this.state, required this.tr, required this.bridge});
+  const _Hero({
+    required this.state,
+    required this.tr,
+    required this.bridge,
+    this.flat = false,
+  });
 
   final CheckoutState state;
   final String Function(String) tr;
   final MadarBridge bridge;
+
+  /// On the tablet's figures column, which is already the sunk ground: a
+  /// surface card instead of a second grey box.
+  final bool flat;
 
   @override
   Widget build(BuildContext context) {
@@ -505,7 +605,8 @@ class _Hero extends StatelessWidget {
     final s = state;
     final sum = s.summary;
     final phone = context.isPhone;
-    String money(int minor) => Money.format(minor);
+    // An LTR island, so "Subtotal 175.00" reads the right way round in Arabic.
+    String money(int minor) => MadarFormat.ltr(Money.format(minor));
 
     // The breakdown, as "Subtotal 175.00 · Service 21.00 · VAT incl. 24.07".
     // Only lines that exist: a zero rate draws nothing.
@@ -548,8 +649,9 @@ class _Hero extends StatelessWidget {
     return Container(
       padding: const EdgeInsetsDirectional.all(_heroPad),
       decoration: BoxDecoration(
-        color: colors.bg,
+        color: flat ? colors.surface : colors.bg,
         borderRadius: BorderRadius.circular(_heroRadius),
+        border: flat ? Border.all(color: colors.borderLight) : null,
       ),
       child: Column(
         spacing: Space.xs,
@@ -991,13 +1093,16 @@ class _MethodsRow extends StatelessWidget {
       spacing: Space.sm + 2,
       runSpacing: Space.sm + 2,
       children: [
-        for (final m in s.paymentMethods)
-          _MethodTile(
-            method: m,
-            tr: tr,
-            selected: m.id == selected,
-            onTap: () => onSelect(m.id),
-          ),
+        // In a split the allocator below names every method with its own
+        // amount; the tiles above it were the same list twice.
+        if (!s.splitMode)
+          for (final m in s.paymentMethods)
+            _MethodTile(
+              method: m,
+              tr: tr,
+              selected: m.id == selected,
+              onTap: () => onSelect(m.id),
+            ),
         if (s.canSplit)
           SizedBox(
             width: double.infinity,
@@ -1190,12 +1295,18 @@ class _SplitAllocator extends StatelessWidget {
   const _SplitAllocator({
     required this.state,
     required this.remainingLabel,
+    required this.restLabel,
     required this.onAmount,
+    required this.onRest,
   });
 
   final CheckoutState state;
   final String remainingLabel;
+
+  /// "Rest here" — the compact action that puts what is left on one method.
+  final String restLabel;
   final void Function(String id, int minor) onAmount;
+  final ValueChanged<String> onRest;
 
   @override
   Widget build(BuildContext context) {
@@ -1225,6 +1336,13 @@ class _SplitAllocator extends StatelessWidget {
                   onAmountMinor: (minor) => onAmount(m.id, minor),
                   currencyCode: s.currency,
                 ),
+              ),
+              MadarButton(
+                label: restLabel,
+                variant: MadarButtonVariant.secondary,
+                size: MadarButtonSize.compact,
+                enabled: s.splitRemaining > 0,
+                onTap: () => onRest(m.id),
               ),
             ],
           ),
@@ -1261,6 +1379,70 @@ class _SplitAllocator extends StatelessWidget {
 
 // ── Cash ─────────────────────────────────────────────────────────────────
 
+/// The tablet's big figures under the total: what the customer handed over
+/// and what goes back (or what is still short), read across the counter.
+class _Readout extends StatelessWidget {
+  const _Readout({required this.state, required this.bridge});
+
+  final CheckoutState state;
+  final MadarBridge bridge;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final s = state;
+    final typed = s.tenderedMinor > 0;
+    final short = typed && s.shortMinor > 0;
+    Widget line(String label, Widget figure) => Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Expanded(child: _Eyebrow(label)),
+        figure,
+      ],
+    );
+    return MadarCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.md,
+        children: [
+          line(
+            bridge.tr(key: 'order.cash_received'),
+            typed
+                ? AnimatedMoneyText(
+                    s.tenderedMinor,
+                    currency: s.currency,
+                    style: MadarType.moneyMd,
+                    color: colors.textPrimary,
+                  )
+                : Text(
+                    '—',
+                    style: MadarType.moneyMd.copyWith(color: colors.textMuted),
+                  ),
+          ),
+          const MadarHairline(light: true),
+          line(
+            bridge.tr(key: short ? 'order.short_by' : 'order.change'),
+            typed
+                ? AnimatedMoneyText(
+                    short ? s.shortMinor : s.changeMinor,
+                    currency: s.currency,
+                    style: MadarType.moneyDisplay,
+                    color: short ? colors.danger : colors.success,
+                  )
+                : Text(
+                    '—',
+                    style: MadarType.moneyDisplay.copyWith(
+                      color: colors.textMuted,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// CASH RECEIVED: Exact (the lit primary — it charges directly), the two
 /// round notes at or above the due, the typed amount, and the change.
 class _CashSection extends StatelessWidget {
@@ -1271,12 +1453,16 @@ class _CashSection extends StatelessWidget {
     required this.layout,
     required this.onTendered,
     required this.onExact,
+    this.showChange = true,
   });
 
   final CheckoutState state;
   final String Function(String) tr;
   final MadarBridge bridge;
   final MadarLayout layout;
+
+  /// Off on the tablet, whose figures column carries the change in large.
+  final bool showChange;
   final ValueChanged<int> onTendered;
   final VoidCallback onExact;
 
@@ -1343,7 +1529,7 @@ class _CashSection extends StatelessWidget {
                 currencyCode: s.currency,
               ),
             ),
-            if (s.showsChange)
+            if (s.showsChange && showChange)
               ConstrainedBox(
                 constraints: const BoxConstraints(minWidth: 110),
                 child: Column(
@@ -1419,6 +1605,45 @@ class _PresetTile extends StatelessWidget {
 }
 
 // ── Discount sheet ───────────────────────────────────────────────────────
+
+/// The cart's discount, picked from the cart itself — before Charge.
+///
+/// The same sheet Charge opens, over the same core calls: the core prices the
+/// discount live, so the cart's figures move the moment it is applied. Returns
+/// whether anything was picked (the caller re-reads its cart).
+Future<bool> showCartDiscountPicker(BuildContext context, WidgetRef ref) async {
+  final bridge = ref.read(bridgeProvider);
+  final List<DiscountView> discounts;
+  final String? current;
+  try {
+    discounts = await bridge.listDiscounts();
+    current = await bridge.cartDiscountId();
+  } on Object {
+    return false;
+  }
+  if (!context.mounted) return false;
+  final picked = await showMadarSheet<_DiscountPick>(
+    context,
+    size: SheetSize.hug,
+    maxWidth: Responsive.sheetCompactMaxWidth,
+    builder: (_) => _DiscountSheet(
+      discounts: discounts.where((d) => d.isActive).toList(),
+      current: current,
+    ),
+  );
+  if (picked == null) return false;
+  try {
+    final id = picked.discount?.id;
+    if (id != null) {
+      await bridge.cartSetDiscount(discountId: id);
+    } else {
+      await bridge.cartClearDiscount();
+    }
+  } on Object {
+    return false;
+  }
+  return true;
+}
 
 /// What the discount sheet pops with. A null [discount] is "No discount";
 /// the sheet dismissing pops nothing.

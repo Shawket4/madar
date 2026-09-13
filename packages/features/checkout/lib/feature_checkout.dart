@@ -12,7 +12,13 @@
 library;
 
 export 'src/charge_sheet.dart'
-    show ChargeSheet, DoneCardCallback, discountLabel, paymentGlyph, showCharge;
+    show
+        ChargeSheet,
+        DoneCardCallback,
+        discountLabel,
+        paymentGlyph,
+        showCartDiscountPicker,
+        showCharge;
 export 'src/charge_strings.dart' show chargeTr;
 export 'src/charge_target.dart'
     show
