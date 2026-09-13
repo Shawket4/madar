@@ -614,7 +614,8 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
           count: state.transferQueue.length,
           onTap: () => unawaited(_openWaitlist()),
         ),
-      if (layout.isTablet) SizedBox(width: 200, child: segment),
+      if (layout.isTablet && allTables.isNotEmpty)
+        SizedBox(width: 200, child: segment),
     ];
 
     // ONE row: the sections, then the room's state as filters.
@@ -672,7 +673,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
-        if (layout.isPhone) segment,
+        if (layout.isPhone && allTables.isNotEmpty) segment,
         if (allTables.isNotEmpty) chipRow,
       ],
     );

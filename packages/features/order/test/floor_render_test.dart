@@ -435,6 +435,31 @@ void main() {
     await _capture(tester, 'phone-sheet');
   });
 
+  testWidgets('floor terrace', (tester) async {
+    await _mount(tester, device: _Device.ipad);
+    await tester.tap(find.text('Terrace'));
+    await _settle(tester);
+    await _capture(tester, 'ipad-terrace');
+  });
+
+  testWidgets('floor list on iPad, a table selected', (tester) async {
+    await _mount(tester, device: _Device.ipad);
+    await tester.tap(find.text(coreWord('tables.view_list')));
+    await _settle(tester);
+    await tester.tap(find.text('T3').first);
+    await _settle(tester);
+    await _capture(tester, 'ipad-list');
+  });
+
+  testWidgets('floor move mode', (tester) async {
+    await _mount(tester, device: _Device.ipad);
+    await tester.tap(find.text('T3').first);
+    await _settle(tester);
+    await tester.tap(find.byKey(const ValueKey('floor.action.move')));
+    await _settle(tester);
+    await _capture(tester, 'ipad-move');
+  });
+
   testWidgets('floor empty', (tester) async {
     await _mount(tester, device: _Device.ipad, empty: true);
     await _capture(tester, 'ipad-empty');

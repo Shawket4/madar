@@ -122,13 +122,13 @@ class FloorWorklist extends StatelessWidget {
         const SizedBox(height: Space.sm),
         for (final (i, r) in rows.indexed) ...[
           if (i > 0) const MadarHairline(light: true),
-          _row(r),
+          _row(r, context.madarColors),
         ],
       ],
     );
   }
 
-  Widget _row(FloorRow r) {
+  Widget _row(FloorRow r, MadarColors colors) {
     final state = tableGlyphState(r.table, r.ticket, now: now);
     final seated = r.seatedFor(now);
     final (FloorAction? cta, String? ctaLabel) = switch (r.urgency) {
@@ -159,6 +159,7 @@ class FloorWorklist extends StatelessWidget {
       minor: r.model.billTotalMinor,
       currency: currency,
       rail: floorToneOf(r.urgency),
+      railColor: r.urgency == FloorUrgency.seated ? colors.info : null,
       ctaLabel: ctaLabel,
       onCta: cta == null ? null : () => onAction(cta, r.table),
       onTap: () => onSelect(r.table),

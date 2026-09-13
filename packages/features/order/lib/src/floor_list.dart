@@ -512,7 +512,7 @@ class FloorListView extends StatelessWidget {
               children: [
                 for (final (j, r) in band.value.indexed) ...[
                   if (j > 0) const MadarHairline(light: true),
-                  _row(r),
+                  _row(r, colors),
                 ],
               ],
             ),
@@ -522,7 +522,7 @@ class FloorListView extends StatelessWidget {
     );
   }
 
-  Widget _row(FloorRow r) {
+  Widget _row(FloorRow r, MadarColors colors) {
     final seated = r.seatedFor(now);
     final model = r.model;
     final (FloorAction? act, String? label) = switch (r.urgency) {
@@ -555,6 +555,8 @@ class FloorListView extends StatelessWidget {
         minor: model.billTotalMinor,
         currency: currency,
         rail: _toneOf(r.urgency),
+        // The plan's blue for a party, not the near-black accent.
+        railColor: r.urgency == FloorUrgency.seated ? colors.info : null,
         selected: r.table.id == selectedId || r.table.id == armedId,
         ctaLabel: onAction == null ? null : label,
         onCta: onAction == null || act == null

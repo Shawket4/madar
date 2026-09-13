@@ -60,6 +60,7 @@ class MadarListRow extends StatelessWidget {
        currency = '',
        status = null,
        rail = null,
+       railColor = null,
        selected = false,
        ctaLabel = null,
        onCta = null,
@@ -80,6 +81,7 @@ class MadarListRow extends StatelessWidget {
        valueText = null,
        status = null,
        rail = null,
+       railColor = null,
        selected = false,
        ctaLabel = null,
        onCta = null,
@@ -95,6 +97,7 @@ class MadarListRow extends StatelessWidget {
     this.value,
     this.status,
     this.rail,
+    this.railColor,
     this.ctaLabel,
     this.onCta,
     this.onTap,
@@ -120,6 +123,7 @@ class MadarListRow extends StatelessWidget {
        valueText = null,
        status = null,
        rail = null,
+       railColor = null,
        ctaLabel = null,
        onCta = null,
        trailing = null,
@@ -153,6 +157,10 @@ class MadarListRow extends StatelessWidget {
 
   /// The 4px state rail at the start edge; null draws none.
   final MadarTone? rail;
+
+  /// A rail in a colour outside the five tones — the floor's occupied blue,
+  /// so a row and the table it describes agree. Wins over [rail].
+  final Color? railColor;
 
   /// A compact call to action before the chevron ("Settle").
   final String? ctaLabel;
@@ -263,6 +271,7 @@ class MadarListRow extends StatelessWidget {
     }
 
     final railColor =
+        this.railColor ??
         rail?.color(colors) ??
         (variant == MadarListRowVariant.bill && selected
             ? colors.accent
@@ -427,11 +436,7 @@ class MadarSummaryLine extends StatelessWidget {
             signed: signed,
             style: figureStyle,
           )
-        : Text(
-            MadarFormat.ltr(value ?? ''),
-            maxLines: 1,
-            style: figureStyle,
-          );
+        : Text(MadarFormat.ltr(value ?? ''), maxLines: 1, style: figureStyle);
     return ConstrainedBox(
       constraints: BoxConstraints(
         minHeight: emphasis ? emphasisHeight : height,

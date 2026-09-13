@@ -377,6 +377,7 @@ class _TableGlyphState extends State<TableGlyph>
                         state == TableGlyphState.ready,
                     pulse: _pulse.value,
                     solid: w.selected || w.moveRole == TableMoveRole.source,
+                    target: w.moveRole == TableMoveRole.target,
                   ),
                 ),
               ),
@@ -463,6 +464,7 @@ class _TableGlyphState extends State<TableGlyph>
   }
 
   Color _haloColor(MadarColors c, TableGlyphState state) {
+    if (widget.moveRole == TableMoveRole.source) return c.info;
     if (widget.selected) return c.textPrimary;
     return switch (widget.moveRole) {
       TableMoveRole.source => c.info,
@@ -949,6 +951,7 @@ class _HaloPainter extends CustomPainter {
     required this.glow,
     required this.pulse,
     required this.solid,
+    this.target = false,
   });
 
   final bool isCircle;
@@ -960,9 +963,34 @@ class _HaloPainter extends CustomPainter {
   final double pulse;
   final bool solid;
 
+  /// A move's valid destination: a stronger glow and a light ring.
+  final bool target;
+
   @override
   void paint(Canvas canvas, Size size) {
     final body = Offset.zero & size;
+    if (target) {
+      final r = body.inflate(gap);
+      canvas
+        ..drawPath(
+          _shapePath(
+            body.inflate(gap * 1.4),
+            isCircle: isCircle,
+            corner: corner + gap,
+          ),
+          Paint()
+            ..color = color.withValues(alpha: 0.28)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, gap),
+        )
+        ..drawPath(
+          _shapePath(r, isCircle: isCircle, corner: corner + gap),
+          Paint()
+            ..color = color.withValues(alpha: 0.8)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = width * 0.6,
+        );
+      return;
+    }
     if (glow) {
       // 0 → 1 → 0 across one breath.
       final breath = math.sin(pulse * math.pi);
@@ -993,6 +1021,7 @@ class _HaloPainter extends CustomPainter {
       old.color != color ||
       old.glow != glow ||
       old.solid != solid ||
+      old.target != target ||
       old.gap != gap;
 }
 
