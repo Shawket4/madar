@@ -173,6 +173,13 @@ class ReceiptPaper extends ConsumerWidget {
               left: tr('order.discount'),
               right: '−${_money(r.discountMinor)}',
             ),
+          // The service charge before the tax, as the printed receipt has it:
+          // a charge the customer did not choose is stated on its own line.
+          if (r.serviceChargeMinor > 0)
+            _MoneyRow(
+              left: tr('order.service_charge'),
+              right: _money(r.serviceChargeMinor),
+            ),
           if (r.taxMinor > 0)
             _MoneyRow(left: tr('order.tax'), right: _money(r.taxMinor)),
           if (r.deliveryFeeMinor > 0)
@@ -187,7 +194,12 @@ class ReceiptPaper extends ConsumerWidget {
           ),
           if (r.tipMinor > 0)
             _MoneyRow(left: tr('order.tip'), right: _money(r.tipMinor)),
-          if (r.isCash) ...[
+          // A split lists what each method paid; there is no single cash
+          // handed over to show, and "Cash 0.00 / Change 0.00" was a lie.
+          if (r.payments.isNotEmpty)
+            for (final leg in r.payments)
+              _MoneyRow(left: leg.label, right: _money(leg.amountMinor))
+          else if (r.isCash) ...[
             _MoneyRow(
               left: tr('receipt.cash'),
               right: _money(r.amountTenderedMinor),

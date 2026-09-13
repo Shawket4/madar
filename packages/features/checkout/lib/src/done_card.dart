@@ -4,7 +4,6 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/src/charge_strings.dart';
 import 'package:feature_checkout/src/charge_target.dart';
-import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/loyalty_award_sheet.dart';
 import 'package:feature_checkout/src/receipt_printing.dart';
 import 'package:flutter/material.dart';
@@ -89,6 +88,23 @@ class _DoneCardState extends ConsumerState<DoneCard> {
   late PrintState _print = widget.outcome.printState;
   bool _clearing = false;
   String? _clearError;
+
+  @override
+  void initState() {
+    super.initState();
+    // The auto-print is still running in the background: say "Printing…"
+    // until it answers. It always answers — a timeout is a state too.
+    final job = widget.outcome.printJob;
+    if (job != null) {
+      unawaited(
+        job.then((result) {
+          if (mounted && _print == PrintState.printing) {
+            setState(() => _print = result);
+          }
+        }),
+      );
+    }
+  }
 
   Future<void> _reprint() async {
     final receipt = widget.outcome.receipt;
@@ -236,8 +252,9 @@ class _DoneCardState extends ConsumerState<DoneCard> {
 
     final actions = <Widget>[
       // Only where a programme runs — and the sale must name itself.
-      if (o.canAwardPoints &&
-          ref.watch(checkoutProvider.select((s) => s.loyaltyOffered)))
+      // Read off the OUTCOME: the Charge session may already be gone, and a
+      // fresh one knows nothing about the programme.
+      if (o.canAwardPoints && o.loyaltyOffered)
         MadarButton(
           label: bridge.tr(key: 'loyalty.add_points'),
           glyph: MadarGlyph.star,

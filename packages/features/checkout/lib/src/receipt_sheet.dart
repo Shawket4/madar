@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_checkout/src/checkout_provider.dart';
 import 'package:feature_checkout/src/receipt_paper.dart';
+import 'package:feature_checkout/src/receipt_printing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -77,48 +77,42 @@ class ReceiptPreviewNotifier extends Notifier<ReceiptPreviewState> {
     _update((s) => s.copyWith(clearToast: true));
   }
 
-  /// Render [receipt] in the core and stream it to the configured printer
-  /// (Bluetooth or network, whichever the device is set to). Guards on the
-  /// device's printer config: with no printer bound it raises a warning toast
-  /// instead of attempting the send.
+  /// Print [receipt] through the one shared print path ([printReceiptView]:
+  /// same width, brand, timeout and failure handling as the Charge's
+  /// auto-print), then say how it went. No drawer kick — this is a preview /
+  /// reprint surface.
   Future<void> print(ReceiptView receipt) async {
     if (state.printing) return;
     final bridge = _bridge;
     String tr(String key) => bridge.tr(key: key);
-    final config = bridge.deviceConfig();
-    final tx = ref.read(printerServiceProvider).activeTransport();
-    if (tx == null) {
-      _toast(
-        tr('receipt.no_printer'),
-        tone: ChipTone.warning,
-        icon: 'exclamationmark.triangle',
-      );
-      return;
-    }
     _update((s) => s.copyWith(printing: true));
-    try {
-      final bytes = await bridge.renderReceipt(
-        receipt: receipt,
-        storeName: config.branchName ?? '',
-        currency: bridge.currentSession()?.currencyCode ?? '',
-        width: kReceiptChars,
-        brand: printerBrandOf(config.printerBrand),
-      );
-      await tx.send(bytes);
-      _toast(
-        tr('receipt.printed'),
-        tone: ChipTone.success,
-        icon: 'checkmark.circle',
-      );
-    } on Exception {
-      _toast(
-        tr('receipt.print_failed'),
-        tone: ChipTone.danger,
-        icon: 'xmark.circle',
-      );
-    } finally {
-      _update((s) => s.copyWith(printing: false));
+    final result = await printReceiptView(
+      bridge,
+      ref.read(printerServiceProvider),
+      receipt,
+      kickDrawer: false,
+    );
+    switch (result) {
+      case PrintState.noPrinter:
+        _toast(
+          tr('receipt.no_printer'),
+          tone: ChipTone.warning,
+          icon: 'exclamationmark.triangle',
+        );
+      case PrintState.printed:
+        _toast(
+          tr('receipt.printed'),
+          tone: ChipTone.success,
+          icon: 'checkmark.circle',
+        );
+      case PrintState.failed || PrintState.idle || PrintState.printing:
+        _toast(
+          tr('receipt.print_failed'),
+          tone: ChipTone.danger,
+          icon: 'xmark.circle',
+        );
     }
+    _update((s) => s.copyWith(printing: false));
   }
 }
 

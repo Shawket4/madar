@@ -7,8 +7,8 @@
 /// down over the host. State lives in `checkoutProvider`; the session
 /// starts itself.
 ///
-/// Still exported for the screens that have not migrated: `CheckoutDrawer` (the previous checkout / settle / finalize drawer),
-/// `ReceiptSheet` (a receipt preview with Print + Done), `ReceiptPaper`.
+/// Also exported: `ReceiptSheet` (a receipt preview with Print + Done) and
+/// `ReceiptPaper`, for the history and shift screens' reprints.
 library;
 
 export 'src/charge_sheet.dart'
@@ -21,12 +21,10 @@ export 'src/charge_target.dart'
         ChargeOutcome,
         ChargeTarget,
         OnlineChargeTarget;
-export 'src/checkout_drawer.dart' show CheckoutDrawer;
 export 'src/checkout_provider.dart'
     show
         ChargeBlock,
         CheckoutNotifier,
-        CheckoutResult,
         CheckoutState,
         CheckoutSummary,
         RedeemableLine,
@@ -36,7 +34,12 @@ export 'src/loyalty_award_sheet.dart' show LoyaltyAwardSheet;
 export 'src/loyalty_scan_sheet.dart' show LoyaltyScanSheet;
 export 'src/receipt_paper.dart' show ReceiptPaper;
 export 'src/receipt_printing.dart'
-    show PrintState, kReceiptChars, printReceiptView, printerBrandOf;
+    show
+        PrintState,
+        kPrintTimeout,
+        kReceiptChars,
+        printReceiptView,
+        printerBrandOf;
 export 'src/receipt_sheet.dart'
     show
         ReceiptPreviewNotifier,

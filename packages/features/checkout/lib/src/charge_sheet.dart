@@ -38,11 +38,6 @@ const double _rewardRow = 44;
 const int _exactFlex = 16;
 const int _presetFlex = 10;
 
-/// Round-number cash presets in minor units; the two smallest at or above
-/// the due are offered beside Exact.
-const List<int> _cashPresets = [5000, 10000, 20000, 50000, 100000];
-const int _cashPresetCount = 2;
-
 /// A method tile's width band inside the [Wrap] — wide enough that "Cash"
 /// doesn't read as a stray chip, capped so one very long or Arabic name
 /// wraps its OWN text with an ellipsis rather than stretching the tile (and
@@ -68,20 +63,35 @@ Future<ChargeOutcome?> showCharge(
   VoidCallback? onPrinterSettings,
   DoneCardCallback? onDone,
 }) async {
-  final outcome = MadarLayout.of(context).isTablet
-      ? await _showChargeModal(context, target)
-      : await showMadarSheet<ChargeOutcome>(
-          context,
-          size: SheetSize.large,
-          builder: (_) => ChargeSheet(target: target),
-        );
-  if (outcome != null && presentDoneCard && context.mounted) {
+  // Hold the session for the whole presentation, not just while the sheet is
+  // mounted: a sheet put away while the charge is landing (a scrim tap that
+  // slipped past the lock, a drag) must still hand its outcome to the Done
+  // flow — the money is taken either way.
+  final container = ProviderScope.containerOf(context, listen: false);
+  final hold = container.listen(checkoutProvider, (_, _) {});
+  ChargeOutcome? outcome;
+  try {
+    outcome = MadarLayout.of(context).isTablet
+        ? await _showChargeModal(context, target)
+        : await showMadarSheet<ChargeOutcome>(
+            context,
+            size: SheetSize.large,
+            builder: (_) => ChargeSheet(target: target),
+          );
+    outcome ??= await container
+        .read(checkoutProvider.notifier)
+        .settledOutcome();
+  } finally {
+    hold.close();
+  }
+  final landed = outcome;
+  if (landed != null && presentDoneCard && context.mounted) {
     unawaited(
       showDoneCard(
         context,
-        outcome,
+        landed,
         onPrinterSettings: onPrinterSettings,
-      ).then((result) => onDone?.call(outcome, result)),
+      ).then((result) => onDone?.call(landed, result)),
     );
   }
   return outcome;
@@ -204,25 +214,19 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
     });
   }
 
-  void _resolve(ChargeOutcome outcome, PrintState printState) {
+  void _resolve(ChargeOutcome outcome) {
     if (_popped || !mounted) return;
     _popped = true;
-    MadarSheet.close(context, outcome.withPrintState(printState));
+    MadarSheet.close(context, outcome);
   }
 
   @override
   Widget build(BuildContext context) {
-    // The drawer pops once the money is taken AND the auto-print has said
-    // what happened — the Done card carries that answer and has no session
-    // left to ask.
-    ref.listen(checkoutProvider.select((s) => (s.outcome, s.isPlacingOrder)), (
-      _,
-      next,
-    ) {
-      final (outcome, busy) = next;
-      if (outcome != null && !busy) {
-        _resolve(outcome, ref.read(checkoutProvider).printState);
-      }
+    // The drawer pops the moment the money is taken. The receipt prints in
+    // the background; the outcome carries that job to the Done card, so a
+    // slow printer never holds the sale open.
+    ref.listen(checkoutProvider.select((s) => s.outcome), (_, outcome) {
+      if (outcome != null) _resolve(outcome);
     });
     // Anything that changes what is owed or handed over moves the figure
     // the teller reads next to the foot of the sheet; follow it there.
@@ -245,107 +249,115 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
     final block = s.block;
     final reason = switch (block) {
       ChargeBlock.noShift => bridge.tr(key: 'waiter.need_shift'),
+      ChargeBlock.noMethods => tr('charge.no_methods'),
       _ => null,
     };
+    // Money is moving: nothing may close the drawer until it has landed — not
+    // the close tile, not system back, not the tablet's scrim.
+    final paying = block == ChargeBlock.charging;
 
-    return Padding(
-      padding: EdgeInsetsDirectional.all(pad),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.lg,
-        children: [
-          _ChargeHeader(
-            target: widget.target,
-            tr: tr,
-            bridge: bridge,
-            onClose: () => Navigator.of(context).maybePop(),
-          ),
-          Flexible(
-            child: SingleChildScrollView(
-              controller: _scroll,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: Space.lg,
-                children: [
-                  _Hero(state: s, tr: tr, bridge: bridge),
-                  if (s.takesTender)
-                    _QuietRows(
-                      state: s,
-                      tr: tr,
-                      bridge: bridge,
-                      pickedDiscount: notifier.pickedDiscount,
-                      onDiscount: () => unawaited(_pickDiscount(context, s)),
-                      onMember: () => unawaited(
-                        showMadarSheet<void>(
-                          context,
-                          size: SheetSize.hug,
-                          maxWidth: Responsive.sheetCompactMaxWidth,
-                          builder: (_) => const LoyaltyScanSheet(),
+    return PopScope<Object?>(
+      canPop: !paying,
+      child: Padding(
+        padding: EdgeInsetsDirectional.all(pad),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.lg,
+          children: [
+            _ChargeHeader(
+              target: widget.target,
+              tr: tr,
+              bridge: bridge,
+              closing: !paying,
+              onClose: () => Navigator.of(context).maybePop(),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                controller: _scroll,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: Space.lg,
+                  children: [
+                    _Hero(state: s, tr: tr, bridge: bridge),
+                    if (s.takesTender)
+                      _QuietRows(
+                        state: s,
+                        tr: tr,
+                        bridge: bridge,
+                        pickedDiscount: notifier.pickedDiscount,
+                        onDiscount: () => unawaited(_pickDiscount(context, s)),
+                        onMember: () => unawaited(
+                          showMadarSheet<void>(
+                            context,
+                            size: SheetSize.hug,
+                            maxWidth: Responsive.sheetCompactMaxWidth,
+                            builder: (_) => const LoyaltyScanSheet(),
+                          ),
                         ),
-                      ),
-                      onRemoveMember: () => unawaited(
-                        _confirmRemoveMember(
-                          context,
-                          bridge,
-                          notifier.clearLoyalty,
+                        onRemoveMember: () => unawaited(
+                          _confirmRemoveMember(
+                            context,
+                            bridge,
+                            notifier.clearLoyalty,
+                          ),
                         ),
+                        onToggleReward: notifier.toggleReward,
+                        onOpenTip: notifier.openTip,
+                        onCloseTip: notifier.closeTip,
+                        onTip: notifier.setTip,
+                        onTipMethod: notifier.setTipMethod,
                       ),
-                      onToggleReward: notifier.toggleReward,
-                      onOpenTip: notifier.openTip,
-                      onCloseTip: notifier.closeTip,
-                      onTip: notifier.setTip,
-                      onTipMethod: notifier.setTipMethod,
-                    ),
-                  if (s.paymentMethods.length >= 2)
-                    _MethodsRow(
-                      state: s,
-                      tr: tr,
-                      onSelect: notifier.selectMethod,
-                      onToggleSplit: notifier.toggleSplit,
-                    ),
-                  if (s.splitMode)
-                    _SplitAllocator(
-                      state: s,
-                      remainingLabel: bridge.tr(key: 'order.split_remaining'),
-                      onAmount: notifier.setSplitAmount,
-                    )
-                  else if (s.takesTender && s.isCash)
-                    _CashSection(
-                      state: s,
-                      tr: tr,
-                      bridge: bridge,
-                      layout: layout,
-                      onTendered: notifier.setTendered,
-                      onExact: () => unawaited(notifier.chargeExact()),
-                    ),
-                  if (s.error case final error?)
-                    NoticeBanner(
-                      text: error.of(bridge),
-                      tone: ChipTone.danger,
-                      icon: 'exclamationmark.circle',
-                    ),
-                ],
+                    if (s.paymentMethods.length >= 2)
+                      _MethodsRow(
+                        state: s,
+                        tr: tr,
+                        onSelect: notifier.selectMethod,
+                        onToggleSplit: notifier.toggleSplit,
+                      ),
+                    if (s.splitMode)
+                      _SplitAllocator(
+                        state: s,
+                        remainingLabel: bridge.tr(key: 'order.split_remaining'),
+                        onAmount: notifier.setSplitAmount,
+                      )
+                    else if (s.takesTender && s.isCash)
+                      _CashSection(
+                        state: s,
+                        tr: tr,
+                        bridge: bridge,
+                        layout: layout,
+                        onTendered: notifier.setTendered,
+                        onExact: () => unawaited(notifier.chargeExact()),
+                      ),
+                    if (s.error case final error?)
+                      NoticeBanner(
+                        text: error.of(bridge),
+                        tone: ChipTone.danger,
+                        icon: 'exclamationmark.circle',
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-          MadarMoneyBar(
-            label: tr('charge.title'),
-            amountMinor: s.dueMinor + (s.splitMode ? 0 : s.tipMinor),
-            currency: s.currency,
-            enabled: block == ChargeBlock.none,
-            loading: block == ChargeBlock.charging,
-            reason: reason,
-            onTap: () => unawaited(notifier.charge()),
-          ),
-          if (s.paymentMethods.length == 1 && s.effectiveMethod != null)
-            // One method: no grid — the bar names it.
-            Text(
-              s.effectiveMethod!.name,
-              textAlign: TextAlign.center,
-              style: MadarType.bodySm.copyWith(color: colors.textMuted),
+            MadarMoneyBar(
+              label: tr('charge.title'),
+              amountMinor: s.chargeTotalMinor,
+              currency: s.currency,
+              enabled: block == ChargeBlock.none,
+              loading: paying || block == ChargeBlock.loading,
+              reason: reason,
+              onTap: () => unawaited(notifier.charge()),
             ),
-        ],
+            if (s.paymentMethods.length == 1 && s.effectiveMethod != null)
+              // One method: no grid — the bar names it.
+              Text(
+                s.effectiveMethod!.name,
+                textAlign: TextAlign.center,
+                style: MadarType.bodySm.copyWith(color: colors.textMuted),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -383,12 +395,16 @@ class _ChargeHeader extends StatelessWidget {
     required this.tr,
     required this.bridge,
     required this.onClose,
+    this.closing = true,
   });
 
   final ChargeTarget target;
   final String Function(String) tr;
   final MadarBridge bridge;
   final VoidCallback onClose;
+
+  /// False while a charge is in flight — the close tile is disabled.
+  final bool closing;
 
   @override
   Widget build(BuildContext context) {
@@ -464,6 +480,7 @@ class _ChargeHeader extends StatelessWidget {
         MadarGlyphTile(
           glyph: MadarGlyph.close,
           semanticLabel: bridge.tr(key: 'common.cancel'),
+          enabled: closing,
           onTap: onClose,
         ),
       ],
@@ -1268,10 +1285,12 @@ class _CashSection extends StatelessWidget {
     final colors = context.madarColors;
     final s = state;
     final due = s.dueCashMinor;
-    final presets = _cashPresets
-        .where((p) => p > due)
-        .take(_cashPresetCount)
-        .toList(growable: false);
+    // The round notes that cover the due — the one equal to it included —
+    // scaled by the currency's own minor digits. The core picks them.
+    final presets = bridge.cashQuickTenders(
+      dueMinor: due,
+      currency: s.currency,
+    );
     final typed = s.tenderedMinor > 0;
     final short = s.shortMinor > 0;
 
@@ -1287,9 +1306,9 @@ class _CashSection extends StatelessWidget {
         Expanded(
           flex: _presetFlex,
           child: _PresetTile(
-            amountMinor: p,
-            selected: s.tenderedMinor == p,
-            onTap: () => onTendered(p),
+            label: p.label,
+            selected: s.tenderedMinor == p.amountMinor,
+            onTap: () => onTendered(p.amountMinor),
           ),
         ),
     ];
@@ -1364,12 +1383,13 @@ class _CashSection extends StatelessWidget {
 /// stays the one lit primary in the row.
 class _PresetTile extends StatelessWidget {
   const _PresetTile({
-    required this.amountMinor,
+    required this.label,
     required this.selected,
     required this.onTap,
   });
 
-  final int amountMinor;
+  /// The note as the core words it: "200", never "200.00".
+  final String label;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1386,8 +1406,7 @@ class _PresetTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(Radii.control),
         ),
         child: Text(
-          // A whole note: "200", never "200.00".
-          '${amountMinor ~/ 100}',
+          label,
           textDirection: TextDirection.ltr,
           style: MadarType.numLg.copyWith(
             fontSize: 18,

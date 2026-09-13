@@ -70,7 +70,9 @@ class ChargeOutcome {
     this.tableId,
     this.tableLabel,
     this.loyaltyCustomerId,
+    this.loyaltyOffered = false,
     this.printState = PrintState.idle,
+    this.printJob,
   });
 
   final ChargeTarget target;
@@ -111,14 +113,34 @@ class ChargeOutcome {
   /// second scan.
   final String? loyaltyCustomerId;
 
+  /// The branch runs a loyalty programme, as the Charge session read it. The
+  /// Done card offers Add points on this — it has no session of its own to
+  /// ask, and asking the provider after the sheet closed read a fresh, empty
+  /// session that never knew about the programme.
+  final bool loyaltyOffered;
+
   /// How the auto-print went, so the Done card can say "Printed" or "Not
   /// printed — no printer" without a session to ask.
   final PrintState printState;
 
+  /// The auto-print still running in the background, when there is one. It
+  /// always completes (a timeout and every failure resolve to a state), and
+  /// the Done card shows "Printing…" until it does.
+  final Future<PrintState>? printJob;
+
   /// The Done card can offer Add points: something names the sale.
   bool get canAwardPoints => orderId != null || orderKey != null;
 
-  ChargeOutcome withPrintState(PrintState state) => ChargeOutcome(
+  ChargeOutcome withPrintState(PrintState state) =>
+      _copy(printState: state, printJob: null);
+
+  ChargeOutcome withPrintJob(Future<PrintState> job) =>
+      _copy(printState: PrintState.printing, printJob: job);
+
+  ChargeOutcome _copy({
+    required PrintState printState,
+    required Future<PrintState>? printJob,
+  }) => ChargeOutcome(
     target: target,
     queued: queued,
     amountMinor: amountMinor,
@@ -134,6 +156,8 @@ class ChargeOutcome {
     tableId: tableId,
     tableLabel: tableLabel,
     loyaltyCustomerId: loyaltyCustomerId,
-    printState: state,
+    loyaltyOffered: loyaltyOffered,
+    printState: printState,
+    printJob: printJob,
   );
 }

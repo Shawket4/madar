@@ -17,6 +17,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:flutter/material.dart';
@@ -150,6 +151,7 @@ final _ticket = TicketView(
   ticketRef: 'T-0412',
   tableId: 't5',
   status: 'ready',
+  ready: true,
   customerName: 'Omar',
   waiterName: 'Sara',
   guestCount: 4,
@@ -215,6 +217,7 @@ const _online = DeliveryOrderView(
 );
 
 ReceiptView _receipt({required bool queued, int? number}) => ReceiptView(
+  payments: const [],
   localOrderId: '8f2a4c1e-queued',
   orderNumber: number,
   isVoided: false,
@@ -273,6 +276,10 @@ class _FakeBridge implements MadarBridge {
     final name = invocation.memberName;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
+      // The core's REAL tables first (read out of i18n.rs), so the PNGs show
+      // the words that ship; the fixtures only cover a key the core lacks.
+      final real = coreWord(key, arabic: rtl);
+      if (real != key) return real;
       final words = rtl ? _ar : _en;
       return words[key] ?? key;
     }
@@ -340,8 +347,45 @@ class _FakeBridge implements MadarBridge {
     if (name == #loyaltyLookup) return Future<LoyaltyScanView>.value(_scan);
     if (name == #loyaltyAwardWindowOpen) return true;
     if (name == #clearTable) return Future<void>.value();
+    if (name == #tenderSummary) return fakeTenderSummary(invocation);
+    if (name == #cashQuickTenders) return fakeCashQuickTenders(invocation);
     return null;
   }
+}
+
+/// The core's `tender_summary`, restated for a test double (the Rust side is
+/// pinned by its own tests in checkout.rs).
+TenderSummaryView fakeTenderSummary(Invocation invocation) {
+  final a = invocation.namedArguments;
+  final due = a[#dueMinor] as int;
+  final tip = a[#tipMinor] as int;
+  final tipIsCash = a[#tipIsCash] as bool;
+  final tendered = a[#tenderedMinor] as int;
+  final splits = a[#splits] as List<CheckoutSplit>;
+  final dueCash = due + (tipIsCash ? tip : 0);
+  final allocated = splits
+      .map((l) => l.amountMinor)
+      .where((m) => m > 0)
+      .fold(0, (x, y) => x + y);
+  return TenderSummaryView(
+    chargeTotalMinor: due + tip,
+    dueCashMinor: dueCash,
+    changeMinor: tendered > dueCash ? tendered - dueCash : 0,
+    shortMinor: dueCash > tendered ? dueCash - tendered : 0,
+    splitAllocatedMinor: allocated,
+    splitRemainingMinor: due - allocated,
+  );
+}
+
+/// The core's `cash_quick_tenders` for two-digit currencies.
+List<CashQuickTenderView> fakeCashQuickTenders(Invocation invocation) {
+  final due = invocation.namedArguments[#dueMinor] as int;
+  if (due <= 0) return const [];
+  return [
+    for (final note in const [5, 10, 20, 50, 100, 200, 500, 1000, 2000])
+      if (note * 100 >= due)
+        CashQuickTenderView(amountMinor: note * 100, label: '$note'),
+  ].take(2).toList();
 }
 
 // Real words, so the picture shows what a person would read. Only the keys
@@ -568,6 +612,7 @@ ChargeOutcome _saleOutcome() => ChargeOutcome(
   changeMinor: 2500,
   tableId: 't5',
   tableLabel: 'T5',
+  loyaltyOffered: true,
   printState: PrintState.printed,
 );
 
@@ -582,6 +627,7 @@ ChargeOutcome _queuedOutcome() => ChargeOutcome(
   receipt: _receipt(queued: true),
   orderKey: '8f2a4c1e-queued',
   changeMinor: 2500,
+  loyaltyOffered: true,
   printState: PrintState.noPrinter,
 );
 
@@ -608,7 +654,10 @@ void main() {
       session.toggleReward(0);
       await tester.tap(find.text('200'));
       await _settle(tester);
-      expect(find.text('Omar Adel · 240 pts'), findsOneWidget);
+      expect(
+        find.text('Omar Adel · 240 ${coreWord('loyalty.unit_points')}'),
+        findsOneWidget,
+      );
       await _capture(tester, 'charge-bill-tablet');
       // Close it so the future resolves without a charge.
       Navigator.of(tester.element(find.byType(ChargeSheet))).pop();
