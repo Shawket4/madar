@@ -398,6 +398,9 @@ class _FakeBridge implements MadarBridge {
   /// How many times the menu was read from the core.
   int menuReads = 0;
 
+  /// The tables parked orders were moved to.
+  final List<String?> assigned = [];
+
   /// The parked orders discarded, by id.
   final List<String> discarded = [];
 
@@ -483,6 +486,10 @@ class _FakeBridge implements MadarBridge {
       parked.add(invocation.namedArguments[#tableId] as String?);
       _inHand.clear();
       return Future<bool>.value(false);
+    }
+    if (name == #assignDraftTable) {
+      assigned.add(invocation.namedArguments[#tableId] as String?);
+      return Future<void>.value();
     }
     if (name == #discardDraft) {
       discarded.add(invocation.namedArguments[#id] as String);

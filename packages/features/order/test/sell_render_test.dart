@@ -14,6 +14,7 @@ import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/feature_order.dart';
 import 'package:feature_order/src/bundle_detail_sheet.dart';
+import 'package:feature_order/src/held_orders_strip.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/sell_cart.dart';
 import 'package:feature_order/src/sell_screen.dart';
@@ -45,6 +46,56 @@ Future<void> _settle(WidgetTester tester) async {
 
 void main() {
   setUpAll(_loadFonts);
+
+  group('assigning a held order to a table', () {
+    Future<void> assignVia(WidgetTester tester, String chip) async {
+      // Invoked: the strip draws the pencil on the chip in hand only.
+      final tab = tester
+          .widget<HeldOrdersStrip>(find.byType(HeldOrdersStrip))
+          .tabs
+          .firstWhere((t) => t.key == chip);
+      tab.onRename!();
+      await _settle(tester);
+      await tester.tap(find.text(coreWord('tables.assign')).last);
+      await _settle(tester);
+      await tester.tap(find.text('T6').last);
+      await _settle(tester);
+    }
+
+    testWidgets('the order in hand parks ON the table, and says so', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge();
+      final c = await _mount(
+        tester,
+        screen: const SellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      final lines = c.read(orderProvider).drafts.length;
+      expect(lines, 1);
+      await assignVia(tester, '__current__');
+      expect(bridge.parked, ['t6'], reason: 'the lines go to the table');
+      expect(bridge.context, isNull, reason: 'the Sell tab stays takeaway');
+      expect(c.read(orderProvider).toast?.text, 'Held on T6');
+    });
+
+    testWidgets('a parked order moves to the table, and says so', (
+      tester,
+    ) async {
+      final bridge = _FakeBridge();
+      final c = await _mount(
+        tester,
+        screen: const SellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await assignVia(tester, 'd1');
+      expect(bridge.assigned, ['t6']);
+      expect(c.read(orderProvider).toast?.text, 'Held on T6');
+      await tester.pump(const Duration(seconds: 5));
+    });
+  });
 
   group('destructive acts confirm', () {
     testWidgets('clearing the cart asks, and Cancel keeps it', (tester) async {

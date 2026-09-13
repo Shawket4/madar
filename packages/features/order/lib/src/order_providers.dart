@@ -882,10 +882,31 @@ class OrderNotifier extends Notifier<OrderState> {
   /// the teller gets a toast instead of a failure.
   Future<void> holdCart() => _heldOnce(_holdCart);
 
-  Future<void> _holdCart() async {
-    if (state.cartLines.isEmpty) return;
-    final conflict = await _quiet(
-      () => _bridge.holdCartOnTable(
+  /// Park the order in hand ON [tableId] (null = the counter) — the strip's
+  /// "Assign table". It used to call [setCartTable], which is a context
+  /// SWITCH: the lines stayed behind in takeaway and the table got nothing,
+  /// so assigning looked like it did nothing. Says where it landed.
+  Future<void> holdCartOn(String? tableId, String? label) =>
+      _heldOnce(() async {
+        if (state.cartLines.isEmpty) return;
+        final ok = await _holdCart(tableId: tableId, override: true);
+        if (ok && tableId != null) {
+          showToast(
+            _tr('drafts.on_table').replaceAll('{table}', label ?? ''),
+            tone: ChipTone.success,
+            icon: 'checkmark.circle',
+          );
+        }
+      });
+
+  /// Returns whether the order parked where it was asked to (false on a lost
+  /// table race or a refusal — both already told the teller).
+  Future<bool> _holdCart({String? tableId, bool override = false}) async {
+    if (state.cartLines.isEmpty) return false;
+    MadarError? failed;
+    bool? conflict;
+    try {
+      conflict = await _bridge.holdCartOnTable(
         // The draft keeps the ORDER's identity: its free-text name (may be
         // empty → the chip shows the time), the id it was restored from (a
         // re-park is the SAME draft), and its first-item timestamp — so chips
@@ -893,9 +914,19 @@ class OrderNotifier extends Notifier<OrderState> {
         name: state.cartName ?? '',
         draftId: state.cartDraftId,
         startedAt: state.cartStartedAtIso,
-        tableId: state.cartTableId,
-      ),
-    );
+        tableId: override ? tableId : state.cartTableId,
+      );
+    } on MadarError catch (e) {
+      failed = e;
+    }
+    if (failed != null) {
+      showToast(
+        _bridge.humanMessage(failed),
+        tone: ChipTone.danger,
+        icon: 'xmark.circle',
+      );
+      return false;
+    }
     if (conflict ?? false) {
       showToast(_tr('tables.taken'), tone: ChipTone.warning, icon: 'table');
     }
@@ -907,6 +938,7 @@ class OrderNotifier extends Notifier<OrderState> {
     );
     await loadCart();
     await Future.wait([loadDrafts(), loadFloor()]);
+    return !(conflict ?? false);
   }
 
   /// Restore a held order into the cart (replacing the current one),
@@ -1571,7 +1603,11 @@ class OrderNotifier extends Notifier<OrderState> {
   }
 
   /// Assign / move / unassign a PARKED draft's table (loud on conflicts).
-  Future<bool> assignDraftTable(String draftId, String? tableId) async {
+  Future<bool> assignDraftTable(
+    String draftId,
+    String? tableId, {
+    String? announceLabel,
+  }) async {
     try {
       await _bridge.assignDraftTable(id: draftId, tableId: tableId);
     } on MadarError catch (e) {
@@ -1579,6 +1615,13 @@ class OrderNotifier extends Notifier<OrderState> {
       return false;
     }
     await Future.wait([loadDrafts(), loadFloor()]);
+    if (announceLabel != null) {
+      showToast(
+        _tr('drafts.on_table').replaceAll('{table}', announceLabel),
+        tone: ChipTone.success,
+        icon: 'checkmark.circle',
+      );
+    }
     return true;
   }
 

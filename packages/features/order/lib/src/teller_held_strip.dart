@@ -138,8 +138,8 @@ class TellerHeldStrip extends ConsumerWidget {
     await ref.read(orderProvider.notifier).discardDraft(draft.id);
   }
 
-  /// Rename one PARKED order. A name is a label — this moves nothing else:
-  /// not the cart, not the table, not the claim.
+  /// Rename one PARKED order, or move it to a table. Neither touches the
+  /// cart in hand or the claim.
   Future<void> _renameDraft(
     BuildContext context,
     WidgetRef ref,
@@ -167,6 +167,32 @@ class TellerHeldStrip extends ConsumerWidget {
               autofocus: true,
               onSubmitted: (v) => Navigator.of(sheetContext).maybePop(v.trim()),
             ),
+            if (ref.read(orderProvider).hasFloor)
+              MadarButton(
+                label: draft.tableLabel == null
+                    ? bridge.tr(key: 'tables.assign')
+                    : '${bridge.tr(key: 'order.table')} · ${draft.tableLabel}',
+                icon: 'square.grid.2x2',
+                variant: MadarButtonVariant.outline,
+                onTap: () => unawaited(() async {
+                  final pick = await showTablePickerSheet(
+                    sheetContext,
+                    ref,
+                    currentTableId: draft.tableId,
+                  );
+                  if (pick == null || pick.tableId == draft.tableId) return;
+                  if (sheetContext.mounted) {
+                    await Navigator.of(sheetContext).maybePop();
+                  }
+                  await ref
+                      .read(orderProvider.notifier)
+                      .assignDraftTable(
+                        draft.id,
+                        pick.tableId,
+                        announceLabel: pick.tableId == null ? null : pick.label,
+                      );
+                }()),
+              ),
             MadarButton(
               label: bridge.tr(key: 'common.save'),
               onTap: () =>
@@ -176,7 +202,11 @@ class TellerHeldStrip extends ConsumerWidget {
         ),
       ),
     );
-    controller.dispose();
+    // After the sheet's exit: its field still builds while it slides out,
+    // and a disposed controller there throws.
+    unawaited(
+      Future<void>.delayed(MotionSpec.gentleDuration, controller.dispose),
+    );
     // An EMPTY name is an answer too: it takes the name off, and the chip
     // reads its time again.
     if (saved == null) return;
@@ -249,11 +279,20 @@ Future<void> editLiveOrderName(BuildContext context, WidgetRef ref) async {
                       sheetRef,
                       currentTableId: sheetRef.read(orderProvider).cartTableId,
                     );
-                    if (pick != null) {
-                      unawaited(
-                        notifier.setCartTable(pick.tableId, pick.label),
-                      );
+                    if (pick == null ||
+                        pick.tableId ==
+                            sheetRef.read(orderProvider).cartTableId) {
+                      return;
                     }
+                    // Assigning PARKS the order on that table — the lines go
+                    // with it. (A context switch here left them behind.)
+                    // The typed name rides along; the sheet closes without
+                    // re-applying it over the emptied cart.
+                    notifier.setCartName(controller.text);
+                    if (sheetContext.mounted) {
+                      await Navigator.of(sheetContext).maybePop();
+                    }
+                    await notifier.holdCartOn(pick.tableId, pick.label);
                   }()),
                 );
               },
