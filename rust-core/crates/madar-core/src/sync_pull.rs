@@ -93,6 +93,27 @@ pub(crate) fn availability_list(
     )
 }
 
+/// The branch's `old_bill_hours` (1..168) from the synced `branch_settings`
+/// row; `3` (the backend default) until one has synced.
+pub(crate) fn old_bill_hours(store: &Store, branch_id: &str) -> i64 {
+    store
+        .with_conn(|c| {
+            use rusqlite::OptionalExtension;
+            Ok(c.query_row(
+                "SELECT data FROM sync_rows WHERE branch_id=?1 AND type='branch_settings' AND id=?1",
+                rusqlite::params![branch_id],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()?)
+        })
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .and_then(|v| v.get("old_bill_hours").and_then(|h| h.as_i64()))
+        .filter(|h| (1..=168).contains(h))
+        .unwrap_or(3)
+}
+
 // ── wire ────────────────────────────────────────────────────────────────────
 //
 // The response is the generated `madar_api::models::PullResponse` (one shape for
@@ -892,6 +913,23 @@ mod tests {
         apply_page(&store, B, &snap, &Protected::new(), true).unwrap();
         assert!(row(&store, "order", "o1").is_none(), "inside the window and absent: replaced");
         assert!(row(&store, "order", "o2").is_some(), "older than the window: kept until pruning");
+    }
+
+    #[test]
+    fn old_bill_hours_reads_the_branch_setting() {
+        let store = Store::open("").unwrap();
+        assert_eq!(old_bill_hours(&store, B), 3, "backend default before any sync");
+        let settings = serde_json::json!({"id": B, "old_bill_hours": 5});
+        store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES('branch_settings',?1,?1,1,?2)",
+                    rusqlite::params![B, settings.to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(old_bill_hours(&store, B), 5);
     }
 
     #[test]

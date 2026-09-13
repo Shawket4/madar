@@ -318,7 +318,8 @@ impl MadarCore {
             .floor_layout()
             .map(|l| l.tables.iter().filter(|t| t.status == "seated").count() as i64)
             .unwrap_or(0);
-        Ok(till::local_open_bills_notice(&bills, seated, 3, None, chrono::Utc::now()))
+        let hours = crate::sync_pull::old_bill_hours(&self.store, &sp.branch_id);
+        Ok(till::local_open_bills_notice(&bills, seated, hours, None, chrono::Utc::now()))
     }
 
     fn open_till_or_err(&self) -> Result<TillView, CoreError> {

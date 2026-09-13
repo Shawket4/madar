@@ -1081,6 +1081,25 @@ void main() {
     expect(sent.last.declaredAmountMinor, isNull);
   });
 
+  testWidgets('close_till_unanswered_checks_never_block', (tester) async {
+    final bridge = _FakeBridge();
+    await _shoot(
+      tester,
+      screen: const CloseTillScreen(),
+      bridge: bridge,
+      size: _phone,
+      theme: MadarTheme.light(),
+      name: 'flow-close-unanswered',
+    );
+    await tester.enterText(find.byType(TextField).first, '2380');
+    await tester.pump(const Duration(milliseconds: 100));
+    // Nothing ticked, nothing disagreed: closing still goes through, and the
+    // methods are left for the core to record as not reviewed.
+    await tapButton(tester, _en['till.close_title']!);
+    expect(bridge.closes, hasLength(1));
+    expect(bridge.closes.single, isEmpty);
+  });
+
   testWidgets('close_till_last_till_warning_is_non_blocking', (tester) async {
     final bridge = _FakeBridge(methods: [_methods.first], lastTill: _lastTill);
     await _shoot(

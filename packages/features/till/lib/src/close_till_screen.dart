@@ -482,7 +482,6 @@ class _MethodCheckFormState extends ConsumerState<_MethodCheckForm> {
     );
     final attempted = ref.watch(closeTillProvider.select((s) => s.attempted));
     final notifier = ref.read(closeTillProvider.notifier);
-    final unanswered = attempted && check.status == null;
     final needsNote = attempted && (check.missingNote || check.missingAmount);
 
     return Semantics(
@@ -554,11 +553,9 @@ class _MethodCheckFormState extends ConsumerState<_MethodCheckForm> {
                 onChanged: (v) => notifier.setMethodNote(m.method, v),
               ),
             ],
-            if (unanswered || needsNote)
+            if (needsNote)
               Text(
-                unanswered
-                    ? t('till.reconcile_title')
-                    : t('till.reconcile_note_required'),
+                t('till.reconcile_note_required'),
                 style: MadarType.bodySm.copyWith(color: colors.danger),
               ),
           ],

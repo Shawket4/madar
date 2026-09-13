@@ -979,8 +979,10 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
     } on Exception catch (_) {}
   }
 
-  /// The words for what still stops [close], or null when it may go. Every
-  /// method needs an answer; a difference needs its amount and a note.
+  /// The words for what still stops [close], or null when it may go. A
+  /// method left unanswered never stops it (the core records it as not
+  /// reviewed — decision 11: closing is never blocked); a difference the
+  /// teller started needs its amount and a note.
   UiText? _missing(String note) {
     if (state.countedMinor == null) {
       return const UiText.key('till.count_required');
@@ -990,7 +992,6 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
     }
     for (final m in state.methodsToCheck) {
       final check = state.checkFor(m.method);
-      if (check.status == null) return const UiText.key('till.reconcile_title');
       if (check.missingAmount || check.missingNote) {
         return const UiText.key('till.reconcile_note_required');
       }
@@ -1018,7 +1019,8 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
         cashNote: trimmed.isEmpty ? null : trimmed,
         reconciliation: [
           for (final m in state.methodsToCheck)
-            if (state.checkFor(m.method) case final check)
+            if (state.checkFor(m.method) case final check
+                when check.status != null)
               ReconciliationInput(
                 method: m.method,
                 status: check.status!,
