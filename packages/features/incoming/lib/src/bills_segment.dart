@@ -2,7 +2,8 @@
 ///
 /// One flush card of 64px rows: the state bar carries the bill's colour,
 /// the title is the table ("T3") or, where there is no floor, the guest;
-/// the figure is the bill's SUBTOTAL (all `TicketView` carries); Charge sits
+/// the figure is the bill's TOTAL as the server priced it — the same figure
+/// Charge will take — or its subtotal while it is still unpriced; Charge sits
 /// on the row so the commonest act is one tap. A row tap opens the Bill —
 /// the host's screen when it supplies one, else the shared details sheet.
 /// Live: the screen reloads on the shell's ticket tick, so a waiter's fire
@@ -51,7 +52,22 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
     );
   }
 
+  /// A bill or a Charge on its way. A second tap while the first is opening
+  /// stacked two drawers over one bill.
+  bool _busy = false;
+
+  Future<void> _guarded(Future<void> Function() op) async {
+    if (_busy) return;
+    _busy = true;
+    try {
+      await op();
+    } finally {
+      if (mounted) _busy = false;
+    }
+  }
+
   Future<void> _open(TicketView ticket) async {
+    ref.read(incomingProvider.notifier).clearError();
     final openBill = widget.onOpenBill;
     if (openBill != null) {
       await openBill(context, ticket);
@@ -67,10 +83,12 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
         ticket: ticket,
         footer: MadarMoneyBar(
           label: bridge.trOr(QueueKeys.chargeBill),
-          amountMinor: ticket.subtotalMinor,
+          amountMinor: ticket.bill?.totalMinor ?? ticket.subtotalMinor,
           currency: bridge.currentSession()?.currencyCode ?? '',
-          enabled: shiftOpen,
-          reason: bridge.trOr(QueueKeys.needShift),
+          enabled: shiftOpen && !ticket.queuedOffline,
+          reason: ticket.queuedOffline
+              ? bridge.tr(key: 'queue.bill_not_synced')
+              : bridge.trOr(QueueKeys.needShift),
           onTap: () => Navigator.of(sheetContext).maybePop(true),
         ),
       ),
@@ -83,6 +101,9 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
   /// use), over this bill. Stays on the list after charging — the bill drops
   /// out on reload — and the shell learns a sale landed on the shift.
   Future<void> _charge(TicketView ticket) async {
+    // A bill still in the outbox has no server id to settle against.
+    if (ticket.queuedOffline) return;
+    ref.read(incomingProvider.notifier).clearError();
     final labels = ref.read(incomingProvider).tableLabels;
     final tableId = ticket.tableId;
     final outcome = await showCharge(
@@ -160,8 +181,9 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
                             hasFloor: hasFloor,
                             currency: currency,
                             chargeEnabled: shiftOpen ?? false,
-                            onOpen: () => unawaited(_open(t)),
-                            onCharge: () => unawaited(_charge(t)),
+                            onOpen: () => unawaited(_guarded(() => _open(t))),
+                            onCharge: () =>
+                                unawaited(_guarded(() => _charge(t))),
                           ),
                         ],
                       ],
@@ -238,7 +260,9 @@ class _BillRow extends ConsumerWidget {
       // is two arrows pointing at one thing.
       chevron: !phone,
       value: MoneyText(
-        t.subtotalMinor,
+        // The server's priced total — what Charge will take — when it has
+        // one; only an unsynced fire shows its subtotal.
+        t.bill?.totalMinor ?? t.subtotalMinor,
         currency: currency,
         style: phone ? MadarType.money : MadarType.moneyMd,
         color: colors.textPrimary,
@@ -265,8 +289,14 @@ class _BillRow extends ConsumerWidget {
           MadarButton(
             label: bridge.trOr(QueueKeys.chargeBill),
             size: MadarButtonSize.compact,
-            enabled: chargeEnabled,
-            tooltip: chargeEnabled ? null : bridge.trOr(QueueKeys.needShift),
+            // A bill still queued offline cannot be settled yet: the button
+            // used to look ready and end in an error.
+            enabled: chargeEnabled && !t.queuedOffline,
+            tooltip: t.queuedOffline
+                ? bridge.tr(key: 'queue.bill_not_synced')
+                : chargeEnabled
+                ? null
+                : bridge.trOr(QueueKeys.needShift),
             onTap: onCharge,
           ),
         ],

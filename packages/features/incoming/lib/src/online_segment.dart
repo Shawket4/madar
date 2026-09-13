@@ -80,11 +80,21 @@ class _OnlineSegmentState extends ConsumerState<OnlineSegment>
   /// Charge = the ONE tender drawer; method-only for an online order (all
   /// `deliveryFinalize` takes). The drawer books the sale and prints; the
   /// board re-reads so the card leaves, and the shell learns of the sale.
+  /// One drawer at a time: a double tap on Charge opened two over one order.
+  bool _charging = false;
+
   Future<void> _charge(DeliveryOrderView o) async {
-    final outcome = await showCharge(context, ChargeTarget.online(o));
-    if (outcome == null || !mounted) return;
-    await ref.read(incomingProvider.notifier).loadDeliveryOrders();
-    ref.read(shellProvider.notifier).refresh();
+    if (_charging) return;
+    _charging = true;
+    try {
+      ref.read(incomingProvider.notifier).clearError();
+      final outcome = await showCharge(context, ChargeTarget.online(o));
+      if (outcome == null || !mounted) return;
+      await ref.read(incomingProvider.notifier).loadDeliveryOrders();
+      ref.read(shellProvider.notifier).refresh();
+    } finally {
+      if (mounted) _charging = false;
+    }
   }
 
   Future<void> _decline(DeliveryOrderView o) async {
@@ -378,7 +388,8 @@ class _OnlineCardState extends ConsumerState<_OnlineCard> {
           ),
         if (isNew && notes != null && notes.isNotEmpty)
           Text(
-            '“$notes”',
+            // The language's own quote marks: «…» read the right way in RTL.
+            bridge.tr(key: 'common.quoted').replaceAll('{text}', notes),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: MadarType.body.copyWith(
@@ -447,7 +458,9 @@ class _OnlineCardState extends ConsumerState<_OnlineCard> {
                 for (final m in prepChoices)
                   Expanded(
                     child: MadarChip.tile(
-                      label: '$m',
+                      label: bridge
+                          .tr(key: 'queue.prep_minutes')
+                          .replaceAll('{count}', '$m'),
                       selected: (chosen ?? prepChoices.first) == m,
                       onTap: () => _readyIn.value = m,
                     ),

@@ -187,8 +187,6 @@ class IncomingState {
 class IncomingNotifier extends Notifier<IncomingState> {
   MadarBridge get _bridge => ref.read(bridgeProvider);
 
-  String _tr(String key) => _bridge.tr(key: key);
-
   int _toastSeq = 0;
 
   @override
@@ -214,8 +212,32 @@ class IncomingNotifier extends Notifier<IncomingState> {
     unawaited(loadFloorLabels());
   }
 
+  /// Switching segment drops the banner: a failure on the online board is
+  /// not the Bills segment's to show.
   void setSegment(QueueSegment segment) {
-    if (state.segment != segment) state = state.copyWith(segment: segment);
+    if (state.segment != segment) {
+      state = state.copyWith(segment: segment, error: null);
+    }
+  }
+
+  /// Dismiss the banner (a sheet opening over the board starts clean).
+  void clearError() {
+    if (state.error != null) state = state.copyWith(error: null);
+  }
+
+  /// Bumped by every online-list read AND every card replaced in place. A
+  /// read only lands if nothing newer happened since it began: a slow pull
+  /// that started before an Accept used to land after it and put the card
+  /// back to "received", with Accept live again.
+  int _onlineGen = 0;
+
+  /// The generation of the newest READ started — it alone owns the spinner.
+  int _latestRead = 0;
+
+  /// A superseded read drops its data but still lets go of the spinner if
+  /// nothing newer is reading.
+  void _discardRead(int gen) {
+    if (gen == _latestRead) state = state.copyWith(isLoadingDelivery: false);
   }
 
   // ── online orders (online-only; the teller works the live branch queue) ──
@@ -224,12 +246,17 @@ class IncomingNotifier extends Notifier<IncomingState> {
   /// mark it stale; the segment says so instead of going blank. The accepting
   /// settings ride along quietly.
   Future<void> loadDeliveryOrders() async {
+    final gen = ++_onlineGen;
+    _latestRead = gen;
     state = state.copyWith(isLoadingDelivery: true);
     try {
       final orders = await _bridge.listDeliveryOrders(
         status: kActiveDeliveryStatuses,
       );
+      if (gen != _onlineGen) return _discardRead(gen);
       state = state.copyWith(
+        // A good read clears the failure it replaces.
+        error: null,
         deliveryOrders: orders,
         isLoadingDelivery: false,
         onlineStale: false,
@@ -240,6 +267,7 @@ class IncomingNotifier extends Notifier<IncomingState> {
         },
       );
     } on MadarError catch (e) {
+      if (gen != _onlineGen) return _discardRead(gen);
       final transport = isTransportError(e);
       state = state.copyWith(
         isLoadingDelivery: false,
@@ -384,49 +412,6 @@ class IncomingNotifier extends Notifier<IncomingState> {
     }
   }
 
-  /// CHARGE an online order: finalize it into a real sale on the open shift
-  /// against one payment method (all the wire takes). Oversold warnings
-  /// surface instead of being dropped — replaying the frozen snapshot can
-  /// oversell stock, and the teller must SEE that.
-  Future<DeliveryFinalizeView?> finalizeDelivery(
-    DeliveryOrderView o,
-    String paymentMethodId,
-  ) async {
-    state = state.copyWith(isBusy: true, error: null);
-    try {
-      final res = await _bridge.deliveryFinalize(
-        id: o.id,
-        paymentMethodId: paymentMethodId,
-      );
-      await loadDeliveryOrders();
-      final orderRef = res.orderRef == null ? '' : ' · ${res.orderRef}';
-      if (res.warnings.isNotEmpty) {
-        showToast(
-          '${_tr('delivery.finalized')}$orderRef — ${res.warnings.join('; ')}',
-          tone: ChipTone.warning,
-          icon: 'exclamationmark.triangle',
-        );
-      } else {
-        showToast(
-          '${_tr('delivery.finalized')}$orderRef',
-          tone: ChipTone.success,
-          icon: 'checkmark.circle',
-        );
-      }
-      state = state.copyWith(isBusy: false);
-      // A finalized order books a real sale on the open shift.
-      ref.read(shellProvider.notifier).refresh();
-      return res;
-    } on MadarError catch (e) {
-      if (await _applyConflict(o, e)) {
-        state = state.copyWith(isBusy: false);
-        return null;
-      }
-      state = state.copyWith(error: _fail(e), isBusy: false);
-      return null;
-    }
-  }
-
   /// A card whose status changed under the teller (the server's 409) flips
   /// to its new state with the server's sentence as a one-line notice — no
   /// dialog. Returns true when [e] was such a race and has been applied.
@@ -445,6 +430,8 @@ class IncomingNotifier extends Notifier<IncomingState> {
   /// Swap an order in place; a terminal one leaves the board, and takes its
   /// notice with it (there is no card left to pin it to).
   void _replace(DeliveryOrderView updated) {
+    // Anything read before this write is older than it.
+    _onlineGen++;
     final orders = [
       for (final o in state.deliveryOrders)
         if (o.id != updated.id) o else if (!updated.isTerminal) updated,
@@ -481,12 +468,20 @@ class IncomingNotifier extends Notifier<IncomingState> {
 
   // ── bills (the settle segment) ───────────────────────────────────────────
 
+  int _ticketsGen = 0;
+
   Future<void> loadOpenTickets() async {
+    final gen = ++_ticketsGen;
     try {
       final tickets = await _bridge.listOpenTickets();
+      // Two ticks close together: only the newer answer lands.
+      if (gen != _ticketsGen) return;
       state = state.copyWith(openTickets: tickets);
-    } on MadarError {
-      // Quiet refresh — the cached list stands until the next tick.
+    } on MadarError catch (e) {
+      // The cached list stands until the next tick — but a failure the teller
+      // should know about (not a dropped connection) is said.
+      if (gen != _ticketsGen || isTransportError(e)) return;
+      state = state.copyWith(error: _fail(e));
     }
   }
 
@@ -505,53 +500,6 @@ class IncomingNotifier extends Notifier<IncomingState> {
       tableLabels: {for (final t in layout.tables) t.id: t.label},
       hasFloor: layout.tables.isNotEmpty,
     );
-  }
-
-  /// CHARGE a bill: settle it into a paid order on the current open shift.
-  /// Requires a shift, books via the core, then reloads + toasts.
-  Future<bool> settleTicket({
-    required String ticketId,
-    required String paymentMethodId,
-    int? amountTenderedMinor,
-    int? tipMinor,
-    String? tipPaymentMethodId,
-  }) async {
-    // Quiet lookup — a thrown MadarError here would otherwise escape into the
-    // sheet's unawaited caller with no error set.
-    final shift = await _quiet(_bridge.currentShift);
-    if (shift == null || !shift.isOpen) {
-      state = state.copyWith(
-        error: UiText.key(_bridge.trKey(QueueKeys.needShift)),
-        shiftOpen: false,
-      );
-      return false;
-    }
-    state = state.copyWith(isBusy: true, error: null);
-    try {
-      await _bridge.settleTicket(
-        ticketId: ticketId,
-        shiftId: shift.id,
-        paymentMethodId: paymentMethodId,
-        // Rewards ride with the bill's own Charge (the Bill screen); the
-        // Queue's row Charge is the quick path and carries none.
-        loyaltyRedemptions: const [],
-        // Settled from the queue with one method; no tender screen, no legs.
-        splits: const [],
-        amountTenderedMinor: amountTenderedMinor,
-        tipMinor: tipMinor,
-        tipPaymentMethodId: tipPaymentMethodId,
-      );
-      await loadOpenTickets();
-      showToast(_tr('waiter.settled'), tone: ChipTone.success);
-      state = state.copyWith(isBusy: false);
-      // A settled bill books a real sale on the open shift.
-      ref.read(shellProvider.notifier).refresh();
-      ref.read(drawerTickProvider.notifier).bump();
-      return true;
-    } on MadarError catch (e) {
-      state = state.copyWith(error: _fail(e), isBusy: false);
-      return false;
-    }
   }
 
   // ── toast ──────────────────────────────────────────────────────────────────

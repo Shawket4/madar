@@ -14,6 +14,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:app_core/app_core.dart';
+import 'package:app_core/testing.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_incoming/feature_incoming.dart';
 import 'package:flutter/material.dart';
@@ -167,6 +168,7 @@ TicketView _ticket({
   ticketRef: ref,
   tableId: tableId,
   status: status,
+  ready: status == 'ready',
   customerName: guest,
   waiterName: waiter,
   guestCount: covers,
@@ -400,6 +402,10 @@ class _FakeBridge implements MadarBridge {
     final name = invocation.memberName;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
+      // The core's REAL tables first (read out of i18n.rs), so the PNGs show
+      // the words that ship; the fixtures only cover a key the core lacks.
+      final real = coreWord(key, arabic: arabic);
+      if (real != key) return real;
       final words = arabic ? _ar : _en;
       return words[key] ?? key;
     }
@@ -580,7 +586,10 @@ void main() {
       segment: QueueSegment.online,
     );
     // The NEW card offers the ready-in chips on the branch base and Accept.
-    expect(find.text('20'), findsOneWidget);
+    expect(
+      find.text(coreWord('queue.prep_minutes').replaceAll('{count}', '20')),
+      findsOneWidget,
+    );
     expect(find.text('Accept'), findsOneWidget);
     expect(find.text('Decline'), findsOneWidget);
     // The pickup channel's READY card says Picked up, not Out for delivery.

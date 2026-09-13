@@ -32,6 +32,7 @@ TicketView _ticket(String id, String status, String at) => TicketView(
   id: id,
   ticketRef: id,
   status: status,
+  ready: status == 'ready',
   subtotalMinor: 1000,
   openedAt: at,
   queuedOffline: false,
@@ -201,7 +202,10 @@ void main() {
         await n.acceptDelivery(_order('d1', 'received'), readyInMinutes: 45);
         final s = container.read(incomingProvider);
         expect(s.deliveryOrders.single.status, 'confirmed');
-        expect(s.notices['d1']?.of(bridge), 'Prep time must be a multiple of 5');
+        expect(
+          s.notices['d1']?.of(bridge),
+          'Prep time must be a multiple of 5',
+        );
       },
     );
 
