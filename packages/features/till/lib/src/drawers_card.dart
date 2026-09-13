@@ -1,4 +1,4 @@
-/// Drawers — every shift at the branch, on a manager's Till.
+/// Drawers — every till at the branch, on a manager's Till.
 ///
 /// Each drawer is a bill row (docs/design/SPEC.md §7): tapping it opens its
 /// report on screen, with Print in the sheet; the print tile on the row
@@ -6,9 +6,9 @@
 /// Both are visible — no long press to discover.
 ///
 /// What is NOT here, on purpose: Force-close. The wire has
-/// `force_close_shift`, the bridge does not, and a button that cannot work
+/// `force_close_till`, the bridge does not, and a button that cannot work
 /// is worse than no button — so the card says so in one line instead.
-/// The till's NAME is not on `ShiftSummaryView` either, so a row is led by
+/// The till's NAME is not on `TillSummaryView` either, so a row is led by
 /// the teller, not the drawer.
 library;
 
@@ -17,19 +17,19 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart' show printerBrandOf;
-import 'package:feature_shift/src/shift_history_screen.dart' show shiftStatus;
-import 'package:feature_shift/src/shift_providers.dart';
-import 'package:feature_shift/src/shift_report_sheet.dart';
+import 'package:feature_till/src/till_history_screen.dart' show tillStatus;
+import 'package:feature_till/src/till_providers.dart';
+import 'package:feature_till/src/till_report_sheet.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// How many drawers the card lists before pointing at Past shifts.
+/// How many drawers the card lists before pointing at Past tills.
 const int _maxDrawerRows = 8;
 
 /// ESC/POS character columns — retained for API stability; the raster width
 /// actually printed comes from the device's paper config (see
-/// `MadarCore::render_shift_report`).
+/// `MadarCore::render_till_report`).
 const int _printWidth = 32;
 
 /// A print result fades back to the plain status tag on its own — a manager
@@ -37,12 +37,12 @@ const int _printWidth = 32;
 const Duration _resultFade = Duration(seconds: 2);
 
 /// Every drawer at the branch, open ones first. Pass [onSeeAll] to route the
-/// overflow at Past shifts.
+/// overflow at Past tills.
 class DrawersCard extends ConsumerWidget {
   /// Creates the card.
   const DrawersCard({super.key, this.onSeeAll});
 
-  /// Opens Past shifts when the list is longer than the card shows.
+  /// Opens Past tills when the list is longer than the card shows.
   final VoidCallback? onSeeAll;
 
   /// LONG PRESS / preview glyph: fetch the drawer's report and open it in
@@ -51,17 +51,17 @@ class DrawersCard extends ConsumerWidget {
   Future<void> _preview(
     BuildContext context,
     WidgetRef ref,
-    ShiftSummaryView shift,
+    TillSummaryView till,
   ) async {
     MadarHaptics.selection();
     final report = await ref
         .read(tillProvider.notifier)
-        .fetchDrawerReport(shift.id);
+        .fetchDrawerReport(till.id);
     if (report == null || !context.mounted) return;
     await showMadarSheet<void>(
       context,
       size: SheetSize.large,
-      builder: (_) => ShiftReportSheet(report: report, shiftId: shift.id),
+      builder: (_) => TillReportSheet(report: report, tillId: till.id),
     );
   }
 
@@ -71,14 +71,14 @@ class DrawersCard extends ConsumerWidget {
   /// Returns null when another row's fetch is already in flight
   /// (`fetchDrawerReport`'s own guard) so the row shows nothing rather than
   /// a false failure.
-  Future<PrintOutcome?> _printNow(WidgetRef ref, ShiftSummaryView shift) async {
+  Future<PrintOutcome?> _printNow(WidgetRef ref, TillSummaryView till) async {
     final report = await ref
         .read(tillProvider.notifier)
-        .fetchDrawerReport(shift.id);
+        .fetchDrawerReport(till.id);
     if (report == null) return null;
     final bridge = ref.read(bridgeProvider);
     final config = bridge.deviceConfig();
-    final bytes = await bridge.renderShiftReport(
+    final bytes = await bridge.renderTillReport(
       report: report,
       storeName: config.branchName ?? '',
       currency: bridge.currentSession()?.currencyCode ?? '',
@@ -121,7 +121,7 @@ class DrawersCard extends ConsumerWidget {
           for (final (i, d) in shown.indexed) ...[
             if (i > 0) const MadarHairline.row(),
             _Drawer(
-              shift: d,
+              till: d,
               currency: currency,
               bridge: bridge,
               loading: loadingId == d.id,
@@ -159,7 +159,7 @@ class DrawersCard extends ConsumerWidget {
             spacing: Space.sm,
             children: [
               Text(
-                '${MadarFormat.ltr('$open')} ${t('shifts.open_now')}',
+                '${MadarFormat.ltr('$open')} ${t('tills.open_now')}',
                 style: MadarType.bodySm.copyWith(
                   color: context.madarColors.textSecondary,
                 ),
@@ -185,7 +185,7 @@ class DrawersCard extends ConsumerWidget {
 /// opens the report; the print tile prints it straight away.
 class _Drawer extends StatefulWidget {
   const _Drawer({
-    required this.shift,
+    required this.till,
     required this.currency,
     required this.bridge,
     required this.loading,
@@ -193,7 +193,7 @@ class _Drawer extends StatefulWidget {
     required this.onPreview,
   });
 
-  final ShiftSummaryView shift;
+  final TillSummaryView till;
   final String currency;
   final MadarBridge bridge;
 
@@ -232,7 +232,7 @@ class _DrawerState extends State<_Drawer> {
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.shift;
+    final s = widget.till;
     final bridge = widget.bridge;
     String t(String key) => bridge.tr(key: key);
     final busy = widget.loading || _printing;
@@ -249,12 +249,12 @@ class _DrawerState extends State<_Drawer> {
         t('receipt.print_failed'),
         tone: MadarTone.danger,
       ),
-      null => shiftStatus(bridge, s),
+      null => tillStatus(bridge, s),
     };
     return MadarListRow.bill(
       title: s.tellerName ?? '—',
       meta:
-          '${t('shift.opened_at')} '
+          '${t('till.opened_at')} '
           '${MadarFormat.isolate(bridge.formatStamp(rfc3339: s.openedAt))}',
       minor: s.closingDeclaredMinor,
       currency: widget.currency,
@@ -271,7 +271,7 @@ class _DrawerState extends State<_Drawer> {
             )
           : MadarGlyphTile(
               glyph: MadarGlyph.printer,
-              semanticLabel: t('shift.print_report'),
+              semanticLabel: t('till.print_report'),
               onTap: () => unawaited(_print()),
             ),
     );

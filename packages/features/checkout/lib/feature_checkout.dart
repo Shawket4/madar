@@ -8,7 +8,7 @@
 /// starts itself.
 ///
 /// Also exported: `ReceiptSheet` (a receipt preview with Print + Done) and
-/// `ReceiptPaper`, for the history and shift screens' reprints.
+/// `ReceiptPaper`, for the history and till screens' reprints.
 library;
 
 export 'src/charge_sheet.dart'

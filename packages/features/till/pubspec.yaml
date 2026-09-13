@@ -1,5 +1,5 @@
-name: feature_shift
-description: Madar POS open/close shift, Z-report preview, cash movements, shift history.
+name: feature_till
+description: Madar POS open/close till, Z-report preview, cash movements, till history.
 version: 0.1.0
 publish_to: none
 resolution: workspace

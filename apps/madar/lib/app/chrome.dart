@@ -8,7 +8,7 @@ import 'package:feature_history/feature_history.dart';
 import 'package:feature_incoming/feature_incoming.dart';
 import 'package:feature_order/feature_order.dart';
 import 'package:feature_settings/feature_settings.dart';
-import 'package:feature_shift/feature_shift.dart';
+import 'package:feature_till/feature_till.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -184,23 +184,17 @@ final outboxProvider = NotifierProvider<OutboxNotifier, OutboxSnapshot>(
   OutboxNotifier.new,
 );
 
-/// The till this device is bound to, by name. `listTills()` is
-/// write-through cached, so this resolves offline too; null when the device
-/// has no till (a waiter's phone) and the top bar shows the branch alone.
-final tillNameProvider = FutureProvider<String?>((ref) async {
+/// This device's code ("36B") for the top bar — a till is a person's
+/// session, not the device's, so the device names itself by its code. Null
+/// when no code is set and the top bar shows the branch alone.
+final deviceCodeProvider = Provider<String?>((ref) {
   final bridge = ref.localizedBridge;
-  // Re-resolve when the session moves (a reconfigure lands here too).
-  ref.watch(shellProvider.select((s) => s.session?.userId));
-  // …and when Settings re-binds the device to another till: the top bar
-  // must not keep naming the drawer it left.
-  final tillId = ref.watch(settingsProvider.select((s) => s.config.tillId));
-  if (tillId == null) return null;
-  try {
-    final tills = await bridge.listTills();
-    return tills.where((t) => t.id == tillId).firstOrNull?.name;
-  } on Exception {
-    return null;
-  }
+  // Re-read when the session moves or Settings writes the config.
+  ref
+    ..watch(shellProvider.select((s) => s.session?.userId))
+    ..watch(settingsProvider.select((s) => s.config));
+  final code = bridge.deviceCode();
+  return code.isEmpty ? null : code;
 });
 
 // ── The shells ─────────────────────────────────────────────────────────────
@@ -250,7 +244,7 @@ enum _Tab {
 ///
 /// Waiter: Floor · Bills · Me. Teller and manager: Sell · Floor · Queue ·
 /// Till. Floor exists only where a floor is authored. The home tab follows
-/// the shop: a teller with no shift lands on Till (the open-shift card is
+/// the shop: a teller with no till lands on Till (the open-till card is
 /// there), otherwise Floor when every sale goes on a table, else Sell.
 class RoleShell extends ConsumerStatefulWidget {
   const RoleShell({super.key});
@@ -341,13 +335,13 @@ class _RoleShellState extends ConsumerState<RoleShell> {
 
   // ── navigation ─────────────────────────────────────────────────────────────
 
-  /// Where a global page lives. Shift and cash pages belong to the Till;
+  /// Where a global page lives. Till and cash pages belong to the Till;
   /// Settings and Sync to the person — the waiter's Me tab, the teller's
   /// off-rail Settings stack. They used to be pushed onto whichever tab was
   /// in front, so the rail said Sell over Settings, and coming back to Sell
   /// showed Settings instead of the counter.
   _Tab _ownerOf(_OwnedPage page) => switch (page) {
-    _OwnedPage.orders || _OwnedPage.closeShift => _Tab.till,
+    _OwnedPage.orders || _OwnedPage.closeTill => _Tab.till,
     _OwnedPage.settings ||
     _OwnedPage.sync => _kind == ShellKind.waiter ? _Tab.me : _Tab.settings,
   };
@@ -532,14 +526,14 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   }
 
   Future<void> _signOut() async {
-    // Nobody signs out mid-shift — the drawer has to be counted first.
+    // Nobody signs out mid-till — the drawer has to be counted first.
     final bridge = ref.read(bridgeProvider);
-    ShiftView? shift;
+    TillView? till;
     try {
-      shift = await bridge.currentShift();
+      till = await bridge.currentTill();
     } on Exception catch (_) {}
     if (!mounted) return;
-    if (shift?.isOpen ?? false) {
+    if (till?.isOpen ?? false) {
       ref
           .read(chromeProvider.notifier)
           .showToast(
@@ -633,13 +627,13 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       case ReauthOutcome.switchTeller:
         // A different person signs in: the drawer closes first when one is
         // open (the close screen routes onward); a waiter has none to close.
-        ShiftView? shift;
+        TillView? till;
         try {
-          shift = await ref.read(bridgeProvider).currentShift();
+          till = await ref.read(bridgeProvider).currentTill();
         } on Exception catch (_) {}
         if (!mounted) return;
-        if (shift?.isOpen ?? false) {
-          _openOwned(_OwnedPage.closeShift);
+        if (till?.isOpen ?? false) {
+          _openOwned(_OwnedPage.closeTill);
         } else {
           await _signOut();
         }
@@ -660,16 +654,16 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       };
 
   /// Where the shell opens: the room for a waiter, the drawer for a teller
-  /// with no shift, the room where every sale goes on a table, else Sell.
+  /// with no till, the room where every sale goes on a table, else Sell.
   _Tab _homeFor(
     ShellKind kind, {
     required bool hasFloor,
     required bool requireTable,
-    required bool noShift,
+    required bool noTill,
   }) => switch (kind) {
     ShellKind.waiter => hasFloor ? _Tab.floor : _Tab.bills,
     ShellKind.teller =>
-      noShift ? _Tab.till : (requireTable && hasFloor ? _Tab.floor : _Tab.sell),
+      noTill ? _Tab.till : (requireTable && hasFloor ? _Tab.floor : _Tab.sell),
   };
 
   @override
@@ -703,9 +697,9 @@ class _RoleShellState extends ConsumerState<RoleShell> {
         }
       })
       // The drawer closed under the teller (a force-close, a reconcile):
-      // the Till is where the open-shift card is.
+      // the Till is where the open-till card is.
       ..listen(shellProvider.select((s) => s.route), (prev, next) {
-        if (next is AppRoute_OpenShift && prev is! AppRoute_OpenShift) {
+        if (next is AppRoute_OpenTill && prev is! AppRoute_OpenTill) {
           _select(_Tab.till);
         }
       });
@@ -721,7 +715,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       kind,
       hasFloor: hasFloor,
       requireTable: session?.requireTableForOrders ?? false,
-      noShift: route is AppRoute_OpenShift,
+      noTill: route is AppRoute_OpenTill,
     );
     // Every stack the shell keeps: the rail's tabs plus the teller's
     // off-rail Settings owner.
@@ -739,7 +733,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     );
     final queueBadge = ref.watch(incomingProvider.select((s) => s.queueBadge));
     final outbox = ref.watch(outboxProvider);
-    final tillName = ref.watch(tillNameProvider).value;
+    final deviceCode = ref.watch(deviceCodeProvider);
     final toast = ref.watch(chromeProvider.select((s) => s.toast));
     final colors = context.madarColors;
     final layout = context.madarLayout;
@@ -855,7 +849,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
               onMarkTap: kDebugMode ? () => _push(GalleryScreen.new) : null,
               topBar: MadarTopBar(
                 title: _branchName(bridge, session),
-                subtitle: tillName,
+                subtitle: deviceCode,
                 pill: MadarOutboxPill(
                   state: outbox.state,
                   label: pillWord,
@@ -899,13 +893,13 @@ enum _OwnedPage {
   settings,
   sync,
   orders,
-  closeShift;
+  closeTill;
 
   Widget build() => switch (this) {
     _OwnedPage.settings => const SettingsScreen(),
     _OwnedPage.sync => const SyncScreen(),
     _OwnedPage.orders => const OrderHistoryScreen(),
-    _OwnedPage.closeShift => const CloseShiftScreen(),
+    _OwnedPage.closeTill => const CloseTillScreen(),
   };
 }
 
@@ -923,7 +917,7 @@ class _PersonSheet extends ConsumerWidget {
     final bridge = ref.bridge;
     final session = ref.watch(shellProvider.select((s) => s.session));
     final online = ref.watch(outboxProvider.select((s) => s.online));
-    final shiftOpen = ref.watch(orderProvider.select((s) => s.shiftOpen));
+    final tillOpen = ref.watch(orderProvider.select((s) => s.tillOpen));
     final name = session?.displayName ?? '';
     final role = session?.role ?? '';
     final roleWord = bridge.tr(key: 'role.$role');
@@ -990,8 +984,8 @@ class _PersonSheet extends ConsumerWidget {
               label: bridge.tr(key: 'settings.sign_out'),
               glyph: MadarGlyph.signOut,
               variant: MadarButtonVariant.danger,
-              enabled: !shiftOpen,
-              tooltip: shiftOpen
+              enabled: !tillOpen,
+              tooltip: tillOpen
                   ? bridge.tr(key: 'settings.sign_out_shift_open')
                   : null,
               onTap: onSignOut,

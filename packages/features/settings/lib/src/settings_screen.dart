@@ -1,6 +1,6 @@
 /// Settings — reached from the name sheet. Language and theme are one tap
 /// each (they used to be three, deep in a rail footer); the rest is a list
-/// of rows that open their own sheet: Printer, Till, Device, Diagnostics,
+/// of rows that open their own sheet: Printer, Station, Device, Diagnostics,
 /// Legal. Sync is a SECTION of this screen, not a rail entry: on a tablet it
 /// is the start column beside the preferences, on a phone it leads the
 /// list, because what is queued matters more than which paper the printer
@@ -27,7 +27,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// when the next person signs in, so nothing is lost — but nobody can ring up
 /// until then, which is worth saying out loud on a shop floor.
 ///
-/// The notifier already refuses outright while a shift is open; this is the
+/// The notifier already refuses outright while a till is open; this is the
 /// question for the case it allows.
 Future<bool> confirmSignOut(BuildContext context, WidgetRef ref) {
   final bridge = ref.read(bridgeProvider);
@@ -126,8 +126,8 @@ class _Preferences extends ConsumerWidget {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final error = ref.watch(settingsProvider.select((s) => s.error));
-    final hasOpenShift = ref.watch(
-      settingsProvider.select((s) => s.hasOpenShift),
+    final hasOpenTill = ref.watch(
+      settingsProvider.select((s) => s.hasOpenTill),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -178,11 +178,11 @@ class _Preferences extends ConsumerWidget {
           label: t('settings.sign_out'),
           glyph: MadarGlyph.signOut,
           variant: MadarButtonVariant.danger,
-          enabled: !hasOpenShift,
-          tooltip: hasOpenShift ? t('settings.sign_out_shift_open') : null,
+          enabled: !hasOpenTill,
+          tooltip: hasOpenTill ? t('settings.sign_out_shift_open') : null,
           onTap: () => unawaited(_signOut(context, ref)),
         ),
-        if (hasOpenShift)
+        if (hasOpenTill)
           Text(
             t('settings.sign_out_shift_open'),
             textAlign: TextAlign.center,
@@ -205,14 +205,14 @@ class ProfileCard extends ConsumerWidget {
     final bridge = ref.bridge;
     final session = ref.watch(shellProvider.select((s) => s.session));
     final tellerName = ref.watch(
-      settingsProvider.select((s) => s.shift?.tellerName),
+      settingsProvider.select((s) => s.till?.tellerName),
     );
     final branch =
         ref.watch(settingsProvider.select((s) => s.config.branchName)) ?? '';
     final online = ref.watch(
       syncProvider.select((s) => s.status?.online ?? false),
     );
-    // The session names the person; the shift is the fallback for a till
+    // The session names the person; the till is the fallback for a till
     // whose session snapshot is missing (unlocked offline before a login).
     final name = session?.displayName ?? tellerName ?? '—';
     final role = session?.role ?? '';
@@ -344,7 +344,7 @@ class MotionSegment extends ConsumerWidget {
   }
 }
 
-/// The rows that open a sheet: Printer, Till / Station, Device,
+/// The rows that open a sheet: Printer, Station, Device,
 /// Diagnostics, Legal. Each carries its one-line summary.
 class _RowList extends ConsumerWidget {
   const _RowList();
@@ -354,7 +354,6 @@ class _RowList extends ConsumerWidget {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final config = ref.watch(settingsProvider.select((s) => s.config));
-    final tills = ref.watch(settingsProvider.select((s) => s.tills));
     final stations = ref.watch(settingsProvider.select((s) => s.stations));
     final isKitchen = ref.watch(
       shellProvider.select((s) => s.session?.role == 'kitchen'),
@@ -365,12 +364,6 @@ class _RowList extends ConsumerWidget {
     final warnings = ref.watch(
       settingsProvider.select((s) => s.diagnostics.length),
     );
-    final tillName = config.tillId == null
-        ? t('settings.till_default')
-        : tills
-              .where((till) => till.id == config.tillId)
-              .map((till) => till.name)
-              .firstOrNull;
     final stationName = stations
         .where((station) => station.id == config.stationId)
         .map((station) => station.name)
@@ -389,13 +382,6 @@ class _RowList extends ConsumerWidget {
         glyph: MadarGlyph.printer,
         onTap: () => unawaited(showPrinterSheet(context)),
       ),
-      if (!isKitchen && tills.isNotEmpty)
-        MadarListRow.nav(
-          title: t('settings.till'),
-          meta: tillName,
-          glyph: MadarGlyph.wallet,
-          onTap: () => unawaited(showTillSheet(context)),
-        ),
       if (isKitchen && stations.isNotEmpty)
         MadarListRow.nav(
           title: t('setup.choose_station'),

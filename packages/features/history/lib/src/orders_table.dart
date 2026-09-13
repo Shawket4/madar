@@ -1,7 +1,7 @@
 /// THE orders table — one set of columns for every list of sales in the
-/// till: the Orders screen, and the orders nested under a past shift. They
+/// till: the Orders screen, and the orders nested under a past till. They
 /// used to be two hand-built row widgets that agreed on nothing (the owner's
-/// "Past shifts and Orders look nothing alike"); now a sale reads the same
+/// "Past tills and Orders look nothing alike"); now a sale reads the same
 /// wherever it is listed. docs/design/SPEC.md §8, §15.
 library;
 
@@ -115,7 +115,7 @@ List<MadarColumn<OrderSummaryView>> orderColumns(
 }
 
 /// A table of sales. The Orders screen passes [onTap] and [selectedId]; a
-/// past shift nests one with `framed: false, scrollable: false` and a print
+/// past till nests one with `framed: false, scrollable: false` and a print
 /// [trailing].
 class OrdersTable extends StatelessWidget {
   const OrdersTable({

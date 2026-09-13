@@ -236,8 +236,8 @@ class _Fake implements MadarBridge {
         permissionsLoaded: true,
       );
     }
-    if (n == #currentShift || n == #refreshShift) {
-      return Future<ShiftView?>.value();
+    if (n == #currentTill || n == #refreshTill) {
+      return Future<TillView?>.value();
     }
     if (n == #floorLayout) {
       return Future<FloorLayoutView>.value(
@@ -295,12 +295,12 @@ class _Fake implements MadarBridge {
       String two(int v) => v.toString().padLeft(2, '0');
       return '${two(t.hour)}:${two(t.minute)}';
     }
-    if (n == #listShiftOrders) {
+    if (n == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value([]);
     }
-    if (n == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 0, orderCount: 0),
+    if (n == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 0, orderCount: 0),
       );
     }
     if (n == #listItemModifierGroups) {

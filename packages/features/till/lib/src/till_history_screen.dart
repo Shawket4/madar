@@ -1,13 +1,13 @@
-/// Past shifts — the branch's shifts on the spec's one table
+/// Past tills — the branch's tills on the spec's one table
 /// (docs/design/SPEC.md §8, §15): Teller, Opened, Length, Declared,
-/// Difference, Status, a print tile for the shift's Z report, and each row
-/// expanding to that shift's orders in the SAME table Orders uses
-/// ([OrdersTable]) — so a sale reads the same under a shift as it does in
+/// Difference, Status, a print tile for the till's Z report, and each row
+/// expanding to that till's orders in the SAME table Orders uses
+/// ([OrdersTable]) — so a sale reads the same under a till as it does in
 /// Orders.
 ///
-/// The locally-open shift is pinned on top (the natives'
-/// `shiftsWithLocalOpen`). All data and rules live in the core; state lives
-/// in [shiftHistoryProvider]; this screen renders.
+/// The locally-open till is pinned on top (the natives'
+/// `tillsWithLocalOpen`). All data and rules live in the core; state lives
+/// in [tillHistoryProvider]; this screen renders.
 library;
 
 import 'dart:async';
@@ -16,23 +16,23 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart' show ReceiptSheet;
 import 'package:feature_history/feature_history.dart' show OrdersTable;
-import 'package:feature_shift/src/shift_providers.dart';
-import 'package:feature_shift/src/shift_report_sheet.dart';
+import 'package:feature_till/src/till_providers.dart';
+import 'package:feature_till/src/till_report_sheet.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// The branch's shift history, pushed from the Till. The header's back pops
+/// The branch's till history, pushed from the Till. The header's back pops
 /// it via `Navigator.maybePop`.
-class ShiftHistoryScreen extends ConsumerWidget {
-  /// Creates the shift-history screen.
-  const ShiftHistoryScreen({super.key});
+class TillHistoryScreen extends ConsumerWidget {
+  /// Creates the till-history screen.
+  const TillHistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
-    final toast = ref.watch(shiftHistoryProvider.select((s) => s.toast));
+    final toast = ref.watch(tillHistoryProvider.select((s) => s.toast));
     final branch = bridge.deviceConfig().branchName?.trim() ?? '';
     return MadarPageScaffold(
       title: t('shifts.title'),
@@ -43,29 +43,29 @@ class ShiftHistoryScreen extends ConsumerWidget {
         // Loose, so the card hugs its rows instead of filling the page.
         child: Align(
           alignment: AlignmentDirectional.topStart,
-          child: _Shifts(),
+          child: _Tills(),
         ),
       ),
       overlay: ToastHost(
         toast,
         onDismiss: (id) =>
-            ref.read(shiftHistoryProvider.notifier).dismissToast(id),
+            ref.read(tillHistoryProvider.notifier).dismissToast(id),
       ),
     );
   }
 }
 
-/// The natives' `shiftsWithLocalOpen`: prepend the locally-opened-but-
-/// unsynced shift if it isn't already on the page, so the live shift always
+/// The natives' `tillsWithLocalOpen`: prepend the locally-opened-but-
+/// unsynced till if it isn't already on the page, so the live till always
 /// shows.
-List<ShiftSummaryView> _rowsWithLocalOpen(
-  List<ShiftSummaryView> shifts,
-  ShiftView? live,
+List<TillSummaryView> _rowsWithLocalOpen(
+  List<TillSummaryView> tills,
+  TillView? live,
 ) {
-  if (live == null || !live.isOpen || shifts.any((s) => s.id == live.id)) {
-    return shifts;
+  if (live == null || !live.isOpen || tills.any((s) => s.id == live.id)) {
+    return tills;
   }
-  final pinned = ShiftSummaryView(
+  final pinned = TillSummaryView(
     id: live.id,
     tellerName: live.tellerName,
     openedAt: live.openedAt,
@@ -73,12 +73,12 @@ List<ShiftSummaryView> _rowsWithLocalOpen(
     status: live.status,
     isOpen: live.isOpen,
   );
-  return [pinned, ...shifts];
+  return [pinned, ...tills];
 }
 
-/// A shift's state as a pill: open, force-closed, or — once counted —
+/// A till's state as a pill: open, force-closed, or — once counted —
 /// balanced, short or over by its declared difference.
-MadarStatus shiftStatus(MadarBridge bridge, ShiftSummaryView s) {
+MadarStatus tillStatus(MadarBridge bridge, TillSummaryView s) {
   String t(String key) => bridge.tr(key: key);
   if (s.isOpen) {
     return MadarStatus(t('shifts.open_now'), tone: MadarTone.accent);
@@ -96,36 +96,36 @@ MadarStatus shiftStatus(MadarBridge bridge, ShiftSummaryView s) {
       : MadarStatus(t('shifts.over'), tone: MadarTone.warning);
 }
 
-/// The one table. Rows expand to the shift's orders, loaded on first open.
-class _Shifts extends ConsumerWidget {
-  const _Shifts();
+/// The one table. Rows expand to the till's orders, loaded on first open.
+class _Tills extends ConsumerWidget {
+  const _Tills();
 
-  /// Open a shift's Z report in the shared sheet — the live shift loads the
+  /// Open a till's Z report in the shared sheet — the live till loads the
   /// current report in-sheet; a past one is fetched first (a spinner in its
   /// print tile, a toast on failure).
   Future<void> _openReport(
     BuildContext context,
     WidgetRef ref,
-    ShiftSummaryView s,
+    TillSummaryView s,
   ) async {
-    final state = ref.read(shiftHistoryProvider);
+    final state = ref.read(tillHistoryProvider);
     if (state.reportLoadingId != null) return;
     if (s.isOpen && s.id == state.live?.id) {
       await showMadarSheet<void>(
         context,
         size: SheetSize.large,
-        builder: (_) => const ShiftReportSheet(),
+        builder: (_) => const TillReportSheet(),
       );
       return;
     }
     final report = await ref
-        .read(shiftHistoryProvider.notifier)
+        .read(tillHistoryProvider.notifier)
         .fetchReport(s.id);
     if (report == null || !context.mounted) return;
     await showMadarSheet<void>(
       context,
       size: SheetSize.large,
-      builder: (_) => ShiftReportSheet(report: report, shiftId: s.id),
+      builder: (_) => TillReportSheet(report: report, tillId: s.id),
     );
   }
 
@@ -133,23 +133,23 @@ class _Shifts extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
-    final shifts = ref.watch(shiftHistoryProvider.select((s) => s.shifts));
-    final live = ref.watch(shiftHistoryProvider.select((s) => s.live));
-    final loading = ref.watch(shiftHistoryProvider.select((s) => s.loading));
+    final tills = ref.watch(tillHistoryProvider.select((s) => s.tills));
+    final live = ref.watch(tillHistoryProvider.select((s) => s.live));
+    final loading = ref.watch(tillHistoryProvider.select((s) => s.loading));
     final loadError = ref.watch(
-      shiftHistoryProvider.select((s) => s.loadError),
+      tillHistoryProvider.select((s) => s.loadError),
     );
     final reportLoadingId = ref.watch(
-      shiftHistoryProvider.select((s) => s.reportLoadingId),
+      tillHistoryProvider.select((s) => s.reportLoadingId),
     );
     final currency = bridge.currentSession()?.currencyCode ?? '';
-    final notifier = ref.read(shiftHistoryProvider.notifier);
-    final rows = _rowsWithLocalOpen(shifts, live);
+    final notifier = ref.read(tillHistoryProvider.notifier);
+    final rows = _rowsWithLocalOpen(tills, live);
 
-    final MadarTableState<ShiftSummaryView> state;
+    final MadarTableState<TillSummaryView> state;
     if (loading && rows.isEmpty) {
       state = const MadarTableState.loading();
-    } else if (loadError != null && shifts.isEmpty) {
+    } else if (loadError != null && tills.isEmpty) {
       state = MadarTableState.error(
         message: loadError.of(bridge),
         retryLabel: t('history.retry'),
@@ -163,11 +163,11 @@ class _Shifts extends ConsumerWidget {
         ? '—'
         : bridge.formatMoney(minor: minor, currency: currency, signed: signed);
 
-    return MadarDataTable<ShiftSummaryView>(
+    return MadarDataTable<TillSummaryView>(
       columns: [
         MadarColumn(
           id: 'teller',
-          label: t('shift.teller'),
+          label: t('till.teller'),
           text: (s) => s.tellerName ?? '—',
           flex: 2,
           emphasis: true,
@@ -175,7 +175,7 @@ class _Shifts extends ConsumerWidget {
         ),
         MadarColumn(
           id: 'opened',
-          label: t('shift.opened_at'),
+          label: t('till.opened_at'),
           text: (s) => bridge.formatStamp(rfc3339: s.openedAt),
           flex: 3,
           mono: true,
@@ -209,7 +209,7 @@ class _Shifts extends ConsumerWidget {
         ),
         MadarColumn(
           id: 'difference',
-          label: t('shift.difference'),
+          label: t('till.difference'),
           text: (s) => money(s.discrepancyMinor, signed: true),
           width: 128,
           align: MadarColumnAlign.end,
@@ -221,7 +221,7 @@ class _Shifts extends ConsumerWidget {
         MadarColumn.status(
           id: 'status',
           label: t('history.col_status'),
-          status: (s) => shiftStatus(bridge, s),
+          status: (s) => tillStatus(bridge, s),
           width: 128,
         ),
       ],
@@ -232,7 +232,7 @@ class _Shifts extends ConsumerWidget {
         title: t('shifts.empty'),
         message: t('shifts.empty_message'),
       ),
-      rail: (s) => switch (shiftStatus(bridge, s).tone) {
+      rail: (s) => switch (tillStatus(bridge, s).tone) {
         MadarTone.danger => MadarTone.danger,
         MadarTone.warning => MadarTone.warning,
         _ => null,
@@ -244,26 +244,26 @@ class _Shifts extends ConsumerWidget {
             )
           : MadarGlyphTile(
               glyph: MadarGlyph.printer,
-              semanticLabel: t('shift.report_title'),
+              semanticLabel: t('till.report_title'),
               onTap: () => unawaited(_openReport(context, ref, s)),
             ),
-      expandedBuilder: (context, s) => _ShiftOrders(shiftId: s.id),
+      expandedBuilder: (context, s) => _TillOrders(tillId: s.id),
       onExpansionChanged: (s, {required expanded}) {
-        final st = ref.read(shiftHistoryProvider);
-        if (expanded && !st.ordersByShift.containsKey(s.id)) {
-          unawaited(notifier.loadShiftOrders(s.id));
+        final st = ref.read(tillHistoryProvider);
+        if (expanded && !st.ordersByTill.containsKey(s.id)) {
+          unawaited(notifier.loadTillOrders(s.id));
         }
       },
     );
   }
 }
 
-/// A shift's orders under its row: the Orders table, unframed, each sale
+/// A till's orders under its row: the Orders table, unframed, each sale
 /// opening its receipt and printable from its own tile.
-class _ShiftOrders extends ConsumerWidget {
-  const _ShiftOrders({required this.shiftId});
+class _TillOrders extends ConsumerWidget {
+  const _TillOrders({required this.tillId});
 
-  final String shiftId;
+  final String tillId;
 
   Future<void> _preview(
     BuildContext context,
@@ -289,21 +289,21 @@ class _ShiftOrders extends ConsumerWidget {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final orders = ref.watch(
-      shiftHistoryProvider.select((s) => s.ordersByShift[shiftId]),
+      tillHistoryProvider.select((s) => s.ordersByTill[tillId]),
     );
     final loading = ref.watch(
-      shiftHistoryProvider.select((s) => s.ordersLoadingId == shiftId),
+      tillHistoryProvider.select((s) => s.ordersLoadingId == tillId),
     );
     final error = ref.watch(
-      shiftHistoryProvider.select((s) => s.ordersErrors[shiftId]),
+      tillHistoryProvider.select((s) => s.ordersErrors[tillId]),
     );
-    final notifier = ref.read(shiftHistoryProvider.notifier);
+    final notifier = ref.read(tillHistoryProvider.notifier);
     final MadarTableState<OrderSummaryView> state;
     if (orders == null && error != null && !loading) {
       state = MadarTableState.error(
         message: error.of(bridge),
         retryLabel: t('history.retry'),
-        onRetry: () => unawaited(notifier.loadShiftOrders(shiftId)),
+        onRetry: () => unawaited(notifier.loadTillOrders(tillId)),
       );
     } else if (orders == null) {
       state = const MadarTableState.loading(rows: 3);

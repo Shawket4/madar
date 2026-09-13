@@ -9,3 +9,4 @@ export 'src/printing/printer_service.dart';
 export 'src/printing/printer_transport.dart';
 export 'src/providers.dart';
 export 'src/realtime_poll.dart';
+export 'src/roles.dart';

@@ -1,4 +1,4 @@
-// Orders tells "no shift" from "could not read", keeps a stable newest-first
+// Orders tells "no till" from "could not read", keeps a stable newest-first
 // order by the instant, and under All keeps paging to find a search.
 
 import 'package:app_core/app_core.dart';
@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-const _shift = ShiftView(
+const _till = TillView(
   id: 'sh-1',
   branchId: 'br-1',
   tellerId: 'u-1',
@@ -33,7 +33,7 @@ OrderSummaryView _o(String id, int number, String at) => OrderSummaryView(
 );
 
 class _Bridge implements MadarBridge {
-  ShiftView? shift = _shift;
+  TillView? till = _till;
   bool failList = false;
   int listCalls = 0;
   List<OrderSummaryView> rows = const [];
@@ -47,8 +47,8 @@ class _Bridge implements MadarBridge {
       final code = invocation.namedArguments[#code] as String;
       return code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
     }
-    if (name == #shiftCashSalesMinor) {
-      final r = invocation.namedArguments[#report] as ShiftReportView;
+    if (name == #tillCashSalesMinor) {
+      final r = invocation.namedArguments[#report] as TillReportView;
       return r.expectedCashMinor -
           r.openingCashMinor -
           r.cashInMinor +
@@ -92,7 +92,7 @@ class _Bridge implements MadarBridge {
             .where((o) => o.code == method.toLowerCase())
             .firstOrNull
             ?.code,
-        crossesShift: false,
+        crossesTill: false,
       );
     }
     final args = invocation.namedArguments;
@@ -107,8 +107,8 @@ class _Bridge implements MadarBridge {
         const MadarError.offline(detail: 'x'),
       );
     }
-    if (name == #currentShift) return Future<ShiftView?>.value(shift);
-    if (name == #listShiftOrders) {
+    if (name == #currentTill) return Future<TillView?>.value(till);
+    if (name == #listTillOrders) {
       listCalls++;
       return failList
           ? Future<List<OrderSummaryView>>.error(
@@ -116,9 +116,9 @@ class _Bridge implements MadarBridge {
             )
           : Future<List<OrderSummaryView>>.value(rows);
     }
-    if (name == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 0, orderCount: 0),
+    if (name == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 0, orderCount: 0),
       );
     }
     if (name == #syncStatus) {
@@ -174,11 +174,11 @@ void main() {
   tearDown(() => container.dispose());
 
   test('no shift is a state: no list call, no toast, no error', () async {
-    bridge.shift = null;
+    bridge.till = null;
     container.listen(historyProvider, (_, _) {});
     await _settle();
     final s = container.read(historyProvider);
-    expect(s.hasShift, isFalse);
+    expect(s.hasTill, isFalse);
     expect(s.loading, isFalse);
     expect(s.toast, isNull);
     expect(s.error, isNull);
@@ -192,7 +192,7 @@ void main() {
     final s = container.read(historyProvider);
     expect(s.error, isNotNull);
     expect(s.toast, isNull);
-    expect(s.hasShift, isTrue);
+    expect(s.hasTill, isTrue);
   });
 
   test('rows sort by the instant, not the text, and ties keep order', () async {

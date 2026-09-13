@@ -201,10 +201,23 @@ class RealtimeArmer {
           _ref.read(deliveryTickProvider.notifier).bump();
         }
         // A settled/voided bill or an order changes what the drawer should
-        // hold. The backend publishes no shift/cash event, so these are the
+        // hold. The backend publishes no till/cash event, so these are the
         // closest cross-device signal for the Till's expected cash.
         if (eventType.startsWith('order.') || eventType.startsWith('ticket.')) {
           _ref.read(drawerTickProvider.notifier).bump();
+        }
+        // A till opened, closed, was force-closed or flagged anywhere at the
+        // branch: the Till's branch list and the drawer figures re-read.
+        if (eventType.startsWith('till.')) {
+          _ref.read(drawerTickProvider.notifier).bump();
+        }
+        // The core's sync moved (the strip after opening a till), or what
+        // this teller may charge with changed.
+        if (eventType.startsWith('sync.')) {
+          _ref.read(syncTickProvider.notifier).bump();
+        }
+        if (eventType.startsWith('payment_methods.')) {
+          _ref.read(catalogTickProvider.notifier).bump();
         }
         // The floor moved: a manager re-arranged the room in the dashboard
         // (`floor.layout_changed`), a table changed state, or another till
@@ -229,6 +242,7 @@ class RealtimeArmer {
           _ref.read(floorTickProvider.notifier).bump();
           _ref.read(bookingTickProvider.notifier).bump();
           _ref.read(drawerTickProvider.notifier).bump();
+          _ref.read(syncTickProvider.notifier).bump();
         }
       case RealtimeMessage_ConnectionChanged(:final connected):
         _ref.read(realtimeConnectedProvider.notifier).update(connected);

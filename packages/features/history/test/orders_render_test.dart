@@ -67,7 +67,7 @@ void _loadWords() {
 
 const _openedAt = '2026-09-12T15:02:00Z';
 
-const _shift = ShiftView(
+const _till = TillView(
   id: 'sh-1',
   branchId: 'br-1',
   tellerId: 'u-1',
@@ -106,8 +106,8 @@ OrderSummaryView _order(
   orderRef: ref,
 );
 
-/// This shift, newest first, the way the mirror hands them back.
-final _shiftOrders = <OrderSummaryView>[
+/// This till, newest first, the way the mirror hands them back.
+final _tillOrders = <OrderSummaryView>[
   // A queued sale is a counter sale by construction, and the core says so.
   _order(
     1043,
@@ -240,8 +240,8 @@ class _FakeBridge implements MadarBridge {
       final code = invocation.namedArguments[#code] as String;
       return code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
     }
-    if (name == #shiftCashSalesMinor) {
-      final r = invocation.namedArguments[#report] as ShiftReportView;
+    if (name == #tillCashSalesMinor) {
+      final r = invocation.namedArguments[#report] as TillReportView;
       return r.expectedCashMinor -
           r.openingCashMinor -
           r.cashInMinor +
@@ -285,7 +285,7 @@ class _FakeBridge implements MadarBridge {
             .where((o) => o.code == method.toLowerCase())
             .firstOrNull
             ?.code,
-        crossesShift: false,
+        crossesTill: false,
       );
     }
     if (name == #tr) {
@@ -400,19 +400,19 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #loyaltyAwardWindowOpen) {
       final at = invocation.namedArguments[#orderCreatedAt] as String;
-      // The fixture clock is 12 Sep 2026, 20:00 — this shift is inside the
+      // The fixture clock is 12 Sep 2026, 20:00 — this till is inside the
       // window, yesterday's sales are not.
       return DateTime.parse(at).isAfter(DateTime.utc(2026, 9, 11, 20));
     }
-    if (name == #currentShift || name == #refreshShift) {
-      return Future<ShiftView?>.value(_shift);
+    if (name == #currentTill || name == #refreshTill) {
+      return Future<TillView?>.value(_till);
     }
-    if (name == #listShiftOrders) {
-      return Future<List<OrderSummaryView>>.value(_shiftOrders);
+    if (name == #listTillOrders) {
+      return Future<List<OrderSummaryView>>.value(_tillOrders);
     }
-    if (name == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 623000, orderCount: 42),
+    if (name == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 623000, orderCount: 42),
       );
     }
     if (name == #syncStatus) {
@@ -567,7 +567,7 @@ void main() {
       name: 'ipad',
       then: (t) => _open(t, 1042),
     );
-    // The header counts the shift in the core's words and figures.
+    // The header counts the till in the core's words and figures.
     expect(
       find.text('This shift · \u206642\u2069 sales · EGP 6,230.00'),
       findsOneWidget,

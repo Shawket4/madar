@@ -1,13 +1,13 @@
 // The drawer screens tell a failure from an empty result, the close count
-// starts blank, and a just-closed shift's Z report is its own report.
+// starts blank, and a just-closed till's Z report is its own report.
 
 import 'package:app_core/app_core.dart';
-import 'package:feature_shift/feature_shift.dart';
+import 'package:feature_till/feature_till.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-const _shift = ShiftView(
+const _till = TillView(
   id: 'sh-1',
   branchId: 'br-1',
   tellerId: 'u-1',
@@ -18,10 +18,10 @@ const _shift = ShiftView(
   isOpen: true,
 );
 
-ShiftReportView _report(int expected) => ShiftReportView(
+TillReportView _report(int expected) => TillReportView(
   tellerName: 'Sara',
-  openedAt: _shift.openedAt,
-  printedAt: _shift.openedAt,
+  openedAt: _till.openedAt,
+  printedAt: _till.openedAt,
   isOpen: true,
   expectedCashMinor: expected,
   openingCashMinor: 85000,
@@ -45,7 +45,7 @@ const _offline = MadarError.offline(detail: 'offline');
 
 class _Bridge implements MadarBridge {
   bool failReport = false;
-  bool failShifts = false;
+  bool failTills = false;
   bool failOrders = false;
   bool failMovements = false;
   final List<int> closes = [];
@@ -59,8 +59,8 @@ class _Bridge implements MadarBridge {
       final code = invocation.namedArguments[#code] as String;
       return code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
     }
-    if (name == #shiftCashSalesMinor) {
-      final r = invocation.namedArguments[#report] as ShiftReportView;
+    if (name == #tillCashSalesMinor) {
+      final r = invocation.namedArguments[#report] as TillReportView;
       return r.expectedCashMinor -
           r.openingCashMinor -
           r.cashInMinor +
@@ -104,7 +104,7 @@ class _Bridge implements MadarBridge {
             .where((o) => o.code == method.toLowerCase())
             .firstOrNull
             ?.code,
-        crossesShift: false,
+        crossesTill: false,
       );
     }
     final args = invocation.namedArguments;
@@ -114,44 +114,44 @@ class _Bridge implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(reconfiguring: false, configured: true);
     }
-    if (name == #currentShift || name == #refreshShift) {
-      return Future<ShiftView?>.value(_shift);
+    if (name == #currentTill || name == #refreshTill) {
+      return Future<TillView?>.value(_till);
     }
-    if (name == #shiftReport) {
+    if (name == #tillReport) {
       return failReport
-          ? Future<ShiftReportView>.error(_offline)
-          : Future<ShiftReportView>.value(_report(100000));
+          ? Future<TillReportView>.error(_offline)
+          : Future<TillReportView>.value(_report(100000));
     }
-    if (name == #shiftReportFor) {
-      reportsFor.add(args[#shiftId] as String);
+    if (name == #tillReportFor) {
+      reportsFor.add(args[#tillId] as String);
       return failReport
-          ? Future<ShiftReportView>.error(_offline)
-          : Future<ShiftReportView>.value(_report(100000));
+          ? Future<TillReportView>.error(_offline)
+          : Future<TillReportView>.value(_report(100000));
     }
-    if (name == #listShiftOrders) {
+    if (name == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value(const []);
     }
-    if (name == #listOrdersForShift) {
+    if (name == #listOrdersForTill) {
       return failOrders
           ? Future<List<OrderSummaryView>>.error(_offline)
           : Future<List<OrderSummaryView>>.value(const []);
     }
-    if (name == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 0, orderCount: 0),
+    if (name == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 0, orderCount: 0),
       );
     }
-    if (name == #listShifts) {
-      return failShifts
-          ? Future<List<ShiftSummaryView>>.error(_offline)
-          : Future<List<ShiftSummaryView>>.value(const []);
+    if (name == #listTills) {
+      return failTills
+          ? Future<List<TillSummaryView>>.error(_offline)
+          : Future<List<TillSummaryView>>.value(const []);
     }
     if (name == #listCashMovements) {
       return failMovements
           ? Future<List<CashMovementView>>.error(_offline)
           : Future<List<CashMovementView>>.value(const []);
     }
-    if (name == #closeShift) {
+    if (name == #closeTill) {
       closes.add(args[#closingCashMinor] as int);
       return Future<void>.value();
     }
@@ -182,48 +182,48 @@ void main() {
     test(
       'the count starts blank: no difference, no reason, no close',
       () async {
-        container.listen(closeShiftProvider, (_, _) {});
+        container.listen(closeTillProvider, (_, _) {});
         await _settle();
-        final s = container.read(closeShiftProvider);
+        final s = container.read(closeTillProvider);
         expect(s.report?.expectedCashMinor, 100000);
         expect(s.countedMinor, isNull);
         expect(s.needsReason, isFalse);
         expect(s.canClose, isFalse);
 
-        final notifier = container.read(closeShiftProvider.notifier);
+        final notifier = container.read(closeTillProvider.notifier);
         expect(await notifier.close(note: 'reason'), isFalse);
         expect(bridge.closes, isEmpty, reason: 'nothing counted, nothing sent');
         expect(
-          container.read(closeShiftProvider).error,
-          const UiText.key('shift.count_required'),
+          container.read(closeTillProvider).error,
+          const UiText.key('till.count_required'),
         );
       },
     );
 
     test('an off count asks for the CLOSING reason, then closes', () async {
-      container.listen(closeShiftProvider, (_, _) {});
+      container.listen(closeTillProvider, (_, _) {});
       await _settle();
-      final notifier = container.read(closeShiftProvider.notifier)
+      final notifier = container.read(closeTillProvider.notifier)
         ..setCounted(90000);
-      expect(container.read(closeShiftProvider).needsReason, isTrue);
+      expect(container.read(closeTillProvider).needsReason, isTrue);
       expect(await notifier.close(note: ' '), isFalse);
       expect(
-        container.read(closeShiftProvider).error,
-        const UiText.key('shift.closing_reason_required'),
+        container.read(closeTillProvider).error,
+        const UiText.key('till.closing_reason_required'),
       );
       expect(await notifier.close(note: 'change for the bakery'), isTrue);
       expect(bridge.closes, [90000]);
-      expect(container.read(closeShiftProvider).closedShiftId, 'sh-1');
+      expect(container.read(closeTillProvider).closedTillId, 'sh-1');
     });
 
     test('a report that cannot be read is an error with a retry', () async {
       bridge.failReport = true;
-      container.listen(closeShiftProvider, (_, _) {});
+      container.listen(closeTillProvider, (_, _) {});
       await _settle();
-      expect(container.read(closeShiftProvider).loadError, isNotNull);
+      expect(container.read(closeTillProvider).loadError, isNotNull);
       bridge.failReport = false;
-      await container.read(closeShiftProvider.notifier).retry();
-      final s = container.read(closeShiftProvider);
+      await container.read(closeTillProvider.notifier).retry();
+      final s = container.read(closeTillProvider);
       expect(s.loadError, isNull);
       expect(s.report, isNotNull);
     });
@@ -232,16 +232,16 @@ void main() {
   test(
     'the closed shift Z sheet reads that shift, and says when it cannot',
     () async {
-      const request = ShiftReportRequest(shiftId: 'sh-1');
+      const request = TillReportRequest(tillId: 'sh-1');
       bridge.failReport = true;
-      container.listen(shiftReportProvider(request), (_, _) {});
+      container.listen(tillReportProvider(request), (_, _) {});
       await _settle();
       expect(bridge.reportsFor, ['sh-1']);
-      expect(container.read(shiftReportProvider(request)).loadError, isNotNull);
+      expect(container.read(tillReportProvider(request)).loadError, isNotNull);
       bridge.failReport = false;
-      container.read(shiftReportProvider(request).notifier).retry();
+      container.read(tillReportProvider(request).notifier).retry();
       await _settle();
-      expect(container.read(shiftReportProvider(request)).report, isNotNull);
+      expect(container.read(tillReportProvider(request)).report, isNotNull);
     },
   );
 
@@ -249,17 +249,17 @@ void main() {
     'past shifts: a failed list and failed orders are errors, not empty',
     () async {
       bridge
-        ..failShifts = true
+        ..failTills = true
         ..failOrders = true;
-      container.listen(shiftHistoryProvider, (_, _) {});
+      container.listen(tillHistoryProvider, (_, _) {});
       await _settle();
-      expect(container.read(shiftHistoryProvider).loadError, isNotNull);
+      expect(container.read(tillHistoryProvider).loadError, isNotNull);
       await container
-          .read(shiftHistoryProvider.notifier)
-          .toggleShiftOrders('sh-0');
-      final s = container.read(shiftHistoryProvider);
+          .read(tillHistoryProvider.notifier)
+          .toggleTillOrders('sh-0');
+      final s = container.read(tillHistoryProvider);
       expect(s.ordersErrors['sh-0'], isNotNull);
-      expect(s.ordersByShift.containsKey('sh-0'), isFalse);
+      expect(s.ordersByTill.containsKey('sh-0'), isFalse);
     },
   );
 

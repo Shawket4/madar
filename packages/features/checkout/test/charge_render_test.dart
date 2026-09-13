@@ -4,7 +4,7 @@
 // with a customer waiting. There is no simulator here, so this paints it:
 // `MADAR_RENDER=true` writes `build/render/charge-*.png` — the bill on an
 // iPad with a member attached, the cart in split mode, the bill on a phone in
-// Arabic (mirrored), an online order, the shift-less bar, and the Done card
+// Arabic (mirrored), an online order, the till-less bar, and the Done card
 // in both its variants. Without the flag it still builds every board and
 // fails on any layout exception, which is what CI needs from it.
 //
@@ -266,7 +266,7 @@ const _session = SessionSnapshot(
 class _FakeBridge implements MadarBridge {
   _FakeBridge({
     this.rtl = false,
-    this.shiftOpen = true,
+    this.tillOpen = true,
     this.loyaltyEnabled = true,
     List<PaymentMethodView>? methods,
   }) : methods = methods ?? _methods;
@@ -276,7 +276,7 @@ class _FakeBridge implements MadarBridge {
   final bool loyaltyEnabled;
 
   final bool rtl;
-  final bool shiftOpen;
+  final bool tillOpen;
 
   /// Defaults to the three-method fixture; overridden by the overflow test
   /// to stand up a shop with many, long, and Arabic-named methods.
@@ -308,8 +308,11 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #orgLogoLocalPath) return null;
+    // The core's effective set (branch ∩ teller ∩ device); the full org
+    // list is never what Charge shows.
+    if (name == #availablePaymentMethods) return methods;
     if (name == #listPaymentMethods) {
-      return Future<List<PaymentMethodView>>.value(methods);
+      throw StateError('Charge must list only available methods');
     }
     if (name == #listDiscounts) {
       return Future<List<DiscountView>>.value(_discounts);
@@ -340,10 +343,10 @@ class _FakeBridge implements MadarBridge {
     if (name == #cartLines) {
       return Future<List<CartLineView>>.value(const []);
     }
-    if (name == #currentShift) {
-      return Future<ShiftView?>.value(
-        shiftOpen
-            ? const ShiftView(
+    if (name == #currentTill) {
+      return Future<TillView?>.value(
+        tillOpen
+            ? const TillView(
                 id: 'sh-1',
                 branchId: 'b1',
                 tellerId: 'u1',
@@ -852,6 +855,30 @@ void main() {
     expect(await pending, isNull);
   });
 
+  testWidgets('charge_sheet_lists_only_available_methods', (tester) async {
+    // The core narrowed the org's methods to this teller on this device:
+    // cash only. Charge offers exactly that, never the rest of the org's.
+    await _mount(
+      tester,
+      size: _ipad,
+      bridge: _FakeBridge(methods: [_methods.first]),
+    );
+    final host = tester.element(find.byType(_Host));
+    unawaited(
+      showCharge(
+        host,
+        ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+        presentDoneCard: false,
+      ),
+    );
+    await _settle(tester);
+    expect(find.text(_methods.first.name), findsWidgets);
+    for (final other in _methods.skip(1)) {
+      expect(find.text(other.name), findsNothing);
+    }
+    await _capture(tester, 'charge-available-methods-only');
+  });
+
   testWidgets('a bill on an iPad, in the dark', (tester) async {
     await _mount(
       tester,
@@ -977,7 +1004,7 @@ void main() {
     await _mount(
       tester,
       size: _phone,
-      bridge: _FakeBridge(shiftOpen: false),
+      bridge: _FakeBridge(tillOpen: false),
       hostTitle: 'Sell',
     );
     final host = tester.element(find.byType(_Host));

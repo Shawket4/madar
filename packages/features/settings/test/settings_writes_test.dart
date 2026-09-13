@@ -1,5 +1,5 @@
 // A device write the core refuses is said, and the till cannot be re-bound
-// to another drawer while a shift is open on it.
+// to another drawer while a till is open on it.
 
 import 'package:app_core/app_core.dart';
 import 'package:feature_settings/feature_settings.dart';
@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-const _open = ShiftView(
+const _open = TillView(
   id: 'sh-1',
   branchId: 'br-1',
   tellerId: 'u-1',
@@ -19,7 +19,7 @@ const _open = ShiftView(
 );
 
 class _Bridge implements MadarBridge {
-  ShiftView? shift;
+  TillView? till;
   bool refuseHub = false;
   final List<String?> tillBinds = [];
 
@@ -33,7 +33,7 @@ class _Bridge implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(reconfiguring: false, configured: true);
     }
-    if (name == #currentShift) return Future<ShiftView?>.value(shift);
+    if (name == #currentTill) return Future<TillView?>.value(till);
     if (name == #setDeviceTill) {
       tillBinds.add(args[#tillId] as String?);
       return Future<void>.value();
@@ -62,7 +62,7 @@ void main() {
   tearDown(() => container.dispose());
 
   test('the till cannot be re-bound while a shift is open', () async {
-    bridge.shift = _open;
+    bridge.till = _open;
     final ok = await container
         .read(settingsProvider.notifier)
         .bindTill('till-2');

@@ -1,5 +1,5 @@
 /// The brand half of the wide (tablet / desktop) split — shared by Login and
-/// Open-Shift on the natives so the two screens read as one continuous
+/// Open-Till on the natives so the two screens read as one continuous
 /// onboarding act (BrandPanel.kt / SwiftUI BrandPanel). Native metrics that
 /// fall between the token steps are kept verbatim as documented constants.
 library;

@@ -109,7 +109,7 @@ const _tills = [
 ];
 
 /// A teller's queue: two sales waiting, a cash-out mid-send, a charge the
-/// server refused, and one sale stranded behind a dead shift opening.
+/// server refused, and one sale stranded behind a dead till opening.
 const _tellerOutbox = [
   OutboxItemView(
     id: 'o1',
@@ -228,14 +228,14 @@ class _FakeBridge implements MadarBridge {
       online: true,
       authPaused: false,
     ),
-    this.shiftOpen = true,
+    this.tillOpen = true,
   });
 
   final String lang;
   final SessionSnapshot session;
   final List<OutboxItemView> outbox;
   final SyncStatusView status;
-  final bool shiftOpen;
+  final bool tillOpen;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -267,10 +267,10 @@ class _FakeBridge implements MadarBridge {
     if (name == #appRoute) return const AppRoute.order();
     if (name == #deviceConfig) return _config;
     if (name == #deviceCode) return 'T1';
-    if (name == #currentShift) {
-      return Future<ShiftView?>.value(
-        shiftOpen
-            ? const ShiftView(
+    if (name == #currentTill) {
+      return Future<TillView?>.value(
+        tillOpen
+            ? const TillView(
                 id: 's1',
                 branchId: 'b1',
                 tellerId: 'u1',
@@ -520,7 +520,7 @@ void main() {
       bridge: _FakeBridge(
         session: _waiter,
         outbox: _waiterOutbox,
-        shiftOpen: false,
+        tillOpen: false,
         status: const SyncStatusView(
           pending: 2,
           failed: 1,
@@ -548,7 +548,7 @@ void main() {
         lang: 'ar',
         session: _waiter,
         outbox: _waiterOutbox,
-        shiftOpen: false,
+        tillOpen: false,
         status: const SyncStatusView(
           pending: 2,
           failed: 1,

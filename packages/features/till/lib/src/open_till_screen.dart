@@ -1,13 +1,13 @@
-/// Open-shift — the continuation of login: login confirms WHO you are, this
+/// Open-till — the continuation of login: login confirms WHO you are, this
 /// confirms WHAT'S in the drawer. A name-first greeting, one isolated hero
 /// count field (auto-focused), one loud primary. Wide screens split into the
 /// same BrandPanel as login; narrow shows one calm centered column. A
-/// pixel-and-behavior port of the Kotlin OpenShiftScreen.kt.
+/// pixel-and-behavior port of the Kotlin OpenTillScreen.kt.
 ///
-/// State lives in [openShiftProvider] (prefill, heartbeat, busy/error and the
+/// State lives in [openTillProvider] (prefill, heartbeat, busy/error and the
 /// connectivity chrome); the screen renders and forwards intents. Auth-flow
 /// split-brand screen → keeps its own chrome (no MadarHeader). As the Till
-/// tab's no-shift home (`embedded`) the shell already carries the
+/// tab's no-till home (`embedded`) the shell already carries the
 /// connectivity chrome, so the pinned banners stay off and the tab can hang
 /// something under the card (a manager's drawers).
 library;
@@ -16,8 +16,10 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_shift/src/brand_panel.dart';
-import 'package:feature_shift/src/shift_providers.dart';
+import 'package:feature_till/src/brand_panel.dart';
+import 'package:feature_till/src/till_notices.dart';
+import 'package:feature_till/src/till_providers.dart';
+import 'package:feature_till/src/till_sync_strip.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -34,11 +36,11 @@ const double _greetingSize = 28;
 const double _greetingTracking = -0.5;
 
 /// Opening-cash entry. Bridges through [bridgeProvider]; every call that can
-/// move `app_route()`/session (open shift, sign out, shift adoption) hands
-/// off to the shell inside [OpenShiftNotifier].
-class OpenShiftScreen extends ConsumerStatefulWidget {
-  /// Creates the open-shift screen.
-  const OpenShiftScreen({super.key, this.embedded = false, this.below});
+/// move `app_route()`/session (open till, sign out, till adoption) hands
+/// off to the shell inside [OpenTillNotifier].
+class OpenTillScreen extends ConsumerStatefulWidget {
+  /// Creates the open-till screen.
+  const OpenTillScreen({super.key, this.embedded = false, this.below});
 
   /// Rendered inside the Till tab: the shell owns the offline / auth-paused
   /// banners, so this screen paints none of its own.
@@ -48,12 +50,12 @@ class OpenShiftScreen extends ConsumerStatefulWidget {
   final Widget? below;
 
   @override
-  ConsumerState<OpenShiftScreen> createState() => _OpenShiftScreenState();
+  ConsumerState<OpenTillScreen> createState() => _OpenTillScreenState();
 }
 
-class _OpenShiftScreenState extends ConsumerState<OpenShiftScreen> {
+class _OpenTillScreenState extends ConsumerState<OpenTillScreen> {
   /// Discrepancy-reason text — widget-local ephemera; visible state flows
-  /// from [openShiftProvider].
+  /// from [openTillProvider].
   final TextEditingController _reason = TextEditingController();
 
   @override
@@ -67,8 +69,8 @@ class _OpenShiftScreenState extends ConsumerState<OpenShiftScreen> {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     // Narrow slices: the heartbeat chrome repaints alone every 15s.
-    final online = ref.watch(openShiftProvider.select((s) => s.online));
-    final authPaused = ref.watch(openShiftProvider.select((s) => s.authPaused));
+    final online = ref.watch(openTillProvider.select((s) => s.online));
+    final authPaused = ref.watch(openTillProvider.select((s) => s.authPaused));
     // The page shell, so the banners pinned at top: 0 below sit under the
     // status bar rather than behind the clock. `embedded` means the tab
     // shell is above us and has already paid that inset.
@@ -167,6 +169,7 @@ class _OpenShiftScreenState extends ConsumerState<OpenShiftScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.xl,
           children: [
+            const _OpenNotices(),
             _OpeningForm(reason: _reason),
             ?widget.below,
           ],
@@ -196,16 +199,19 @@ class _FormColumn extends ConsumerWidget {
     // Narrow slices — the count keystrokes must not repaint the chrome
     // banners above, and the heartbeat must not repaint this form.
     final openingMinor = ref.watch(
-      openShiftProvider.select((s) => s.openingMinor),
+      openTillProvider.select((s) => s.openingMinor),
     );
     final suggestedMinor = ref.watch(
-      openShiftProvider.select((s) => s.suggestedMinor),
+      openTillProvider.select((s) => s.suggestedMinor),
     );
     final needsReason = ref.watch(
-      openShiftProvider.select((s) => s.needsReason),
+      openTillProvider.select((s) => s.needsReason),
     );
-    final busy = ref.watch(openShiftProvider.select((s) => s.busy));
-    final error = ref.watch(openShiftProvider.select((s) => s.error));
+    final busy = ref.watch(openTillProvider.select((s) => s.busy));
+    final error = ref.watch(openTillProvider.select((s) => s.error));
+    final blocked = ref.watch(
+      openTillProvider.select((s) => s.elsewhere != null),
+    );
     final session = bridge.currentSession();
     final currency = session?.currencyCode ?? '';
     final branchName = bridge.deviceConfig().branchName ?? '';
@@ -227,7 +233,7 @@ class _FormColumn extends ConsumerWidget {
             ],
             // ── Greeting (the teller's name IS the hero) ──────────────────
             Text(
-              t('shift.welcome'),
+              t('till.welcome'),
               textAlign: TextAlign.center,
               style: MadarType.title.copyWith(
                 fontWeight: FontWeight.w500,
@@ -236,7 +242,7 @@ class _FormColumn extends ConsumerWidget {
             ),
             const SizedBox(height: Space.xs),
             Text(
-              session?.displayName ?? t('shift.open_title'),
+              session?.displayName ?? t('till.open_title'),
               textAlign: TextAlign.center,
               style: MadarType.h1.copyWith(
                 fontSize: _greetingSize,
@@ -255,11 +261,12 @@ class _FormColumn extends ConsumerWidget {
               ),
             ],
             const SizedBox(height: Space.xxl),
+            const _OpenNotices(),
             // ── Hero count field (the one thing the teller must do) ───────
             MadarCard.column(
               children: [
                 MadarSectionHeader(
-                  text: t('shift.opening_cash'),
+                  text: t('till.opening_cash'),
                   icon: 'banknote',
                 ),
                 // Keyed on the suggestion: the carry-over lands a beat after
@@ -271,14 +278,14 @@ class _FormColumn extends ConsumerWidget {
                   key: ValueKey(suggestedMinor),
                   amountMinor: openingMinor,
                   onAmountMinor: (v) =>
-                      ref.read(openShiftProvider.notifier).setAmount(v),
+                      ref.read(openTillProvider.notifier).setAmount(v),
                   currencyCode: currency,
                   autofocus: true,
                 ),
                 // Carried-over suggestion (previous declared closing).
                 if (suggestedMinor > 0)
                   MadarSummaryLine(
-                    label: t('shift.suggested_from_close'),
+                    label: t('till.suggested_from_close'),
                     minor: suggestedMinor,
                     currency: currency,
                     tone: MadarTone.accent,
@@ -287,13 +294,13 @@ class _FormColumn extends ConsumerWidget {
                 if (needsReason)
                   MadarField(
                     controller: reason,
-                    placeholder: t('shift.opening_reason_label'),
+                    placeholder: t('till.opening_reason_label'),
                     icon: 'exclamationmark.bubble',
                   ),
                 Text(
                   needsReason
-                      ? t('shift.opening_reason_hint')
-                      : t('shift.opening_hint'),
+                      ? t('till.opening_reason_hint')
+                      : t('till.opening_hint'),
                   textAlign: TextAlign.center,
                   style: MadarType.label.copyWith(
                     fontWeight: FontWeight.w400,
@@ -315,22 +322,23 @@ class _FormColumn extends ConsumerWidget {
               const SizedBox(height: Space.xl),
             // ── Primary action ────────────────────────────────────────────
             MadarButton(
-              label: t('shift.open_button'),
+              label: t('till.open_button'),
               icon: 'lock.open',
               loading: busy,
+              enabled: !blocked,
               onTap: () => unawaited(
                 ref
-                    .read(openShiftProvider.notifier)
+                    .read(openTillProvider.notifier)
                     .submit(reason: reason.text),
               ),
             ),
             const SizedBox(height: Space.sm),
             // ── Recessive exit ────────────────────────────────────────────
             MadarButton(
-              label: t('shift.switch_teller'),
+              label: t('till.switch_teller'),
               variant: MadarButtonVariant.ghost,
               onTap: () =>
-                  unawaited(ref.read(openShiftProvider.notifier).signOut()),
+                  unawaited(ref.read(openTillProvider.notifier).signOut()),
             ),
           ],
         ),
@@ -341,7 +349,7 @@ class _FormColumn extends ConsumerWidget {
 
 /// The opening count on the Till tab: the amount (prefilled from the last
 /// close), the reason when it differs, the error beside the action, Open
-/// shift, and the way out for the wrong teller.
+/// till, and the way out for the wrong teller.
 class _OpeningForm extends ConsumerWidget {
   const _OpeningForm({required this.reason});
 
@@ -353,23 +361,26 @@ class _OpeningForm extends ConsumerWidget {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final openingMinor = ref.watch(
-      openShiftProvider.select((s) => s.openingMinor),
+      openTillProvider.select((s) => s.openingMinor),
     );
     final suggestedMinor = ref.watch(
-      openShiftProvider.select((s) => s.suggestedMinor),
+      openTillProvider.select((s) => s.suggestedMinor),
     );
     final needsReason = ref.watch(
-      openShiftProvider.select((s) => s.needsReason),
+      openTillProvider.select((s) => s.needsReason),
     );
-    final busy = ref.watch(openShiftProvider.select((s) => s.busy));
-    final error = ref.watch(openShiftProvider.select((s) => s.error));
+    final busy = ref.watch(openTillProvider.select((s) => s.busy));
+    final error = ref.watch(openTillProvider.select((s) => s.error));
+    final blocked = ref.watch(
+      openTillProvider.select((s) => s.elsewhere != null),
+    );
     final currency = bridge.currentSession()?.currencyCode ?? '';
-    final notifier = ref.read(openShiftProvider.notifier);
+    final notifier = ref.read(openTillProvider.notifier);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
-        MadarSectionHeader(text: t('shift.opening_cash')),
+        MadarSectionHeader(text: t('till.opening_cash')),
         MadarCard.column(
           children: [
             // Keyed on the suggestion: the carry-over lands a beat after the
@@ -383,7 +394,7 @@ class _OpeningForm extends ConsumerWidget {
             ),
             if (suggestedMinor > 0)
               MadarSummaryLine(
-                label: t('shift.suggested_from_close'),
+                label: t('till.suggested_from_close'),
                 minor: suggestedMinor,
                 currency: currency,
                 tone: MadarTone.accent,
@@ -391,13 +402,13 @@ class _OpeningForm extends ConsumerWidget {
             if (needsReason)
               MadarField(
                 controller: reason,
-                placeholder: t('shift.opening_reason_label'),
+                placeholder: t('till.opening_reason_label'),
                 glyph: MadarGlyph.alertCircle,
               ),
             Text(
               needsReason
-                  ? t('shift.opening_reason_hint')
-                  : t('shift.opening_hint'),
+                  ? t('till.opening_reason_hint')
+                  : t('till.opening_hint'),
               style: MadarType.bodySm.copyWith(color: colors.textSecondary),
             ),
             if (error != null)
@@ -407,19 +418,58 @@ class _OpeningForm extends ConsumerWidget {
                 icon: 'exclamationmark.circle',
               ),
             MadarButton(
-              label: t('shift.open_button'),
+              label: t('till.open_button'),
               glyph: MadarGlyph.lock,
               loading: busy,
+              enabled: !blocked,
               onTap: () => unawaited(notifier.submit(reason: reason.text)),
             ),
             MadarButton(
-              label: t('shift.switch_teller'),
+              label: t('till.switch_teller'),
               variant: MadarButtonVariant.ghost,
               onTap: () => unawaited(notifier.signOut()),
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+/// What stands around opening: the till still open on another device (it
+/// blocks, and a manager may force-close it), the bills left open at the
+/// branch, and how the sync is going. Nothing here but the first blocks.
+class _OpenNotices extends ConsumerWidget {
+  const _OpenNotices();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final elsewhere = ref.watch(openTillProvider.select((s) => s.elsewhere));
+    final notice = ref.watch(openTillProvider.select((s) => s.notice));
+    final isManager = ref.watch(openTillProvider.select((s) => s.isManager));
+    final forceClosing = ref.watch(
+      openTillProvider.select((s) => s.forceClosing),
+    );
+    final notifier = ref.read(openTillProvider.notifier);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: Space.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.md,
+        children: [
+          if (elsewhere != null)
+            TillElsewherePanel(
+              elsewhere: elsewhere,
+              canForceClose: isManager,
+              forceClosing: forceClosing,
+              onForceClose: (reason) =>
+                  unawaited(notifier.forceCloseElsewhere(reason)),
+            ),
+          if (notice != null && notice.openBillsCount > 0)
+            OpenBillsNoticeBanner(notice: notice),
+          const TillSyncStrip(),
+        ],
+      ),
     );
   }
 }

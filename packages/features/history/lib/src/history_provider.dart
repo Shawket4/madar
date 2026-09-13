@@ -1,12 +1,12 @@
 /// The Orders screen's Riverpod state — one list with two scopes.
 ///
-/// THIS SHIFT is the till's own ledger: `listShiftOrders()` (the synced
+/// THIS TILL is the till's own ledger: `listTillOrders()` (the synced
 /// sales plus the still-queued ones, straight from the local mirror, so it
-/// works with no network) with `shiftStats()` for the header's count line.
-/// ALL is every shift in the branch: `searchOrders()`, online only, paged
+/// works with no network) with `tillStats()` for the header's count line.
+/// ALL is every till in the branch: `searchOrders()`, online only, paged
 /// 50 at a time by the server. The two share one search box, one chip row
 /// and one selection, so a teller who cannot find yesterday's receipt under
-/// This shift flips one segment and keeps typing.
+/// This till flips one segment and keeps typing.
 ///
 /// The search and the type chips filter CLIENT-SIDE over the rows in hand —
 /// the server search has no number / customer / amount filter, so under All
@@ -32,16 +32,16 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// looking for a match before it stops and leaves "Load more" to the teller.
 const int kSearchAutoPages = 5;
 
-/// Client-side page under This shift — how many rows paint before "Show
-/// more". The full shift stays in memory.
+/// Client-side page under This till — how many rows paint before "Show
+/// more". The full till stays in memory.
 const int kHistoryPageSize = 20;
 
-/// Which shifts the list covers.
+/// Which tills the list covers.
 enum OrdersScope {
-  /// The open shift on this till, from the local mirror. Works offline.
-  thisShift,
+  /// The open till on this till, from the local mirror. Works offline.
+  thisTill,
 
-  /// Every shift in the branch, from the server. Online only.
+  /// Every till in the branch, from the server. Online only.
   all,
 }
 
@@ -87,13 +87,13 @@ enum OrdersFilter {
 class HistoryState {
   /// Creates the (initial) state.
   const HistoryState({
-    this.scope = OrdersScope.thisShift,
+    this.scope = OrdersScope.thisTill,
     this.rows = const [],
     this.loading = false,
     this.loadingMore = false,
     this.error,
     this.online = true,
-    this.hasShift = false,
+    this.hasTill = false,
     this.stats,
     this.serverTotal = 0,
     this.hasMore = false,
@@ -113,7 +113,7 @@ class HistoryState {
   /// The active scope.
   final OrdersScope scope;
 
-  /// Every row the scope has produced so far (all of the shift, or the
+  /// Every row the scope has produced so far (all of the till, or the
   /// server pages loaded under All).
   final List<OrderSummaryView> rows;
 
@@ -130,17 +130,17 @@ class HistoryState {
   /// the honest notice under All.
   final bool online;
 
-  /// A shift is open — the header names it, or says there is none.
-  final bool hasShift;
+  /// A till is open — the header names it, or says there is none.
+  final bool hasTill;
 
   /// The branch runs a loyalty programme. False keeps *Add points* off a
   /// sale: in a shop with no programme the sheet has no card to scan, and
   /// offering it reads as a broken button rather than an unsold feature.
   final bool loyaltyOffered;
 
-  /// Count + total for the header under This shift (voids excluded by the
+  /// Count + total for the header under This till (voids excluded by the
   /// core).
-  final ShiftStatsView? stats;
+  final TillStatsView? stats;
 
   /// The server's total match count under All.
   final int serverTotal;
@@ -154,7 +154,7 @@ class HistoryState {
   /// The active chip.
   final OrdersFilter filter;
 
-  /// How many filtered rows paint under This shift ("Show more").
+  /// How many filtered rows paint under This till ("Show more").
   final int visibleLimit;
 
   /// The sale open beside the list (tablet) or pushed over it (phone).
@@ -203,7 +203,7 @@ class HistoryState {
     bool? loadingMore,
     Object? error = _unset,
     bool? online,
-    bool? hasShift,
+    bool? hasTill,
     Object? stats = _unset,
     int? serverTotal,
     bool? hasMore,
@@ -226,9 +226,9 @@ class HistoryState {
       loadingMore: loadingMore ?? this.loadingMore,
       error: error == _unset ? this.error : error as UiText?,
       online: online ?? this.online,
-      hasShift: hasShift ?? this.hasShift,
+      hasTill: hasTill ?? this.hasTill,
       loyaltyOffered: loyaltyOffered ?? this.loyaltyOffered,
-      stats: stats == _unset ? this.stats : stats as ShiftStatsView?,
+      stats: stats == _unset ? this.stats : stats as TillStatsView?,
       serverTotal: serverTotal ?? this.serverTotal,
       hasMore: hasMore ?? this.hasMore,
       search: search ?? this.search,
@@ -247,7 +247,7 @@ class HistoryState {
   }
 }
 
-/// Owns [HistoryState]; loads the shift on first watch.
+/// Owns [HistoryState]; loads the till on first watch.
 class HistoryNotifier extends Notifier<HistoryState> {
   bool _alive = true;
   int _toastSeq = 0;
@@ -261,7 +261,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
   HistoryState build() {
     ref
       ..localizedBridge
-      // A sale, a refund, a void or a settled bill moves this shift's list
+      // A sale, a refund, a void or a settled bill moves this till's list
       // without anybody touching the screen; re-read quietly so the list is
       // never the one from when it was opened.
       ..listen(drawerTickProvider, (_, _) => _refreshQuietly())
@@ -271,8 +271,8 @@ class HistoryNotifier extends Notifier<HistoryState> {
     ref.onDispose(() => _alive = false);
     unawaited(Future.microtask(load));
     unawaited(Future.microtask(_loadProgramme));
-    // Loading from the first frame: "No shift open" must not flash before
-    // the shift has been asked about.
+    // Loading from the first frame: "No till open" must not flash before
+    // the till has been asked about.
     return const HistoryState(loading: true);
   }
 
@@ -292,45 +292,45 @@ class HistoryNotifier extends Notifier<HistoryState> {
     state = state.copyWith(loyaltyOffered: offered);
   }
 
-  /// A background re-read: only the This shift ledger (All is paged by
+  /// A background re-read: only the This till ledger (All is paged by
   /// hand, and re-fetching it would throw away the pages loaded so far).
   void _refreshQuietly() {
-    if (!_alive || state.scope != OrdersScope.thisShift || state.loading) {
+    if (!_alive || state.scope != OrdersScope.thisTill || state.loading) {
       return;
     }
-    unawaited(_loadShift());
+    unawaited(_loadTill());
   }
 
   /// Load the active scope from scratch.
   Future<void> load() => switch (state.scope) {
-    OrdersScope.thisShift => _loadShift(),
+    OrdersScope.thisTill => _loadTill(),
     OrdersScope.all => _loadAll(reset: true),
   };
 
-  /// The shift's rows, its stats for the header, and whether a shift is
+  /// The till's rows, its stats for the header, and whether a till is
   /// open — each best-effort, like the natives' loadHistory: a stats call
   /// that fails must not empty a list that loaded.
   ///
-  /// No open shift is a STATE, not a failure: the list says so and offers
-  /// All, instead of asking the core for a shift that is not there and
+  /// No open till is a STATE, not a failure: the list says so and offers
+  /// All, instead of asking the core for a till that is not there and
   /// raising a red toast on every visit. A list that cannot be read is an
-  /// error with a retry, never an empty shift.
-  Future<void> _loadShift() async {
+  /// error with a retry, never an empty till.
+  Future<void> _loadTill() async {
     if (!_alive) return;
     state = state.copyWith(loading: true, error: null);
-    var hasShift = false;
+    var hasTill = false;
     try {
-      hasShift = (await _bridge.currentShift())?.isOpen ?? false;
+      hasTill = (await _bridge.currentTill())?.isOpen ?? false;
     } on MadarError {
-      hasShift = false;
+      hasTill = false;
     }
-    if (!_alive || state.scope != OrdersScope.thisShift) return;
-    if (!hasShift) {
+    if (!_alive || state.scope != OrdersScope.thisTill) return;
+    if (!hasTill) {
       state = _derive(
         state.copyWith(
           rows: const <OrderSummaryView>[],
           stats: null,
-          hasShift: false,
+          hasTill: false,
           loading: false,
         ),
       );
@@ -339,34 +339,34 @@ class HistoryNotifier extends Notifier<HistoryState> {
     }
     List<OrderSummaryView> rows;
     try {
-      rows = await _bridge.listShiftOrders();
+      rows = await _bridge.listTillOrders();
     } on MadarError catch (e) {
-      if (!_alive || state.scope != OrdersScope.thisShift) return;
+      if (!_alive || state.scope != OrdersScope.thisTill) return;
       if (e is MadarError_Unauthenticated &&
           ref.read(shellProvider).session != null) {
         ref.read(reauthRequestProvider.notifier).request();
       }
       state = state.copyWith(
         loading: false,
-        hasShift: true,
+        hasTill: true,
         error: UiText.error(e),
       );
       return;
     }
-    ShiftStatsView? stats;
+    TillStatsView? stats;
     try {
-      stats = await _bridge.shiftStats(orders: rows);
+      stats = await _bridge.tillStats(orders: rows);
     } on MadarError {
       stats = null;
     }
-    if (!_alive || state.scope != OrdersScope.thisShift) return;
+    if (!_alive || state.scope != OrdersScope.thisTill) return;
     state = _derive(
-      state.copyWith(rows: rows, stats: stats, hasShift: true, loading: false),
+      state.copyWith(rows: rows, stats: stats, hasTill: true, loading: false),
     );
     _keepSelectionHonest();
   }
 
-  /// Every shift, one server page at a time. [reset] starts at page 1;
+  /// Every till, one server page at a time. [reset] starts at page 1;
   /// otherwise the next page is appended. Offline is not an error: the
   /// notice says so and whatever was loaded stays on screen.
   Future<void> _loadAll({required bool reset}) async {
@@ -499,11 +499,11 @@ class HistoryNotifier extends Notifier<HistoryState> {
     if (serverChanges) unawaited(_loadAll(reset: true));
   }
 
-  /// "Show more" — one more client page under This shift, the next server
+  /// "Show more" — one more client page under This till, the next server
   /// page under All.
   void showMore() {
     switch (state.scope) {
-      case OrdersScope.thisShift:
+      case OrdersScope.thisTill:
         state = state.copyWith(
           visibleLimit: state.visibleLimit + kHistoryPageSize,
         );
@@ -629,7 +629,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
     bool matchesSearch(OrderSummaryView o) {
       if (query.isEmpty) return true;
       if (qNumber.isNotEmpty &&
-          (o.orderNumber?.toString().contains(qNumber) ?? false)) {
+          o.displayNumber.toLowerCase().contains(qNumber.toLowerCase())) {
         return true;
       }
       return (o.customerName?.toLowerCase().contains(ql) ?? false) ||
@@ -640,7 +640,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
           Money.format(o.totalMinor).startsWith(ql);
     }
 
-    // The shift mirror and the server both hand rows back newest first;
+    // The till mirror and the server both hand rows back newest first;
     // the sort only pins that when a queued sale is appended out of order.
     // By the INSTANT, not the string: RFC 3339 with different offsets does
     // not sort as text. Ties keep their arrival order (List.sort is not

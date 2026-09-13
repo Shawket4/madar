@@ -41,7 +41,7 @@ abstract final class QueueKeys {
   static const accepted = ('queue.accepted', 'delivery.status.confirmed');
   static const declined = ('queue.declined', 'delivery.status.rejected');
   static const view = ('queue.view', 'chrome.view');
-  static const needShift = ('queue.need_shift', 'waiter.need_shift');
+  static const needTill = ('queue.need_shift', 'waiter.need_shift');
   static const minutes = ('queue.minutes', 'delivery.prep_time');
 }
 

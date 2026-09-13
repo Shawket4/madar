@@ -23,7 +23,7 @@ dependencies:
   feature_kds: ^0.1.0
   feature_order: ^0.1.0
   feature_settings: ^0.1.0
-  feature_shift: ^0.1.0
+  feature_till: ^0.1.0
   flutter:
     sdk: flutter
   flutter_local_notifications: ^22.0.1

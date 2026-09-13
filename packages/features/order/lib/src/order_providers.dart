@@ -49,14 +49,14 @@ class PendingTableClear {
 
 /// Immutable snapshot of the natives' AppModel slice the order surface
 /// consumes: catalog, cart (+ start timestamp), drafts, open tickets,
-/// connectivity chrome, shift stats, and the toast/error slots. All business
+/// connectivity chrome, till stats, and the toast/error slots. All business
 /// logic stays in the core; [OrderNotifier] only sequences bridge calls.
 @immutable
 class OrderState {
   const OrderState({
     required this.isWaiter,
     required this.currency,
-    this.shift,
+    this.till,
     this.categories = const [],
     this.menuItems = const [],
     this.bundles = const [],
@@ -76,8 +76,8 @@ class OrderState {
     this.error,
     this.isBusy = false,
     this.toast,
-    this.shiftSalesMinor = 0,
-    this.shiftOrderCount = 0,
+    this.tillSalesMinor = 0,
+    this.tillOrderCount = 0,
     this.displayName = '',
     this.requireTableForOrders = false,
     this.pendingCovers = const {},
@@ -88,7 +88,7 @@ class OrderState {
   /// isWaiterDevice — a session-role check, re-derived on [OrderNotifier.init]).
   final bool isWaiter;
   final String currency;
-  final ShiftView? shift;
+  final TillView? till;
 
   /// The signed-in person, as the server names them. The waiter's Bills tab
   /// groups MINE by matching this against `TicketView.waiterName` — a string
@@ -111,7 +111,7 @@ class OrderState {
 
   /// A drawer is open on this till. Taking money needs one; seating and
   /// firing do not.
-  bool get shiftOpen => shift?.isOpen ?? false;
+  bool get tillOpen => till?.isOpen ?? false;
 
   // ── catalog ──────────────────────────────────────────────────────────────
   final List<CategoryView> categories;
@@ -157,11 +157,11 @@ class OrderState {
   // ── toast ────────────────────────────────────────────────────────────────
   final ToastData? toast;
 
-  // ── shift stats (top-bar pill) ───────────────────────────────────────────
-  /// Live shift totals — "EGP X · N orders", voided excluded, summed in the
-  /// core (the natives' loadHistory → core.shiftStats).
-  final int shiftSalesMinor;
-  final int shiftOrderCount;
+  // ── till stats (top-bar pill) ───────────────────────────────────────────
+  /// Live till totals — "EGP X · N orders", voided excluded, summed in the
+  /// core (the natives' loadHistory → core.tillStats).
+  final int tillSalesMinor;
+  final int tillOrderCount;
 
   // ── derived lookups ──────────────────────────────────────────────────────
   String categoryName(String? id) =>
@@ -173,7 +173,7 @@ class OrderState {
   OrderState copyWith({
     bool? isWaiter,
     String? currency,
-    Object? shift = _unset,
+    Object? till = _unset,
     List<CategoryView>? categories,
     List<MenuItemView>? menuItems,
     List<BundleView>? bundles,
@@ -193,15 +193,15 @@ class OrderState {
     Object? error = _unset,
     bool? isBusy,
     Object? toast = _unset,
-    int? shiftSalesMinor,
-    int? shiftOrderCount,
+    int? tillSalesMinor,
+    int? tillOrderCount,
     String? displayName,
     bool? requireTableForOrders,
     Map<String, int>? pendingCovers,
   }) => OrderState(
     isWaiter: isWaiter ?? this.isWaiter,
     currency: currency ?? this.currency,
-    shift: identical(shift, _unset) ? this.shift : shift as ShiftView?,
+    till: identical(till, _unset) ? this.till : till as TillView?,
     categories: categories ?? this.categories,
     menuItems: menuItems ?? this.menuItems,
     bundles: bundles ?? this.bundles,
@@ -225,8 +225,8 @@ class OrderState {
     error: identical(error, _unset) ? this.error : error as UiText?,
     isBusy: isBusy ?? this.isBusy,
     toast: identical(toast, _unset) ? this.toast : toast as ToastData?,
-    shiftSalesMinor: shiftSalesMinor ?? this.shiftSalesMinor,
-    shiftOrderCount: shiftOrderCount ?? this.shiftOrderCount,
+    tillSalesMinor: tillSalesMinor ?? this.tillSalesMinor,
+    tillOrderCount: tillOrderCount ?? this.tillOrderCount,
     displayName: displayName ?? this.displayName,
     requireTableForOrders: requireTableForOrders ?? this.requireTableForOrders,
     pendingCovers: pendingCovers ?? this.pendingCovers,
@@ -321,8 +321,8 @@ class OrderNotifier extends Notifier<OrderState> {
   // ── lifecycle ──────────────────────────────────────────────────────────────
   /// Mirror of the natives' on-appear LaunchedEffect: re-derive the session
   /// slice (a new teller may have signed in since the last mount), reconcile
-  /// the shift (catches a dashboard force-close — teller only; a waiter
-  /// holds no shift), load the catalog + cart + drafts/tickets, and ping
+  /// the till (catches a dashboard force-close — teller only; a waiter
+  /// holds no till), load the catalog + cart + drafts/tickets, and ping
   /// connectivity.
   Future<void> init() async {
     final session = _bridge.currentSession();
@@ -337,7 +337,7 @@ class OrderNotifier extends Notifier<OrderState> {
     );
     // Independent bridge reads run CONCURRENTLY (FRB executes them on the
     // Rust pool) — cold-open latency is the slowest call, not the sum. If
-    // reconcile discovers a force-closed shift the route moves anyway, and
+    // reconcile discovers a force-closed till the route moves anyway, and
     // stats re-refresh after every tender, so the overlap is benign.
     // BOTH ROLES load the open tickets.
     //
@@ -354,9 +354,9 @@ class OrderNotifier extends Notifier<OrderState> {
       await Future.wait([loadCatalog(), loadOpenTickets()]);
     } else {
       await Future.wait([
-        reconcileShift(),
+        reconcileTill(),
         loadCatalog(),
-        loadShiftStats(),
+        loadTillStats(),
         loadOpenTickets(),
       ]);
     }
@@ -383,32 +383,32 @@ class OrderNotifier extends Notifier<OrderState> {
     await loadCatalog();
   }
 
-  // ── shift ──────────────────────────────────────────────────────────────────
-  /// Live shift totals — refreshed on init and after the tender drawer
+  // ── till ──────────────────────────────────────────────────────────────────
+  /// Live till totals — refreshed on init and after the tender drawer
   /// closes (a placed order moves them).
-  Future<void> loadShiftStats() async {
+  Future<void> loadTillStats() async {
     if (state.isWaiter) return;
-    final orders = await _quiet(_bridge.listShiftOrders);
+    final orders = await _quiet(_bridge.listTillOrders);
     if (orders == null) return;
-    final stats = await _quiet(() => _bridge.shiftStats(orders: orders));
+    final stats = await _quiet(() => _bridge.tillStats(orders: orders));
     if (stats == null) return;
     state = state.copyWith(
-      shiftSalesMinor: stats.salesMinor,
-      shiftOrderCount: stats.orderCount,
+      tillSalesMinor: stats.salesMinor,
+      tillOrderCount: stats.orderCount,
     );
   }
 
-  /// Sync the open shift with the server (online) or read the cache. The
-  /// core may discover the shift was force-closed — the route can move, so
+  /// Sync the open till with the server (online) or read the cache. The
+  /// core may discover the till was force-closed — the route can move, so
   /// the shell is refreshed.
-  Future<void> reconcileShift() async {
-    ShiftView? shift;
+  Future<void> reconcileTill() async {
+    TillView? till;
     try {
-      shift = await _bridge.refreshShift();
+      till = await _bridge.refreshTill();
     } on MadarError {
-      shift = await _quiet<ShiftView?>(_bridge.currentShift);
+      till = await _quiet<TillView?>(_bridge.currentTill);
     }
-    state = state.copyWith(shift: shift);
+    state = state.copyWith(till: till);
     _refreshShell();
   }
 
@@ -737,14 +737,14 @@ class OrderNotifier extends Notifier<OrderState> {
   /// money, printed the receipt and asks about the table itself. What is
   /// left is the board: bus the table in the local mirror so the room is
   /// right before the next pull, reload the bills and the floor, and let the
-  /// shell know a sale landed on the shift.
+  /// shell know a sale landed on the till.
   Future<void> afterBillCharged(String ticketId) async {
     final table = state.openTickets
         .where((t) => t.id == ticketId)
         .firstOrNull
         ?.tableId;
     if (table != null) await _busTableLocally(table);
-    await Future.wait([loadOpenTickets(), loadFloor(), loadShiftStats()]);
+    await Future.wait([loadOpenTickets(), loadFloor(), loadTillStats()]);
     _refreshShell();
   }
 
@@ -1244,11 +1244,11 @@ class OrderNotifier extends Notifier<OrderState> {
     state = state.copyWith(openTickets: tickets);
   }
 
-  /// SETTLE an open ticket into a paid order in the cashier's shift through
+  /// SETTLE an open ticket into a paid order in the cashier's till through
   /// the shared checkout drawer (the natives' AppModel.settleTicket): the
-  /// shift id is resolved here (no shift → `waiter.need_shift`), the tender
+  /// till id is resolved here (no till → `waiter.need_till`), the tender
   /// fields come from the drawer's CheckoutResult, and success reloads the
-  /// open board + refreshes the shell (history/shift stats move).
+  /// open board + refreshes the shell (history/till stats move).
   Future<bool> settleTicket(
     String ticketId,
     String paymentMethodId, {
@@ -1264,8 +1264,8 @@ class OrderNotifier extends Notifier<OrderState> {
     /// by the floor beneath it and once by the bill itself.
     bool askToClear = true,
   }) async {
-    final shiftId = state.shift?.id;
-    if (shiftId == null) {
+    final tillId = state.till?.id;
+    if (tillId == null) {
       state = state.copyWith(error: const UiText.key('waiter.need_shift'));
       return false;
     }
@@ -1282,7 +1282,7 @@ class OrderNotifier extends Notifier<OrderState> {
           ?.label;
       final orderId = await _bridge.settleTicket(
         ticketId: ticketId,
-        shiftId: shiftId,
+        tillId: tillId,
         paymentMethodId: paymentMethodId,
         amountTenderedMinor: amountTenderedMinor,
         tipMinor: tipMinor,
@@ -1525,7 +1525,7 @@ class OrderNotifier extends Notifier<OrderState> {
 
   // ── connectivity heartbeat ─────────────────────────────────────────────────
   /// Ping + refresh the sync chrome. On an offline→online transition the
-  /// teller's shift is reconciled (mirrors the natives' refreshConnectivity).
+  /// teller's till is reconciled (mirrors the natives' refreshConnectivity).
   Future<void> refreshConnectivity() async {
     final wasOnline = state.isOnline;
     final wasAuthPaused = state.syncAuthPaused;
@@ -1544,14 +1544,14 @@ class OrderNotifier extends Notifier<OrderState> {
       ref.read(reauthRequestProvider.notifier).request();
     }
     if (!wasOnline && online && !state.isWaiter) {
-      await reconcileShift();
+      await reconcileTill();
     }
   }
 
   /// Reflect the core's CURRENT sync/online state into the chrome WITHOUT
   /// pinging — the app-level connectivity service already refreshed the
   /// core (OS network change / resume / periodic probe) and pulsed us. We
-  /// only re-read the cheap in-memory status and reconcile the shift on an
+  /// only re-read the cheap in-memory status and reconcile the till on an
   /// offline→online edge. Cheaper and more responsive than a screen-local
   /// heartbeat, and it stays live even off the order screen.
   Future<void> syncFromStatus() async {
@@ -1568,7 +1568,7 @@ class OrderNotifier extends Notifier<OrderState> {
     );
     // Raise the prompt when the outbox BECOMES parked, not when connectivity
     // returns. Those coincide only for a token that died while the till was
-    // offline; one refused mid-shift, with the till online the whole time,
+    // offline; one refused mid-till, with the till online the whole time,
     // never crossed a connectivity edge — so the sheet never opened and the
     // teller was left with an inline banner and a queue that had quietly
     // stopped draining.
@@ -1580,7 +1580,7 @@ class OrderNotifier extends Notifier<OrderState> {
       ref.read(reauthRequestProvider.notifier).request();
     }
     if (!wasOnline && status.online && !state.isWaiter) {
-      await reconcileShift();
+      await reconcileTill();
     }
   }
 

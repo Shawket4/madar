@@ -21,7 +21,7 @@ workspace:
   - packages/features/kds
   - packages/features/order
   - packages/features/settings
-  - packages/features/shift
+  - packages/features/till
 
 dev_dependencies:
   melos: ^8.0.0

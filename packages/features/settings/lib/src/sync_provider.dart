@@ -16,7 +16,7 @@ class SyncState {
   const SyncState({
     this.outbox = const [],
     this.status,
-    this.hasOpenShift = false,
+    this.hasOpenTill = false,
     this.pushing = false,
     this.recovering = false,
     this.recovered,
@@ -30,9 +30,9 @@ class SyncState {
   final SyncStatusView? status;
 
   /// A drawer is open on this till. `recoverOrphanedOrders` re-points
-  /// stranded sales onto the CURRENT shift, so without one it has nowhere to
+  /// stranded sales onto the CURRENT till, so without one it has nowhere to
   /// put them.
-  final bool hasOpenShift;
+  final bool hasOpenTill;
 
   /// A manual force-push is in flight (spins + disables Sync now).
   final bool pushing;
@@ -55,7 +55,7 @@ class SyncState {
   /// Whether any command is dead (shows Retry all).
   bool get hasFailed => stuck.isNotEmpty;
 
-  /// Sales stranded behind a dead `open_shift` — the count the rows
+  /// Sales stranded behind a dead `open_till` — the count the rows
   /// themselves cannot show, so it gets its own section.
   int get blocked => status?.blocked ?? 0;
 
@@ -67,7 +67,7 @@ class SyncState {
   SyncState copyWith({
     List<OutboxItemView>? outbox,
     SyncStatusView? status,
-    bool? hasOpenShift,
+    bool? hasOpenTill,
     bool? pushing,
     bool? recovering,
     int? recovered,
@@ -76,7 +76,7 @@ class SyncState {
     return SyncState(
       outbox: outbox ?? this.outbox,
       status: status ?? this.status,
-      hasOpenShift: hasOpenShift ?? this.hasOpenShift,
+      hasOpenTill: hasOpenTill ?? this.hasOpenTill,
       pushing: pushing ?? this.pushing,
       recovering: recovering ?? this.recovering,
       recovered: clearRecovered ? null : (recovered ?? this.recovered),
@@ -103,15 +103,15 @@ class SyncNotifier extends Notifier<SyncState> {
     }
   }
 
-  /// Re-read the outbox rows, the health snapshot and the shift.
+  /// Re-read the outbox rows, the health snapshot and the till.
   Future<void> load() async {
     final outbox = await _quiet(_bridge.listOutbox) ?? const <OutboxItemView>[];
     final status = await _quiet(_bridge.syncStatus);
-    final shift = await _quiet(_bridge.currentShift);
+    final till = await _quiet(_bridge.currentTill);
     state = state.copyWith(
       outbox: outbox,
       status: status,
-      hasOpenShift: shift?.isOpen ?? false,
+      hasOpenTill: till?.isOpen ?? false,
     );
   }
 
@@ -144,6 +144,23 @@ class SyncNotifier extends Notifier<SyncState> {
     ref.read(catalogTickProvider.notifier).bump();
   }
 
+  /// Download everything again (long-press on Sync, a manager's act after a
+  /// confirm). The core replaces what the server holds and keeps every row
+  /// with an unsent change, so nothing waiting to send is lost.
+  Future<void> syncFull() async {
+    if (state.pushing) return;
+    state = state.copyWith(pushing: true, clearRecovered: true);
+    try {
+      await _quiet(_bridge.refreshConnectivity);
+      await _quiet(_bridge.syncFull);
+    } finally {
+      state = state.copyWith(pushing: false);
+    }
+    await load();
+    ref.read(shellProvider.notifier).refresh();
+    ref.read(catalogTickProvider.notifier).bump();
+  }
+
   /// Discard a single DEAD command (the teller gives up on it). The
   /// section confirms first — a discarded row is work that never reaches
   /// the server.
@@ -153,10 +170,10 @@ class SyncNotifier extends Notifier<SyncState> {
     ref.read(shellProvider.notifier).refresh();
   }
 
-  /// Re-point every sale stranded behind a dead `open_shift` onto the
-  /// current open shift and sync. The drain heals this on its own each
+  /// Re-point every sale stranded behind a dead `open_till` onto the
+  /// current open till and sync. The drain heals this on its own each
   /// pass; this is the manual escape hatch for when the drain ran with no
-  /// shift open. Needs a drawer open, which the section enforces with a
+  /// till open. Needs a drawer open, which the section enforces with a
   /// reason on the button.
   Future<void> recover() async {
     if (state.recovering) return;

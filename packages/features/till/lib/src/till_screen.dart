@@ -1,12 +1,12 @@
 /// Till — where the drawer lives. The teller shell's Till tab (and the
-/// manager's, with every drawer at the branch). Home when there is no shift:
-/// the open-shift form, not a wall.
+/// manager's, with every drawer at the branch). Home when there is no till:
+/// the open-till form, not a wall.
 ///
 /// On the spec (docs/design/SPEC.md §15): full width, the tab glyph and the
 /// screen's name in the header (never the till's name — that is data, and it
 /// is in the top bar), who holds the drawer since when underneath. The
-/// figures as stat cards; the shift's links as `.nav` rows; the latest cash
-/// movements as a ledger. Print X report and Close shift are header actions
+/// figures as stat cards; the till's links as `.nav` rows; the latest cash
+/// movements as a ledger. Print X report and Close till are header actions
 /// on a tablet and rows / the last button on a phone. Preview is a row of its
 /// own — never a long press nobody finds.
 ///
@@ -17,48 +17,49 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_shift/src/cash_in_out_panel.dart';
-import 'package:feature_shift/src/cash_movements_screen.dart';
-import 'package:feature_shift/src/close_shift_screen.dart';
-import 'package:feature_shift/src/drawers_card.dart';
-import 'package:feature_shift/src/open_shift_screen.dart';
-import 'package:feature_shift/src/shift_history_screen.dart';
-import 'package:feature_shift/src/shift_providers.dart';
-import 'package:feature_shift/src/shift_report_sheet.dart';
+import 'package:feature_till/src/cash_in_out_panel.dart';
+import 'package:feature_till/src/cash_movements_screen.dart';
+import 'package:feature_till/src/close_till_screen.dart';
+import 'package:feature_till/src/drawers_card.dart';
+import 'package:feature_till/src/open_till_screen.dart';
+import 'package:feature_till/src/till_history_screen.dart';
+import 'package:feature_till/src/till_providers.dart';
+import 'package:feature_till/src/till_notices.dart';
+import 'package:feature_till/src/till_report_sheet.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Ledger rows the Till shows before pointing at Cash in / out.
 const int _recentMovements = 4;
 
-/// The Till tab. [onOpenOrders] routes "Orders this shift" to the history
+/// The Till tab. [onOpenOrders] routes "Orders this till" to the history
 /// package (the shell wires it). The row still shows the count when
 /// unwired — it is information — but does not pretend to go anywhere.
 class TillScreen extends ConsumerWidget {
   /// Creates the Till tab.
   const TillScreen({super.key, this.onOpenOrders});
 
-  /// Opens this shift's orders. Null leaves the row without a destination.
+  /// Opens this till's orders. Null leaves the row without a destination.
   final VoidCallback? onOpenOrders;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final loading = ref.watch(tillProvider.select((s) => s.loading));
-    final hasShift = ref.watch(tillProvider.select((s) => s.hasOpenShift));
+    final hasTill = ref.watch(tillProvider.select((s) => s.hasOpenTill));
     final isManager = ref.watch(tillProvider.select((s) => s.isManager));
     final toast = ref.watch(tillProvider.select((s) => s.toast));
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final layout = context.madarLayout;
-    final shift = ref.watch(tillProvider.select((s) => s.shift));
+    final till = ref.watch(tillProvider.select((s) => s.till));
     final printingX = ref.watch(tillProvider.select((s) => s.printingX));
 
     String? subtitle;
     var actions = const <Widget>[];
-    if (hasShift && shift != null) {
-      final since = bridge.formatStamp(rfc3339: shift.openedAt);
+    if (hasTill && till != null) {
+      final since = bridge.formatStamp(rfc3339: till.openedAt);
       subtitle =
-          '${shift.tellerName} · ${t('till.open_since')} ${MadarFormat.isolate(since)}';
+          '${till.tellerName} · ${t('till.open_since')} ${MadarFormat.isolate(since)}';
       if (layout.isTablet) {
         actions = [
           MadarButton(
@@ -70,11 +71,11 @@ class TillScreen extends ConsumerWidget {
             onTap: () => unawaited(ref.read(tillProvider.notifier).printX()),
           ),
           MadarButton(
-            label: t('shift.close_title'),
+            label: t('till.close_title'),
             glyph: MadarGlyph.lock,
             variant: MadarButtonVariant.ink,
             size: MadarButtonSize.compact,
-            onTap: () => _push(context, ref, CloseShiftScreen.new),
+            onTap: () => _push(context, ref, CloseTillScreen.new),
           ),
         ];
       }
@@ -82,20 +83,20 @@ class TillScreen extends ConsumerWidget {
 
     final Widget body;
     final MadarContentWidth width;
-    if (loading && !hasShift) {
+    if (loading && !hasTill) {
       width = MadarContentWidth.full;
       body = const Align(
         alignment: AlignmentDirectional.topStart,
         child: SkeletonList(),
       );
-    } else if (!hasShift) {
-      // No drawer: the tab IS the open-shift form. A manager still sees the
+    } else if (!hasTill) {
+      // No drawer: the tab IS the open-till form. A manager still sees the
       // branch's drawers underneath — the morning check needs no float.
       width = MadarContentWidth.form;
-      body = OpenShiftScreen(
+      body = OpenTillScreen(
         embedded: true,
         below: isManager
-            ? DrawersCard(onSeeAll: () => _push(context, ref, _pastShifts))
+            ? DrawersCard(onSeeAll: () => _push(context, ref, _pastTills))
             : null,
       );
     } else {
@@ -119,14 +120,14 @@ class TillScreen extends ConsumerWidget {
   }
 }
 
-Widget _pastShifts() => const ShiftHistoryScreen();
+Widget _pastTills() => const TillHistoryScreen();
 
 /// The X report on screen, with its own Print.
 Future<void> _previewX(BuildContext context) async {
   await showMadarSheet<void>(
     context,
     size: SheetSize.large,
-    builder: (_) => const ShiftReportSheet(),
+    builder: (_) => const TillReportSheet(),
   );
 }
 
@@ -142,7 +143,7 @@ void _push(BuildContext context, WidgetRef ref, Widget Function() build) {
   );
 }
 
-/// The drawer with a shift open.
+/// The drawer with a till open.
 class _DrawerHome extends ConsumerWidget {
   const _DrawerHome({required this.onOpenOrders});
 
@@ -156,12 +157,12 @@ class _DrawerHome extends ConsumerWidget {
     final isManager = ref.watch(tillProvider.select((s) => s.isManager));
 
     void cashInOut() => _push(context, ref, CashMovementsScreen.new);
-    void pastShifts() => _push(context, ref, _pastShifts);
+    void pastTills() => _push(context, ref, _pastTills);
 
     final links = _Links(
       onOpenOrders: onOpenOrders,
       onCashInOut: cashInOut,
-      onPastShifts: pastShifts,
+      onPastTills: pastTills,
       withPrint: layout.isPhone,
     );
     final ledger = CashLedger(
@@ -169,7 +170,12 @@ class _DrawerHome extends ConsumerWidget {
       maxRows: _recentMovements,
       onSeeAll: cashInOut,
     );
-    final drawers = isManager ? DrawersCard(onSeeAll: pastShifts) : null;
+    final drawers = isManager ? DrawersCard(onSeeAll: pastTills) : null;
+    const branch = _BranchTills();
+    final notice = ref.watch(tillProvider.select((s) => s.notice));
+    final noticeBanner = notice != null && notice.openBillsCount > 0
+        ? OpenBillsNoticeBanner(notice: notice)
+        : null;
 
     if (layout.isTablet) {
       return LayoutBuilder(
@@ -183,6 +189,7 @@ class _DrawerHome extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: Space.xl,
               children: [
+                ?noticeBanner,
                 const _StatCards(),
                 if (twoUp)
                   Row(
@@ -197,6 +204,7 @@ class _DrawerHome extends ConsumerWidget {
                   links,
                   ledger,
                 ],
+                branch,
                 ?drawers,
               ],
             ),
@@ -208,18 +216,24 @@ class _DrawerHome extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
       children: [
+        if (noticeBanner != null) ...[
+          noticeBanner,
+          const SizedBox(height: Space.xl),
+        ],
         const _StatCards(),
         const SizedBox(height: Space.xl),
         links,
         const SizedBox(height: Space.xl),
         ledger,
+        const SizedBox(height: Space.xl),
+        branch,
         if (drawers != null) ...[const SizedBox(height: Space.xl), drawers],
         const SizedBox(height: Space.xl),
         MadarButton(
-          label: t('shift.close_title'),
+          label: t('till.close_title'),
           glyph: MadarGlyph.lock,
           variant: MadarButtonVariant.danger,
-          onTap: () => _push(context, ref, CloseShiftScreen.new),
+          onTap: () => _push(context, ref, CloseTillScreen.new),
         ),
       ],
     );
@@ -264,14 +278,14 @@ class _StatCards extends ConsumerWidget {
     // The drawer's arithmetic, closed on the report's own expected figure.
     String? arithmetic;
     if (report != null) {
-      final cashSales = bridge.shiftCashSalesMinor(report: report);
+      final cashSales = bridge.tillCashSalesMinor(report: report);
       arithmetic = [
-        '${t('shift.opening_float')} ${money(report.openingCashMinor)}',
-        '${t('shift.cash_sales')} ${money(cashSales)}',
+        '${t('till.opening_float')} ${money(report.openingCashMinor)}',
+        '${t('till.cash_sales')} ${money(cashSales)}',
         if (report.cashInMinor > 0)
-          '${t('shift.paid_in')} ${money(report.cashInMinor)}',
+          '${t('till.paid_in')} ${money(report.cashInMinor)}',
         if (report.cashOutMinor > 0)
-          '${t('shift.paid_out')} ${money(-report.cashOutMinor)}',
+          '${t('till.paid_out')} ${money(-report.cashOutMinor)}',
       ].map(_term).join(sep);
     }
     final phone = context.madarLayout.isPhone;
@@ -343,18 +357,18 @@ class _StatSkeleton extends StatelessWidget {
   );
 }
 
-/// "This shift" — where the drawer's pages are.
+/// "This till" — where the drawer's pages are.
 class _Links extends ConsumerWidget {
   const _Links({
     required this.onOpenOrders,
     required this.onCashInOut,
-    required this.onPastShifts,
+    required this.onPastTills,
     required this.withPrint,
   });
 
   final VoidCallback? onOpenOrders;
   final VoidCallback onCashInOut;
-  final VoidCallback onPastShifts;
+  final VoidCallback onPastTills;
 
   /// The phone has no header actions: Print X is a row.
   final bool withPrint;
@@ -411,8 +425,90 @@ class _Links extends ConsumerWidget {
             MadarListRow.nav(
               title: t('shifts.title'),
               glyph: MadarGlyph.clock,
-              onTap: onPastShifts,
+              onTap: onPastTills,
             ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// "Open tills in this branch": every person with a till open right now,
+/// on which device, since when — this device's first. The core merges the
+/// server's list with what LAN peers announce. A manager can force-close
+/// another device's till from here (behind a confirm).
+class _BranchTills extends ConsumerWidget {
+  const _BranchTills();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
+    String t(String key) => bridge.tr(key: key);
+    final tills = ref.watch(tillProvider.select((s) => s.branchTills));
+    final isManager = ref.watch(tillProvider.select((s) => s.isManager));
+    final closingId = ref.watch(tillProvider.select((s) => s.forceClosingId));
+    if (tills.isEmpty) return const SizedBox.shrink();
+    final ordered = [
+      ...tills.where((b) => b.isThisDevice),
+      ...tills.where((b) => !b.isThisDevice),
+    ];
+
+    Future<void> forceClose(BranchOpenTillView b) async {
+      final notifier = ref.read(tillProvider.notifier);
+      final yes = await showMadarConfirm(
+        context,
+        title: t('till.force_close_elsewhere'),
+        body: b.tellerName,
+        confirmLabel: t('till.force_close_elsewhere'),
+        cancelLabel: t('common.cancel'),
+      );
+      if (yes) {
+        await notifier.forceClose(b.tillId, t('till.force_close_elsewhere'));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        MadarSectionHeader(
+          text: t('till.branch_open_tills'),
+          trailing: Text(
+            MadarFormat.ltr('${tills.length}'),
+            style: MadarType.numMd,
+          ),
+        ),
+        MadarCard.column(
+          flush: true,
+          children: [
+            for (final (i, b) in ordered.indexed) ...[
+              if (i > 0) const MadarHairline.row(),
+              MadarRow(
+                title: b.tellerName,
+                subtitle: [
+                  if (b.isThisDevice)
+                    t('till.this_device')
+                  else if (b.deviceLabel ?? b.deviceCode case final d?)
+                    MadarFormat.isolate(d),
+                  '${t('till.open_since')} '
+                      '${MadarFormat.isolate(bridge.formatStamp(rfc3339: b.openedAt))}',
+                ].join(' · '),
+                leading: const MadarGlyphIcon(
+                  MadarGlyph.wallet,
+                  size: IconSize.xl,
+                ),
+                trailing: isManager && !b.isThisDevice
+                    ? MadarButton(
+                        label: t('till.force_close_elsewhere'),
+                        variant: MadarButtonVariant.ghost,
+                        size: MadarButtonSize.compact,
+                        loading: closingId == b.tillId,
+                        onTap: () => unawaited(forceClose(b)),
+                      )
+                    : null,
+              ),
+            ],
           ],
         ),
       ],

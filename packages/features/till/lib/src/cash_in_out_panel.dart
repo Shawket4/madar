@@ -1,8 +1,8 @@
-/// Cash in / out — the record form and this shift's movements.
+/// Cash in / out — the record form and this till's movements.
 ///
 /// On the spec (docs/design/SPEC.md §7, §15): the kind as segments (Pay out ·
 /// Pay in), the amount as the hero field, the note (required), a button that
-/// names what it will record — then the shift's movements as `.ledger` rows,
+/// names what it will record — then the till's movements as `.ledger` rows,
 /// each named by what it IS (a safe drop and a pay-out both take cash out;
 /// only one is spend). [CashLedger] is the same ledger on its own, for the
 /// Till's recent movements.
@@ -16,7 +16,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_shift/src/shift_providers.dart';
+import 'package:feature_till/src/till_providers.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -105,7 +105,7 @@ class _CashInOutPanelState extends ConsumerState<CashInOutPanel> {
       children: [
         MadarCard.column(
           children: [
-            // Pay out leads: it is the movement a shift actually makes.
+            // Pay out leads: it is the movement a till actually makes.
             MadarSegmented<bool>(
               items: [
                 MadarSegmentItem(
@@ -175,14 +175,14 @@ String cashMovementTitle(MadarBridge bridge, CashMovementView m) {
   return note.isEmpty ? kind : '$kind · $note';
 }
 
-/// This shift's movements as ledger rows under a section header that
+/// This till's movements as ledger rows under a section header that
 /// carries the count and the net. [maxRows] caps it (the Till's recent
 /// movements) with [onSeeAll] as the header's way to the rest.
 class CashLedger extends ConsumerWidget {
   /// Creates the ledger.
   const CashLedger({super.key, this.title, this.maxRows, this.onSeeAll});
 
-  /// The section's name; this shift by default.
+  /// The section's name; this till by default.
   final String? title;
 
   final int? maxRows;

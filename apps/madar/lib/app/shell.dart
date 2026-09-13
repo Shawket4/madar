@@ -83,8 +83,8 @@ class _RouteHostState extends ConsumerState<_RouteHost> {
       duration: MotionSpec.gentleDuration,
       switchInCurve: MotionSpec.gentleCurve,
       switchOutCurve: MotionSpec.gentleCurve,
-      // Keyed by the SURFACE, not the route: a teller opening their shift
-      // moves from openShift to order, and the shell they are standing in
+      // Keyed by the SURFACE, not the route: a teller opening their till
+      // moves from openTill to order, and the shell they are standing in
       // must not remount for it.
       child: KeyedSubtree(key: ValueKey(screen.runtimeType), child: screen),
     );
@@ -104,9 +104,9 @@ class _RouteHostState extends ConsumerState<_RouteHost> {
             : const LoginScreen(),
       AppRoute_Login() => const LoginScreen(),
       // Signed in: the person's shell decides the tabs from the role. A
-      // teller with no shift is not walled off — the shell opens on Till,
-      // where the open-shift card is, and the Floor and Queue stay readable.
-      AppRoute_OpenShift() ||
+      // teller with no till is not walled off — the shell opens on Till,
+      // where the open-till card is, and the Floor and Queue stay readable.
+      AppRoute_OpenTill() ||
       AppRoute_Order() ||
       AppRoute_WaiterTickets() => const RoleShell(),
       AppRoute_KitchenDisplay(:final stationId) => KitchenDisplayScreen(

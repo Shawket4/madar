@@ -379,7 +379,7 @@ const _ar = <String, String>{
 };
 
 /// The bridge the picture needs: the two feeds, the settings, a floor for
-/// table labels, an open shift, and real words in both scripts.
+/// table labels, an open till, and real words in both scripts.
 class _FakeBridge implements MadarBridge {
   _FakeBridge({
     this.arabic = false,
@@ -422,9 +422,9 @@ class _FakeBridge implements MadarBridge {
       return Future<List<TicketView>>.value(tickets);
     }
     if (name == #floorLayout) return Future<FloorLayoutView>.value(_layout);
-    if (name == #currentShift) {
-      return Future<ShiftView?>.value(
-        const ShiftView(
+    if (name == #currentTill) {
+      return Future<TillView?>.value(
+        const TillView(
           id: 'sh-1',
           branchId: 'b',
           tellerId: 'u',

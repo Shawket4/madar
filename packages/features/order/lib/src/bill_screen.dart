@@ -80,7 +80,7 @@ class _BillScreenState extends ConsumerState<BillScreen>
           if (!mounted || !widget.chargeOnOpen) return;
           final s = ref.read(orderProvider);
           final t = _ticketOf(s);
-          if (t != null && (widget.canCharge ?? !s.isWaiter) && s.shiftOpen) {
+          if (t != null && (widget.canCharge ?? !s.isWaiter) && s.tillOpen) {
             unawaited(_charge(t, _tableLabel(s, t) ?? t.ticketRef ?? ''));
           }
         }),
@@ -474,8 +474,8 @@ class _BillScreenState extends ConsumerState<BillScreen>
             // What the drawer will actually take — the total, not the lines.
             amountMinor: ticket.bill?.totalMinor ?? ticket.subtotalMinor,
             currency: currency,
-            enabled: state.shiftOpen && !state.isBusy,
-            reason: state.shiftOpen
+            enabled: state.tillOpen && !state.isBusy,
+            reason: state.tillOpen
                 ? null
                 : bridge.tr(key: 'waiter.need_shift'),
             loading: state.isBusy,

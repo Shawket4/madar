@@ -163,7 +163,7 @@ class CartNotifier extends Notifier<CartState> {
 
   @override
   CartState build() {
-    // A closed shift emptied every cart in the core: start over from it.
+    // A closed till emptied every cart in the core: start over from it.
     ref.watch(cartsClearedTickProvider);
     // The core has this context's cart already (it persists); read it as
     // soon as anyone looks.
@@ -477,7 +477,7 @@ class CartNotifier extends Notifier<CartState> {
     }
     await Future.wait([
       load(),
-      _order.loadShiftStats(),
+      _order.loadTillStats(),
       _order.loadDrafts(),
       _order.loadFloor(),
     ]);

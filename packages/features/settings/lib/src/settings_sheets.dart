@@ -1,4 +1,4 @@
-/// The Settings sub-sheets: Printer, Till, Station, Device, Diagnostics,
+/// The Settings sub-sheets: Printer, Station, Device, Diagnostics,
 /// Legal. A Settings row shows the one-line summary; the sheet holds the
 /// controls. Each is presented with `showMadarSheet` and built from the
 /// kit — no control in here is this package's own.
@@ -38,11 +38,6 @@ Future<void> showPrinterSheet(BuildContext context) => showMadarSheet<void>(
   builder: (_) => const _PrinterSheet(),
 );
 
-Future<void> showTillSheet(BuildContext context) => showMadarSheet<void>(
-  context,
-  size: SheetSize.hug,
-  builder: (_) => const _TillSheet(),
-);
 
 Future<void> showStationSheet(BuildContext context) => showMadarSheet<void>(
   context,
@@ -337,54 +332,7 @@ class _BluetoothPicker extends ConsumerWidget {
   }
 }
 
-// ── Till / Station ───────────────────────────────────────────────────────
-
-/// Which drawer this device controls. Multi-till branches pin a device to
-/// one; the rest use the branch default.
-class _TillSheet extends ConsumerWidget {
-  const _TillSheet();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.bridge;
-    final notifier = ref.read(settingsProvider.notifier);
-    final tills = ref.watch(settingsProvider.select((s) => s.tills));
-    final tillId = ref.watch(settingsProvider.select((s) => s.config.tillId));
-    final hasOpenShift = ref.watch(
-      settingsProvider.select((s) => s.hasOpenShift),
-    );
-    return _SheetFrame(
-      title: bridge.tr(key: 'settings.till'),
-      children: [
-        if (hasOpenShift) ...[
-          _Caption(bridge.tr(key: 'settings.till_shift_open')),
-          const SizedBox(height: Space.md),
-        ],
-        MadarCard(
-          flush: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              MadarListRow.pick(
-                title: bridge.tr(key: 'settings.till_default'),
-                selected: tillId == null,
-                onTap: () => unawaited(notifier.bindTill(null)),
-              ),
-              for (final till in tills) ...[
-                const MadarHairline.row(),
-                MadarListRow.pick(
-                  title: till.name,
-                  selected: tillId == till.id,
-                  onTap: () => unawaited(notifier.bindTill(till.id)),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
+// ── Station ──────────────────────────────────────────────────────────────
 
 /// Which kitchen station this display shows (kitchen devices only). The
 /// station rides the route, so binding refreshes the shell.
@@ -472,8 +420,8 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
     String t(String key) => bridge.tr(key: key);
     final notifier = ref.read(settingsProvider.notifier);
     final config = ref.watch(settingsProvider.select((s) => s.config));
-    final hasOpenShift = ref.watch(
-      settingsProvider.select((s) => s.hasOpenShift),
+    final hasOpenTill = ref.watch(
+      settingsProvider.select((s) => s.hasOpenTill),
     );
     final error = ref.watch(settingsProvider.select((s) => s.error));
     final lanActive = bridge.lanActive();
@@ -518,11 +466,11 @@ class _DeviceSheetState extends ConsumerState<_DeviceSheet> {
           label: t('settings.reconfigure'),
           glyph: MadarGlyph.settings,
           variant: MadarButtonVariant.secondary,
-          enabled: !hasOpenShift,
-          tooltip: hasOpenShift ? t('settings.reconfigure_shift_open') : null,
+          enabled: !hasOpenTill,
+          tooltip: hasOpenTill ? t('settings.reconfigure_shift_open') : null,
           onTap: () => unawaited(_reconfigure()),
         ),
-        if (hasOpenShift) _Caption(t('settings.reconfigure_shift_open')),
+        if (hasOpenTill) _Caption(t('settings.reconfigure_shift_open')),
       ],
     );
   }

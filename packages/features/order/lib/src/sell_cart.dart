@@ -20,7 +20,7 @@ import 'package:feature_checkout/feature_checkout.dart'
 import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/order_providers.dart';
-import 'package:feature_order/src/sell_open_shift.dart';
+import 'package:feature_order/src/sell_open_till.dart';
 import 'package:feature_order/src/teller_held_strip.dart';
 import 'package:feature_order/src/words.dart';
 import 'package:flutter/material.dart';
@@ -42,7 +42,7 @@ class SellCta {
     required this.itemCount,
     required this.enabled,
     this.reason,
-    this.needsShift = false,
+    this.needsTill = false,
   });
 
   /// True when the cart fires a round; false when it charges a counter sale.
@@ -60,16 +60,16 @@ class SellCta {
   /// slot, because a disabled control that does not say why is a broken one.
   final String? reason;
 
-  /// Disabled only because no shift is open — the one reason with a way on
-  /// from right here ("Open shift").
-  final bool needsShift;
+  /// Disabled only because no till is open — the one reason with a way on
+  /// from right here ("Open till").
+  final bool needsTill;
 }
 
 /// The cart's terminal action for [s].
 ///
 /// A cart aimed at a table or a bill FIRES; a waiter's cart always fires (a
 /// waiter has no drawer). Otherwise it is a counter sale and CHARGES — which
-/// needs an open shift, and is refused outright where the shop puts every sale
+/// needs an open till, and is refused outright where the shop puts every sale
 /// on a table, because the server refuses it too and saying so here is kinder
 /// than saying so after the tender.
 SellCta sellCtaFor(OrderState s, CartState c, MadarBridge bridge) {
@@ -86,12 +86,12 @@ SellCta sellCtaFor(OrderState s, CartState c, MadarBridge bridge) {
     );
   }
   String? reason;
-  var needsShift = false;
+  var needsTill = false;
   if (s.requireTableForOrders) {
     reason = orderWord(bridge, 'sell.table_required');
-  } else if (!s.shiftOpen) {
+  } else if (!s.tillOpen) {
     reason = orderWord(bridge, 'sell.no_shift');
-    needsShift = true;
+    needsTill = true;
   }
   return SellCta(
     sendsToKitchen: false,
@@ -100,7 +100,7 @@ SellCta sellCtaFor(OrderState s, CartState c, MadarBridge bridge) {
     itemCount: count,
     enabled: count > 0 && reason == null,
     reason: reason,
-    needsShift: needsShift,
+    needsTill: needsTill,
   );
 }
 
@@ -714,7 +714,7 @@ class _CartFooter extends ConsumerWidget {
                 onTap: onTerminal,
               ),
             ] else ...[
-              if (cta.needsShift) SellNoShiftNotice(text: cta.reason!),
+              if (cta.needsTill) SellNoTillNotice(text: cta.reason!),
               // The discount the Charge drawer applied stays on the cart after
               // the drawer closes; say so here, not only inside Charge.
               if (totals.discountMinor > 0)
@@ -745,7 +745,7 @@ class _CartFooter extends ConsumerWidget {
                       currency: currency,
                       enabled: cta.enabled,
                       // The notice above says it, with its action.
-                      reason: cta.needsShift ? null : cta.reason,
+                      reason: cta.needsTill ? null : cta.reason,
                       loading: isBusy,
                       onTap: onTerminal,
                     ),
@@ -857,10 +857,10 @@ class SellBar extends ConsumerWidget {
           children: [
             // Why the verb is greyed, in words, above it — the bar is too
             // narrow to carry the sentence in the button itself.
-            if (cta.needsShift)
+            if (cta.needsTill)
               Padding(
                 padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
-                child: SellNoShiftNotice(text: cta.reason!),
+                child: SellNoTillNotice(text: cta.reason!),
               )
             else if (!cta.enabled && cta.reason != null)
               Padding(
@@ -947,11 +947,11 @@ class SellBar extends ConsumerWidget {
   }
 }
 
-/// "No shift is open" with its way on — the Open shift button — wherever the
+/// "No till is open" with its way on — the Open till button — wherever the
 /// cart's Charge is greyed for that reason (the column's footer, the phone's
 /// bar).
-class SellNoShiftNotice extends ConsumerWidget {
-  const SellNoShiftNotice({required this.text, super.key});
+class SellNoTillNotice extends ConsumerWidget {
+  const SellNoTillNotice({required this.text, super.key});
 
   final String text;
 
@@ -961,7 +961,7 @@ class SellNoShiftNotice extends ConsumerWidget {
     return NoticeBanner(
       text: text,
       icon: 'lock',
-      onTap: () => unawaited(openShiftFromSell(context, ref)),
+      onTap: () => unawaited(openTillFromSell(context, ref)),
       trailing: BannerActionPill(label: orderWord(bridge, 'sell.open_shift')),
     );
   }

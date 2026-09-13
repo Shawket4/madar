@@ -4,7 +4,7 @@
 /// (status steps, reject-vs-cancel, finalize replay, settle dedup) live in
 /// the CORE; this only sequences bridge calls and keeps the screen honest
 /// about what it could not reach. Actions that book a real sale on the open
-/// shift (finalize, settle) refresh the shell.
+/// till (finalize, settle) refresh the shell.
 library;
 
 import 'dart:async';
@@ -54,7 +54,7 @@ class IncomingState {
     this.ticketsLoaded = false,
     this.tableLabels = const {},
     this.hasFloor = false,
-    this.shiftOpen,
+    this.tillOpen,
     this.toast,
   });
 
@@ -103,8 +103,8 @@ class IncomingState {
   /// The branch has an authored floor (tables mirrored).
   final bool hasFloor;
 
-  /// Whether this till has an open shift; null until read. Charge needs one.
-  final bool? shiftOpen;
+  /// Whether this till has an open till; null until read. Charge needs one.
+  final bool? tillOpen;
 
   /// The screen's floating toast, sequence-keyed.
   final ToastData? toast;
@@ -166,7 +166,7 @@ class IncomingState {
     bool? ticketsLoaded,
     Map<String, String>? tableLabels,
     bool? hasFloor,
-    bool? shiftOpen,
+    bool? tillOpen,
     Object? toast = _unset,
   }) {
     return IncomingState(
@@ -183,7 +183,7 @@ class IncomingState {
       ticketsLoaded: ticketsLoaded ?? this.ticketsLoaded,
       tableLabels: tableLabels ?? this.tableLabels,
       hasFloor: hasFloor ?? this.hasFloor,
-      shiftOpen: shiftOpen ?? this.shiftOpen,
+      tillOpen: tillOpen ?? this.tillOpen,
       toast: identical(toast, _unset) ? this.toast : toast as ToastData?,
     );
   }
@@ -215,7 +215,7 @@ class IncomingNotifier extends Notifier<IncomingState> {
     state = state.copyWith(segment: segment, error: null);
     unawaited(loadDeliveryOrders());
     unawaited(loadOpenTickets());
-    unawaited(loadShift());
+    unawaited(loadTill());
     unawaited(loadFloorLabels());
   }
 
@@ -496,10 +496,10 @@ class IncomingNotifier extends Notifier<IncomingState> {
     }
   }
 
-  /// Whether Charge can work at all: settle books onto THIS till's shift.
-  Future<void> loadShift() async {
-    final shift = await _quiet(_bridge.currentShift);
-    state = state.copyWith(shiftOpen: shift?.isOpen ?? false);
+  /// Whether Charge can work at all: settle books onto THIS till's till.
+  Future<void> loadTill() async {
+    final till = await _quiet(_bridge.currentTill);
+    state = state.copyWith(tillOpen: till?.isOpen ?? false);
   }
 
   /// Table id → label from the floor mirror, so a bill row reads "T3" and a

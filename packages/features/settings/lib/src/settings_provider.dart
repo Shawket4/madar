@@ -48,8 +48,7 @@ class SettingsState {
   const SettingsState({
     required this.config,
     required this.brand,
-    this.shift,
-    this.tills = const [],
+    this.till,
     this.stations = const [],
     this.diagnostics = const [],
     this.pending = 0,
@@ -67,11 +66,9 @@ class SettingsState {
   /// The selected printer brand chip.
   final PrinterBrand brand;
 
-  /// Current shift — the sign-out/reconfigure guard + the account card.
-  final ShiftView? shift;
+  /// Current till — the sign-out/reconfigure guard + the account card.
+  final TillView? till;
 
-  /// Bindable tills (POS devices).
-  final List<TillView> tills;
 
   /// Bindable kitchen stations (KDS devices).
   final List<KdsStationView> stations;
@@ -97,7 +94,7 @@ class SettingsState {
   /// the reason under Diagnostics. Optimistically true until loaded.
   final bool floorAuthored;
 
-  /// Guard-failure banner text (open-shift sign-out/reconfigure).
+  /// Guard-failure banner text (open-till sign-out/reconfigure).
   final UiText? error;
 
   /// The last device write the core refused (printer, till, LAN hub, …), or
@@ -106,16 +103,15 @@ class SettingsState {
   final UiText? writeError;
 
   /// Whether the drawer is open (blocks sign-out and reconfigure).
-  bool get hasOpenShift => shift?.isOpen ?? false;
+  bool get hasOpenTill => till?.isOpen ?? false;
 
   /// Copy with the given fields replaced. `null` keeps the current value
-  /// ([error] and [shift] are never cleared through here — a fresh
+  /// ([error] and [till] are never cleared through here — a fresh
   /// [SettingsNotifier.load] rebuilds the state whole).
   SettingsState copyWith({
     DeviceConfigView? config,
     PrinterBrand? brand,
-    ShiftView? shift,
-    List<TillView>? tills,
+    TillView? till,
     List<KdsStationView>? stations,
     List<DiagLogView>? diagnostics,
     int? pending,
@@ -129,8 +125,7 @@ class SettingsState {
     return SettingsState(
       config: config ?? this.config,
       brand: brand ?? this.brand,
-      shift: shift ?? this.shift,
-      tills: tills ?? this.tills,
+      till: till ?? this.till,
       stations: stations ?? this.stations,
       diagnostics: diagnostics ?? this.diagnostics,
       pending: pending ?? this.pending,
@@ -173,16 +168,13 @@ class SettingsNotifier extends Notifier<SettingsState> {
     }
   }
 
-  /// Prime the screen: shift (sign-out/reconfigure guards + account card),
+  /// Prime the screen: till (sign-out/reconfigure guards + account card),
   /// the till or station list, pending count, and the diagnostics feed.
   /// Rebuilds the state whole, so a fresh mount starts clean (no stale
   /// error banner or print status).
   Future<void> load() async {
     final config = _bridge.deviceConfig();
-    final shift = await _quiet(_bridge.currentShift);
-    final tills = _isKitchenDevice
-        ? const <TillView>[]
-        : await _quiet(_bridge.listTills) ?? const <TillView>[];
+    final till = await _quiet(_bridge.currentTill);
     final stations = _isKitchenDevice
         ? await _quiet(_bridge.kdsListStations) ?? const <KdsStationView>[]
         : const <KdsStationView>[];
@@ -195,8 +187,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
     state = SettingsState(
       config: config,
       brand: _brandOf(config.printerBrand),
-      shift: shift,
-      tills: tills,
+      till: till,
       stations: stations,
       diagnostics: diagnostics,
       pending: pending,
@@ -302,25 +293,6 @@ class SettingsNotifier extends Notifier<SettingsState> {
     state = state.copyWith(config: _bridge.deviceConfig());
   }
 
-  /// Bind this device's till (drawer); null = the branch default.
-  ///
-  /// Refused while a shift is open: the open shift belongs to the drawer it
-  /// was opened on, and re-binding mid-shift would count this till's sales
-  /// against another drawer's Z. The shift is re-read first, so a stale
-  /// "closed" from the screen's first load cannot let it through.
-  Future<bool> bindTill(String? tillId) async {
-    final shift = await _quiet(_bridge.currentShift);
-    if (shift?.isOpen ?? state.hasOpenShift) {
-      state = state.copyWith(
-        writeError: const UiText.key('settings.till_shift_open'),
-      );
-      return false;
-    }
-    final ok = await _write(() => _bridge.setDeviceTill(tillId: tillId));
-    state = state.copyWith(config: _bridge.deviceConfig());
-    return ok;
-  }
-
   /// Bind this device's kitchen station (KDS devices). The station rides
   /// the route (`kitchenDisplay(stationId)`), so refresh the shell.
   Future<void> bindStation(String stationId) async {
@@ -400,7 +372,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// guard). Returns true when the screen should pop and refresh the shell
   /// (the route flips to DeviceSetup).
   Future<bool> reconfigure() async {
-    if (state.hasOpenShift) {
+    if (state.hasOpenTill) {
       state = state.copyWith(
         error: const UiText.key('settings.reconfigure_shift_open'),
       );
@@ -414,7 +386,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// realtime subscription + LAN relay, then the session (outbox kept).
   /// Returns true when the screen should pop and refresh the shell.
   Future<bool> signOut() async {
-    if (state.hasOpenShift) {
+    if (state.hasOpenTill) {
       state = state.copyWith(
         error: const UiText.key('settings.sign_out_shift_open'),
       );

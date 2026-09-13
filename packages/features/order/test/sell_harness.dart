@@ -375,7 +375,7 @@ const _ar = {
 class _FakeBridge implements MadarBridge {
   _FakeBridge({
     this.rtl = false,
-    this.shiftOpen = true,
+    this.tillOpen = true,
     this.bundles = const [],
   }) : role = 'teller',
        drafts = _drafts;
@@ -390,7 +390,7 @@ class _FakeBridge implements MadarBridge {
 
   /// Mutable: `setLocale` flips it, so a test can switch language mid-flight.
   bool rtl;
-  final bool shiftOpen;
+  final bool tillOpen;
 
   /// The table each park landed on, in order — null means the counter.
   final List<String?> parked = [];
@@ -421,8 +421,8 @@ class _FakeBridge implements MadarBridge {
   List<CartLineView> _cartOf(Invocation i) =>
       carts[i.namedArguments[#tableId] as String?] ??= [];
 
-  ShiftView? get _shift => shiftOpen
-      ? const ShiftView(
+  TillView? get _till => tillOpen
+      ? const TillView(
           id: 'sh-1',
           branchId: 'br-1',
           tellerId: 'u-1',
@@ -470,8 +470,8 @@ class _FakeBridge implements MadarBridge {
         permissionsLoaded: true,
       );
     }
-    if (name == #currentShift || name == #refreshShift) {
-      return Future<ShiftView?>.value(_shift);
+    if (name == #currentTill || name == #refreshTill) {
+      return Future<TillView?>.value(_till);
     }
     if (name == #listCategories) {
       return Future<List<CategoryView>>.value(_categories);
@@ -654,12 +654,12 @@ class _FakeBridge implements MadarBridge {
         ),
       );
     }
-    if (name == #listShiftOrders) {
+    if (name == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value(const []);
     }
-    if (name == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 623000, orderCount: 42),
+    if (name == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 623000, orderCount: 42),
       );
     }
     if (name == #listItemModifierGroups) {

@@ -400,7 +400,7 @@ class _FakeBridge implements MadarBridge {
   _FakeBridge({
     this.role = 'teller',
     this.rtl = false,
-    this.shiftOpen = true,
+    this.tillOpen = true,
     this.drafts = _drafts,
     this.bundles = const [],
   });
@@ -415,7 +415,7 @@ class _FakeBridge implements MadarBridge {
 
   /// Mutable: `setLocale` flips it, so a test can switch language mid-flight.
   bool rtl;
-  bool shiftOpen;
+  bool tillOpen;
 
   /// The table each park landed on, in order — null means the counter.
   final List<String?> parked = [];
@@ -458,8 +458,8 @@ class _FakeBridge implements MadarBridge {
     userId = nextUser;
   }
 
-  ShiftView? get _shift => shiftOpen
-      ? const ShiftView(
+  TillView? get _till => tillOpen
+      ? const TillView(
           id: 'sh-1',
           branchId: 'br-1',
           tellerId: 'u-1',
@@ -504,8 +504,8 @@ class _FakeBridge implements MadarBridge {
         permissionsLoaded: true,
       );
     }
-    if (name == #currentShift || name == #refreshShift) {
-      return Future<ShiftView?>.value(_shift);
+    if (name == #currentTill || name == #refreshTill) {
+      return Future<TillView?>.value(_till);
     }
     if (name == #listCategories) {
       return Future<List<CategoryView>>.value(_categories);
@@ -711,12 +711,12 @@ class _FakeBridge implements MadarBridge {
         ),
       );
     }
-    if (name == #listShiftOrders) {
+    if (name == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value(const []);
     }
-    if (name == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 623000, orderCount: 42),
+    if (name == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 623000, orderCount: 42),
       );
     }
     if (name == #listItemModifierGroups) {
@@ -990,7 +990,7 @@ void main() {
         tester,
         screen: const TakeawaySellScreen(),
         size: _phone,
-        bridge: _FakeBridge(shiftOpen: false),
+        bridge: _FakeBridge(tillOpen: false),
       );
       expect(find.text(coreWord('sell.no_shift')), findsOneWidget);
       await _capture(tester, 'sell-phone-noshift');
@@ -1207,7 +1207,7 @@ void _cartContextTests() {
     });
 
     testWidgets('a shift opened after launch moves no cart', (tester) async {
-      final bridge = withSavedTable()..shiftOpen = false;
+      final bridge = withSavedTable()..tillOpen = false;
       final c = await _mount(
         tester,
         screen: const TakeawaySellScreen(),
@@ -1215,12 +1215,12 @@ void _cartContextTests() {
         bridge: bridge,
       );
       await settle(tester);
-      expect(find.byType(SellNoShiftNotice), findsOneWidget);
+      expect(find.byType(SellNoTillNotice), findsOneWidget);
       await c.read(cartProvider('t2').notifier).load();
-      bridge.shiftOpen = true;
-      await c.read(orderProvider.notifier).reconcileShift();
+      bridge.tillOpen = true;
+      await c.read(orderProvider.notifier).reconcileTill();
       await settle(tester);
-      expect(find.byType(SellNoShiftNotice), findsNothing);
+      expect(find.byType(SellNoTillNotice), findsNothing);
       expect(titleOf(tester, find.byType(OrderScreen)), 'Takeaway');
       expect(linesOf(c, null), takeaway);
       expect(linesOf(c, 't2'), ['Lattex2']);

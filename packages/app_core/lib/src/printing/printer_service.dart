@@ -24,7 +24,7 @@ const int _kJetDirectPort = 9100;
 /// (no dedicated screen/notifier of its own, e.g. a list row's single-tap
 /// print) reports "sent / no printer / failed" exactly like the feature
 /// screens that already carry this three-way state under their own name
-/// (`PrintState` in checkout, `ShiftPrintState` in shift).
+/// (`PrintState` in checkout, `TillPrintState` in till).
 enum PrintOutcome {
   /// The transport accepted the bytes.
   printed,

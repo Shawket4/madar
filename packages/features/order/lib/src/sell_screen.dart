@@ -25,6 +25,7 @@ import 'package:feature_order/src/table_clear_prompt.dart';
 import 'package:feature_order/src/widgets.dart';
 import 'package:feature_order/src/words.dart';
 import 'package:feature_settings/feature_settings.dart';
+import 'package:feature_till/feature_till.dart' show TillSyncStrip;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -408,7 +409,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
             autofocus: true,
             onChanged: (_) => setState(() {}),
           )
-        : null;
+        // The sync opening a till started, for its first minute: one line,
+        // never in the way of selling.
+        : const TillSyncStrip(headerOnly: true);
 
     final catalog = MenuGrid(
       tableId: _tableId,

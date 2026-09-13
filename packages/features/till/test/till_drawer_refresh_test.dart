@@ -1,21 +1,21 @@
 // Recording a pay in / pay out on the Till must move the Till's expected
-// cash at once — not only after a trip to the close-shift screen.
+// cash at once — not only after a trip to the close-till screen.
 //
 // The bug: the Till reloaded on `shellProvider`, and `record()` "refreshed"
 // the shell — but the shell only emits when the route or session changes,
 // which a cash movement never does. The fake core here recomputes expected
 // cash from the movements it holds (queued or acked alike, as madar-core's
-// `shift_report` does), so the test pins the signal, not a fixture number.
+// `till_report` does), so the test pins the signal, not a fixture number.
 
 import 'package:app_core/app_core.dart';
-import 'package:feature_shift/feature_shift.dart';
+import 'package:feature_till/feature_till.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
 const _opening = 85000;
 
-const _shift = ShiftView(
+const _till = TillView(
   id: 'sh-1',
   branchId: 'br-1',
   tellerId: 'u-1',
@@ -30,12 +30,12 @@ class _CoreBridge implements MadarBridge {
   final List<CashMovementView> movements = [];
   int reportReads = 0;
 
-  ShiftReportView _report() {
+  TillReportView _report() {
     final net = movements.fold<int>(0, (a, m) => a + m.amountMinor);
-    return ShiftReportView(
+    return TillReportView(
       tellerName: 'Sara',
-      openedAt: _shift.openedAt,
-      printedAt: _shift.openedAt,
+      openedAt: _till.openedAt,
+      printedAt: _till.openedAt,
       isOpen: true,
       expectedCashMinor: _opening + net,
       openingCashMinor: _opening,
@@ -68,8 +68,8 @@ class _CoreBridge implements MadarBridge {
       final code = invocation.namedArguments[#code] as String;
       return code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
     }
-    if (name == #shiftCashSalesMinor) {
-      final r = invocation.namedArguments[#report] as ShiftReportView;
+    if (name == #tillCashSalesMinor) {
+      final r = invocation.namedArguments[#report] as TillReportView;
       return r.expectedCashMinor -
           r.openingCashMinor -
           r.cashInMinor +
@@ -113,7 +113,7 @@ class _CoreBridge implements MadarBridge {
             .where((o) => o.code == method.toLowerCase())
             .firstOrNull
             ?.code,
-        crossesShift: false,
+        crossesTill: false,
       );
     }
     final args = invocation.namedArguments;
@@ -137,19 +137,19 @@ class _CoreBridge implements MadarBridge {
     if (name == #deviceConfig) {
       return const DeviceConfigView(reconfiguring: false, configured: true);
     }
-    if (name == #currentShift || name == #refreshShift) {
-      return Future<ShiftView?>.value(_shift);
+    if (name == #currentTill || name == #refreshTill) {
+      return Future<TillView?>.value(_till);
     }
-    if (name == #shiftReport) {
+    if (name == #tillReport) {
       reportReads++;
-      return Future<ShiftReportView>.value(_report());
+      return Future<TillReportView>.value(_report());
     }
-    if (name == #listShiftOrders) {
+    if (name == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value(const []);
     }
-    if (name == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 0, orderCount: 0),
+    if (name == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 0, orderCount: 0),
       );
     }
     if (name == #listCashMovements) {
@@ -163,7 +163,7 @@ class _CoreBridge implements MadarBridge {
         amountMinor: args[#amountMinor] as int,
         note: args[#note] as String,
         movedByName: 'Sara',
-        createdAt: _shift.openedAt,
+        createdAt: _till.openedAt,
       );
       movements.insert(0, m);
       return Future<CashMovementView>.value(m);
@@ -242,14 +242,14 @@ void main() {
   test('Till and close shift show the same expected cash', () async {
     container
       ..listen(tillProvider, (_, _) {})
-      ..listen(closeShiftProvider, (_, _) {})
+      ..listen(closeTillProvider, (_, _) {})
       ..listen(cashMovementsProvider, (_, _) {});
     await _settle();
 
     await record(isIn: false, minor: 4500);
 
     final till = container.read(tillProvider).report?.expectedCashMinor;
-    final close = container.read(closeShiftProvider).report?.expectedCashMinor;
+    final close = container.read(closeTillProvider).report?.expectedCashMinor;
     expect(till, _opening - 4500);
     expect(close, till);
   });

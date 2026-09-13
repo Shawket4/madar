@@ -18,18 +18,19 @@ String orderTypeLabel(MadarBridge bridge, String orderType) =>
       _ => orderType,
     };
 
-/// "#1042", or the word for a sale that has no number yet.
+/// "#36B-12" (the device's own number, minted offline too), or the word for
+/// a sale that has no number yet.
 String saleNumber(MadarBridge bridge, OrderSummaryView o) =>
-    o.orderNumber != null
-    ? '#${o.orderNumber}'
+    o.displayNumber.isNotEmpty
+    ? '#${o.displayNumber}'
     : historyTr(bridge, 'history.order');
 
 /// "Sale #1042" for a title — or just "Sale" while the server has not
 /// numbered it yet; the QUEUED tag under the title says the rest.
 String saleTitle(MadarBridge bridge, OrderSummaryView o) {
   final sale = historyTr(bridge, 'history.sale');
-  final n = o.orderNumber;
-  return n == null ? sale : '$sale ${ltrIsland('#$n')}';
+  final n = o.displayNumber;
+  return n.isEmpty ? sale : '$sale ${ltrIsland('#$n')}';
 }
 
 /// Wraps a figure so it reads left-to-right inside Arabic text: the bidi

@@ -1,16 +1,16 @@
-/// The X / Z report — a shift's figures on screen, with Print.
+/// The X / Z report — a till's figures on screen, with Print.
 ///
 /// On the spec (docs/design/SPEC.md §15): the kit header (the report, whose
-/// shift, when it opened, whether the figures are the server's), stat cards
+/// till, when it opened, whether the figures are the server's), stat cards
 /// for the takings and the drawer, the payment methods and the drawer's cash
-/// movements as tables, the arithmetic as summary lines, and the shift's
+/// movements as tables, the arithmetic as summary lines, and the till's
 /// orders — collapsed until asked for — in the same table Orders uses.
 ///
 /// It used to be a picture of thermal paper: 11–13 pt figures, fixed ink in
 /// both themes, and hand-built rows that agreed with no other screen. The
-/// PRINTED report is still the core's (`renderShiftReport`); this is the one
+/// PRINTED report is still the core's (`renderTillReport`); this is the one
 /// a person reads. Report, orders and print state live in
-/// [shiftReportProvider].
+/// [tillReportProvider].
 library;
 
 import 'dart:async';
@@ -19,51 +19,51 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart' show ReceiptSheet;
 import 'package:feature_history/feature_history.dart' show OrdersTable;
-import 'package:feature_shift/src/shift_providers.dart';
+import 'package:feature_till/src/till_providers.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
-/// The report sheet — Print WITHOUT closing the shift. Shows the CURRENT
-/// shift's report by default, a pre-fetched [report] (Past shifts), or a
-/// named [shiftId]'s (the shift just closed). Works with no printer.
-class ShiftReportSheet extends ConsumerStatefulWidget {
+/// The report sheet — Print WITHOUT closing the till. Shows the CURRENT
+/// till's report by default, a pre-fetched [report] (Past tills), or a
+/// named [tillId]'s (the till just closed). Works with no printer.
+class TillReportSheet extends ConsumerStatefulWidget {
   /// Creates the report; a null [report] loads it.
-  const ShiftReportSheet({
+  const TillReportSheet({
     super.key,
     this.report,
-    this.shiftId,
+    this.tillId,
     this.closed = false,
   });
 
-  /// Shown straight after a close: the title says the shift is closed.
+  /// Shown straight after a close: the title says the till is closed.
   final bool closed;
 
   /// A pre-fetched report, or null to load one on entry.
-  final ShiftReportView? report;
+  final TillReportView? report;
 
-  /// The shift whose orders (and, with no [report], figures) are shown; null
-  /// is the current shift.
-  final String? shiftId;
+  /// The till whose orders (and, with no [report], figures) are shown; null
+  /// is the current till.
+  final String? tillId;
 
   @override
-  ConsumerState<ShiftReportSheet> createState() => _ShiftReportSheetState();
+  ConsumerState<TillReportSheet> createState() => _TillReportSheetState();
 }
 
-class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
+class _TillReportSheetState extends ConsumerState<TillReportSheet> {
   /// The presentation's provider key, minted once so the family state is
   /// stable across rebuilds.
-  late final ShiftReportRequest _request = ShiftReportRequest(
+  late final TillReportRequest _request = TillReportRequest(
     report: widget.report,
-    shiftId: widget.shiftId,
+    tillId: widget.tillId,
   );
 
   @override
   Widget build(BuildContext context) {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
-    final state = ref.watch(shiftReportProvider(_request));
-    final notifier = ref.read(shiftReportProvider(_request).notifier);
+    final state = ref.watch(tillReportProvider(_request));
+    final notifier = ref.read(tillReportProvider(_request).notifier);
     final report = state.report;
     final layout = context.madarLayout;
     final subtitle = report == null
@@ -113,8 +113,8 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
           child: MadarHeader(
             title: t(
               widget.closed
-                  ? 'shift.closed_report_title'
-                  : 'shift.report_title',
+                  ? 'till.closed_report_title'
+                  : 'till.report_title',
             ),
             subtitle: subtitle,
             actions: [
@@ -143,12 +143,12 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
                 child: _printFeedback(state.print, t) ?? const SizedBox(),
               ),
               MadarButton(
-                label: state.print == ShiftPrintState.printing
+                label: state.print == TillPrintState.printing
                     ? t('receipt.printing')
-                    : t('shift.print_report'),
+                    : t('till.print_report'),
                 glyph: MadarGlyph.printer,
                 size: MadarButtonSize.compact,
-                loading: state.print == ShiftPrintState.printing,
+                loading: state.print == TillPrintState.printing,
                 enabled: report != null,
                 onTap: () => unawaited(notifier.printReport()),
               ),
@@ -167,21 +167,21 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
 
   /// Did the report print, find no printer, or fail — in words, beside the
   /// button that did it.
-  Widget? _printFeedback(ShiftPrintState print, String Function(String) t) {
+  Widget? _printFeedback(TillPrintState print, String Function(String) t) {
     final status = switch (print) {
-      ShiftPrintState.printed => MadarStatus(
+      TillPrintState.printed => MadarStatus(
         t('receipt.printed'),
         tone: MadarTone.success,
       ),
-      ShiftPrintState.noPrinter => MadarStatus(
+      TillPrintState.noPrinter => MadarStatus(
         t('receipt.no_printer'),
         tone: MadarTone.warning,
       ),
-      ShiftPrintState.failed => MadarStatus(
+      TillPrintState.failed => MadarStatus(
         t('receipt.print_failed'),
         tone: MadarTone.danger,
       ),
-      ShiftPrintState.idle || ShiftPrintState.printing => null,
+      TillPrintState.idle || TillPrintState.printing => null,
     };
     return status == null
         ? null
@@ -196,8 +196,8 @@ class _ShiftReportSheetState extends ConsumerState<ShiftReportSheet> {
 class _Report extends ConsumerWidget {
   const _Report({required this.report, required this.request});
 
-  final ShiftReportView report;
-  final ShiftReportRequest request;
+  final TillReportView report;
+  final TillReportRequest request;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -221,20 +221,20 @@ class _Report extends ConsumerWidget {
 
     final cards = <Widget>[
       MadarStatCard(
-        label: t('shift.payments'),
+        label: t('till.payments'),
         minor: r.totalPaymentsMinor,
         currency: currency,
         compact: phone,
       ),
       MadarStatCard(
-        label: t('shift.expected_cash'),
+        label: t('till.expected_cash'),
         minor: r.expectedCashMinor,
         currency: currency,
         compact: phone,
       ),
       if (declared != null)
         MadarStatCard(
-          label: t('shift.counted_cash'),
+          label: t('till.counted_cash'),
           minor: declared,
           currency: currency,
           compact: phone,
@@ -248,14 +248,14 @@ class _Report extends ConsumerWidget {
 
     final lines = <Widget>[
       MadarSummaryLine(
-        label: t('shift.opening_cash'),
+        label: t('till.opening_cash'),
         minor: r.openingCashMinor,
         currency: currency,
       ),
       if (r.openingCashWasEdited && r.openingCashOriginalMinor != null)
         MadarSummaryLine(
           label: [
-            t('shift.opening_mismatch'),
+            t('till.opening_mismatch'),
             if ((r.openingCashEditReason ?? '').trim().isNotEmpty)
               r.openingCashEditReason!.trim(),
           ].join(' · '),
@@ -265,20 +265,20 @@ class _Report extends ConsumerWidget {
           tone: MadarTone.warning,
         ),
       MadarSummaryLine(
-        label: t('shift.payments'),
+        label: t('till.payments'),
         minor: r.totalPaymentsMinor,
         currency: currency,
       ),
       if (r.cashInMinor > 0)
         MadarSummaryLine(
-          label: t('shift.cash_in'),
+          label: t('till.cash_in'),
           minor: r.cashInMinor,
           currency: currency,
           signed: true,
         ),
       if (r.cashOutMinor > 0)
         MadarSummaryLine(
-          label: t('shift.cash_out'),
+          label: t('till.cash_out'),
           minor: -r.cashOutMinor,
           currency: currency,
         ),
@@ -294,39 +294,39 @@ class _Report extends ConsumerWidget {
       if (r.refundsIssuedMinor > 0)
         MadarSummaryLine(
           label:
-              '${t('shift.refunds')} · ${MadarFormat.ltr('${r.refundsIssuedCount}')}',
+              '${t('till.refunds')} · ${MadarFormat.ltr('${r.refundsIssuedCount}')}',
           minor: -r.refundsIssuedMinor,
           currency: currency,
         ),
       if (r.refundsIssuedMinor > 0 &&
           r.refundsIssuedCashMinor != r.refundsIssuedMinor)
         MadarSummaryLine(
-          label: t('shift.refunds_cash'),
+          label: t('till.refunds_cash'),
           minor: -r.refundsIssuedCashMinor,
           currency: currency,
           muted: true,
         ),
       if (r.cashInRefundedSalesMinor > 0)
         MadarSummaryLine(
-          label: t('shift.cash_in_refunded'),
+          label: t('till.cash_in_refunded'),
           minor: r.cashInRefundedSalesMinor,
           currency: currency,
           muted: true,
         ),
       MadarSummaryLine(
-        label: t('shift.expected_cash'),
+        label: t('till.expected_cash'),
         minor: r.expectedCashMinor,
         currency: currency,
         emphasis: true,
       ),
       if (declared != null && diff != null) ...[
         MadarSummaryLine(
-          label: t('shift.counted_cash'),
+          label: t('till.counted_cash'),
           minor: declared,
           currency: currency,
         ),
         MadarSummaryLine(
-          label: t('shift.difference'),
+          label: t('till.difference'),
           minor: diff,
           currency: currency,
           signed: true,
@@ -339,10 +339,48 @@ class _Report extends ConsumerWidget {
       ],
     ];
 
+    // Facts about the till that are not money: the device it ran on and its
+    // order numbers, the bills still open when it closed, and its flags.
+    final colors = context.madarColors;
+    final facts = <String>[
+      if (r.deviceCode case final code?)
+        [
+          '${t('till.z_device')} ${MadarFormat.ltr(code)}',
+          if (r.orderNumberFirst != null && r.orderNumberLast != null)
+            MadarFormat.ltr(
+              '$code-${r.orderNumberFirst}…$code-${r.orderNumberLast}',
+            ),
+        ].join(' · '),
+      if ((r.oldBillsCount ?? 0) > 0)
+        '${t('till.z_old_bills')} ${MadarFormat.ltr('${r.oldBillsCount}')}',
+    ];
+    final flags = <MadarStatus>[
+      if (r.openedWhileAnotherOpen)
+        MadarStatus(t('till.flagged_badge'), tone: MadarTone.warning),
+      if (r.verification == 'unverified')
+        MadarStatus(t('till.unverified_badge'), tone: MadarTone.warning),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.xl,
       children: [
+        if (flags.isNotEmpty || facts.isNotEmpty)
+          Wrap(
+            spacing: Space.sm,
+            runSpacing: Space.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (final f in flags) MadarStatusPill(f),
+              for (final f in facts)
+                Text(
+                  f,
+                  style: MadarType.bodySm.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+            ],
+          ),
         if (phone)
           Column(spacing: Space.md, children: cards)
         else
@@ -352,8 +390,8 @@ class _Report extends ConsumerWidget {
             children: [for (final c in cards) Expanded(child: c)],
           ),
         section(
-          t('shift.payment_methods'),
-          MadarDataTable<ShiftReportPaymentLine>(
+          t('till.payment_methods'),
+          MadarDataTable<TillReportPaymentLine>(
             scrollable: false,
             columns: [
               MadarColumn(
@@ -366,7 +404,7 @@ class _Report extends ConsumerWidget {
               ),
               MadarColumn(
                 id: 'count',
-                label: t('shift.orders_col'),
+                label: t('till.orders_col'),
                 text: (l) => '${l.orderCount}',
                 width: 96,
                 align: MadarColumnAlign.end,
@@ -384,13 +422,75 @@ class _Report extends ConsumerWidget {
             ],
             state: MadarTableState.data(r.paymentLines),
             rowKey: (l) => l.method,
-            empty: MadarEmptyContent(title: t('shift.report_no_sales')),
+            empty: MadarEmptyContent(title: t('till.report_no_sales')),
           ),
         ),
+        if (r.reconciliation.isNotEmpty)
+          section(
+            t('till.z_reconciliation'),
+            MadarDataTable<ReconciliationLineView>(
+              scrollable: false,
+              columns: [
+                MadarColumn(
+                  id: 'method',
+                  label: t('history.col_payment'),
+                  text: (l) => [
+                    l.label,
+                    if ((l.note ?? '').trim().isNotEmpty) l.note!.trim(),
+                  ].join(' · '),
+                  flex: 3,
+                  emphasis: true,
+                  phone: MadarPhoneRole.title,
+                ),
+                MadarColumn.money(
+                  id: 'system',
+                  label: t('till.reconcile_system'),
+                  minor: (l) => l.systemTotalMinor,
+                  currency: currency,
+                  width: 150,
+                ),
+                MadarColumn(
+                  id: 'declared',
+                  label: t('till.reconcile_amount'),
+                  text: (l) => l.declaredAmountMinor == null
+                      ? '—'
+                      : bridge.formatMoney(
+                          minor: l.declaredAmountMinor!,
+                          currency: currency,
+                          signed: false,
+                        ),
+                  width: 150,
+                  align: MadarColumnAlign.end,
+                  mono: true,
+                  priority: 1,
+                  phone: MadarPhoneRole.meta,
+                ),
+                MadarColumn.status(
+                  id: 'status',
+                  label: t('history.col_status'),
+                  status: (l) => switch (l.status) {
+                    'checked' => MadarStatus(
+                      t('till.reconcile_checked'),
+                      tone: MadarTone.success,
+                    ),
+                    'disagreed' => MadarStatus(
+                      t('till.reconcile_disagree'),
+                      tone: MadarTone.danger,
+                    ),
+                    _ => MadarStatus(t('till.reconcile_unreviewed')),
+                  },
+                  width: 170,
+                ),
+              ],
+              state: MadarTableState.data(r.reconciliation),
+              rowKey: (l) => l.method,
+              empty: MadarEmptyContent(title: t('till.report_no_sales')),
+            ),
+          ),
         if (r.cashMovements.isNotEmpty)
           section(
             t('cash.title'),
-            MadarDataTable<ShiftReportCashLine>(
+            MadarDataTable<TillReportCashLine>(
               scrollable: false,
               columns: [
                 MadarColumn(
@@ -402,7 +502,7 @@ class _Report extends ConsumerWidget {
                 ),
                 MadarColumn(
                   id: 'who',
-                  label: t('shift.teller'),
+                  label: t('till.teller'),
                   text: (m) => m.movedByName,
                   flex: 2,
                   muted: true,
@@ -433,7 +533,7 @@ class _Report extends ConsumerWidget {
             ),
           ),
         section(
-          t('shift.drawer'),
+          t('till.drawer'),
           MadarCard.column(spacing: 0, children: lines),
         ),
         _Orders(request: request),
@@ -442,12 +542,12 @@ class _Report extends ConsumerWidget {
   }
 }
 
-/// The shift's orders, collapsed until asked for — they cost a round trip
+/// The till's orders, collapsed until asked for — they cost a round trip
 /// and a lot of rows.
 class _Orders extends ConsumerWidget {
   const _Orders({required this.request});
 
-  final ShiftReportRequest request;
+  final TillReportRequest request;
 
   Future<void> _preview(
     BuildContext context,
@@ -472,8 +572,8 @@ class _Orders extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
-    final state = ref.watch(shiftReportProvider(request));
-    final notifier = ref.read(shiftReportProvider(request).notifier);
+    final state = ref.watch(tillReportProvider(request));
+    final notifier = ref.read(tillReportProvider(request).notifier);
     final orders = state.orders;
     final MadarTableState<OrderSummaryView> table;
     if (orders == null && state.ordersError != null) {
@@ -495,7 +595,7 @@ class _Orders extends ConsumerWidget {
           text: t('shifts.orders'),
           trailing: MadarButton(
             label: t(
-              state.expanded ? 'shift.hide_orders' : 'shift.show_orders',
+              state.expanded ? 'till.hide_orders' : 'till.show_orders',
             ),
             glyph: state.expanded
                 ? MadarGlyph.chevronUp

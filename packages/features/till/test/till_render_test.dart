@@ -4,7 +4,7 @@
 // wrong on the page is a figure that gets misread at 11pm. There is no
 // simulator here; `MADAR_RENDER=true` writes `build/render/till-*.png` — the
 // iPad Till in light, the same offline and in the dark, a manager's Till,
-// the no-shift home, the close screen with a short count, and the phone in
+// the no-till home, the close screen with a short count, and the phone in
 // Arabic, mirrored. Without the flag it still builds every board and fails
 // on any layout exception, which is the part CI cares about.
 //
@@ -16,7 +16,7 @@ import 'dart:ui' as ui;
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_shift/feature_shift.dart';
+import 'package:feature_till/feature_till.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -66,7 +66,7 @@ void _loadWords() {
 
 const _openedAt = '2026-09-12T15:02:00Z';
 
-const _shift = ShiftView(
+const _till = TillView(
   id: 'sh-1',
   branchId: 'br-1',
   tellerId: 'u-1',
@@ -77,7 +77,7 @@ const _shift = ShiftView(
   isOpen: true,
 );
 
-ShiftReportView _report({required bool fromServer}) => ShiftReportView(
+TillReportView _report({required bool fromServer}) => TillReportView(
   tellerName: 'Sara',
   openedAt: _openedAt,
   printedAt: '2026-09-12T19:40:00Z',
@@ -97,13 +97,13 @@ ShiftReportView _report({required bool fromServer}) => ShiftReportView(
   cashInMinor: 20000,
   cashOutMinor: 9000,
   paymentLines: const [
-    ShiftReportPaymentLine(
+    TillReportPaymentLine(
       method: 'Cash',
       isCash: true,
       orderCount: 18,
       totalMinor: 142000,
     ),
-    ShiftReportPaymentLine(
+    TillReportPaymentLine(
       method: 'Card',
       isCash: false,
       orderCount: 24,
@@ -151,8 +151,8 @@ List<OrderSummaryView> _orders({required int queued}) => [
     ),
 ];
 
-const _drawers = <ShiftSummaryView>[
-  ShiftSummaryView(
+const _drawers = <TillSummaryView>[
+  TillSummaryView(
     id: 'sh-1',
     tellerName: 'Sara',
     openedAt: _openedAt,
@@ -160,7 +160,7 @@ const _drawers = <ShiftSummaryView>[
     status: 'open',
     isOpen: true,
   ),
-  ShiftSummaryView(
+  TillSummaryView(
     id: 'sh-2',
     tellerName: 'Hany',
     openedAt: '2026-09-12T14:30:00Z',
@@ -168,7 +168,7 @@ const _drawers = <ShiftSummaryView>[
     status: 'open',
     isOpen: true,
   ),
-  ShiftSummaryView(
+  TillSummaryView(
     id: 'sh-0',
     tellerName: 'Mona',
     openedAt: '2026-09-11T15:00:00Z',
@@ -182,17 +182,17 @@ const _drawers = <ShiftSummaryView>[
   ),
 ];
 
-/// A bridge that answers what the Till asks, from fixtures. [shift] null is
+/// A bridge that answers what the Till asks, from fixtures. [till] null is
 /// a till with no drawer open; [online] false drives the honest tags.
 class _FakeBridge implements MadarBridge {
   _FakeBridge({
-    this.shift = _shift,
+    this.till = _till,
     this.role = 'teller',
     this.online = true,
     this.arabic = false,
   });
 
-  final ShiftView? shift;
+  final TillView? till;
   final String role;
   final bool online;
   final bool arabic;
@@ -205,8 +205,8 @@ class _FakeBridge implements MadarBridge {
       final code = invocation.namedArguments[#code] as String;
       return code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
     }
-    if (name == #shiftCashSalesMinor) {
-      final r = invocation.namedArguments[#report] as ShiftReportView;
+    if (name == #tillCashSalesMinor) {
+      final r = invocation.namedArguments[#report] as TillReportView;
       return r.expectedCashMinor -
           r.openingCashMinor -
           r.cashInMinor +
@@ -250,10 +250,10 @@ class _FakeBridge implements MadarBridge {
             .where((o) => o.code == method.toLowerCase())
             .firstOrNull
             ?.code,
-        crossesShift: false,
+        crossesTill: false,
       );
     }
-    final open = shift?.isOpen ?? false;
+    final open = till?.isOpen ?? false;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
       return (arabic ? _ar[key] : _en[key]) ?? key;
@@ -278,7 +278,7 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #isRtl) return arabic;
     if (name == #appRoute) {
-      return open ? const AppRoute.order() : const AppRoute.openShift();
+      return open ? const AppRoute.order() : const AppRoute.openTill();
     }
     if (name == #currentSession) {
       return SessionSnapshot(
@@ -314,23 +314,23 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #humanMessage) return 'Something went wrong';
     if (name == #clockSkewMinutes) return 0;
-    if (name == #currentShift || name == #refreshShift) {
-      return Future<ShiftView?>.value(shift);
+    if (name == #currentTill || name == #refreshTill) {
+      return Future<TillView?>.value(till);
     }
-    if (name == #shiftReport) {
-      return Future<ShiftReportView>.value(_report(fromServer: online));
+    if (name == #tillReport) {
+      return Future<TillReportView>.value(_report(fromServer: online));
     }
-    if (name == #shiftReportFor) {
-      return Future<ShiftReportView>.value(_report(fromServer: true));
+    if (name == #tillReportFor) {
+      return Future<TillReportView>.value(_report(fromServer: true));
     }
-    if (name == #listShiftOrders) {
+    if (name == #listTillOrders) {
       return Future<List<OrderSummaryView>>.value(
         _orders(queued: online ? 0 : 3),
       );
     }
-    if (name == #shiftStats) {
-      return Future<ShiftStatsView>.value(
-        const ShiftStatsView(salesMinor: 623000, orderCount: 42),
+    if (name == #tillStats) {
+      return Future<TillStatsView>.value(
+        const TillStatsView(salesMinor: 623000, orderCount: 42),
       );
     }
     if (name == #listCashMovements) {
@@ -341,8 +341,8 @@ class _FakeBridge implements MadarBridge {
         TillView(id: 't-1', name: 'Till 1', isDefault: true, isActive: true),
       ]);
     }
-    if (name == #listShifts) {
-      return Future<List<ShiftSummaryView>>.value(_drawers);
+    if (name == #listTills) {
+      return Future<List<TillSummaryView>>.value(_drawers);
     }
     if (name == #syncStatus) {
       return Future<SyncStatusView>.value(
@@ -507,7 +507,7 @@ void main() {
     await _shoot(
       tester,
       screen: const TillScreen(),
-      bridge: _FakeBridge(shift: null),
+      bridge: _FakeBridge(till: null),
       size: _ipad,
       theme: MadarTheme.light(),
       name: 'ipad-no-shift',
@@ -523,7 +523,7 @@ void main() {
     await _shoot(
       tester,
       screen: const TillScreen(),
-      bridge: _FakeBridge(shift: null, role: 'branch_manager'),
+      bridge: _FakeBridge(till: null, role: 'branch_manager'),
       size: _phone,
       theme: MadarTheme.light(),
       name: 'phone-no-shift-manager',
@@ -544,7 +544,7 @@ void main() {
     expect(find.byType(CashInOutPanel), findsNothing);
     expect(find.text(_ar['till.title']!), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.widgetWithText(MadarButton, _ar['shift.close_title']!),
+      find.widgetWithText(MadarButton, _ar['till.close_title']!),
       300,
     );
   });
@@ -552,7 +552,7 @@ void main() {
   testWidgets('close shift on an iPad, short by 20', (tester) async {
     await _shoot(
       tester,
-      screen: const CloseShiftScreen(),
+      screen: const CloseTillScreen(),
       bridge: _FakeBridge(),
       size: _ipad,
       theme: MadarTheme.light(),
@@ -573,7 +573,7 @@ void main() {
   testWidgets('close shift on a phone, drawer matches', (tester) async {
     await _shoot(
       tester,
-      screen: const CloseShiftScreen(),
+      screen: const CloseTillScreen(),
       bridge: _FakeBridge(),
       size: _phone,
       theme: MadarTheme.light(),

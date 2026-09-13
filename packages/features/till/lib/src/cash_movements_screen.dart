@@ -1,15 +1,15 @@
 /// Cash in / out as its own page — pushed from the Till, on the spec's form
-/// width (docs/design/SPEC.md §3): the record form and the shift's ledger
+/// width (docs/design/SPEC.md §3): the record form and the till's ledger
 /// ([CashInOutPanel]), leading-aligned under the header, the amount focused.
 library;
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:feature_shift/src/cash_in_out_panel.dart';
+import 'package:feature_till/src/cash_in_out_panel.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The open shift's cash in / out, pushed over the shell. The header's back
+/// The open till's cash in / out, pushed over the shell. The header's back
 /// pops it; the shell hand-off after a recorded movement happens inside
 /// `CashMovementsNotifier`.
 class CashMovementsScreen extends ConsumerWidget {
