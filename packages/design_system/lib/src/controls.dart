@@ -125,7 +125,8 @@ enum MadarButtonSize {
 }
 
 /// THE button. Flat fill, 12px corners, a 17-bold label, a tactile press
-/// scale and an impact haptic; a spinner while [loading]; 40% when disabled.
+/// scale and an impact haptic; a spinner (at 40%) while [loading]; one neutral
+/// well with muted text when disabled, whatever the variant.
 ///
 /// Width adapts to the parent: it fills and ellipsizes when the parent bounds
 /// it (a stretched Column, an `Expanded`) and shrink-wraps when it does not
@@ -186,7 +187,7 @@ class MadarButton extends StatelessWidget {
     final active = enabled && !loading;
     final compact = size == MadarButtonSize.compact;
 
-    final (Color? fill, Color fg) = switch (variant) {
+    var (Color? fill, Color fg) = switch (variant) {
       MadarButtonVariant.primary => (colors.accent, colors.textOnAccent),
       MadarButtonVariant.secondary ||
       MadarButtonVariant.outline => (colors.surfaceAlt, colors.textPrimary),
@@ -194,6 +195,13 @@ class MadarButton extends StatelessWidget {
       MadarButtonVariant.danger => (colors.danger, Colors.white),
       MadarButtonVariant.ink => (_inkFill(context, colors), Colors.white),
     };
+    // ONE disabled look for every variant: a quiet neutral well with muted
+    // text — clear that it is off, never a washed-out brand or danger tint
+    // (a 40% red read as a pink alarm). A ghost stays unfilled.
+    if (!enabled) {
+      fill = variant == MadarButtonVariant.ghost ? null : colors.surfaceAlt;
+      fg = colors.textMuted;
+    }
 
     final labelStyle = (compact ? MadarType.buttonSm : MadarType.button)
         .copyWith(color: fg);
@@ -304,9 +312,9 @@ class MadarButton extends StatelessWidget {
       ),
     );
 
-    if (!active) {
+    if (loading) {
       button = Opacity(opacity: Opacities.disabled, child: button);
-    } else {
+    } else if (active) {
       button = TactileScale(
         haptic: false,
         onTap: () {
@@ -368,13 +376,18 @@ class MadarMoneyBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final active = enabled && !loading;
-    final (Color fill, Color fg) = switch (variant) {
+    var (Color fill, Color fg) = switch (variant) {
       MadarButtonVariant.danger => (colors.danger, Colors.white),
       MadarButtonVariant.ink => (_inkFill(context, colors), Colors.white),
       MadarButtonVariant.secondary ||
       MadarButtonVariant.outline => (colors.surfaceAlt, colors.textPrimary),
       _ => (colors.accent, colors.textOnAccent),
     };
+    if (!enabled) {
+      // MadarButton's disabled look: a neutral well, muted text.
+      fill = colors.surfaceAlt;
+      fg = colors.textMuted;
+    }
     final showReason = !enabled && reason != null;
 
     Widget bar = Container(
@@ -429,9 +442,9 @@ class MadarMoneyBar extends StatelessWidget {
         },
       ),
     );
-    if (!active) {
+    if (loading) {
       bar = Opacity(opacity: Opacities.disabled, child: bar);
-    } else {
+    } else if (active) {
       bar = TactileScale(
         haptic: false,
         onTap: () {
