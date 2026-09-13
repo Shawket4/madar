@@ -476,4 +476,47 @@ void main() {
       expect(MadarSizeClass.desktop.gutter, 24);
     });
   });
+
+  group('totals and empty pages', () {
+    testWidgets('a summary line sets its figure in the app language', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(
+          const Column(
+            children: [
+              MadarSummaryLine(label: 'Total', minor: 123450, currency: 'EGP'),
+              MadarSummaryLine(label: 'Paid out', minor: -9000, signed: true),
+            ],
+          ),
+        ),
+      );
+      expect(find.text('EGP 1,234.50'), findsOneWidget);
+      expect(find.text('\u221290.00'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('an empty page that has more still offers Load more', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(
+          MadarDataTable<int>(
+            columns: [MadarColumn(id: 'n', label: 'N', text: (i) => '$i')],
+            state: MadarTableState.data(
+              const [],
+              hasMore: true,
+              onLoadMore: () {},
+            ),
+            rowKey: (i) => i,
+            empty: const MadarEmptyContent(title: 'Nothing matched'),
+            loadMoreLabel: 'Load more',
+            scrollable: false,
+          ),
+        ),
+      );
+      expect(find.text('Nothing matched'), findsOneWidget);
+      expect(find.text('Load more'), findsOneWidget);
+    });
+  });
 }

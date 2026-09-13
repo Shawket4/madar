@@ -22,6 +22,7 @@
 library;
 
 import 'package:design_system/src/controls.dart';
+import 'package:design_system/src/format.dart';
 import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/money.dart';
 import 'package:design_system/src/status.dart';
@@ -355,6 +356,103 @@ class MadarListRow extends StatelessWidget {
           onTap!();
         },
         child: TactileScale(scale: _pressScale, haptic: false, child: row),
+      ),
+    );
+  }
+}
+
+/// One line of a totals block — label at the start, figure at the end — for
+/// the arithmetic under a list: a sale's subtotal / tax / total, a drawer's
+/// expected cash. Not a row: 36 tall, no inset of its own, no hairline, not
+/// tappable. It lives inside a card's inset (or a row's), directly under the
+/// rows it sums. docs/design/SPEC.md §7.
+///
+/// Give [minor] for money (mono, localised, [signed] for a ledger figure) or
+/// [value] for anything else. [emphasis] is the line the block adds up to.
+class MadarSummaryLine extends StatelessWidget {
+  const MadarSummaryLine({
+    required this.label,
+    this.minor,
+    this.currency = '',
+    this.value,
+    this.signed = false,
+    this.tone,
+    this.emphasis = false,
+    this.muted = false,
+    this.strike = false,
+    super.key,
+  });
+
+  final String label;
+  final int? minor;
+  final String currency;
+
+  /// A non-money figure, set mono.
+  final String? value;
+
+  /// `+` on a positive figure.
+  final bool signed;
+
+  /// Colours the figure (danger for a shortfall). Null is primary text.
+  final MadarTone? tone;
+
+  /// The total: title weight, `moneyMd` figure, a taller line.
+  final bool emphasis;
+
+  /// Shown for the record, not part of the sum.
+  final bool muted;
+
+  /// The figure no longer stands (a voided sale's total).
+  final bool strike;
+
+  /// The line's height; the emphasised total's.
+  static const double height = 36;
+  static const double emphasisHeight = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final fg = muted
+        ? colors.textMuted
+        : tone?.color(colors) ?? colors.textPrimary;
+    final figureStyle = (emphasis ? MadarType.moneyMd : MadarType.money)
+        .copyWith(
+          color: strike ? colors.textMuted : fg,
+          decoration: strike ? TextDecoration.lineThrough : null,
+        );
+    final figure = minor != null
+        ? MoneyText(
+            minor!,
+            currency: currency,
+            signed: signed,
+            style: figureStyle,
+          )
+        : Text(
+            MadarFormat.ltr(value ?? ''),
+            maxLines: 1,
+            style: figureStyle,
+          );
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: emphasis ? emphasisHeight : height,
+      ),
+      child: Row(
+        spacing: Space.lg,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: emphasis
+                  ? MadarType.title.copyWith(color: colors.textPrimary)
+                  : MadarType.body.copyWith(
+                      color: muted ? colors.textMuted : colors.textSecondary,
+                    ),
+            ),
+          ),
+          figure,
+        ],
       ),
     );
   }

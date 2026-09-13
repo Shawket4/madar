@@ -138,6 +138,13 @@ in a card:
 Meta is facts joined by `' · '`, figures wrapped in `MadarFormat.ltr`. Selected bill rows
 tint `accentBg` and show an accent rail.
 
+**Summary lines** (`MadarSummaryLine`) — the arithmetic under a list, never a list of their
+own: label (body, `textSecondary`) at the start, mono figure at the end, 36 tall, 48 for the
+emphasised total (`title` label, `moneyMd` figure). No inset, hairline or tap of their own;
+they sit in the card's inset under the rows they sum (a sale's subtotal / tax / total, the
+drawer's expected cash). `muted` for a line shown for the record, `strike` for a total that no
+longer stands.
+
 ## 8. Data table
 
 `MadarDataTable<T>` — every record list with columns.

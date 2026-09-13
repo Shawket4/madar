@@ -460,7 +460,13 @@ class _MadarDataTableState<T> extends State<MadarDataTable<T>> {
             ),
           ),
         ];
-      case MadarTableData<T>(:final rows) when rows.isEmpty:
+      case MadarTableData<T>(
+            :final rows,
+            :final hasMore,
+            :final loadingMore,
+            :final onLoadMore,
+          )
+          when rows.isEmpty:
         final e = widget.empty;
         body = [
           stateBox(
@@ -472,6 +478,16 @@ class _MadarDataTableState<T> extends State<MadarDataTable<T>> {
               onAction: e.onAction,
             ),
           ),
+          // "Load more" stays under an empty page: a search that matched
+          // nothing in the rows loaded so far may match on the next page.
+          if (hasMore) ...[
+            const MadarHairline.row(),
+            _LoadMoreFooter(
+              label: widget.loadMoreLabel ?? '',
+              loading: loadingMore,
+              onTap: onLoadMore,
+            ),
+          ],
         ];
       case MadarTableData<T>(
         :final rows,
