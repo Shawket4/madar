@@ -41,10 +41,7 @@ class TillHistoryScreen extends ConsumerWidget {
       body: const Padding(
         padding: EdgeInsetsDirectional.only(bottom: Space.xl),
         // Loose, so the card hugs its rows instead of filling the page.
-        child: Align(
-          alignment: AlignmentDirectional.topStart,
-          child: _Tills(),
-        ),
+        child: Align(alignment: AlignmentDirectional.topStart, child: _Tills()),
       ),
       overlay: ToastHost(
         toast,
@@ -72,6 +69,9 @@ List<TillSummaryView> _rowsWithLocalOpen(
     openingCashMinor: live.openingCashMinor,
     status: live.status,
     isOpen: live.isOpen,
+    deviceCode: live.deviceCode,
+    verification: live.verification,
+    openedWhileAnotherOpen: live.openedWhileAnotherOpen,
   );
   return [pinned, ...tills];
 }
@@ -136,9 +136,7 @@ class _Tills extends ConsumerWidget {
     final tills = ref.watch(tillHistoryProvider.select((s) => s.tills));
     final live = ref.watch(tillHistoryProvider.select((s) => s.live));
     final loading = ref.watch(tillHistoryProvider.select((s) => s.loading));
-    final loadError = ref.watch(
-      tillHistoryProvider.select((s) => s.loadError),
-    );
+    final loadError = ref.watch(tillHistoryProvider.select((s) => s.loadError));
     final reportLoadingId = ref.watch(
       tillHistoryProvider.select((s) => s.reportLoadingId),
     );

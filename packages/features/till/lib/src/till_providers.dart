@@ -203,8 +203,15 @@ class TillNotifier extends Notifier<TillState> {
     final till = await _deviceTill(_bridge);
     if (_disposed) return;
     final open = till?.isOpen ?? false;
-    final (branchTills, report, orders, movements, drawers, sync, notice) =
-        await (
+    final (
+      branchTills,
+      report,
+      orders,
+      movements,
+      drawers,
+      sync,
+      notice,
+    ) = await (
       _quiet(_bridge.branchOpenTills),
       open ? _quiet(_bridge.tillReport) : Future<TillReportView?>.value(),
       open
@@ -216,7 +223,7 @@ class TillNotifier extends Notifier<TillState> {
       isManager
           ? _quiet(_bridge.listTills)
           : Future<List<TillSummaryView>?>.value(),
-      _quiet(_bridge.syncStatus),
+      _quiet(() async => _bridge.syncStatus()),
       _quiet(_bridge.openBillsNotice),
     ).wait;
     if (_disposed) return;
@@ -520,7 +527,7 @@ class OpenTillNotifier extends Notifier<OpenTillState> {
     final wasOnline = state.online;
     SyncStatusView? status;
     try {
-      status = await _bridge.syncStatus();
+      status = _bridge.syncStatus();
     } on Exception catch (_) {}
     if (_disposed || status == null) return;
     state = state.copyWith(
@@ -667,7 +674,7 @@ class OpenTillNotifier extends Notifier<OpenTillState> {
     } on Exception catch (_) {}
     SyncStatusView? status;
     try {
-      status = await _bridge.syncStatus();
+      status = _bridge.syncStatus();
     } on Exception catch (_) {}
     if (_disposed) return;
     if (status != null) {
@@ -779,9 +786,7 @@ class MethodCheck {
     String? note,
   }) => MethodCheck(
     status: status ?? this.status,
-    amountMinor: amountMinor == _unset
-        ? this.amountMinor
-        : amountMinor as int?,
+    amountMinor: amountMinor == _unset ? this.amountMinor : amountMinor as int?,
     note: note ?? this.note,
   );
 }
@@ -1015,9 +1020,7 @@ class CloseTillNotifier extends Notifier<CloseTillState> {
               ReconciliationInput(
                 method: m.method,
                 status: check.status!,
-                declaredAmountMinor: check.disagrees
-                    ? check.amountMinor
-                    : null,
+                declaredAmountMinor: check.disagrees ? check.amountMinor : null,
                 note: check.disagrees ? check.note.trim() : null,
               ),
         ],
@@ -1412,8 +1415,7 @@ class TillHistoryNotifier extends Notifier<TillHistoryState> {
     final expanded = {...state.expanded};
     if (!expanded.add(tillId)) expanded.remove(tillId);
     state = state.copyWith(expanded: expanded);
-    if (!expanded.contains(tillId) ||
-        state.ordersByTill.containsKey(tillId)) {
+    if (!expanded.contains(tillId) || state.ordersByTill.containsKey(tillId)) {
       return;
     }
     await loadTillOrders(tillId);

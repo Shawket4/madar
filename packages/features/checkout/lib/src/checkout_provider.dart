@@ -642,7 +642,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// failure is SAID — a dimmed bar with no reason reads as a broken till.
   Future<List<PaymentMethodView>> _loadMethods(int session) async {
     try {
-      return _bridge.availablePaymentMethods();
+      return await _bridge.availablePaymentMethods();
     } on MadarError catch (e) {
       ref.read(connectivityRefreshProvider.notifier).reportError(e);
       _updateFor(session, (s) => s.copyWith(error: UiText.error(e)));

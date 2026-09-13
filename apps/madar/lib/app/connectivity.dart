@@ -93,9 +93,9 @@ class ConnectivityService with WidgetsBindingObserver {
     var failed = 0;
     try {
       _online = await core.bridge.refreshConnectivity();
-      final status = await core.bridge.syncStatus();
-      pending = status.pending;
-      failed = status.failed;
+      final status = core.bridge.syncStatus();
+      pending = status.pendingOutbox;
+      failed = status.deadOutbox;
     } on Object {
       _online = false;
     }

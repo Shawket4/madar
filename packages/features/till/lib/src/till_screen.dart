@@ -23,11 +23,12 @@ import 'package:feature_till/src/close_till_screen.dart';
 import 'package:feature_till/src/drawers_card.dart';
 import 'package:feature_till/src/open_till_screen.dart';
 import 'package:feature_till/src/till_history_screen.dart';
-import 'package:feature_till/src/till_providers.dart';
 import 'package:feature_till/src/till_notices.dart';
+import 'package:feature_till/src/till_providers.dart';
 import 'package:feature_till/src/till_report_sheet.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge/rust_bridge.dart';
 
 /// Ledger rows the Till shows before pointing at Cash in / out.
 const int _recentMovements = 4;
@@ -248,8 +249,7 @@ class _StatCards extends ConsumerWidget {
   /// One breakdown term, isolated so its signed figure keeps its own
   /// direction beside its neighbours, and unbreakable so a wrap (or a row on
   /// a phone) falls BETWEEN terms, never inside "Paid out −EGP 90.00".
-  static String _term(String term) =>
-      term.replaceAll(' ', '\u00A0');
+  static String _term(String term) => term.replaceAll(' ', '\u00A0');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -491,8 +491,7 @@ class _BranchTills extends ConsumerWidget {
                     t('till.this_device')
                   else if (b.deviceLabel ?? b.deviceCode case final d?)
                     MadarFormat.isolate(d),
-                  '${t('till.open_since')} '
-                      '${MadarFormat.isolate(bridge.formatStamp(rfc3339: b.openedAt))}',
+                  '${t('till.open_since')} ${MadarFormat.isolate(bridge.formatStamp(rfc3339: b.openedAt))}',
                 ].join(' · '),
                 leading: const MadarGlyphIcon(
                   MadarGlyph.wallet,

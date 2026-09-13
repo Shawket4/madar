@@ -42,9 +42,7 @@ class TillElsewherePanel extends ConsumerWidget {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final device =
-        elsewhere.deviceLabel ??
-        elsewhere.deviceCode ??
-        t('till.z_device');
+        elsewhere.deviceLabel ?? elsewhere.deviceCode ?? t('till.z_device');
     final since = bridge.formatStamp(rfc3339: elsewhere.openedAt);
     final deviceWords = [
       MadarFormat.isolate(device),
@@ -84,13 +82,10 @@ class TillElsewherePanel extends ConsumerWidget {
                     style: MadarType.title.copyWith(color: colors.textPrimary),
                   ),
                   Text(
-                    t('till.open_elsewhere_body').replaceAll(
-                      '{device}',
-                      deviceWords,
-                    ),
-                    style: MadarType.body.copyWith(
-                      color: colors.textSecondary,
-                    ),
+                    t(
+                      'till.open_elsewhere_body',
+                    ).replaceAll('{device}', deviceWords),
+                    style: MadarType.body.copyWith(color: colors.textSecondary),
                   ),
                   Text(
                     '${t('till.open_since')} ${MadarFormat.isolate(since)}',

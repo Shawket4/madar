@@ -373,12 +373,9 @@ const _ar = {
 };
 
 class _FakeBridge implements MadarBridge {
-  _FakeBridge({
-    this.rtl = false,
-    this.tillOpen = true,
-    this.bundles = const [],
-  }) : role = 'teller',
-       drafts = _drafts;
+  _FakeBridge({this.rtl = false, this.tillOpen = true, this.bundles = const []})
+    : role = 'teller',
+      drafts = _drafts;
 
   /// The combos the catalog offers — none unless a test needs the chip.
   final List<BundleView> bundles;

@@ -454,7 +454,8 @@ class OrderNotifier extends Notifier<OrderState> {
       final categories = await _bridge.listCategories();
       final menuItems = await _bridge.listMenuItems();
       final bundles = await _bridge.availableBundles(
-        nowRfc3339: nowIso(), // an instant; the core reads it in the branch zone
+        nowRfc3339:
+            nowIso(), // an instant; the core reads it in the branch zone
       );
       state = state.copyWith(
         categories: categories,
@@ -1530,12 +1531,12 @@ class OrderNotifier extends Notifier<OrderState> {
     final wasOnline = state.isOnline;
     final wasAuthPaused = state.syncAuthPaused;
     final online = await _quiet(_bridge.refreshConnectivity) ?? false;
-    final status = await _quiet(_bridge.syncStatus);
+    final status = await _quiet(() async => _bridge.syncStatus());
     final authPaused = status?.authPaused ?? state.syncAuthPaused;
     state = state.copyWith(
       isOnline: online,
-      pendingCount: status?.pending ?? state.pendingCount,
-      syncFailed: status?.failed ?? state.syncFailed,
+      pendingCount: status?.pendingOutbox ?? state.pendingCount,
+      syncFailed: status?.deadOutbox ?? state.syncFailed,
       syncAuthPaused: authPaused,
       clockSkewMinutes: _bridge.clockSkewMinutes(),
     );
@@ -1555,14 +1556,14 @@ class OrderNotifier extends Notifier<OrderState> {
   /// offline→online edge. Cheaper and more responsive than a screen-local
   /// heartbeat, and it stays live even off the order screen.
   Future<void> syncFromStatus() async {
-    final status = await _quiet(_bridge.syncStatus);
+    final status = await _quiet(() async => _bridge.syncStatus());
     if (status == null) return;
     final wasOnline = state.isOnline;
     final wasAuthPaused = state.syncAuthPaused;
     state = state.copyWith(
       isOnline: status.online,
-      pendingCount: status.pending,
-      syncFailed: status.failed,
+      pendingCount: status.pendingOutbox,
+      syncFailed: status.deadOutbox,
       syncAuthPaused: status.authPaused,
       clockSkewMinutes: _bridge.clockSkewMinutes(),
     );

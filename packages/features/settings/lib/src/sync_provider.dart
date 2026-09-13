@@ -106,7 +106,7 @@ class SyncNotifier extends Notifier<SyncState> {
   /// Re-read the outbox rows, the health snapshot and the till.
   Future<void> load() async {
     final outbox = await _quiet(_bridge.listOutbox) ?? const <OutboxItemView>[];
-    final status = await _quiet(_bridge.syncStatus);
+    final status = await _quiet(() async => _bridge.syncStatus());
     final till = await _quiet(_bridge.currentTill);
     state = state.copyWith(
       outbox: outbox,
@@ -170,17 +170,18 @@ class SyncNotifier extends Notifier<SyncState> {
     ref.read(shellProvider.notifier).refresh();
   }
 
-  /// Re-point every sale stranded behind a dead `open_till` onto the
-  /// current open till and sync. The drain heals this on its own each
-  /// pass; this is the manual escape hatch for when the drain ran with no
-  /// till open. Needs a drawer open, which the section enforces with a
-  /// reason on the button.
+  /// Retry the sales held behind a dead `open_till`. Tills are named by
+  /// the id this device minted, so nothing needs re-pointing: the till's
+  /// dead commands are sent again, in order. Needs this person's till.
   Future<void> recover() async {
     if (state.recovering) return;
     state = state.copyWith(recovering: true, clearRecovered: true);
     int? count;
     try {
-      count = await _quiet(_bridge.recoverOrphanedOrders);
+      final till = await _quiet(_bridge.currentTill);
+      if (till != null) {
+        count = await _quiet(() => _bridge.retryTillOutbox(tillId: till.id));
+      }
     } finally {
       state = state.copyWith(recovering: false, recovered: count ?? 0);
     }

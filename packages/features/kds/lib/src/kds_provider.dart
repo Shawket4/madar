@@ -218,7 +218,7 @@ class KdsNotifier extends Notifier<KdsState> {
   /// Both are cheap local reads that always succeed offline.
   Future<void> loadOutbox() async {
     try {
-      final status = await _bridge.syncStatus();
+      final status = _bridge.syncStatus();
       final rows = await _bridge.listOutbox();
       final kitchen = rows.where((r) => kKitchenOpTypes.contains(r.opType));
       state = state.copyWith(

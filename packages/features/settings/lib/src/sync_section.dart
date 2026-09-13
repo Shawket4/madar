@@ -337,9 +337,9 @@ class _HealthCard extends ConsumerWidget {
               // A manager's long press downloads everything again, after a
               // confirm that says unsent sales stay.
               onLongPress:
-                  isManagerRole(ref.watch(
-                    shellProvider.select((s) => s.session?.role),
-                  ))
+                  isManagerRole(
+                    ref.watch(shellProvider.select((s) => s.session?.role)),
+                  )
                   ? () => unawaited(confirmFullSync(context, ref))
                   : null,
             ),

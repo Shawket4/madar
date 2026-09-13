@@ -310,9 +310,7 @@ final drawerTickProvider = NotifierProvider<TickNotifier, int>(
 /// Bumped when the core says its sync moved (`sync.status`, `sync.changed`):
 /// the sync-on-open strip and the Sync section re-read the core's status on
 /// it instead of polling.
-final syncTickProvider = NotifierProvider<TickNotifier, int>(
-  TickNotifier.new,
-);
+final syncTickProvider = NotifierProvider<TickNotifier, int>(TickNotifier.new);
 
 /// Bumped when the core emptied every cart outside a sign-in (closing a
 /// till). Each open cart re-reads its context on it.

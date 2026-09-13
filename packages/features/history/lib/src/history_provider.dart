@@ -375,7 +375,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
     if (reset) _page = 1;
     var online = true;
     try {
-      online = (await _bridge.syncStatus()).online;
+      online = _bridge.syncStatus().online;
     } on MadarError {
       online = true; // Let the search itself say no, in the core's words.
     }
@@ -629,7 +629,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
     bool matchesSearch(OrderSummaryView o) {
       if (query.isEmpty) return true;
       if (qNumber.isNotEmpty &&
-          o.displayNumber.toLowerCase().contains(qNumber.toLowerCase())) {
+          (o.orderNumber?.toString().contains(qNumber) ?? false)) {
         return true;
       }
       return (o.customerName?.toLowerCase().contains(ql) ?? false) ||

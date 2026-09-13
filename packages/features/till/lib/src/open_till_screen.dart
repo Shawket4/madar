@@ -327,9 +327,7 @@ class _FormColumn extends ConsumerWidget {
               loading: busy,
               enabled: !blocked,
               onTap: () => unawaited(
-                ref
-                    .read(openTillProvider.notifier)
-                    .submit(reason: reason.text),
+                ref.read(openTillProvider.notifier).submit(reason: reason.text),
               ),
             ),
             const SizedBox(height: Space.sm),

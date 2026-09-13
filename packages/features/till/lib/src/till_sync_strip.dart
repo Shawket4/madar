@@ -13,7 +13,6 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -136,7 +135,9 @@ class TillSyncStrip extends ConsumerWidget {
       text = switch (view.staleReason) {
         'offline' => t('sync.stale_offline').replaceAll(
           '{time}',
-          at == null ? '—' : MadarFormat.isolate(bridge.formatStamp(rfc3339: at)),
+          at == null
+              ? '—'
+              : MadarFormat.isolate(bridge.formatStamp(rfc3339: at)),
         ),
         'checksum_mismatch' => t('sync.stale_checksum'),
         _ => t('sync.stale_error'),
@@ -174,10 +175,9 @@ class TillSyncStrip extends ConsumerWidget {
             ),
             if (pending > 0)
               Text(
-                t('sync.pending_count').replaceAll(
-                  '{count}',
-                  MadarFormat.ltr('$pending'),
-                ),
+                t(
+                  'sync.pending_count',
+                ).replaceAll('{count}', MadarFormat.ltr('$pending')),
                 maxLines: 1,
                 style: MadarType.bodySm.copyWith(color: colors.textMuted),
               ),

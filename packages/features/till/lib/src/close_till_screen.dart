@@ -114,9 +114,7 @@ class _CloseTillScreenState extends ConsumerState<CloseTillScreen> {
     String t(String key) => bridge.tr(key: key);
     final till = ref.watch(closeTillProvider.select((s) => s.till));
     final report = ref.watch(closeTillProvider.select((s) => s.report));
-    final orderCount = ref.watch(
-      closeTillProvider.select((s) => s.orderCount),
-    );
+    final orderCount = ref.watch(closeTillProvider.select((s) => s.orderCount));
 
     final subtitle = [
       if (till?.deviceCode case final code?) MadarFormat.ltr(code),

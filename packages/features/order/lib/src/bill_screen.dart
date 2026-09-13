@@ -475,9 +475,7 @@ class _BillScreenState extends ConsumerState<BillScreen>
             amountMinor: ticket.bill?.totalMinor ?? ticket.subtotalMinor,
             currency: currency,
             enabled: state.tillOpen && !state.isBusy,
-            reason: state.tillOpen
-                ? null
-                : bridge.tr(key: 'waiter.need_shift'),
+            reason: state.tillOpen ? null : bridge.tr(key: 'waiter.need_shift'),
             loading: state.isBusy,
             onTap: () => unawaited(_charge(ticket, title)),
           )

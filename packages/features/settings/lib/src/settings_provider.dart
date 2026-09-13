@@ -69,7 +69,6 @@ class SettingsState {
   /// Current till — the sign-out/reconfigure guard + the account card.
   final TillView? till;
 
-
   /// Bindable kitchen stations (KDS devices).
   final List<KdsStationView> stations;
 
@@ -335,6 +334,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   ReceiptView _testReceipt(String? tellerName, String line) {
     return ReceiptView(
       localOrderId: 'test-print',
+      displayNumber: '',
       isVoided: false,
       lines: [
         ReceiptLineView(

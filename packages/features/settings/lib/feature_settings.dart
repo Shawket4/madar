@@ -25,8 +25,7 @@ export 'src/settings_sheets.dart'
         showDiagnosticsSheet,
         showLegalSheet,
         showPrinterSheet,
-        showStationSheet,
-        showTillSheet;
+        showStationSheet;
 export 'src/sync_provider.dart' show SyncNotifier, SyncState, syncProvider;
 export 'src/sync_screen.dart' show SyncScreen;
 export 'src/sync_section.dart'

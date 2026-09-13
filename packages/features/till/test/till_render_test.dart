@@ -271,10 +271,17 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #formatStamp) {
       final at = DateTime.parse(invocation.namedArguments[#rfc3339] as String);
-      return MadarFormat.stamp(at, DateTime(at.year, at.month, at.day), locale: lang);
+      return MadarFormat.stamp(
+        at,
+        DateTime(at.year, at.month, at.day),
+        locale: lang,
+      );
     }
     if (name == #formatElapsedSince || name == #formatElapsed) {
-      return MadarFormat.elapsed(const Duration(hours: 4, minutes: 38), locale: lang);
+      return MadarFormat.elapsed(
+        const Duration(hours: 4, minutes: 38),
+        locale: lang,
+      );
     }
     if (name == #isRtl) return arabic;
     if (name == #appRoute) {

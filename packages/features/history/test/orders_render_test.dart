@@ -535,7 +535,6 @@ Future<void> _open(WidgetTester tester, int number) async {
   await tester.pump(const Duration(milliseconds: 400));
 }
 
-
 /// Loads the design system's Plex faces so the boards render real type —
 /// without them the test binding's block font hides everything the picture
 /// is for. The family name carries the package prefix because the styles do.
@@ -687,7 +686,10 @@ void main() {
     );
     expect(find.text('All · \u2066318\u2069 found'), findsOneWidget);
     // The next-page row is the last in a lazy list: scroll it in.
-    await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -800));
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -800),
+    );
     await tester.pump();
     expect(find.text('Load more'), findsOneWidget);
     expect(find.textContaining('Sep 11'), findsWidgets);

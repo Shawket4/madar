@@ -38,7 +38,6 @@ Future<void> showPrinterSheet(BuildContext context) => showMadarSheet<void>(
   builder: (_) => const _PrinterSheet(),
 );
 
-
 Future<void> showStationSheet(BuildContext context) => showMadarSheet<void>(
   context,
   size: SheetSize.hug,

@@ -148,7 +148,7 @@ class OutboxNotifier extends Notifier<OutboxSnapshot> {
     final bridge = ref.read(bridgeProvider);
     SyncStatusView status;
     try {
-      status = await bridge.syncStatus();
+      status = bridge.syncStatus();
     } on Object {
       // A store hiccup leaves the last honest reading in place.
       return;
@@ -157,15 +157,15 @@ class OutboxNotifier extends Notifier<OutboxSnapshot> {
     final int count;
     // Refused work outranks everything: someone has to act. Offline is a
     // supported mode, not an error, and the queued count rides on it.
-    if (status.failed > 0) {
+    if (status.deadOutbox > 0) {
       pillState = OutboxState.stuck;
-      count = status.failed;
+      count = status.deadOutbox;
     } else if (!status.online) {
       pillState = OutboxState.offline;
-      count = status.pending;
-    } else if (status.pending > 0) {
+      count = status.pendingOutbox;
+    } else if (status.pendingOutbox > 0) {
       pillState = OutboxState.queued;
-      count = status.pending;
+      count = status.pendingOutbox;
     } else {
       pillState = OutboxState.synced;
       count = 0;

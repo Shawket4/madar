@@ -112,9 +112,7 @@ class _TillReportSheetState extends ConsumerState<TillReportSheet> {
           ),
           child: MadarHeader(
             title: t(
-              widget.closed
-                  ? 'till.closed_report_title'
-                  : 'till.report_title',
+              widget.closed ? 'till.closed_report_title' : 'till.report_title',
             ),
             subtitle: subtitle,
             actions: [
@@ -375,9 +373,7 @@ class _Report extends ConsumerWidget {
               for (final f in facts)
                 Text(
                   f,
-                  style: MadarType.bodySm.copyWith(
-                    color: colors.textSecondary,
-                  ),
+                  style: MadarType.bodySm.copyWith(color: colors.textSecondary),
                 ),
             ],
           ),
@@ -594,9 +590,7 @@ class _Orders extends ConsumerWidget {
         MadarSectionHeader(
           text: t('shifts.orders'),
           trailing: MadarButton(
-            label: t(
-              state.expanded ? 'till.hide_orders' : 'till.show_orders',
-            ),
+            label: t(state.expanded ? 'till.hide_orders' : 'till.show_orders'),
             glyph: state.expanded
                 ? MadarGlyph.chevronUp
                 : MadarGlyph.chevronDown,
