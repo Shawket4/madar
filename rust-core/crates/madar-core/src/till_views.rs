@@ -243,7 +243,9 @@ impl MadarCore {
                 order_type: None,
                 exclude_items: None,
                 channel: None,
-                include_items: Some(true),
+                // The list decodes into models::Order (no items): asking for
+                // items was ~90% wasted bytes (payload audit).
+                include_items: Some(false),
             };
             let resp = orders_api::list_orders(&self.api.config(), params)
                 .await

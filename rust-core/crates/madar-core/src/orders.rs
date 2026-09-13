@@ -821,7 +821,7 @@ mod tests {
         req.subtotal = Some(Some((total as f64 / 1.14).round() as i32));
         req.tax_amount = Some(Some(total - (total as f64 / 1.14).round() as i32));
         req.total_amount = Some(Some(total));
-        let cmd = CheckoutCommand { request: req };
+        let cmd = CheckoutCommand { request: req, device: None };
         store
             .enqueue(&crate::store::NewOutboxOp {
                 id: id.into(),
@@ -1461,7 +1461,7 @@ mod tests {
         let mut req = models::CreateOrderRequest::new(uid(60), vec![], "Cash".into(), uid(61));
         req.shift_id = uuid::Uuid::parse_str(SHIFT).unwrap();
         req.created_at = Some(Some(ts()));
-        let cmd = CheckoutCommand { request: req };
+        let cmd = CheckoutCommand { request: req, device: None };
         store
             .enqueue(&crate::store::NewOutboxOp {
                 id: "o1".into(),

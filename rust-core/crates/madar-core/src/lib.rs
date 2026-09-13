@@ -340,7 +340,19 @@ impl MadarCore {
         // rather than on first sync so the sync screen is already honest the
         // first time anyone opens it.
         let _ = store.purge_dead_held_ops();
-        let api = net::ApiClient::new(config.base_url.clone(), clock_skew_secs.clone())?;
+        let device_id = match store.kv_get("lan_device_id").ok().flatten().filter(|s| !s.is_empty()) {
+            Some(id) => id,
+            None => {
+                let id = uuid::Uuid::new_v4().to_string();
+                let _ = store.kv_put("lan_device_id", &id);
+                id
+            }
+        };
+        let api = net::ApiClient::with_device(
+            config.base_url.clone(),
+            clock_skew_secs.clone(),
+            Some(device_id),
+        )?;
         let images = filestore::FileStore::new(&config.db_path, "images");
         let animations = filestore::FileStore::new(&config.db_path, "animations");
         let locale = Arc::new(RwLock::new(config.locale.clone()));
@@ -7329,16 +7341,10 @@ mod tests {
     fn sync_status_reflects_outbox_counts_and_default_flags() {
         // Signed out, empty outbox → all zero, offline, not auth-paused.
         let core = MadarCore::from_env().unwrap();
-        let s = core.sync_status().unwrap();
+        let s = core.sync_status();
         assert_eq!(
-            s,
-            SyncStatusView {
-                pending: 0,
-                failed: 0,
-                blocked: 0,
-                online: false,
-                auth_paused: false
-            }
+            (s.pending_outbox, s.dead_outbox, s.blocked, s.online, s.auth_paused),
+            (0, 0, 0, false, false)
         );
     }
 
@@ -7896,6 +7902,10 @@ mod lifecycle_tests {
     }
 
     fn set_session(core: &MadarCore, state: Option<session::SessionState>) {
+        let _ = till::set_active_user(
+            &core.store,
+            state.as_ref().map(|s| s.snapshot.user_id.as_str()),
+        );
         *core.session.write().unwrap_or_else(|e| e.into_inner()) = state;
     }
 
@@ -7905,10 +7915,10 @@ mod lifecycle_tests {
 
     fn seed_shift_returning_id(core: &MadarCore, teller: uuid::Uuid, status: &str) -> String {
         let id = uuid::Uuid::new_v4();
-        let s = madar_api::models::Shift {
-            id,
-            branch_id: uuid::Uuid::new_v4(),
-            teller_id: teller,
+        let s = till::TillWire {
+            id: id.to_string(),
+            branch_id: uuid::Uuid::new_v4().to_string(),
+            teller_id: teller.to_string(),
             teller_name: "Sara".into(),
             opening_cash: 50000,
             status: status.into(),
@@ -8734,6 +8744,13 @@ mod lifecycle_tests {
     }
 
     async fn signed_in_offline_core_at(base_url: String, org_config: &str) -> Arc<MadarCore> {
+        let core = signed_in_offline_core_unbound(base_url, org_config).await;
+        core.set_device_branch("00000000-0000-0000-0000-000000000001".into(), None)
+            .unwrap();
+        core
+    }
+
+    async fn signed_in_offline_core_unbound(base_url: String, org_config: &str) -> Arc<MadarCore> {
         use argon2::password_hash::SaltString;
         use argon2::{Argon2, PasswordHasher};
         let core = MadarCore::new(MadarConfig {
@@ -8778,229 +8795,10 @@ mod lifecycle_tests {
         core
     }
 
-    /// ISSUE 1 fix (deterministic, no backend): the offline "close A → open B"
-    /// handover wires open B's outbox DEPENDENCY onto A's still-queued close, so on
-    /// reconnect B's open can NEVER replay before A's close commits. Without that
-    /// gate the open races the still-open branch, 409s "a shift is already open for
-    /// this branch", dead-letters, cascades B's orders, and strands the teller on
-    /// the open-shift screen — the field bug. A first-ever open (no queued close)
-    /// has no dependency, since the branch is already free.
-    #[tokio::test]
-    async fn offline_open_after_close_depends_on_the_close() {
-        let core = signed_in_offline_core().await;
 
-        // First-ever open: no prior close queued → no dependency (branch is free).
-        core.open_till(50_000, None).await.unwrap();
-        let open_a = core
-            .store
-            .list_active()
-            .unwrap()
-            .into_iter()
-            .find(|i| i.op_type == "open_till")
-            .unwrap();
-        assert_eq!(
-            open_a.depends_on_seq, None,
-            "the first open has no close to wait on"
-        );
 
-        // Close A (queues behind the open), then open B offline.
-        core.close_till(48_000, None).await.unwrap();
-        core.open_till(48_000, None).await.unwrap();
 
-        let active = core.store.list_active().unwrap();
-        let close_a = active
-            .iter()
-            .find(|i| i.op_type == "close_till")
-            .expect("close A queued");
-        let open_b = active
-            .iter()
-            .filter(|i| i.op_type == "open_till")
-            .max_by_key(|i| i.seq)
-            .expect("open B queued");
-        assert!(open_b.seq > close_a.seq, "B opened after A's close");
-        assert_eq!(
-            open_b.depends_on_seq,
-            Some(close_a.seq),
-            "open B must DEPEND on A's close — the sequential-handover gate that prevents the 409",
-        );
-    }
 
-    /// HARDENING (dependents WAIT on a dead dependency, never cascade-dead): if the
-    /// prior shift's queued close DEAD-letters (e.g. a backend cash-continuity
-    /// rejection), the dependent open — and by extension its orders — must stay
-    /// PENDING (recoverable), not cascade dead and strand the sale. Resolving the
-    /// root op later (retry/discard) then flows the whole chain. This is what keeps
-    /// a teller-switch whose close fails from orphaning the next teller's sales.
-    #[tokio::test]
-    async fn dependent_op_waits_on_a_dead_dependency_instead_of_cascading() {
-        let core = signed_in_offline_core().await;
-
-        // Open A → close A → open B (B depends on A's close), all offline.
-        core.open_till(50_000, None).await.unwrap();
-        core.close_till(48_000, None).await.unwrap();
-        core.open_till(48_000, None).await.unwrap();
-
-        let active = core.store.list_active().unwrap();
-        let open_a = active
-            .iter()
-            .filter(|i| i.op_type == "open_till")
-            .min_by_key(|i| i.seq)
-            .unwrap()
-            .seq;
-        let close_a = active
-            .iter()
-            .find(|i| i.op_type == "close_till")
-            .unwrap()
-            .seq;
-        let open_b = active
-            .iter()
-            .filter(|i| i.op_type == "open_till")
-            .max_by_key(|i| i.seq)
-            .unwrap()
-            .seq;
-
-        // Pretend A's open already synced, then A's close DIES on the server.
-        core.store.mark_acked(open_a, Some("srv-a")).unwrap();
-        core.store
-            .mark_dead(close_a, "continuity: closing cash mismatch")
-            .unwrap();
-
-        // Drain: open B's dependency (close A) is dead → it must WAIT, not cascade.
-        let _ = core.drain_outbox().await;
-
-        let after = core.store.list_active().unwrap();
-        let ob = after
-            .iter()
-            .find(|i| i.seq == open_b)
-            .expect("open B still in the outbox");
-        assert_eq!(
-            ob.status, "pending",
-            "open B waits on the dead close — never cascade-dead"
-        );
-        assert_eq!(
-            core.store.dead_count().unwrap(),
-            1,
-            "only the ROOT close is dead; the chain stays recoverable"
-        );
-    }
-
-    /// SEQUENTIAL-ONLY: `device_has_open_till` is the deterministic gate. It's
-    /// true for a cached OPEN shift and for an uncovered queued open (defense for
-    /// a lost cache), and FALSE once the open is covered by a close — so the
-    /// offline "close A → open B" flow is never blocked.
-    #[test]
-    fn device_has_open_shift_tracks_cache_and_uncovered_queued_opens() {
-        let core = MadarCore::from_env().unwrap();
-        assert!(!core.device_has_open_till().unwrap()); // nothing yet
-
-        // A cached OPEN shift counts.
-        seed_shift_returning_id(&core, uuid::Uuid::new_v4(), "open");
-        assert!(core.device_has_open_till().unwrap());
-
-        // Closed locally with nothing queued → no longer open.
-        till::close_local(&core.store).unwrap();
-        assert!(!core.device_has_open_till().unwrap());
-
-        // Cache lost but an open is still queued with no close → still "open".
-        till::clear(&core.store).unwrap();
-        let sid = uuid::Uuid::new_v4().to_string();
-        enqueue_open_shift(&core, &sid);
-        assert!(core.device_has_open_till().unwrap());
-
-        // Queue its close → the open is now covered → not open (reopen allowed).
-        enqueue_close_shift(&core, &sid);
-        assert!(!core.device_has_open_till().unwrap());
-    }
-
-    /// The behavioral guarantee: a second `open_till` while one is open is
-    /// rejected; after a (local) close it's allowed again — the sequential
-    /// offline shift cycle. Driven fully offline (dead url) on a real session.
-    #[tokio::test]
-    async fn open_shift_rejects_a_second_open_then_allows_reopen_after_close() {
-        use argon2::password_hash::SaltString;
-        use argon2::{Argon2, PasswordHasher};
-
-        let core = MadarCore::new(MadarConfig {
-            base_url: "http://127.0.0.1:1".into(),
-            environment: "dev".into(),
-            db_path: String::new(),
-            locale: "en".into(),
-        })
-        .unwrap();
-        let salt = SaltString::encode_b64(b"madar-test-salt").unwrap();
-        let phc = Argon2::default()
-            .hash_password(b"1234", &salt)
-            .unwrap()
-            .to_string();
-        core.store
-            .kv_put(
-                session::BUNDLE_KEY,
-                &serde_json::json!({
-                    "org_id": "00000000-0000-0000-0000-0000000000aa",
-                    "generated_at": "2026-06-19T10:00:00Z",
-                    "lan_secret": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
-                    "tellers": [{ "user_id": "00000000-0000-0000-0000-0000000000bb",
-                        "name": "Sara", "role": "teller", "is_active": true, "offline_pin_hash": phc }]
-                })
-                .to_string(),
-            )
-            .unwrap();
-        core.store
-            .kv_put(session::ORG_CONFIG_KEY, r#"{"org_id":"00000000-0000-0000-0000-0000000000aa","currency_code":"EGP","tax_rate":0.14}"#)
-            .unwrap();
-        core.sign_in(session::LoginRequest {
-            mode: session::LoginMode::Pin,
-            name: Some("Sara".into()),
-            pin: Some("1234".into()),
-            branch_id: Some("00000000-0000-0000-0000-000000000001".into()),
-            email: None,
-            password: None,
-            org_id: None,
-        })
-        .await
-        .unwrap();
-
-        // First open succeeds.
-        core.open_till(50000, None).await.unwrap();
-        assert!(core.current_till().unwrap().unwrap().is_open);
-
-        // A second open while one is open is REJECTED (and leaves the first intact).
-        let second = core.open_till(60000, None).await;
-        assert!(
-            matches!(second, Err(CoreError::Validation { .. })),
-            "got {second:?}"
-        );
-        let still = core.current_till().unwrap().unwrap();
-        assert!(still.is_open);
-        assert_eq!(
-            still.opening_cash_minor, 50000,
-            "the original shift must be untouched"
-        );
-
-        // Close it (locally; the close just queues offline) → reopen is allowed.
-        core.close_till(48000, None).await.unwrap();
-        assert!(!core.current_till().unwrap().unwrap().is_open);
-        core.open_till(48000, None)
-            .await
-            .expect("reopen after close must be allowed");
-        assert!(core.current_till().unwrap().unwrap().is_open);
-    }
-
-    /// Skeptic-1 regression: the open-shift pending guard must be scoped to the
-    /// cached shift's id, NOT device-global. A foreign teller's orphaned command
-    /// (left in the shared outbox after sign-out) must not keep a shift alive.
-    #[test]
-    fn open_pending_is_scoped_to_the_cached_shift_not_device_global() {
-        let core = MadarCore::from_env().unwrap();
-        let till_id = seed_shift_returning_id(&core, uuid::Uuid::new_v4(), "open");
-        assert!(!core.till_command_pending("open_till").unwrap()); // nothing queued
-                                                                     // A DIFFERENT shift's orphaned open_till command does NOT count.
-        enqueue_open_shift(&core, &uuid::Uuid::new_v4().to_string());
-        assert!(!core.till_command_pending("open_till").unwrap());
-        // Our own cached shift's command DOES.
-        enqueue_open_shift(&core, &till_id);
-        assert!(core.till_command_pending("open_till").unwrap());
-    }
 
     /// End-to-end offline: open a shift, sell nothing, then close it. The shift
     /// flips to closed locally (route → open-shift) and the close command queues
@@ -9059,14 +8857,19 @@ mod lifecycle_tests {
             .unwrap();
         assert_eq!(core.app_route(), AppRoute::Order);
 
-        core.close_till(48000, Some("short by 20".into()))
+        core.close_till(48000, Some("short by 20".into()), vec![])
             .await
             .unwrap();
         // Routed back to open-shift, cart dropped, and both commands queued.
         assert_eq!(core.app_route(), AppRoute::OpenTill);
         assert!(core.cart_lines(None).unwrap().is_empty());
         assert_eq!(core.pending_outbox_count().unwrap(), 2); // open + close
-        assert!(core.till_command_pending("close_till").unwrap());
+        assert!(core
+            .store
+            .list_active()
+            .unwrap()
+            .iter()
+            .any(|i| i.op_type == "close_till"));
     }
 
     /// Firing a table's round spends THAT table's cart only: the table starts
@@ -9152,10 +8955,276 @@ mod lifecycle_tests {
         assert!(payload["request"]["seated_at"].as_str().is_some());
     }
 
+    // ── tills rework: lifecycle over the real FFI paths ───────────────────────
+
+    /// A backend stand-in that ACKs every `/sync/replay` with `{"id":...}` and
+    /// records each posted body; every other path hangs up (offline).
+    async fn capture_stub() -> (String, Arc<std::sync::Mutex<Vec<serde_json::Value>>>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let bodies = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = bodies.clone();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    return;
+                };
+                let sink = sink.clone();
+                tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    let mut chunk = vec![0u8; 65536];
+                    loop {
+                        let n = sock.read(&mut chunk).await.unwrap_or(0);
+                        if n == 0 {
+                            break;
+                        }
+                        buf.extend_from_slice(&chunk[..n]);
+                        let text = String::from_utf8_lossy(&buf).to_string();
+                        if let Some(h) = text.find("\r\n\r\n") {
+                            let len = text[..h]
+                                .lines()
+                                .find_map(|l| {
+                                    l.to_ascii_lowercase()
+                                        .strip_prefix("content-length:")
+                                        .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                                })
+                                .unwrap_or(0);
+                            if buf.len() >= h + 4 + len {
+                                break;
+                            }
+                        }
+                    }
+                    let text = String::from_utf8_lossy(&buf).to_string();
+                    if !text.starts_with("POST /sync/replay") {
+                        return;
+                    }
+                    if let Some(h) = text.find("\r\n\r\n") {
+                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text[h + 4..]) {
+                            sink.lock().unwrap().push(v);
+                        }
+                    }
+                    let body = format!(r#"{{"id":"{}"}}"#, uuid::Uuid::new_v4());
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                });
+            }
+        });
+        (format!("http://{addr}"), bodies)
+    }
+
+    /// OLD QUEUE REPLAY TRANSLATION: rows queued by v0.6 (`open_shift`, payloads
+    /// naming `shift_id`) replay under the new names with this device's id.
+    #[tokio::test]
+    async fn drain_translates_open_shift_to_open_till() {
+        let (base, bodies) = capture_stub().await;
+        let core = draining_core(base).await;
+        let sid = "00000000-0000-0000-0000-00000000c0de";
+        let teller = "00000000-0000-0000-0000-0000000000bb";
+        core.store
+            .enqueue(&store::NewOutboxOp {
+                id: sid.into(),
+                op_type: "open_shift".into(),
+                idempotency_key: sid.into(),
+                payload: format!(
+                    r#"{{"branch_id":"00000000-0000-0000-0000-000000000001","request":{{"id":"{sid}","opening_cash":500,"till_id":"00000000-0000-0000-0000-0000000000ee","opened_at":"2026-09-13T09:00:00+00:00"}}}}"#
+                ),
+                event_at: "2026-09-13T09:00:00+00:00".into(),
+                user_id: Some(teller.into()),
+                till_id: Some(sid.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        core.store
+            .enqueue(&store::NewOutboxOp {
+                id: format!("{sid}:close"),
+                op_type: "close_shift".into(),
+                idempotency_key: format!("{sid}:close"),
+                payload: format!(r#"{{"shift_id":"{sid}","request":{{"closing_cash_declared":480}}}}"#),
+                event_at: "2026-09-13T18:00:00+00:00".into(),
+                user_id: Some(teller.into()),
+                till_id: Some(sid.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        core.drain_outbox().await.unwrap();
+        let sent = bodies.lock().unwrap().clone();
+        let open = sent.iter().find(|b| b["op"] == "open_till").expect("open sent as open_till");
+        assert_eq!(open["verification"], "unverified");
+        assert_eq!(open["device_id"], core.lan_device_id());
+        assert_eq!(open["request"]["id"], sid);
+        let close = sent.iter().find(|b| b["op"] == "close_till").expect("close sent as close_till");
+        assert_eq!(close["till_id"], sid);
+        assert!(close["request"]["reconciliation"].as_array().unwrap().is_empty());
+        assert!(sent.iter().all(|b| b["op"] != "open_shift" && b["op"] != "close_shift"));
+        assert_eq!(core.pending_outbox_count().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn drain_translates_shift_id_payloads() {
+        let (base, bodies) = capture_stub().await;
+        let core = draining_core(base).await;
+        let sid = "00000000-0000-0000-0000-00000000c0de";
+        let teller = "00000000-0000-0000-0000-0000000000bb";
+        let mut req = madar_api::models::CreateOrderRequest::new(
+            uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
+            vec![],
+            "Cash".into(),
+            uuid::Uuid::parse_str(sid).unwrap(),
+        );
+        req.idempotency_key = Some(Some(uuid::Uuid::new_v4()));
+        // A pre-rework payload: no device stamp, `shift_id` inside the request.
+        let legacy = serde_json::json!({ "request": req }).to_string();
+        assert!(legacy.contains("shift_id"));
+        core.store
+            .enqueue(&store::NewOutboxOp {
+                id: "legacy-order".into(),
+                op_type: "create_order".into(),
+                idempotency_key: "legacy-order".into(),
+                payload: legacy,
+                event_at: "2026-09-13T10:00:00+00:00".into(),
+                user_id: Some(teller.into()),
+                till_id: Some(sid.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        core.store
+            .enqueue(&store::NewOutboxOp {
+                id: "legacy-cash".into(),
+                op_type: "cash_movement".into(),
+                idempotency_key: "legacy-cash".into(),
+                payload: format!(r#"{{"shift_id":"{sid}","request":{{"amount":100,"note":"float"}}}}"#),
+                event_at: "2026-09-13T10:00:00+00:00".into(),
+                user_id: Some(teller.into()),
+                till_id: Some(sid.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        core.drain_outbox().await.unwrap();
+        let sent = bodies.lock().unwrap().clone();
+        let order = sent.iter().find(|b| b["op"] == "create_order").unwrap();
+        assert_eq!(order["request"]["till_id"], sid);
+        assert!(order["request"].get("shift_id").is_none(), "never both names");
+        assert!(order["request"].get("device_code").is_none(), "legacy order keeps server numbering");
+        let cash = sent.iter().find(|b| b["op"] == "cash_movement").unwrap();
+        assert_eq!(cash["till_id"], sid);
+        assert!(cash.get("shift_id").is_none());
+    }
+
+    /// Two people, two tills, ONE device: each signs in to their own till, both
+    /// stay open, and closing one never touches the other.
+    #[tokio::test]
+    async fn two_tills_one_device() {
+        let core = signed_in_offline_core().await;
+        let a = core.open_till(50_000, None).await.unwrap().till.unwrap();
+        // A second person on the same device.
+        let b_user = "00000000-0000-0000-0000-0000000000cc";
+        let mut st = teller_session(b_user, Some("00000000-0000-0000-0000-000000000001"));
+        st.snapshot.display_name = "Omar".into();
+        set_session(&core, Some(st));
+        assert!(core.current_till().unwrap().is_none(), "Omar has no till yet");
+        assert_eq!(core.app_route(), AppRoute::OpenTill);
+        let b = core.open_till(20_000, None).await.unwrap().till.unwrap();
+        assert_ne!(a.id, b.id);
+        assert_eq!(till::open_on_device(&core.store).len(), 2);
+        core.close_till(20_000, None, vec![]).await.unwrap();
+        let open: Vec<String> = till::open_on_device(&core.store).into_iter().map(|t| t.id).collect();
+        assert_eq!(open, vec![a.id.clone()]);
+        // Sara comes back to her still-open till.
+        set_session(
+            &core,
+            Some(teller_session(
+                "00000000-0000-0000-0000-0000000000bb",
+                Some("00000000-0000-0000-0000-000000000001"),
+            )),
+        );
+        assert_eq!(core.current_till().unwrap().unwrap().id, a.id);
+        assert_eq!(core.app_route(), AppRoute::Order);
+    }
+
+    /// OFFLINE DUPLICATE TILL: the same person opens on two devices with no
+    /// network and no peers. Both opens are allowed (unverified), both are queued
+    /// with distinct client ids; the server keeps both and flags the later one.
+    #[tokio::test]
+    async fn offline_duplicate_till_is_allowed_on_both_devices() {
+        let d1 = signed_in_offline_core().await;
+        let d2 = signed_in_offline_core().await;
+        assert_ne!(d1.device_id(), d2.device_id());
+        let t1 = d1.open_till(1_000, None).await.unwrap();
+        let t2 = d2.open_till(1_000, None).await.unwrap();
+        assert_eq!(t1.verification, "unverified");
+        assert_eq!(t2.verification, "unverified");
+        assert!(t1.open_elsewhere.is_none() && t2.open_elsewhere.is_none());
+        let (a, b) = (t1.till.unwrap(), t2.till.unwrap());
+        assert_ne!(a.id, b.id);
+        for (core, id) in [(&d1, &a.id), (&d2, &b.id)] {
+            let ops = core.store.list_active_for_till(id).unwrap();
+            assert_eq!(ops.len(), 1);
+            let cmd: till::OpenTillCommand = serde_json::from_str(&ops[0].payload).unwrap();
+            assert_eq!(cmd.verification, "unverified");
+            assert_eq!(cmd.device_id, core.device_id());
+        }
+    }
+
+    /// Decision 15: opening returns at once; the sync runs behind it and the
+    /// strip reports a state (never blocks selling).
+    #[tokio::test]
+    async fn open_till_spawns_drain_then_pull_non_blocking() {
+        let core = signed_in_offline_core().await;
+        let started = std::time::Instant::now();
+        let out = core.open_till(1_000, None).await.unwrap();
+        assert!(out.till.is_some());
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+        let st = core.sync_on_till_open_status();
+        assert_eq!(st.till_id.as_deref(), out.till.as_ref().map(|t| t.id.as_str()));
+        assert!(["running", "done", "stale"].contains(&st.state.as_str()));
+        assert_eq!(core.app_route(), AppRoute::Order, "selling is available immediately");
+    }
+
+    /// Per-device order numbers: `36B-12`, sent with the device code.
+    #[tokio::test]
+    async fn device_order_number_display_code_dash_seq() {
+        let core = signed_in_offline_core().await;
+        core.store.kv_put(checkout::KEY_BRANCH_CODE, "MAA").unwrap();
+        core.store.kv_put(checkout::KEY_BRANCH_TZ, "UTC").unwrap();
+        core.set_device_code("36b".into());
+        assert_eq!(core.device_code(), "36B");
+        assert_eq!(checkout::display_number("36B", 12), "36B-12");
+        assert_eq!(
+            checkout::display_number_from_ref(Some("MAA-260913-36B-0012"), 12),
+            "36B-12"
+        );
+        assert_eq!(checkout::display_number_from_ref(Some("MAA-260913-36B-0012~AB12"), 12), "36B-12");
+        assert_eq!(checkout::display_number_from_ref(None, 7), "7");
+        let cmd = checkout::CheckoutCommand {
+            request: madar_api::models::CreateOrderRequest::new(
+                uuid::Uuid::new_v4(),
+                vec![],
+                "Cash".into(),
+                uuid::Uuid::new_v4(),
+            ),
+            device: Some(checkout::OrderDeviceStamp {
+                device_id: core.device_id(),
+                device_code: "36B".into(),
+                order_number: 12,
+                verification: "lan".into(),
+            }),
+        };
+        let env = checkout::order_envelope(&cmd, "t", &core.device_id());
+        assert_eq!(env["device_code"], "36B");
+        assert_eq!(env["request"]["order_number"], 12);
+        assert_eq!(env["request"]["device_code"], "36B");
+        assert_eq!(env["request"]["verification"], "lan");
+        assert!(env["request"].get("till_id").is_some());
+    }
+
     #[tokio::test]
     async fn close_shift_without_an_open_shift_is_rejected() {
         let core = MadarCore::from_env().unwrap();
-        let err = core.close_till(1000, None).await;
+        let err = core.close_till(1000, None, vec![]).await;
         assert!(matches!(err, Err(CoreError::Validation { .. })));
     }
 
@@ -9306,7 +9375,9 @@ mod lifecycle_tests {
             .open_till(50000, None)
             .await
             .expect("open shift offline");
+        let shift = shift.till.expect("opened");
         assert!(shift.is_open);
+        assert_eq!(shift.verification, "unverified");
         // The command is queued (couldn't reach the server)…
         assert_eq!(core.pending_outbox_count().unwrap(), 1);
         // …and the route is Order — and stays there (the bounce is gone).
@@ -9536,7 +9607,7 @@ mod lifecycle_tests {
         core.set_online(true);
         core.auth_paused.store(true, Relaxed);
         assert!(
-            core.sync_status().unwrap().auth_paused,
+            core.sync_status().auth_paused,
             "a refused token must prompt a re-login without waiting for its exp"
         );
 
@@ -9545,7 +9616,7 @@ mod lifecycle_tests {
         // offline→online edge.
         core.set_online(false);
         assert!(
-            !core.sync_status().unwrap().auth_paused,
+            !core.sync_status().auth_paused,
             "no re-login prompt while there is no server to re-login against"
         );
 
@@ -9554,7 +9625,7 @@ mod lifecycle_tests {
         core.auth_paused.store(true, Relaxed);
         core.set_online(true);
         assert!(
-            core.sync_status().unwrap().auth_paused,
+            core.sync_status().auth_paused,
             "an expired JWT must surface the re-login banner once online"
         );
     }
@@ -9672,7 +9743,7 @@ mod lifecycle_tests {
             "own token is not 'borrowed'"
         );
         assert!(
-            !core.sync_status().unwrap().auth_paused,
+            !core.sync_status().auth_paused,
             "no re-login banner with an own valid token"
         );
         // The own token IS persisted (survives a restart).
@@ -9707,7 +9778,7 @@ mod lifecycle_tests {
             "foreign token is flagged borrowed"
         );
         assert!(
-            !core.sync_status().unwrap().auth_paused,
+            !core.sync_status().auth_paused,
             "no banner while flushing"
         );
         let persisted = core
@@ -9736,7 +9807,7 @@ mod lifecycle_tests {
         // Surfaced only once online (re-auth needs the server to mint a JWT).
         core.set_online(true);
         assert!(
-            core.sync_status().unwrap().auth_paused,
+            core.sync_status().auth_paused,
             "re-login required after a borrowed flush, prompted once online"
         );
     }
@@ -9757,12 +9828,12 @@ mod lifecycle_tests {
         // The prompt stays suppressed while offline (an offline unlock IS
         // offline) — re-auth needs the server; the restore edge resurfaces it.
         assert!(
-            !core.sync_status().unwrap().auth_paused,
+            !core.sync_status().auth_paused,
             "no re-login banner while unreachable"
         );
         core.set_online(true);
         assert!(
-            core.sync_status().unwrap().auth_paused,
+            core.sync_status().auth_paused,
             "the re-login banner surfaces once connectivity is confirmed"
         );
     }
@@ -9778,7 +9849,7 @@ mod lifecycle_tests {
             .borrowed_token
             .load(std::sync::atomic::Ordering::Relaxed));
         assert!(
-            !core.sync_status().unwrap().auth_paused,
+            !core.sync_status().auth_paused,
             "no banner on a fresh offline unlock (nothing expired)"
         );
     }

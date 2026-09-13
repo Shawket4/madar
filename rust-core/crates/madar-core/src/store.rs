@@ -2262,6 +2262,9 @@ mod tests {
             user_id: Some("alice".into()),
             clock_offset_ms: Some(-250),
             till_id: Some("shift-7".into()),
+            device_id: Some("dev-7".into()),
+            entity_type: Some("order".into()),
+            entity_id: Some("f1".into()),
         };
         s.enqueue(&full).unwrap();
         let row = s

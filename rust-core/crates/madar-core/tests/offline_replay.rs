@@ -415,12 +415,12 @@ async fn online_checkout_syncs_immediately() {
     let receipt = place_order(&core).await;
     core.sync_now().await.expect("drain");
 
-    let status = core.sync_status().expect("status");
+    let status = core.sync_status();
     assert_eq!(
-        status.pending, 0,
+        status.pending_outbox, 0,
         "order should have synced (status={status:?})"
     );
-    assert_eq!(status.failed, 0, "nothing should be dead");
+    assert_eq!(status.dead_outbox, 0, "nothing should be dead");
     assert!(
         !receipt.queued_offline,
         "receipt should report sent, not queued"
@@ -454,12 +454,12 @@ async fn offline_then_replay_lands_exactly_once() {
         core.sync_now().await.expect("drain");
     }
 
-    let status = core.sync_status().expect("status");
+    let status = core.sync_status();
     assert_eq!(
-        status.pending, 0,
+        status.pending_outbox, 0,
         "queue should be empty after replays (status={status:?})"
     );
-    assert_eq!(status.failed, 0, "no dead-letters from idempotent replays");
+    assert_eq!(status.dead_outbox, 0, "no dead-letters from idempotent replays");
 
     // The history should show this order exactly once (server-side dedup held).
     let history = core.list_till_orders().await.unwrap_or_default();
@@ -546,13 +546,13 @@ async fn offline_backlog_replays_exactly_once_across_a_reconnect() {
         .record_cash_movement(1_500, "offline drawer float".into(), None, None)
         .await;
 
-    let queued = offline.sync_status().expect("status");
+    let queued = offline.sync_status();
     assert!(
-        queued.pending >= 3,
+        queued.pending_outbox >= 3,
         "expected 2 orders + cash queued offline (got {queued:?})"
     );
     assert_eq!(
-        queued.failed, 0,
+        queued.dead_outbox, 0,
         "a dead port must NOT dead-letter — it's offline, not rejected ({queued:?})"
     );
 
@@ -561,13 +561,13 @@ async fn offline_backlog_replays_exactly_once_across_a_reconnect() {
     live.sync_now().await.expect("drain");
     live.sync_now().await.expect("replay drain");
 
-    let done = live.sync_status().expect("status");
+    let done = live.sync_status();
     assert_eq!(
-        done.pending, 0,
+        done.pending_outbox, 0,
         "the offline backlog must fully drain ({done:?})"
     );
     assert_eq!(
-        done.failed, 0,
+        done.dead_outbox, 0,
         "nothing may dead-letter from the replay ({done:?})"
     );
 
@@ -610,7 +610,7 @@ async fn full_offline_day_open_sell_close_replays_in_dependency_order() {
     live.refresh_catalog().await.expect("catalog");
     if let Ok(Some(s)) = live.refresh_till().await {
         if s.is_open {
-            live.close_till(0, None).await.ok();
+            live.close_till(0, None, vec![]).await.ok();
             live.sync_now().await.ok();
         }
     }
@@ -645,17 +645,17 @@ async fn full_offline_day_open_sell_close_replays_in_dependency_order() {
         .await
         .expect("checkout queues offline");
     offline
-        .close_till(11_000, None)
+        .close_till(11_000, None, vec![])
         .await
         .expect("close queues offline");
 
-    let queued = offline.sync_status().expect("status");
+    let queued = offline.sync_status();
     assert!(
-        queued.pending >= 3,
+        queued.pending_outbox >= 3,
         "open + order + close must be queued offline (got {queued:?})"
     );
     assert_eq!(
-        queued.failed, 0,
+        queued.dead_outbox, 0,
         "a dead port is offline, not a rejection ({queued:?})"
     );
 
@@ -664,13 +664,13 @@ async fn full_offline_day_open_sell_close_replays_in_dependency_order() {
     live.sync_now().await.expect("drain");
     live.sync_now().await.expect("replay drain");
 
-    let done = live.sync_status().expect("status");
+    let done = live.sync_status();
     assert_eq!(
-        done.pending, 0,
+        done.pending_outbox, 0,
         "the full offline day must drain ({done:?})"
     );
     assert_eq!(
-        done.failed, 0,
+        done.dead_outbox, 0,
         "nothing may dead-letter — open/order/close all replay-safe ({done:?})"
     );
 
@@ -720,7 +720,7 @@ async fn another_teller_flushes_the_backlog_attributed_to_the_original() {
     a.refresh_catalog().await.expect("catalog");
     if let Ok(Some(s)) = a.refresh_till().await {
         if s.is_open {
-            a.close_till(0, None).await.ok();
+            a.close_till(0, None, vec![]).await.ok();
             a.sync_now().await.ok();
         }
     }
@@ -745,7 +745,7 @@ async fn another_teller_flushes_the_backlog_attributed_to_the_original() {
     let offline = core_at("http://127.0.0.1:1".into(), db_path.clone());
     offline.restore_session(blob.clone());
     offline
-        .close_till(11_000, None)
+        .close_till(11_000, None, vec![])
         .await
         .expect("A closes S1 offline");
     offline
@@ -770,9 +770,9 @@ async fn another_teller_flushes_the_backlog_attributed_to_the_original() {
         .checkout(None, cash_checkout(&offline))
         .await
         .expect("sale queues offline");
-    let queued = offline.sync_status().expect("status");
+    let queued = offline.sync_status();
     assert!(
-        queued.pending >= 3,
+        queued.pending_outbox >= 3,
         "close S1 + open S2 + order must be queued (got {queued:?})"
     );
 
@@ -789,10 +789,10 @@ async fn another_teller_flushes_the_backlog_attributed_to_the_original() {
     // 4) B drains the WHOLE backlog (A's ops) via /sync/replay. Twice for lost-ack.
     b.sync_now().await.expect("B drains A's backlog");
     b.sync_now().await.expect("replay drain");
-    let done = b.sync_status().expect("status");
-    assert_eq!(done.pending, 0, "B must fully flush A's backlog ({done:?})");
+    let done = b.sync_status();
+    assert_eq!(done.pending_outbox, 0, "B must fully flush A's backlog ({done:?})");
     assert_eq!(
-        done.failed, 0,
+        done.dead_outbox, 0,
         "nothing may dead-letter on the cross-teller replay ({done:?})"
     );
 
@@ -825,7 +825,7 @@ async fn another_teller_flushes_the_backlog_attributed_to_the_original() {
     let _ = teller_b_id; // (used above for the sign-in assertion)
 
     // Cleanup: A closes S2 so the shared fixture is left tidy for other tests.
-    a2.close_till(0, None).await.ok();
+    a2.close_till(0, None, vec![]).await.ok();
     a2.sync_now().await.ok();
 
     fx.cleanup().await;
@@ -884,7 +884,7 @@ async fn offline_teller_switch_close_open_syncs_on_reconnect() {
     live.refresh_catalog().await.expect("catalog");
     if let Ok(Some(s)) = live.refresh_till().await {
         if s.is_open {
-            live.close_till(0, None).await.ok();
+            live.close_till(0, None, vec![]).await.ok();
             live.sync_now().await.ok();
         }
     }
@@ -906,7 +906,7 @@ async fn offline_teller_switch_close_open_syncs_on_reconnect() {
     //    offline and opens S2.
     let off = core_at("http://127.0.0.1:1".into(), db_path.clone());
     off.restore_session(blob);
-    off.close_till(11_000, None)
+    off.close_till(11_000, None, vec![])
         .await
         .expect("t1 closes S1 offline");
     off.logout(false).expect("sign out preserves the outbox");
@@ -915,8 +915,8 @@ async fn offline_teller_switch_close_open_syncs_on_reconnect() {
     off.open_till(11_000, Some("t2 S2".into()))
         .await
         .expect("t2 opens S2 offline");
-    let q = off.sync_status().expect("status");
-    assert!(q.pending >= 2, "close S1 + open S2 must be queued ({q:?})");
+    let q = off.sync_status();
+    assert!(q.pending_outbox >= 2, "close S1 + open S2 must be queued ({q:?})");
 
     // 3) Teller 2 comes back ONLINE (login drains the backlog). Then read the
     //    server's authoritative shift.
@@ -939,7 +939,7 @@ async fn offline_teller_switch_close_open_syncs_on_reconnect() {
     );
 
     // Cleanup: close S2 as t2 so the fixture is tidy.
-    t2core.close_till(0, None).await.ok();
+    t2core.close_till(0, None, vec![]).await.ok();
     t2core.sync_now().await.ok();
     fx.cleanup().await;
     let _ = std::fs::remove_file(&db);
@@ -981,7 +981,7 @@ async fn offline_orphaned_orders_recover_onto_the_real_shift() {
     other.refresh_catalog().await.expect("catalog");
     if let Ok(Some(s)) = other.refresh_till().await {
         if s.is_open {
-            other.close_till(0, None).await.ok();
+            other.close_till(0, None, vec![]).await.ok();
             other.sync_now().await.ok();
         }
     }
@@ -1032,7 +1032,7 @@ async fn offline_orphaned_orders_recover_onto_the_real_shift() {
         .await
         .expect("offline order");
     assert!(
-        off.sync_status().unwrap().pending >= 2,
+        off.sync_status().pending_outbox >= 2,
         "open B + order queued offline"
     );
 
@@ -1046,13 +1046,13 @@ async fn offline_orphaned_orders_recover_onto_the_real_shift() {
     let _ = main.refresh_till().await; // adopts A + remaps the orphan + requeues + drains
     main.sync_now().await.ok();
 
-    let q = main.sync_status().expect("status");
+    let q = main.sync_status();
     eprintln!("AFTER RECOVERY: {q:?}");
     assert_eq!(
-        q.failed, 0,
+        q.dead_outbox, 0,
         "no dead/orphaned ops remain — offline sales recovered ({q:?})"
     );
-    assert_eq!(q.pending, 0, "everything synced after recovery ({q:?})");
+    assert_eq!(q.pending_outbox, 0, "everything synced after recovery ({q:?})");
     let cur = main
         .refresh_till()
         .await
@@ -1066,7 +1066,7 @@ async fn offline_orphaned_orders_recover_onto_the_real_shift() {
     );
 
     // Cleanup: close A so the fixture branch is tidy.
-    main.close_till(0, None).await.ok();
+    main.close_till(0, None, vec![]).await.ok();
     main.sync_now().await.ok();
     fx.cleanup().await;
     let _ = std::fs::remove_file(&maindb);
@@ -1106,7 +1106,7 @@ async fn offline_receipt_number_and_ref_match_the_server() {
     // (login already cached branch_code+timezone, so the offline mint works).
     if let Ok(Some(s)) = live.refresh_till().await {
         if s.is_open {
-            live.close_till(0, None).await.ok();
+            live.close_till(0, None, vec![]).await.ok();
             live.sync_now().await.ok();
         }
     }
@@ -1180,7 +1180,7 @@ async fn offline_receipt_number_and_ref_match_the_server() {
         "order_number must match the server's"
     );
 
-    back.close_till(0, None).await.ok();
+    back.close_till(0, None, vec![]).await.ok();
     back.sync_now().await.ok();
     fx.cleanup().await;
     let _ = std::fs::remove_file(&db);
@@ -1213,7 +1213,7 @@ async fn login_rejected_taking_over_another_tellers_open_shift() {
     let _ = live.refresh_catalog().await;
     if let Ok(Some(s)) = live.refresh_till().await {
         if s.is_open {
-            live.close_till(0, None).await.ok();
+            live.close_till(0, None, vec![]).await.ok();
             live.sync_now().await.ok();
         }
     }
@@ -1237,7 +1237,7 @@ async fn login_rejected_taking_over_another_tellers_open_shift() {
     );
 
     // Cleanup.
-    live.close_till(0, None).await.ok();
+    live.close_till(0, None, vec![]).await.ok();
     live.sync_now().await.ok();
     fx.cleanup().await;
     let _ = std::fs::remove_file(&db);
@@ -1271,8 +1271,8 @@ async fn cash_movement_is_offline_first_and_idempotent() {
     core.sync_now().await.expect("drain");
     core.sync_now().await.expect("drain");
 
-    let status = core.sync_status().expect("status");
-    assert_eq!(status.failed, 0, "cash movement must not dead-letter");
+    let status = core.sync_status();
+    assert_eq!(status.dead_outbox, 0, "cash movement must not dead-letter");
 
     let after = core.list_cash_movements().await.expect("list");
     assert!(
@@ -1386,7 +1386,7 @@ async fn offline_lists_show_last_synced_server_rows() {
     );
 
     // Cleanup.
-    live.close_till(0, None).await.ok();
+    live.close_till(0, None, vec![]).await.ok();
     live.sync_now().await.ok();
     fx.cleanup().await;
     let _ = std::fs::remove_file(&db);
@@ -1433,7 +1433,7 @@ async fn offline_closed_shift_shows_closed_not_active_in_past_shifts() {
     // must read CLOSED — overlaid from the queued close — not still-active.
     let off = core_at("http://127.0.0.1:1".into(), db_path.clone());
     off.restore_session(blob.clone());
-    off.close_till(11_000, None).await.expect("close offline");
+    off.close_till(11_000, None, vec![]).await.expect("close offline");
     let past = off.list_tills().await.expect("shifts offline");
     let row = past
         .iter()
@@ -1491,7 +1491,7 @@ async fn offline_opened_and_closed_shift_is_complete_in_history() {
     live.refresh_catalog().await.expect("catalog");
     if let Ok(Some(s)) = live.refresh_till().await {
         if s.is_open {
-            live.close_till(0, None).await.ok();
+            live.close_till(0, None, vec![]).await.ok();
             live.sync_now().await.ok();
         }
     }
@@ -1521,7 +1521,7 @@ async fn offline_opened_and_closed_shift_is_complete_in_history() {
     off.checkout(None, cash_checkout(&off))
         .await
         .expect("order offline");
-    off.close_till(9_500, None).await.expect("close B offline");
+    off.close_till(9_500, None, vec![]).await.expect("close B offline");
 
     // Past shifts OFFLINE: B must appear, CLOSED, with its cash.
     let past = off.list_tills().await.expect("shifts offline");
@@ -1581,7 +1581,7 @@ async fn place_order_online(core: &MadarCore) -> ReceiptView {
 async fn fresh_shift(core: &MadarCore, tag: &str) -> String {
     if let Ok(Some(s)) = core.refresh_till().await {
         if s.is_open {
-            core.close_till(0, None).await.ok();
+            core.close_till(0, None, vec![]).await.ok();
             core.sync_now().await.ok();
         }
     }
@@ -1645,7 +1645,7 @@ async fn online_order_numbers_match_the_server_and_increment() {
         );
     }
 
-    core.close_till(0, None).await.ok();
+    core.close_till(0, None, vec![]).await.ok();
     core.sync_now().await.ok();
     fx.cleanup().await;
 }
@@ -1692,7 +1692,7 @@ async fn ringup_receipt_matches_the_server_reprint() {
         "reprint ref == ring-up ref"
     );
 
-    core.close_till(0, None).await.ok();
+    core.close_till(0, None, vec![]).await.ok();
     core.sync_now().await.ok();
     fx.cleanup().await;
 }
@@ -1773,7 +1773,7 @@ async fn resuming_a_shift_mid_day_predicts_max_plus_one() {
         "server stored #3 too"
     );
 
-    b.close_till(0, None).await.ok();
+    b.close_till(0, None, vec![]).await.ok();
     b.sync_now().await.ok();
     fx.cleanup().await;
     let _ = std::fs::remove_file(&db);
@@ -1835,7 +1835,7 @@ async fn online_then_offline_order_numbers_stay_contiguous() {
     back.restore_session(blob.clone());
     back.refresh_connectivity().await;
     back.sync_now().await.ok();
-    assert_eq!(back.sync_status().unwrap().failed, 0, "no dead-letters");
+    assert_eq!(back.sync_status().dead_outbox, 0, "no dead-letters");
 
     let server = back
         .list_orders_for_till(till_id.clone())
@@ -1863,7 +1863,7 @@ async fn online_then_offline_order_numbers_stay_contiguous() {
         );
     }
 
-    back.close_till(0, None).await.ok();
+    back.close_till(0, None, vec![]).await.ok();
     back.sync_now().await.ok();
     fx.cleanup().await;
     let _ = std::fs::remove_file(&db);
@@ -1929,7 +1929,7 @@ async fn offline_close_a_then_open_b_with_orders_all_sync() {
     off.checkout(None, cash_checkout(&off))
         .await
         .expect("A order offline");
-    off.close_till(11_000, None)
+    off.close_till(11_000, None, vec![])
         .await
         .expect("close A offline");
     off.open_till(11_000, Some("handover B".into()))
@@ -1950,7 +1950,7 @@ async fn offline_close_a_then_open_b_with_orders_all_sync() {
             .expect("B order offline");
     }
     assert!(
-        off.sync_status().unwrap().pending >= 5,
+        off.sync_status().pending_outbox >= 5,
         "A-order + close A + open B + 2 B-orders queued"
     );
 
@@ -1962,13 +1962,13 @@ async fn offline_close_a_then_open_b_with_orders_all_sync() {
     let _ = back.refresh_till().await;
     back.sync_now().await.ok();
 
-    let q = back.sync_status().expect("status");
+    let q = back.sync_status();
     eprintln!("AFTER HANDOVER: {q:?}");
     assert_eq!(
-        q.failed, 0,
+        q.dead_outbox, 0,
         "no dead-letters — open B never raced A's close ({q:?})"
     );
-    assert_eq!(q.pending, 0, "the whole handover drained ({q:?})");
+    assert_eq!(q.pending_outbox, 0, "the whole handover drained ({q:?})");
     let cur = back
         .refresh_till()
         .await
@@ -1990,7 +1990,7 @@ async fn offline_close_a_then_open_b_with_orders_all_sync() {
         "both of B's offline sales recovered onto the server"
     );
 
-    back.close_till(0, None).await.ok();
+    back.close_till(0, None, vec![]).await.ok();
     back.sync_now().await.ok();
     fx.cleanup().await;
     let _ = std::fs::remove_file(&db);

@@ -1410,7 +1410,7 @@ mod tests {
                 uuid::Uuid::new_v4(),
             );
             req.total_amount = Some(Some(total));
-            let cmd = CheckoutCommand { request: req };
+            let cmd = CheckoutCommand { request: req, device: None };
             store
                 .enqueue(&crate::store::NewOutboxOp {
                     id: id.into(),
@@ -1434,7 +1434,7 @@ mod tests {
         let store = Store::open("").unwrap();
         seed_methods(&store); // "Cash" is_cash=true, "Card" is_cash=false
         let push = |id: &str, req: models::CreateOrderRequest| {
-            let cmd = CheckoutCommand { request: req };
+            let cmd = CheckoutCommand { request: req, device: None };
             store
                 .enqueue(&crate::store::NewOutboxOp {
                     id: id.into(),
@@ -1532,7 +1532,7 @@ mod tests {
             "Cash".into(),
             uuid::Uuid::parse_str(shift).unwrap(),
         );
-        let cmd = CheckoutCommand { request: req };
+        let cmd = CheckoutCommand { request: req, device: None };
         store
             .enqueue(&crate::store::NewOutboxOp {
                 id: id.into(),
@@ -1568,36 +1568,20 @@ mod tests {
         );
     }
 
-    #[test]
-    fn mint_predicts_max_plus_one_online_counting_the_synced_base() {
-        // ONLINE: orders ack immediately so `queued` is ~empty; WITHOUT the base the
-        // prediction would always be #1 (the online-only mismatch). WITH the base =
-        // the server's MAX(order_number), it's the correct MAX+1.
-        let store = Store::open("").unwrap();
-        seed_numbering_ctx(&store);
-        bump_order_base(&store, SHIFT, 7); // the shift already has 7 synced orders
-        let (n, r) = mint_order_ref(&store, SHIFT, "2026-06-20T12:00:00+00:00").expect("mint");
-        assert_eq!(n, 8, "predicts MAX(order_number)+1, not #1");
-        assert_eq!(r, "B1-260620-T1-0001", "ref = BRANCH-YYMMDD-DEVICE-RRRR");
-    }
+
 
     #[test]
-    fn mint_counts_queued_orders_offline() {
-        // OFFLINE: the synced base is frozen and the queue grows — the prediction is
-        // base + (still-queued for this shift) + 1, matching the server's MAX+1 when
-        // these replay in order.
+    fn device_number_is_the_ref_sequence_across_tills_and_people() {
+        // Per-DEVICE numbering: the number is the RRRR of the ref, shared by every
+        // till on this device (no per-till base, no server prediction).
         let store = Store::open("").unwrap();
         seed_numbering_ctx(&store);
-        bump_order_base(&store, SHIFT, 3); // 3 synced before going offline
-        queue_order_for_shift(&store, "q1", SHIFT);
-        queue_order_for_shift(&store, "q2", SHIFT);
-        // Another shift's queued order must NOT bleed into this shift's count.
-        queue_order_for_shift(&store, "x1", "00000000-0000-0000-0000-0000000000c9");
-        let (n, _) = mint_order_ref(&store, SHIFT, "2026-06-20T12:00:00+00:00").expect("mint");
-        assert_eq!(
-            n, 6,
-            "3 synced + 2 queued + 1 = the 6th order (other shift excluded)"
-        );
+        let (n1, r1) = mint_order_ref(&store, SHIFT, "2026-06-20T12:00:00+00:00").unwrap();
+        let (n2, r2) = mint_order_ref(&store, "another-till", "2026-06-20T12:05:00+00:00").unwrap();
+        assert_eq!((n1, n2), (1, 2));
+        assert_eq!(r1, "B1-260620-T1-0001");
+        assert_eq!(r2, "B1-260620-T1-0002");
+        assert_eq!(display_number("T1", n2), "T1-2");
     }
 
     #[test]
@@ -1610,7 +1594,7 @@ mod tests {
         bump_order_base(&store, SHIFT, 50); // order_number ~51, ref still starts at 0001
         let (n1, r1) = mint_order_ref(&store, SHIFT, "2026-06-20T12:00:00+00:00").expect("mint1");
         let (_n2, r2) = mint_order_ref(&store, SHIFT, "2026-06-20T18:00:00+00:00").expect("mint2");
-        assert_eq!(n1, 51);
+        assert_eq!(n1, 1, "the device sequence, not a per-till base");
         assert!(r1.ends_with("-0001"), "first ref of the day = 0001: {r1}");
         assert!(
             r2.ends_with("-0002"),
@@ -2011,7 +1995,7 @@ mod tests {
                 id: "o1".into(),
                 op_type: "create_order".into(),
                 idempotency_key: "o1".into(),
-                payload: serde_json::to_string(&CheckoutCommand { request: req }).unwrap(),
+                payload: serde_json::to_string(&CheckoutCommand { request: req, device: None }).unwrap(),
                 event_at: "2026-06-20T12:00:00+00:00".into(),
                 ..Default::default()
             })
@@ -2022,6 +2006,7 @@ mod tests {
             r.client_ref = Some(Some(uuid::Uuid::new_v4()));
             let cmd = crate::till::CashMovementCommand {
                 till_id: "s1".into(),
+                device_id: None,
                 request: r,
             };
             store
@@ -2063,7 +2048,7 @@ mod tests {
                     id: id.into(),
                     op_type: "create_order".into(),
                     idempotency_key: id.into(),
-                    payload: serde_json::to_string(&CheckoutCommand { request: req }).unwrap(),
+                    payload: serde_json::to_string(&CheckoutCommand { request: req, device: None }).unwrap(),
                     event_at: "2026-06-20T12:00:00+00:00".into(),
                     till_id: Some(shift.into()),
                     ..Default::default()
@@ -2075,6 +2060,7 @@ mod tests {
             r.client_ref = Some(Some(uuid::Uuid::new_v4()));
             let cmd = crate::till::CashMovementCommand {
                 till_id: shift.into(),
+                device_id: None,
                 request: r,
             };
             store
@@ -2125,7 +2111,7 @@ mod tests {
                 id: "o1".into(),
                 op_type: "create_order".into(),
                 idempotency_key: "o1".into(),
-                payload: serde_json::to_string(&CheckoutCommand { request: req }).unwrap(),
+                payload: serde_json::to_string(&CheckoutCommand { request: req, device: None }).unwrap(),
                 event_at: "2026-06-20T12:00:00+00:00".into(),
                 ..Default::default()
             })

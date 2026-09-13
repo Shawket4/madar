@@ -68,8 +68,28 @@ impl ApiClient {
         base_url: String,
         clock_skew: Arc<std::sync::atomic::AtomicI64>,
     ) -> CoreResult<Self> {
+        Self::with_device(base_url, clock_skew, None)
+    }
+
+    /// The client every request of this install goes through, carrying the
+    /// tills-rework identity headers (TILLS_CONTRACT §2.0): `X-Madar-Device` (the
+    /// install UUID) and `X-Madar-Client` (`pos/<semver> (<platform>)`). Bodies are
+    /// negotiated compressed (`Accept-Encoding: br, gzip`, decoded by reqwest).
+    pub fn with_device(
+        base_url: String,
+        clock_skew: Arc<std::sync::atomic::AtomicI64>,
+        device_id: Option<String>,
+    ) -> CoreResult<Self> {
         let user_agent = format!("madar-core/{}", env!("CARGO_PKG_VERSION"));
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Some(Ok(v)) = device_id.as_deref().map(reqwest::header::HeaderValue::from_str) {
+            headers.insert("X-Madar-Device", v);
+        }
+        if let Ok(v) = reqwest::header::HeaderValue::from_str(&client_header()) {
+            headers.insert("X-Madar-Client", v);
+        }
         let http = reqwest::Client::builder()
+            .default_headers(headers.clone())
             // ring + bundled Mozilla roots (see default_tls_config) — keeps cert
             // verification identical on Android/iOS/desktop with no OpenSSL.
             .use_preconfigured_tls(default_tls_config())
@@ -85,6 +105,7 @@ impl ApiClient {
         // The streaming client: same TLS, fast connect, but NO total timeout (it
         // would kill a long-lived SSE stream). A 60s read timeout reaps a dead link.
         let stream_http = reqwest::Client::builder()
+            .default_headers(headers)
             .use_preconfigured_tls(default_tls_config())
             .connect_timeout(Duration::from_secs(4))
             .read_timeout(Duration::from_secs(60))
@@ -306,6 +327,21 @@ impl ApiClient {
             api_key: None,
         }
     }
+}
+
+/// `pos/<semver> (<platform>)` — the `X-Madar-Client` value.
+pub(crate) fn client_header() -> String {
+    let platform = match std::env::consts::OS {
+        "macos" => "macos",
+        "ios" => "ios",
+        "android" => "android",
+        "windows" => "windows",
+        _ => "linux",
+    };
+    // The core crate's own version is not the app's; the tills-rework client is
+    // >= 0.7.0 by definition (the server only uses this to pick legacy adapters).
+    let version = option_env!("MADAR_APP_VERSION").unwrap_or("0.7.0");
+    format!("pos/{version} ({platform})")
 }
 
 /// Translate the generated client's transport/response error into the coarse,
