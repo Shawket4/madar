@@ -17,6 +17,7 @@ import 'dart:async';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_order/src/bill_screen.dart';
 import 'package:feature_order/src/floor_inspector.dart';
 import 'package:feature_order/src/floor_list.dart';
@@ -35,6 +36,7 @@ import 'package:feature_order/src/tables_screen.dart'
         tableIsReserved;
 import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:feature_order/src/words.dart';
+import 'package:feature_settings/feature_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -290,7 +292,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       case FloorAction.openBill:
         await _openBillOn(t.id);
       case FloorAction.charge:
-        await _openBillOn(t.id, charge: true);
+        await _chargeOn(t);
       case FloorAction.move:
         setState(() => _moveFrom = t.id);
       case FloorAction.unseat:
@@ -351,6 +353,29 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       return;
     }
     await _openBill(ticket.id, charge: charge);
+  }
+
+  /// Charge from the room: the Charge dialog over the floor, nothing pushed.
+  /// The teller stays where they were; the table's state moves on its own.
+  Future<void> _chargeOn(FloorTableStateView t) async {
+    var ticket = _ticketOn(ref.read(orderProvider).openTickets, t.id);
+    if (ticket == null) {
+      await _notifier.loadOpenTickets();
+      ticket = _ticketOn(ref.read(orderProvider).openTickets, t.id);
+    }
+    if (!mounted) return;
+    if (ticket == null) {
+      _notifier.showToast(_w('floor.no_bill_yet'), icon: 'doc.text');
+      return;
+    }
+    final outcome = await showCharge(
+      context,
+      ChargeTarget.bill(ticket, tableLabel: t.label),
+      onDone: (_, _) => unawaited(_notifier.loadFloor()),
+      onPrinterSettings: () => unawaited(showPrinterSheet(context)),
+    );
+    if (outcome == null || !mounted) return;
+    await _notifier.afterBillCharged(ticket.id);
   }
 
   /// Taking an order FOR A TABLE opens its own screen, not the Sell tab.

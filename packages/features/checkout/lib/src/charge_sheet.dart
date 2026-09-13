@@ -232,8 +232,13 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
 
   void _resolve(ChargeOutcome outcome) {
     if (_popped || !mounted) return;
-    _popped = true;
-    MadarSheet.close(context, outcome);
+    // A landed outcome still counts as "charging" (nothing else may close the
+    // sheet), so the PopScope would refuse this close too. Mark it resolved,
+    // rebuild so the scope lets go, then close after that frame.
+    setState(() => _popped = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) MadarSheet.close(context, outcome);
+    });
   }
 
   @override
@@ -450,7 +455,7 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
       );
     }
 
-    return PopScope<Object?>(canPop: !paying, child: body);
+    return PopScope<Object?>(canPop: !paying || _popped, child: body);
   }
 
   /// The discount picker: No discount + every active discount as chips.
