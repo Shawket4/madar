@@ -1656,13 +1656,17 @@ class _PresetTile extends StatelessWidget {
 /// The same sheet Charge opens, over the same core calls: the core prices the
 /// discount live, so the cart's figures move the moment it is applied. Returns
 /// whether anything was picked (the caller re-reads its cart).
-Future<bool> showCartDiscountPicker(BuildContext context, WidgetRef ref) async {
+Future<bool> showCartDiscountPicker(
+  BuildContext context,
+  WidgetRef ref, {
+  String? tableId,
+}) async {
   final bridge = ref.read(bridgeProvider);
   final List<DiscountView> discounts;
   final String? current;
   try {
     discounts = await bridge.listDiscounts();
-    current = await bridge.cartDiscountId();
+    current = await bridge.cartDiscountId(tableId: tableId);
   } on Object {
     return false;
   }
@@ -1680,9 +1684,9 @@ Future<bool> showCartDiscountPicker(BuildContext context, WidgetRef ref) async {
   try {
     final id = picked.discount?.id;
     if (id != null) {
-      await bridge.cartSetDiscount(discountId: id);
+      await bridge.cartSetDiscount(tableId: tableId, discountId: id);
     } else {
-      await bridge.cartClearDiscount();
+      await bridge.cartClearDiscount(tableId: tableId);
     }
   } on Object {
     return false;

@@ -13,7 +13,11 @@ sealed class ChargeTarget {
 
   /// The Sell tab's cart. `checkout()` — the one path that carries splits,
   /// a live discount, tip, cash tendered and rewards by line position.
-  const factory ChargeTarget.cart({String? label}) = CartChargeTarget;
+  ///
+  /// [tableId] names WHICH cart: null is takeaway, an id is that table's own
+  /// cart. There is no active cart in the core; every call says which.
+  const factory ChargeTarget.cart({String? tableId, String? label}) =
+      CartChargeTarget;
 
   /// A table's bill (an open ticket). `settleTicket()` — tip, discount and
   /// rewards by line id; NO splits, although the wire accepts them.
@@ -27,7 +31,10 @@ sealed class ChargeTarget {
 }
 
 class CartChargeTarget extends ChargeTarget {
-  const CartChargeTarget({this.label});
+  const CartChargeTarget({this.tableId, this.label});
+
+  /// The cart being charged (null = takeaway).
+  final String? tableId;
 
   /// What the header calls the sale, already localised ("Takeaway"). Null
   /// falls back to the feature's own word.

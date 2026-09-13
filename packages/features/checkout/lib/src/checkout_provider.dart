@@ -259,6 +259,12 @@ class CheckoutState {
   // ── derived: which caller ─────────────────────────────────────────────────
 
   bool get isCart => target is CartChargeTarget;
+
+  /// The cart a cart session charges (null = takeaway, or not a cart).
+  String? get cartTableId => switch (target) {
+    CartChargeTarget(:final tableId) => tableId,
+    _ => null,
+  };
   bool get isBill => target is BillChargeTarget;
   bool get isOnline => target is OnlineChargeTarget;
 
@@ -572,6 +578,10 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// not write into this one.
   int _session = 0;
 
+  /// The cart this session reads and charges — takeaway unless the target
+  /// names a table.
+  String? get _cartTable => state.cartTableId;
+
   /// The charge in flight, if any — what [settledOutcome] waits on when the
   /// sheet was put away before the money landed.
   Future<void>? _inFlight;
@@ -665,7 +675,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     _typedLegs.clear();
     if (_live) state = _priced(CheckoutState(target: target));
     return switch (target) {
-      CartChargeTarget() => _startCart(_session),
+      CartChargeTarget(:final tableId) => _startCart(_session, tableId),
       BillChargeTarget(:final ticket) => _startBill(_session, ticket),
       OnlineChargeTarget(:final order) => _startOnline(_session, order),
     };
@@ -675,17 +685,21 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// discount, the org logo, the live cart totals as the summary, and the
   /// lines in the order the server indexes them (a reward names a line by
   /// its position, so this list and the wire order must be the same list).
-  Future<void> _startCart(int session) async {
+  Future<void> _startCart(int session, String? tableId) async {
     final bridge = _bridge;
     final shift = _loadShift(session);
     final methods = await _loadMethods(session);
     final discounts =
         await _quiet(bridge.listDiscounts) ?? const <DiscountView>[];
-    final discountId = await _quiet<String?>(bridge.cartDiscountId);
+    final discountId = await _quiet<String?>(
+      () => bridge.cartDiscountId(tableId: tableId),
+    );
     final programme = await _quiet(bridge.loyaltySettings);
     final logo = bridge.orgLogoLocalPath();
-    final totals = await _quiet(bridge.cartTotals);
-    final lines = await _quiet(bridge.cartLines) ?? const <CartLineView>[];
+    final totals = await _quiet(() => bridge.cartTotals(tableId: tableId));
+    final lines =
+        await _quiet(() => bridge.cartLines(tableId: tableId)) ??
+        const <CartLineView>[];
     final redeemable = [
       for (var i = 0; i < lines.length; i++)
         RedeemableLine(
@@ -955,14 +969,16 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final session = _session;
     await _quiet(() async {
       if (id != null) {
-        await bridge.cartSetDiscount(discountId: id);
+        await bridge.cartSetDiscount(tableId: _cartTable, discountId: id);
       } else {
-        await bridge.cartClearDiscount();
+        await bridge.cartClearDiscount(tableId: _cartTable);
       }
       return true;
     });
-    final discountId = await _quiet<String?>(bridge.cartDiscountId);
-    final totals = await _quiet(bridge.cartTotals);
+    final discountId = await _quiet<String?>(
+      () => bridge.cartDiscountId(tableId: _cartTable),
+    );
+    final totals = await _quiet(() => bridge.cartTotals(tableId: _cartTable));
     if (!_live) return;
     _updateFor(
       session,
@@ -1097,6 +1113,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// Split legs zero the tendered amount; a non-cash single payment tenders 0.
   Future<ChargeOutcome> _chargeCart(CheckoutState s, String method) async {
     final receipt = await _bridge.checkout(
+      tableId: s.cartTableId,
       input: CheckoutInput(
         paymentMethodId: method,
         amountTenderedMinor: !s.splitMode && s.isCash ? s.tenderedMinor : 0,
