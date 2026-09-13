@@ -34,11 +34,11 @@ pub mod catstyle;
 pub mod checkout;
 /// Delivery-order management (teller side) — list/advance/cancel/finalize.
 pub mod delivery;
-/// Display formats (money, elapsed, row stamps) — the contract in docs/design.
-pub mod display;
 /// Device binding (branch / till / station / printer / reconfigure) — persisted in
 /// the CORE store so the hosts hold no device state (THE ONE RULE).
 pub mod device;
+/// Display formats (money, elapsed, row stamps) — the contract in docs/design.
+pub mod display;
 /// The coarse FFI error model the host reacts to (PLAN §7.6).
 pub mod error;
 mod filestore;
@@ -1319,9 +1319,12 @@ impl MadarCore {
                     Ok(c) => c,
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
+                // Not idempotent-on-409: a refused move (TABLE_DIRTY, TABLE_HELD)
+                // is something a person asked for and must be TOLD failed —
+                // acking it left the till showing a move that never happened.
                 (
                     serde_json::json!({ "op": "swap_tables", "teller_id": teller_id, "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::No,
                 )
             }
             "create_table_transfer" => {
@@ -1812,6 +1815,7 @@ fn queued_ticket_view(
         ticket_ref: None,
         table_id: cmd.request.table_id.flatten().map(|u| u.to_string()),
         status: "queued".into(),
+        ready: false,
         customer_name: cmd.request.customer_name.clone().flatten(),
         waiter_name,
         guest_count: cmd.request.guest_count.flatten(),
@@ -3433,53 +3437,108 @@ impl MadarCore {
         self.sync_hold_occupancy(was_on, out.table_id, false)
     }
 
-    /// Swap whatever sits on two tables (held orders and/or waiter tickets) —
-    /// one empty side = a move. Optimistic for held occupants; the queued op is
-    /// the arbiter and the next pull reconciles.
-    pub fn swap_tables(&self, table_a: String, table_b: String) -> Result<(), CoreError> {
+    /// Move or swap whatever party sits on two tables — a bill, a party with
+    /// no bill yet, a parked draft, in any combination; one empty side is a
+    /// move. The local floor, the cached bills and the drafts all change at
+    /// once (so the room is right offline), the op is queued, and the queue
+    /// is drained NOW.
+    ///
+    /// A move the server refuses (the other side took the table, a table
+    /// nobody cleared) comes back as an error with the server's reason, the
+    /// dead row is dropped — the person who asked has been told — and the
+    /// mirrors re-pull the room as it really is. `Ok` means it landed, or is
+    /// queued because the till is offline.
+    pub async fn swap_tables(&self, table_a: String, table_b: String) -> Result<(), CoreError> {
         let branch = self.session_branch_id()?;
         let now = self.corrected_now().to_rfc3339();
-        // A parked draft on either side moves too, and the server cannot see
-        // that: its swap sets each side's status from the TICKET it found, so
-        // it would free a table this till just moved a draft onto.
-        let held_before = self.held_sides(&table_a, &table_b);
-        held::swap_local(&self.store, &table_a, &table_b, &now)?;
+        let occupied = |t: &str| self.table_occupied(t);
+        let (occ_a, occ_b) = (occupied(&table_a), occupied(&table_b));
+        held::swap_tables_local(&self.store, &table_a, &table_b, occ_a, occ_b, &now)?;
+        self.swap_cached_ticket_tables(&table_a, &table_b);
         let cmd = held::SwapCommand {
             request: serde_json::json!({
                 "branch_id": branch, "table_a": table_a, "table_b": table_b
             }),
         };
-        self.enqueue_held_op(
-            "swap_tables",
-            format!("swap:{}", uuid::Uuid::new_v4()),
-            &serde_json::to_string(&cmd)?,
-        )?;
-        // Queued AFTER the swap, so it lands last and has the final word on
-        // the two statuses. Each op is a no-op server-side when a ticket owns
-        // the table, so the ticket always wins the race.
-        let held_after = self.held_sides(&table_a, &table_b);
-        for (table, before, after) in [
-            (&table_a, held_before.0, held_after.0),
-            (&table_b, held_before.1, held_after.1),
-        ] {
-            match (before, after) {
-                (false, true) => self.sync_hold_occupancy(None, Some(table.clone()), false)?,
-                (true, false) => self.sync_hold_occupancy(Some(table.clone()), None, false)?,
-                _ => {}
-            }
-        }
-        Ok(())
+        let op_id = format!("swap:{}", uuid::Uuid::new_v4());
+        self.enqueue_held_op("swap_tables", op_id.clone(), &serde_json::to_string(&cmd)?)?;
+        let _ = self.drain_outbox().await;
+        self.surface_refused_floor_op(&op_id).await
     }
 
-    /// Whether each of two tables carries a parked draft right now.
-    fn held_sides(&self, a: &str, b: &str) -> (bool, bool) {
-        let on = |t: &str| {
-            held::held_on_table(&self.store, t, None)
-                .ok()
-                .flatten()
-                .is_some()
+    /// After an interactive floor op drained: if the server refused it, drop
+    /// the dead row (the person is being told right now — a stuck row in the
+    /// sync screen as well would be a second, silent copy of the same no),
+    /// re-pull the room, and hand the refusal back. Still queued = `Ok`.
+    async fn surface_refused_floor_op(&self, op_id: &str) -> Result<(), CoreError> {
+        let Some(row) = self
+            .store
+            .list_active_of_types(&["swap_tables"])?
+            .into_iter()
+            .find(|i| i.id == op_id)
+        else {
+            return Ok(()); // acked
         };
-        (on(a), on(b))
+        if row.status != "dead" {
+            return Ok(()); // queued (offline) — the drain will get to it
+        }
+        let reason = row.last_error.unwrap_or_default();
+        let _ = self.store.discard_dead(op_id);
+        self.refresh_floor_and_held().await;
+        Err(CoreError::Validation {
+            field: String::new(),
+            detail: if reason.trim().is_empty() {
+                "the floor changed — nothing was moved".into()
+            } else {
+                reason
+            },
+        })
+    }
+
+    /// Is a party on this table, by everything this till knows: a live bill
+    /// in the cached list, a parked draft, or the floor mirror's status.
+    fn table_occupied(&self, table_id: &str) -> bool {
+        let draft = held::held_on_table(&self.store, table_id, None)
+            .ok()
+            .flatten()
+            .is_some();
+        let seated = held::load_tables(&self.store)
+            .ok()
+            .and_then(|ts| ts.into_iter().find(|t| t.id == table_id))
+            .is_some_and(|t| t.status == "seated");
+        let bill =
+            cached_views::<madar_api::models::OpenTicketView>(&self.store, "cache:open_tickets")
+                .iter()
+                .any(|v| {
+                    v.status == "open"
+                        && v.table_id.flatten().map(|u| u.to_string()).as_deref() == Some(table_id)
+                });
+        draft || seated || bill
+    }
+
+    /// The bills follow their parties in the cached list, so the floor shows
+    /// each bill on its new table before (or without) the next pull.
+    fn swap_cached_ticket_tables(&self, table_a: &str, table_b: &str) {
+        let (Ok(a), Ok(b)) = (
+            uuid::Uuid::parse_str(table_a),
+            uuid::Uuid::parse_str(table_b),
+        ) else {
+            return;
+        };
+        let mut list: Vec<madar_api::models::OpenTicketView> =
+            cached_views(&self.store, "cache:open_tickets");
+        let mut changed = false;
+        for v in list.iter_mut() {
+            match v.table_id.flatten() {
+                Some(t) if t == a => v.table_id = Some(Some(b)),
+                Some(t) if t == b => v.table_id = Some(Some(a)),
+                _ => continue,
+            }
+            changed = true;
+        }
+        if changed {
+            cache_views(&self.store, "cache:open_tickets", &list);
+        }
     }
 
     /// The branch floor: sections + tables + held-order occupancy, fully
@@ -3566,7 +3625,7 @@ impl MadarCore {
 
     /// Seat a waiting party on `table_id` (must satisfy its wish; loud error on
     /// a locally-occupied table).
-    pub fn fulfill_transfer(&self, id: String, table_id: String) -> Result<(), CoreError> {
+    pub async fn fulfill_transfer(&self, id: String, table_id: String) -> Result<(), CoreError> {
         let now = self.corrected_now().to_rfc3339();
         // A transfer for a PARKED DRAFT moves it between tables locally and the
         // server never hears of the draft, so the occupancy has to follow it.
@@ -3587,6 +3646,7 @@ impl MadarCore {
         if draft.is_some() {
             self.sync_hold_occupancy(was_on, Some(table_id), false)?;
         }
+        let _ = self.drain_outbox().await;
         Ok(())
     }
 
@@ -3629,7 +3689,7 @@ impl MadarCore {
     /// status with no lock and no occupancy check.
     ///
     /// Optimistic-local + queued, like every other floor op.
-    pub fn clear_table(&self, table_id: String) -> Result<(), CoreError> {
+    pub async fn clear_table(&self, table_id: String) -> Result<(), CoreError> {
         held::set_table_state_local(&self.store, &table_id, Some("free"), None, false, None)?;
         let cmd = held::TableStateCommand {
             table_id: table_id.clone(),
@@ -3639,7 +3699,11 @@ impl MadarCore {
             "clear_table",
             format!("table-clear:{table_id}:{}", uuid::Uuid::new_v4()),
             &serde_json::to_string(&cmd)?,
-        )
+        )?;
+        // Every other device sees the table come back now, not at the next
+        // heartbeat.
+        let _ = self.drain_outbox().await;
+        Ok(())
     }
 
     /// Push the OCCUPANCY of a device-local hold, and nothing else.
@@ -6695,8 +6759,9 @@ impl MadarCore {
     /// party's first round — which claims the table they are already sitting at.
     ///
     /// Optimistic-local + queued, so a party can be seated with no network.
-    pub async fn seat_table(&self, table_id: String) -> Result<(), CoreError> {
+    pub async fn seat_table(&self, table_id: String, covers: Option<i32>) -> Result<(), CoreError> {
         self.session_branch_id()?;
+        let covers = covers.filter(|n| *n > 0);
         let seated_now = self.corrected_now().to_rfc3339();
         held::set_table_state_local(
             &self.store,
@@ -6706,13 +6771,21 @@ impl MadarCore {
             false,
             Some(&seated_now),
         )?;
+        if let Some(n) = covers {
+            held::set_table_covers_local(&self.store, &table_id, n)?;
+        }
         // The same `hold_table` op a parked cart sends, carrying WHEN the party
         // sat down — so a second device's clock reads the seating, not the
-        // moment it happened to pull. A server that does not know the field
-        // yet ignores it.
+        // moment it happened to pull — and how many sat, so every device and
+        // the bill's first round know the covers. A server that does not know
+        // a field yet ignores it.
+        let mut request = serde_json::json!({ "seated_at": seated_now });
+        if let Some(n) = covers {
+            request["party_size"] = serde_json::json!(n);
+        }
         let cmd = held::TableStateCommand {
             table_id: table_id.clone(),
-            request: serde_json::json!({ "seated_at": seated_now }),
+            request,
         };
         self.enqueue_held_op(
             "hold_table",
@@ -7162,9 +7235,12 @@ impl MadarCore {
         let branch_id = self.session_branch_id()?;
         let server: Vec<madar_api::models::OpenTicketView> = match ot::list_open_tickets(
             &self.api.config(),
+            // Live bills only. Without it an older server handed back every
+            // ticket the branch ever opened, capped at 500, and a still-open
+            // bill from last week fell off the end.
             ot::ListOpenTicketsParams {
                 branch_id,
-                status: None,
+                status: Some("open".into()),
             },
         )
         .await
@@ -8533,7 +8609,11 @@ mod lifecycle_tests {
         assert_eq!(view.lines[0].name, "Latte");
         assert_eq!(view.name, "A");
         let drafts = core.list_drafts().unwrap();
-        assert_eq!(drafts.len(), 1, "only B is parked; A is in hand: {drafts:?}");
+        assert_eq!(
+            drafts.len(),
+            1,
+            "only B is parked; A is in hand: {drafts:?}"
+        );
         assert_eq!(drafts[0].name, "B");
 
         // A second tap on the same chip parks nothing more.
@@ -8647,12 +8727,12 @@ mod lifecycle_tests {
         }
     }
 
-    /// A swap moves a parked draft too, and the server cannot see that: its own
-    /// swap sets each side's status from the TICKET it finds, so it would free
-    /// the very table the draft just landed on. The correction is queued behind
-    /// the swap, so it has the last word.
+    /// A swap carries a parked draft along with its table, and the server
+    /// carries the table's hold the same way now — so the swap is the ONE op.
+    /// The release/hold "corrections" that used to follow it would free the
+    /// party the server just moved onto the other table.
     #[tokio::test]
-    async fn swapping_a_parked_draft_corrects_the_occupancy_behind_the_swap() {
+    async fn swapping_a_parked_draft_is_one_op() {
         let core = signed_in_offline_core().await;
         seed_two_tables(&core);
         cart::set_cart_payload(
@@ -8670,24 +8750,245 @@ mod lifecycle_tests {
             .unwrap();
         let before = core.store.pending().unwrap().len();
 
-        core.swap_tables("t1".into(), "t2".into()).unwrap();
+        core.swap_tables("t1".into(), "t2".into()).await.unwrap();
 
-        let ops: Vec<(String, String)> = core.store.pending().unwrap()[before..]
+        let kinds: Vec<String> = core.store.pending().unwrap()[before..]
             .iter()
-            .map(|i| (i.op_type.clone(), i.payload.clone()))
+            .map(|i| i.op_type.clone())
             .collect();
-        let kinds: Vec<&str> = ops.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(kinds, vec!["swap_tables"]);
         assert_eq!(
-            kinds,
-            vec!["swap_tables", "release_table", "hold_table"],
-            "the corrections land AFTER the swap the server would otherwise win"
+            core.list_drafts().unwrap()[0].table_id.as_deref(),
+            Some("t2"),
+            "the draft went with its table"
         );
-        assert!(ops[1].1.contains("t1"), "t1 is given back");
-        assert!(ops[2].1.contains("t2"), "t2 is taken");
+    }
+
+    const TA: &str = "00000000-0000-0000-0000-00000000a001";
+    const TB: &str = "00000000-0000-0000-0000-00000000b002";
+
+    /// T-A seated 40 minutes ago with 3 covers and a bill; T-B free.
+    fn seed_party_on_a(core: &MadarCore, b_status: &str) {
+        core.store
+            .kv_put(
+                held::K_FLOOR_TABLES,
+                &serde_json::json!([
+                    {"id": TA, "label": "A", "seats": 4, "shape": "rect", "status": "seated",
+                     "seated_at": "2026-09-13T18:00:00+00:00", "party_size": 3},
+                    {"id": TB, "label": "B", "seats": 4, "shape": "rect", "status": b_status}
+                ])
+                .to_string(),
+            )
+            .unwrap();
+        let mut bill: madar_api::models::OpenTicketView =
+            serde_json::from_value(serde_json::json!({
+                "id": "00000000-0000-0000-0000-0000000000f1",
+                "branch_id": "00000000-0000-0000-0000-000000000001",
+                "table_id": TA, "status": "open", "ready": true,
+                "opened_by": "00000000-0000-0000-0000-0000000000bb",
+                "subtotal": 1000, "opened_at": "2026-09-13T18:05:00+00:00", "items": []
+            }))
+            .unwrap();
+        bill.ticket_ref = Some(Some("T-1".into()));
+        cache_views(&core.store, "cache:open_tickets", &[bill]);
+    }
+
+    fn table(core: &MadarCore, id: &str) -> held::FloorTableStateView {
+        core.floor_layout()
+            .unwrap()
+            .tables
+            .into_iter()
+            .find(|t| t.id == id)
+            .unwrap()
+    }
+
+    /// Moving a party changes the room on THIS till at once, offline too: the
+    /// party's status, its seating clock, its covers and its bill all land on
+    /// the new table, and the old one is free.
+    #[tokio::test]
+    async fn a_move_carries_the_party_its_clock_its_covers_and_its_bill() {
+        let core = signed_in_offline_core().await;
+        seed_party_on_a(&core, "free");
+
+        core.swap_tables(TA.into(), TB.into()).await.unwrap();
+
+        let (a, b) = (table(&core, TA), table(&core, TB));
+        assert_eq!(a.status, "free");
+        assert_eq!((a.seated_at, a.covers), (None, None));
+        assert_eq!(b.status, "seated");
+        assert_eq!(b.seated_at.as_deref(), Some("2026-09-13T18:00:00+00:00"));
+        assert_eq!(b.covers, Some(3));
+        let bills: Vec<madar_api::models::OpenTicketView> =
+            cached_views(&core.store, "cache:open_tickets");
+        assert_eq!(
+            bills[0]
+                .table_id
+                .flatten()
+                .map(|u| u.to_string())
+                .as_deref(),
+            Some(TB),
+            "the bill followed its party"
+        );
         assert!(
-            ops[1].1.contains("\"bus\":false"),
-            "a swap is not a meal: t1 goes back to the room"
+            core.store
+                .pending()
+                .unwrap()
+                .iter()
+                .any(|i| i.op_type == "swap_tables"),
+            "offline, the move waits in the queue"
         );
+
+        // And back: a real swap is its own inverse.
+        core.swap_tables(TA.into(), TB.into()).await.unwrap();
+        assert_eq!(table(&core, TA).covers, Some(3));
+        assert_eq!(table(&core, TB).status, "free");
+    }
+
+    #[tokio::test]
+    async fn a_move_onto_plates_or_between_two_empty_tables_is_refused_here() {
+        let core = signed_in_offline_core().await;
+        seed_party_on_a(&core, "dirty");
+        let err = core.swap_tables(TA.into(), TB.into()).await.unwrap_err();
+        assert!(format!("{err:?}").contains("needs clearing"), "{err:?}");
+        assert_eq!(table(&core, TA).status, "seated", "nothing moved");
+        assert!(core.store.pending().unwrap().is_empty(), "nothing queued");
+
+        let core = signed_in_offline_core().await;
+        seed_two_tables(&core);
+        assert!(core.swap_tables("t1".into(), "t2".into()).await.is_err());
+    }
+
+    /// A stand-in backend: `/sync/replay` answers `status` + `body` and is
+    /// counted; every other path hangs up (reads as offline), so sign-in and
+    /// pulls fall back to the device.
+    async fn replay_stub(
+        status: u16,
+        body: &'static str,
+    ) -> (String, Arc<std::sync::atomic::AtomicUsize>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counter = hits.clone();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    return;
+                };
+                let counter = counter.clone();
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 65536];
+                    let n = sock.read(&mut buf).await.unwrap_or(0);
+                    let head = String::from_utf8_lossy(&buf[..n]).to_string();
+                    if !head.starts_with("POST /sync/replay") {
+                        return;
+                    }
+                    counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let resp = format!(
+                        "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                });
+            }
+        });
+        (format!("http://{addr}"), hits)
+    }
+
+    /// A core signed in offline against `base`, holding a bearer so it drains.
+    async fn draining_core(base: String) -> Arc<MadarCore> {
+        let core = signed_in_offline_core_at(
+            base,
+            r#"{"org_id":"00000000-0000-0000-0000-0000000000aa","currency_code":"EGP","tax_rate":0.14}"#,
+        )
+        .await;
+        core.api.set_bearer(Some("test-token".into()));
+        core
+    }
+
+    /// The server said no to a move somebody asked for: they are told, with
+    /// the server's reason, and no silent stuck row is left behind.
+    #[tokio::test]
+    async fn a_refused_move_is_an_error_not_a_dead_letter() {
+        let (base, hits) = replay_stub(
+            409,
+            r#"{"error":"Table has not been cleared since the last party","code":"TABLE_DIRTY"}"#,
+        )
+        .await;
+        let core = draining_core(base).await;
+        seed_party_on_a(&core, "free");
+
+        let err = core.swap_tables(TA.into(), TB.into()).await.unwrap_err();
+        assert!(
+            format!("{err:?}").contains("not been cleared"),
+            "the server's reason reaches the person: {err:?}"
+        );
+        assert_eq!(
+            hits.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "drained at once"
+        );
+        assert_eq!(core.store.dead_count().unwrap(), 0, "no stuck row");
+    }
+
+    /// Clearing a table, seating a party and seating a booking reach the
+    /// server NOW, not at the next heartbeat — and a seat carries its covers.
+    #[tokio::test]
+    async fn floor_ops_drain_immediately_and_a_seat_carries_its_covers() {
+        let (base, hits) = replay_stub(200, r#"{"ok":true}"#).await;
+        let core = draining_core(base).await;
+        seed_party_on_a(&core, "dirty");
+        let seen = || hits.load(std::sync::atomic::Ordering::SeqCst);
+
+        core.clear_table(TB.into()).await.unwrap();
+        assert_eq!(seen(), 1, "the clear was sent");
+        assert_eq!(core.store.pending_count().unwrap(), 0);
+
+        core.seat_table(TB.into(), Some(5)).await.unwrap();
+        assert_eq!(seen(), 2, "the seat was sent");
+        assert_eq!(
+            table(&core, TB).covers,
+            Some(5),
+            "covers kept on the device"
+        );
+        let sent = core.store.list_active_of_types(&["hold_table"]).unwrap();
+        assert!(sent.is_empty(), "acked, not waiting");
+
+        core.seat_booking(
+            "00000000-0000-0000-0000-0000000000d1".into(),
+            Some(TA.into()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(seen(), 3, "the booking seat was sent");
+
+        let (base, hits) = replay_stub(200, r#"{"ok":true}"#).await;
+        let core = draining_core(base).await;
+        seed_party_on_a(&core, "free");
+        core.swap_tables(TA.into(), TB.into()).await.unwrap();
+        assert_eq!(
+            hits.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "the move was sent"
+        );
+        assert_eq!(core.store.pending_count().unwrap(), 0);
+    }
+
+    /// The covers a seat queues ride on the hold op the server records.
+    #[tokio::test]
+    async fn an_offline_seat_queues_its_covers_as_party_size() {
+        let core = signed_in_offline_core().await;
+        seed_two_tables(&core);
+        core.seat_table("t1".into(), Some(4)).await.unwrap();
+        let op = core
+            .store
+            .pending()
+            .unwrap()
+            .into_iter()
+            .find(|i| i.op_type == "hold_table")
+            .unwrap();
+        assert!(op.payload.contains("\"party_size\":4"), "{}", op.payload);
+        assert_eq!(table(&core, "t1").covers, Some(4));
     }
 
     /// Tills upgrading from v0.2.0 arrive carrying dead rows from the old ops.
@@ -8791,10 +9092,14 @@ mod lifecycle_tests {
     }
 
     async fn signed_in_offline_core_with(org_config: &str) -> Arc<MadarCore> {
+        signed_in_offline_core_at("http://127.0.0.1:1".into(), org_config).await
+    }
+
+    async fn signed_in_offline_core_at(base_url: String, org_config: &str) -> Arc<MadarCore> {
         use argon2::password_hash::SaltString;
         use argon2::{Argon2, PasswordHasher};
         let core = MadarCore::new(MadarConfig {
-            base_url: "http://127.0.0.1:1".into(),
+            base_url,
             environment: "dev".into(),
             db_path: String::new(),
             locale: "en".into(),
@@ -9193,7 +9498,7 @@ mod lifecycle_tests {
         // Seating carries WHEN the party sat down on its hold op, so another
         // device reads the seating time rather than its own pull time.
         let t2 = "00000000-0000-0000-0000-0000000000c2".to_string();
-        core.seat_table(t2.clone()).await.unwrap();
+        core.seat_table(t2.clone(), None).await.unwrap();
         let hold = core
             .store
             .pending()
@@ -9906,9 +10211,10 @@ impl MadarCore {
             },
         )
         .await
-        .map_err(|e| CoreError::Offline {
-            detail: e.to_string(),
-        })
+        // The real reason: offline, not allowed, no such table, or a reply
+        // this build cannot read. Calling all of them "offline" sent a
+        // manager to check the wifi over a permissions problem.
+        .map_err(net::map_api_error)
     }
 
     pub async fn refresh_arrivals(&self) -> Result<(), CoreError> {
@@ -9949,13 +10255,26 @@ impl MadarCore {
     /// The party arrived: mark the booking seated (optionally on another
     /// table). Optimistic-local + queued; the ticket the waiter fires next
     /// carries the booking id and links itself server-side.
-    pub fn seat_booking(
+    pub async fn seat_booking(
         &self,
         booking_id: String,
         table_id: Option<String>,
     ) -> Result<(), CoreError> {
         bookings::set_status_local(&self.store, &booking_id, "seated")?;
         held::set_booking_status_local(&self.store, &booking_id, "seated")?;
+        // The booked party is AT the table now: the canvas reads it seated,
+        // with the booking's count as its covers, before the server confirms.
+        if let Some(t) = table_id.as_deref() {
+            let now = self.corrected_now().to_rfc3339();
+            held::set_table_state_local(&self.store, t, Some("seated"), None, false, Some(&now))?;
+            let party = bookings::load_arrivals(&self.store)
+                .ok()
+                .and_then(|l| l.into_iter().find(|b| b.id == booking_id))
+                .map(|b| b.party_size);
+            if let Some(n) = party {
+                held::set_table_covers_local(&self.store, t, n)?;
+            }
+        }
         let request = match table_id {
             Some(t) => serde_json::json!({ "table_ids": [t] }),
             None => serde_json::json!({}),
@@ -9968,7 +10287,9 @@ impl MadarCore {
             "seat_booking",
             format!("booking-seat:{booking_id}"),
             &serde_json::to_string(&cmd)?,
-        )
+        )?;
+        let _ = self.drain_outbox().await;
+        Ok(())
     }
 
     /// The party never came: release the table. Optimistic-local + queued.

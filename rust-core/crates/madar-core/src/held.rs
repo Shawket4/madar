@@ -117,6 +117,11 @@ pub(crate) struct TableWire {
     /// outlive the party.
     #[serde(default)]
     pub seated_at: Option<String>,
+    /// How many sat down (covers): the server's live occupancy count, or what
+    /// this till's host counted at the door before it syncs. Travels with the
+    /// party on a move and is cleared when the table stops being seated.
+    #[serde(default)]
+    pub party_size: Option<i32>,
 }
 
 fn default_true() -> bool {
@@ -247,6 +252,12 @@ pub struct FloorTableStateView {
     pub booking_held_from: Option<String>,
     /// `confirmed` | `seated`.
     pub booking_status: Option<String>,
+    /// RFC3339: when the party at this table sat down, whatever is on it —
+    /// the server's occupancy stamp, or this device's seating before it syncs.
+    /// `None` unless the table is seated.
+    pub seated_at: Option<String>,
+    /// How many sat down (covers), when anyone counted. `None` otherwise.
+    pub covers: Option<i32>,
 }
 
 /// The whole branch layout + occupancy, offline. EMPTY sections+tables ⇒ the
@@ -688,6 +699,111 @@ pub(crate) fn swap_local(store: &Store, table_a: &str, table_b: &str, now: &str)
     Ok(())
 }
 
+/// Record how many sat at a seated table (the host's count). Unknown or
+/// unseated table = no-op: covers belong to a party, not to an empty table.
+pub(crate) fn set_table_covers_local(store: &Store, table_id: &str, covers: i32) -> CoreResult<()> {
+    let mut tables = load_tables(store)?;
+    let Some(t) = tables.iter_mut().find(|t| t.id == table_id) else {
+        return Ok(());
+    };
+    if t.status != "seated" || covers <= 0 {
+        return Ok(());
+    }
+    t.party_size = Some(covers);
+    store.kv_put(K_FLOOR_TABLES, &serde_json::to_string(&tables)?)
+}
+
+/// Optimistic local half of a table move/swap on the FLOOR mirror: whatever
+/// party sits on each side — its status, its seating clock, its covers —
+/// changes tables. `occupied_a`/`occupied_b` say whether a party is on each
+/// side by every source the caller knows (a bill, a draft, a seated status).
+///
+/// Refuses what the server would refuse, so the till says no at once instead
+/// of showing a move that bounces: two empty tables, landing on a table still
+/// waiting to be cleared, or a table held for a booking.
+pub(crate) fn swap_tables_local(
+    store: &Store,
+    table_a: &str,
+    table_b: &str,
+    occupied_a: bool,
+    occupied_b: bool,
+    now: &str,
+) -> CoreResult<()> {
+    if table_a == table_b {
+        return Err(CoreError::Validation {
+            field: "table_id".into(),
+            detail: "pick two different tables".into(),
+        });
+    }
+    if !occupied_a && !occupied_b {
+        return Err(CoreError::Validation {
+            field: "table_id".into(),
+            detail: "both tables are empty".into(),
+        });
+    }
+    let mut tables = load_tables(store)?;
+    let status_of = |id: &str| {
+        tables
+            .iter()
+            .find(|t| t.id == id)
+            .map(|t| t.status.clone())
+            .unwrap_or_default()
+    };
+    for (id, occupied) in [(table_a, occupied_a), (table_b, occupied_b)] {
+        if occupied {
+            continue;
+        }
+        match status_of(id).as_str() {
+            "dirty" => {
+                return Err(CoreError::Validation {
+                    field: "table_id".into(),
+                    detail: "table needs clearing first".into(),
+                });
+            }
+            "held" => {
+                return Err(CoreError::Validation {
+                    field: "table_id".into(),
+                    detail: "table is held for a booking".into(),
+                });
+            }
+            _ => {}
+        }
+    }
+    type Party = (String, Option<String>, Option<i32>);
+    let party = |t: &TableWire, occupied: bool| -> Party {
+        if occupied {
+            (
+                "seated".to_string(),
+                t.seated_at.clone().or_else(|| Some(now.to_string())),
+                t.party_size,
+            )
+        } else {
+            ("free".to_string(), None, None)
+        }
+    };
+    let pa = tables
+        .iter()
+        .find(|t| t.id == table_a)
+        .map(|t| party(t, occupied_a));
+    let pb = tables
+        .iter()
+        .find(|t| t.id == table_b)
+        .map(|t| party(t, occupied_b));
+    let empty: Party = ("free".to_string(), None, None);
+    for t in tables.iter_mut() {
+        let incoming = if t.id == table_a {
+            pb.clone().unwrap_or(empty.clone())
+        } else if t.id == table_b {
+            pa.clone().unwrap_or(empty.clone())
+        } else {
+            continue;
+        };
+        (t.status, t.seated_at, t.party_size) = incoming;
+    }
+    store.kv_put(K_FLOOR_TABLES, &serde_json::to_string(&tables)?)?;
+    swap_local(store, table_a, table_b, now)
+}
+
 // ── Transfer waitlist (local) ────────────────────────────────────────────────
 
 pub(crate) fn create_transfer_local(store: &Store, wire: TransferWire) -> CoreResult<()> {
@@ -876,6 +992,7 @@ pub(crate) fn set_table_state_local(
             }
         } else {
             t.seated_at = None;
+            t.party_size = None;
         }
         t.status = s.to_string();
     }
@@ -932,6 +1049,7 @@ pub(crate) fn layout(store: &Store, my_device: &str) -> CoreResult<FloorLayoutVi
             let occ = held
                 .iter()
                 .find(|h| h.is_live() && h.table_id.as_deref() == Some(t.id.as_str()));
+            let seated = t.status == "seated";
             FloorTableStateView {
                 id: t.id,
                 section_id: t.section_id,
@@ -964,6 +1082,8 @@ pub(crate) fn layout(store: &Store, my_device: &str) -> CoreResult<FloorLayoutVi
                 booking_starts_at: t.next_booking.as_ref().map(|b| b.starts_at.clone()),
                 booking_held_from: t.next_booking.as_ref().map(|b| b.held_from.clone()),
                 booking_status: t.next_booking.as_ref().map(|b| b.status.clone()),
+                seated_at: seated.then(|| t.seated_at.clone()).flatten(),
+                covers: seated.then_some(t.party_size).flatten().filter(|n| *n > 0),
             }
         })
         .collect();

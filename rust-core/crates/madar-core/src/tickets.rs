@@ -79,8 +79,13 @@ pub struct TicketView {
     pub id: String,
     pub ticket_ref: Option<String>,
     pub table_id: Option<String>,
-    /// open | ready | settled | voided | queued (the last = still in the outbox).
+    /// The BILL: open | settled | voided | queued (the last = still in the
+    /// outbox). Never `ready` — whether the kitchen has plated it is [`Self::ready`].
     pub status: String,
+    /// The kitchen has plated every line of every round (server-derived from
+    /// the KDS). `false` for a queued fire and for a bill nothing went to the
+    /// kitchen for.
+    pub ready: bool,
     pub customer_name: Option<String>,
     /// The WAITER who opened this ticket (`open_tickets.opened_by` → user name),
     /// so the teller can see who took the table. `null` if the name is unknown.
@@ -254,6 +259,7 @@ pub(crate) fn to_view_with(
         ticket_ref: flat(&v.ticket_ref),
         table_id: flat(&v.table_id).map(|u| u.to_string()),
         status: v.status.clone(),
+        ready: v.ready.unwrap_or(false) && v.status == "open",
         customer_name: flat(&v.customer_name),
         waiter_name: flat(&v.opened_by_name).filter(|s| !s.is_empty()),
         guest_count: flat(&v.guest_count),
@@ -715,6 +721,13 @@ mod tests {
             items: vec![],
         };
         let tv = to_view(&v, false);
+        assert!(!tv.ready, "no word from the kitchen is not ready");
+        let mut plated = v.clone();
+        plated.ready = Some(true);
+        assert!(
+            to_view(&plated, false).ready,
+            "the kitchen's ready rides through"
+        );
         assert_eq!(tv.ticket_ref.as_deref(), Some("T-BR-260625-0001"));
         assert_eq!(tv.guest_count, Some(2));
         assert_eq!(tv.subtotal_minor, 2000);
