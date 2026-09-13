@@ -593,7 +593,10 @@ pub(crate) fn bundles(store: &Store, locale: &str) -> CoreResult<Vec<BundleView>
 /// True when `b` is orderable at `now` (branch-local wall-clock): status active
 /// AND within its optional date and time windows (inclusive). Branch filtering
 /// is already applied server-side. Mirrors Flutter's `isBundleAvailableNow`.
-pub(crate) fn bundle_available(b: &BundleView, now: chrono::DateTime<chrono::FixedOffset>) -> bool {
+pub(crate) fn bundle_available<Z: chrono::TimeZone>(
+    b: &BundleView,
+    now: chrono::DateTime<Z>,
+) -> bool {
     use chrono::Timelike;
     if !b.is_available {
         return false;
@@ -1606,6 +1609,25 @@ mod tests {
         assert!(bundle_available(&b, at_close)); // == until minute
         assert!(!bundle_available(&b, one_before));
         assert!(!bundle_available(&b, one_after));
+    }
+
+    #[test]
+    fn bundle_window_reads_the_branch_wall_clock_not_the_sent_offset() {
+        // A late-night bundle on the 13th; the host sends 23:30 UTC on the 12th,
+        // which is 02:30 on the 13th in Cairo — so it IS on sale there.
+        let b = bundle_view(
+            true,
+            Some("2026-09-13"),
+            Some("2026-09-13"),
+            Some("00:00"),
+            Some("03:00"),
+        );
+        let sent = chrono::DateTime::parse_from_rfc3339("2026-09-12T23:30:00+00:00").unwrap();
+        assert!(!bundle_available(&b, sent)); // raw offset: wrong day and hour
+        assert!(bundle_available(
+            &b,
+            sent.with_timezone(&chrono_tz::Africa::Cairo)
+        ));
     }
 
     #[test]

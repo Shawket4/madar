@@ -16,7 +16,7 @@
 use cosmic_text::{Attrs, Buffer, Color, Family, FontSystem, Metrics, Shaping, SwashCache, Weight};
 
 use crate::checkout::{ReceiptLineView, ReceiptModifierView, ReceiptView};
-use crate::receipt::{fmt_dt_in, money, short_id, Bitmap, EscPosCtx, ShiftReportLabels};
+use crate::receipt::{money, short_id, Bitmap, EscPosCtx, ShiftReportLabels};
 use crate::shift::ShiftReportView;
 
 /// Printable width in dots — 72 mm @ 203 dpi. Matches the Flutter `_printerWidth`
@@ -160,6 +160,9 @@ struct Renderer {
     bottom_pad: i32,
     logo_w: u32,
     logo_h: u32,
+    /// Every string shaped, in order — lets tests read what was printed.
+    #[cfg(test)]
+    shaped: Vec<String>,
 }
 
 impl Renderer {
@@ -186,6 +189,8 @@ impl Renderer {
             bottom_pad: sc(BOTTOM_PAD),
             logo_w: (LOGO_MAX_W as f32 * scale).round() as u32,
             logo_h: (LOGO_MAX_H as f32 * scale).round() as u32,
+            #[cfg(test)]
+            shaped: Vec::new(),
         }
     }
 
@@ -201,6 +206,8 @@ impl Renderer {
     /// Shape one string into a laid-out buffer at the given size/weight, wrapping
     /// at `max_w` dots.
     fn shape(&mut self, text: &str, size: f32, weight: Weight, max_w: i32) -> Buffer {
+        #[cfg(test)]
+        self.shaped.push(text.to_string());
         // Fonts are tuned for PRINT_WIDTH; scale to the active roll. `max_w` is
         // already in real (scaled) dots, so wrapping stays proportional.
         let size = size * self.scale;
@@ -351,12 +358,7 @@ impl Renderer {
             Some(n) => format!("{} #{}", lab.order, n),
             None => format!("{} {}", lab.order, short_id(&r.local_order_id)),
         };
-        self.row(
-            &title,
-            &fmt_dt_in(&r.created_at, &lab.locale),
-            SZ_BODY,
-            Weight::NORMAL,
-        );
+        self.row(&title, &fmt_dt(lab, &r.created_at), SZ_BODY, Weight::NORMAL);
         if let Some(rf) = &r.order_ref {
             self.row(
                 &format!("{}: {}", lab.reference, rf),
@@ -484,22 +486,22 @@ impl Renderer {
         self.center(&store_up, SZ_STORE, Weight::BOLD);
         self.center(&lab.title, SZ_BODY, Weight::SEMIBOLD);
         self.center(
-            &format!("{}: {}", lab.business_date, date_only(&r.opened_at)),
+            &format!(
+                "{}: {}",
+                lab.business_date,
+                crate::timefmt::date_in(lab.tz, &r.opened_at)
+            ),
             SZ_SMALL,
             Weight::NORMAL,
         );
         match (r.is_open, &r.closed_at) {
             (false, Some(c)) => self.center(
-                &format!("{}: {}", lab.closed, fmt_dt_in(c, &lab.locale)),
+                &format!("{}: {}", lab.closed, fmt_dt_z(lab, c)),
                 SZ_SMALL,
                 Weight::NORMAL,
             ),
             _ => self.center(
-                &format!(
-                    "{}: {}",
-                    lab.printed_at,
-                    fmt_dt_in(&r.printed_at, &lab.locale)
-                ),
+                &format!("{}: {}", lab.printed_at, fmt_dt_z(lab, &r.printed_at)),
                 SZ_SMALL,
                 Weight::NORMAL,
             ),
@@ -510,19 +512,14 @@ impl Renderer {
         self.row(&lab.teller, &r.teller_name, SZ_BODY, Weight::NORMAL);
         self.row(
             &lab.opened,
-            &fmt_dt_in(&r.opened_at, &lab.locale),
+            &fmt_dt_z(lab, &r.opened_at),
             SZ_SMALL,
             Weight::NORMAL,
         );
         if r.is_open {
             self.center(&format!("— {} —", lab.interim), SZ_SMALL, Weight::NORMAL);
         } else if let Some(c) = &r.closed_at {
-            self.row(
-                &lab.closed,
-                &fmt_dt_in(c, &lab.locale),
-                SZ_SMALL,
-                Weight::NORMAL,
-            );
+            self.row(&lab.closed, &fmt_dt_z(lab, c), SZ_SMALL, Weight::NORMAL);
         }
         self.rule();
 
@@ -566,7 +563,15 @@ impl Renderer {
             self.indented(label, SZ_SMALL, 0);
             let sign = if mv.amount_minor < 0 { "−" } else { "+" };
             self.row(
-                &format!("  {}", time_only(&mv.created_at, &lab.locale)),
+                &format!(
+                    "  {}",
+                    crate::timefmt::format_in(
+                        lab.tz,
+                        &mv.created_at,
+                        crate::timefmt::TimeStyle::Time,
+                        &lab.locale
+                    )
+                ),
                 &format!("{}{}", sign, m(mv.amount_minor.abs())),
                 SZ_SMALL,
                 Weight::NORMAL,
@@ -644,7 +649,16 @@ impl Renderer {
                     .order_number
                     .map(|n| format!("#{n}"))
                     .unwrap_or_else(|| "—".to_string());
-                let left = format!("{}  {}", num, time_only(&o.created_at, &lab.locale));
+                let left = format!(
+                    "{}  {}",
+                    num,
+                    crate::timefmt::format_in(
+                        lab.tz,
+                        &o.created_at,
+                        crate::timefmt::TimeStyle::Time,
+                        &lab.locale
+                    )
+                );
                 self.row(&left, &m(o.total_minor), SZ_SMALL, Weight::NORMAL);
                 // Payment method under the row — the on-screen preview shows
                 // it, so the printed report must too (parity).
@@ -729,18 +743,22 @@ fn name_with_size(base: &str, size: &Option<String>) -> String {
     }
 }
 
-/// `dd/MM/yyyy` from an RFC3339 timestamp (in its own offset), raw on parse error.
-fn date_only(rfc3339: &str) -> String {
-    chrono::DateTime::parse_from_rfc3339(rfc3339)
-        .map(|d| d.format("%d/%m/%Y").to_string())
-        .unwrap_or_else(|_| rfc3339.to_string())
+fn fmt_dt(lab: &crate::receipt::ReceiptLabels, rfc3339: &str) -> String {
+    crate::timefmt::format_in(
+        lab.tz,
+        rfc3339,
+        crate::timefmt::TimeStyle::Receipt,
+        &lab.locale,
+    )
 }
 
-/// `hh:mm AM/PM` from an RFC3339 timestamp (in its own offset), AM/PM in `locale`.
-fn time_only(rfc3339: &str, locale: &str) -> String {
-    chrono::DateTime::parse_from_rfc3339(rfc3339)
-        .map(|d| crate::timefmt::strftime_in(&d, "%I:%M %p", locale))
-        .unwrap_or_default()
+fn fmt_dt_z(lab: &ShiftReportLabels, rfc3339: &str) -> String {
+    crate::timefmt::format_in(
+        lab.tz,
+        rfc3339,
+        crate::timefmt::TimeStyle::Receipt,
+        &lab.locale,
+    )
 }
 
 // ── logo decode + dither ─────────────────────────────────────────────────────
@@ -836,6 +854,7 @@ mod tests {
                 queued: "Saved — will sync".into(),
                 thank_you: "Thank you!".into(),
                 locale: "en".into(),
+                tz: chrono_tz::UTC,
             },
         }
     }
@@ -978,6 +997,7 @@ mod tests {
             cash_moves: "Cash moves".into(),
             by_method: "By method".into(),
             locale: "en".into(),
+            tz: chrono_tz::UTC,
         }
     }
 
@@ -1098,5 +1118,104 @@ mod tests {
             &render_receipt(&receipt(), &ctx(), Some(png.get_ref()), PRINT_WIDTH),
             "/tmp/receipt_logo.png",
         );
+    }
+
+    // ── one instant, one wall-clock: receipt, Z rows, cash moves, screen ──
+
+    /// 23:30 UTC on Sep 12 is 02:30 on Sep 13 in Cairo (UTC+3, summer time).
+    const LATE: &str = "2026-09-12T23:30:00+00:00";
+
+    fn printed_shift(tz: chrono_tz::Tz, at: &str) -> Vec<String> {
+        let mut report = shift_report();
+        report.opened_at = at.into();
+        report.printed_at = at.into();
+        report.closed_at = Some(at.into());
+        report.cash_movements[0].created_at = at.into();
+        let order = crate::orders::OrderSummaryView {
+            id: "o1".into(),
+            order_number: Some(7),
+            subtotal_minor: 100,
+            tax_minor: 0,
+            total_minor: 100,
+            payment_label: "Cash".into(),
+            status: "completed".into(),
+            created_at: at.into(),
+            queued: false,
+            teller_name: None,
+            order_type: "dine_in".into(),
+            customer_name: None,
+            price_flagged: false,
+            order_ref: None,
+        };
+        let mut labels = shift_labels();
+        labels.tz = tz;
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build_shift(&report, "Store", "EGP", &labels, &[order]);
+        r.shaped
+    }
+
+    fn printed_receipt(tz: chrono_tz::Tz, at: &str) -> Vec<String> {
+        let mut rc = receipt();
+        rc.created_at = at.into();
+        let mut c = ctx();
+        c.labels.tz = tz;
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build(&rc, &c, None);
+        r.shaped
+    }
+
+    #[test]
+    fn a_late_order_prints_the_next_calendar_day_everywhere() {
+        let cairo = chrono_tz::Africa::Cairo;
+        let receipt = printed_receipt(cairo, LATE);
+        assert!(
+            receipt.iter().any(|t| t == "13/09/2026 02:30 AM"),
+            "{receipt:?}"
+        );
+        let z = printed_shift(cairo, LATE);
+        assert!(z.iter().any(|t| t == "#7  02:30 AM"), "order row: {z:?}");
+        assert!(z.iter().any(|t| t == "  02:30 AM"), "cash move: {z:?}");
+        assert!(z.iter().any(|t| t.ends_with("13/09/2026")), "date: {z:?}");
+        assert!(
+            z.iter().any(|t| t == "13/09/2026 02:30 AM"),
+            "header: {z:?}"
+        );
+        // The screen formats through the same helper and cache.
+        let store = crate::store::Store::open("").unwrap();
+        store
+            .kv_put(crate::checkout::KEY_BRANCH_TZ, "Africa/Cairo")
+            .unwrap();
+        assert_eq!(
+            crate::timefmt::format(&store, LATE, crate::timefmt::TimeStyle::Receipt, "en"),
+            "13/09/2026 02:30 AM"
+        );
+        // Nothing prints the raw UTC wall-clock.
+        assert!(!z
+            .iter()
+            .chain(receipt.iter())
+            .any(|t| t.contains("11:30 PM")));
+    }
+
+    #[test]
+    fn prints_follow_dst_transitions_in_the_branch_zone() {
+        let ny = chrono_tz::America::New_York;
+        // 2026-03-08 06:59 UTC = 01:59 EST; 07:00 UTC = 03:00 EDT (spring forward).
+        assert!(printed_receipt(ny, "2026-03-08T06:59:00Z")
+            .iter()
+            .any(|t| t == "08/03/2026 01:59 AM"));
+        assert!(printed_receipt(ny, "2026-03-08T07:00:00Z")
+            .iter()
+            .any(|t| t == "08/03/2026 03:00 AM"));
+        // 2026-11-01 05:30 UTC = 01:30 EDT; 06:30 UTC = 01:30 EST (fall back).
+        let z = printed_shift(ny, "2026-11-01T06:30:00Z");
+        assert!(z.iter().any(|t| t == "#7  01:30 AM"), "{z:?}");
+        // Cairo: 2026-04-23 21:59 UTC = 23:59 EET (last Friday of April); the clock then jumps to 01:00 EEST.
+        let cairo = chrono_tz::Africa::Cairo;
+        assert!(printed_receipt(cairo, "2026-04-23T21:59:00Z")
+            .iter()
+            .any(|t| t == "23/04/2026 11:59 PM"));
+        assert!(printed_receipt(cairo, "2026-04-23T22:00:00Z")
+            .iter()
+            .any(|t| t == "24/04/2026 01:00 AM"));
     }
 }

@@ -235,9 +235,8 @@ pub(crate) fn alert_tag(event_type: &str, id: &str) -> String {
 
 /// `HH:MM` of an RFC3339 instant in the branch zone (`None` when unparsable).
 fn local_hhmm(rfc3339: &str, tz: &str) -> Option<String> {
-    let at = chrono::DateTime::parse_from_rfc3339(rfc3339).ok()?;
     let zone: chrono_tz::Tz = tz.parse().unwrap_or(chrono_tz::Africa::Cairo);
-    Some(at.with_timezone(&zone).format("%H:%M").to_string())
+    crate::timefmt::hhmm_in(zone, rfc3339)
 }
 
 /// Per-role alert relevance: a device pings/notifies only for events that are

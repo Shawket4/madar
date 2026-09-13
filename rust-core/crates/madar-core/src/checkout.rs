@@ -283,10 +283,7 @@ pub(crate) fn mint_order_ref(
         .filter(|s| !s.is_empty())?;
     let tz: chrono_tz::Tz = store.kv_get(KEY_BRANCH_TZ).ok().flatten()?.parse().ok()?;
     let device = device_code_or_default(store);
-    let created = chrono::DateTime::parse_from_rfc3339(now_rfc3339)
-        .ok()?
-        .with_timezone(&tz);
-    let yymmdd = created.format("%y%m%d").to_string();
+    let yymmdd = crate::timefmt::yymmdd_in(tz, now_rfc3339)?;
     // Per-shift display number = synced base + (still-queued for this shift) + 1,
     // which equals the server's MAX(order_number)+1 both online (base counts the
     // already-synced orders, queued≈0) and offline (base is frozen, queued grows).

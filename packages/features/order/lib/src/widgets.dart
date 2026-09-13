@@ -14,21 +14,6 @@ const double kHeldChipHeight = 46;
 /// sort-key fallback when no recorded start time exists yet.
 String nowIso() => DateTime.now().toUtc().toIso8601String();
 
-/// Local time as RFC3339 WITH a colon offset, so the core gates bundle
-/// windows in the till's timezone (mirrors the natives' nowRfc3339()).
-String nowRfc3339Local() {
-  final now = DateTime.now();
-  String two(int v) => v.toString().padLeft(2, '0');
-  final offset = now.timeZoneOffset;
-  final sign = offset.isNegative ? '-' : '+';
-  final abs = offset.abs();
-  final oh = two(abs.inHours);
-  final om = two(abs.inMinutes % 60);
-  return '${now.year.toString().padLeft(4, '0')}-${two(now.month)}-'
-      '${two(now.day)}T${two(now.hour)}:${two(now.minute)}:${two(now.second)}'
-      '$sign$oh:$om';
-}
-
 /// Up to two initials from the item name (the natives' monogram rule).
 String monogram(String name) {
   final words = name

@@ -24,41 +24,104 @@ pub enum TimeStyle {
     Receipt,
 }
 
-/// The branch's IANA timezone (cached at login from `get_branch`), or Cairo — the
-/// product-home default, matching Flutter's fallback. The cached value is present
-/// after any online login, so the fallback only applies before first setup.
+/// The branch's IANA timezone (cached at login from `get_branch`, refreshed from
+/// every order/shift payload that carries `timezone`), or Cairo — the
+/// product-home default, matching Flutter's fallback. Falling back is flagged
+/// (once per process) so a till printing in the default zone is visible.
 pub(crate) fn branch_tz(store: &Store) -> chrono_tz::Tz {
-    store
+    match store
         .kv_get(KEY_BRANCH_TZ)
         .ok()
         .flatten()
         .and_then(|s| s.parse::<chrono_tz::Tz>().ok())
-        .unwrap_or(chrono_tz::Africa::Cairo)
+    {
+        Some(tz) => tz,
+        None => {
+            flag_fallback("no cached branch timezone");
+            chrono_tz::Africa::Cairo
+        }
+    }
 }
 
-/// Re-emit an RFC3339 timestamp converted to the branch timezone (same instant, the
-/// branch's wall-clock + offset). Unparseable input passes through unchanged.
-pub(crate) fn to_branch_local(store: &Store, rfc3339: &str) -> String {
-    match chrono::DateTime::parse_from_rfc3339(rfc3339) {
-        Ok(dt) => dt.with_timezone(&branch_tz(store)).to_rfc3339(),
-        Err(_) => rfc3339.to_string(),
+/// The zone to show a payload in: the payload's own effective `timezone` when it
+/// carries a valid one (also refreshing the cache), else the cached branch zone.
+pub(crate) fn resolve_tz(store: &Store, payload_tz: Option<&str>) -> chrono_tz::Tz {
+    match payload_tz.and_then(|s| s.parse::<chrono_tz::Tz>().ok()) {
+        Some(tz) => {
+            remember_tz(store, tz.name());
+            tz
+        }
+        None => branch_tz(store),
+    }
+}
+
+/// Cache a server-sent effective timezone (ignored when not a valid IANA name).
+pub(crate) fn remember_tz(store: &Store, iana: &str) {
+    if iana.parse::<chrono_tz::Tz>().is_ok()
+        && store.kv_get(KEY_BRANCH_TZ).ok().flatten().as_deref() != Some(iana)
+    {
+        let _ = store.kv_put(KEY_BRANCH_TZ, iana);
+    }
+}
+
+fn flag_fallback(why: &str) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static FLAGGED: AtomicBool = AtomicBool::new(false);
+    if !FLAGGED.swap(true, Ordering::Relaxed) {
+        crate::obs::capture_bg_warning("timefmt.fallback_tz", format!("{why}; using Africa/Cairo"));
     }
 }
 
 /// Format a stored timestamp in the branch timezone for display, in `locale`.
 /// Unparseable input passes through unchanged (never panics on a malformed string).
 pub(crate) fn format(store: &Store, rfc3339: &str, style: TimeStyle, locale: &str) -> String {
-    let dt = match chrono::DateTime::parse_from_rfc3339(rfc3339) {
-        Ok(d) => d.with_timezone(&branch_tz(store)),
-        Err(_) => return rfc3339.to_string(),
-    };
+    format_in(branch_tz(store), rfc3339, style, locale)
+}
+
+/// [`format`] in an explicit zone — what the printers use (the zone is resolved
+/// once by the caller, from the payload or the cache).
+pub(crate) fn format_in(
+    tz: chrono_tz::Tz,
+    rfc3339: &str,
+    style: TimeStyle,
+    locale: &str,
+) -> String {
     let pat = match style {
         TimeStyle::Time => "%I:%M %p",
         TimeStyle::DateShort => "%b %-d",
         TimeStyle::DateTime => "%b %-d, %I:%M %p",
         TimeStyle::Receipt => "%d/%m/%Y %I:%M %p",
     };
-    strftime_in(&dt, pat, locale)
+    format_pat_in(tz, rfc3339, pat, locale)
+}
+
+/// The printed calendar date `dd/MM/yyyy` of an instant in `tz`.
+pub(crate) fn date_in(tz: chrono_tz::Tz, rfc3339: &str) -> String {
+    format_pat_in(tz, rfc3339, "%d/%m/%Y", "en")
+}
+
+/// `HH:MM` (24h) of an instant in `tz`; `None` when unparsable.
+pub(crate) fn hhmm_in(tz: chrono_tz::Tz, rfc3339: &str) -> Option<String> {
+    let at = chrono::DateTime::parse_from_rfc3339(rfc3339).ok()?;
+    Some(at.with_timezone(&tz).format("%H:%M").to_string())
+}
+
+/// `yyMMdd` of an instant in `tz` (the order-ref date segment).
+pub(crate) fn yymmdd_in(tz: chrono_tz::Tz, rfc3339: &str) -> Option<String> {
+    let at = chrono::DateTime::parse_from_rfc3339(rfc3339).ok()?;
+    Some(at.with_timezone(&tz).format("%y%m%d").to_string())
+}
+
+/// `YYYY-MM-DD` of a calendar date.
+pub(crate) fn iso_date(d: chrono::NaiveDate) -> String {
+    d.format("%Y-%m-%d").to_string()
+}
+
+fn format_pat_in(tz: chrono_tz::Tz, rfc3339: &str, pat: &str, locale: &str) -> String {
+    match chrono::DateTime::parse_from_rfc3339(rfc3339) {
+        Ok(d) => strftime_in(&d.with_timezone(&tz), pat, locale),
+        Err(_) => rfc3339.to_string(),
+    }
 }
 
 /// A table row's stamp in the branch zone, 24-hour: `18:02` on the same
@@ -193,12 +256,40 @@ mod tests {
         );
     }
 
+    /// Guardrail: every date/time is formatted HERE, in an explicit zone. Any
+    /// other source file that formats a chrono value (`.format(`) or reads the
+    /// device zone (`Local::now` / `chrono::Local`) fails this test.
     #[test]
-    fn to_branch_local_shifts_the_offset_to_the_branch() {
-        let store = Store::open("").unwrap();
-        store.kv_put(KEY_BRANCH_TZ, "Africa/Cairo").unwrap();
-        let out = to_branch_local(&store, "2026-01-20T10:00:00+00:00");
-        // Same instant, Cairo offset (+02:00), 12:00 wall-clock.
-        assert!(out.starts_with("2026-01-20T12:00:00+02:00"), "got {out}");
+    fn no_date_formatting_or_device_zone_outside_timefmt() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut bad = Vec::new();
+        let mut stack = vec![dir];
+        while let Some(d) = stack.pop() {
+            for e in std::fs::read_dir(&d).unwrap().flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                    continue;
+                }
+                if p.extension().is_none_or(|x| x != "rs") || p.ends_with("timefmt.rs") {
+                    continue;
+                }
+                let src = std::fs::read_to_string(&p).unwrap();
+                for (n, line) in src.lines().enumerate() {
+                    let code = line.split("//").next().unwrap_or("");
+                    if code.contains(".format(")
+                        || code.contains("Local::now")
+                        || code.contains("chrono::Local")
+                    {
+                        bad.push(format!("{}:{}: {}", p.display(), n + 1, line.trim()));
+                    }
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "format dates via timefmt only:\n{}",
+            bad.join("\n")
+        );
     }
 }

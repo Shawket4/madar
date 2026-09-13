@@ -2672,16 +2672,15 @@ impl MadarCore {
 
     pub fn render_receipt(
         &self,
-        mut receipt: checkout::ReceiptView,
+        receipt: checkout::ReceiptView,
         store_name: String,
         currency: String,
         width: u32,
         brand: receipt::PrinterBrand,
     ) -> Vec<u8> {
-        // Stamp the printed receipt in the BRANCH timezone — the ESC/POS formatter
-        // renders the timestamp in its own offset, so convert it first (a Cairo
-        // store prints Cairo time even on a device set to another zone).
-        receipt.created_at = timefmt::to_branch_local(&self.store, &receipt.created_at);
+        // Every printed time is formatted in the BRANCH zone (a Cairo store prints
+        // Cairo time even on a device set to another zone) — via `labels.tz`.
+        let tz = timefmt::branch_tz(&self.store);
         let loc = self.current_locale();
         let tr = |k: &str| i18n::tr(&loc, k);
         let ctx = receipt::EscPosCtx {
@@ -2717,6 +2716,7 @@ impl MadarCore {
                 queued: tr("order.queued_hint"),
                 thank_you: tr("receipt.thank_you"),
                 locale: loc.clone(),
+                tz,
             },
         };
         // Logo bytes were cached (online) into the blob store by the branch fetch;
@@ -2747,7 +2747,7 @@ impl MadarCore {
     /// config (`DeviceConfig::paper_dots`). Pair with `send_to_printer`.
     pub fn render_shift_report(
         &self,
-        mut report: shift::ShiftReportView,
+        report: shift::ShiftReportView,
         store_name: String,
         currency: String,
         width: u32,
@@ -2755,13 +2755,9 @@ impl MadarCore {
         orders: Vec<orders::OrderSummaryView>,
     ) -> Vec<u8> {
         let _ = width;
-        // Stamp the report's timestamps in the BRANCH timezone (as render_receipt
-        // does for created_at), so the printed times read in the store's local time.
-        report.opened_at = timefmt::to_branch_local(&self.store, &report.opened_at);
-        report.printed_at = timefmt::to_branch_local(&self.store, &report.printed_at);
-        if let Some(c) = report.closed_at.clone() {
-            report.closed_at = Some(timefmt::to_branch_local(&self.store, &c));
-        }
+        // Every printed time (header, order rows, cash moves) is formatted in the
+        // BRANCH zone via `labels.tz` — none prints in a raw offset.
+        let tz = timefmt::branch_tz(&self.store);
         let loc = self.current_locale();
         let tr = |k: &str| i18n::tr(&loc, k);
         let labels = receipt::ShiftReportLabels {
@@ -2797,6 +2793,7 @@ impl MadarCore {
             cash_moves: tr("shift.cash_moves"),
             by_method: tr("shift.by_method"),
             locale: loc.clone(),
+            tz,
         };
         let cfg = device::load(&self.store);
         let bitmap = render::render_shift_report(
@@ -2891,8 +2888,8 @@ impl MadarCore {
         Ok(self.catalog()?.addons.clone())
     }
     /// Bundles orderable right now — status active and within their date/time
-    /// window at `now` (branch-local). The host passes its local time so the
-    /// window is evaluated in the till's timezone (Flutter parity).
+    /// window at `now`, evaluated in the BRANCH timezone. The host passes an
+    /// instant (UTC); its offset never picks the zone.
     pub fn available_bundles(
         &self,
         now_rfc3339: String,
@@ -2903,6 +2900,9 @@ impl MadarCore {
                 detail: "bad timestamp".into(),
             }
         })?;
+        // The window is the BRANCH's wall-clock: the instant is re-read in the
+        // branch zone, whatever offset (device-local or UTC) the host sent.
+        let now = now.with_timezone(&timefmt::branch_tz(&self.store));
         // local_image_path is already resolved on the snapshot.
         Ok(self
             .catalog()?
@@ -10499,7 +10499,7 @@ impl MadarCore {
         } else {
             now.date_naive()
         };
-        date.format("%Y-%m-%d").to_string()
+        timefmt::iso_date(date)
     }
 }
 

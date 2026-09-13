@@ -454,7 +454,7 @@ class OrderNotifier extends Notifier<OrderState> {
       final categories = await _bridge.listCategories();
       final menuItems = await _bridge.listMenuItems();
       final bundles = await _bridge.availableBundles(
-        nowRfc3339: nowRfc3339Local(),
+        nowRfc3339: nowIso(), // an instant; the core reads it in the branch zone
       );
       state = state.copyWith(
         categories: categories,
