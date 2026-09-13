@@ -22,6 +22,7 @@ docs/AiChatKindOneOf1.md
 docs/AiChatKindOneOf2.md
 docs/AiChatRequest.md
 docs/AiChatResponse.md
+docs/AllowList.md
 docs/AnalyticsOrder.md
 docs/AnalyticsResponse.md
 docs/AssetBundleRef.md
@@ -103,6 +104,7 @@ docs/ChatFrameOneOf5.md
 docs/CheckInRequest.md
 docs/CheckOutRequest.md
 docs/ClearTableRequest.md
+docs/ClientSeen.md
 docs/CloseShiftResponse.md
 docs/CloseTillMethod.md
 docs/CloseTillPreview.md
@@ -184,6 +186,8 @@ docs/DeliveryTracking.md
 docs/DeliveryZone.md
 docs/Department.md
 docs/Device.md
+docs/DeviceAllowList.md
+docs/DeviceKind.md
 docs/DevicesApi.md
 docs/Dir.md
 docs/Discount.md
@@ -267,6 +271,7 @@ docs/MenuItem.md
 docs/MenuItemFull.md
 docs/MenuItemRecipe.md
 docs/MenuItemWithCosts.md
+docs/MethodTotal.md
 docs/MetricResult.md
 docs/MetricsApi.md
 docs/MetricsQueryRequest.md
@@ -331,6 +336,7 @@ docs/PatchGroupRequest.md
 docs/PatchOptionRequest.md
 docs/PauseInput.md
 docs/PaymentLeg.md
+docs/PaymentMethodAvailability.md
 docs/PaymentMethodsApi.md
 docs/PaymentSplitInput.md
 docs/PaymentSummaryRow.md
@@ -500,6 +506,8 @@ docs/TillReconciliationLine.md
 docs/TillRefunds.md
 docs/TillReportFigures.md
 docs/TillReportResponse.md
+docs/TillStatus.md
+docs/TillVerification.md
 docs/TillsApi.md
 docs/TimeseriesPoint.md
 docs/TopPer.md
@@ -543,6 +551,7 @@ docs/UpsertRolePermissionRequest.md
 docs/UpsertSizeRequest.md
 docs/UpsertWorkShiftRequest.md
 docs/UsedInBundleOut.md
+docs/UserAllowList.md
 docs/UserBranch.md
 docs/UserPermissionItem.md
 docs/UserPublic.md
@@ -636,6 +645,7 @@ src/models/ai_chat_kind_one_of_1.rs
 src/models/ai_chat_kind_one_of_2.rs
 src/models/ai_chat_request.rs
 src/models/ai_chat_response.rs
+src/models/allow_list.rs
 src/models/analytics_order.rs
 src/models/analytics_response.rs
 src/models/asset_bundle_ref.rs
@@ -711,6 +721,7 @@ src/models/chat_frame_one_of_5.rs
 src/models/check_in_request.rs
 src/models/check_out_request.rs
 src/models/clear_table_request.rs
+src/models/client_seen.rs
 src/models/close_shift_response.rs
 src/models/close_till_method.rs
 src/models/close_till_preview.rs
@@ -789,6 +800,8 @@ src/models/delivery_tracking.rs
 src/models/delivery_zone.rs
 src/models/department.rs
 src/models/device.rs
+src/models/device_allow_list.rs
+src/models/device_kind.rs
 src/models/dir.rs
 src/models/discount.rs
 src/models/drink_recipe.rs
@@ -861,6 +874,7 @@ src/models/menu_item.rs
 src/models/menu_item_full.rs
 src/models/menu_item_recipe.rs
 src/models/menu_item_with_costs.rs
+src/models/method_total.rs
 src/models/metric_result.rs
 src/models/metrics_query_request.rs
 src/models/metrics_query_response.rs
@@ -922,6 +936,7 @@ src/models/patch_group_request.rs
 src/models/patch_option_request.rs
 src/models/pause_input.rs
 src/models/payment_leg.rs
+src/models/payment_method_availability.rs
 src/models/payment_split_input.rs
 src/models/payment_summary_row.rs
 src/models/payroll_adjustment.rs
@@ -1078,6 +1093,8 @@ src/models/till_reconciliation_line.rs
 src/models/till_refunds.rs
 src/models/till_report_figures.rs
 src/models/till_report_response.rs
+src/models/till_status.rs
+src/models/till_verification.rs
 src/models/timeseries_point.rs
 src/models/top_per.rs
 src/models/top_reward.rs
@@ -1119,6 +1136,7 @@ src/models/upsert_role_permission_request.rs
 src/models/upsert_size_request.rs
 src/models/upsert_work_shift_request.rs
 src/models/used_in_bundle_out.rs
+src/models/user_allow_list.rs
 src/models/user_branch.rs
 src/models/user_permission_item.rs
 src/models/user_public.rs

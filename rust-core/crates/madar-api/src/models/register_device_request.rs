@@ -28,7 +28,7 @@ pub struct RegisterDeviceRequest {
     pub id: uuid::Uuid,
     /// `pos` | `kds` | `waiter`
     #[serde(rename = "kind")]
-    pub kind: String,
+    pub kind: models::DeviceKind,
     #[serde(
         rename = "label",
         default,
@@ -50,7 +50,7 @@ impl RegisterDeviceRequest {
         branch_id: uuid::Uuid,
         code: String,
         id: uuid::Uuid,
-        kind: String,
+        kind: models::DeviceKind,
     ) -> RegisterDeviceRequest {
         RegisterDeviceRequest {
             app_version: None,

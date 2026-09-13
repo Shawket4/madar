@@ -217,7 +217,7 @@ impl MadarCore {
                 edit_reason: reason.map(Some),
                 opened_at: Some(Some(opened_at)),
                 device_id: uuid::Uuid::parse_str(&dev).ok().map(Some),
-                verification: Some(Some(verification.to_string())),
+                verification: Some(Some(till::verification_wire(verification))),
             },
         };
         let (user_id, clock_offset_ms) = self.outbox_meta();
@@ -885,7 +885,7 @@ impl MadarCore {
         if let (Ok(handle), (Some(id), Some(branch_id)), Some(me)) =
             (tokio::runtime::Handle::try_current(), ids, self.self_arc())
         {
-            let mut request = models::RegisterDeviceRequest::new(branch_id, clean, id, "pos".into());
+            let mut request = models::RegisterDeviceRequest::new(branch_id, clean, id, models::DeviceKind::Pos);
             request.platform = Some(Some(std::env::consts::OS.to_string()));
             request.app_version = Some(Some(net::app_version(self.config.app_version.as_deref())));
             handle.spawn(async move {
@@ -972,8 +972,8 @@ impl MadarCore {
         if cmd.request.device_id.flatten().is_none() {
             cmd.request.device_id = uuid::Uuid::parse_str(&cmd.device_id).ok().map(Some);
         }
-        if cmd.request.verification.clone().flatten().is_none() {
-            cmd.request.verification = Some(Some(cmd.verification.clone()));
+        if cmd.request.verification.flatten().is_none() {
+            cmd.request.verification = Some(Some(till::verification_wire(&cmd.verification)));
         }
         Ok(cmd)
     }

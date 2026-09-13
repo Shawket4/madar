@@ -9,6 +9,7 @@ Method | HTTP request | Description
 [**get_branch**](BranchesApi.md#get_branch) | **GET** /branches/{id} | 
 [**list_branches**](BranchesApi.md#list_branches) | **GET** /branches | 
 [**list_timezones**](BranchesApi.md#list_timezones) | **GET** /timezones | The full set of selectable IANA timezones — the labels of the `timezone_name` DB enum. The dashboard's timezone `<select>` is populated from this, so the frontend can never offer a value the backend/DB would reject (single source of truth: DB enum → this endpoint → select options).
+[**patch_branch**](BranchesApi.md#patch_branch) | **PATCH** /branches/{id} | `PATCH /branches/{id}` — the same partial update as `PUT` (the contract names both; every field is already optional).
 [**update_branch**](BranchesApi.md#update_branch) | **PUT** /branches/{id} | 
 
 
@@ -145,6 +146,35 @@ This endpoint does not need any parameter.
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## patch_branch
+
+> models::Branch patch_branch(id, update_branch_request)
+`PATCH /branches/{id}` — the same partial update as `PUT` (the contract names both; every field is already optional).
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Branch ID | [required] |
+**update_branch_request** | [**UpdateBranchRequest**](UpdateBranchRequest.md) |  | [required] |
+
+### Return type
+
+[**models::Branch**](Branch.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

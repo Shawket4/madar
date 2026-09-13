@@ -14,11 +14,14 @@ Name | Type | Description | Notes
 **delivery_lat** | Option<**f64**> | Customer location of the linked delivery order, so clients can link out to a map (e.g. Google Maps) without a per-order detail fetch. `null` for dine-in orders or delivery orders without captured coordinates. | [optional]
 **delivery_lng** | Option<**f64**> |  | [optional]
 **delivery_order_id** | Option<**uuid::Uuid**> | Links a finalized delivery order back to its `delivery_orders` row (customer, address, channel, zone). `null` for dine-in orders. | [optional]
+**device_code** | Option<**String**> | That device's code (`36B`), stored with the order. `null` when server-numbered. | [optional]
+**device_id** | Option<**uuid::Uuid**> | The device that numbered this sale (contract R4). `null` for server-numbered orders (old clients, dashboard, delivery). | [optional]
 **discount_amount** | **i32** |  | 
 **discount_id** | Option<**uuid::Uuid**> |  | [optional]
 **discount_rate** | Option<**f64**> | The stored value — a fraction for a percentage. Same column as [`Order::discount_value`]. | [optional]
 **discount_type** | Option<**String**> |  | [optional]
 **discount_value** | **i64** | LEGACY SPELLING — an integer, 0-100 for a percentage. See `discounts::wire`: every shipped till was generated against `integer`, and a double here fails to deserialise the whole ORDER, not just this field. Read [`Order::discount_rate`] for the stored number. | 
+**display_number** | Option<**String**> | What receipts and lists show: `<device_code>-<order_number>` (`36B-12`) for a device-numbered sale, else `order_number` as text. | [optional]
 **id** | **uuid::Uuid** |  | 
 **loyalty_customer_id** | Option<**uuid::Uuid**> | The loyalty member this sale redeemed for (or was scanned for). | [optional]
 **loyalty_member_name** | Option<**String**> | That member's name, for the order detail. `None` once forgotten. | [optional]
@@ -42,6 +45,7 @@ Name | Type | Description | Notes
 **tip_amount** | Option<**i32**> |  | [optional]
 **tip_payment_method** | Option<**String**> |  | [optional]
 **total_amount** | **i32** |  | 
+**verification** | Option<**String**> | `server` | `lan` | `unverified` — the till's verification as the ringing device knew it; `null` when not recorded. | [optional]
 **void_note** | Option<**String**> |  | [optional]
 **void_reason** | Option<**String**> |  | [optional]
 **voided_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]

@@ -56,6 +56,14 @@ pub struct UpdateBranchRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<Option<String>>,
+    /// Hours after which an open bill counts as old (1..168).
+    #[serde(
+        rename = "old_bill_hours",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub old_bill_hours: Option<Option<u32>>,
     #[serde(
         rename = "phone",
         default,
@@ -105,6 +113,14 @@ pub struct UpdateBranchRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub service_charge_taxable: Option<Option<bool>>,
+    /// Standard opening float in minor units (>= 0); explicit `null` clears it.
+    #[serde(
+        rename = "standard_float",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub standard_float: Option<Option<u32>>,
     #[serde(
         rename = "tax_inclusive",
         default,
@@ -138,6 +154,7 @@ impl UpdateBranchRequest {
             latitude: None,
             longitude: None,
             name: None,
+            old_bill_hours: None,
             phone: None,
             printer_brand: None,
             printer_ip: None,
@@ -145,6 +162,7 @@ impl UpdateBranchRequest {
             require_table_for_orders: None,
             service_charge_rate: None,
             service_charge_taxable: None,
+            standard_float: None,
             tax_inclusive: None,
             tax_rate: None,
             timezone: None,

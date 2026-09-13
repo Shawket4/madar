@@ -22,6 +22,9 @@ pub struct TillPreFill {
         skip_serializing_if = "Option::is_none"
     )]
     pub last_close_declared: Option<Option<i32>>,
+    /// EVERY open till of the person at THIS branch, newest first (whatever the device). Normally zero or one; two or more only after an offline open was replayed while another was open — the newer is flagged (`opened_while_another_open`) and both stay open, so both are listed.
+    #[serde(rename = "open_at_branch", skip_serializing_if = "Option::is_none")]
+    pub open_at_branch: Option<Vec<models::TillBrief>>,
     #[serde(rename = "open_bills_notice")]
     pub open_bills_notice: Box<models::OpenBillsNotice>,
     #[serde(rename = "open_elsewhere")]
@@ -47,6 +50,7 @@ impl TillPreFill {
         TillPreFill {
             has_open_till,
             last_close_declared: None,
+            open_at_branch: None,
             open_bills_notice: Box::new(open_bills_notice),
             open_elsewhere,
             open_till: None,

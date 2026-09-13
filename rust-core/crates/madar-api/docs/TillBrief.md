@@ -11,10 +11,10 @@ Name | Type | Description | Notes
 **id** | **uuid::Uuid** |  | 
 **opened_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **opened_while_another_open** | **bool** |  | 
-**status** | **String** |  | 
+**status** | [**models::TillStatus**](TillStatus.md) |  | 
 **teller_id** | **uuid::Uuid** |  | 
 **teller_name** | **String** |  | 
-**verification** | **String** |  | 
+**verification** | [**models::TillVerification**](TillVerification.md) |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

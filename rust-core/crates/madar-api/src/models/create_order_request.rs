@@ -117,7 +117,7 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub notes: Option<Option<String>>,
-    /// IGNORED by the server (accepted for backward compatibility only). The authoritative per-shift number is ALWAYS `MAX(order_number)+1` computed under the shift advisory lock — never the client value, which is used only on the device's local receipt. The byte-identical-at-reprint guarantee rides on `order_ref`, not this field. Two tills on one shift get distinct numbers (UNIQUE(shift_id, order_number) + the lock).
+    /// The device's own order number (contract R4): its per-business-day sequence, the same counter as the `NNNN` of its `order_ref`. Stored VERBATIM when the request also names `device_id` and a non-blank `device_code` — the order then reads `display_number` `<device_code>-<n>`. Without all three (old clients, dashboard, delivery) it is ignored and the server numbers the sale per till: `MAX(order_number)+1` over the till's server-numbered orders, under the till advisory lock (`uq_orders_till_legacy_number`).
     #[serde(
         rename = "order_number",
         default,

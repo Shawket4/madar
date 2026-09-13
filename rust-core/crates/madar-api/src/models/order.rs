@@ -72,6 +72,22 @@ pub struct Order {
         skip_serializing_if = "Option::is_none"
     )]
     pub delivery_order_id: Option<Option<uuid::Uuid>>,
+    /// That device's code (`36B`), stored with the order. `null` when server-numbered.
+    #[serde(
+        rename = "device_code",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_code: Option<Option<String>>,
+    /// The device that numbered this sale (contract R4). `null` for server-numbered orders (old clients, dashboard, delivery).
+    #[serde(
+        rename = "device_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub device_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "discount_amount")]
     pub discount_amount: i32,
     #[serde(
@@ -94,6 +110,9 @@ pub struct Order {
     /// LEGACY SPELLING — an integer, 0-100 for a percentage. See `discounts::wire`: every shipped till was generated against `integer`, and a double here fails to deserialise the whole ORDER, not just this field. Read [`Order::discount_rate`] for the stored number.
     #[serde(rename = "discount_value")]
     pub discount_value: i64,
+    /// What receipts and lists show: `<device_code>-<order_number>` (`36B-12`) for a device-numbered sale, else `order_number` as text.
+    #[serde(rename = "display_number", skip_serializing_if = "Option::is_none")]
+    pub display_number: Option<String>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     /// The loyalty member this sale redeemed for (or was scanned for).
@@ -194,6 +213,14 @@ pub struct Order {
     pub tip_payment_method: Option<Option<String>>,
     #[serde(rename = "total_amount")]
     pub total_amount: i32,
+    /// `server` | `lan` | `unverified` — the till's verification as the ringing device knew it; `null` when not recorded.
+    #[serde(
+        rename = "verification",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub verification: Option<Option<String>>,
     #[serde(
         rename = "void_note",
         default,
@@ -271,11 +298,14 @@ impl Order {
             delivery_lat: None,
             delivery_lng: None,
             delivery_order_id: None,
+            device_code: None,
+            device_id: None,
             discount_amount,
             discount_id: None,
             discount_rate: None,
             discount_type: None,
             discount_value,
+            display_number: None,
             id,
             loyalty_customer_id: None,
             loyalty_member_name: None,
@@ -299,6 +329,7 @@ impl Order {
             tip_amount: None,
             tip_payment_method: None,
             total_amount,
+            verification: None,
             void_note: None,
             void_reason: None,
             voided_at: None,

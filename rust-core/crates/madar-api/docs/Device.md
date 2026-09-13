@@ -10,7 +10,7 @@ Name | Type | Description | Notes
 **code_conflict** | **bool** | Another live device at the same branch uses the same code. | 
 **first_seen_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **id** | **uuid::Uuid** |  | 
-**kind** | **String** |  | 
+**kind** | [**models::DeviceKind**](DeviceKind.md) |  | 
 **label** | Option<**String**> |  | [optional]
 **last_seen_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **org_id** | **uuid::Uuid** |  | 

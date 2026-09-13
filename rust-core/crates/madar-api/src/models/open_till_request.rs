@@ -58,7 +58,7 @@ pub struct OpenTillRequest {
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub verification: Option<Option<String>>,
+    pub verification: Option<Option<models::TillVerification>>,
 }
 
 impl OpenTillRequest {

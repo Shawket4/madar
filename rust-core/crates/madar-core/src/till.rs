@@ -171,7 +171,7 @@ impl TillRecord {
             branch_name: t.branch_name.clone().flatten(),
             teller_id: t.teller_id.to_string(),
             teller_name: t.teller_name.clone(),
-            status: t.status.clone(),
+            status: t.status.to_string(),
             opening_cash: t.opening_cash as i64,
             opening_cash_original: t.opening_cash_original.flatten().map(i64::from),
             opening_cash_was_edited: t.opening_cash_was_edited,
@@ -186,7 +186,7 @@ impl TillRecord {
             device_id: t.device_id.flatten().map(|u| u.to_string()),
             device_code: t.device_code.clone().flatten(),
             device_label: t.device_label.clone().flatten(),
-            verification: Some(t.verification.clone()),
+            verification: Some(t.verification.to_string()),
             opened_while_another_open: t.opened_while_another_open,
             other_till_id: t.other_till_id.flatten().map(|u| u.to_string()),
             reconciliation_status: t.reconciliation_status.clone().flatten(),
@@ -323,6 +323,12 @@ pub struct TillSummaryView {
     pub opened_while_another_open: bool,
     #[serde(default)]
     pub reconciliation_status: Option<String>,
+}
+
+/// A verification word (`server` | `lan` | `unverified` | `legacy`) as the wire enum;
+/// an unknown word is `unverified` (never claims more than it knows).
+pub(crate) fn verification_wire(word: &str) -> models::TillVerification {
+    serde_json::from_value(serde_json::Value::String(word.to_string())).unwrap_or(models::TillVerification::Unverified)
 }
 
 fn legacy_verification() -> String {
@@ -559,7 +565,7 @@ pub(crate) fn report_view(
         opened_at: shift.opened_at.to_rfc3339(),
         closed_at: shift.closed_at.flatten().map(|d| d.to_rfc3339()),
         printed_at: report.printed_at.to_rfc3339(),
-        is_open: shift.status == "open",
+        is_open: shift.status == models::TillStatus::Open,
         opening_cash_was_edited: shift.opening_cash_was_edited,
         opening_cash_original_minor: shift.opening_cash_original.flatten().map(|v| v as i64),
         opening_cash_edit_reason: shift
@@ -614,7 +620,7 @@ pub(crate) fn report_view(
         old_bills_count: report.old_bills_at_close.flatten().map(i64::from),
         open_bills_count: report.open_bills_at_close.flatten().map(i64::from),
         opened_while_another_open: shift.opened_while_another_open,
-        verification: shift.verification.clone(),
+        verification: shift.verification.to_string(),
     }
 }
 
@@ -987,7 +993,7 @@ fn open_till_of(pf: &models::TillPreFill) -> Option<&models::Till> {
     pf.open_till
         .as_ref()
         .and_then(|o| o.as_deref())
-        .filter(|t| t.status == "open")
+        .filter(|t| t.status == models::TillStatus::Open)
 }
 
 /// kv key: what sign-in said about the person's open till (`/auth/login`'s
@@ -1033,7 +1039,7 @@ pub(crate) fn login_prefill(
         return None;
     }
     let mut pf = models::TillPreFill::default();
-    let Some(brief) = said.till.filter(|b| b.status == "open") else {
+    let Some(brief) = said.till.filter(|b| b.status == models::TillStatus::Open) else {
         return Some(pf);
     };
     pf.has_open_till = true;
@@ -1050,10 +1056,10 @@ pub(crate) fn login_prefill(
         brief.opened_while_another_open,
         local.opening_cash as i32,
         local.opening_cash_was_edited,
-        "open".into(),
+        models::TillStatus::Open,
         brief.teller_id,
         brief.teller_name.clone(),
-        brief.verification.clone(),
+        brief.verification,
     );
     till.device_id = brief.device_id;
     till.device_code = brief.device_code.clone();
@@ -1500,11 +1506,11 @@ mod tests {
             branch_id: uid("B1"),
             teller_id: uid(teller),
             teller_name: format!("name-{teller}"),
-            status: status.into(),
+            status: serde_json::from_value(serde_json::Value::String(status.into())).unwrap(),
             opening_cash: 500,
             opened_at: chrono::DateTime::parse_from_rfc3339("2026-09-13T09:00:00Z").unwrap(),
             device_id: Some(Some(uuid::Uuid::parse_str(device).unwrap())),
-            verification: "server".into(),
+            verification: models::TillVerification::Server,
             ..Default::default()
         })
     }
@@ -1536,7 +1542,7 @@ mod tests {
                 device_id: Some(Some(uuid::Uuid::parse_str(OTHER_DEV).unwrap())),
                 device_code: Some(Some("36B".into())),
                 opened_at: chrono::DateTime::parse_from_rfc3339("2026-09-13T08:00:00Z").unwrap(),
-                status: "open".into(),
+                status: models::TillStatus::Open,
                 ..Default::default()
             }],
             ..Default::default()
@@ -1809,11 +1815,11 @@ mod tests {
             branch_id: uid("B1"),
             teller_id: uid("U1"),
             teller_name: "Sara".into(),
-            status: "open".into(),
+            status: models::TillStatus::Open,
             opened_at: chrono::DateTime::parse_from_rfc3339("2026-09-13T08:00:00Z").unwrap(),
             device_id: Some(Some(uuid::Uuid::parse_str(device).unwrap())),
             device_code: Some(Some("36B".into())),
-            verification: "server".into(),
+            verification: models::TillVerification::Server,
             ..Default::default()
         };
         // Nothing said at sign-in: no stand-in.
@@ -1876,7 +1882,7 @@ mod tests {
         store.kv_put("cache:shift_report:T1", legacy).unwrap();
         let r = cached_report(&store, "T1").expect("legacy report read");
         assert_eq!(r.expected_cash, 900);
-        assert_eq!(r.till.verification, "legacy");
+        assert_eq!(r.till.verification, models::TillVerification::Legacy);
         // A fresh write takes the current key and wins.
         let mut fresh = r.clone();
         fresh.expected_cash = 1200;

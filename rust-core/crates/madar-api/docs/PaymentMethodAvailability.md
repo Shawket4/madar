@@ -1,16 +1,13 @@
-# RegisterDeviceRequest
+# PaymentMethodAvailability
 
 ## Properties
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**app_version** | Option<**String**> |  | [optional]
+**branch** | [**models::AllowList**](AllowList.md) |  | 
 **branch_id** | **uuid::Uuid** |  | 
-**code** | **String** |  | 
-**id** | **uuid::Uuid** |  | 
-**kind** | [**models::DeviceKind**](DeviceKind.md) | `pos` | `kds` | `waiter` | 
-**label** | Option<**String**> |  | [optional]
-**platform** | Option<**String**> |  | [optional]
+**devices** | [**Vec<models::DeviceAllowList>**](DeviceAllowList.md) |  | 
+**users** | [**Vec<models::UserAllowList>**](UserAllowList.md) |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

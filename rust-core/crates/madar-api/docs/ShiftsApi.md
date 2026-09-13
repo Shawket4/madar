@@ -4,44 +4,15 @@ All URIs are relative to *http://localhost:8080*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**add_legacy_shift_cash_movement**](ShiftsApi.md#add_legacy_shift_cash_movement) | **POST** /shifts/{shift_id}/cash-movements | 
 [**close_shift**](ShiftsApi.md#close_shift) | **POST** /shifts/{shift_id}/close | 
 [**force_close_shift**](ShiftsApi.md#force_close_shift) | **POST** /shifts/{shift_id}/force-close | 
 [**get_current_shift**](ShiftsApi.md#get_current_shift) | **GET** /shifts/branches/{branch_id}/current | 
 [**get_shift**](ShiftsApi.md#get_shift) | **GET** /shifts/{shift_id} | 
 [**get_shift_report**](ShiftsApi.md#get_shift_report) | **GET** /shifts/{shift_id}/report | 
+[**legacy_add_shift_cash_movement**](ShiftsApi.md#legacy_add_shift_cash_movement) | **POST** /shifts/{shift_id}/cash-movements | 
 [**list_shifts**](ShiftsApi.md#list_shifts) | **GET** /shifts/branches/{branch_id} | 
 [**open_shift**](ShiftsApi.md#open_shift) | **POST** /shifts/branches/{branch_id}/open | 
 
-
-
-## add_legacy_shift_cash_movement
-
-> models::CashMovement add_legacy_shift_cash_movement(shift_id, cash_movement_request)
-
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**shift_id** | **uuid::Uuid** | Till ID | [required] |
-**cash_movement_request** | [**CashMovementRequest**](CashMovementRequest.md) |  | [required] |
-
-### Return type
-
-[**models::CashMovement**](CashMovement.md)
-
-### Authorization
-
-[bearer_jwt](../README.md#bearer_jwt)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## close_shift
@@ -182,6 +153,35 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## legacy_add_shift_cash_movement
+
+> models::CashMovement legacy_add_shift_cash_movement(shift_id, cash_movement_request)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**shift_id** | **uuid::Uuid** | Till ID | [required] |
+**cash_movement_request** | [**CashMovementRequest**](CashMovementRequest.md) |  | [required] |
+
+### Return type
+
+[**models::CashMovement**](CashMovement.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

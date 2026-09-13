@@ -37,7 +37,7 @@ pub struct Device {
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(rename = "kind")]
-    pub kind: String,
+    pub kind: models::DeviceKind,
     #[serde(
         rename = "label",
         default,
@@ -71,7 +71,7 @@ impl Device {
         code_conflict: bool,
         first_seen_at: chrono::DateTime<chrono::FixedOffset>,
         id: uuid::Uuid,
-        kind: String,
+        kind: models::DeviceKind,
         last_seen_at: chrono::DateTime<chrono::FixedOffset>,
         org_id: uuid::Uuid,
     ) -> Device {

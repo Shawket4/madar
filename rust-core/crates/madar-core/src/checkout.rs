@@ -53,6 +53,16 @@ pub fn display_number(device_code: &str, order_number: i64) -> String {
     }
 }
 
+/// The number to show for a server order: the server's own `display_number`
+/// (the tills-rework backend sends it on every order response), else — an older
+/// backend — derived from `order_ref` by [`display_number_from_ref`].
+pub fn server_display_number(display_number: Option<&str>, order_ref: Option<&str>, order_number: i64) -> String {
+    match display_number.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(d) => d.to_string(),
+        None => display_number_from_ref(order_ref, order_number),
+    }
+}
+
 /// The display number for an order the server sent with only `order_number` +
 /// `order_ref`: a device-numbered order's ref is `<BR>-<YYMMDD>-<DEV>-<RRRR>` with
 /// `RRRR == order_number`, so the device code is read back from the ref. When two

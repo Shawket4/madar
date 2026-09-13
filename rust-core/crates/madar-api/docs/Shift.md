@@ -31,11 +31,11 @@ Name | Type | Description | Notes
 **opening_cash_was_edited** | **bool** |  | 
 **other_till_id** | Option<**uuid::Uuid**> |  | [optional]
 **reconciliation_status** | Option<**String**> | `clean` | `disagreed` | `unreviewed` | null (open, or closed before reconciliation existed) | [optional]
-**status** | **String** | `open` | `closed` | `force_closed` | 
+**status** | [**models::TillStatus**](TillStatus.md) | `open` | `closed` | `force_closed` | 
 **teller_id** | **uuid::Uuid** |  | 
 **teller_name** | **String** |  | 
 **timezone** | Option<**String**> |  | [optional]
-**verification** | **String** | `server` | `lan` | `unverified` | `legacy` | 
+**verification** | [**models::TillVerification**](TillVerification.md) | `server` | `lan` | `unverified` | `legacy` | 
 **till_id** | Option<**uuid::Uuid**> |  | [optional]
 **till_name** | Option<**String**> |  | [optional]
 

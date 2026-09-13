@@ -90,7 +90,7 @@ pub struct Shift {
     pub reconciliation_status: Option<String>,
     /// `open` | `closed` | `force_closed`
     #[serde(rename = "status")]
-    pub status: String,
+    pub status: models::TillStatus,
     #[serde(rename = "teller_id")]
     pub teller_id: uuid::Uuid,
     #[serde(rename = "teller_name")]
@@ -99,7 +99,7 @@ pub struct Shift {
     pub timezone: Option<String>,
     /// `server` | `lan` | `unverified` | `legacy`
     #[serde(rename = "verification")]
-    pub verification: String,
+    pub verification: models::TillVerification,
     #[serde(
         rename = "till_id",
         default,
@@ -126,10 +126,10 @@ impl Shift {
         opened_while_another_open: bool,
         opening_cash: i32,
         opening_cash_was_edited: bool,
-        status: String,
+        status: models::TillStatus,
         teller_id: uuid::Uuid,
         teller_name: String,
-        verification: String,
+        verification: models::TillVerification,
     ) -> Shift {
         Shift {
             branch_id,

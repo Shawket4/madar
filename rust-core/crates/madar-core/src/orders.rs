@@ -431,7 +431,8 @@ pub(crate) fn order_to_receipt(
     crate::checkout::ReceiptView {
         local_order_id: o.id.to_string(),
         order_number: Some(o.order_number as i64),
-        display_number: crate::checkout::display_number_from_ref(
+        display_number: crate::checkout::server_display_number(
+            o.display_number.as_deref(),
             o.order_ref.as_deref(),
             o.order_number as i64,
         ),
@@ -587,7 +588,8 @@ pub(crate) fn from_server(o: &models::Order) -> OrderSummaryView {
         price_flagged: o.price_flagged.unwrap_or(false),
         customer_name: o.customer_name.clone().flatten().filter(|s| !s.is_empty()),
         order_ref: o.order_ref.clone().flatten().filter(|s| !s.is_empty()),
-        display_number: crate::checkout::display_number_from_ref(
+        display_number: crate::checkout::server_display_number(
+            o.display_number.as_deref(),
             o.order_ref.clone().flatten().as_deref(),
             o.order_number as i64,
         ),
@@ -777,6 +779,13 @@ mod tests {
         o.order_ref = Some(Some("MAA-260913-ABCDEF-007".into()));
         o.order_number = 7;
         assert_eq!(from_server(&o).display_number, "7", "server-numbered (legacy) ref");
+        // The server's own display_number wins over the derivation.
+        o.order_number = 12;
+        o.order_ref = Some(Some("MAA-260913-36B-0012".into()));
+        o.display_number = Some("36B-12~AB12".into());
+        assert_eq!(from_server(&o).display_number, "36B-12~AB12");
+        o.display_number = Some(String::new());
+        assert_eq!(from_server(&o).display_number, "36B-12", "an empty value falls back to the ref");
     }
 
     #[test]

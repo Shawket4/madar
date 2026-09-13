@@ -64,6 +64,7 @@ Class | Method | HTTP request | Description
 *BranchesApi* | [**get_branch**](docs/BranchesApi.md#get_branch) | **GET** /branches/{id} | 
 *BranchesApi* | [**list_branches**](docs/BranchesApi.md#list_branches) | **GET** /branches | 
 *BranchesApi* | [**list_timezones**](docs/BranchesApi.md#list_timezones) | **GET** /timezones | The full set of selectable IANA timezones — the labels of the `timezone_name` DB enum. The dashboard's timezone `<select>` is populated from this, so the frontend can never offer a value the backend/DB would reject (single source of truth: DB enum → this endpoint → select options).
+*BranchesApi* | [**patch_branch**](docs/BranchesApi.md#patch_branch) | **PATCH** /branches/{id} | `PATCH /branches/{id}` — the same partial update as `PUT` (the contract names both; every field is already optional).
 *BranchesApi* | [**update_branch**](docs/BranchesApi.md#update_branch) | **PUT** /branches/{id} | 
 *BundlesApi* | [**activate_bundle**](docs/BundlesApi.md#activate_bundle) | **POST** /bundles/{id}/activate | 
 *BundlesApi* | [**archive_bundle**](docs/BundlesApi.md#archive_bundle) | **POST** /bundles/{id}/archive | 
@@ -104,6 +105,7 @@ Class | Method | HTTP request | Description
 *DeliveryPublicApi* | [**public_branches**](docs/DeliveryPublicApi.md#public_branches) | **GET** /public/branches | 
 *DeliveryPublicApi* | [**public_menu**](docs/DeliveryPublicApi.md#public_menu) | **GET** /public/branches/{id}/menu | 
 *DeliveryPublicApi* | [**track_delivery_order**](docs/DeliveryPublicApi.md#track_delivery_order) | **GET** /public/delivery-orders/{id}/track | 
+*DevicesApi* | [**list_client_versions**](docs/DevicesApi.md#list_client_versions) | **GET** /devices/client-versions | 
 *DevicesApi* | [**list_devices**](docs/DevicesApi.md#list_devices) | **GET** /devices | 
 *DevicesApi* | [**register_device**](docs/DevicesApi.md#register_device) | **POST** /devices/register | 
 *DevicesApi* | [**update_device**](docs/DevicesApi.md#update_device) | **PATCH** /devices/{id} | 
@@ -275,7 +277,12 @@ Class | Method | HTTP request | Description
 *PaymentMethodsApi* | [**activate_payment_method**](docs/PaymentMethodsApi.md#activate_payment_method) | **POST** /payment-methods/{id}/activate | 
 *PaymentMethodsApi* | [**create_payment_method**](docs/PaymentMethodsApi.md#create_payment_method) | **POST** /payment-methods | 
 *PaymentMethodsApi* | [**deactivate_payment_method**](docs/PaymentMethodsApi.md#deactivate_payment_method) | **POST** /payment-methods/{id}/deactivate | 
+*PaymentMethodsApi* | [**get_availability**](docs/PaymentMethodsApi.md#get_availability) | **GET** /payment-methods/availability | 
+*PaymentMethodsApi* | [**get_effective**](docs/PaymentMethodsApi.md#get_effective) | **GET** /payment-methods/effective | 
 *PaymentMethodsApi* | [**list_payment_methods**](docs/PaymentMethodsApi.md#list_payment_methods) | **GET** /payment-methods | 
+*PaymentMethodsApi* | [**put_branch_availability**](docs/PaymentMethodsApi.md#put_branch_availability) | **PUT** /payment-methods/availability/branches/{branch_id} | 
+*PaymentMethodsApi* | [**put_device_availability**](docs/PaymentMethodsApi.md#put_device_availability) | **PUT** /payment-methods/availability/devices/{device_id} | 
+*PaymentMethodsApi* | [**put_user_availability**](docs/PaymentMethodsApi.md#put_user_availability) | **PUT** /payment-methods/availability/users/{user_id} | 
 *PaymentMethodsApi* | [**update_payment_method**](docs/PaymentMethodsApi.md#update_payment_method) | **PUT** /payment-methods/{id} | 
 *PermissionsApi* | [**delete_user_permission**](docs/PermissionsApi.md#delete_user_permission) | **DELETE** /permissions/user/{user_id}/{resource}/{action} | 
 *PermissionsApi* | [**get_permission_matrix**](docs/PermissionsApi.md#get_permission_matrix) | **GET** /permissions/matrix/{user_id} | 
@@ -358,12 +365,12 @@ Class | Method | HTTP request | Description
 *ReservationsApi* | [**save_layout**](docs/ReservationsApi.md#save_layout) | **PUT** /floor/layout | 
 *ReservationsApi* | [**update_floor_table**](docs/ReservationsApi.md#update_floor_table) | **PATCH** /floor/tables/{id} | 
 *ReservationsApi* | [**update_section**](docs/ReservationsApi.md#update_section) | **PATCH** /floor/sections/{id} | 
-*ShiftsApi* | [**add_legacy_shift_cash_movement**](docs/ShiftsApi.md#add_legacy_shift_cash_movement) | **POST** /shifts/{shift_id}/cash-movements | 
 *ShiftsApi* | [**close_shift**](docs/ShiftsApi.md#close_shift) | **POST** /shifts/{shift_id}/close | 
 *ShiftsApi* | [**force_close_shift**](docs/ShiftsApi.md#force_close_shift) | **POST** /shifts/{shift_id}/force-close | 
 *ShiftsApi* | [**get_current_shift**](docs/ShiftsApi.md#get_current_shift) | **GET** /shifts/branches/{branch_id}/current | 
 *ShiftsApi* | [**get_shift**](docs/ShiftsApi.md#get_shift) | **GET** /shifts/{shift_id} | 
 *ShiftsApi* | [**get_shift_report**](docs/ShiftsApi.md#get_shift_report) | **GET** /shifts/{shift_id}/report | 
+*ShiftsApi* | [**legacy_add_shift_cash_movement**](docs/ShiftsApi.md#legacy_add_shift_cash_movement) | **POST** /shifts/{shift_id}/cash-movements | 
 *ShiftsApi* | [**list_shifts**](docs/ShiftsApi.md#list_shifts) | **GET** /shifts/branches/{branch_id} | 
 *ShiftsApi* | [**open_shift**](docs/ShiftsApi.md#open_shift) | **POST** /shifts/branches/{branch_id}/open | 
 *StaffApi* | [**attendance_summary**](docs/StaffApi.md#attendance_summary) | **GET** /staff/attendance/summary | 
@@ -493,6 +500,7 @@ Class | Method | HTTP request | Description
  - [AiChatKindOneOf2](docs/AiChatKindOneOf2.md)
  - [AiChatRequest](docs/AiChatRequest.md)
  - [AiChatResponse](docs/AiChatResponse.md)
+ - [AllowList](docs/AllowList.md)
  - [AnalyticsOrder](docs/AnalyticsOrder.md)
  - [AnalyticsResponse](docs/AnalyticsResponse.md)
  - [AssetBundleRef](docs/AssetBundleRef.md)
@@ -568,6 +576,7 @@ Class | Method | HTTP request | Description
  - [CheckInRequest](docs/CheckInRequest.md)
  - [CheckOutRequest](docs/CheckOutRequest.md)
  - [ClearTableRequest](docs/ClearTableRequest.md)
+ - [ClientSeen](docs/ClientSeen.md)
  - [CloseShiftResponse](docs/CloseShiftResponse.md)
  - [CloseTillMethod](docs/CloseTillMethod.md)
  - [CloseTillPreview](docs/CloseTillPreview.md)
@@ -646,6 +655,8 @@ Class | Method | HTTP request | Description
  - [DeliveryZone](docs/DeliveryZone.md)
  - [Department](docs/Department.md)
  - [Device](docs/Device.md)
+ - [DeviceAllowList](docs/DeviceAllowList.md)
+ - [DeviceKind](docs/DeviceKind.md)
  - [Dir](docs/Dir.md)
  - [Discount](docs/Discount.md)
  - [DrinkRecipe](docs/DrinkRecipe.md)
@@ -718,6 +729,7 @@ Class | Method | HTTP request | Description
  - [MenuItemFull](docs/MenuItemFull.md)
  - [MenuItemRecipe](docs/MenuItemRecipe.md)
  - [MenuItemWithCosts](docs/MenuItemWithCosts.md)
+ - [MethodTotal](docs/MethodTotal.md)
  - [MetricResult](docs/MetricResult.md)
  - [MetricsQueryRequest](docs/MetricsQueryRequest.md)
  - [MetricsQueryResponse](docs/MetricsQueryResponse.md)
@@ -778,6 +790,7 @@ Class | Method | HTTP request | Description
  - [PatchOptionRequest](docs/PatchOptionRequest.md)
  - [PauseInput](docs/PauseInput.md)
  - [PaymentLeg](docs/PaymentLeg.md)
+ - [PaymentMethodAvailability](docs/PaymentMethodAvailability.md)
  - [PaymentSplitInput](docs/PaymentSplitInput.md)
  - [PaymentSummaryRow](docs/PaymentSummaryRow.md)
  - [PayrollAdjustment](docs/PayrollAdjustment.md)
@@ -934,6 +947,8 @@ Class | Method | HTTP request | Description
  - [TillRefunds](docs/TillRefunds.md)
  - [TillReportFigures](docs/TillReportFigures.md)
  - [TillReportResponse](docs/TillReportResponse.md)
+ - [TillStatus](docs/TillStatus.md)
+ - [TillVerification](docs/TillVerification.md)
  - [TimeseriesPoint](docs/TimeseriesPoint.md)
  - [TopPer](docs/TopPer.md)
  - [TopReward](docs/TopReward.md)
@@ -975,6 +990,7 @@ Class | Method | HTTP request | Description
  - [UpsertSizeRequest](docs/UpsertSizeRequest.md)
  - [UpsertWorkShiftRequest](docs/UpsertWorkShiftRequest.md)
  - [UsedInBundleOut](docs/UsedInBundleOut.md)
+ - [UserAllowList](docs/UserAllowList.md)
  - [UserBranch](docs/UserBranch.md)
  - [UserPermissionItem](docs/UserPermissionItem.md)
  - [UserPublic](docs/UserPublic.md)

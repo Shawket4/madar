@@ -171,7 +171,7 @@ pub struct Till {
     pub reconciliation_status: Option<Option<String>>,
     /// `open` | `closed` | `force_closed`
     #[serde(rename = "status")]
-    pub status: String,
+    pub status: models::TillStatus,
     #[serde(rename = "teller_id")]
     pub teller_id: uuid::Uuid,
     #[serde(rename = "teller_name")]
@@ -185,7 +185,7 @@ pub struct Till {
     pub timezone: Option<Option<String>>,
     /// `server` | `lan` | `unverified` | `legacy`
     #[serde(rename = "verification")]
-    pub verification: String,
+    pub verification: models::TillVerification,
 }
 
 impl Till {
@@ -197,10 +197,10 @@ impl Till {
         opened_while_another_open: bool,
         opening_cash: i32,
         opening_cash_was_edited: bool,
-        status: String,
+        status: models::TillStatus,
         teller_id: uuid::Uuid,
         teller_name: String,
-        verification: String,
+        verification: models::TillVerification,
     ) -> Till {
         Till {
             branch_id,

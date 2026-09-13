@@ -43,13 +43,13 @@ pub struct TillBrief {
     #[serde(rename = "opened_while_another_open")]
     pub opened_while_another_open: bool,
     #[serde(rename = "status")]
-    pub status: String,
+    pub status: models::TillStatus,
     #[serde(rename = "teller_id")]
     pub teller_id: uuid::Uuid,
     #[serde(rename = "teller_name")]
     pub teller_name: String,
     #[serde(rename = "verification")]
-    pub verification: String,
+    pub verification: models::TillVerification,
 }
 
 impl TillBrief {
@@ -58,10 +58,10 @@ impl TillBrief {
         id: uuid::Uuid,
         opened_at: chrono::DateTime<chrono::FixedOffset>,
         opened_while_another_open: bool,
-        status: String,
+        status: models::TillStatus,
         teller_id: uuid::Uuid,
         teller_name: String,
-        verification: String,
+        verification: models::TillVerification,
     ) -> TillBrief {
         TillBrief {
             branch_id,
