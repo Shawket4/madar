@@ -352,8 +352,12 @@ impl MadarBridge {
         madar_core::checkout::split_auto_fill(due_minor, &legs, &typed, &typed_id)
     }
 
-    pub async fn checkout(&self, input: CheckoutInput) -> Result<ReceiptView, MadarError> {
-        self.inner.checkout(input).await.map_err(MadarError::from)
+    pub async fn checkout(
+        &self,
+        table_id: Option<String>,
+        input: CheckoutInput,
+    ) -> Result<ReceiptView, MadarError> {
+        self.inner.checkout(table_id, input).await.map_err(MadarError::from)
     }
 
     /// The current shift's orders — still-queued sales (offline-safe) plus

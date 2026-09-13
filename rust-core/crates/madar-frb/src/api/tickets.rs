@@ -106,9 +106,13 @@ impl MadarBridge {
 
     /// Add a ROUND of the current cart to an existing open ticket. Same offline-first
     /// path as `fire_ticket`; gated behind the original fire if it hasn't synced.
-    pub async fn add_ticket_round(&self, ticket_id: String) -> Result<TicketFiredView, MadarError> {
+    pub async fn add_ticket_round(
+        &self,
+        table_id: Option<String>,
+        ticket_id: String,
+    ) -> Result<TicketFiredView, MadarError> {
         self.inner
-            .add_ticket_round(ticket_id)
+            .add_ticket_round(table_id, ticket_id)
             .await
             .map_err(MadarError::from)
     }

@@ -101,6 +101,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  CartMeta dco_decode_box_autoadd_cart_meta(dynamic raw);
+
+  @protected
   CheckoutInput dco_decode_box_autoadd_checkout_input(dynamic raw);
 
   @protected
@@ -171,6 +174,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CartLineView dco_decode_cart_line_view(dynamic raw);
+
+  @protected
+  CartMeta dco_decode_cart_meta(dynamic raw);
 
   @protected
   CartOptionalView dco_decode_cart_optional_view(dynamic raw);
@@ -746,6 +752,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  CartMeta sse_decode_box_autoadd_cart_meta(SseDeserializer deserializer);
+
+  @protected
   CheckoutInput sse_decode_box_autoadd_checkout_input(
     SseDeserializer deserializer,
   );
@@ -838,6 +847,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CartLineView sse_decode_cart_line_view(SseDeserializer deserializer);
+
+  @protected
+  CartMeta sse_decode_cart_meta(SseDeserializer deserializer);
 
   @protected
   CartOptionalView sse_decode_cart_optional_view(SseDeserializer deserializer);
@@ -1577,6 +1589,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_cart_meta(
+    CartMeta self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_checkout_input(
     CheckoutInput self,
     SseSerializer serializer,
@@ -1695,6 +1713,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_cart_line_view(CartLineView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cart_meta(CartMeta self, SseSerializer serializer);
 
   @protected
   void sse_encode_cart_optional_view(

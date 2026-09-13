@@ -40,7 +40,10 @@ String greet({required String name}) =>
 abstract class MadarBridge implements RustOpaqueInterface {
   /// Add a ROUND of the current cart to an existing open ticket. Same offline-first
   /// path as `fire_ticket`; gated behind the original fire if it hasn't synced.
-  Future<TicketFiredView> addTicketRound({required String ticketId});
+  Future<TicketFiredView> addTicketRound({
+    String? tableId,
+    required String ticketId,
+  });
 
   /// The screen to show. Re-read at deliberate transitions only.
   AppRoute appRoute();
@@ -67,6 +70,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Add one unit of a menu item (merges into the matching line). The host
   /// passes the resolved display name + unit price so the cart is self-contained.
   Future<List<CartLineView>> cartAdd({
+    String? tableId,
     required String itemId,
     required String name,
     required PlatformInt64 unitPriceMinor,
@@ -75,6 +79,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Add a configured BUNDLE line: the fixed bundle price + each component's
   /// chosen item/size/addons/optionals, up-charges resolved from the catalog.
   Future<List<CartLineView>> cartAddBundle({
+    String? tableId,
     required String bundleId,
     required List<BundleComponentSelection> components,
     required PlatformInt64 qty,
@@ -84,6 +89,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// resolves the charged prices from the cached catalog and merges identical
   /// configs — the addon prices are resolved here, not trusted from the host.
   Future<List<CartLineView>> cartAddConfigured({
+    String? tableId,
     required String itemId,
     String? sizeLabel,
     required List<AddonSelection> addons,
@@ -94,33 +100,42 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// The bill's subtotal so far plus this round's.
   Future<PlatformInt64> cartBillSoFarMinor({
+    String? tableId,
     required PlatformInt64 ticketSubtotalMinor,
   });
 
   /// Empty the ACTIVE context's cart (other tables / takeaway untouched).
-  Future<void> cartClear();
+  Future<void> cartClear({String? tableId});
+
+  /// Empty EVERY context's cart and meta (sign-out / shift close).
+  Future<void> cartClearAll();
 
   /// Remove the cart discount.
-  Future<void> cartClearDiscount();
-
-  /// The active cart context: `None` = takeaway, else the table id.
-  Future<String?> cartContext();
+  Future<void> cartClearDiscount({String? tableId});
 
   /// The selected discount id (for the tender UI), or `None`.
-  Future<String?> cartDiscountId();
+  Future<String?> cartDiscountId({String? tableId});
 
   /// The current cart lines (empty when none).
-  Future<List<CartLineView>> cartLines();
+  Future<List<CartLineView>> cartLines({String? tableId});
+
+  /// One context's cart meta (`None` = takeaway): name, parked-order id,
+  /// booking, table label, guest, covers, started_at. Persisted in the core.
+  Future<CartMeta> cartMeta({String? tableId});
 
   /// The cart's order note, or `None`.
-  Future<String?> cartNote();
+  Future<String?> cartNote({String? tableId});
 
   /// Remove a line entirely (stashed for undo — see `cart_restore_removed`).
-  Future<List<CartLineView>> cartRemove({required String itemId});
+  Future<List<CartLineView>> cartRemove({
+    String? tableId,
+    required String itemId,
+  });
 
   /// EDIT a configured line: resolve, then swap it in for `line_key` in one
   /// write. A failure leaves the original line in the cart.
   Future<List<CartLineView>> cartReplaceConfigured({
+    String? tableId,
     required String lineKey,
     required String itemId,
     String? sizeLabel,
@@ -132,28 +147,30 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
   /// nothing was removed (or it was already restored / the cart was cleared).
-  Future<List<CartLineView>> cartRestoreRemoved();
-
-  /// Switch which cart is in hand: `None` = the counter's takeaway cart,
-  /// `Some(table_id)` = that table's own cart. Lines are never copied
-  /// between contexts. Returns the now-active cart's lines.
-  Future<List<CartLineView>> cartSetContext({String? tableId});
+  Future<List<CartLineView>> cartRestoreRemoved({String? tableId});
 
   /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
-  Future<void> cartSetDiscount({required String discountId});
+  Future<void> cartSetDiscount({String? tableId, required String discountId});
+
+  /// Replace one context's cart meta (reset when that cart is spent).
+  Future<void> cartSetMeta({String? tableId, required CartMeta meta});
 
   /// Set or clear (None / blank) the note for the whole order in hand.
-  Future<void> cartSetNote({String? note});
+  Future<void> cartSetNote({String? tableId, String? note});
 
   /// Set a line's absolute quantity (by its key); `qty <= 0` removes the line.
   Future<List<CartLineView>> cartSetQty({
+    String? tableId,
     required String itemId,
     required PlatformInt64 qty,
   });
 
+  /// Table ids whose cart currently holds unsent lines.
+  Future<List<String>> cartTableContexts();
+
   /// Priced cart summary at the session's org tax rate (0 when signed out),
   /// computed through the pricing engine.
-  Future<CartTotals> cartTotals();
+  Future<CartTotals> cartTotals({String? tableId});
 
   /// Cash-drawer kick bytes for the chosen printer dialect — send via
   /// `send_to_printer` right after a CASH sale's receipt so the till pops.
@@ -175,7 +192,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Flutter's `CatStyle.of`. `dark` picks the dark-mode palette.
   CatStyleView categoryStyle({required String name, required bool dark});
 
-  Future<ReceiptView> checkout({required CheckoutInput input});
+  Future<ReceiptView> checkout({String? tableId, required CheckoutInput input});
 
   /// Decide what a captured string is: a whole member token, a phone number,
   /// or neither yet.
@@ -383,24 +400,25 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Cached ACL check (optimistic while offline).
   bool hasPermission({required String resource, required String action});
 
-  /// Park the current cart as a named draft (held order) and empty the
-  /// cart. Pass the ORIGINAL `draft_id`/`started_at` when re-parking a
-  /// restored draft so it keeps its identity, name slot, and its
-  /// oldest→newest strip position across switch cycles.
+  /// Park `table_id`'s cart (`None` = takeaway) as a named draft with no
+  /// table, and empty that cart. Pass the ORIGINAL `draft_id`/`started_at`
+  /// when re-parking a restored draft so it keeps its identity and position.
   Future<void> holdCart({
+    String? tableId,
     required String name,
     String? draftId,
     String? startedAt,
   });
 
-  /// Park the current cart onto a floor table (or none). Returns `true` when
-  /// the requested table was DROPPED because it's taken — the park itself
-  /// still succeeded; the host toasts "table was taken, parked without it".
+  /// Park `table_id`'s cart onto floor table `onto_table_id` (or none).
+  /// Returns `true` when that table was DROPPED because it's taken — the
+  /// park itself still succeeded.
   Future<bool> holdCartOnTable({
+    String? tableId,
     required String name,
     String? draftId,
     String? startedAt,
-    String? tableId,
+    String? ontoTableId,
   });
 
   bool isAuthenticated();
@@ -760,9 +778,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<OrderSummaryView> orders,
   });
 
-  /// Restore a draft into the cart (replaces current lines) and CLAIM it for
-  /// this till. Errors when another till is editing it.
-  Future<List<CartLineView>> restoreDraft({required String id});
+  /// Restore a draft into `table_id`'s cart (replaces its lines) and CLAIM
+  /// it for this till. Errors when another till is editing it.
+  Future<List<CartLineView>> restoreDraft({
+    String? tableId,
+    required String id,
+  });
 
   /// Restore a HOST-supplied session blob (the one-time legacy keychain
   /// migration path). Writes through to the core's own store.
@@ -948,10 +969,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String tableB,
   });
 
-  /// Resume a parked order in one call: park the cart in hand (if asked),
-  /// switch to the draft's context, park anything already there, restore.
-  /// Refuses before touching anything when the draft cannot be resumed.
+  /// Resume a parked order in one call: park `from_table_id`'s cart (if
+  /// asked), park anything already in the draft's own context, restore the
+  /// draft there with its meta. Activates nothing: the view's `table_id`
+  /// names the context the host should now show.
   Future<DraftSwitchView> switchToDraft({
+    String? fromTableId,
     required String id,
     HeldParkInput? parkInHand,
     HeldParkInput? parkAtTarget,

@@ -8,7 +8,7 @@ use crate::api::error::MadarError;
 
 pub use madar_core::cart::{
     AddonSelection, BundleComponentSelection, CartAddonView, CartBundleComponentView, CartLineView,
-    CartOptionalView, CartTotals, DraftSwitchView, DraftView, GroupViolationView, HeldParkInput,
+    CartOptionalView, CartTotals, CartMeta, DraftSwitchView, DraftView, GroupViolationView, HeldParkInput,
     ItemAddonView, LinePreviewView, ModifierGroupKind, ModifierGroupView, ModifierOptionView,
 };
 pub use madar_core::recipe::ComputedRecipeLineView;
@@ -162,6 +162,17 @@ pub struct _HeldParkInput {
 }
 
 /// What `switch_to_draft` left in hand.
+#[frb(mirror(CartMeta))]
+pub struct _CartMeta {
+    pub name: String,
+    pub draft_id: Option<String>,
+    pub booking_id: Option<String>,
+    pub table_label: Option<String>,
+    pub guest_name: Option<String>,
+    pub started_at: Option<String>,
+    pub covers: Option<i32>,
+}
+
 #[frb(mirror(DraftSwitchView))]
 pub struct _DraftSwitchView {
     pub lines: Vec<CartLineView>,
@@ -204,20 +215,21 @@ impl MadarBridge {
     // ── cart (client-only order state, offline-safe, kv-persisted) ────────
 
     /// The current cart lines (empty when none).
-    pub fn cart_lines(&self) -> Result<Vec<CartLineView>, MadarError> {
-        self.inner.cart_lines().map_err(MadarError::from)
+    pub fn cart_lines(&self, table_id: Option<String>) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner.cart_lines(table_id).map_err(MadarError::from)
     }
 
     /// Add one unit of a menu item (merges into the matching line). The host
     /// passes the resolved display name + unit price so the cart is self-contained.
     pub fn cart_add(
         &self,
+        table_id: Option<String>,
         item_id: String,
         name: String,
         unit_price_minor: i64,
     ) -> Result<Vec<CartLineView>, MadarError> {
         self.inner
-            .cart_add(item_id, name, unit_price_minor)
+            .cart_add(table_id, item_id, name, unit_price_minor)
             .map_err(MadarError::from)
     }
 
@@ -226,6 +238,7 @@ impl MadarBridge {
     /// configs — the addon prices are resolved here, not trusted from the host.
     pub fn cart_add_configured(
         &self,
+        table_id: Option<String>,
         item_id: String,
         size_label: Option<String>,
         addons: Vec<AddonSelection>,
@@ -234,7 +247,7 @@ impl MadarBridge {
         notes: Option<String>,
     ) -> Result<Vec<CartLineView>, MadarError> {
         self.inner
-            .cart_add_configured(item_id, size_label, addons, optional_field_ids, qty, notes)
+            .cart_add_configured(table_id, item_id, size_label, addons, optional_field_ids, qty, notes)
             .map_err(MadarError::from)
     }
 
@@ -243,6 +256,7 @@ impl MadarBridge {
     #[allow(clippy::too_many_arguments)]
     pub fn cart_replace_configured(
         &self,
+        table_id: Option<String>,
         line_key: String,
         item_id: String,
         size_label: Option<String>,
@@ -253,6 +267,7 @@ impl MadarBridge {
     ) -> Result<Vec<CartLineView>, MadarError> {
         self.inner
             .cart_replace_configured(
+                table_id,
                 line_key,
                 item_id,
                 size_label,
@@ -280,9 +295,9 @@ impl MadarBridge {
     }
 
     /// The bill's subtotal so far plus this round's.
-    pub fn cart_bill_so_far_minor(&self, ticket_subtotal_minor: i64) -> Result<i64, MadarError> {
+    pub fn cart_bill_so_far_minor(&self, table_id: Option<String>, ticket_subtotal_minor: i64) -> Result<i64, MadarError> {
         self.inner
-            .cart_bill_so_far_minor(ticket_subtotal_minor)
+            .cart_bill_so_far_minor(table_id, ticket_subtotal_minor)
             .map_err(MadarError::from)
     }
 
@@ -290,12 +305,13 @@ impl MadarBridge {
     /// chosen item/size/addons/optionals, up-charges resolved from the catalog.
     pub fn cart_add_bundle(
         &self,
+        table_id: Option<String>,
         bundle_id: String,
         components: Vec<BundleComponentSelection>,
         qty: i64,
     ) -> Result<Vec<CartLineView>, MadarError> {
         self.inner
-            .cart_add_bundle(bundle_id, components, qty)
+            .cart_add_bundle(table_id, bundle_id, components, qty)
             .map_err(MadarError::from)
     }
 
@@ -349,72 +365,77 @@ impl MadarBridge {
     }
 
     /// Set a line's absolute quantity (by its key); `qty <= 0` removes the line.
-    pub fn cart_set_qty(&self, item_id: String, qty: i64) -> Result<Vec<CartLineView>, MadarError> {
+    pub fn cart_set_qty(&self, table_id: Option<String>, item_id: String, qty: i64) -> Result<Vec<CartLineView>, MadarError> {
         self.inner
-            .cart_set_qty(item_id, qty)
+            .cart_set_qty(table_id, item_id, qty)
             .map_err(MadarError::from)
     }
 
     /// Remove a line entirely (stashed for undo — see `cart_restore_removed`).
-    pub fn cart_remove(&self, item_id: String) -> Result<Vec<CartLineView>, MadarError> {
-        self.inner.cart_remove(item_id).map_err(MadarError::from)
+    pub fn cart_remove(&self, table_id: Option<String>, item_id: String) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner.cart_remove(table_id, item_id).map_err(MadarError::from)
     }
 
     /// Undo the last `cart_remove` — re-inserts the swiped-away line. No-op if
     /// nothing was removed (or it was already restored / the cart was cleared).
-    pub fn cart_restore_removed(&self) -> Result<Vec<CartLineView>, MadarError> {
-        self.inner.cart_restore_removed().map_err(MadarError::from)
+    pub fn cart_restore_removed(&self, table_id: Option<String>) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner.cart_restore_removed(table_id).map_err(MadarError::from)
     }
 
     /// Empty the ACTIVE context's cart (other tables / takeaway untouched).
-    pub fn cart_clear(&self) -> Result<(), MadarError> {
-        self.inner.cart_clear().map_err(MadarError::from)
+    pub fn cart_clear(&self, table_id: Option<String>) -> Result<(), MadarError> {
+        self.inner.cart_clear(table_id).map_err(MadarError::from)
     }
 
-    /// Switch which cart is in hand: `None` = the counter's takeaway cart,
-    /// `Some(table_id)` = that table's own cart. Lines are never copied
-    /// between contexts. Returns the now-active cart's lines.
-    pub fn cart_set_context(
-        &self,
-        table_id: Option<String>,
-    ) -> Result<Vec<CartLineView>, MadarError> {
-        self.inner
-            .cart_set_context(table_id)
-            .map_err(MadarError::from)
+    /// One context's cart meta (`None` = takeaway): name, parked-order id,
+    /// booking, table label, guest, covers, started_at. Persisted in the core.
+    pub fn cart_meta(&self, table_id: Option<String>) -> Result<CartMeta, MadarError> {
+        self.inner.cart_meta(table_id).map_err(MadarError::from)
     }
 
-    /// The active cart context: `None` = takeaway, else the table id.
-    pub fn cart_context(&self) -> Result<Option<String>, MadarError> {
-        self.inner.cart_context().map_err(MadarError::from)
+    /// Replace one context's cart meta (reset when that cart is spent).
+    pub fn cart_set_meta(&self, table_id: Option<String>, meta: CartMeta) -> Result<(), MadarError> {
+        self.inner.cart_set_meta(table_id, meta).map_err(MadarError::from)
     }
 
-    /// Park the current cart as a named draft (held order) and empty the
-    /// cart. Pass the ORIGINAL `draft_id`/`started_at` when re-parking a
-    /// restored draft so it keeps its identity, name slot, and its
-    /// oldest→newest strip position across switch cycles.
+    /// Table ids whose cart currently holds unsent lines.
+    pub fn cart_table_contexts(&self) -> Result<Vec<String>, MadarError> {
+        self.inner.cart_table_contexts().map_err(MadarError::from)
+    }
+
+    /// Empty EVERY context's cart and meta (sign-out / shift close).
+    pub fn cart_clear_all(&self) -> Result<(), MadarError> {
+        self.inner.cart_clear_all().map_err(MadarError::from)
+    }
+
+    /// Park `table_id`'s cart (`None` = takeaway) as a named draft with no
+    /// table, and empty that cart. Pass the ORIGINAL `draft_id`/`started_at`
+    /// when re-parking a restored draft so it keeps its identity and position.
     pub fn hold_cart(
         &self,
+        table_id: Option<String>,
         name: String,
         draft_id: Option<String>,
         started_at: Option<String>,
     ) -> Result<(), MadarError> {
         self.inner
-            .hold_cart(name, draft_id, started_at)
+            .hold_cart(table_id, name, draft_id, started_at)
             .map_err(MadarError::from)
     }
 
-    /// Park the current cart onto a floor table (or none). Returns `true` when
-    /// the requested table was DROPPED because it's taken — the park itself
-    /// still succeeded; the host toasts "table was taken, parked without it".
+    /// Park `table_id`'s cart onto floor table `onto_table_id` (or none).
+    /// Returns `true` when that table was DROPPED because it's taken — the
+    /// park itself still succeeded.
     pub fn hold_cart_on_table(
         &self,
+        table_id: Option<String>,
         name: String,
         draft_id: Option<String>,
         started_at: Option<String>,
-        table_id: Option<String>,
+        onto_table_id: Option<String>,
     ) -> Result<bool, MadarError> {
         self.inner
-            .hold_cart_on_table(name, draft_id, started_at, table_id)
+            .hold_cart_on_table(table_id, name, draft_id, started_at, onto_table_id)
             .map_err(MadarError::from)
     }
 
@@ -424,26 +445,31 @@ impl MadarBridge {
         self.inner.list_drafts().map_err(MadarError::from)
     }
 
-    /// Restore a draft into the cart (replaces current lines) and CLAIM it for
-    /// this till. Errors when another till is editing it.
-    pub fn restore_draft(&self, id: String) -> Result<Vec<CartLineView>, MadarError> {
-        self.inner.restore_draft(id).map_err(MadarError::from)
+    /// Restore a draft into `table_id`'s cart (replaces its lines) and CLAIM
+    /// it for this till. Errors when another till is editing it.
+    pub fn restore_draft(
+        &self,
+        table_id: Option<String>,
+        id: String,
+    ) -> Result<Vec<CartLineView>, MadarError> {
+        self.inner.restore_draft(table_id, id).map_err(MadarError::from)
     }
 
-    /// Resume a parked order in one call: park the cart in hand (if asked),
-    /// switch to the draft's context, park anything already there, restore.
-    /// Refuses before touching anything when the draft cannot be resumed.
+    /// Resume a parked order in one call: park `from_table_id`'s cart (if
+    /// asked), park anything already in the draft's own context, restore the
+    /// draft there with its meta. Activates nothing: the view's `table_id`
+    /// names the context the host should now show.
     pub fn switch_to_draft(
         &self,
+        from_table_id: Option<String>,
         id: String,
         park_in_hand: Option<HeldParkInput>,
         park_at_target: Option<HeldParkInput>,
     ) -> Result<DraftSwitchView, MadarError> {
         self.inner
-            .switch_to_draft(id, park_in_hand, park_at_target)
+            .switch_to_draft(from_table_id, id, park_in_hand, park_at_target)
             .map_err(MadarError::from)
     }
-
     /// Give a restored draft's claim back without changes (the "never mind"
     /// path out of a resume).
     pub fn release_draft(&self, id: String) -> Result<(), MadarError> {
@@ -482,35 +508,35 @@ impl MadarBridge {
     }
 
     /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
-    pub fn cart_set_discount(&self, discount_id: String) -> Result<(), MadarError> {
+    pub fn cart_set_discount(&self, table_id: Option<String>, discount_id: String) -> Result<(), MadarError> {
         self.inner
-            .cart_set_discount(discount_id)
+            .cart_set_discount(table_id, discount_id)
             .map_err(MadarError::from)
     }
 
     /// Remove the cart discount.
-    pub fn cart_clear_discount(&self) -> Result<(), MadarError> {
-        self.inner.cart_clear_discount().map_err(MadarError::from)
+    pub fn cart_clear_discount(&self, table_id: Option<String>) -> Result<(), MadarError> {
+        self.inner.cart_clear_discount(table_id).map_err(MadarError::from)
     }
 
     /// Set or clear (None / blank) the note for the whole order in hand.
-    pub fn cart_set_note(&self, note: Option<String>) -> Result<(), MadarError> {
-        self.inner.cart_set_note(note).map_err(MadarError::from)
+    pub fn cart_set_note(&self, table_id: Option<String>, note: Option<String>) -> Result<(), MadarError> {
+        self.inner.cart_set_note(table_id, note).map_err(MadarError::from)
     }
 
     /// The cart's order note, or `None`.
-    pub fn cart_note(&self) -> Result<Option<String>, MadarError> {
-        self.inner.cart_note().map_err(MadarError::from)
+    pub fn cart_note(&self, table_id: Option<String>) -> Result<Option<String>, MadarError> {
+        self.inner.cart_note(table_id).map_err(MadarError::from)
     }
 
     /// The selected discount id (for the tender UI), or `None`.
-    pub fn cart_discount_id(&self) -> Result<Option<String>, MadarError> {
-        self.inner.cart_discount_id().map_err(MadarError::from)
+    pub fn cart_discount_id(&self, table_id: Option<String>) -> Result<Option<String>, MadarError> {
+        self.inner.cart_discount_id(table_id).map_err(MadarError::from)
     }
 
     /// Priced cart summary at the session's org tax rate (0 when signed out),
     /// computed through the pricing engine.
-    pub fn cart_totals(&self) -> Result<CartTotals, MadarError> {
-        self.inner.cart_totals().map_err(MadarError::from)
+    pub fn cart_totals(&self, table_id: Option<String>) -> Result<CartTotals, MadarError> {
+        self.inner.cart_totals(table_id).map_err(MadarError::from)
     }
 }

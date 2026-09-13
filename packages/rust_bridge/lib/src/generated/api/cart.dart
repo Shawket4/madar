@@ -201,6 +201,50 @@ class CartLineView {
           bundleComponents == other.bundleComponents;
 }
 
+/// What `switch_to_draft` left in hand.
+class CartMeta {
+  final String name;
+  final String? draftId;
+  final String? bookingId;
+  final String? tableLabel;
+  final String? guestName;
+  final String? startedAt;
+  final int? covers;
+
+  const CartMeta({
+    required this.name,
+    this.draftId,
+    this.bookingId,
+    this.tableLabel,
+    this.guestName,
+    this.startedAt,
+    this.covers,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      draftId.hashCode ^
+      bookingId.hashCode ^
+      tableLabel.hashCode ^
+      guestName.hashCode ^
+      startedAt.hashCode ^
+      covers.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CartMeta &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          draftId == other.draftId &&
+          bookingId == other.bookingId &&
+          tableLabel == other.tableLabel &&
+          guestName == other.guestName &&
+          startedAt == other.startedAt &&
+          covers == other.covers;
+}
+
 class CartOptionalView {
   final String optionalFieldId;
   final String name;
@@ -308,7 +352,6 @@ class ComputedRecipeLineView {
           isBase == other.isBase;
 }
 
-/// What `switch_to_draft` left in hand.
 class DraftSwitchView {
   final List<CartLineView> lines;
   final String? tableId;
