@@ -1572,24 +1572,6 @@ class _AddonGroupCardState extends ConsumerState<_AddonGroupCard> {
                                   : widget.selectedSingle == a.addonItemId),
                         )
                         .toList(growable: false);
-              // One of several (a milk swap family, any max-1 group): radio
-              // rows, so the choice reads as a REPLACEMENT, never an extra.
-              if (!g.isMulti) {
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final addon in shown)
-                      MadarListRow.pick(
-                        title: addon.name,
-                        meta: widget.charged(addon.addonItemId) > 0
-                            ? '+${Money.format(widget.charged(addon.addonItemId), currency: widget.currency, locale: MadarFormat.localeOf(context))}'
-                            : null,
-                        selected: widget.selectedSingle == addon.addonItemId,
-                        onTap: () => widget.onToggleSingle(addon.addonItemId),
-                      ),
-                  ],
-                );
-              }
               return Wrap(
                 spacing: Space.sm,
                 runSpacing: Space.sm,
