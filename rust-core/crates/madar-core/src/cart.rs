@@ -1525,6 +1525,7 @@ fn priced(l: &StoredLine) -> pricing::CartLine {
         quantity: l.qty,
         unit_price: l.unit_price_minor,
         is_bundle: l.bundle_id.is_some(),
+        reward_units: 0,
         addons: l
             .addons
             .iter()

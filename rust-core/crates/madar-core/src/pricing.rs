@@ -70,6 +70,10 @@ pub struct CartLine {
     pub quantity: i64,
     pub unit_price: MoneyMinor,
     pub is_bundle: bool,
+    /// Units of this line a loyalty reward covers. They come off the subtotal
+    /// at the line's charged per-unit price, BEFORE the discount — the server's
+    /// order (`loyalty_reward_vectors.json`). Never set on a bundle.
+    pub reward_units: i64,
     pub addons: Vec<AddonSel>,
     pub optionals: Vec<OptionalSel>,
     pub bundle_components: Vec<BundleComponentSel>,
@@ -106,7 +110,10 @@ pub struct PriceCartInput {
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PricedBreakdown {
+    /// Lines as charged, LESS what rewards covered.
     pub subtotal_minor: MoneyMinor,
+    /// What rewards took off the lines (0 without rewards).
+    pub reward_covered_minor: MoneyMinor,
     pub discount_minor: MoneyMinor,
     pub taxable_minor: MoneyMinor,
     pub tax_minor: MoneyMinor,
@@ -156,7 +163,16 @@ fn line_total(line: &CartLine) -> MoneyMinor {
 /// they submit. Send the full breakdown on every order.
 #[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
-    let subtotal: MoneyMinor = input.lines.iter().map(line_total).sum();
+    // Rewards first: the covered units leave the subtotal before anything is
+    // computed on it, so the discount, service charge and tax never see them.
+    let reward_covered: MoneyMinor = input
+        .lines
+        .iter()
+        .filter(|l| !l.is_bundle)
+        .map(|l| crate::loyalty::covered_minor(line_total(l), l.quantity, l.reward_units))
+        .sum();
+    let subtotal: MoneyMinor =
+        input.lines.iter().map(line_total).sum::<MoneyMinor>() - reward_covered;
 
     // Discount, clamped to [0, subtotal] whatever its kind (doc 05 F8: a >100%
     // percentage must not drive the total negative; fixed is capped likewise).
@@ -203,6 +219,7 @@ pub fn price_cart(input: PriceCartInput) -> PricedBreakdown {
 
     PricedBreakdown {
         subtotal_minor: subtotal,
+        reward_covered_minor: reward_covered,
         discount_minor: discount,
         taxable_minor: taxable,
         tax_minor: b.tax,
@@ -221,6 +238,7 @@ mod tests {
             quantity: qty,
             unit_price: unit,
             is_bundle: false,
+            reward_units: 0,
             addons: vec![],
             optionals: vec![],
             bundle_components: vec![],
@@ -277,6 +295,7 @@ mod tests {
             quantity: 1,
             unit_price: 5000,
             is_bundle: false,
+            reward_units: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 1000,
@@ -294,6 +313,7 @@ mod tests {
             quantity: 1,
             unit_price: 5000,
             is_bundle: false,
+            reward_units: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 500,
@@ -348,6 +368,7 @@ mod tests {
                 quantity: 1,
                 unit_price: 12000,
                 is_bundle: true,
+                reward_units: 0,
                 addons: vec![],
                 optionals: vec![],
                 bundle_components: if a_first {
@@ -374,6 +395,7 @@ mod tests {
             quantity: 1,
             unit_price: 1500,
             is_bundle: false,
+            reward_units: 0,
             addons: vec![
                 AddonSel {
                     price_modifier: 500,
@@ -487,6 +509,7 @@ mod tests {
             quantity: 2,
             unit_price: 5000, // fixed bundle price
             is_bundle: true,
+            reward_units: 0,
             addons: vec![],
             optionals: vec![],
             bundle_components: vec![comp1, comp2],
@@ -522,6 +545,7 @@ mod tests {
             b,
             PricedBreakdown {
                 subtotal_minor: 0,
+                reward_covered_minor: 0,
                 discount_minor: 0,
                 taxable_minor: 0,
                 tax_minor: 0,
@@ -723,6 +747,7 @@ mod tests {
             quantity: 3,
             unit_price: 4000,
             is_bundle: true,
+            reward_units: 0,
             addons: vec![],
             optionals: vec![],
             bundle_components: vec![comp],
@@ -740,6 +765,7 @@ mod tests {
             quantity: 1,
             unit_price: 5000,
             is_bundle: true,
+            reward_units: 0,
             addons: vec![AddonSel {
                 price_modifier: 9999,
                 quantity: 5,
@@ -761,6 +787,7 @@ mod tests {
             quantity: 1,
             unit_price: 1000,
             is_bundle: false,
+            reward_units: 0,
             addons: vec![AddonSel {
                 price_modifier: 300,
                 quantity: 3,
@@ -793,6 +820,7 @@ mod tests {
             quantity: 2,
             unit_price: 0,
             is_bundle: false,
+            reward_units: 0,
             addons: vec![],
             optionals: vec![OptionalSel { price: 300 }],
             bundle_components: vec![],
@@ -849,6 +877,7 @@ mod proptests {
                 quantity,
                 unit_price,
                 is_bundle: false,
+                reward_units: 0,
                 addons,
                 optionals,
                 bundle_components: vec![],
@@ -975,12 +1004,94 @@ mod proptests {
         };
         PricedBreakdown {
             subtotal_minor: subtotal,
+            reward_covered_minor: 0,
             discount_minor: discount,
             taxable_minor: taxable,
             tax_minor: b.tax,
             service_charge_minor: b.service_charge,
             total_minor: total,
             change_given_minor: change_given,
+        }
+    }
+
+    /// The till's reward arithmetic against the server's, bill for bill:
+    /// `loyalty_reward_vectors.json` is generated by MadarRust
+    /// (`loyalty::reward_vectors`) and committed identically here.
+    #[test]
+    fn reward_pricing_agrees_with_the_servers_vectors() {
+        #[derive(serde::Deserialize)]
+        struct VLine {
+            per_unit: i64,
+            qty: i64,
+            reward_units: i64,
+        }
+        #[derive(serde::Deserialize)]
+        struct V {
+            lines: Vec<VLine>,
+            discount_kind: String,
+            discount_value: String,
+            tax_rate: String,
+            tax_inclusive: bool,
+            service_charge_rate: String,
+            covered: i64,
+            subtotal: i64,
+            discount: i64,
+            service_charge: i64,
+            tax: i64,
+            total: i64,
+        }
+        let raw = include_str!("../loyalty_reward_vectors.json");
+        let vectors: Vec<V> = serde_json::from_str(raw).unwrap();
+        assert!(!vectors.is_empty());
+        for v in vectors {
+            let out = price_cart(PriceCartInput {
+                lines: v
+                    .lines
+                    .iter()
+                    .map(|l| CartLine {
+                        quantity: l.qty,
+                        unit_price: l.per_unit,
+                        is_bundle: false,
+                        reward_units: l.reward_units,
+                        addons: vec![],
+                        optionals: vec![],
+                        bundle_components: vec![],
+                    })
+                    .collect(),
+                discount_kind: match v.discount_kind.as_str() {
+                    "percentage" => DiscountKind::Percentage,
+                    "fixed" => DiscountKind::Fixed,
+                    _ => DiscountKind::None,
+                },
+                discount_value: v.discount_value.parse().unwrap(),
+                tax_rate: v.tax_rate.parse().unwrap(),
+                tax_inclusive: v.tax_inclusive,
+                service_charge_rate: v.service_charge_rate.parse().unwrap(),
+                service_charge_taxable: true,
+                amount_tendered: None,
+                cash_tip: 0,
+            });
+            let got = (
+                out.reward_covered_minor,
+                out.subtotal_minor,
+                out.discount_minor,
+                out.service_charge_minor,
+                out.tax_minor,
+                out.total_minor,
+            );
+            let want = (
+                v.covered,
+                v.subtotal,
+                v.discount,
+                v.service_charge,
+                v.tax,
+                v.total,
+            );
+            assert_eq!(
+                got, want,
+                "{} / {} / {}",
+                v.discount_kind, v.discount_value, v.tax_rate
+            );
         }
     }
 }

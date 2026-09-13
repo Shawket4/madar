@@ -30,6 +30,7 @@ fn build_input(u: &mut Unstructured) -> arbitrary::Result<PriceCartInput> {
             quantity: u.int_in_range(0..=1000)?,
             unit_price: u.int_in_range(0..=1_000_000)?,
             is_bundle: false,
+            reward_units: 0,
             addons,
             optionals,
             bundle_components: vec![],
