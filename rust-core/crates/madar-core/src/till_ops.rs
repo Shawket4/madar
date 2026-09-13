@@ -83,8 +83,18 @@ impl MadarCore {
         .map_err(net::map_api_error)
     }
 
-    async fn server_prefill(&self, branch: &str) -> Option<models::TillPreFill> {
-        self.fetch_prefill(branch).await.ok()
+    /// The live server check: `/tills/.../current`, else — when that call fails
+    /// moments after sign-in — what sign-in itself said.
+    async fn server_prefill(&self, branch: &str, user_id: &str) -> Option<models::TillPreFill> {
+        match self.fetch_prefill(branch).await {
+            Ok(pf) => Some(pf),
+            Err(_) => till::login_prefill(
+                &self.store,
+                user_id,
+                &self.lan_device_id(),
+                chrono::Utc::now(),
+            ),
+        }
     }
 
     // ── public surface ─────────────────────────────────────────────────────
@@ -108,7 +118,7 @@ impl MadarCore {
         let sp = self.session_parts()?;
         let dev = self.lan_device_id();
         let server = if sp.online {
-            self.server_prefill(&sp.branch_id).await
+            self.server_prefill(&sp.branch_id, &sp.user_id).await
         } else {
             None
         };
@@ -141,7 +151,7 @@ impl MadarCore {
         }
         let dev = self.lan_device_id();
         let server = if sp.online {
-            self.server_prefill(&sp.branch_id).await
+            self.server_prefill(&sp.branch_id, &sp.user_id).await
         } else {
             None
         };
@@ -161,6 +171,9 @@ impl MadarCore {
             till::OpenDecision::Resume(t) => {
                 till::save(&self.store, &t)?;
                 self.lan_sync_open_tills();
+                // Resuming is this device opening the till for selling again:
+                // the same background drain + pull (decision 15).
+                self.spawn_till_open_sync(t.id.clone());
                 let v = till::view_from(&t);
                 return Ok(till::OpenTillOutcome {
                     verification: v.verification.clone(),

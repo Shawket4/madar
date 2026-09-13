@@ -4415,6 +4415,14 @@ impl MadarCore {
         // PIN login carries the device branch; email login has none.
         let branch_id = req.branch_id.clone();
         let mut snapshot = session::snapshot_from_login(&resp, branch_id);
+        // Sign-in is the live server check for the person's open till (decision
+        // 4a): keep its answer so opening stays verified if the next call fails.
+        till::remember_login_open_till(
+            &self.store,
+            &snapshot.user_id,
+            resp.open_till.clone().flatten().map(|b| *b),
+            chrono::Utc::now(),
+        );
 
         // Mirror permissions (best-effort — a perms blip must not void a good login).
         let permissions = match auth_api::get_my_permissions(&self.api.config()).await {

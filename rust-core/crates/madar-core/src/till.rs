@@ -990,6 +990,78 @@ fn open_till_of(pf: &models::TillPreFill) -> Option<&models::Till> {
         .filter(|t| t.status == "open")
 }
 
+/// kv key: what sign-in said about the person's open till (`/auth/login`'s
+/// `open_till`), with when it was said.
+fn login_open_till_key(user_id: &str) -> String {
+    format!("till:login_open:{user_id}")
+}
+
+/// How long sign-in's answer stands in for a failed `/tills/.../current`.
+pub(crate) const LOGIN_OPEN_TILL_TTL_SECS: i64 = 300;
+
+#[derive(Serialize, Deserialize)]
+struct LoginOpenTill {
+    at: chrono::DateTime<chrono::Utc>,
+    till: Option<models::TillBrief>,
+}
+
+/// Remember sign-in's server check (decision 4a: the live check at sign-in).
+pub(crate) fn remember_login_open_till(
+    store: &Store,
+    user_id: &str,
+    till: Option<models::TillBrief>,
+    now: chrono::DateTime<chrono::Utc>,
+) {
+    if let Ok(raw) = serde_json::to_string(&LoginOpenTill { at: now, till }) {
+        let _ = store.kv_put(&login_open_till_key(user_id), &raw);
+    }
+}
+
+/// Sign-in's answer as a prefill, while it is fresh: the person's till open on
+/// another device is `open_elsewhere`; open on THIS device it resumes the local
+/// record (sign-in does not carry the opening cash, so only a till this device
+/// already holds can resume); no open till is a clean, server-verified prefill.
+pub(crate) fn login_prefill(
+    store: &Store,
+    user_id: &str,
+    this_device_id: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<models::TillPreFill> {
+    let raw = store.kv_get(&login_open_till_key(user_id)).ok()??;
+    let said: LoginOpenTill = serde_json::from_str(&raw).ok()?;
+    if (now - said.at).num_seconds() > LOGIN_OPEN_TILL_TTL_SECS {
+        return None;
+    }
+    let mut pf = models::TillPreFill::default();
+    let Some(brief) = said.till.filter(|b| b.status == "open") else {
+        return Some(pf);
+    };
+    pf.has_open_till = true;
+    if !same_device(&brief.device_id, this_device_id) && brief.device_id.flatten().is_some() {
+        pf.open_elsewhere = vec![brief];
+        return Some(pf);
+    }
+    let local = record(store, &brief.id.to_string())?;
+    let mut till = models::Till::new(
+        brief.branch_id,
+        0,
+        brief.id,
+        brief.opened_at,
+        brief.opened_while_another_open,
+        local.opening_cash as i32,
+        local.opening_cash_was_edited,
+        "open".into(),
+        brief.teller_id,
+        brief.teller_name.clone(),
+        brief.verification.clone(),
+    );
+    till.device_id = brief.device_id;
+    till.device_code = brief.device_code.clone();
+    till.device_label = brief.device_label.clone();
+    pf.open_till = Some(Some(Box::new(till)));
+    Some(pf)
+}
+
 /// What to do with the local till after the server's prefill comes back.
 #[derive(Debug)]
 pub(crate) enum TillReconcile {
@@ -1726,6 +1798,51 @@ mod tests {
         assert_eq!(n.open_bills_amount_minor, 350);
         assert_eq!(n.oldest_opened_at.as_deref(), Some("2026-09-13T07:00:00Z"));
         assert!(local_open_bills_notice(&[], 0, 3, None, now).is_none());
+    }
+
+    #[test]
+    fn sign_in_answer_stands_in_for_a_failed_current_call() {
+        let store = Store::open("").unwrap();
+        let now = chrono::Utc::now();
+        let brief = |device: &str| models::TillBrief {
+            id: uid("T5"),
+            branch_id: uid("B1"),
+            teller_id: uid("U1"),
+            teller_name: "Sara".into(),
+            status: "open".into(),
+            opened_at: chrono::DateTime::parse_from_rfc3339("2026-09-13T08:00:00Z").unwrap(),
+            device_id: Some(Some(uuid::Uuid::parse_str(device).unwrap())),
+            device_code: Some(Some("36B".into())),
+            verification: "server".into(),
+            ..Default::default()
+        };
+        // Nothing said at sign-in: no stand-in.
+        assert!(login_prefill(&store, "U1", DEV, now).is_none());
+        // Open on another device: blocks, as the server would.
+        remember_login_open_till(&store, "U1", Some(brief(OTHER_DEV)), now);
+        let pf = login_prefill(&store, "U1", DEV, now).unwrap();
+        assert!(matches!(decide_open(Some(&pf), DEV, None, false), OpenDecision::Blocked(e) if e.source == "server"));
+        // Stale after the window: LAN / unverified decide again.
+        let later = now + chrono::Duration::seconds(LOGIN_OPEN_TILL_TTL_SECS + 1);
+        assert!(login_prefill(&store, "U1", DEV, later).is_none());
+        // No open till at sign-in: a clean, server-verified open.
+        remember_login_open_till(&store, "U1", None, now);
+        let pf = login_prefill(&store, "U1", DEV, now).unwrap();
+        assert_eq!(decide_open(Some(&pf), DEV, None, true), OpenDecision::Allow("server"));
+        // Open on THIS device: resumes the record the device holds, cash kept.
+        let mut local = rec("T5", "U1", "open");
+        local.id = uid("T5").to_string();
+        local.opening_cash = 7_500;
+        save(&store, &local).unwrap();
+        remember_login_open_till(&store, "U1", Some(brief(DEV)), now);
+        let pf = login_prefill(&store, "U1", DEV, now).unwrap();
+        match decide_open(Some(&pf), DEV, None, false) {
+            OpenDecision::Resume(t) => {
+                assert_eq!(t.id, uid("T5").to_string());
+                assert_eq!(t.opening_cash, 7_500);
+            }
+            other => panic!("expected resume, got {other:?}"),
+        }
     }
 
     #[test]
