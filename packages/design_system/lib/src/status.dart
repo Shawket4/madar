@@ -241,9 +241,9 @@ class MadarStatCard extends StatelessWidget {
           if (meta != null) ...[
             const SizedBox(height: Space.xs),
             Text(
+              // Wraps, never ellipsizes: the meta is a breakdown the
+              // figure is the sum of, and a cut term hides where cash went.
               meta!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: MadarType.bodySm.copyWith(color: colors.textSecondary),
             ),
           ],
