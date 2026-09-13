@@ -82,7 +82,7 @@ pub mod reservations;
 /// Session & auth — online login, offline unlock, token custody (PLAN §7.2).
 pub mod session;
 /// Shift lifecycle — open/current via the outbox (PLAN §7.4).
-pub mod shift;
+pub mod till;
 /// Employee self-service reads/writes for the staff app (`/staff/me/*`).
 pub mod staff;
 /// Local store — SQLite mirror + durable outbox + id_map + sync cursors (PLAN §8).
@@ -92,6 +92,10 @@ pub mod tickets;
 /// Drawer and Orders decisions the screens used to make (labels, refund
 /// method, close count, cash sales, tax inclusivity, shift order paging).
 pub mod till_views;
+pub mod till_wire;
+pub mod till_ops;
+pub mod sync_pull;
+pub mod assets;
 /// Branch-timezone-aware timestamp formatting for display (mirrors Flutter AppTz).
 pub mod timefmt;
 
@@ -125,8 +129,8 @@ pub fn core_version() -> String {
 pub fn ffi_surface_version() -> u32 {
     // 1: realtime SSE (`subscribe_realtime`/`unsubscribe_realtime` + `EventListener`)
     //    + `AppRoute` payload variants (KitchenDisplay/WaiterTickets).
-    // 2: device config moved into the core store — `app_route()`/`open_shift`/
-    //    `refresh_shift` drop their host-passed params; `DeviceMode` removed; new
+    // 2: device config moved into the core store — `app_route()`/`open_till`/
+    //    `refresh_till` drop their host-passed params; `DeviceMode` removed; new
     //    `device_config`/`set_device_*` surface + `kitchen` role drives the KDS route.
     // 3: LAN offline relay (Phase E) — `lan_start`/`lan_stop`/`lan_active`/
     //    `lan_peer_count`/`lan_branch_has_open_till`/`set_device_lan_hub` + the
@@ -154,7 +158,7 @@ pub enum AppRoute {
     /// Configured but signed out → teller/waiter PIN login.
     Login,
     /// Signed in, no open shift → open-shift screen.
-    OpenShift,
+    OpenTill,
     /// Signed in with an open shift → order screen.
     Order,
     /// Device run as a kitchen display → the KDS for `station_id` (no shift needed).
@@ -163,16 +167,6 @@ pub enum AppRoute {
     WaiterTickets,
 }
 
-/// A till (physical drawer) the device can bind to — the device-setup / Settings
-/// till picker. Cash continuity + the one-open-shift rule key on the till.
-#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
-pub struct TillView {
-    pub id: String,
-    pub name: String,
-    pub is_default: bool,
-    pub is_active: bool,
-}
 
 /// Top-level handle the host creates once and keeps alive for the app lifetime.
 ///
@@ -291,6 +285,10 @@ pub struct MadarCore {
     /// (or a `None` field) falls back to the session-derived scope. Persisted to
     /// kv (`dashboard:active_scope`) so the app reopens on the last branch.
     active_scope: RwLock<Option<ActiveScopeView>>,
+    /// Sync engine phase + the till-open sync strip (`sync_pull.rs`).
+    sync_state: sync_pull::SyncStateCell,
+    /// Weak self-handle so background work (the till-open sync) can own the core.
+    me: std::sync::Weak<MadarCore>,
 }
 
 /// One diagnostic log line.
@@ -353,7 +351,8 @@ impl MadarCore {
             .ok()
             .flatten()
             .and_then(|s| serde_json::from_str::<ActiveScopeView>(&s).ok());
-        Ok(Arc::new(Self {
+        Ok(Arc::new_cyclic(|me| Self {
+            me: me.clone(),
             config,
             store,
             locale,
@@ -374,6 +373,7 @@ impl MadarCore {
             alert_memory: Arc::new(Mutex::new(realtime::AlertDedup::new())),
             lan: Arc::new(Mutex::new(None)),
             active_scope: RwLock::new(active_scope),
+            sync_state: std::sync::Mutex::new(sync_pull::SyncState::default()),
         }))
     }
 
@@ -426,6 +426,7 @@ impl MadarCore {
         state.snapshot.online = false;
         self.api.set_bearer(state.token.clone());
         let snapshot = state.snapshot.clone();
+        let _ = till::set_active_user(&self.store, Some(&snapshot.user_id));
         *self.session.write().unwrap_or_else(|e| e.into_inner()) = Some(state);
         Some(snapshot)
     }
@@ -551,6 +552,7 @@ impl MadarCore {
         // NB: the cached shift is intentionally KEPT (device drawer state) — see
         // the ownership gate in `sign_in`.
         let _ = cart::clear_all(&self.store);
+        let _ = till::set_active_user(&self.store, None);
         if wipe_outbox {
             self.store.wipe_outbox()?;
         }
@@ -559,6 +561,10 @@ impl MadarCore {
 }
 
 impl MadarCore {
+    pub(crate) fn self_arc(&self) -> Option<Arc<MadarCore>> {
+        self.me.upgrade()
+    }
+
     /// Fetch a synced order's full record, CACHING it write-through so its detail +
     /// reprint work OFFLINE. Online: fetch + `cache:order:{id}`. Offline / on error:
     /// the cached `OrderFull` (populated here when the order was opened once online —
@@ -601,6 +607,7 @@ impl MadarCore {
         let _ = self
             .store
             .blob_put(session::K_SESSION_BLOB, &state.to_blob());
+        let _ = till::set_active_user(&self.store, Some(&state.snapshot.user_id));
         *self.session.write().unwrap_or_else(|e| e.into_inner()) = Some(state);
     }
 
@@ -630,54 +637,9 @@ impl MadarCore {
         Ok((org, s.snapshot.branch_id.clone()))
     }
 
-    /// Whether a shift command of `op_type` for the CURRENTLY CACHED shift is
-    /// still queued — scoped to that shift's id. The outbox is device-global and
-    /// survives sign-out, so an unrelated teller's orphaned command must NOT
-    /// count (it would keep a force-closed shift alive for the next teller on a
-    /// shared till). open_shift ops are keyed by the shift PK; close_shift ops by
-    /// `{shift_id}:close` (so open + close for one shift don't collide in the
-    /// idempotent outbox).
-    fn shift_command_pending(&self, op_type: &str) -> Result<bool, CoreError> {
-        let sid = match shift::current(&self.store)? {
-            Some(s) => s.id,
-            None => return Ok(false),
-        };
-        let close_id = format!("{sid}:close");
-        Ok(self
-            .store
-            .pending()?
-            .iter()
-            .any(|i| i.op_type == op_type && (i.id == sid || i.id == close_id)))
-    }
 
-    /// Whether the device currently has an OPEN shift — the deterministic,
-    /// offline-safe answer that enforces the SEQUENTIAL-ONLY shift model (one
-    /// shift at a time per device, even offline). True iff:
-    ///   • the cached shift is open, OR
-    ///   • an `open_shift` command is still queued for a shift that has NO
-    ///     matching `close_shift` queued — a defense for the case where a bad
-    ///     reconcile dropped the cache while the open hadn't synced yet.
-    /// A shift CLOSED locally (its close already queued) is NOT open here, so the
-    /// next shift may open immediately — that's the normal offline "close A, then
-    /// open B" flow, and the FIFO drain still replays close-A before open-B.
-    fn device_has_open_shift(&self) -> Result<bool, CoreError> {
-        if shift::current(&self.store)?
-            .map(|s| s.is_open)
-            .unwrap_or(false)
-        {
-            return Ok(true);
-        }
-        let pending = self.store.pending()?;
-        let has_uncovered_open = pending.iter().any(|op| {
-            op.op_type == "open_shift"
-                && !pending
-                    .iter()
-                    .any(|c| c.op_type == "close_shift" && c.id == format!("{}:close", op.id))
-        });
-        Ok(has_uncovered_open)
-    }
 
-    /// Comma-separated shift ids the device has a queued `close_shift` for — sent
+    /// Comma-separated shift ids the device has a queued `close_till` for — sent
     /// as the login acknowledgment so the server's open-shift login guard permits
     /// the legitimate offline handover (this device closed that shift offline; the
     /// close will replay right after login) while still rejecting a takeover.
@@ -686,8 +648,8 @@ impl MadarCore {
             .pending()
             .unwrap_or_default()
             .iter()
-            .filter(|i| i.op_type == "close_shift")
-            .filter_map(|i| i.shift_id.clone())
+            .filter(|i| i.op_type == "close_till")
+            .filter_map(|i| i.till_id.clone())
             .collect::<Vec<_>>()
             .join(",")
     }
@@ -722,31 +684,6 @@ impl MadarCore {
         }
     }
 
-    /// Drain the durable outbox — the single place outbox writes hit the network.
-    /// Ports the Flutter offline-queue engine (offline_queue.dart) so a device
-    /// can run months offline and replay safely:
-    ///   • backoff-gated, FIFO, user-scoped `due_for_sync`;
-    ///   • crash recovery (inflight → pending) + acked-row retention purge;
-    ///   • dependency gating that WAITS on an unsynced/dead prerequisite (never
-    ///     cascades the dependent dead — that would strand its sale; the dead ROOT
-    ///     surfaces the jam, and resolving it flows the whole chain);
-    /// Re-point any orders STRANDED by a DEAD `open_shift` (this teller's) onto
-    /// `target` and revive them so they sync onto it. Only DEAD opens move (a
-    /// pending one is a legitimate not-yet-synced shift, never merged). This is the
-    /// auto-heal the drain runs every pass so the orphan state never persists;
-    /// `recover_orphaned_orders` is the manual fallback over the same primitive.
-    fn heal_orphaned_orders(&self, target: &str, teller_id: &str) -> Result<u32, CoreError> {
-        let mut remapped = 0u32;
-        for orphan in self.store.dead_open_shift_ids(teller_id)? {
-            if orphan != target {
-                remapped += self.store.remap_shift(&orphan, target)?;
-            }
-        }
-        if remapped > 0 {
-            self.store.requeue_dead_for_shift(target)?;
-        }
-        Ok(remapped)
-    }
 
     /// Set the live `online` flag. A CONFIRMED connectivity (`true`) also resets the
     /// unconfirmed-failure streak, so the next lone probe failure starts fresh.
@@ -890,15 +827,6 @@ impl MadarCore {
         // offline, and dropping history it cannot re-fetch is the one moment
         // this must not happen.
         let _ = self.prune_stale_caches();
-        // Auto-heal: re-point any orders stranded by a DEAD open_shift onto the
-        // teller's current open shift so the orphan state never persists. Best-effort
-        // — when no shift is open to heal onto, the surfaced sync_status.blocked count
-        // + recover_orphaned_orders() are the fallback.
-        if let Ok(Some(cur)) = shift::current(&self.store) {
-            if let (Some(teller), _) = self.outbox_meta() {
-                let _ = self.heal_orphaned_orders(&cur.id, &teller);
-            }
-        }
         // A 401-parked queue burns nothing until the next successful login.
         if self.auth_paused.load(Relaxed) {
             return Ok(());
@@ -925,11 +853,16 @@ impl MadarCore {
         // teller-scoped drain stranded a prior teller's ops on a shared till — the
         // "must be the same teller to sync" bug.
         for item in self.store.due_for_sync(now_ms(), None)? {
-            // A shift close must be the LAST op for its shift — wait while any of
-            // that shift's orders/voids/cash are still live (shift-scoped).
-            if item.op_type == "close_shift" {
-                if let Some(sid) = item.shift_id.as_deref() {
-                    if self.store.has_live_shift_writes(sid, item.seq)? {
+            // Per-till gating (TILLS_CONTRACT §4.4): FIFO within a till, a dead op
+            // isolated to itself (a dead open holds only its own till), and a
+            // close waits for its till's pending/inflight writes — never for a
+            // dead one. Other tills and till-less ops never wait on this till.
+            if self.store.must_wait(&item)? {
+                continue;
+            }
+            if matches!(item.op_type.as_str(), "close_till" | "close_shift") {
+                if let Some(tid) = item.till_id.as_deref() {
+                    if self.store.has_live_till_writes(tid, item.seq)? {
                         continue;
                     }
                 }
@@ -972,13 +905,9 @@ impl MadarCore {
                 SendOutcome::Dead(err) => {
                     self.store.mark_dead(item.seq, &err)?;
                     self.push_diag("error", format!("{} rejected: {err}", item.op_type));
-                    // A rejected open leaves the teller selling against a phantom
-                    // shift — clear the optimistic local shift.
-                    if item.op_type == "open_shift"
-                        && shift::current(&self.store)?.map(|s| s.id) == Some(item.id.clone())
-                    {
-                        let _ = shift::clear(&self.store);
-                    }
+                    // A dead open_till is transport/auth (the server never refuses
+                    // one): it holds only its own till's ops until retried with
+                    // `requeue_dead_for_till`, and the teller keeps selling.
                 }
                 // Token expired → park the whole queue (no budget burned) until
                 // the next successful login re-drains.
@@ -1059,7 +988,8 @@ impl MadarCore {
             depends_on_seq: None,
             user_id: user_id.clone(),
             clock_offset_ms,
-            shift_id: None,
+            till_id: None,
+            ..Default::default()
         })?;
         // Instant cross-device delivery over the LAN (carrying the replay op so a
         // peer can mirror it for durability, + the item_id so a peer greys the line
@@ -1121,25 +1051,29 @@ impl MadarCore {
         // per-resource path). The envelope's `request` is the GENERATED type, so
         // the wire shape is identical to the live endpoint's body.
         let (envelope, idem): (serde_json::Value, Idem) = match item.op_type.as_str() {
-            "open_shift" => {
-                let mut cmd: shift::OpenShiftCommand = match serde_json::from_str(&item.payload) {
+            "open_till" | "open_shift" => {
+                let mut cmd = match self.translate_open_till(item) {
                     Ok(c) => c,
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
-                rebase_dopt(&mut cmd.request.opened_at, delta);
+                rebase_opt(&mut cmd.request.opened_at, delta);
                 (
-                    serde_json::json!({ "op": "open_shift", "teller_id": teller_id, "branch_id": cmd.branch_id, "request": cmd.request }),
+                    serde_json::json!({ "op": "open_till", "teller_id": teller_id, "branch_id": cmd.branch_id,
+                        "device_id": cmd.device_id, "device_code": cmd.device_code,
+                        "verification": cmd.verification, "request": cmd.request }),
                     Idem::No,
                 )
             }
-            "close_shift" => {
-                let mut cmd: shift::CloseShiftCommand = match serde_json::from_str(&item.payload) {
+            "close_till" | "close_shift" => {
+                let mut cmd: till::CloseTillCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
-                rebase_dopt(&mut cmd.request.closed_at, delta);
+                rebase_opt(&mut cmd.request.closed_at, delta);
+                let device_id = cmd.device_id.clone().unwrap_or_else(|| self.lan_device_id());
                 (
-                    serde_json::json!({ "op": "close_shift", "teller_id": teller_id, "shift_id": cmd.shift_id, "request": cmd.request }),
+                    serde_json::json!({ "op": "close_till", "teller_id": teller_id, "till_id": cmd.till_id,
+                        "device_id": device_id, "request": cmd.request }),
                     Idem::Yes,
                 )
             }
@@ -1174,7 +1108,7 @@ impl MadarCore {
                     cmd.request.created_at = original;
                 }
                 (
-                    serde_json::json!({ "op": "create_order", "teller_id": teller_id, "request": cmd.request }),
+                    checkout::order_envelope(&cmd, &teller_id, &self.lan_device_id()),
                     Idem::No,
                 )
             }
@@ -1215,14 +1149,16 @@ impl MadarCore {
                 )
             }
             "cash_movement" => {
-                let mut cmd: shift::CashMovementCommand = match serde_json::from_str(&item.payload)
+                let mut cmd: till::CashMovementCommand = match serde_json::from_str(&item.payload)
                 {
                     Ok(c) => c,
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
                 rebase_dopt(&mut cmd.request.created_at, delta);
+                let device_id = cmd.device_id.clone().unwrap_or_else(|| self.lan_device_id());
                 (
-                    serde_json::json!({ "op": "cash_movement", "teller_id": teller_id, "shift_id": cmd.shift_id, "request": cmd.request }),
+                    serde_json::json!({ "op": "cash_movement", "teller_id": teller_id, "till_id": cmd.till_id,
+                        "device_id": device_id, "request": cmd.request }),
                     Idem::Yes,
                 )
             }
@@ -1474,24 +1410,26 @@ impl MadarCore {
                     // server-derived fields (opening_cash_was_edited, etc.). A 2xx
                     // object we can't decode as a Shift still means the open LANDED
                     // (replay is idempotent) — count it, don't loop forever.
-                    "open_shift" => {
-                        if let Ok(server) =
-                            serde_json::from_value::<madar_api::models::Shift>(obj.clone())
-                        {
-                            // Only refresh the local shift when this ack is for the
-                            // shift the device is CURRENTLY on. A late ack of a prior or
-                            // abandoned optimistic open (the teller has since closed it
-                            // or moved to another shift) must NOT clobber the newer
-                            // current shift with this stale server snapshot.
-                            let is_current =
-                                shift::current(&self.store).ok().flatten().map(|s| s.id)
-                                    == Some(server.id.to_string());
-                            if is_current {
-                                let _ = shift::save(&self.store, &server);
+                    "open_till" | "open_shift" => {
+                        match serde_json::from_value::<till::TillWire>(obj.clone()) {
+                            Ok(server) if !server.id.is_empty() => {
+                                // Refresh the stored record with the server's view
+                                // (flag, verification, device snapshot) without
+                                // moving any person's slot.
+                                if till::record(&self.store, &server.id).is_some() {
+                                    let mut merged = server.clone();
+                                    if merged.status != "open" {
+                                        // keep a local close that has not synced yet
+                                    } else if let Some(local) = till::record(&self.store, &server.id) {
+                                        if local.status != "open" {
+                                            merged.status = local.status;
+                                        }
+                                    }
+                                    let _ = till::update_record(&self.store, &merged);
+                                }
+                                SendOutcome::Acked(Some(server.id))
                             }
-                            SendOutcome::Acked(Some(server.id.to_string()))
-                        } else {
-                            SendOutcome::Acked(None)
+                            _ => SendOutcome::Acked(None),
                         }
                     }
                     // The money path. `OrderFull` flattens the order, so a real
@@ -1511,7 +1449,7 @@ impl MadarCore {
                             // the right `#N` online too (where the order leaves the
                             // queue the instant it acks).
                             if let (Some(sid), Some(n)) = (
-                                item.shift_id.as_deref(),
+                                item.till_id.as_deref(),
                                 obj.get("order_number").and_then(|v| v.as_i64()),
                             ) {
                                 checkout::bump_order_base(&self.store, sid, n);
@@ -1587,7 +1525,7 @@ impl MadarCore {
     /// Wall-clock time CORRECTED by the last-known server skew. Queued ops must be
     /// stamped with this (not raw `Utc::now()`) so a till whose clock is wrong
     /// doesn't future-date its writes — the backend's `reject_if_future` would
-    /// 400 a future-stamped open_shift/order and dead-letter the whole chain.
+    /// 400 a future-stamped open_till/order and dead-letter the whole chain.
     /// Mirrors Flutter's `TimeUtils.now = DateTime.now() + offset`; the drain's
     /// `rebase_delta_ms` then only corrects for CHANGES in the skew between
     /// enqueue and send. The stamped offset is recorded per row in
@@ -1737,7 +1675,7 @@ fn map_void_reason(reason: &str) -> madar_api::models::VoidReason {
 /// money in, a negative is money out — because a movement recorded under a
 /// kind nobody recognises is worse than one recorded under none: the report
 /// would have to guess, and a drawer that guesses is a drawer that is wrong.
-fn map_cash_kind(kind: &str) -> madar_api::models::CashMovementKind {
+pub(crate) fn map_cash_kind(kind: &str) -> madar_api::models::CashMovementKind {
     use madar_api::models::CashMovementKind as K;
     match kind {
         "pay_in" | "in" => K::PayIn,
@@ -1860,8 +1798,8 @@ pub(crate) const CACHE_RETENTION_DAYS: i64 = 30;
 /// grow one row per shift or order forever; everything else under `cache:` is a
 /// fixed set of live mirrors replaced wholesale on each pull.
 pub(crate) const CACHE_HISTORY_PREFIXES: &[&str] = &[
-    "cache:shift_report:", // the Z-report behind a past shift
-    "cache:shift_orders:", // that shift's order list
+    "cache:till_report:", // the Z-report behind a past shift
+    "cache:till_orders:", // that shift's order list
     "cache:cash:",         // its drawer movements
     "cache:order:",        // individual orders kept for offline reprint
 ];
@@ -1877,8 +1815,8 @@ pub(crate) const CACHE_HISTORY_PREFIXES: &[&str] = &[
 /// only ever catches a clock that jumped.
 pub(crate) const CACHE_ROW_CAPS: &[(&str, u32)] = &[
     ("cache:order:", 2_000),
-    ("cache:shift_report:", 400),
-    ("cache:shift_orders:", 400),
+    ("cache:till_report:", 400),
+    ("cache:till_orders:", 400),
     ("cache:cash:", 400),
 ];
 
@@ -1907,6 +1845,15 @@ fn compute_backoff_ms(attempts: i64, seq: i64) -> i64 {
     let capped = exp.min(K_MAX_BACKOFF_MS);
     let jitter = (seq.wrapping_mul(2_654_435_761)).rem_euclid(1000);
     (capped + jitter).min(K_MAX_BACKOFF_MS)
+}
+
+/// Re-base a single-`Option` timestamp (hand-written tills wire structs).
+fn rebase_opt(field: &mut Option<chrono::DateTime<chrono::FixedOffset>>, delta_ms: i64) {
+    if delta_ms != 0 {
+        if let Some(dt) = field.as_mut() {
+            *dt += chrono::Duration::milliseconds(delta_ms);
+        }
+    }
 }
 
 /// Re-base a double-`Option` timestamp (the generated `Option<Option<DateTime>>`).
@@ -1987,17 +1934,7 @@ fn token_is_expired(token: &str, now_secs: i64) -> bool {
 // ── shift + routing (sync reads) ─────────────────────────────────────────────
 #[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
-    /// The device's current shift (open or closed), served from the local store.
-    pub fn current_shift(&self) -> Result<Option<shift::ShiftView>, CoreError> {
-        shift::current(&self.store)
-    }
 
-    /// Suggested opening cash for the next shift (minor units) — the previous
-    /// shift's declared closing, for cash continuity. 0 when none is known. The
-    /// open-shift screen prefills this; deviating from it requires a reason.
-    pub fn suggested_opening_cash_minor(&self) -> Result<i64, CoreError> {
-        shift::suggested_opening_cash(&self.store)
-    }
 
     /// The screen to show — decided ENTIRELY from core state (no host params; the
     /// device binding lives in the core store now). Resolution order: device-setup
@@ -2029,9 +1966,9 @@ impl MadarCore {
         }
         // An open shift counts only if it belongs to THIS teller (a stale shift
         // from a previous teller on the device must not route them past setup).
-        match shift::current(&self.store) {
+        match till::current(&self.store) {
             Ok(Some(s)) if s.is_open && s.teller_id == session.snapshot.user_id => AppRoute::Order,
-            _ => AppRoute::OpenShift,
+            _ => AppRoute::OpenTill,
         }
     }
 
@@ -2076,13 +2013,6 @@ impl MadarCore {
         Ok(())
     }
 
-    /// Bind the device's till (POS drawer). `None` = use the branch default till.
-    pub fn set_device_till(&self, till_id: Option<String>) -> Result<(), CoreError> {
-        device::update(&self.store, |c| {
-            c.till_id = till_id.filter(|s| !s.is_empty())
-        })?;
-        Ok(())
-    }
 
     /// Bind the device's kitchen station (a KDS device). `None` clears it.
     pub fn set_device_station(&self, station_id: Option<String>) -> Result<(), CoreError> {
@@ -2411,7 +2341,8 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
             depends_on_seq: None,
             user_id: teller_id,
             clock_offset_ms: None,
-            shift_id: None,
+            till_id: None,
+            ..Default::default()
         });
         return;
     }
@@ -2434,7 +2365,8 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
         depends_on_seq: None,
         user_id: teller_id,
         clock_offset_ms: None,
-        shift_id: None,
+        till_id: None,
+        ..Default::default()
     });
 }
 
@@ -2469,22 +2401,7 @@ impl MadarCore {
             .map(|s| s.to_string())
     }
 
-    /// This device's current OPEN shift id (advertised to the LAN shift gate), if any.
-    fn current_open_shift_id(&self) -> Option<String> {
-        shift::current(&self.store)
-            .ok()
-            .flatten()
-            .filter(|s| s.is_open)
-            .map(|s| s.id)
-    }
 
-    /// Push the current open-shift state to the running relay (the till advert) — call
-    /// after a shift opens/closes so the LAN shift gate reflects it within seconds.
-    fn lan_sync_open_shift(&self) {
-        if let Some(relay) = self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone() {
-            relay.set_open_shift(self.current_open_shift_id());
-        }
-    }
 
     /// Publish a write event over the LAN (instant cross-device delivery): `data` is
     /// the display payload (e.g. a fire projection) and `replay_op` the mirror-relay
@@ -2553,12 +2470,12 @@ impl MadarCore {
         });
         let relay = Arc::new(lan::LanRelay::new(cfg, bridge));
         relay.start().await?;
-        relay.set_open_shift(self.current_open_shift_id());
         if let Some(hub) = dev.lan_hub.filter(|s| !s.trim().is_empty()) {
             let (host, port) = parse_hub_addr(hub.trim());
             relay.add_manual_hub(host, port);
         }
         *self.lan.lock().unwrap_or_else(|e| e.into_inner()) = Some(relay);
+        self.lan_sync_open_tills();
         Ok(())
     }
 }
@@ -2748,9 +2665,9 @@ impl MadarCore {
     /// `render_receipt` (text commands can't drive the TSP143III). `width` is
     /// retained for API stability; the raster width comes from the device's paper
     /// config (`DeviceConfig::paper_dots`). Pair with `send_to_printer`.
-    pub fn render_shift_report(
+    pub fn render_till_report(
         &self,
-        report: shift::ShiftReportView,
+        report: till::TillReportView,
         store_name: String,
         currency: String,
         width: u32,
@@ -2763,7 +2680,7 @@ impl MadarCore {
         let tz = timefmt::branch_tz(&self.store);
         let loc = self.current_locale();
         let tr = |k: &str| i18n::tr(&loc, k);
-        let labels = receipt::ShiftReportLabels {
+        let labels = receipt::TillReportLabels {
             title: tr("shift.report_title"),
             business_date: tr("shift.business_date"),
             printed_at: tr("shift.printed_at"),
@@ -2799,7 +2716,7 @@ impl MadarCore {
             tz,
         };
         let cfg = device::load(&self.store);
-        let bitmap = render::render_shift_report(
+        let bitmap = render::render_till_report(
             &report,
             &store_name,
             &currency,
@@ -3873,7 +3790,8 @@ impl MadarCore {
             depends_on_seq: None,
             user_id,
             clock_offset_ms,
-            shift_id: None,
+            till_id: None,
+            ..Default::default()
         })?;
         Ok(())
     }
@@ -4115,7 +4033,7 @@ fn loyalty_refusal_key(op_id: &str) -> String {
 #[derive(Clone, Debug)]
 pub struct OutboxItemView {
     pub id: String,
-    /// `open_shift` | `close_shift` | `create_order` | …
+    /// `open_till` | `close_till` | `create_order` | …
     pub op_type: String,
     /// `pending` | `inflight` | `dead`.
     pub status: String,
@@ -4124,24 +4042,6 @@ pub struct OutboxItemView {
     pub event_at: String,
 }
 
-/// One-shot sync health for the action-bar chip + offline banner. `pending` is
-/// the in-flight/queued set, `failed` the stuck (dead) set, `online` the
-/// session's connectivity. The host maps these to the chip label/tone.
-#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SyncStatusView {
-    pub pending: u32,
-    pub failed: u32,
-    /// Orders STRANDED by a dead `open_shift` (waiting on a dependency that will
-    /// never ack). The drain auto-heals these onto the current shift; this count is
-    /// the fallback signal — when >0 with no open shift, the host can offer
-    /// `recover_orphaned_orders()` ("open a shift to recover N stranded sales").
-    pub blocked: u32,
-    pub online: bool,
-    /// `true` when the outbox is parked on a 401 — the host prompts a re-login
-    /// to resume syncing (nothing drains until then).
-    pub auth_paused: bool,
-}
 
 // ── sync center (outbox visibility + retry/discard) ──────────────────────────
 #[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
@@ -4170,55 +4070,7 @@ impl MadarCore {
         self.store.discard_dead(&id)
     }
 
-    /// Sync health for the action-bar chip + offline banner (counts + online),
-    /// in one cheap local read. Always succeeds offline.
-    pub fn sync_status(&self) -> Result<SyncStatusView, CoreError> {
-        // The host renders the re-login banner on `auth_paused`, and the flag is
-        // trusted on its own now. It is latched from exactly one place — a
-        // `CoreError::Unauthenticated`, which `status_to_error` produces ONLY for a
-        // 401 carrying our own error envelope. A captive portal or proxy answers
-        // with HTML and is classified `Offline` long before it reaches here. So the
-        // flag already means "our backend read this bearer and refused it", which
-        // is both more direct and more truthful than asking whether `exp` has
-        // passed.
-        //
-        // It used to be gated on expiry as well, and that gate was the bug: a token
-        // revoked rather than lapsed — rotated secret, deactivated user, suspended
-        // org — is refused by the server while its `exp` is still in the future, so
-        // the queue parked, the app looked merely offline, and the teller was never
-        // told to sign in. They had to wait out the token.
-        //
-        // Still gated on being ONLINE: re-auth mints a fresh JWT from the server,
-        // so prompting while unreachable is a dead end (the offline banner tells
-        // that story instead). The sticky flag keeps the drain parked meanwhile and
-        // the prompt resurfaces the moment connectivity is confirmed — the host
-        // watches the offline→online edge.
-        let online = self.current_session().map(|s| s.online).unwrap_or(false);
-        let auth_paused = self.auth_paused.load(std::sync::atomic::Ordering::Relaxed) && online;
-        Ok(SyncStatusView {
-            pending: self.store.pending_count()?,
-            failed: self.store.dead_count()?,
-            blocked: self.store.count_orders_blocked_by_dead_dep()?,
-            online,
-            auth_paused,
-        })
-    }
 
-    /// FALLBACK recovery for the sync center: re-point every order STRANDED by a
-    /// dead `open_shift` onto the CURRENT open shift and sync. The drain already
-    /// heals this automatically each pass; this is the manual escape hatch (e.g. the
-    /// teller had no shift open when the drain ran, then opens one and taps
-    /// "recover N stranded sales"). Returns the number of outbox rows recovered.
-    pub async fn recover_orphaned_orders(&self) -> Result<u32, CoreError> {
-        let cur = shift::current(&self.store)?.ok_or_else(|| CoreError::Validation {
-            field: "shift".into(),
-            detail: "open a shift first so the stranded orders can move onto it".into(),
-        })?;
-        let teller = self.outbox_meta().0.unwrap_or_default();
-        let n = self.heal_orphaned_orders(&cur.id, &teller)?;
-        let _ = self.drain_outbox().await;
-        Ok(n)
-    }
 
     /// Recent diagnostic warnings (newest first) — the Settings → Diagnostics
     /// feed. Captures sync dead-letters, cascade failures, and auth parks.
@@ -4306,10 +4158,10 @@ impl MadarCore {
     }
 
     /// Live shift stats (sales total + order count) for the action-bar pill,
-    /// derived from the orders the host already loaded via `list_shift_orders`
+    /// derived from the orders the host already loaded via `list_till_orders`
     /// (synced + queued), voided excluded. Pure — no extra network.
-    pub fn shift_stats(&self, orders: Vec<orders::OrderSummaryView>) -> orders::ShiftStatsView {
-        orders::shift_stats(&orders)
+    pub fn till_stats(&self, orders: Vec<orders::OrderSummaryView>) -> orders::TillStatsView {
+        orders::till_stats(&orders)
     }
 }
 
@@ -4577,7 +4429,7 @@ impl MadarCore {
         // so the device cache + routing are correct the instant login returns — the
         // host needn't win a race with a separate reconcile, and a stale or another
         // teller's open shift can never leave us on the wrong screen. Best-effort.
-        let _ = self.refresh_shift().await;
+        let _ = self.refresh_till().await;
         // Cache the branch timezone + the open shift's order-number base / branch
         // code so an OFFLINE checkout can predict the EXACT number/ref the server
         // will mint (identical post-checkout + reprint receipts). Best-effort.
@@ -4625,9 +4477,9 @@ impl MadarCore {
         // very next ring-up predicts MAX(order_number)+1 (not #1) even online and
         // even right after resuming a shift that already has orders. Best-effort:
         // offline this no-ops and the base advances on ack instead.
-        if let Ok(Some(shift)) = shift::current(&self.store) {
+        if let Ok(Some(shift)) = till::current(&self.store) {
             if shift.is_open {
-                if let Ok(orders) = self.list_orders_for_shift(shift.id.clone()).await {
+                if let Ok(orders) = self.list_orders_for_till(shift.id.clone()).await {
                     let max = orders
                         .iter()
                         .filter_map(|o| o.order_number)
@@ -4646,19 +4498,6 @@ impl MadarCore {
         checkout::device_code_or_default(&self.store)
     }
 
-    /// Set this device's managed code (Settings). Sanitized to short A-Z0-9; an
-    /// empty/blank value is ignored (keeps the current code).
-    pub fn set_device_code(&self, code: String) {
-        let clean: String = code
-            .chars()
-            .filter(|c| c.is_ascii_alphanumeric())
-            .take(6)
-            .collect::<String>()
-            .to_uppercase();
-        if !clean.is_empty() {
-            let _ = self.store.kv_put(checkout::KEY_DEVICE_CODE, &clean);
-        }
-    }
 
     /// One-call sign-in. The online→offline decision lives HERE, not in the host
     /// UI (the One Rule): try an online `login` first; if the network is down and
@@ -4676,27 +4515,8 @@ impl MadarCore {
             req.branch_id = Some(b);
         }
 
-        // OWNERSHIP GATE (online OR offline): the device may hold an OPEN shift
-        // left by a previous teller who signed out without closing it. A shift is
-        // its owner's drawer — only they may resume it. Anyone else is rejected
-        // (they must close it first), so no teller can ever take over a shift they
-        // don't own. Checked up-front, by name, against the device's cached shift
-        // (kept across logout). A shift the device already CLOSED locally is not
-        // `is_open`, so the normal close-then-switch handover still works.
-        if let Some(name) = req.name.as_deref() {
-            if let Some(s) = shift::current(&self.store)? {
-                if s.is_open && !s.teller_name.eq_ignore_ascii_case(name.trim()) {
-                    return Err(CoreError::Forbidden {
-                        resource: "shift".into(),
-                        action: format!(
-                            "This device has an open shift belonging to {}. It must be closed before signing in.",
-                            s.teller_name
-                        ),
-                    });
-                }
-            }
-        }
-
+        // No device-level ownership gate: each person holds their OWN till on this
+        // device (decision 6); another teller signing in gets their own.
         // Whether a connectivity failure may fall back to an offline unlock.
         let offline_ok = matches!(req.mode, session::LoginMode::Pin)
             && req.name.is_some()
@@ -5059,571 +4879,12 @@ impl MadarCore {
             .and_then(|u| self.images.path_if_cached(&u))
     }
 
-    /// Open a shift. Writes an optimistic local shift + queues an idempotent
-    /// open-shift command (client UUID = shift PK), then drains best-effort. The
-    /// shift is usable immediately, online or offline. Returns the current shift.
-    pub async fn open_shift(
-        &self,
-        opening_cash_minor: i64,
-        edit_reason: Option<String>,
-    ) -> Result<shift::ShiftView, CoreError> {
-        // SEQUENTIAL-ONLY: refuse to open a second shift while one is still open
-        // on this device. Without this guard a second open silently overwrote the
-        // cached shift (orphaning the first server-side and losing its close) —
-        // the "shift open-or-not isn't robust" bug. The teller must close the
-        // current shift first; the close may still be syncing, that's fine.
-        if self.device_has_open_shift()? {
-            return Err(CoreError::Validation {
-                field: "shift".into(),
-                detail:
-                    "A shift is already open on this device. Close it before opening a new one."
-                        .into(),
-            });
-        }
-        let (branch_id, teller_id, teller_name) = {
-            let g = self.session.read().unwrap_or_else(|e| e.into_inner());
-            let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
-                detail: "not signed in".into(),
-            })?;
-            let branch = s
-                .snapshot
-                .branch_id
-                .clone()
-                .ok_or_else(|| CoreError::Validation {
-                    field: "branch_id".into(),
-                    detail: "session has no branch".into(),
-                })?;
-            (
-                branch,
-                s.snapshot.user_id.clone(),
-                s.snapshot.display_name.clone(),
-            )
-        };
-        let branch_uuid = uuid::Uuid::parse_str(&branch_id).map_err(|_| CoreError::Validation {
-            field: "branch_id".into(),
-            detail: "bad uuid".into(),
-        })?;
-        let teller_uuid = uuid::Uuid::parse_str(&teller_id).map_err(|_| CoreError::Validation {
-            field: "teller_id".into(),
-            detail: "bad uuid".into(),
-        })?;
-        // The device's bound till (drawer) comes from the core device config, NOT a
-        // host param. `None` lets the backend pick the branch's default till.
-        let till_uuid = match device::load(&self.store).till_id.filter(|s| !s.is_empty()) {
-            Some(s) => Some(
-                uuid::Uuid::parse_str(&s).map_err(|_| CoreError::Validation {
-                    field: "till_id".into(),
-                    detail: "bad till id".into(),
-                })?,
-            ),
-            None => None,
-        };
-        let shift_id = uuid::Uuid::new_v4();
-        let opened_at = self.corrected_now().fixed_offset();
-        let opening_cash = cash_i32(opening_cash_minor, "opening_cash")?;
-        // A non-empty discrepancy reason ⇒ the teller deviated from the carried-
-        // over closing. The server re-derives this authoritatively; we mirror it
-        // locally for display and pass the reason through.
-        let edit_reason = edit_reason.filter(|r| !r.trim().is_empty());
-        let was_edited = edit_reason.is_some();
 
-        // Optimistic local shift — visible immediately on every read.
-        let local = madar_api::models::Shift {
-            branch_id: branch_uuid,
-            id: shift_id,
-            opened_at,
-            opening_cash,
-            opening_cash_was_edited: was_edited,
-            status: "open".into(),
-            teller_id: teller_uuid,
-            teller_name,
-            till_id: till_uuid.map(Some),
-            ..Default::default()
-        };
-        shift::save(&self.store, &local)?;
 
-        // Queue the durable command (idempotent on the client shift UUID).
-        let request = madar_api::models::OpenShiftRequest {
-            id: Some(Some(shift_id)),
-            opened_at: Some(Some(opened_at)),
-            opening_cash,
-            edit_reason: edit_reason.map(Some),
-            till_id: till_uuid.map(Some),
-            ..Default::default()
-        };
-        let cmd = shift::OpenShiftCommand { branch_id, request };
-        let (user_id, clock_offset_ms) = self.outbox_meta();
-        // Sequential handover: if a prior shift's close is still queued, this open
-        // DEPENDS on it. The branch must be confirmed free (the close fully drained)
-        // before the open replays — otherwise the open races the still-open prior
-        // shift and 409s ("a shift is already open for this branch"), dead-letters,
-        // cascades its orders, and clears the local shift back to the open screen.
-        // None when no close is queued (the prior shift closed online → branch free).
-        let depends_on_seq = self.store.latest_unsynced_close_seq()?;
-        self.store.enqueue(&store::NewOutboxOp {
-            id: shift_id.to_string(),
-            op_type: "open_shift".into(),
-            idempotency_key: shift_id.to_string(),
-            payload: serde_json::to_string(&cmd)?,
-            event_at: opened_at.to_rfc3339(),
-            depends_on_seq,
-            user_id,
-            clock_offset_ms,
-            shift_id: Some(shift_id.to_string()),
-        })?;
 
-        // Best-effort: send now if online (offline just leaves it queued).
-        let _ = self.drain_outbox().await;
 
-        // Advertise this till's now-open shift to the LAN gate (if the relay is up).
-        self.lan_sync_open_shift();
 
-        shift::current(&self.store)?.ok_or_else(|| CoreError::Internal {
-            detail: "shift not persisted".into(),
-        })
-    }
 
-    /// Close the current open shift: count the closing drawer cash + an optional
-    /// note. Marks the shift closed locally (routing flips to open-shift now) and
-    /// queues an idempotent `close_shift` command; works offline. Errors if there
-    /// is no open shift.
-    pub async fn close_shift(
-        &self,
-        closing_cash_minor: i64,
-        cash_note: Option<String>,
-    ) -> Result<(), CoreError> {
-        let shift = shift::current(&self.store)?
-            .filter(|s| s.is_open)
-            .ok_or_else(|| CoreError::Validation {
-                field: "shift".into(),
-                detail: "no open shift".into(),
-            })?;
-
-        let closed_at = self.corrected_now().fixed_offset();
-        let mut request = madar_api::models::CloseShiftRequest::new(cash_i32(
-            closing_cash_minor,
-            "closing_cash",
-        )?);
-        request.cash_note = Some(cash_note);
-        request.closed_at = Some(Some(closed_at));
-
-        // Optimistic: mark closed locally so routing flips to open-shift now,
-        // and drop the in-progress cart (a closed shift sells nothing).
-        shift::close_local(&self.store)?;
-        cart::clear_all(&self.store)?;
-        // Carry the declared closing into the NEXT shift's suggested opening, so
-        // cash continuity holds even before this close syncs.
-        shift::cache_suggested_opening_cash(&self.store, closing_cash_minor)?;
-
-        // Queue the durable command. Keyed by `{shift_id}:close` so it doesn't
-        // collide with the still-pending open_shift command (id == shift PK).
-        let cmd = shift::CloseShiftCommand {
-            shift_id: shift.id.clone(),
-            request,
-        };
-        let (user_id, clock_offset_ms) = self.outbox_meta();
-        self.store.enqueue(&store::NewOutboxOp {
-            id: format!("{}:close", shift.id),
-            op_type: "close_shift".into(),
-            idempotency_key: format!("{}:close", shift.id),
-            payload: serde_json::to_string(&cmd)?,
-            event_at: closed_at.to_rfc3339(),
-            // Gate behind the shift's open (if still queued); the close-last
-            // drain rule then also waits for every order/cash of this shift.
-            depends_on_seq: self.store.live_seq_of(&shift.id)?,
-            user_id,
-            clock_offset_ms,
-            shift_id: Some(shift.id.clone()),
-        })?;
-
-        // Best-effort: the FIFO drain runs the open + orders before the close,
-        // so the close never races ahead of them.
-        let _ = self.drain_outbox().await;
-
-        // Stop advertising an open shift to the LAN gate (this till just closed).
-        self.lan_sync_open_shift();
-        Ok(())
-    }
-
-    /// The current shift's report — drives the close-shift system-cash +
-    /// discrepancy. Online: the server report plus still-queued cash sales.
-    /// Offline / on error: opening cash + queued cash (`from_server = false`).
-    pub async fn shift_report(&self) -> Result<shift::ShiftReportView, CoreError> {
-        use madar_api::apis::shifts_api;
-        let shift = shift::current(&self.store)?.ok_or_else(|| CoreError::Validation {
-            field: "shift".into(),
-            detail: "no shift".into(),
-        })?;
-        // Scope to THIS shift — a prior shift's still-undrained cash sales sit in the
-        // outbox too, and counting them would overstate this drawer's expected cash.
-        let queued_cash = checkout::queued_cash_total_for(&self.store, &shift.id)?;
-        let online = self.current_session().map(|s| s.online).unwrap_or(false);
-        if online {
-            let res = shifts_api::get_shift_report(
-                &self.api.config(),
-                shifts_api::GetShiftReportParams {
-                    shift_id: shift.id.clone(),
-                },
-            )
-            .await;
-            if let Ok(report) = res {
-                timefmt::remember_payload_tz(&self.store, &report.timezone);
-                // Remember it: a later close that happens offline needs to know
-                // what this shift actually took, not just what we have queued.
-                // Same key the past-shift report path uses.
-                cache_views(
-                    &self.store,
-                    &shift::report_cache_key(&shift.id),
-                    std::slice::from_ref(&report),
-                );
-                return Ok(shift::report_view(&report, queued_cash));
-            }
-        }
-        // Offline: reconstruct the drawer block from the still-queued movements.
-        let teller = self
-            .current_session()
-            .map(|s| s.display_name)
-            .unwrap_or_default();
-        let movements: Vec<shift::ShiftReportCashLine> = self
-            .store
-            .list_active_of_types(&["cash_movement"])?
-            .into_iter()
-            .filter(|i| i.shift_id.as_deref() == Some(shift.id.as_str()))
-            .filter_map(|i| {
-                serde_json::from_str::<shift::CashMovementCommand>(&i.payload)
-                    .ok()
-                    .map(|cmd| shift::ShiftReportCashLine {
-                        amount_minor: cmd.request.amount as i64,
-                        note: cmd.request.note,
-                        moved_by_name: teller.clone(),
-                        created_at: i.event_at.clone(),
-                    })
-            })
-            .collect();
-        // Prefer the last server report we cached for this shift. Rebuilding from
-        // the outbox alone only ever sees work THIS device has yet to drain, so a
-        // teller who joined a shift that already had sales — or whose sales have
-        // since drained — would otherwise count a full drawer against an expected
-        // cash of just the opening float.
-        if let Some(report) = cached_views::<madar_api::models::ShiftReportResponse>(
-            &self.store,
-            &shift::report_cache_key(&shift.id),
-        )
-        .into_iter()
-        .next()
-        {
-            return Ok(shift::cached_report_view(&report, queued_cash, movements));
-        }
-        Ok(shift::offline_report_view(
-            shift.opening_cash_minor,
-            queued_cash,
-            movements,
-            shift.teller_name.clone(),
-            shift.opened_at.clone(),
-            chrono::Utc::now().to_rfc3339(),
-        ))
-    }
-
-    /// Close a shift that is not yours, as a manager.
-    ///
-    /// A till left signed in with an open drawer blocks the next person from
-    /// opening one, and the teller who left it that way has gone home. The
-    /// ordinary close belongs to whoever opened the shift; this is the way out
-    /// of the room when they are not there to do it.
-    ///
-    /// ONLINE ONLY, deliberately. Every other write here is queued and replayed,
-    /// but a forced close arbitrates between two people and a drawer — the
-    /// server decides whether this actor may do it and what the shift's figures
-    /// were at that moment. Queued offline it would be a decision made without
-    /// the facts, landing whenever the network came back.
-    ///
-    /// The reason is not optional in practice even though the wire allows it:
-    /// a drawer closed by someone who was not counting it needs a sentence
-    /// saying why, or the discrepancy has no story.
-    pub async fn force_close_shift(
-        &self,
-        shift_id: String,
-        reason: String,
-    ) -> Result<(), CoreError> {
-        if !self.is_authenticated() {
-            return Err(CoreError::Unauthenticated {
-                detail: "not signed in".into(),
-            });
-        }
-        if !self.current_session().map(|s| s.online).unwrap_or(false) {
-            return Err(CoreError::Offline {
-                detail: "a forced close is the server's call to make".into(),
-            });
-        }
-        let reason = reason.trim().to_string();
-        if reason.is_empty() {
-            return Err(CoreError::Validation {
-                field: "reason".into(),
-                detail: "say why the drawer was closed for someone else".into(),
-            });
-        }
-        use madar_api::apis::shifts_api;
-        let mut request = madar_api::models::ForceCloseRequest::new();
-        request.reason = Some(Some(reason));
-        shifts_api::force_close_shift(
-            &self.api.config(),
-            shifts_api::ForceCloseShiftParams {
-                shift_id: shift_id.clone(),
-                force_close_request: request,
-            },
-        )
-        .await
-        .map_err(|e| CoreError::Internal {
-            detail: format!("force close: {e}"),
-        })?;
-        // The board this came from is now wrong — the shift it listed as open
-        // is not.
-        let _ = self.refresh_shift().await;
-        Ok(())
-    }
-
-    /// Record a cash-drawer movement against the open shift — pay-IN when
-    /// `amount_minor > 0`, pay-OUT when `< 0`. OFFLINE-FIRST: queued through the
-    /// durable outbox (gated behind the shift's open) and idempotent on a minted
-    /// `client_ref`, so a replay after a lost response never double-applies cash.
-    ///
-    /// `kind` says WHAT the movement is, which the sign alone cannot: a safe
-    /// drop and a pay-out are both money leaving the drawer, and only one of
-    /// them is money leaving the business. The Z-report counted both as spend
-    /// until the column existed. `None` lets the server infer from the sign,
-    /// which is what every till built before this did.
-    ///
-    /// `corrects` names the movement this one reverses, so a pair nets to zero
-    /// on the report instead of reading as two real movements in opposite
-    /// directions — a mis-keyed 500 and its correction are one mistake, not
-    /// 1,000 of drawer activity.
-    pub async fn record_cash_movement(
-        &self,
-        amount_minor: i64,
-        note: String,
-        kind: Option<String>,
-        corrects: Option<String>,
-    ) -> Result<shift::CashMovementView, CoreError> {
-        let shift = shift::current(&self.store)?
-            .filter(|s| s.is_open)
-            .ok_or_else(|| CoreError::Validation {
-                field: "shift".into(),
-                detail: "no open shift".into(),
-            })?;
-
-        // Mirror the backend's validation up-front: a zero amount or empty note 400s
-        // there. Without this the drawer "moves" optimistically and the op then dead-
-        // letters, leaving the local view out of sync with a movement the server never
-        // recorded. Reject before queueing so the host shows the error immediately.
-        let note = note.trim().to_string();
-        if amount_minor == 0 {
-            return Err(CoreError::Validation {
-                field: "amount".into(),
-                detail: "amount cannot be zero".into(),
-            });
-        }
-        if note.is_empty() {
-            return Err(CoreError::Validation {
-                field: "note".into(),
-                detail: "a note is required for cash movements".into(),
-            });
-        }
-
-        // The client_ref IS the outbox id — stable across replays so the backend
-        // dedups on its `client_ref` unique index.
-        let client_ref = uuid::Uuid::new_v4();
-        let created_at = self.corrected_now().fixed_offset();
-        let mut request = madar_api::models::CashMovementRequest::new(
-            cash_i32(amount_minor, "amount")?,
-            note.clone(),
-        );
-        request.client_ref = Some(Some(client_ref));
-        request.created_at = Some(Some(created_at));
-        request.kind = kind.as_deref().map(map_cash_kind).map(Some);
-        // A correction that names a movement nobody can find is a correction
-        // the server will refuse; fail here rather than queue it.
-        if let Some(id) = corrects.as_deref().filter(|s| !s.trim().is_empty()) {
-            let parsed = uuid::Uuid::parse_str(id).map_err(|_| CoreError::Validation {
-                field: "corrects".into(),
-                detail: "a correction names the movement it reverses".into(),
-            })?;
-            request.corrects_id = Some(Some(parsed));
-        }
-        let cmd = shift::CashMovementCommand {
-            shift_id: shift.id.clone(),
-            request,
-        };
-
-        let (user_id, clock_offset_ms) = self.outbox_meta();
-        self.store.enqueue(&store::NewOutboxOp {
-            id: client_ref.to_string(),
-            op_type: "cash_movement".into(),
-            idempotency_key: client_ref.to_string(),
-            payload: serde_json::to_string(&cmd)?,
-            event_at: created_at.to_rfc3339(),
-            depends_on_seq: self.store.live_seq_of(&shift.id)?,
-            user_id,
-            clock_offset_ms,
-            shift_id: Some(shift.id.clone()),
-        })?;
-        // Best-effort send now; offline just leaves it queued.
-        let _ = self.drain_outbox().await;
-
-        // Optimistic view (the drawer moved regardless of sync state).
-        let teller = self
-            .current_session()
-            .map(|s| s.display_name)
-            .unwrap_or_default();
-        Ok(shift::CashMovementView {
-            id: client_ref.to_string(),
-            kind: till_views::movement_kind(kind.as_deref(), amount_minor),
-            amount_minor,
-            note,
-            moved_by_name: teller,
-            created_at: created_at.to_rfc3339(),
-        })
-    }
-
-    /// Cash movements for the open shift — server rows merged with still-queued
-    /// (offline) ones, so the drawer view is complete with or without a connection.
-    pub async fn list_cash_movements(&self) -> Result<Vec<shift::CashMovementView>, CoreError> {
-        use madar_api::apis::shifts_api;
-        let shift = shift::current(&self.store)?.ok_or_else(|| CoreError::Validation {
-            field: "shift".into(),
-            detail: "no shift".into(),
-        })?;
-
-        // Queued (not-yet-synced) movements for this shift, parsed from the outbox.
-        let teller = self
-            .current_session()
-            .map(|s| s.display_name)
-            .unwrap_or_default();
-        let queued: Vec<shift::CashMovementView> = self
-            .store
-            .list_active()?
-            .into_iter()
-            .filter(|i| {
-                i.op_type == "cash_movement" && i.shift_id.as_deref() == Some(shift.id.as_str())
-            })
-            .filter_map(|i| {
-                serde_json::from_str::<shift::CashMovementCommand>(&i.payload)
-                    .ok()
-                    .map(|cmd| shift::CashMovementView {
-                        id: i.id.clone(),
-                        kind: till_views::movement_kind(
-                            cmd.request.kind.flatten().map(|k| k.to_string()).as_deref(),
-                            cmd.request.amount as i64,
-                        ),
-                        amount_minor: cmd.request.amount as i64,
-                        note: cmd.request.note,
-                        moved_by_name: teller.clone(),
-                        created_at: i.event_at.clone(),
-                    })
-            })
-            .collect();
-
-        // Server rows: live when online (cached write-through for offline), else the
-        // last-synced snapshot. So the drawer shows ALL movements offline — both the
-        // ones synced before the outage and the ones rung during it — not just queued.
-        let key = format!("cache:cash:{}", shift.id);
-        let server: Vec<shift::CashMovementView> =
-            if self.current_session().map(|s| s.online).unwrap_or(false) {
-                match shifts_api::list_cash_movements(
-                    &self.api.config(),
-                    shifts_api::ListCashMovementsParams {
-                        shift_id: shift.id.clone(),
-                    },
-                )
-                .await
-                {
-                    Ok(list) => {
-                        let views: Vec<_> = list.iter().map(shift::cash_movement_view).collect();
-                        cache_views(&self.store, &key, &views);
-                        views
-                    }
-                    Err(_) => cached_views(&self.store, &key),
-                }
-            } else {
-                cached_views(&self.store, &key)
-            };
-        // Server first (chronological), then the still-queued tail, deduped on the
-        // client_ref-based view id so a movement that synced between enqueue and this
-        // read isn't doubled in the drawer total.
-        Ok(shift::merge_cash_for_view(server, queued))
-    }
-
-    /// Past shifts for this branch, newest first (the history screen). Live when
-    /// online (cached write-through), else the last-synced snapshot — so the past-
-    /// shifts table still populates offline instead of erroring to an empty screen.
-    pub async fn list_shifts(&self) -> Result<Vec<shift::ShiftSummaryView>, CoreError> {
-        use madar_api::apis::shifts_api;
-        let (_, branch_id) = self.org_branch()?;
-        let branch = branch_id.unwrap_or_else(|| "00000000-0000-0000-0000-000000000000".into());
-        const KEY: &str = "cache:shifts";
-        let mut views: Vec<shift::ShiftSummaryView> =
-            if self.current_session().map(|s| s.online).unwrap_or(false) {
-                match shifts_api::list_shifts(
-                    &self.api.config(),
-                    shifts_api::ListShiftsParams {
-                        branch_id: branch,
-                        page: None,
-                        per_page: None,
-                    },
-                )
-                .await
-                {
-                    Ok(paginated) => {
-                        let v: Vec<_> = paginated
-                            .data
-                            .iter()
-                            .map(shift::shift_summary_view)
-                            .collect();
-                        // Cache the SERVER truth (pre-overlay); the offline-close
-                        // overlay is re-applied on every read from the queue below.
-                        cache_views(&self.store, KEY, &v);
-                        v
-                    }
-                    Err(_) => cached_views(&self.store, KEY),
-                }
-            } else {
-                cached_views(&self.store, KEY)
-            };
-
-        // Overlay shifts CLOSED OFFLINE: the server snapshot still has them open
-        // (the close is only queued), so without this a shift closed offline shows
-        // as still-active in the list. Drops off automatically once the close syncs
-        // (the queued op clears) and the server list reflects the closed shift.
-        let overlay = shift::queued_close_overlay(&self.store);
-        if !overlay.is_empty() {
-            for v in views.iter_mut() {
-                if let Some((closed_at, declared)) = overlay.get(&v.id) {
-                    v.is_open = false;
-                    v.status = "closed".into();
-                    if v.closed_at.is_none() {
-                        v.closed_at = closed_at.clone();
-                    }
-                    if v.closing_declared_minor.is_none() {
-                        v.closing_declared_minor = Some(*declared);
-                    }
-                }
-            }
-        }
-
-        // Add shifts opened OFFLINE that aren't on the server yet (the normal
-        // offline workflow: open AND close a whole shift with no connection). They
-        // live only in the outbox until they sync, so without this they'd be missing
-        // from past shifts entirely. Dedup by id against the server list.
-        let server_ids: std::collections::HashSet<String> =
-            views.iter().map(|v| v.id.clone()).collect();
-        for local in shift::local_shifts(&self.store) {
-            if !server_ids.contains(&local.id) {
-                views.push(local);
-            }
-        }
-        // Newest-first by opened_at (the merge of server + local needs a re-sort).
-        views.sort_by(|a, b| b.opened_at.cmp(&a.opened_at));
-        Ok(views)
-    }
 
     /// Place the current cart as an order: price it (client-authoritative),
     /// queue an idempotent `create_order` command, clear the cart, and try to
@@ -5654,7 +4915,7 @@ impl MadarCore {
                 s.snapshot.display_name.clone(),
             )
         };
-        let shift = shift::current(&self.store)?
+        let shift = till::current(&self.store)?
             .filter(|s| s.is_open)
             .ok_or_else(|| CoreError::Validation {
                 field: "shift".into(),
@@ -5685,9 +4946,27 @@ impl MadarCore {
             now,
         )?;
 
+        // Per-device numbering (contract §4.7): the minted RRRR is the order number,
+        // sent with the device code and the till's verification.
+        let mut prepared = prepared;
+        let dev = self.lan_device_id();
+        let code = checkout::device_code_or_default(&self.store);
+        if let Some(n) = prepared.receipt.order_number {
+            prepared.command.request.order_number = Some(Some(n as i32));
+            prepared.command.device = Some(checkout::OrderDeviceStamp {
+                device_id: dev.clone(),
+                device_code: code.clone(),
+                order_number: n,
+                verification: match shift.verification.as_str() {
+                    "server" | "lan" => shift.verification.clone(),
+                    _ => "unverified".into(),
+                },
+            });
+            prepared.receipt.display_number = checkout::display_number(&code, n);
+        }
         // Queue the durable command. Idempotent on the client order UUID (both
         // the outbox `id` and the in-body `idempotency_key`), gated behind the
-        // shift's open if that hasn't synced yet.
+        // till's open if that hasn't synced yet.
         let (user_id, clock_offset_ms) = self.outbox_meta();
         self.store.enqueue(&store::NewOutboxOp {
             id: prepared.order_id.to_string(),
@@ -5698,7 +4977,8 @@ impl MadarCore {
             depends_on_seq: self.store.live_seq_of(&shift.id)?,
             user_id,
             clock_offset_ms,
-            shift_id: Some(shift.id.clone()),
+            till_id: Some(shift.id.clone()),
+            ..Default::default()
         })?;
         // The sale is committed locally; the cart is now spent.
         cart::clear(&self.store, table_id.as_deref())?;
@@ -5731,7 +5011,7 @@ impl MadarCore {
     }
 
     /// Force a sync now — drains the outbox. Cancellable/idempotent.
-    pub async fn sync_now(&self) -> Result<(), CoreError> {
+    pub(crate) async fn push_and_refresh(&self) -> Result<(), CoreError> {
         // An explicit push should recover a SPURIOUSLY parked queue — but only on
         // proof that the bearer is good, never on the assumption that an unexpired
         // one must be. A token the backend refuses stays parked, and the banner
@@ -5927,8 +5207,8 @@ impl MadarCore {
     /// The current shift's orders — the still-queued sales (from the outbox,
     /// shown first, always available offline) plus the server's synced orders
     /// when online (best-effort). Errors if there's no current shift.
-    pub async fn list_shift_orders(&self) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
-        let shift = shift::current(&self.store)?.ok_or_else(|| CoreError::Validation {
+    pub async fn list_till_orders(&self) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
+        let shift = till::current(&self.store)?.ok_or_else(|| CoreError::Validation {
             field: "shift".into(),
             detail: "no shift".into(),
         })?;
@@ -5954,7 +5234,7 @@ impl MadarCore {
         // The shift's SYNCED orders: live when online (cached write-through), else
         // the last-synced snapshot. So going offline keeps the orders already synced
         // this shift visible — not just the ones rung during the outage.
-        let key = format!("cache:shift_orders:{}", shift.id);
+        let key = format!("cache:till_orders:{}", shift.id);
         let mut server: Vec<orders::OrderSummaryView> = if online {
             // Every page, not the first 200 (till_views).
             match self
@@ -6251,7 +5531,8 @@ impl MadarCore {
             depends_on_seq,
             user_id,
             clock_offset_ms,
-            shift_id: None,
+            till_id: None,
+            ..Default::default()
         })?;
         // Try to send it straight away; offline simply leaves it queued.
         let _ = self.drain_outbox().await;
@@ -6288,9 +5569,9 @@ impl MadarCore {
     /// A PAST shift's synced orders (history-screen expansion). Live when online
     /// (cached write-through, same key as the current-shift list), else the last-
     /// synced snapshot — so an expanded past shift keeps its orders offline.
-    pub async fn list_orders_for_shift(
+    pub async fn list_orders_for_till(
         &self,
-        shift_id: String,
+        till_id: String,
     ) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
         let (branch_id, online) = {
             let g = self.session.read().unwrap_or_else(|e| e.into_inner());
@@ -6307,15 +5588,15 @@ impl MadarCore {
                 })?;
             (b, s.snapshot.online)
         };
-        let key = format!("cache:shift_orders:{shift_id}");
+        let key = format!("cache:till_orders:{till_id}");
         // Queued (offline-rung) orders for THIS shift first — a shift opened AND
         // sold on entirely offline has ALL its orders here, not on the server, so
         // without this its history would be empty offline.
-        let all = orders::queued(&self.store, &shift_id)?;
+        let all = orders::queued(&self.store, &till_id)?;
         let mut server: Vec<orders::OrderSummaryView> = if online {
             // Every page, not the first 200 (till_views).
             match self
-                .fetch_shift_orders_all_pages(&branch_id, &shift_id)
+                .fetch_shift_orders_all_pages(&branch_id, &till_id)
                 .await
             {
                 Some(views) => {
@@ -6437,17 +5718,17 @@ impl MadarCore {
     /// write-through), else the cached report; and for a shift opened+closed
     /// entirely OFFLINE — which never had a server report — reconstructed from the
     /// local opening cash + that shift's queued cash sales + movements.
-    pub async fn shift_report_for(
+    pub async fn till_report_for(
         &self,
-        shift_id: String,
-    ) -> Result<shift::ShiftReportView, CoreError> {
+        till_id: String,
+    ) -> Result<till::TillReportView, CoreError> {
         use madar_api::apis::shifts_api;
-        let key = format!("cache:shift_report:{shift_id}");
+        let key = format!("cache:till_report:{till_id}");
         if self.current_session().map(|s| s.online).unwrap_or(false) {
             if let Ok(report) = shifts_api::get_shift_report(
                 &self.api.config(),
                 shifts_api::GetShiftReportParams {
-                    shift_id: shift_id.clone(),
+                    shift_id: till_id.clone(),
                 },
             )
             .await
@@ -6457,9 +5738,9 @@ impl MadarCore {
                 // A partially-synced past shift may still hold queued cash not in
                 // the (cached) server report — add it, else expected_cash is
                 // understated and the drawer reads a false "over".
-                return Ok(shift::report_view(
+                return Ok(till::report_view(
                     &report,
-                    checkout::queued_cash_total_for(&self.store, &shift_id)?,
+                    checkout::queued_cash_total_for(&self.store, &till_id)?,
                 ));
             }
         }
@@ -6469,26 +5750,26 @@ impl MadarCore {
                 .into_iter()
                 .next()
         {
-            return Ok(shift::report_view(&report, 0));
+            return Ok(till::report_view(&report, 0));
         }
         // …otherwise an offline-only shift: reconstruct the drawer from local state.
-        self.offline_report_for(&shift_id)
+        self.offline_report_for(&till_id)
     }
 
     /// Reconstruct a shift's Z-report from purely LOCAL state (opening cash + that
     /// shift's queued cash sales + movements) — for a shift opened+closed offline
-    /// that the server has never seen. Mirrors the current-shift `shift_report`
+    /// that the server has never seen. Mirrors the current-shift `till_report`
     /// offline branch, scoped to an arbitrary shift id.
-    fn offline_report_for(&self, shift_id: &str) -> Result<shift::ShiftReportView, CoreError> {
+    fn offline_report_for(&self, till_id: &str) -> Result<till::TillReportView, CoreError> {
         // Resolve opening cash + teller + opened-at from the current shift if it
         // matches, else from the reconstructed local-shift list (distinct types,
         // so pull the three values out of each rather than unifying the objects).
         let (opening, teller_name, opened_at) =
-            if let Some(s) = shift::current(&self.store)?.filter(|s| s.id == shift_id) {
+            if let Some(s) = till::current(&self.store)?.filter(|s| s.id == till_id) {
                 (s.opening_cash_minor, Some(s.teller_name), s.opened_at)
-            } else if let Some(s) = shift::local_shifts(&self.store)
+            } else if let Some(s) = till::local_tills(&self.store)
                 .into_iter()
-                .find(|s| s.id == shift_id)
+                .find(|s| s.id == till_id)
             {
                 (s.opening_cash_minor, s.teller_name, s.opened_at)
             } else {
@@ -6499,16 +5780,16 @@ impl MadarCore {
                 .map(|s| s.display_name)
                 .unwrap_or_default()
         });
-        let queued_cash = checkout::queued_cash_total_for(&self.store, shift_id)?;
-        let movements: Vec<shift::ShiftReportCashLine> = self
+        let queued_cash = checkout::queued_cash_total_for(&self.store, till_id)?;
+        let movements: Vec<till::TillReportCashLine> = self
             .store
             .list_active_of_types(&["cash_movement"])?
             .into_iter()
-            .filter(|i| i.shift_id.as_deref() == Some(shift_id))
+            .filter(|i| i.till_id.as_deref() == Some(till_id))
             .filter_map(|i| {
-                serde_json::from_str::<shift::CashMovementCommand>(&i.payload)
+                serde_json::from_str::<till::CashMovementCommand>(&i.payload)
                     .ok()
-                    .map(|cmd| shift::ShiftReportCashLine {
+                    .map(|cmd| till::TillReportCashLine {
                         amount_minor: cmd.request.amount as i64,
                         note: cmd.request.note,
                         moved_by_name: teller.clone(),
@@ -6516,7 +5797,7 @@ impl MadarCore {
                     })
             })
             .collect();
-        Ok(shift::offline_report_view(
+        Ok(till::offline_report_view(
             opening,
             queued_cash,
             movements,
@@ -6573,11 +5854,12 @@ impl MadarCore {
             user_id,
             clock_offset_ms,
             // Stamp the void with the current shift so the close-last gate
-            // (`has_live_shift_writes`, which lists `void_order`) holds this
+            // (`has_live_till_writes`, which lists `void_order`) holds this
             // shift's close back until the void has synced. Without it the close
             // could replay before the void and freeze the Z-report's
             // closing_cash_system too high (the voided sale still counted).
-            shift_id: shift::current(&self.store)?.map(|s| s.id),
+            till_id: till::current(&self.store)?.map(|s| s.id),
+            ..Default::default()
         })?;
         let _ = self.drain_outbox().await;
         Ok(())
@@ -6647,26 +5929,26 @@ impl MadarCore {
     /// Cached like the per-order read, because the close screen is exactly
     /// where a till is most likely to be offline: the network went, the
     /// shift ends anyway, and the teller still has to count.
-    pub async fn list_shift_refunds(
+    pub async fn list_till_refunds(
         &self,
-        shift_id: String,
-    ) -> Result<orders::ShiftRefundsView, CoreError> {
+        till_id: String,
+    ) -> Result<orders::TillRefundsView, CoreError> {
         use madar_api::apis::refunds_api;
-        let key = format!("cache:refunds:shift:{shift_id}");
+        let key = format!("cache:refunds:shift:{till_id}");
         match refunds_api::list_shift_refunds(
             &self.api.config(),
             refunds_api::ListShiftRefundsParams {
-                shift_id: shift_id.clone(),
+                shift_id: till_id.clone(),
             },
         )
         .await
         {
             Ok(r) => {
-                let view = orders::shift_refunds_view(&r);
+                let view = orders::till_refunds_view(&r);
                 cache_views(&self.store, &key, std::slice::from_ref(&view));
                 Ok(view)
             }
-            Err(e) => cached_views::<orders::ShiftRefundsView>(&self.store, &key)
+            Err(e) => cached_views::<orders::TillRefundsView>(&self.store, &key)
                 .into_iter()
                 .next()
                 .ok_or_else(|| net::map_api_error(e)),
@@ -6710,7 +5992,7 @@ impl MadarCore {
         // A refund belongs to a drawer. Without an open shift there is nothing
         // to take the money out of, and the server refuses it — so refuse here
         // rather than queueing something that will dead-letter.
-        let Some(open_shift) = shift::current(&self.store)? else {
+        let Some(open_till) = till::current(&self.store)? else {
             return Err(CoreError::Validation {
                 field: "shift".into(),
                 detail: "a refund is cash leaving a drawer; open a shift first".into(),
@@ -6738,9 +6020,9 @@ impl MadarCore {
         request.note = Some(note);
         request.issued_at = Some(Some(issued_at));
         request.client_ref = Some(Some(client_ref));
-        request.shift_id = Some(Some(uuid::Uuid::parse_str(&open_shift.id).map_err(
+        request.shift_id = Some(Some(uuid::Uuid::parse_str(&open_till.id).map_err(
             |_| CoreError::Validation {
-                field: "shift_id".into(),
+                field: "till_id".into(),
                 detail: "the open shift has no server id".into(),
             },
         )?));
@@ -6758,119 +6040,13 @@ impl MadarCore {
             clock_offset_ms,
             // Same reasoning as a void: the close must wait for it, or the
             // Z-report freezes a drawer that still counts money since given back.
-            shift_id: Some(open_shift.id),
+            till_id: Some(open_till.id),
+            ..Default::default()
         })?;
         let _ = self.drain_outbox().await;
         Ok(())
     }
 
-    /// Reconcile the device's shift with the server (online). Caches the server's
-    /// open shift, or CLEARS the local cache when the server reports none — e.g.
-    /// a dashboard force-close, or a shift opened on another device. The server
-    /// is the source of truth when online; call this on login and on app resume.
-    pub async fn refresh_shift(&self) -> Result<Option<shift::ShiftView>, CoreError> {
-        use madar_api::apis::shifts_api;
-        let till_id = device::load(&self.store).till_id;
-        let (branch_id, signed_in_teller, role) = {
-            let g = self.session.read().unwrap_or_else(|e| e.into_inner());
-            let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
-                detail: "not signed in".into(),
-            })?;
-            let branch = s
-                .snapshot
-                .branch_id
-                .clone()
-                .ok_or_else(|| CoreError::Validation {
-                    field: "branch_id".into(),
-                    detail: "session has no branch".into(),
-                })?;
-            (branch, s.snapshot.user_id.clone(), s.snapshot.role.clone())
-        };
-        // Only tellers hold a shift. Waiters/kitchen devices never open one, so
-        // skip `/shifts/current` for them — they lack `shifts:read`, and the call
-        // would 403 (harmlessly swallowed by the host, but noisy in the logs). They
-        // simply have no shift.
-        if role != "teller" {
-            return Ok(None);
-        }
-        let prefill = shifts_api::get_current_shift(
-            &self.api.config(),
-            // The device's bound till scopes the carryover suggestion; `None` =
-            // the branch default-till (single-till behavior).
-            shifts_api::GetCurrentShiftParams {
-                branch_id,
-                till_id: till_id.filter(|s| !s.is_empty()),
-            },
-        )
-        .await
-        .map_err(net::map_api_error)?;
-
-        // Adopt the SERVER's carried-over opening-cash suggestion (its last synced
-        // declared closing) only when we're FULLY SYNCED — internet reachable AND
-        // no queued ops. A still-queued close means the server's last-close figure
-        // is stale, so the locally-cached value (set when we closed) is the fresher
-        // truth; online-but-unsynced and fully-offline both keep the local
-        // suggestion. The `> 0` guard additionally stops a server 0 (no prior close
-        // it knows of) from clobbering a good local value.
-        let fully_synced = self.store.pending_count().map(|n| n == 0).unwrap_or(false);
-        if fully_synced && prefill.suggested_opening_cash > 0 {
-            shift::cache_suggested_opening_cash(
-                &self.store,
-                prefill.suggested_opening_cash as i64,
-            )?;
-        }
-
-        // The server's "no open shift" is only authoritative once our own
-        // open_shift command has actually reached it. While it's still queued,
-        // the optimistic local shift stands — clearing it here is what bounced
-        // the teller straight back to the open-shift screen.
-        let open_pending = self.shift_command_pending("open_shift")?;
-        let close_pending = self.shift_command_pending("close_shift")?;
-        match shift::reconcile(&prefill, &signed_in_teller, open_pending, close_pending) {
-            shift::ShiftReconcile::Adopt(server_shift) => {
-                // Recover orphaned offline sales. If this teller has queued/dead ops
-                // on a shift the device opened optimistically OFFLINE that never
-                // became real server-side (the optimistic open conflicted on the
-                // branch and dead-lettered, cascading its orders), those sales
-                // belong on the teller's REAL open shift — the one we're adopting.
-                // Re-point them onto it and requeue the dead ones so they sync,
-                // instead of stranding the sales forever.
-                let server_id = server_shift.id.to_string();
-                let teller_id = server_shift.teller_id.to_string();
-                let mut remapped = 0u32;
-                for orphan in self.store.orphan_open_shift_ids(&teller_id, &server_id)? {
-                    remapped += self.store.remap_shift(&orphan, &server_id)?;
-                }
-                let requeued = if remapped > 0 {
-                    self.store.requeue_dead_for_shift(&server_id)?
-                } else {
-                    0
-                };
-                shift::save(&self.store, &server_shift)?;
-                if remapped > 0 {
-                    self.push_diag(
-                        "info",
-                        format!("recovered {remapped} queued op(s) ({requeued} re-tried) onto the active shift after an offline shift conflict"),
-                    );
-                    // Flush the re-pointed sales now (single-flight-guarded).
-                    let _ = self.drain_outbox().await;
-                }
-                // Seed the offline close-report base WHILE WE STILL HAVE NETWORK.
-                // Adopting means this teller is joining a shift that may already
-                // hold sales none of which are in our outbox; if the network drops
-                // before they ever open the report screen, this snapshot is the
-                // only thing standing between them and a close that expects just
-                // the opening float. Best effort — never block sign-in on it.
-                self.cache_shift_report_snapshot(&server_id).await;
-                Ok(Some(shift::view_from(&server_shift)))
-            }
-            shift::ShiftReconcile::KeepLocal => shift::current(&self.store),
-            shift::ShiftReconcile::Clear => {
-                shift::clear(&self.store)?;
-                Ok(None)
-            }
-        }
-    }
 
     /// Evict cached shift history older than [`CACHE_RETENTION_DAYS`].
     ///
@@ -6904,27 +6080,6 @@ impl MadarCore {
         Ok(n)
     }
 
-    /// Fetch and cache the server's report for `shift_id`, so an offline close
-    /// has real figures to work from. Best effort: a failure here just leaves the
-    /// previous snapshot (or none) in place, and the caller carries on.
-    async fn cache_shift_report_snapshot(&self, shift_id: &str) {
-        use madar_api::apis::shifts_api;
-        if let Ok(report) = shifts_api::get_shift_report(
-            &self.api.config(),
-            shifts_api::GetShiftReportParams {
-                shift_id: shift_id.to_string(),
-            },
-        )
-        .await
-        {
-            timefmt::remember_payload_tz(&self.store, &report.timezone);
-            cache_views(
-                &self.store,
-                &shift::report_cache_key(shift_id),
-                std::slice::from_ref(&report),
-            );
-        }
-    }
 
     /// Print pre-rendered ESC/POS bytes to the DEVICE's configured printer (from the
     /// core device config — the host passes no host:port). Errors if no printer is
@@ -7197,7 +6352,8 @@ impl MadarCore {
             depends_on_seq: None, // a ticket floats free of any shift/till
             user_id,
             clock_offset_ms,
-            shift_id: None, // the waiter holds no shift
+            till_id: None, // the waiter holds no shift
+            ..Default::default()
         })?;
         cart::clear(&self.store, table_id.as_deref())?;
         // Instant LAN delivery → the KDS sees the fire NOW. `data` is a projection of
@@ -7267,7 +6423,8 @@ impl MadarCore {
             depends_on_seq: self.store.live_seq_of(&ticket_id)?,
             user_id,
             clock_offset_ms,
-            shift_id: None,
+            till_id: None,
+            ..Default::default()
         })?;
         cart::clear(&self.store, table_id.as_deref())?;
         // Instant LAN delivery of the new round — its own kitchen ticket (derived
@@ -7333,7 +6490,8 @@ impl MadarCore {
             depends_on_seq: self.store.live_seq_of(&ticket_id)?,
             user_id,
             clock_offset_ms,
-            shift_id: None,
+            till_id: None,
+            ..Default::default()
         })?;
         let _ = self.drain_outbox().await;
         Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
@@ -7387,7 +6545,8 @@ impl MadarCore {
             event_at: self.corrected_now().to_rfc3339(),
             user_id,
             clock_offset_ms,
-            shift_id: None,
+            till_id: None,
+            ..Default::default()
         })?;
         let _ = self.drain_outbox().await;
         Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
@@ -7401,7 +6560,7 @@ impl MadarCore {
     pub async fn settle_ticket(
         &self,
         ticket_id: String,
-        shift_id: String,
+        till_id: String,
         // The host passes payment-method IDS (like checkout); the core resolves the
         // raw method NAME the backend validates against.
         payment_method_id: String,
@@ -7426,8 +6585,8 @@ impl MadarCore {
         // one method, which is nearly every bill.
         splits: Vec<checkout::CheckoutSplit>,
     ) -> Result<Option<String>, CoreError> {
-        let shift_uuid = uuid::Uuid::parse_str(&shift_id).map_err(|_| CoreError::Validation {
-            field: "shift_id".into(),
+        let shift_uuid = uuid::Uuid::parse_str(&till_id).map_err(|_| CoreError::Validation {
+            field: "till_id".into(),
             detail: "bad shift id".into(),
         })?;
         // Redeeming gives away goods against a balance any till can spend, so it
@@ -7530,14 +6689,15 @@ impl MadarCore {
             // shift gate alone applies.
             depends_on_seq: [
                 self.store.live_seq_of(&ticket_id)?,
-                self.store.live_seq_of(&shift_id)?,
+                self.store.live_seq_of(&till_id)?,
             ]
             .into_iter()
             .flatten()
             .max(),
             user_id,
             clock_offset_ms,
-            shift_id: Some(shift_id.clone()),
+            till_id: Some(till_id.clone()),
+            ..Default::default()
         })?;
         let _ = self.drain_outbox().await;
         // The paid order the settle produced, when it acked — that is what a
@@ -7833,32 +6993,6 @@ impl MadarCore {
         Ok(resp.effective)
     }
 
-    /// The branch's active tills (the device-setup / Settings till picker). Write-
-    /// through cached so the picker still works offline. Default till first.
-    pub async fn list_tills(&self) -> Result<Vec<TillView>, CoreError> {
-        use madar_api::apis::tills_api as t;
-        let branch_id = self.session_branch_id()?;
-        let tills: Vec<madar_api::models::Till> =
-            match t::list_tills(&self.api.config(), t::ListTillsParams { branch_id }).await {
-                Ok(list) => {
-                    cache_views(&self.store, "cache:tills", &list);
-                    list
-                }
-                Err(_) => cached_views(&self.store, "cache:tills"),
-            };
-        let mut out: Vec<TillView> = tills
-            .iter()
-            .filter(|t| t.is_active)
-            .map(|t| TillView {
-                id: t.id.to_string(),
-                name: t.name.clone(),
-                is_default: t.is_default,
-                is_active: t.is_active,
-            })
-            .collect();
-        out.sort_by(|a, b| b.is_default.cmp(&a.is_default).then(a.name.cmp(&b.name)));
-        Ok(out)
-    }
 }
 
 #[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
@@ -8021,14 +7155,14 @@ impl MadarCore {
                     detail: "unknown payment method".into(),
                 }
             })?;
-        let shift = shift::current(&self.store)?
+        let shift = till::current(&self.store)?
             .filter(|s| s.is_open)
             .ok_or_else(|| CoreError::Validation {
                 field: "shift".into(),
                 detail: "no open shift".into(),
             })?;
         let shift_uuid = uuid::Uuid::parse_str(&shift.id).map_err(|_| CoreError::Validation {
-            field: "shift_id".into(),
+            field: "till_id".into(),
             detail: "bad shift id".into(),
         })?;
         let input = madar_api::models::FinalizeInput::new(raw.name, shift_uuid);
@@ -8780,7 +7914,7 @@ mod lifecycle_tests {
             status: status.into(),
             ..Default::default()
         };
-        shift::save(&core.store, &s).unwrap();
+        till::save(&core.store, &s).unwrap();
         id.to_string()
     }
 
@@ -8788,26 +7922,26 @@ mod lifecycle_tests {
         core.store
             .enqueue(&store::NewOutboxOp {
                 id: id.into(),
-                op_type: "open_shift".into(),
+                op_type: "open_till".into(),
                 idempotency_key: id.into(),
                 payload: "{}".into(),
                 event_at: "2026-06-20T12:00:00+00:00".into(),
-                shift_id: Some(id.into()),
+                till_id: Some(id.into()),
                 ..Default::default()
             })
             .unwrap();
     }
 
-    fn enqueue_close_shift(core: &MadarCore, shift_id: &str) {
-        let id = format!("{shift_id}:close");
+    fn enqueue_close_shift(core: &MadarCore, till_id: &str) {
+        let id = format!("{till_id}:close");
         core.store
             .enqueue(&store::NewOutboxOp {
                 id: id.clone(),
-                op_type: "close_shift".into(),
+                op_type: "close_till".into(),
                 idempotency_key: id,
                 payload: "{}".into(),
                 event_at: "2026-06-20T18:00:00+00:00".into(),
-                shift_id: Some(shift_id.into()),
+                till_id: Some(till_id.into()),
                 ..Default::default()
             })
             .unwrap();
@@ -9513,7 +8647,8 @@ mod lifecycle_tests {
                     depends_on_seq: None,
                     user_id: None,
                     clock_offset_ms: None,
-                    shift_id: None,
+                    till_id: None,
+                    ..Default::default()
                 })
                 .unwrap();
         };
@@ -9655,13 +8790,13 @@ mod lifecycle_tests {
         let core = signed_in_offline_core().await;
 
         // First-ever open: no prior close queued → no dependency (branch is free).
-        core.open_shift(50_000, None).await.unwrap();
+        core.open_till(50_000, None).await.unwrap();
         let open_a = core
             .store
             .list_active()
             .unwrap()
             .into_iter()
-            .find(|i| i.op_type == "open_shift")
+            .find(|i| i.op_type == "open_till")
             .unwrap();
         assert_eq!(
             open_a.depends_on_seq, None,
@@ -9669,17 +8804,17 @@ mod lifecycle_tests {
         );
 
         // Close A (queues behind the open), then open B offline.
-        core.close_shift(48_000, None).await.unwrap();
-        core.open_shift(48_000, None).await.unwrap();
+        core.close_till(48_000, None).await.unwrap();
+        core.open_till(48_000, None).await.unwrap();
 
         let active = core.store.list_active().unwrap();
         let close_a = active
             .iter()
-            .find(|i| i.op_type == "close_shift")
+            .find(|i| i.op_type == "close_till")
             .expect("close A queued");
         let open_b = active
             .iter()
-            .filter(|i| i.op_type == "open_shift")
+            .filter(|i| i.op_type == "open_till")
             .max_by_key(|i| i.seq)
             .expect("open B queued");
         assert!(open_b.seq > close_a.seq, "B opened after A's close");
@@ -9701,25 +8836,25 @@ mod lifecycle_tests {
         let core = signed_in_offline_core().await;
 
         // Open A → close A → open B (B depends on A's close), all offline.
-        core.open_shift(50_000, None).await.unwrap();
-        core.close_shift(48_000, None).await.unwrap();
-        core.open_shift(48_000, None).await.unwrap();
+        core.open_till(50_000, None).await.unwrap();
+        core.close_till(48_000, None).await.unwrap();
+        core.open_till(48_000, None).await.unwrap();
 
         let active = core.store.list_active().unwrap();
         let open_a = active
             .iter()
-            .filter(|i| i.op_type == "open_shift")
+            .filter(|i| i.op_type == "open_till")
             .min_by_key(|i| i.seq)
             .unwrap()
             .seq;
         let close_a = active
             .iter()
-            .find(|i| i.op_type == "close_shift")
+            .find(|i| i.op_type == "close_till")
             .unwrap()
             .seq;
         let open_b = active
             .iter()
-            .filter(|i| i.op_type == "open_shift")
+            .filter(|i| i.op_type == "open_till")
             .max_by_key(|i| i.seq)
             .unwrap()
             .seq;
@@ -9749,35 +8884,35 @@ mod lifecycle_tests {
         );
     }
 
-    /// SEQUENTIAL-ONLY: `device_has_open_shift` is the deterministic gate. It's
+    /// SEQUENTIAL-ONLY: `device_has_open_till` is the deterministic gate. It's
     /// true for a cached OPEN shift and for an uncovered queued open (defense for
     /// a lost cache), and FALSE once the open is covered by a close — so the
     /// offline "close A → open B" flow is never blocked.
     #[test]
     fn device_has_open_shift_tracks_cache_and_uncovered_queued_opens() {
         let core = MadarCore::from_env().unwrap();
-        assert!(!core.device_has_open_shift().unwrap()); // nothing yet
+        assert!(!core.device_has_open_till().unwrap()); // nothing yet
 
         // A cached OPEN shift counts.
         seed_shift_returning_id(&core, uuid::Uuid::new_v4(), "open");
-        assert!(core.device_has_open_shift().unwrap());
+        assert!(core.device_has_open_till().unwrap());
 
         // Closed locally with nothing queued → no longer open.
-        shift::close_local(&core.store).unwrap();
-        assert!(!core.device_has_open_shift().unwrap());
+        till::close_local(&core.store).unwrap();
+        assert!(!core.device_has_open_till().unwrap());
 
         // Cache lost but an open is still queued with no close → still "open".
-        shift::clear(&core.store).unwrap();
+        till::clear(&core.store).unwrap();
         let sid = uuid::Uuid::new_v4().to_string();
         enqueue_open_shift(&core, &sid);
-        assert!(core.device_has_open_shift().unwrap());
+        assert!(core.device_has_open_till().unwrap());
 
         // Queue its close → the open is now covered → not open (reopen allowed).
         enqueue_close_shift(&core, &sid);
-        assert!(!core.device_has_open_shift().unwrap());
+        assert!(!core.device_has_open_till().unwrap());
     }
 
-    /// The behavioral guarantee: a second `open_shift` while one is open is
+    /// The behavioral guarantee: a second `open_till` while one is open is
     /// rejected; after a (local) close it's allowed again — the sequential
     /// offline shift cycle. Driven fully offline (dead url) on a real session.
     #[tokio::test]
@@ -9826,16 +8961,16 @@ mod lifecycle_tests {
         .unwrap();
 
         // First open succeeds.
-        core.open_shift(50000, None).await.unwrap();
-        assert!(core.current_shift().unwrap().unwrap().is_open);
+        core.open_till(50000, None).await.unwrap();
+        assert!(core.current_till().unwrap().unwrap().is_open);
 
         // A second open while one is open is REJECTED (and leaves the first intact).
-        let second = core.open_shift(60000, None).await;
+        let second = core.open_till(60000, None).await;
         assert!(
             matches!(second, Err(CoreError::Validation { .. })),
             "got {second:?}"
         );
-        let still = core.current_shift().unwrap().unwrap();
+        let still = core.current_till().unwrap().unwrap();
         assert!(still.is_open);
         assert_eq!(
             still.opening_cash_minor, 50000,
@@ -9843,12 +8978,12 @@ mod lifecycle_tests {
         );
 
         // Close it (locally; the close just queues offline) → reopen is allowed.
-        core.close_shift(48000, None).await.unwrap();
-        assert!(!core.current_shift().unwrap().unwrap().is_open);
-        core.open_shift(48000, None)
+        core.close_till(48000, None).await.unwrap();
+        assert!(!core.current_till().unwrap().unwrap().is_open);
+        core.open_till(48000, None)
             .await
             .expect("reopen after close must be allowed");
-        assert!(core.current_shift().unwrap().unwrap().is_open);
+        assert!(core.current_till().unwrap().unwrap().is_open);
     }
 
     /// Skeptic-1 regression: the open-shift pending guard must be scoped to the
@@ -9857,14 +8992,14 @@ mod lifecycle_tests {
     #[test]
     fn open_pending_is_scoped_to_the_cached_shift_not_device_global() {
         let core = MadarCore::from_env().unwrap();
-        let shift_id = seed_shift_returning_id(&core, uuid::Uuid::new_v4(), "open");
-        assert!(!core.shift_command_pending("open_shift").unwrap()); // nothing queued
-                                                                     // A DIFFERENT shift's orphaned open_shift command does NOT count.
+        let till_id = seed_shift_returning_id(&core, uuid::Uuid::new_v4(), "open");
+        assert!(!core.till_command_pending("open_till").unwrap()); // nothing queued
+                                                                     // A DIFFERENT shift's orphaned open_till command does NOT count.
         enqueue_open_shift(&core, &uuid::Uuid::new_v4().to_string());
-        assert!(!core.shift_command_pending("open_shift").unwrap());
+        assert!(!core.till_command_pending("open_till").unwrap());
         // Our own cached shift's command DOES.
-        enqueue_open_shift(&core, &shift_id);
-        assert!(core.shift_command_pending("open_shift").unwrap());
+        enqueue_open_shift(&core, &till_id);
+        assert!(core.till_command_pending("open_till").unwrap());
     }
 
     /// End-to-end offline: open a shift, sell nothing, then close it. The shift
@@ -9919,19 +9054,19 @@ mod lifecycle_tests {
         .await
         .unwrap();
 
-        core.open_shift(50000, None).await.unwrap();
+        core.open_till(50000, None).await.unwrap();
         core.cart_add(None, "item-1".into(), "Latte".into(), 1000)
             .unwrap();
         assert_eq!(core.app_route(), AppRoute::Order);
 
-        core.close_shift(48000, Some("short by 20".into()))
+        core.close_till(48000, Some("short by 20".into()))
             .await
             .unwrap();
         // Routed back to open-shift, cart dropped, and both commands queued.
-        assert_eq!(core.app_route(), AppRoute::OpenShift);
+        assert_eq!(core.app_route(), AppRoute::OpenTill);
         assert!(core.cart_lines(None).unwrap().is_empty());
         assert_eq!(core.pending_outbox_count().unwrap(), 2); // open + close
-        assert!(core.shift_command_pending("close_shift").unwrap());
+        assert!(core.till_command_pending("close_till").unwrap());
     }
 
     /// Firing a table's round spends THAT table's cart only: the table starts
@@ -10020,7 +9155,7 @@ mod lifecycle_tests {
     #[tokio::test]
     async fn close_shift_without_an_open_shift_is_rejected() {
         let core = MadarCore::from_env().unwrap();
-        let err = core.close_shift(1000, None).await;
+        let err = core.close_till(1000, None).await;
         assert!(matches!(err, Err(CoreError::Validation { .. })));
     }
 
@@ -10049,7 +9184,7 @@ mod lifecycle_tests {
             &core,
             Some(teller_session(&uuid::Uuid::new_v4().to_string(), Some("b"))),
         );
-        assert_eq!(core.app_route(), AppRoute::OpenShift);
+        assert_eq!(core.app_route(), AppRoute::OpenTill);
     }
 
     #[test]
@@ -10071,7 +9206,7 @@ mod lifecycle_tests {
         let me = uuid::Uuid::new_v4();
         set_session(&core, Some(teller_session(&me.to_string(), Some("b"))));
         seed_shift(&core, uuid::Uuid::new_v4(), "open");
-        assert_eq!(core.app_route(), AppRoute::OpenShift);
+        assert_eq!(core.app_route(), AppRoute::OpenTill);
     }
 
     #[test]
@@ -10081,7 +9216,7 @@ mod lifecycle_tests {
         let teller = uuid::Uuid::new_v4();
         set_session(&core, Some(teller_session(&teller.to_string(), Some("b"))));
         seed_shift(&core, teller, "closed");
-        assert_eq!(core.app_route(), AppRoute::OpenShift);
+        assert_eq!(core.app_route(), AppRoute::OpenTill);
     }
 
     #[test]
@@ -10111,7 +9246,7 @@ mod lifecycle_tests {
         );
     }
 
-    /// End-to-end offline: sign in offline, open a shift (the open_shift command
+    /// End-to-end offline: sign in offline, open a shift (the open_till command
     /// can't reach the server, so it stays queued), and assert the route lands —
     /// and STAYS — on Order. This is the open-shift "bounce" reproduced E2E.
     #[tokio::test]
@@ -10165,10 +9300,10 @@ mod lifecycle_tests {
             .expect("offline sign-in");
         assert!(!snap.online);
         // Signed in, no shift yet → open-shift.
-        assert_eq!(core.app_route(), AppRoute::OpenShift);
+        assert_eq!(core.app_route(), AppRoute::OpenTill);
 
         let shift = core
-            .open_shift(50000, None)
+            .open_till(50000, None)
             .await
             .expect("open shift offline");
         assert!(shift.is_open);

@@ -9,6 +9,7 @@ import 'api/cart.dart';
 import 'api/catalog.dart';
 import 'api/delivery.dart';
 import 'api/device.dart';
+import 'api/drawer.dart';
 import 'api/error.dart';
 import 'api/floor.dart';
 import 'api/kds.dart';
@@ -17,7 +18,6 @@ import 'api/orders.dart';
 import 'api/printing.dart';
 import 'api/realtime.dart';
 import 'api/routes.dart';
-import 'api/shift.dart';
 import 'api/sync.dart';
 import 'api/tickets.dart';
 import 'api/till.dart';
@@ -93,6 +93,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   AppRoute dco_decode_app_route(dynamic raw);
 
   @protected
+  AssetSyncView dco_decode_asset_sync_view(dynamic raw);
+
+  @protected
   BookingView dco_decode_booking_view(dynamic raw);
 
   @protected
@@ -123,6 +126,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit dco_decode_box_autoadd_kitchen_chit(dynamic raw);
 
   @protected
+  LastTillWarningView dco_decode_box_autoadd_last_till_warning_view(
+    dynamic raw,
+  );
+
+  @protected
   LoginRequest dco_decode_box_autoadd_login_request(dynamic raw);
 
   @protected
@@ -135,25 +143,36 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   MadarConfig dco_decode_box_autoadd_madar_config(dynamic raw);
 
   @protected
+  OpenBillsNoticeView dco_decode_box_autoadd_open_bills_notice_view(
+    dynamic raw,
+  );
+
+  @protected
   ReceiptView dco_decode_box_autoadd_receipt_view(dynamic raw);
 
   @protected
   SessionSnapshot dco_decode_box_autoadd_session_snapshot(dynamic raw);
 
   @protected
-  ShiftReportView dco_decode_box_autoadd_shift_report_view(dynamic raw);
-
-  @protected
-  ShiftView dco_decode_box_autoadd_shift_view(dynamic raw);
-
-  @protected
   TicketBillView dco_decode_box_autoadd_ticket_bill_view(dynamic raw);
+
+  @protected
+  TillElsewhereView dco_decode_box_autoadd_till_elsewhere_view(dynamic raw);
+
+  @protected
+  TillReportView dco_decode_box_autoadd_till_report_view(dynamic raw);
+
+  @protected
+  TillView dco_decode_box_autoadd_till_view(dynamic raw);
 
   @protected
   int dco_decode_box_autoadd_u_16(dynamic raw);
 
   @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  BranchOpenTillView dco_decode_branch_open_till_view(dynamic raw);
 
   @protected
   BranchView dco_decode_branch_view(dynamic raw);
@@ -208,6 +227,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CloseCountCheck dco_decode_close_count_check(dynamic raw);
+
+  @protected
+  CloseTillMethodView dco_decode_close_till_method_view(dynamic raw);
+
+  @protected
+  CloseTillOutcomeView dco_decode_close_till_outcome_view(dynamic raw);
+
+  @protected
+  CloseTillPreviewView dco_decode_close_till_preview_view(dynamic raw);
 
   @protected
   ComputedRecipeLineView dco_decode_computed_recipe_line_view(dynamic raw);
@@ -279,6 +307,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit dco_decode_kitchen_chit(dynamic raw);
 
   @protected
+  LastTillWarningView dco_decode_last_till_warning_view(dynamic raw);
+
+  @protected
   LinePreviewView dco_decode_line_preview_view(dynamic raw);
 
   @protected
@@ -298,6 +329,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<BookingView> dco_decode_list_booking_view(dynamic raw);
+
+  @protected
+  List<BranchOpenTillView> dco_decode_list_branch_open_till_view(dynamic raw);
 
   @protected
   List<BranchView> dco_decode_list_branch_view(dynamic raw);
@@ -341,6 +375,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CheckoutSplit> dco_decode_list_checkout_split(dynamic raw);
+
+  @protected
+  List<CloseTillMethodView> dco_decode_list_close_till_method_view(dynamic raw);
 
   @protected
   List<ComputedRecipeLineView> dco_decode_list_computed_recipe_line_view(
@@ -443,6 +480,14 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<RecipeStepView> dco_decode_list_recipe_step_view(dynamic raw);
 
   @protected
+  List<ReconciliationInput> dco_decode_list_reconciliation_input(dynamic raw);
+
+  @protected
+  List<ReconciliationLineView> dco_decode_list_reconciliation_line_view(
+    dynamic raw,
+  );
+
+  @protected
   List<RefundLineView> dco_decode_list_refund_line_view(dynamic raw);
 
   @protected
@@ -458,17 +503,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<RewardPick> dco_decode_list_reward_pick(dynamic raw);
 
   @protected
-  List<ShiftReportCashLine> dco_decode_list_shift_report_cash_line(dynamic raw);
-
-  @protected
-  List<ShiftReportPaymentLine> dco_decode_list_shift_report_payment_line(
-    dynamic raw,
-  );
-
-  @protected
-  List<ShiftSummaryView> dco_decode_list_shift_summary_view(dynamic raw);
-
-  @protected
   List<TableSittingView> dco_decode_list_table_sitting_view(dynamic raw);
 
   @protected
@@ -478,7 +512,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<TicketView> dco_decode_list_ticket_view(dynamic raw);
 
   @protected
-  List<TillView> dco_decode_list_till_view(dynamic raw);
+  List<TillReportCashLine> dco_decode_list_till_report_cash_line(dynamic raw);
+
+  @protected
+  List<TillReportPaymentLine> dco_decode_list_till_report_payment_line(
+    dynamic raw,
+  );
+
+  @protected
+  List<TillSummaryView> dco_decode_list_till_summary_view(dynamic raw);
 
   @protected
   List<TransferQueueView> dco_decode_list_transfer_queue_view(dynamic raw);
@@ -529,6 +571,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   ModifierOptionView dco_decode_modifier_option_view(dynamic raw);
 
   @protected
+  OpenBillsNoticeView dco_decode_open_bills_notice_view(dynamic raw);
+
+  @protected
+  OpenTillOutcome dco_decode_open_till_outcome(dynamic raw);
+
+  @protected
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
@@ -547,7 +595,17 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
 
   @protected
+  LastTillWarningView? dco_decode_opt_box_autoadd_last_till_warning_view(
+    dynamic raw,
+  );
+
+  @protected
   LoyaltyMemberView? dco_decode_opt_box_autoadd_loyalty_member_view(
+    dynamic raw,
+  );
+
+  @protected
+  OpenBillsNoticeView? dco_decode_opt_box_autoadd_open_bills_notice_view(
     dynamic raw,
   );
 
@@ -555,10 +613,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   SessionSnapshot? dco_decode_opt_box_autoadd_session_snapshot(dynamic raw);
 
   @protected
-  ShiftView? dco_decode_opt_box_autoadd_shift_view(dynamic raw);
+  TicketBillView? dco_decode_opt_box_autoadd_ticket_bill_view(dynamic raw);
 
   @protected
-  TicketBillView? dco_decode_opt_box_autoadd_ticket_bill_view(dynamic raw);
+  TillElsewhereView? dco_decode_opt_box_autoadd_till_elsewhere_view(
+    dynamic raw,
+  );
+
+  @protected
+  TillView? dco_decode_opt_box_autoadd_till_view(dynamic raw);
 
   @protected
   int? dco_decode_opt_box_autoadd_u_16(dynamic raw);
@@ -621,6 +684,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   RecipeStepView dco_decode_recipe_step_view(dynamic raw);
 
   @protected
+  ReconciliationInput dco_decode_reconciliation_input(dynamic raw);
+
+  @protected
+  ReconciliationLineView dco_decode_reconciliation_line_view(dynamic raw);
+
+  @protected
   RefundLineView dco_decode_refund_line_view(dynamic raw);
 
   @protected
@@ -643,27 +712,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
-
-  @protected
-  ShiftRefundsView dco_decode_shift_refunds_view(dynamic raw);
-
-  @protected
-  ShiftReportCashLine dco_decode_shift_report_cash_line(dynamic raw);
-
-  @protected
-  ShiftReportPaymentLine dco_decode_shift_report_payment_line(dynamic raw);
-
-  @protected
-  ShiftReportView dco_decode_shift_report_view(dynamic raw);
-
-  @protected
-  ShiftStatsView dco_decode_shift_stats_view(dynamic raw);
-
-  @protected
-  ShiftSummaryView dco_decode_shift_summary_view(dynamic raw);
-
-  @protected
-  ShiftView dco_decode_shift_view(dynamic raw);
 
   @protected
   SyncStatusView dco_decode_sync_status_view(dynamic raw);
@@ -690,6 +738,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   TicketView dco_decode_ticket_view(dynamic raw);
 
   @protected
+  TillElsewhereView dco_decode_till_elsewhere_view(dynamic raw);
+
+  @protected
+  TillOpenSyncView dco_decode_till_open_sync_view(dynamic raw);
+
+  @protected
+  TillRefundsView dco_decode_till_refunds_view(dynamic raw);
+
+  @protected
+  TillReportCashLine dco_decode_till_report_cash_line(dynamic raw);
+
+  @protected
+  TillReportPaymentLine dco_decode_till_report_payment_line(dynamic raw);
+
+  @protected
+  TillReportView dco_decode_till_report_view(dynamic raw);
+
+  @protected
+  TillStatsView dco_decode_till_stats_view(dynamic raw);
+
+  @protected
+  TillSummaryView dco_decode_till_summary_view(dynamic raw);
+
+  @protected
   TillView dco_decode_till_view(dynamic raw);
 
   @protected
@@ -703,6 +775,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   int dco_decode_u_32(dynamic raw);
+
+  @protected
+  BigInt dco_decode_u_64(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -768,6 +843,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   AppRoute sse_decode_app_route(SseDeserializer deserializer);
 
   @protected
+  AssetSyncView sse_decode_asset_sync_view(SseDeserializer deserializer);
+
+  @protected
   BookingView sse_decode_booking_view(SseDeserializer deserializer);
 
   @protected
@@ -804,6 +882,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit sse_decode_box_autoadd_kitchen_chit(SseDeserializer deserializer);
 
   @protected
+  LastTillWarningView sse_decode_box_autoadd_last_till_warning_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LoginRequest sse_decode_box_autoadd_login_request(
     SseDeserializer deserializer,
   );
@@ -822,6 +905,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   MadarConfig sse_decode_box_autoadd_madar_config(SseDeserializer deserializer);
 
   @protected
+  OpenBillsNoticeView sse_decode_box_autoadd_open_bills_notice_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ReceiptView sse_decode_box_autoadd_receipt_view(SseDeserializer deserializer);
 
   @protected
@@ -830,23 +918,33 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  ShiftReportView sse_decode_box_autoadd_shift_report_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ShiftView sse_decode_box_autoadd_shift_view(SseDeserializer deserializer);
-
-  @protected
   TicketBillView sse_decode_box_autoadd_ticket_bill_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TillElsewhereView sse_decode_box_autoadd_till_elsewhere_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TillReportView sse_decode_box_autoadd_till_report_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TillView sse_decode_box_autoadd_till_view(SseDeserializer deserializer);
 
   @protected
   int sse_decode_box_autoadd_u_16(SseDeserializer deserializer);
 
   @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  BranchOpenTillView sse_decode_branch_open_till_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   BranchView sse_decode_branch_view(SseDeserializer deserializer);
@@ -911,6 +1009,21 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CloseCountCheck sse_decode_close_count_check(SseDeserializer deserializer);
+
+  @protected
+  CloseTillMethodView sse_decode_close_till_method_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloseTillOutcomeView sse_decode_close_till_outcome_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CloseTillPreviewView sse_decode_close_till_preview_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ComputedRecipeLineView sse_decode_computed_recipe_line_view(
@@ -994,6 +1107,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   KitchenChit sse_decode_kitchen_chit(SseDeserializer deserializer);
 
   @protected
+  LastTillWarningView sse_decode_last_till_warning_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LinePreviewView sse_decode_line_preview_view(SseDeserializer deserializer);
 
   @protected
@@ -1021,6 +1139,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<BookingView> sse_decode_list_booking_view(SseDeserializer deserializer);
+
+  @protected
+  List<BranchOpenTillView> sse_decode_list_branch_open_till_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<BranchView> sse_decode_list_branch_view(SseDeserializer deserializer);
@@ -1080,6 +1203,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<CheckoutSplit> sse_decode_list_checkout_split(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CloseTillMethodView> sse_decode_list_close_till_method_view(
     SseDeserializer deserializer,
   );
 
@@ -1234,6 +1362,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<ReconciliationInput> sse_decode_list_reconciliation_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ReconciliationLineView> sse_decode_list_reconciliation_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<RefundLineView> sse_decode_list_refund_line_view(
     SseDeserializer deserializer,
   );
@@ -1255,21 +1393,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<RewardPick> sse_decode_list_reward_pick(SseDeserializer deserializer);
 
   @protected
-  List<ShiftReportCashLine> sse_decode_list_shift_report_cash_line(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<ShiftReportPaymentLine> sse_decode_list_shift_report_payment_line(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<ShiftSummaryView> sse_decode_list_shift_summary_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   List<TableSittingView> sse_decode_list_table_sitting_view(
     SseDeserializer deserializer,
   );
@@ -1283,7 +1406,19 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<TicketView> sse_decode_list_ticket_view(SseDeserializer deserializer);
 
   @protected
-  List<TillView> sse_decode_list_till_view(SseDeserializer deserializer);
+  List<TillReportCashLine> sse_decode_list_till_report_cash_line(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<TillReportPaymentLine> sse_decode_list_till_report_payment_line(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<TillSummaryView> sse_decode_list_till_summary_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<TransferQueueView> sse_decode_list_transfer_queue_view(
@@ -1352,6 +1487,14 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  OpenBillsNoticeView sse_decode_open_bills_notice_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OpenTillOutcome sse_decode_open_till_outcome(SseDeserializer deserializer);
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
@@ -1374,7 +1517,17 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  LastTillWarningView? sse_decode_opt_box_autoadd_last_till_warning_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LoyaltyMemberView? sse_decode_opt_box_autoadd_loyalty_member_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OpenBillsNoticeView? sse_decode_opt_box_autoadd_open_bills_notice_view(
     SseDeserializer deserializer,
   );
 
@@ -1384,14 +1537,17 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  ShiftView? sse_decode_opt_box_autoadd_shift_view(
+  TicketBillView? sse_decode_opt_box_autoadd_ticket_bill_view(
     SseDeserializer deserializer,
   );
 
   @protected
-  TicketBillView? sse_decode_opt_box_autoadd_ticket_bill_view(
+  TillElsewhereView? sse_decode_opt_box_autoadd_till_elsewhere_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TillView? sse_decode_opt_box_autoadd_till_view(SseDeserializer deserializer);
 
   @protected
   int? sse_decode_opt_box_autoadd_u_16(SseDeserializer deserializer);
@@ -1468,6 +1624,16 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   RecipeStepView sse_decode_recipe_step_view(SseDeserializer deserializer);
 
   @protected
+  ReconciliationInput sse_decode_reconciliation_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ReconciliationLineView sse_decode_reconciliation_line_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RefundLineView sse_decode_refund_line_view(SseDeserializer deserializer);
 
   @protected
@@ -1490,31 +1656,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
-
-  @protected
-  ShiftRefundsView sse_decode_shift_refunds_view(SseDeserializer deserializer);
-
-  @protected
-  ShiftReportCashLine sse_decode_shift_report_cash_line(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ShiftReportPaymentLine sse_decode_shift_report_payment_line(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ShiftReportView sse_decode_shift_report_view(SseDeserializer deserializer);
-
-  @protected
-  ShiftStatsView sse_decode_shift_stats_view(SseDeserializer deserializer);
-
-  @protected
-  ShiftSummaryView sse_decode_shift_summary_view(SseDeserializer deserializer);
-
-  @protected
-  ShiftView sse_decode_shift_view(SseDeserializer deserializer);
 
   @protected
   SyncStatusView sse_decode_sync_status_view(SseDeserializer deserializer);
@@ -1543,6 +1684,36 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   TicketView sse_decode_ticket_view(SseDeserializer deserializer);
 
   @protected
+  TillElsewhereView sse_decode_till_elsewhere_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TillOpenSyncView sse_decode_till_open_sync_view(SseDeserializer deserializer);
+
+  @protected
+  TillRefundsView sse_decode_till_refunds_view(SseDeserializer deserializer);
+
+  @protected
+  TillReportCashLine sse_decode_till_report_cash_line(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TillReportPaymentLine sse_decode_till_report_payment_line(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TillReportView sse_decode_till_report_view(SseDeserializer deserializer);
+
+  @protected
+  TillStatsView sse_decode_till_stats_view(SseDeserializer deserializer);
+
+  @protected
+  TillSummaryView sse_decode_till_summary_view(SseDeserializer deserializer);
+
+  @protected
   TillView sse_decode_till_view(SseDeserializer deserializer);
 
   @protected
@@ -1558,6 +1729,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -1635,6 +1809,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_app_route(AppRoute self, SseSerializer serializer);
 
   @protected
+  void sse_encode_asset_sync_view(AssetSyncView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_booking_view(BookingView self, SseSerializer serializer);
 
   @protected
@@ -1683,6 +1860,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_last_till_warning_view(
+    LastTillWarningView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_login_request(
     LoginRequest self,
     SseSerializer serializer,
@@ -1707,6 +1890,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_open_bills_notice_view(
+    OpenBillsNoticeView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_receipt_view(
     ReceiptView self,
     SseSerializer serializer,
@@ -1719,20 +1908,26 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_shift_report_view(
-    ShiftReportView self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_shift_view(
-    ShiftView self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_ticket_bill_view(
     TicketBillView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_till_elsewhere_view(
+    TillElsewhereView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_till_report_view(
+    TillReportView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_till_view(
+    TillView self,
     SseSerializer serializer,
   );
 
@@ -1741,6 +1936,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_branch_open_till_view(
+    BranchOpenTillView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_branch_view(BranchView self, SseSerializer serializer);
@@ -1817,6 +2018,24 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_close_count_check(
     CloseCountCheck self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_close_till_method_view(
+    CloseTillMethodView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_close_till_outcome_view(
+    CloseTillOutcomeView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_close_till_preview_view(
+    CloseTillPreviewView self,
     SseSerializer serializer,
   );
 
@@ -1923,6 +2142,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_kitchen_chit(KitchenChit self, SseSerializer serializer);
 
   @protected
+  void sse_encode_last_till_warning_view(
+    LastTillWarningView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_line_preview_view(
     LinePreviewView self,
     SseSerializer serializer,
@@ -1958,6 +2183,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_booking_view(
     List<BookingView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_branch_open_till_view(
+    List<BranchOpenTillView> self,
     SseSerializer serializer,
   );
 
@@ -2036,6 +2267,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_checkout_split(
     List<CheckoutSplit> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_close_till_method_view(
+    List<CloseTillMethodView> self,
     SseSerializer serializer,
   );
 
@@ -2229,6 +2466,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_reconciliation_input(
+    List<ReconciliationInput> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_reconciliation_line_view(
+    List<ReconciliationLineView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_refund_line_view(
     List<RefundLineView> self,
     SseSerializer serializer,
@@ -2259,24 +2508,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  void sse_encode_list_shift_report_cash_line(
-    List<ShiftReportCashLine> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_shift_report_payment_line(
-    List<ShiftReportPaymentLine> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_shift_summary_view(
-    List<ShiftSummaryView> self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_list_table_sitting_view(
     List<TableSittingView> self,
     SseSerializer serializer,
@@ -2295,7 +2526,22 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  void sse_encode_list_till_view(List<TillView> self, SseSerializer serializer);
+  void sse_encode_list_till_report_cash_line(
+    List<TillReportCashLine> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_till_report_payment_line(
+    List<TillReportPaymentLine> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_till_summary_view(
+    List<TillSummaryView> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_transfer_queue_view(
@@ -2379,6 +2625,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_open_bills_notice_view(
+    OpenBillsNoticeView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_open_till_outcome(
+    OpenTillOutcome self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
@@ -2406,8 +2664,20 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_last_till_warning_view(
+    LastTillWarningView? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_loyalty_member_view(
     LoyaltyMemberView? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_open_bills_notice_view(
+    OpenBillsNoticeView? self,
     SseSerializer serializer,
   );
 
@@ -2418,14 +2688,20 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_shift_view(
-    ShiftView? self,
+  void sse_encode_opt_box_autoadd_ticket_bill_view(
+    TicketBillView? self,
     SseSerializer serializer,
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_ticket_bill_view(
-    TicketBillView? self,
+  void sse_encode_opt_box_autoadd_till_elsewhere_view(
+    TillElsewhereView? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_till_view(
+    TillView? self,
     SseSerializer serializer,
   );
 
@@ -2538,6 +2814,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_reconciliation_input(
+    ReconciliationInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reconciliation_line_view(
+    ReconciliationLineView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_refund_line_view(
     RefundLineView self,
     SseSerializer serializer,
@@ -2578,45 +2866,6 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
     SessionSnapshot self,
     SseSerializer serializer,
   );
-
-  @protected
-  void sse_encode_shift_refunds_view(
-    ShiftRefundsView self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_shift_report_cash_line(
-    ShiftReportCashLine self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_shift_report_payment_line(
-    ShiftReportPaymentLine self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_shift_report_view(
-    ShiftReportView self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_shift_stats_view(
-    ShiftStatsView self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_shift_summary_view(
-    ShiftSummaryView self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_shift_view(ShiftView self, SseSerializer serializer);
 
   @protected
   void sse_encode_sync_status_view(
@@ -2664,6 +2913,51 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_ticket_view(TicketView self, SseSerializer serializer);
 
   @protected
+  void sse_encode_till_elsewhere_view(
+    TillElsewhereView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_till_open_sync_view(
+    TillOpenSyncView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_till_refunds_view(
+    TillRefundsView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_till_report_cash_line(
+    TillReportCashLine self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_till_report_payment_line(
+    TillReportPaymentLine self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_till_report_view(
+    TillReportView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_till_stats_view(TillStatsView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_till_summary_view(
+    TillSummaryView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_till_view(TillView self, SseSerializer serializer);
 
   @protected
@@ -2680,6 +2974,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);

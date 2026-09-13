@@ -16,8 +16,8 @@
 use cosmic_text::{Attrs, Buffer, Color, Family, FontSystem, Metrics, Shaping, SwashCache, Weight};
 
 use crate::checkout::{ReceiptLineView, ReceiptModifierView, ReceiptView};
-use crate::receipt::{money, short_id, Bitmap, EscPosCtx, ShiftReportLabels};
-use crate::shift::ShiftReportView;
+use crate::receipt::{money, short_id, Bitmap, EscPosCtx, TillReportLabels};
+use crate::till::TillReportView;
 
 /// Printable width in dots — 72 mm @ 203 dpi. Matches the Flutter `_printerWidth`
 /// and the Star raster row width (576 / 8 = 72 bytes).
@@ -63,11 +63,11 @@ pub fn render_receipt(
 /// receipt, mirroring the on-screen `ShiftReportBreakdown` preview. `orders` is
 /// the per-order breakdown appended when the teller prints the EXPANDED report
 /// (empty = summary only, the default).
-pub fn render_shift_report(
-    report: &ShiftReportView,
+pub fn render_till_report(
+    report: &TillReportView,
     store: &str,
     currency: &str,
-    labels: &ShiftReportLabels,
+    labels: &TillReportLabels,
     orders: &[crate::orders::OrderSummaryView],
     width: u32,
 ) -> Bitmap {
@@ -469,10 +469,10 @@ impl Renderer {
     /// (opening, expected, actual, over/short) → voided → end.
     fn build_shift(
         &mut self,
-        r: &ShiftReportView,
+        r: &TillReportView,
         store: &str,
         currency: &str,
-        lab: &ShiftReportLabels,
+        lab: &TillReportLabels,
         orders: &[crate::orders::OrderSummaryView],
     ) {
         let m = |minor: i64| money(minor, currency);
@@ -755,7 +755,7 @@ fn fmt_dt(lab: &crate::receipt::ReceiptLabels, rfc3339: &str) -> String {
     )
 }
 
-fn fmt_dt_z(lab: &ShiftReportLabels, rfc3339: &str) -> String {
+fn fmt_dt_z(lab: &TillReportLabels, rfc3339: &str) -> String {
     crate::timefmt::format_in(
         lab.tz,
         rfc3339,
@@ -968,8 +968,8 @@ mod tests {
         assert!(bmp.rows > 200);
     }
 
-    fn shift_labels() -> ShiftReportLabels {
-        ShiftReportLabels {
+    fn shift_labels() -> TillReportLabels {
+        TillReportLabels {
             title: "Till Close Report".into(),
             business_date: "Business Date".into(),
             printed_at: "Printed at".into(),
@@ -1006,8 +1006,8 @@ mod tests {
         }
     }
 
-    fn shift_report() -> ShiftReportView {
-        ShiftReportView {
+    fn till_report() -> TillReportView {
+        TillReportView {
             teller_name: "Mona".into(),
             opened_at: "2026-06-24T09:00:00+03:00".into(),
             closed_at: Some("2026-06-24T21:30:00+03:00".into()),
@@ -1030,20 +1030,20 @@ mod tests {
             cash_in_minor: 0,
             cash_out_minor: 2000,
             payment_lines: vec![
-                crate::shift::ShiftReportPaymentLine {
+                crate::till::TillReportPaymentLine {
                     method: "Cash".into(),
                     is_cash: true,
                     order_count: 5,
                     total_minor: 12000,
                 },
-                crate::shift::ShiftReportPaymentLine {
+                crate::till::TillReportPaymentLine {
                     method: "Card".into(),
                     is_cash: false,
                     order_count: 3,
                     total_minor: 8000,
                 },
             ],
-            cash_movements: vec![crate::shift::ShiftReportCashLine {
+            cash_movements: vec![crate::till::TillReportCashLine {
                 amount_minor: -2000,
                 note: "مصروف".into(), // Arabic note — exercises shaping in the report too
                 moved_by_name: "Mona".into(),
@@ -1055,8 +1055,8 @@ mod tests {
 
     #[test]
     fn renders_shift_report_bitmap() {
-        let bmp = render_shift_report(
-            &shift_report(),
+        let bmp = render_till_report(
+            &till_report(),
             "Cafe Madar",
             "EGP",
             &shift_labels(),
@@ -1094,15 +1094,15 @@ mod tests {
             "/tmp/receipt.png",
         );
         save_png(
-            &render_shift_report(
-                &shift_report(),
+            &render_till_report(
+                &till_report(),
                 "Cafe Madar",
                 "EGP",
                 &shift_labels(),
                 &[],
                 PRINT_WIDTH,
             ),
-            "/tmp/shift_report.png",
+            "/tmp/till_report.png",
         );
         // Synthetic 4:1 wordmark (border + diagonal) to check logo sizing.
         let mut logo = image::RgbaImage::new(800, 200);
@@ -1131,7 +1131,7 @@ mod tests {
     const LATE: &str = "2026-09-12T23:30:00+00:00";
 
     fn printed_shift(tz: chrono_tz::Tz, at: &str) -> Vec<String> {
-        let mut report = shift_report();
+        let mut report = till_report();
         report.opened_at = at.into();
         report.printed_at = at.into();
         report.closed_at = Some(at.into());

@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 463599853;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 426020139;
 
 // Section: executor
 
@@ -265,6 +265,57 @@ fn wire__crate__api__bridge__MadarBridge_available_bundles_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_available_payment_methods_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_available_payment_methods",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::error::MadarError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::bridge::MadarBridge::available_payment_methods(
+                        &*api_that_guard,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_base_url_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -366,6 +417,63 @@ fn wire__crate__api__bridge__MadarBridge_bill_with_rewards_impl(
                 )?;
                 std::result::Result::Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_branch_open_tills_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_branch_open_tills",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::bridge::MadarBridge::branch_open_tills(&*api_that_guard)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
         },
     )
 }
@@ -1832,6 +1940,63 @@ fn wire__crate__api__bridge__MadarBridge_category_style_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_check_till_elsewhere_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_check_till_elsewhere",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::bridge::MadarBridge::check_till_elsewhere(&*api_that_guard)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_checkout_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2206,7 +2371,7 @@ fn wire__crate__api__bridge__MadarBridge_close_count_check_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_close_shift_impl(
+fn wire__crate__api__bridge__MadarBridge_close_till_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2214,7 +2379,7 @@ fn wire__crate__api__bridge__MadarBridge_close_shift_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_close_shift",
+            debug_name: "MadarBridge_close_till",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -2233,6 +2398,8 @@ fn wire__crate__api__bridge__MadarBridge_close_shift_impl(
             >>::sse_decode(&mut deserializer);
             let api_closing_cash_minor = <i64>::sse_decode(&mut deserializer);
             let api_cash_note = <Option<String>>::sse_decode(&mut deserializer);
+            let api_reconciliation =
+                <Vec<crate::api::till::ReconciliationInput>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::MadarError>(
@@ -2254,12 +2421,70 @@ fn wire__crate__api__bridge__MadarBridge_close_shift_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::bridge::MadarBridge::close_shift(
+                        let output_ok = crate::api::bridge::MadarBridge::close_till(
                             &*api_that_guard,
                             api_closing_cash_minor,
                             api_cash_note,
+                            api_reconciliation,
                         )
                         .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_close_till_preview_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_close_till_preview",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::bridge::MadarBridge::close_till_preview(&*api_that_guard)
+                                .await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -2541,7 +2766,7 @@ fn wire__crate__api__bridge__MadarBridge_current_session_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_current_shift_impl(
+fn wire__crate__api__bridge__MadarBridge_current_till_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2549,7 +2774,7 @@ fn wire__crate__api__bridge__MadarBridge_current_shift_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_current_shift",
+            debug_name: "MadarBridge_current_till",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -2584,7 +2809,7 @@ fn wire__crate__api__bridge__MadarBridge_current_shift_impl(
                     }
                     let api_that_guard = api_that_guard.unwrap();
                     let output_ok =
-                        crate::api::bridge::MadarBridge::current_shift(&*api_that_guard)?;
+                        crate::api::bridge::MadarBridge::current_till(&*api_that_guard)?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -3225,6 +3450,53 @@ fn wire__crate__api__bridge__MadarBridge_device_config_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_device_id_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_device_id",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok =
+                    Ok::<_, ()>(crate::api::bridge::MadarBridge::device_id(&*api_that_guard))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_discard_draft_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -3495,7 +3767,7 @@ fn wire__crate__api__bridge__MadarBridge_floor_layout_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_force_close_shift_impl(
+fn wire__crate__api__bridge__MadarBridge_force_close_till_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3503,7 +3775,7 @@ fn wire__crate__api__bridge__MadarBridge_force_close_shift_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_force_close_shift",
+            debug_name: "MadarBridge_force_close_till",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -3520,7 +3792,7 @@ fn wire__crate__api__bridge__MadarBridge_force_close_shift_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
             >>::sse_decode(&mut deserializer);
-            let api_shift_id = <String>::sse_decode(&mut deserializer);
+            let api_till_id = <String>::sse_decode(&mut deserializer);
             let api_reason = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
@@ -3543,9 +3815,9 @@ fn wire__crate__api__bridge__MadarBridge_force_close_shift_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::bridge::MadarBridge::force_close_shift(
+                        let output_ok = crate::api::bridge::MadarBridge::force_close_till(
                             &*api_that_guard,
-                            api_shift_id,
+                            api_till_id,
                             api_reason,
                         )
                         .await?;
@@ -5492,7 +5764,7 @@ fn wire__crate__api__bridge__MadarBridge_list_order_refunds_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_list_orders_for_shift_impl(
+fn wire__crate__api__bridge__MadarBridge_list_orders_for_till_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5500,7 +5772,7 @@ fn wire__crate__api__bridge__MadarBridge_list_orders_for_shift_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_list_orders_for_shift",
+            debug_name: "MadarBridge_list_orders_for_till",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -5517,7 +5789,7 @@ fn wire__crate__api__bridge__MadarBridge_list_orders_for_shift_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
             >>::sse_decode(&mut deserializer);
-            let api_shift_id = <String>::sse_decode(&mut deserializer);
+            let api_till_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::MadarError>(
@@ -5539,9 +5811,9 @@ fn wire__crate__api__bridge__MadarBridge_list_orders_for_shift_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::bridge::MadarBridge::list_orders_for_shift(
+                        let output_ok = crate::api::bridge::MadarBridge::list_orders_for_till(
                             &*api_that_guard,
-                            api_shift_id,
+                            api_till_id,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -5651,7 +5923,7 @@ fn wire__crate__api__bridge__MadarBridge_list_payment_methods_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_list_shift_orders_impl(
+fn wire__crate__api__bridge__MadarBridge_list_till_orders_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5659,7 +5931,7 @@ fn wire__crate__api__bridge__MadarBridge_list_shift_orders_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_list_shift_orders",
+            debug_name: "MadarBridge_list_till_orders",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -5698,7 +5970,7 @@ fn wire__crate__api__bridge__MadarBridge_list_shift_orders_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::api::bridge::MadarBridge::list_shift_orders(&*api_that_guard)
+                            crate::api::bridge::MadarBridge::list_till_orders(&*api_that_guard)
                                 .await?;
                         std::result::Result::Ok(output_ok)
                     })()
@@ -5708,7 +5980,7 @@ fn wire__crate__api__bridge__MadarBridge_list_shift_orders_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_list_shift_refunds_impl(
+fn wire__crate__api__bridge__MadarBridge_list_till_refunds_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5716,7 +5988,7 @@ fn wire__crate__api__bridge__MadarBridge_list_shift_refunds_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_list_shift_refunds",
+            debug_name: "MadarBridge_list_till_refunds",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -5733,7 +6005,7 @@ fn wire__crate__api__bridge__MadarBridge_list_shift_refunds_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
             >>::sse_decode(&mut deserializer);
-            let api_shift_id = <String>::sse_decode(&mut deserializer);
+            let api_till_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::MadarError>(
@@ -5755,67 +6027,11 @@ fn wire__crate__api__bridge__MadarBridge_list_shift_refunds_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::bridge::MadarBridge::list_shift_refunds(
+                        let output_ok = crate::api::bridge::MadarBridge::list_till_refunds(
                             &*api_that_guard,
-                            api_shift_id,
+                            api_till_id,
                         )
                         .await?;
-                        std::result::Result::Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
-fn wire__crate__api__bridge__MadarBridge_list_shifts_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_list_shifts",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, crate::api::error::MadarError>(
-                    (move || async move {
-                        let mut api_that_guard = None;
-                        let decode_indices_ =
-                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
-                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, false,
-                                )],
-                            );
-                        for i in decode_indices_ {
-                            match i {
-                                0 => {
-                                    api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref().await)
-                                }
-                                _ => unreachable!(),
-                            }
-                        }
-                        let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            crate::api::bridge::MadarBridge::list_shifts(&*api_that_guard).await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -6579,7 +6795,7 @@ fn wire__crate__api__bridge__MadarBridge_no_show_booking_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_open_shift_impl(
+fn wire__crate__api__bridge__MadarBridge_open_bills_notice_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -6587,7 +6803,64 @@ fn wire__crate__api__bridge__MadarBridge_open_shift_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_open_shift",
+            debug_name: "MadarBridge_open_bills_notice",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::bridge::MadarBridge::open_bills_notice(&*api_that_guard)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_open_till_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_open_till",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -6627,7 +6900,7 @@ fn wire__crate__api__bridge__MadarBridge_open_shift_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::bridge::MadarBridge::open_shift(
+                        let output_ok = crate::api::bridge::MadarBridge::open_till(
                             &*api_that_guard,
                             api_opening_cash_minor,
                             api_opening_reason,
@@ -7199,64 +7472,6 @@ fn wire__crate__api__bridge__MadarBridge_record_cash_movement_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_recover_orphaned_orders_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_recover_orphaned_orders",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, crate::api::error::MadarError>(
-                    (move || async move {
-                        let mut api_that_guard = None;
-                        let decode_indices_ =
-                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
-                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, false,
-                                )],
-                            );
-                        for i in decode_indices_ {
-                            match i {
-                                0 => {
-                                    api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref().await)
-                                }
-                                _ => unreachable!(),
-                            }
-                        }
-                        let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::bridge::MadarBridge::recover_orphaned_orders(
-                            &*api_that_guard,
-                        )
-                        .await?;
-                        std::result::Result::Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
 fn wire__crate__api__bridge__MadarBridge_refresh_arrivals_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -7486,7 +7701,7 @@ fn wire__crate__api__bridge__MadarBridge_refresh_floor_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_refresh_shift_impl(
+fn wire__crate__api__bridge__MadarBridge_refresh_till_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7494,7 +7709,7 @@ fn wire__crate__api__bridge__MadarBridge_refresh_shift_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_refresh_shift",
+            debug_name: "MadarBridge_refresh_till",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -7533,8 +7748,7 @@ fn wire__crate__api__bridge__MadarBridge_refresh_shift_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::api::bridge::MadarBridge::refresh_shift(&*api_that_guard)
-                                .await?;
+                            crate::api::bridge::MadarBridge::refresh_till(&*api_that_guard).await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -7956,7 +8170,7 @@ fn wire__crate__api__bridge__MadarBridge_render_receipt_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_render_shift_report_impl(
+fn wire__crate__api__bridge__MadarBridge_render_till_report_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7964,7 +8178,7 @@ fn wire__crate__api__bridge__MadarBridge_render_shift_report_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_render_shift_report",
+            debug_name: "MadarBridge_render_till_report",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -7981,7 +8195,7 @@ fn wire__crate__api__bridge__MadarBridge_render_shift_report_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
             >>::sse_decode(&mut deserializer);
-            let api_report = <crate::api::shift::ShiftReportView>::sse_decode(&mut deserializer);
+            let api_report = <crate::api::till::TillReportView>::sse_decode(&mut deserializer);
             let api_store_name = <String>::sse_decode(&mut deserializer);
             let api_currency = <String>::sse_decode(&mut deserializer);
             let api_width = <u32>::sse_decode(&mut deserializer);
@@ -8006,7 +8220,7 @@ fn wire__crate__api__bridge__MadarBridge_render_shift_report_impl(
                     }
                     let api_that_guard = api_that_guard.unwrap();
                     let output_ok =
-                        Ok::<_, ()>(crate::api::bridge::MadarBridge::render_shift_report(
+                        Ok::<_, ()>(crate::api::bridge::MadarBridge::render_till_report(
                             &*api_that_guard,
                             api_report,
                             api_store_name,
@@ -8017,6 +8231,63 @@ fn wire__crate__api__bridge__MadarBridge_render_shift_report_impl(
                         ))?;
                     std::result::Result::Ok(output_ok)
                 })())
+            }
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_repair_assets_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_repair_assets",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::bridge::MadarBridge::repair_assets(&*api_that_guard)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
@@ -8225,6 +8496,66 @@ fn wire__crate__api__bridge__MadarBridge_retry_outbox_impl(
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
                             crate::api::bridge::MadarBridge::retry_outbox(&*api_that_guard).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_retry_till_outbox_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_retry_till_outbox",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_till_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::bridge::MadarBridge::retry_till_outbox(
+                            &*api_that_guard,
+                            api_till_id,
+                        )
+                        .await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -9087,59 +9418,6 @@ fn wire__crate__api__bridge__MadarBridge_set_device_station_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_set_device_till_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_set_device_till",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
-            >>::sse_decode(&mut deserializer);
-            let api_till_id = <Option<String>>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, crate::api::error::MadarError>((move || {
-                    let mut api_that_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
-                    }
-                    let api_that_guard = api_that_guard.unwrap();
-                    let output_ok = crate::api::bridge::MadarBridge::set_device_till(
-                        &*api_that_guard,
-                        api_till_id,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
 fn wire__crate__api__bridge__MadarBridge_set_kitchen_routing_mode_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -9275,7 +9553,7 @@ fn wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
             >>::sse_decode(&mut deserializer);
             let api_ticket_id = <String>::sse_decode(&mut deserializer);
-            let api_shift_id = <String>::sse_decode(&mut deserializer);
+            let api_till_id = <String>::sse_decode(&mut deserializer);
             let api_payment_method_id = <String>::sse_decode(&mut deserializer);
             let api_amount_tendered_minor = <Option<i64>>::sse_decode(&mut deserializer);
             let api_tip_minor = <Option<i64>>::sse_decode(&mut deserializer);
@@ -9312,7 +9590,7 @@ fn wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
                         let output_ok = crate::api::bridge::MadarBridge::settle_ticket(
                             &*api_that_guard,
                             api_ticket_id,
-                            api_shift_id,
+                            api_till_id,
                             api_payment_method_id,
                             api_amount_tendered_minor,
                             api_tip_minor,
@@ -9329,227 +9607,6 @@ fn wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
                     })()
                     .await,
                 )
-            }
-        },
-    )
-}
-fn wire__crate__api__bridge__MadarBridge_shift_cash_sales_minor_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_shift_cash_sales_minor",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
-            >>::sse_decode(&mut deserializer);
-            let api_report = <crate::api::shift::ShiftReportView>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_that_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_that, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    Ok::<_, ()>(crate::api::bridge::MadarBridge::shift_cash_sales_minor(
-                        &*api_that_guard,
-                        api_report,
-                    ))?;
-                std::result::Result::Ok(output_ok)
-            })())
-        },
-    )
-}
-fn wire__crate__api__bridge__MadarBridge_shift_report_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_shift_report",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, crate::api::error::MadarError>(
-                    (move || async move {
-                        let mut api_that_guard = None;
-                        let decode_indices_ =
-                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
-                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, false,
-                                )],
-                            );
-                        for i in decode_indices_ {
-                            match i {
-                                0 => {
-                                    api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref().await)
-                                }
-                                _ => unreachable!(),
-                            }
-                        }
-                        let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            crate::api::bridge::MadarBridge::shift_report(&*api_that_guard).await?;
-                        std::result::Result::Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
-fn wire__crate__api__bridge__MadarBridge_shift_report_for_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_shift_report_for",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
-            >>::sse_decode(&mut deserializer);
-            let api_shift_id = <String>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, crate::api::error::MadarError>(
-                    (move || async move {
-                        let mut api_that_guard = None;
-                        let decode_indices_ =
-                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
-                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, false,
-                                )],
-                            );
-                        for i in decode_indices_ {
-                            match i {
-                                0 => {
-                                    api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref().await)
-                                }
-                                _ => unreachable!(),
-                            }
-                        }
-                        let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::bridge::MadarBridge::shift_report_for(
-                            &*api_that_guard,
-                            api_shift_id,
-                        )
-                        .await?;
-                        std::result::Result::Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
-fn wire__crate__api__bridge__MadarBridge_shift_stats_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_shift_stats",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
-            >>::sse_decode(&mut deserializer);
-            let api_orders =
-                <Vec<crate::api::orders::OrderSummaryView>>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let mut api_that_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
-                    }
-                    let api_that_guard = api_that_guard.unwrap();
-                    let output_ok = Ok::<_, ()>(crate::api::bridge::MadarBridge::shift_stats(
-                        &*api_that_guard,
-                        api_orders,
-                    ))?;
-                    std::result::Result::Ok(output_ok)
-                })())
             }
         },
     )
@@ -10014,6 +10071,62 @@ fn wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_sync_full_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_sync_full",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::bridge::MadarBridge::sync_full(&*api_that_guard).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_sync_now_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -10070,17 +10183,16 @@ fn wire__crate__api__bridge__MadarBridge_sync_now_impl(
         },
     )
 }
-fn wire__crate__api__bridge__MadarBridge_sync_status_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
+fn wire__crate__api__bridge__MadarBridge_sync_on_till_open_status_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MadarBridge_sync_status",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            debug_name: "MadarBridge_sync_on_till_open_status",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -10096,26 +10208,74 @@ fn wire__crate__api__bridge__MadarBridge_sync_status_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, crate::api::error::MadarError>((move || {
-                    let mut api_that_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_that_guard = api_that_guard.unwrap();
-                    let output_ok = crate::api::bridge::MadarBridge::sync_status(&*api_that_guard)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>(
+                    crate::api::bridge::MadarBridge::sync_on_till_open_status(&*api_that_guard),
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_sync_status_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_sync_status",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>(crate::api::bridge::MadarBridge::sync_status(
+                    &*api_that_guard,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
@@ -10289,6 +10449,227 @@ fn wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
                 )?;
                 std::result::Result::Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_till_cash_sales_minor_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_till_cash_sales_minor",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_report = <crate::api::till::TillReportView>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok =
+                    Ok::<_, ()>(crate::api::bridge::MadarBridge::till_cash_sales_minor(
+                        &*api_that_guard,
+                        api_report,
+                    ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_till_report_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_till_report",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::bridge::MadarBridge::till_report(&*api_that_guard).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_till_report_for_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_till_report_for",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_till_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::MadarError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::bridge::MadarBridge::till_report_for(
+                            &*api_that_guard,
+                            api_till_id,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_till_stats_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_till_stats",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_orders =
+                <Vec<crate::api::orders::OrderSummaryView>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = Ok::<_, ()>(crate::api::bridge::MadarBridge::till_stats(
+                        &*api_that_guard,
+                        api_orders,
+                    ))?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -10984,6 +11365,15 @@ const _: fn() = || {
         let _: Option<i32> = AddonSlotView.max_selections;
     }
     {
+        let AssetSyncView = None::<crate::api::sync::AssetSyncView>.unwrap();
+        let _: u32 = AssetSyncView.needed;
+        let _: u32 = AssetSyncView.missing;
+        let _: bool = AssetSyncView.downloading;
+        let _: u64 = AssetSyncView.bytes_done;
+        let _: u64 = AssetSyncView.bytes_total;
+        let _: Option<String> = AssetSyncView.last_error;
+    }
+    {
         let BookingView = None::<crate::api::bookings::BookingView>.unwrap();
         let _: String = BookingView.id;
         let _: String = BookingView.status;
@@ -10998,6 +11388,17 @@ const _: fn() = || {
         let _: Vec<String> = BookingView.table_labels;
         let _: bool = BookingView.needs_table;
         let _: String = BookingView.source;
+    }
+    {
+        let BranchOpenTillView = None::<crate::api::till::BranchOpenTillView>.unwrap();
+        let _: String = BranchOpenTillView.till_id;
+        let _: String = BranchOpenTillView.teller_id;
+        let _: String = BranchOpenTillView.teller_name;
+        let _: Option<String> = BranchOpenTillView.device_code;
+        let _: Option<String> = BranchOpenTillView.device_label;
+        let _: String = BranchOpenTillView.opened_at;
+        let _: bool = BranchOpenTillView.is_this_device;
+        let _: String = BranchOpenTillView.source;
     }
     {
         let BranchView = None::<crate::api::device::BranchView>.unwrap();
@@ -11092,7 +11493,7 @@ const _: fn() = || {
         let _: i64 = CartTotals.total_minor;
     }
     {
-        let CashMovementView = None::<crate::api::shift::CashMovementView>.unwrap();
+        let CashMovementView = None::<crate::api::till::CashMovementView>.unwrap();
         let _: String = CashMovementView.id;
         let _: String = CashMovementView.kind;
         let _: i64 = CashMovementView.amount_minor;
@@ -11144,11 +11545,35 @@ const _: fn() = || {
         let _: i64 = CheckoutSplit.amount_minor;
     }
     {
-        let CloseCountCheck = None::<crate::api::till::CloseCountCheck>.unwrap();
+        let CloseCountCheck = None::<crate::api::drawer::CloseCountCheck>.unwrap();
         let _: bool = CloseCountCheck.entered;
         let _: i64 = CloseCountCheck.variance_minor;
         let _: String = CloseCountCheck.verdict;
         let _: bool = CloseCountCheck.needs_reason;
+    }
+    {
+        let CloseTillMethodView = None::<crate::api::till::CloseTillMethodView>.unwrap();
+        let _: String = CloseTillMethodView.method;
+        let _: String = CloseTillMethodView.label;
+        let _: bool = CloseTillMethodView.is_cash;
+        let _: i64 = CloseTillMethodView.system_total_minor;
+        let _: i64 = CloseTillMethodView.order_count;
+    }
+    {
+        let CloseTillOutcomeView = None::<crate::api::till::CloseTillOutcomeView>.unwrap();
+        let _: bool = CloseTillOutcomeView.queued;
+        let _: Vec<crate::api::till::ReconciliationLineView> = CloseTillOutcomeView.reconciliation;
+        let _: Option<crate::api::till::LastTillWarningView> =
+            CloseTillOutcomeView.last_till_warning;
+    }
+    {
+        let CloseTillPreviewView = None::<crate::api::till::CloseTillPreviewView>.unwrap();
+        let _: crate::api::types::TillView = CloseTillPreviewView.till;
+        let _: i64 = CloseTillPreviewView.expected_cash_minor;
+        let _: Vec<crate::api::till::CloseTillMethodView> = CloseTillPreviewView.methods;
+        let _: Option<crate::api::till::LastTillWarningView> =
+            CloseTillPreviewView.last_till_warning;
+        let _: bool = CloseTillPreviewView.from_server;
     }
     {
         let ComputedRecipeLineView = None::<crate::api::cart::ComputedRecipeLineView>.unwrap();
@@ -11202,7 +11627,6 @@ const _: fn() = || {
         let DeviceConfigView = None::<crate::api::device::DeviceConfigView>.unwrap();
         let _: Option<String> = DeviceConfigView.branch_id;
         let _: Option<String> = DeviceConfigView.branch_name;
-        let _: Option<String> = DeviceConfigView.till_id;
         let _: Option<String> = DeviceConfigView.station_id;
         let _: Option<String> = DeviceConfigView.printer_host;
         let _: Option<u16> = DeviceConfigView.printer_port;
@@ -11361,6 +11785,12 @@ const _: fn() = || {
         let _: String = KitchenChit.at;
     }
     {
+        let LastTillWarningView = None::<crate::api::till::LastTillWarningView>.unwrap();
+        let _: i64 = LastTillWarningView.open_bills_count;
+        let _: i64 = LastTillWarningView.open_bills_amount_minor;
+        let _: i64 = LastTillWarningView.seated_tables_count;
+    }
+    {
         let LinePreviewView = None::<crate::api::cart::LinePreviewView>.unwrap();
         let _: i64 = LinePreviewView.unit_total_minor;
         let _: i64 = LinePreviewView.extras_minor;
@@ -11483,6 +11913,22 @@ const _: fn() = || {
         let _: i64 = ModifierOptionView.charged_price_minor;
     }
     {
+        let OpenBillsNoticeView = None::<crate::api::till::OpenBillsNoticeView>.unwrap();
+        let _: i64 = OpenBillsNoticeView.open_bills_count;
+        let _: i64 = OpenBillsNoticeView.open_bills_amount_minor;
+        let _: Option<String> = OpenBillsNoticeView.oldest_opened_at;
+        let _: i64 = OpenBillsNoticeView.old_bills_count;
+        let _: i64 = OpenBillsNoticeView.old_bill_hours;
+        let _: i64 = OpenBillsNoticeView.seated_tables_count;
+        let _: Option<String> = OpenBillsNoticeView.since;
+    }
+    {
+        let OpenTillOutcome = None::<crate::api::till::OpenTillOutcome>.unwrap();
+        let _: Option<crate::api::types::TillView> = OpenTillOutcome.till;
+        let _: String = OpenTillOutcome.verification;
+        let _: Option<crate::api::till::TillElsewhereView> = OpenTillOutcome.open_elsewhere;
+    }
+    {
         let OptionalFieldView = None::<crate::api::catalog::OptionalFieldView>.unwrap();
         let _: String = OptionalFieldView.id;
         let _: String = OptionalFieldView.name;
@@ -11559,7 +12005,7 @@ const _: fn() = || {
         let _: String = OutboxItemView.event_at;
     }
     {
-        let PaymentMethodChoice = None::<crate::api::till::PaymentMethodChoice>.unwrap();
+        let PaymentMethodChoice = None::<crate::api::drawer::PaymentMethodChoice>.unwrap();
         let _: String = PaymentMethodChoice.code;
         let _: String = PaymentMethodChoice.label;
         let _: bool = PaymentMethodChoice.is_cash;
@@ -11605,6 +12051,7 @@ const _: fn() = || {
         let ReceiptView = None::<crate::api::orders::ReceiptView>.unwrap();
         let _: String = ReceiptView.local_order_id;
         let _: Option<i64> = ReceiptView.order_number;
+        let _: String = ReceiptView.display_number;
         let _: Option<String> = ReceiptView.order_ref;
         let _: bool = ReceiptView.is_voided;
         let _: Vec<crate::api::orders::ReceiptLineView> = ReceiptView.lines;
@@ -11651,6 +12098,24 @@ const _: fn() = || {
         let _: Option<String> = RecipeStepView.animation_url;
     }
     {
+        let ReconciliationInput = None::<crate::api::till::ReconciliationInput>.unwrap();
+        let _: String = ReconciliationInput.method;
+        let _: String = ReconciliationInput.status;
+        let _: Option<i64> = ReconciliationInput.declared_amount_minor;
+        let _: Option<String> = ReconciliationInput.note;
+    }
+    {
+        let ReconciliationLineView = None::<crate::api::till::ReconciliationLineView>.unwrap();
+        let _: String = ReconciliationLineView.method;
+        let _: String = ReconciliationLineView.label;
+        let _: bool = ReconciliationLineView.is_cash;
+        let _: i64 = ReconciliationLineView.system_total_minor;
+        let _: String = ReconciliationLineView.status;
+        let _: Option<i64> = ReconciliationLineView.declared_amount_minor;
+        let _: Option<String> = ReconciliationLineView.note;
+        let _: bool = ReconciliationLineView.changed_after_close;
+    }
+    {
         let RefundLineView = None::<crate::api::orders::RefundLineView>.unwrap();
         let _: String = RefundLineView.item_name;
         let _: i32 = RefundLineView.qty;
@@ -11658,10 +12123,10 @@ const _: fn() = || {
         let _: bool = RefundLineView.restocked;
     }
     {
-        let RefundMethodPlan = None::<crate::api::till::RefundMethodPlan>.unwrap();
-        let _: Vec<crate::api::till::PaymentMethodChoice> = RefundMethodPlan.options;
+        let RefundMethodPlan = None::<crate::api::drawer::RefundMethodPlan>.unwrap();
+        let _: Vec<crate::api::drawer::PaymentMethodChoice> = RefundMethodPlan.options;
         let _: Option<String> = RefundMethodPlan.default_code;
-        let _: bool = RefundMethodPlan.crosses_shift;
+        let _: bool = RefundMethodPlan.crosses_till;
     }
     {
         let RefundView = None::<crate::api::orders::RefundView>.unwrap();
@@ -11730,91 +12195,19 @@ const _: fn() = || {
         let _: bool = SessionSnapshot.permissions_loaded;
     }
     {
-        let ShiftRefundsView = None::<crate::api::orders::ShiftRefundsView>.unwrap();
-        let _: String = ShiftRefundsView.shift_id;
-        let _: i64 = ShiftRefundsView.refund_count;
-        let _: i64 = ShiftRefundsView.refunded_minor;
-        let _: i64 = ShiftRefundsView.refunded_cash_minor;
-        let _: Vec<crate::api::orders::RefundView> = ShiftRefundsView.refunds;
-    }
-    {
-        let ShiftReportCashLine = None::<crate::api::shift::ShiftReportCashLine>.unwrap();
-        let _: i64 = ShiftReportCashLine.amount_minor;
-        let _: String = ShiftReportCashLine.note;
-        let _: String = ShiftReportCashLine.moved_by_name;
-        let _: String = ShiftReportCashLine.created_at;
-    }
-    {
-        let ShiftReportPaymentLine = None::<crate::api::shift::ShiftReportPaymentLine>.unwrap();
-        let _: String = ShiftReportPaymentLine.method;
-        let _: bool = ShiftReportPaymentLine.is_cash;
-        let _: i64 = ShiftReportPaymentLine.order_count;
-        let _: i64 = ShiftReportPaymentLine.total_minor;
-    }
-    {
-        let ShiftReportView = None::<crate::api::shift::ShiftReportView>.unwrap();
-        let _: String = ShiftReportView.teller_name;
-        let _: String = ShiftReportView.opened_at;
-        let _: Option<String> = ShiftReportView.closed_at;
-        let _: String = ShiftReportView.printed_at;
-        let _: bool = ShiftReportView.is_open;
-        let _: i64 = ShiftReportView.expected_cash_minor;
-        let _: i64 = ShiftReportView.opening_cash_minor;
-        let _: bool = ShiftReportView.opening_cash_was_edited;
-        let _: Option<i64> = ShiftReportView.opening_cash_original_minor;
-        let _: Option<String> = ShiftReportView.opening_cash_edit_reason;
-        let _: Option<i64> = ShiftReportView.closing_cash_declared_minor;
-        let _: i64 = ShiftReportView.total_payments_minor;
-        let _: i64 = ShiftReportView.net_payments_minor;
-        let _: i64 = ShiftReportView.voided_amount_minor;
-        let _: i64 = ShiftReportView.refunds_issued_minor;
-        let _: i64 = ShiftReportView.refunds_issued_cash_minor;
-        let _: i64 = ShiftReportView.refunds_issued_count;
-        let _: i64 = ShiftReportView.cash_in_refunded_sales_minor;
-        let _: i64 = ShiftReportView.cash_movements_net_minor;
-        let _: i64 = ShiftReportView.cash_in_minor;
-        let _: i64 = ShiftReportView.cash_out_minor;
-        let _: Vec<crate::api::shift::ShiftReportPaymentLine> = ShiftReportView.payment_lines;
-        let _: Vec<crate::api::shift::ShiftReportCashLine> = ShiftReportView.cash_movements;
-        let _: bool = ShiftReportView.from_server;
-    }
-    {
-        let ShiftStatsView = None::<crate::api::shift::ShiftStatsView>.unwrap();
-        let _: i64 = ShiftStatsView.sales_minor;
-        let _: i64 = ShiftStatsView.order_count;
-    }
-    {
-        let ShiftSummaryView = None::<crate::api::shift::ShiftSummaryView>.unwrap();
-        let _: String = ShiftSummaryView.id;
-        let _: Option<String> = ShiftSummaryView.branch_name;
-        let _: Option<String> = ShiftSummaryView.teller_name;
-        let _: String = ShiftSummaryView.opened_at;
-        let _: Option<String> = ShiftSummaryView.closed_at;
-        let _: i64 = ShiftSummaryView.opening_cash_minor;
-        let _: Option<i64> = ShiftSummaryView.closing_declared_minor;
-        let _: Option<i64> = ShiftSummaryView.closing_system_minor;
-        let _: Option<i64> = ShiftSummaryView.discrepancy_minor;
-        let _: String = ShiftSummaryView.status;
-        let _: bool = ShiftSummaryView.is_open;
-    }
-    {
-        let ShiftView = None::<crate::api::types::ShiftView>.unwrap();
-        let _: String = ShiftView.id;
-        let _: String = ShiftView.branch_id;
-        let _: String = ShiftView.teller_id;
-        let _: String = ShiftView.teller_name;
-        let _: i64 = ShiftView.opening_cash_minor;
-        let _: String = ShiftView.opened_at;
-        let _: String = ShiftView.status;
-        let _: bool = ShiftView.is_open;
-    }
-    {
         let SyncStatusView = None::<crate::api::sync::SyncStatusView>.unwrap();
-        let _: u32 = SyncStatusView.pending;
-        let _: u32 = SyncStatusView.failed;
-        let _: u32 = SyncStatusView.blocked;
+        let _: String = SyncStatusView.phase;
+        let _: Option<i64> = SyncStatusView.next_seq;
+        let _: u32 = SyncStatusView.pending_outbox;
+        let _: u32 = SyncStatusView.dead_outbox;
+        let _: Option<String> = SyncStatusView.last_ok_at;
+        let _: Option<String> = SyncStatusView.last_full_at;
+        let _: Option<String> = SyncStatusView.stale_reason;
+        let _: Option<String> = SyncStatusView.last_error;
+        let _: crate::api::sync::AssetSyncView = SyncStatusView.assets;
         let _: bool = SyncStatusView.online;
         let _: bool = SyncStatusView.auth_paused;
+        let _: u32 = SyncStatusView.blocked;
     }
     {
         let TenderSummaryView = None::<crate::api::orders::TenderSummaryView>.unwrap();
@@ -11876,11 +12269,117 @@ const _: fn() = || {
         let _: Vec<crate::api::tickets::TicketLineView> = TicketView.lines;
     }
     {
-        let TillView = None::<crate::api::shift::TillView>.unwrap();
+        let TillElsewhereView = None::<crate::api::till::TillElsewhereView>.unwrap();
+        let _: String = TillElsewhereView.till_id;
+        let _: Option<String> = TillElsewhereView.device_code;
+        let _: Option<String> = TillElsewhereView.device_label;
+        let _: String = TillElsewhereView.opened_at;
+        let _: String = TillElsewhereView.source;
+    }
+    {
+        let TillOpenSyncView = None::<crate::api::sync::TillOpenSyncView>.unwrap();
+        let _: String = TillOpenSyncView.state;
+        let _: Option<String> = TillOpenSyncView.till_id;
+        let _: Option<String> = TillOpenSyncView.started_at;
+        let _: Option<String> = TillOpenSyncView.finished_at;
+        let _: Option<String> = TillOpenSyncView.stale_reason;
+        let _: u32 = TillOpenSyncView.changes_applied;
+        let _: u32 = TillOpenSyncView.pending_outbox;
+    }
+    {
+        let TillRefundsView = None::<crate::api::orders::TillRefundsView>.unwrap();
+        let _: String = TillRefundsView.till_id;
+        let _: i64 = TillRefundsView.refund_count;
+        let _: i64 = TillRefundsView.refunded_minor;
+        let _: i64 = TillRefundsView.refunded_cash_minor;
+        let _: Vec<crate::api::orders::RefundView> = TillRefundsView.refunds;
+    }
+    {
+        let TillReportCashLine = None::<crate::api::till::TillReportCashLine>.unwrap();
+        let _: i64 = TillReportCashLine.amount_minor;
+        let _: String = TillReportCashLine.note;
+        let _: String = TillReportCashLine.moved_by_name;
+        let _: String = TillReportCashLine.created_at;
+    }
+    {
+        let TillReportPaymentLine = None::<crate::api::till::TillReportPaymentLine>.unwrap();
+        let _: String = TillReportPaymentLine.method;
+        let _: bool = TillReportPaymentLine.is_cash;
+        let _: i64 = TillReportPaymentLine.order_count;
+        let _: i64 = TillReportPaymentLine.total_minor;
+    }
+    {
+        let TillReportView = None::<crate::api::till::TillReportView>.unwrap();
+        let _: String = TillReportView.teller_name;
+        let _: String = TillReportView.opened_at;
+        let _: Option<String> = TillReportView.closed_at;
+        let _: String = TillReportView.printed_at;
+        let _: bool = TillReportView.is_open;
+        let _: i64 = TillReportView.expected_cash_minor;
+        let _: i64 = TillReportView.opening_cash_minor;
+        let _: bool = TillReportView.opening_cash_was_edited;
+        let _: Option<i64> = TillReportView.opening_cash_original_minor;
+        let _: Option<String> = TillReportView.opening_cash_edit_reason;
+        let _: Option<i64> = TillReportView.closing_cash_declared_minor;
+        let _: i64 = TillReportView.total_payments_minor;
+        let _: i64 = TillReportView.net_payments_minor;
+        let _: i64 = TillReportView.voided_amount_minor;
+        let _: i64 = TillReportView.refunds_issued_minor;
+        let _: i64 = TillReportView.refunds_issued_cash_minor;
+        let _: i64 = TillReportView.refunds_issued_count;
+        let _: i64 = TillReportView.cash_in_refunded_sales_minor;
+        let _: i64 = TillReportView.cash_movements_net_minor;
+        let _: i64 = TillReportView.cash_in_minor;
+        let _: i64 = TillReportView.cash_out_minor;
+        let _: Vec<crate::api::till::TillReportPaymentLine> = TillReportView.payment_lines;
+        let _: Vec<crate::api::till::TillReportCashLine> = TillReportView.cash_movements;
+        let _: bool = TillReportView.from_server;
+        let _: Option<String> = TillReportView.device_code;
+        let _: Option<i64> = TillReportView.order_number_first;
+        let _: Option<i64> = TillReportView.order_number_last;
+        let _: Vec<crate::api::till::ReconciliationLineView> = TillReportView.reconciliation;
+        let _: Option<i64> = TillReportView.old_bills_count;
+        let _: Option<i64> = TillReportView.open_bills_count;
+        let _: bool = TillReportView.opened_while_another_open;
+        let _: String = TillReportView.verification;
+    }
+    {
+        let TillStatsView = None::<crate::api::till::TillStatsView>.unwrap();
+        let _: i64 = TillStatsView.sales_minor;
+        let _: i64 = TillStatsView.order_count;
+    }
+    {
+        let TillSummaryView = None::<crate::api::till::TillSummaryView>.unwrap();
+        let _: String = TillSummaryView.id;
+        let _: Option<String> = TillSummaryView.branch_name;
+        let _: Option<String> = TillSummaryView.teller_name;
+        let _: String = TillSummaryView.opened_at;
+        let _: Option<String> = TillSummaryView.closed_at;
+        let _: i64 = TillSummaryView.opening_cash_minor;
+        let _: Option<i64> = TillSummaryView.closing_declared_minor;
+        let _: Option<i64> = TillSummaryView.closing_system_minor;
+        let _: Option<i64> = TillSummaryView.discrepancy_minor;
+        let _: String = TillSummaryView.status;
+        let _: bool = TillSummaryView.is_open;
+        let _: Option<String> = TillSummaryView.device_code;
+        let _: String = TillSummaryView.verification;
+        let _: bool = TillSummaryView.opened_while_another_open;
+        let _: Option<String> = TillSummaryView.reconciliation_status;
+    }
+    {
+        let TillView = None::<crate::api::types::TillView>.unwrap();
         let _: String = TillView.id;
-        let _: String = TillView.name;
-        let _: bool = TillView.is_default;
-        let _: bool = TillView.is_active;
+        let _: String = TillView.branch_id;
+        let _: String = TillView.teller_id;
+        let _: String = TillView.teller_name;
+        let _: i64 = TillView.opening_cash_minor;
+        let _: String = TillView.opened_at;
+        let _: String = TillView.status;
+        let _: bool = TillView.is_open;
+        let _: Option<String> = TillView.device_id;
+        let _: Option<String> = TillView.device_code;
+        let _: String = TillView.verification;
+        let _: bool = TillView.opened_while_another_open;
     }
     {
         let TransferQueueView = None::<crate::api::floor::TransferQueueView>.unwrap();
@@ -12076,7 +12575,7 @@ impl SseDecode for crate::api::routes::AppRoute {
                 return crate::api::routes::AppRoute::Login;
             }
             2 => {
-                return crate::api::routes::AppRoute::OpenShift;
+                return crate::api::routes::AppRoute::OpenTill;
             }
             3 => {
                 return crate::api::routes::AppRoute::Order;
@@ -12094,6 +12593,26 @@ impl SseDecode for crate::api::routes::AppRoute {
                 unimplemented!("");
             }
         }
+    }
+}
+
+impl SseDecode for crate::api::sync::AssetSyncView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_needed = <u32>::sse_decode(deserializer);
+        let mut var_missing = <u32>::sse_decode(deserializer);
+        let mut var_downloading = <bool>::sse_decode(deserializer);
+        let mut var_bytesDone = <u64>::sse_decode(deserializer);
+        let mut var_bytesTotal = <u64>::sse_decode(deserializer);
+        let mut var_lastError = <Option<String>>::sse_decode(deserializer);
+        return crate::api::sync::AssetSyncView {
+            needed: var_needed,
+            missing: var_missing,
+            downloading: var_downloading,
+            bytes_done: var_bytesDone,
+            bytes_total: var_bytesTotal,
+            last_error: var_lastError,
+        };
     }
 }
 
@@ -12135,6 +12654,30 @@ impl SseDecode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_u8().unwrap() != 0
+    }
+}
+
+impl SseDecode for crate::api::till::BranchOpenTillView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_tillId = <String>::sse_decode(deserializer);
+        let mut var_tellerId = <String>::sse_decode(deserializer);
+        let mut var_tellerName = <String>::sse_decode(deserializer);
+        let mut var_deviceCode = <Option<String>>::sse_decode(deserializer);
+        let mut var_deviceLabel = <Option<String>>::sse_decode(deserializer);
+        let mut var_openedAt = <String>::sse_decode(deserializer);
+        let mut var_isThisDevice = <bool>::sse_decode(deserializer);
+        let mut var_source = <String>::sse_decode(deserializer);
+        return crate::api::till::BranchOpenTillView {
+            till_id: var_tillId,
+            teller_id: var_tellerId,
+            teller_name: var_tellerName,
+            device_code: var_deviceCode,
+            device_label: var_deviceLabel,
+            opened_at: var_openedAt,
+            is_this_device: var_isThisDevice,
+            source: var_source,
+        };
     }
 }
 
@@ -12344,7 +12887,7 @@ impl SseDecode for crate::api::cart::CartTotals {
     }
 }
 
-impl SseDecode for crate::api::shift::CashMovementView {
+impl SseDecode for crate::api::till::CashMovementView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
@@ -12353,7 +12896,7 @@ impl SseDecode for crate::api::shift::CashMovementView {
         let mut var_note = <String>::sse_decode(deserializer);
         let mut var_movedByName = <String>::sse_decode(deserializer);
         let mut var_createdAt = <String>::sse_decode(deserializer);
-        return crate::api::shift::CashMovementView {
+        return crate::api::till::CashMovementView {
             id: var_id,
             kind: var_kind,
             amount_minor: var_amountMinor,
@@ -12463,18 +13006,72 @@ impl SseDecode for crate::api::orders::CheckoutSplit {
     }
 }
 
-impl SseDecode for crate::api::till::CloseCountCheck {
+impl SseDecode for crate::api::drawer::CloseCountCheck {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_entered = <bool>::sse_decode(deserializer);
         let mut var_varianceMinor = <i64>::sse_decode(deserializer);
         let mut var_verdict = <String>::sse_decode(deserializer);
         let mut var_needsReason = <bool>::sse_decode(deserializer);
-        return crate::api::till::CloseCountCheck {
+        return crate::api::drawer::CloseCountCheck {
             entered: var_entered,
             variance_minor: var_varianceMinor,
             verdict: var_verdict,
             needs_reason: var_needsReason,
+        };
+    }
+}
+
+impl SseDecode for crate::api::till::CloseTillMethodView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_method = <String>::sse_decode(deserializer);
+        let mut var_label = <String>::sse_decode(deserializer);
+        let mut var_isCash = <bool>::sse_decode(deserializer);
+        let mut var_systemTotalMinor = <i64>::sse_decode(deserializer);
+        let mut var_orderCount = <i64>::sse_decode(deserializer);
+        return crate::api::till::CloseTillMethodView {
+            method: var_method,
+            label: var_label,
+            is_cash: var_isCash,
+            system_total_minor: var_systemTotalMinor,
+            order_count: var_orderCount,
+        };
+    }
+}
+
+impl SseDecode for crate::api::till::CloseTillOutcomeView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_queued = <bool>::sse_decode(deserializer);
+        let mut var_reconciliation =
+            <Vec<crate::api::till::ReconciliationLineView>>::sse_decode(deserializer);
+        let mut var_lastTillWarning =
+            <Option<crate::api::till::LastTillWarningView>>::sse_decode(deserializer);
+        return crate::api::till::CloseTillOutcomeView {
+            queued: var_queued,
+            reconciliation: var_reconciliation,
+            last_till_warning: var_lastTillWarning,
+        };
+    }
+}
+
+impl SseDecode for crate::api::till::CloseTillPreviewView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_till = <crate::api::types::TillView>::sse_decode(deserializer);
+        let mut var_expectedCashMinor = <i64>::sse_decode(deserializer);
+        let mut var_methods =
+            <Vec<crate::api::till::CloseTillMethodView>>::sse_decode(deserializer);
+        let mut var_lastTillWarning =
+            <Option<crate::api::till::LastTillWarningView>>::sse_decode(deserializer);
+        let mut var_fromServer = <bool>::sse_decode(deserializer);
+        return crate::api::till::CloseTillPreviewView {
+            till: var_till,
+            expected_cash_minor: var_expectedCashMinor,
+            methods: var_methods,
+            last_till_warning: var_lastTillWarning,
+            from_server: var_fromServer,
         };
     }
 }
@@ -12588,7 +13185,6 @@ impl SseDecode for crate::api::device::DeviceConfigView {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_branchId = <Option<String>>::sse_decode(deserializer);
         let mut var_branchName = <Option<String>>::sse_decode(deserializer);
-        let mut var_tillId = <Option<String>>::sse_decode(deserializer);
         let mut var_stationId = <Option<String>>::sse_decode(deserializer);
         let mut var_printerHost = <Option<String>>::sse_decode(deserializer);
         let mut var_printerPort = <Option<u16>>::sse_decode(deserializer);
@@ -12603,7 +13199,6 @@ impl SseDecode for crate::api::device::DeviceConfigView {
         return crate::api::device::DeviceConfigView {
             branch_id: var_branchId,
             branch_name: var_branchName,
-            till_id: var_tillId,
             station_id: var_stationId,
             printer_host: var_printerHost,
             printer_port: var_printerPort,
@@ -12961,6 +13556,20 @@ impl SseDecode for crate::api::printing::KitchenChit {
     }
 }
 
+impl SseDecode for crate::api::till::LastTillWarningView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_openBillsCount = <i64>::sse_decode(deserializer);
+        let mut var_openBillsAmountMinor = <i64>::sse_decode(deserializer);
+        let mut var_seatedTablesCount = <i64>::sse_decode(deserializer);
+        return crate::api::till::LastTillWarningView {
+            open_bills_count: var_openBillsCount,
+            open_bills_amount_minor: var_openBillsAmountMinor,
+            seated_tables_count: var_seatedTablesCount,
+        };
+    }
+}
+
 impl SseDecode for crate::api::cart::LinePreviewView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13048,6 +13657,20 @@ impl SseDecode for Vec<crate::api::bookings::BookingView> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::bookings::BookingView>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::till::BranchOpenTillView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::till::BranchOpenTillView>::sse_decode(
                 deserializer,
             ));
         }
@@ -13159,13 +13782,13 @@ impl SseDecode for Vec<crate::api::cart::CartOptionalView> {
     }
 }
 
-impl SseDecode for Vec<crate::api::shift::CashMovementView> {
+impl SseDecode for Vec<crate::api::till::CashMovementView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::shift::CashMovementView>::sse_decode(
+            ans_.push(<crate::api::till::CashMovementView>::sse_decode(
                 deserializer,
             ));
         }
@@ -13222,6 +13845,20 @@ impl SseDecode for Vec<crate::api::orders::CheckoutSplit> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::orders::CheckoutSplit>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::till::CloseTillMethodView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::till::CloseTillMethodView>::sse_decode(
                 deserializer,
             ));
         }
@@ -13523,13 +14160,13 @@ impl SseDecode for Vec<crate::api::sync::OutboxItemView> {
     }
 }
 
-impl SseDecode for Vec<crate::api::till::PaymentMethodChoice> {
+impl SseDecode for Vec<crate::api::drawer::PaymentMethodChoice> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::till::PaymentMethodChoice>::sse_decode(
+            ans_.push(<crate::api::drawer::PaymentMethodChoice>::sse_decode(
                 deserializer,
             ));
         }
@@ -13647,6 +14284,34 @@ impl SseDecode for Vec<crate::api::catalog::RecipeStepView> {
     }
 }
 
+impl SseDecode for Vec<crate::api::till::ReconciliationInput> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::till::ReconciliationInput>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::till::ReconciliationLineView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::till::ReconciliationLineView>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::orders::RefundLineView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13713,48 +14378,6 @@ impl SseDecode for Vec<crate::api::loyalty::RewardPick> {
     }
 }
 
-impl SseDecode for Vec<crate::api::shift::ShiftReportCashLine> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::shift::ShiftReportCashLine>::sse_decode(
-                deserializer,
-            ));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<crate::api::shift::ShiftReportPaymentLine> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::shift::ShiftReportPaymentLine>::sse_decode(
-                deserializer,
-            ));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<crate::api::shift::ShiftSummaryView> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::shift::ShiftSummaryView>::sse_decode(
-                deserializer,
-            ));
-        }
-        return ans_;
-    }
-}
-
 impl SseDecode for Vec<crate::api::floor::TableSittingView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13795,13 +14418,43 @@ impl SseDecode for Vec<crate::api::tickets::TicketView> {
     }
 }
 
-impl SseDecode for Vec<crate::api::shift::TillView> {
+impl SseDecode for Vec<crate::api::till::TillReportCashLine> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::shift::TillView>::sse_decode(deserializer));
+            ans_.push(<crate::api::till::TillReportCashLine>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::till::TillReportPaymentLine> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::till::TillReportPaymentLine>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::till::TillSummaryView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::till::TillSummaryView>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -14161,6 +14814,43 @@ impl SseDecode for crate::api::cart::ModifierOptionView {
     }
 }
 
+impl SseDecode for crate::api::till::OpenBillsNoticeView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_openBillsCount = <i64>::sse_decode(deserializer);
+        let mut var_openBillsAmountMinor = <i64>::sse_decode(deserializer);
+        let mut var_oldestOpenedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_oldBillsCount = <i64>::sse_decode(deserializer);
+        let mut var_oldBillHours = <i64>::sse_decode(deserializer);
+        let mut var_seatedTablesCount = <i64>::sse_decode(deserializer);
+        let mut var_since = <Option<String>>::sse_decode(deserializer);
+        return crate::api::till::OpenBillsNoticeView {
+            open_bills_count: var_openBillsCount,
+            open_bills_amount_minor: var_openBillsAmountMinor,
+            oldest_opened_at: var_oldestOpenedAt,
+            old_bills_count: var_oldBillsCount,
+            old_bill_hours: var_oldBillHours,
+            seated_tables_count: var_seatedTablesCount,
+            since: var_since,
+        };
+    }
+}
+
+impl SseDecode for crate::api::till::OpenTillOutcome {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_till = <Option<crate::api::types::TillView>>::sse_decode(deserializer);
+        let mut var_verification = <String>::sse_decode(deserializer);
+        let mut var_openElsewhere =
+            <Option<crate::api::till::TillElsewhereView>>::sse_decode(deserializer);
+        return crate::api::till::OpenTillOutcome {
+            till: var_till,
+            verification: var_verification,
+            open_elsewhere: var_openElsewhere,
+        };
+    }
+}
+
 impl SseDecode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -14229,11 +14919,37 @@ impl SseDecode for Option<i64> {
     }
 }
 
+impl SseDecode for Option<crate::api::till::LastTillWarningView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::till::LastTillWarningView>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::loyalty::LoyaltyMemberView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::loyalty::LoyaltyMemberView>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::till::OpenBillsNoticeView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::till::OpenBillsNoticeView>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -14255,17 +14971,6 @@ impl SseDecode for Option<crate::api::types::SessionSnapshot> {
     }
 }
 
-impl SseDecode for Option<crate::api::types::ShiftView> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::types::ShiftView>::sse_decode(deserializer));
-        } else {
-            return None;
-        }
-    }
-}
-
 impl SseDecode for Option<crate::api::tickets::TicketBillView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -14273,6 +14978,30 @@ impl SseDecode for Option<crate::api::tickets::TicketBillView> {
             return Some(<crate::api::tickets::TicketBillView>::sse_decode(
                 deserializer,
             ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::till::TillElsewhereView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::till::TillElsewhereView>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::types::TillView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::types::TillView>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -14468,13 +15197,13 @@ impl SseDecode for crate::api::sync::OutboxItemView {
     }
 }
 
-impl SseDecode for crate::api::till::PaymentMethodChoice {
+impl SseDecode for crate::api::drawer::PaymentMethodChoice {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_code = <String>::sse_decode(deserializer);
         let mut var_label = <String>::sse_decode(deserializer);
         let mut var_isCash = <bool>::sse_decode(deserializer);
-        return crate::api::till::PaymentMethodChoice {
+        return crate::api::drawer::PaymentMethodChoice {
             code: var_code,
             label: var_label,
             is_cash: var_isCash,
@@ -14614,6 +15343,7 @@ impl SseDecode for crate::api::orders::ReceiptView {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_localOrderId = <String>::sse_decode(deserializer);
         let mut var_orderNumber = <Option<i64>>::sse_decode(deserializer);
+        let mut var_displayNumber = <String>::sse_decode(deserializer);
         let mut var_orderRef = <Option<String>>::sse_decode(deserializer);
         let mut var_isVoided = <bool>::sse_decode(deserializer);
         let mut var_lines = <Vec<crate::api::orders::ReceiptLineView>>::sse_decode(deserializer);
@@ -14646,6 +15376,7 @@ impl SseDecode for crate::api::orders::ReceiptView {
         return crate::api::orders::ReceiptView {
             local_order_id: var_localOrderId,
             order_number: var_orderNumber,
+            display_number: var_displayNumber,
             order_ref: var_orderRef,
             is_voided: var_isVoided,
             lines: var_lines,
@@ -14714,6 +15445,46 @@ impl SseDecode for crate::api::catalog::RecipeStepView {
     }
 }
 
+impl SseDecode for crate::api::till::ReconciliationInput {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_method = <String>::sse_decode(deserializer);
+        let mut var_status = <String>::sse_decode(deserializer);
+        let mut var_declaredAmountMinor = <Option<i64>>::sse_decode(deserializer);
+        let mut var_note = <Option<String>>::sse_decode(deserializer);
+        return crate::api::till::ReconciliationInput {
+            method: var_method,
+            status: var_status,
+            declared_amount_minor: var_declaredAmountMinor,
+            note: var_note,
+        };
+    }
+}
+
+impl SseDecode for crate::api::till::ReconciliationLineView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_method = <String>::sse_decode(deserializer);
+        let mut var_label = <String>::sse_decode(deserializer);
+        let mut var_isCash = <bool>::sse_decode(deserializer);
+        let mut var_systemTotalMinor = <i64>::sse_decode(deserializer);
+        let mut var_status = <String>::sse_decode(deserializer);
+        let mut var_declaredAmountMinor = <Option<i64>>::sse_decode(deserializer);
+        let mut var_note = <Option<String>>::sse_decode(deserializer);
+        let mut var_changedAfterClose = <bool>::sse_decode(deserializer);
+        return crate::api::till::ReconciliationLineView {
+            method: var_method,
+            label: var_label,
+            is_cash: var_isCash,
+            system_total_minor: var_systemTotalMinor,
+            status: var_status,
+            declared_amount_minor: var_declaredAmountMinor,
+            note: var_note,
+            changed_after_close: var_changedAfterClose,
+        };
+    }
+}
+
 impl SseDecode for crate::api::orders::RefundLineView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -14730,17 +15501,17 @@ impl SseDecode for crate::api::orders::RefundLineView {
     }
 }
 
-impl SseDecode for crate::api::till::RefundMethodPlan {
+impl SseDecode for crate::api::drawer::RefundMethodPlan {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_options =
-            <Vec<crate::api::till::PaymentMethodChoice>>::sse_decode(deserializer);
+            <Vec<crate::api::drawer::PaymentMethodChoice>>::sse_decode(deserializer);
         let mut var_defaultCode = <Option<String>>::sse_decode(deserializer);
-        let mut var_crossesShift = <bool>::sse_decode(deserializer);
-        return crate::api::till::RefundMethodPlan {
+        let mut var_crossesTill = <bool>::sse_decode(deserializer);
+        return crate::api::drawer::RefundMethodPlan {
             options: var_options,
             default_code: var_defaultCode,
-            crosses_shift: var_crossesShift,
+            crosses_till: var_crossesTill,
         };
     }
 }
@@ -14889,194 +15660,34 @@ impl SseDecode for crate::api::types::SessionSnapshot {
     }
 }
 
-impl SseDecode for crate::api::orders::ShiftRefundsView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_shiftId = <String>::sse_decode(deserializer);
-        let mut var_refundCount = <i64>::sse_decode(deserializer);
-        let mut var_refundedMinor = <i64>::sse_decode(deserializer);
-        let mut var_refundedCashMinor = <i64>::sse_decode(deserializer);
-        let mut var_refunds = <Vec<crate::api::orders::RefundView>>::sse_decode(deserializer);
-        return crate::api::orders::ShiftRefundsView {
-            shift_id: var_shiftId,
-            refund_count: var_refundCount,
-            refunded_minor: var_refundedMinor,
-            refunded_cash_minor: var_refundedCashMinor,
-            refunds: var_refunds,
-        };
-    }
-}
-
-impl SseDecode for crate::api::shift::ShiftReportCashLine {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_amountMinor = <i64>::sse_decode(deserializer);
-        let mut var_note = <String>::sse_decode(deserializer);
-        let mut var_movedByName = <String>::sse_decode(deserializer);
-        let mut var_createdAt = <String>::sse_decode(deserializer);
-        return crate::api::shift::ShiftReportCashLine {
-            amount_minor: var_amountMinor,
-            note: var_note,
-            moved_by_name: var_movedByName,
-            created_at: var_createdAt,
-        };
-    }
-}
-
-impl SseDecode for crate::api::shift::ShiftReportPaymentLine {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_method = <String>::sse_decode(deserializer);
-        let mut var_isCash = <bool>::sse_decode(deserializer);
-        let mut var_orderCount = <i64>::sse_decode(deserializer);
-        let mut var_totalMinor = <i64>::sse_decode(deserializer);
-        return crate::api::shift::ShiftReportPaymentLine {
-            method: var_method,
-            is_cash: var_isCash,
-            order_count: var_orderCount,
-            total_minor: var_totalMinor,
-        };
-    }
-}
-
-impl SseDecode for crate::api::shift::ShiftReportView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_tellerName = <String>::sse_decode(deserializer);
-        let mut var_openedAt = <String>::sse_decode(deserializer);
-        let mut var_closedAt = <Option<String>>::sse_decode(deserializer);
-        let mut var_printedAt = <String>::sse_decode(deserializer);
-        let mut var_isOpen = <bool>::sse_decode(deserializer);
-        let mut var_expectedCashMinor = <i64>::sse_decode(deserializer);
-        let mut var_openingCashMinor = <i64>::sse_decode(deserializer);
-        let mut var_openingCashWasEdited = <bool>::sse_decode(deserializer);
-        let mut var_openingCashOriginalMinor = <Option<i64>>::sse_decode(deserializer);
-        let mut var_openingCashEditReason = <Option<String>>::sse_decode(deserializer);
-        let mut var_closingCashDeclaredMinor = <Option<i64>>::sse_decode(deserializer);
-        let mut var_totalPaymentsMinor = <i64>::sse_decode(deserializer);
-        let mut var_netPaymentsMinor = <i64>::sse_decode(deserializer);
-        let mut var_voidedAmountMinor = <i64>::sse_decode(deserializer);
-        let mut var_refundsIssuedMinor = <i64>::sse_decode(deserializer);
-        let mut var_refundsIssuedCashMinor = <i64>::sse_decode(deserializer);
-        let mut var_refundsIssuedCount = <i64>::sse_decode(deserializer);
-        let mut var_cashInRefundedSalesMinor = <i64>::sse_decode(deserializer);
-        let mut var_cashMovementsNetMinor = <i64>::sse_decode(deserializer);
-        let mut var_cashInMinor = <i64>::sse_decode(deserializer);
-        let mut var_cashOutMinor = <i64>::sse_decode(deserializer);
-        let mut var_paymentLines =
-            <Vec<crate::api::shift::ShiftReportPaymentLine>>::sse_decode(deserializer);
-        let mut var_cashMovements =
-            <Vec<crate::api::shift::ShiftReportCashLine>>::sse_decode(deserializer);
-        let mut var_fromServer = <bool>::sse_decode(deserializer);
-        return crate::api::shift::ShiftReportView {
-            teller_name: var_tellerName,
-            opened_at: var_openedAt,
-            closed_at: var_closedAt,
-            printed_at: var_printedAt,
-            is_open: var_isOpen,
-            expected_cash_minor: var_expectedCashMinor,
-            opening_cash_minor: var_openingCashMinor,
-            opening_cash_was_edited: var_openingCashWasEdited,
-            opening_cash_original_minor: var_openingCashOriginalMinor,
-            opening_cash_edit_reason: var_openingCashEditReason,
-            closing_cash_declared_minor: var_closingCashDeclaredMinor,
-            total_payments_minor: var_totalPaymentsMinor,
-            net_payments_minor: var_netPaymentsMinor,
-            voided_amount_minor: var_voidedAmountMinor,
-            refunds_issued_minor: var_refundsIssuedMinor,
-            refunds_issued_cash_minor: var_refundsIssuedCashMinor,
-            refunds_issued_count: var_refundsIssuedCount,
-            cash_in_refunded_sales_minor: var_cashInRefundedSalesMinor,
-            cash_movements_net_minor: var_cashMovementsNetMinor,
-            cash_in_minor: var_cashInMinor,
-            cash_out_minor: var_cashOutMinor,
-            payment_lines: var_paymentLines,
-            cash_movements: var_cashMovements,
-            from_server: var_fromServer,
-        };
-    }
-}
-
-impl SseDecode for crate::api::shift::ShiftStatsView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_salesMinor = <i64>::sse_decode(deserializer);
-        let mut var_orderCount = <i64>::sse_decode(deserializer);
-        return crate::api::shift::ShiftStatsView {
-            sales_minor: var_salesMinor,
-            order_count: var_orderCount,
-        };
-    }
-}
-
-impl SseDecode for crate::api::shift::ShiftSummaryView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_id = <String>::sse_decode(deserializer);
-        let mut var_branchName = <Option<String>>::sse_decode(deserializer);
-        let mut var_tellerName = <Option<String>>::sse_decode(deserializer);
-        let mut var_openedAt = <String>::sse_decode(deserializer);
-        let mut var_closedAt = <Option<String>>::sse_decode(deserializer);
-        let mut var_openingCashMinor = <i64>::sse_decode(deserializer);
-        let mut var_closingDeclaredMinor = <Option<i64>>::sse_decode(deserializer);
-        let mut var_closingSystemMinor = <Option<i64>>::sse_decode(deserializer);
-        let mut var_discrepancyMinor = <Option<i64>>::sse_decode(deserializer);
-        let mut var_status = <String>::sse_decode(deserializer);
-        let mut var_isOpen = <bool>::sse_decode(deserializer);
-        return crate::api::shift::ShiftSummaryView {
-            id: var_id,
-            branch_name: var_branchName,
-            teller_name: var_tellerName,
-            opened_at: var_openedAt,
-            closed_at: var_closedAt,
-            opening_cash_minor: var_openingCashMinor,
-            closing_declared_minor: var_closingDeclaredMinor,
-            closing_system_minor: var_closingSystemMinor,
-            discrepancy_minor: var_discrepancyMinor,
-            status: var_status,
-            is_open: var_isOpen,
-        };
-    }
-}
-
-impl SseDecode for crate::api::types::ShiftView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_id = <String>::sse_decode(deserializer);
-        let mut var_branchId = <String>::sse_decode(deserializer);
-        let mut var_tellerId = <String>::sse_decode(deserializer);
-        let mut var_tellerName = <String>::sse_decode(deserializer);
-        let mut var_openingCashMinor = <i64>::sse_decode(deserializer);
-        let mut var_openedAt = <String>::sse_decode(deserializer);
-        let mut var_status = <String>::sse_decode(deserializer);
-        let mut var_isOpen = <bool>::sse_decode(deserializer);
-        return crate::api::types::ShiftView {
-            id: var_id,
-            branch_id: var_branchId,
-            teller_id: var_tellerId,
-            teller_name: var_tellerName,
-            opening_cash_minor: var_openingCashMinor,
-            opened_at: var_openedAt,
-            status: var_status,
-            is_open: var_isOpen,
-        };
-    }
-}
-
 impl SseDecode for crate::api::sync::SyncStatusView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_pending = <u32>::sse_decode(deserializer);
-        let mut var_failed = <u32>::sse_decode(deserializer);
-        let mut var_blocked = <u32>::sse_decode(deserializer);
+        let mut var_phase = <String>::sse_decode(deserializer);
+        let mut var_nextSeq = <Option<i64>>::sse_decode(deserializer);
+        let mut var_pendingOutbox = <u32>::sse_decode(deserializer);
+        let mut var_deadOutbox = <u32>::sse_decode(deserializer);
+        let mut var_lastOkAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_lastFullAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_staleReason = <Option<String>>::sse_decode(deserializer);
+        let mut var_lastError = <Option<String>>::sse_decode(deserializer);
+        let mut var_assets = <crate::api::sync::AssetSyncView>::sse_decode(deserializer);
         let mut var_online = <bool>::sse_decode(deserializer);
         let mut var_authPaused = <bool>::sse_decode(deserializer);
+        let mut var_blocked = <u32>::sse_decode(deserializer);
         return crate::api::sync::SyncStatusView {
-            pending: var_pending,
-            failed: var_failed,
-            blocked: var_blocked,
+            phase: var_phase,
+            next_seq: var_nextSeq,
+            pending_outbox: var_pendingOutbox,
+            dead_outbox: var_deadOutbox,
+            last_ok_at: var_lastOkAt,
+            last_full_at: var_lastFullAt,
+            stale_reason: var_staleReason,
+            last_error: var_lastError,
+            assets: var_assets,
             online: var_online,
             auth_paused: var_authPaused,
+            blocked: var_blocked,
         };
     }
 }
@@ -15267,18 +15878,249 @@ impl SseDecode for crate::api::tickets::TicketView {
     }
 }
 
-impl SseDecode for crate::api::shift::TillView {
+impl SseDecode for crate::api::till::TillElsewhereView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_tillId = <String>::sse_decode(deserializer);
+        let mut var_deviceCode = <Option<String>>::sse_decode(deserializer);
+        let mut var_deviceLabel = <Option<String>>::sse_decode(deserializer);
+        let mut var_openedAt = <String>::sse_decode(deserializer);
+        let mut var_source = <String>::sse_decode(deserializer);
+        return crate::api::till::TillElsewhereView {
+            till_id: var_tillId,
+            device_code: var_deviceCode,
+            device_label: var_deviceLabel,
+            opened_at: var_openedAt,
+            source: var_source,
+        };
+    }
+}
+
+impl SseDecode for crate::api::sync::TillOpenSyncView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_state = <String>::sse_decode(deserializer);
+        let mut var_tillId = <Option<String>>::sse_decode(deserializer);
+        let mut var_startedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_finishedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_staleReason = <Option<String>>::sse_decode(deserializer);
+        let mut var_changesApplied = <u32>::sse_decode(deserializer);
+        let mut var_pendingOutbox = <u32>::sse_decode(deserializer);
+        return crate::api::sync::TillOpenSyncView {
+            state: var_state,
+            till_id: var_tillId,
+            started_at: var_startedAt,
+            finished_at: var_finishedAt,
+            stale_reason: var_staleReason,
+            changes_applied: var_changesApplied,
+            pending_outbox: var_pendingOutbox,
+        };
+    }
+}
+
+impl SseDecode for crate::api::orders::TillRefundsView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_tillId = <String>::sse_decode(deserializer);
+        let mut var_refundCount = <i64>::sse_decode(deserializer);
+        let mut var_refundedMinor = <i64>::sse_decode(deserializer);
+        let mut var_refundedCashMinor = <i64>::sse_decode(deserializer);
+        let mut var_refunds = <Vec<crate::api::orders::RefundView>>::sse_decode(deserializer);
+        return crate::api::orders::TillRefundsView {
+            till_id: var_tillId,
+            refund_count: var_refundCount,
+            refunded_minor: var_refundedMinor,
+            refunded_cash_minor: var_refundedCashMinor,
+            refunds: var_refunds,
+        };
+    }
+}
+
+impl SseDecode for crate::api::till::TillReportCashLine {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_amountMinor = <i64>::sse_decode(deserializer);
+        let mut var_note = <String>::sse_decode(deserializer);
+        let mut var_movedByName = <String>::sse_decode(deserializer);
+        let mut var_createdAt = <String>::sse_decode(deserializer);
+        return crate::api::till::TillReportCashLine {
+            amount_minor: var_amountMinor,
+            note: var_note,
+            moved_by_name: var_movedByName,
+            created_at: var_createdAt,
+        };
+    }
+}
+
+impl SseDecode for crate::api::till::TillReportPaymentLine {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_method = <String>::sse_decode(deserializer);
+        let mut var_isCash = <bool>::sse_decode(deserializer);
+        let mut var_orderCount = <i64>::sse_decode(deserializer);
+        let mut var_totalMinor = <i64>::sse_decode(deserializer);
+        return crate::api::till::TillReportPaymentLine {
+            method: var_method,
+            is_cash: var_isCash,
+            order_count: var_orderCount,
+            total_minor: var_totalMinor,
+        };
+    }
+}
+
+impl SseDecode for crate::api::till::TillReportView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_tellerName = <String>::sse_decode(deserializer);
+        let mut var_openedAt = <String>::sse_decode(deserializer);
+        let mut var_closedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_printedAt = <String>::sse_decode(deserializer);
+        let mut var_isOpen = <bool>::sse_decode(deserializer);
+        let mut var_expectedCashMinor = <i64>::sse_decode(deserializer);
+        let mut var_openingCashMinor = <i64>::sse_decode(deserializer);
+        let mut var_openingCashWasEdited = <bool>::sse_decode(deserializer);
+        let mut var_openingCashOriginalMinor = <Option<i64>>::sse_decode(deserializer);
+        let mut var_openingCashEditReason = <Option<String>>::sse_decode(deserializer);
+        let mut var_closingCashDeclaredMinor = <Option<i64>>::sse_decode(deserializer);
+        let mut var_totalPaymentsMinor = <i64>::sse_decode(deserializer);
+        let mut var_netPaymentsMinor = <i64>::sse_decode(deserializer);
+        let mut var_voidedAmountMinor = <i64>::sse_decode(deserializer);
+        let mut var_refundsIssuedMinor = <i64>::sse_decode(deserializer);
+        let mut var_refundsIssuedCashMinor = <i64>::sse_decode(deserializer);
+        let mut var_refundsIssuedCount = <i64>::sse_decode(deserializer);
+        let mut var_cashInRefundedSalesMinor = <i64>::sse_decode(deserializer);
+        let mut var_cashMovementsNetMinor = <i64>::sse_decode(deserializer);
+        let mut var_cashInMinor = <i64>::sse_decode(deserializer);
+        let mut var_cashOutMinor = <i64>::sse_decode(deserializer);
+        let mut var_paymentLines =
+            <Vec<crate::api::till::TillReportPaymentLine>>::sse_decode(deserializer);
+        let mut var_cashMovements =
+            <Vec<crate::api::till::TillReportCashLine>>::sse_decode(deserializer);
+        let mut var_fromServer = <bool>::sse_decode(deserializer);
+        let mut var_deviceCode = <Option<String>>::sse_decode(deserializer);
+        let mut var_orderNumberFirst = <Option<i64>>::sse_decode(deserializer);
+        let mut var_orderNumberLast = <Option<i64>>::sse_decode(deserializer);
+        let mut var_reconciliation =
+            <Vec<crate::api::till::ReconciliationLineView>>::sse_decode(deserializer);
+        let mut var_oldBillsCount = <Option<i64>>::sse_decode(deserializer);
+        let mut var_openBillsCount = <Option<i64>>::sse_decode(deserializer);
+        let mut var_openedWhileAnotherOpen = <bool>::sse_decode(deserializer);
+        let mut var_verification = <String>::sse_decode(deserializer);
+        return crate::api::till::TillReportView {
+            teller_name: var_tellerName,
+            opened_at: var_openedAt,
+            closed_at: var_closedAt,
+            printed_at: var_printedAt,
+            is_open: var_isOpen,
+            expected_cash_minor: var_expectedCashMinor,
+            opening_cash_minor: var_openingCashMinor,
+            opening_cash_was_edited: var_openingCashWasEdited,
+            opening_cash_original_minor: var_openingCashOriginalMinor,
+            opening_cash_edit_reason: var_openingCashEditReason,
+            closing_cash_declared_minor: var_closingCashDeclaredMinor,
+            total_payments_minor: var_totalPaymentsMinor,
+            net_payments_minor: var_netPaymentsMinor,
+            voided_amount_minor: var_voidedAmountMinor,
+            refunds_issued_minor: var_refundsIssuedMinor,
+            refunds_issued_cash_minor: var_refundsIssuedCashMinor,
+            refunds_issued_count: var_refundsIssuedCount,
+            cash_in_refunded_sales_minor: var_cashInRefundedSalesMinor,
+            cash_movements_net_minor: var_cashMovementsNetMinor,
+            cash_in_minor: var_cashInMinor,
+            cash_out_minor: var_cashOutMinor,
+            payment_lines: var_paymentLines,
+            cash_movements: var_cashMovements,
+            from_server: var_fromServer,
+            device_code: var_deviceCode,
+            order_number_first: var_orderNumberFirst,
+            order_number_last: var_orderNumberLast,
+            reconciliation: var_reconciliation,
+            old_bills_count: var_oldBillsCount,
+            open_bills_count: var_openBillsCount,
+            opened_while_another_open: var_openedWhileAnotherOpen,
+            verification: var_verification,
+        };
+    }
+}
+
+impl SseDecode for crate::api::till::TillStatsView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_salesMinor = <i64>::sse_decode(deserializer);
+        let mut var_orderCount = <i64>::sse_decode(deserializer);
+        return crate::api::till::TillStatsView {
+            sales_minor: var_salesMinor,
+            order_count: var_orderCount,
+        };
+    }
+}
+
+impl SseDecode for crate::api::till::TillSummaryView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
-        let mut var_name = <String>::sse_decode(deserializer);
-        let mut var_isDefault = <bool>::sse_decode(deserializer);
-        let mut var_isActive = <bool>::sse_decode(deserializer);
-        return crate::api::shift::TillView {
+        let mut var_branchName = <Option<String>>::sse_decode(deserializer);
+        let mut var_tellerName = <Option<String>>::sse_decode(deserializer);
+        let mut var_openedAt = <String>::sse_decode(deserializer);
+        let mut var_closedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_openingCashMinor = <i64>::sse_decode(deserializer);
+        let mut var_closingDeclaredMinor = <Option<i64>>::sse_decode(deserializer);
+        let mut var_closingSystemMinor = <Option<i64>>::sse_decode(deserializer);
+        let mut var_discrepancyMinor = <Option<i64>>::sse_decode(deserializer);
+        let mut var_status = <String>::sse_decode(deserializer);
+        let mut var_isOpen = <bool>::sse_decode(deserializer);
+        let mut var_deviceCode = <Option<String>>::sse_decode(deserializer);
+        let mut var_verification = <String>::sse_decode(deserializer);
+        let mut var_openedWhileAnotherOpen = <bool>::sse_decode(deserializer);
+        let mut var_reconciliationStatus = <Option<String>>::sse_decode(deserializer);
+        return crate::api::till::TillSummaryView {
             id: var_id,
-            name: var_name,
-            is_default: var_isDefault,
-            is_active: var_isActive,
+            branch_name: var_branchName,
+            teller_name: var_tellerName,
+            opened_at: var_openedAt,
+            closed_at: var_closedAt,
+            opening_cash_minor: var_openingCashMinor,
+            closing_declared_minor: var_closingDeclaredMinor,
+            closing_system_minor: var_closingSystemMinor,
+            discrepancy_minor: var_discrepancyMinor,
+            status: var_status,
+            is_open: var_isOpen,
+            device_code: var_deviceCode,
+            verification: var_verification,
+            opened_while_another_open: var_openedWhileAnotherOpen,
+            reconciliation_status: var_reconciliationStatus,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::TillView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_branchId = <String>::sse_decode(deserializer);
+        let mut var_tellerId = <String>::sse_decode(deserializer);
+        let mut var_tellerName = <String>::sse_decode(deserializer);
+        let mut var_openingCashMinor = <i64>::sse_decode(deserializer);
+        let mut var_openedAt = <String>::sse_decode(deserializer);
+        let mut var_status = <String>::sse_decode(deserializer);
+        let mut var_isOpen = <bool>::sse_decode(deserializer);
+        let mut var_deviceId = <Option<String>>::sse_decode(deserializer);
+        let mut var_deviceCode = <Option<String>>::sse_decode(deserializer);
+        let mut var_verification = <String>::sse_decode(deserializer);
+        let mut var_openedWhileAnotherOpen = <bool>::sse_decode(deserializer);
+        return crate::api::types::TillView {
+            id: var_id,
+            branch_id: var_branchId,
+            teller_id: var_tellerId,
+            teller_name: var_tellerName,
+            opening_cash_minor: var_openingCashMinor,
+            opened_at: var_openedAt,
+            status: var_status,
+            is_open: var_isOpen,
+            device_id: var_deviceId,
+            device_code: var_deviceCode,
+            verification: var_verification,
+            opened_while_another_open: var_openedWhileAnotherOpen,
         };
     }
 }
@@ -15345,6 +16187,13 @@ impl SseDecode for u32 {
     }
 }
 
+impl SseDecode for u64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u64::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for u8 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -15391,776 +16240,793 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        8 => wire__crate__api__bridge__MadarBridge_cancel_transfer_impl(
+        5 => wire__crate__api__bridge__MadarBridge_available_payment_methods_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        9 => wire__crate__api__bridge__MadarBridge_cart_add_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__bridge__MadarBridge_cart_add_bundle_impl(
+        8 => wire__crate__api__bridge__MadarBridge_branch_open_tills_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        11 => wire__crate__api__bridge__MadarBridge_cart_add_configured_impl(
+        10 => wire__crate__api__bridge__MadarBridge_cancel_transfer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__bridge__MadarBridge_cart_bill_so_far_minor_impl(
+        11 => {
+            wire__crate__api__bridge__MadarBridge_cart_add_impl(port, ptr, rust_vec_len, data_len)
+        }
+        12 => wire__crate__api__bridge__MadarBridge_cart_add_bundle_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => {
+        13 => wire__crate__api__bridge__MadarBridge_cart_add_configured_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        14 => wire__crate__api__bridge__MadarBridge_cart_bill_so_far_minor_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        15 => {
             wire__crate__api__bridge__MadarBridge_cart_clear_impl(port, ptr, rust_vec_len, data_len)
         }
-        14 => wire__crate__api__bridge__MadarBridge_cart_clear_all_impl(
+        16 => wire__crate__api__bridge__MadarBridge_cart_clear_all_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        15 => wire__crate__api__bridge__MadarBridge_cart_clear_discount_impl(
+        17 => wire__crate__api__bridge__MadarBridge_cart_clear_discount_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => wire__crate__api__bridge__MadarBridge_cart_discount_id_impl(
+        18 => wire__crate__api__bridge__MadarBridge_cart_discount_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => {
+        19 => {
             wire__crate__api__bridge__MadarBridge_cart_lines_impl(port, ptr, rust_vec_len, data_len)
         }
-        18 => {
+        20 => {
             wire__crate__api__bridge__MadarBridge_cart_meta_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => {
+        21 => {
             wire__crate__api__bridge__MadarBridge_cart_note_impl(port, ptr, rust_vec_len, data_len)
         }
-        20 => wire__crate__api__bridge__MadarBridge_cart_remove_impl(
+        22 => wire__crate__api__bridge__MadarBridge_cart_remove_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__bridge__MadarBridge_cart_replace_configured_impl(
+        23 => wire__crate__api__bridge__MadarBridge_cart_replace_configured_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__bridge__MadarBridge_cart_restore_removed_impl(
+        24 => wire__crate__api__bridge__MadarBridge_cart_restore_removed_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__bridge__MadarBridge_cart_set_discount_impl(
+        26 => wire__crate__api__bridge__MadarBridge_cart_set_discount_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__bridge__MadarBridge_cart_set_meta_impl(
+        27 => wire__crate__api__bridge__MadarBridge_cart_set_meta_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__bridge__MadarBridge_cart_set_note_impl(
+        28 => wire__crate__api__bridge__MadarBridge_cart_set_note_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__bridge__MadarBridge_cart_set_qty_impl(
+        29 => wire__crate__api__bridge__MadarBridge_cart_set_qty_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__bridge__MadarBridge_cart_table_contexts_impl(
+        30 => wire__crate__api__bridge__MadarBridge_cart_table_contexts_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__bridge__MadarBridge_cart_totals_impl(
+        31 => wire__crate__api__bridge__MadarBridge_cart_totals_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__bridge__MadarBridge_cash_drawer_kick_impl(
+        33 => wire__crate__api__bridge__MadarBridge_cash_drawer_kick_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => {
-            wire__crate__api__bridge__MadarBridge_checkout_impl(port, ptr, rust_vec_len, data_len)
-        }
-        36 => wire__crate__api__bridge__MadarBridge_clear_device_impl(
+        36 => wire__crate__api__bridge__MadarBridge_check_till_elsewhere_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         37 => {
+            wire__crate__api__bridge__MadarBridge_checkout_impl(port, ptr, rust_vec_len, data_len)
+        }
+        39 => wire__crate__api__bridge__MadarBridge_clear_device_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        40 => {
             wire__crate__api__bridge__MadarBridge_clear_logs_impl(port, ptr, rust_vec_len, data_len)
         }
-        38 => wire__crate__api__bridge__MadarBridge_clear_table_impl(
+        41 => wire__crate__api__bridge__MadarBridge_clear_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        41 => wire__crate__api__bridge__MadarBridge_close_shift_impl(
+        44 => {
+            wire__crate__api__bridge__MadarBridge_close_till_impl(port, ptr, rust_vec_len, data_len)
+        }
+        45 => wire__crate__api__bridge__MadarBridge_close_till_preview_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => wire__crate__api__bridge__MadarBridge_complete_draft_impl(
+        46 => wire__crate__api__bridge__MadarBridge_complete_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        43 => wire__crate__api__bridge__MadarBridge_compute_recipe_impl(
+        47 => wire__crate__api__bridge__MadarBridge_compute_recipe_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => wire__crate__api__bridge__MadarBridge_create_transfer_impl(
+        48 => wire__crate__api__bridge__MadarBridge_create_transfer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__crate__api__bridge__MadarBridge_current_shift_impl(
+        51 => wire__crate__api__bridge__MadarBridge_current_till_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        49 => wire__crate__api__bridge__MadarBridge_delivery_advance_status_impl(
+        53 => wire__crate__api__bridge__MadarBridge_delivery_advance_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__crate__api__bridge__MadarBridge_delivery_cancel_impl(
+        54 => wire__crate__api__bridge__MadarBridge_delivery_cancel_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__crate__api__bridge__MadarBridge_delivery_finalize_impl(
+        55 => wire__crate__api__bridge__MadarBridge_delivery_finalize_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__crate__api__bridge__MadarBridge_delivery_order_detail_impl(
+        56 => wire__crate__api__bridge__MadarBridge_delivery_order_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__crate__api__bridge__MadarBridge_delivery_set_accepting_impl(
+        57 => wire__crate__api__bridge__MadarBridge_delivery_set_accepting_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        54 => wire__crate__api__bridge__MadarBridge_delivery_set_prep_time_impl(
+        58 => wire__crate__api__bridge__MadarBridge_delivery_set_prep_time_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__bridge__MadarBridge_delivery_set_status_impl(
+        59 => wire__crate__api__bridge__MadarBridge_delivery_set_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__crate__api__bridge__MadarBridge_delivery_settings_impl(
+        60 => wire__crate__api__bridge__MadarBridge_delivery_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__bridge__MadarBridge_discard_draft_impl(
+        64 => wire__crate__api__bridge__MadarBridge_discard_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        60 => wire__crate__api__bridge__MadarBridge_discard_outbox_item_impl(
+        65 => wire__crate__api__bridge__MadarBridge_discard_outbox_item_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__crate__api__bridge__MadarBridge_fire_ticket_impl(
+        67 => wire__crate__api__bridge__MadarBridge_fire_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        63 => wire__crate__api__bridge__MadarBridge_floor_layout_impl(
+        68 => wire__crate__api__bridge__MadarBridge_floor_layout_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        64 => wire__crate__api__bridge__MadarBridge_force_close_shift_impl(
+        69 => wire__crate__api__bridge__MadarBridge_force_close_till_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        70 => wire__crate__api__bridge__MadarBridge_fulfill_transfer_impl(
+        75 => wire__crate__api__bridge__MadarBridge_fulfill_transfer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        71 => {
+        76 => {
             wire__crate__api__bridge__MadarBridge_get_ticket_impl(port, ptr, rust_vec_len, data_len)
         }
-        73 => {
+        78 => {
             wire__crate__api__bridge__MadarBridge_hold_cart_impl(port, ptr, rust_vec_len, data_len)
         }
-        74 => wire__crate__api__bridge__MadarBridge_hold_cart_on_table_impl(
+        79 => wire__crate__api__bridge__MadarBridge_hold_cart_on_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        78 => {
+        83 => {
             wire__crate__api__bridge__MadarBridge_kds_bump_impl(port, ptr, rust_vec_len, data_len)
         }
-        79 => {
+        84 => {
             wire__crate__api__bridge__MadarBridge_kds_list_impl(port, ptr, rust_vec_len, data_len)
         }
-        80 => wire__crate__api__bridge__MadarBridge_kds_list_stations_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        81 => {
-            wire__crate__api__bridge__MadarBridge_kds_unbump_impl(port, ptr, rust_vec_len, data_len)
-        }
-        82 => wire__crate__api__bridge__MadarBridge_kitchen_routing_mode_impl(
+        85 => wire__crate__api__bridge__MadarBridge_kds_list_stations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         86 => {
+            wire__crate__api__bridge__MadarBridge_kds_unbump_impl(port, ptr, rust_vec_len, data_len)
+        }
+        87 => wire__crate__api__bridge__MadarBridge_kitchen_routing_mode_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        91 => {
             wire__crate__api__bridge__MadarBridge_lan_start_impl(port, ptr, rust_vec_len, data_len)
         }
-        87 => {
+        92 => {
             wire__crate__api__bridge__MadarBridge_lan_stop_impl(port, ptr, rust_vec_len, data_len)
         }
-        88 => wire__crate__api__bridge__MadarBridge_list_addon_catalog_impl(
+        93 => wire__crate__api__bridge__MadarBridge_list_addon_catalog_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        89 => wire__crate__api__bridge__MadarBridge_list_arrivals_impl(
+        94 => wire__crate__api__bridge__MadarBridge_list_arrivals_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        90 => wire__crate__api__bridge__MadarBridge_list_branches_impl(
+        95 => wire__crate__api__bridge__MadarBridge_list_branches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        91 => wire__crate__api__bridge__MadarBridge_list_cash_movements_impl(
+        96 => wire__crate__api__bridge__MadarBridge_list_cash_movements_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        92 => wire__crate__api__bridge__MadarBridge_list_categories_impl(
+        97 => wire__crate__api__bridge__MadarBridge_list_categories_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        93 => wire__crate__api__bridge__MadarBridge_list_delivery_orders_impl(
+        98 => wire__crate__api__bridge__MadarBridge_list_delivery_orders_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        94 => wire__crate__api__bridge__MadarBridge_list_discounts_impl(
+        99 => wire__crate__api__bridge__MadarBridge_list_discounts_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        95 => wire__crate__api__bridge__MadarBridge_list_drafts_impl(
+        100 => wire__crate__api__bridge__MadarBridge_list_drafts_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        96 => wire__crate__api__bridge__MadarBridge_list_item_addons_impl(
+        101 => wire__crate__api__bridge__MadarBridge_list_item_addons_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        97 => wire__crate__api__bridge__MadarBridge_list_item_modifier_groups_impl(
+        102 => wire__crate__api__bridge__MadarBridge_list_item_modifier_groups_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        98 => wire__crate__api__bridge__MadarBridge_list_menu_items_impl(
+        103 => wire__crate__api__bridge__MadarBridge_list_menu_items_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        99 => wire__crate__api__bridge__MadarBridge_list_open_tickets_impl(
+        104 => wire__crate__api__bridge__MadarBridge_list_open_tickets_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        100 => wire__crate__api__bridge__MadarBridge_list_order_refunds_impl(
+        105 => wire__crate__api__bridge__MadarBridge_list_order_refunds_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        101 => wire__crate__api__bridge__MadarBridge_list_orders_for_shift_impl(
+        106 => wire__crate__api__bridge__MadarBridge_list_orders_for_till_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        102 => wire__crate__api__bridge__MadarBridge_list_outbox_impl(
+        107 => wire__crate__api__bridge__MadarBridge_list_outbox_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        103 => wire__crate__api__bridge__MadarBridge_list_payment_methods_impl(
+        108 => wire__crate__api__bridge__MadarBridge_list_payment_methods_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        104 => wire__crate__api__bridge__MadarBridge_list_shift_orders_impl(
+        109 => wire__crate__api__bridge__MadarBridge_list_till_orders_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        105 => wire__crate__api__bridge__MadarBridge_list_shift_refunds_impl(
+        110 => wire__crate__api__bridge__MadarBridge_list_till_refunds_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        106 => wire__crate__api__bridge__MadarBridge_list_shifts_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        107 => {
+        111 => {
             wire__crate__api__bridge__MadarBridge_list_tills_impl(port, ptr, rust_vec_len, data_len)
         }
-        108 => wire__crate__api__bridge__MadarBridge_list_transfer_queue_impl(
+        112 => wire__crate__api__bridge__MadarBridge_list_transfer_queue_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        110 => wire__crate__api__bridge__MadarBridge_login_impl(port, ptr, rust_vec_len, data_len),
-        111 => wire__crate__api__bridge__MadarBridge_logout_impl(port, ptr, rust_vec_len, data_len),
-        112 => wire__crate__api__bridge__MadarBridge_loyalty_award_impl(
+        114 => wire__crate__api__bridge__MadarBridge_login_impl(port, ptr, rust_vec_len, data_len),
+        115 => wire__crate__api__bridge__MadarBridge_logout_impl(port, ptr, rust_vec_len, data_len),
+        116 => wire__crate__api__bridge__MadarBridge_loyalty_award_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        114 => wire__crate__api__bridge__MadarBridge_loyalty_lookup_impl(
+        118 => wire__crate__api__bridge__MadarBridge_loyalty_lookup_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        115 => wire__crate__api__bridge__MadarBridge_loyalty_refresh_impl(
+        119 => wire__crate__api__bridge__MadarBridge_loyalty_refresh_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        117 => wire__crate__api__bridge__MadarBridge_loyalty_settings_impl(
+        121 => wire__crate__api__bridge__MadarBridge_loyalty_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        118 => wire__crate__api__bridge__MadarBridge_mirror_table_status_impl(
+        122 => wire__crate__api__bridge__MadarBridge_mirror_table_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        119 => wire__crate__api__bridge__MadarBridge_new_impl(port, ptr, rust_vec_len, data_len),
-        120 => wire__crate__api__bridge__MadarBridge_no_show_booking_impl(
+        123 => wire__crate__api__bridge__MadarBridge_new_impl(port, ptr, rust_vec_len, data_len),
+        124 => wire__crate__api__bridge__MadarBridge_no_show_booking_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        121 => {
-            wire__crate__api__bridge__MadarBridge_open_shift_impl(port, ptr, rust_vec_len, data_len)
+        125 => wire__crate__api__bridge__MadarBridge_open_bills_notice_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        126 => {
+            wire__crate__api__bridge__MadarBridge_open_till_impl(port, ptr, rust_vec_len, data_len)
         }
-        122 => wire__crate__api__bridge__MadarBridge_order_detail_impl(
+        127 => wire__crate__api__bridge__MadarBridge_order_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        123 => wire__crate__api__bridge__MadarBridge_order_receipt_view_impl(
+        128 => wire__crate__api__bridge__MadarBridge_order_receipt_view_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        125 => wire__crate__api__bridge__MadarBridge_org_logo_url_impl(
+        130 => wire__crate__api__bridge__MadarBridge_org_logo_url_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        127 => wire__crate__api__bridge__MadarBridge_pending_outbox_count_impl(
+        132 => wire__crate__api__bridge__MadarBridge_pending_outbox_count_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        128 => wire__crate__api__bridge__MadarBridge_preview_configured_line_impl(
+        133 => wire__crate__api__bridge__MadarBridge_preview_configured_line_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        129 => wire__crate__api__bridge__MadarBridge_print_to_device_impl(
+        134 => wire__crate__api__bridge__MadarBridge_print_to_device_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        130 => wire__crate__api__bridge__MadarBridge_recent_logs_impl(
+        135 => wire__crate__api__bridge__MadarBridge_recent_logs_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        131 => wire__crate__api__bridge__MadarBridge_record_cash_movement_impl(
+        136 => wire__crate__api__bridge__MadarBridge_record_cash_movement_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        132 => wire__crate__api__bridge__MadarBridge_recover_orphaned_orders_impl(
+        137 => wire__crate__api__bridge__MadarBridge_refresh_arrivals_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        133 => wire__crate__api__bridge__MadarBridge_refresh_arrivals_impl(
+        138 => wire__crate__api__bridge__MadarBridge_refresh_catalog_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        134 => wire__crate__api__bridge__MadarBridge_refresh_catalog_impl(
+        139 => wire__crate__api__bridge__MadarBridge_refresh_connectivity_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        135 => wire__crate__api__bridge__MadarBridge_refresh_connectivity_impl(
+        140 => wire__crate__api__bridge__MadarBridge_refresh_floor_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        136 => wire__crate__api__bridge__MadarBridge_refresh_floor_impl(
+        141 => wire__crate__api__bridge__MadarBridge_refresh_till_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        137 => wire__crate__api__bridge__MadarBridge_refresh_shift_impl(
+        143 => wire__crate__api__bridge__MadarBridge_refund_order_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        139 => wire__crate__api__bridge__MadarBridge_refund_order_impl(
+        144 => wire__crate__api__bridge__MadarBridge_release_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        140 => wire__crate__api__bridge__MadarBridge_release_draft_impl(
+        145 => wire__crate__api__bridge__MadarBridge_rename_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        141 => wire__crate__api__bridge__MadarBridge_rename_draft_impl(
+        146 => wire__crate__api__bridge__MadarBridge_render_kitchen_chit_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        142 => wire__crate__api__bridge__MadarBridge_render_kitchen_chit_impl(
+        147 => wire__crate__api__bridge__MadarBridge_render_order_receipt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        143 => wire__crate__api__bridge__MadarBridge_render_order_receipt_impl(
+        148 => wire__crate__api__bridge__MadarBridge_render_receipt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        144 => wire__crate__api__bridge__MadarBridge_render_receipt_impl(
+        149 => wire__crate__api__bridge__MadarBridge_render_till_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        145 => wire__crate__api__bridge__MadarBridge_render_shift_report_impl(
+        150 => wire__crate__api__bridge__MadarBridge_repair_assets_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        146 => wire__crate__api__bridge__MadarBridge_restore_draft_impl(
+        151 => wire__crate__api__bridge__MadarBridge_restore_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        147 => wire__crate__api__bridge__MadarBridge_restore_session_impl(
+        152 => wire__crate__api__bridge__MadarBridge_restore_session_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        149 => wire__crate__api__bridge__MadarBridge_retry_outbox_impl(
+        154 => wire__crate__api__bridge__MadarBridge_retry_outbox_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        153 => wire__crate__api__bridge__MadarBridge_search_orders_impl(
+        155 => wire__crate__api__bridge__MadarBridge_retry_till_outbox_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        154 => wire__crate__api__bridge__MadarBridge_seat_booking_impl(
+        159 => wire__crate__api__bridge__MadarBridge_search_orders_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        155 => {
+        160 => wire__crate__api__bridge__MadarBridge_seat_booking_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        161 => {
             wire__crate__api__bridge__MadarBridge_seat_table_impl(port, ptr, rust_vec_len, data_len)
         }
-        156 => wire__crate__api__bridge__MadarBridge_send_to_printer_impl(
+        162 => wire__crate__api__bridge__MadarBridge_send_to_printer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        157 => wire__crate__api__bridge__MadarBridge_set_device_branch_impl(
+        163 => wire__crate__api__bridge__MadarBridge_set_device_branch_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        159 => wire__crate__api__bridge__MadarBridge_set_device_lan_hub_impl(
+        165 => wire__crate__api__bridge__MadarBridge_set_device_lan_hub_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        160 => wire__crate__api__bridge__MadarBridge_set_device_printer_impl(
+        166 => wire__crate__api__bridge__MadarBridge_set_device_printer_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        161 => wire__crate__api__bridge__MadarBridge_set_device_printer_bt_impl(
+        167 => wire__crate__api__bridge__MadarBridge_set_device_printer_bt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        162 => wire__crate__api__bridge__MadarBridge_set_device_printer_paper_impl(
+        168 => wire__crate__api__bridge__MadarBridge_set_device_printer_paper_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        163 => wire__crate__api__bridge__MadarBridge_set_device_printer_transport_impl(
+        169 => wire__crate__api__bridge__MadarBridge_set_device_printer_transport_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        164 => wire__crate__api__bridge__MadarBridge_set_device_station_impl(
+        170 => wire__crate__api__bridge__MadarBridge_set_device_station_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        165 => wire__crate__api__bridge__MadarBridge_set_device_till_impl(
+        171 => wire__crate__api__bridge__MadarBridge_set_kitchen_routing_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        166 => wire__crate__api__bridge__MadarBridge_set_kitchen_routing_mode_impl(
+        173 => wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        168 => wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        170 => wire__crate__api__bridge__MadarBridge_shift_report_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        171 => wire__crate__api__bridge__MadarBridge_shift_report_for_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        172 => wire__crate__api__bridge__MadarBridge_shift_stats_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        173 => {
+        174 => {
             wire__crate__api__bridge__MadarBridge_sign_in_impl(port, ptr, rust_vec_len, data_len)
         }
-        176 => wire__crate__api__bridge__MadarBridge_start_realtime_impl(
+        177 => wire__crate__api__bridge__MadarBridge_start_realtime_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        177 => wire__crate__api__bridge__MadarBridge_start_reconfigure_impl(
+        178 => wire__crate__api__bridge__MadarBridge_start_reconfigure_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        178 => wire__crate__api__bridge__MadarBridge_suggested_opening_cash_minor_impl(
+        179 => wire__crate__api__bridge__MadarBridge_suggested_opening_cash_minor_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        179 => wire__crate__api__bridge__MadarBridge_swap_floor_tables_impl(
+        180 => wire__crate__api__bridge__MadarBridge_swap_floor_tables_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        180 => wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
+        181 => wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        181 => {
+        182 => {
+            wire__crate__api__bridge__MadarBridge_sync_full_impl(port, ptr, rust_vec_len, data_len)
+        }
+        183 => {
             wire__crate__api__bridge__MadarBridge_sync_now_impl(port, ptr, rust_vec_len, data_len)
         }
-        182 => wire__crate__api__bridge__MadarBridge_sync_status_impl(
+        186 => wire__crate__api__bridge__MadarBridge_table_history_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        183 => wire__crate__api__bridge__MadarBridge_table_history_impl(
+        190 => wire__crate__api__bridge__MadarBridge_till_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        188 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
+        191 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        189 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
+        192 => {
+            wire__crate__api__bridge__MadarBridge_till_stats_impl(port, ptr, rust_vec_len, data_len)
+        }
+        195 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        191 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+        196 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        193 => {
+        198 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        200 => {
             wire__crate__api__bridge__MadarBridge_void_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        194 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
+        201 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        195 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
+        202 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
             port,
             ptr,
             rust_vec_len,
@@ -16179,166 +17045,173 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         2 => wire__crate__api__bridge__MadarBridge_app_route_impl(ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__bridge__MadarBridge_base_url_impl(ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__bridge__MadarBridge_bill_with_rewards_impl(
+        6 => wire__crate__api__bridge__MadarBridge_base_url_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__bridge__MadarBridge_bill_with_rewards_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        7 => {
+        9 => {
             wire__crate__api__bridge__MadarBridge_branch_timezone_impl(ptr, rust_vec_len, data_len)
         }
-        23 => wire__crate__api__bridge__MadarBridge_cart_reward_lines_impl(
+        25 => wire__crate__api__bridge__MadarBridge_cart_reward_lines_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__bridge__MadarBridge_cart_totals_with_rewards_impl(
+        32 => wire__crate__api__bridge__MadarBridge_cart_totals_with_rewards_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__bridge__MadarBridge_cash_quick_tenders_impl(
+        34 => wire__crate__api__bridge__MadarBridge_cash_quick_tenders_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => {
+        35 => {
             wire__crate__api__bridge__MadarBridge_category_style_impl(ptr, rust_vec_len, data_len)
         }
-        35 => wire__crate__api__bridge__MadarBridge_classify_loyalty_input_impl(
+        38 => wire__crate__api__bridge__MadarBridge_classify_loyalty_input_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__bridge__MadarBridge_clock_skew_minutes_impl(
+        42 => wire__crate__api__bridge__MadarBridge_clock_skew_minutes_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => wire__crate__api__bridge__MadarBridge_close_count_check_impl(
+        43 => wire__crate__api__bridge__MadarBridge_close_count_check_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => {
+        49 => {
             wire__crate__api__bridge__MadarBridge_currency_label_impl(ptr, rust_vec_len, data_len)
         }
-        46 => {
+        50 => {
             wire__crate__api__bridge__MadarBridge_current_session_impl(ptr, rust_vec_len, data_len)
         }
-        48 => wire__crate__api__bridge__MadarBridge_db_path_impl(ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__bridge__MadarBridge_device_code_impl(ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__bridge__MadarBridge_device_config_impl(ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__bridge__MadarBridge_environment_impl(ptr, rust_vec_len, data_len),
-        65 => {
+        52 => wire__crate__api__bridge__MadarBridge_db_path_impl(ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__bridge__MadarBridge_device_code_impl(ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__bridge__MadarBridge_device_config_impl(ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__bridge__MadarBridge_device_id_impl(ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__bridge__MadarBridge_environment_impl(ptr, rust_vec_len, data_len),
+        70 => {
             wire__crate__api__bridge__MadarBridge_format_elapsed_impl(ptr, rust_vec_len, data_len)
         }
-        66 => wire__crate__api__bridge__MadarBridge_format_elapsed_since_impl(
+        71 => wire__crate__api__bridge__MadarBridge_format_elapsed_since_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        67 => wire__crate__api__bridge__MadarBridge_format_money_impl(ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__bridge__MadarBridge_format_stamp_impl(ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__bridge__MadarBridge_format_time_impl(ptr, rust_vec_len, data_len),
-        72 => {
+        72 => wire__crate__api__bridge__MadarBridge_format_money_impl(ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__bridge__MadarBridge_format_stamp_impl(ptr, rust_vec_len, data_len),
+        74 => wire__crate__api__bridge__MadarBridge_format_time_impl(ptr, rust_vec_len, data_len),
+        77 => {
             wire__crate__api__bridge__MadarBridge_has_permission_impl(ptr, rust_vec_len, data_len)
         }
-        75 => {
+        80 => {
             wire__crate__api__bridge__MadarBridge_is_authenticated_impl(ptr, rust_vec_len, data_len)
         }
-        76 => wire__crate__api__bridge__MadarBridge_is_realtime_subscribed_impl(
+        81 => wire__crate__api__bridge__MadarBridge_is_realtime_subscribed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        77 => wire__crate__api__bridge__MadarBridge_is_rtl_impl(ptr, rust_vec_len, data_len),
-        83 => wire__crate__api__bridge__MadarBridge_lan_active_impl(ptr, rust_vec_len, data_len),
-        84 => wire__crate__api__bridge__MadarBridge_lan_branch_has_open_till_impl(
+        82 => wire__crate__api__bridge__MadarBridge_is_rtl_impl(ptr, rust_vec_len, data_len),
+        88 => wire__crate__api__bridge__MadarBridge_lan_active_impl(ptr, rust_vec_len, data_len),
+        89 => wire__crate__api__bridge__MadarBridge_lan_branch_has_open_till_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        85 => {
+        90 => {
             wire__crate__api__bridge__MadarBridge_lan_peer_count_impl(ptr, rust_vec_len, data_len)
         }
-        109 => wire__crate__api__bridge__MadarBridge_locale_impl(ptr, rust_vec_len, data_len),
-        113 => wire__crate__api__bridge__MadarBridge_loyalty_award_window_open_impl(
+        113 => wire__crate__api__bridge__MadarBridge_locale_impl(ptr, rust_vec_len, data_len),
+        117 => wire__crate__api__bridge__MadarBridge_loyalty_award_window_open_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        116 => {
+        120 => {
             wire__crate__api__bridge__MadarBridge_loyalty_refusal_impl(ptr, rust_vec_len, data_len)
         }
-        124 => wire__crate__api__bridge__MadarBridge_org_logo_local_path_impl(
+        129 => wire__crate__api__bridge__MadarBridge_org_logo_local_path_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        126 => wire__crate__api__bridge__MadarBridge_payment_method_label_impl(
+        131 => wire__crate__api__bridge__MadarBridge_payment_method_label_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        138 => wire__crate__api__bridge__MadarBridge_refund_method_plan_impl(
+        142 => wire__crate__api__bridge__MadarBridge_refund_method_plan_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        148 => wire__crate__api__bridge__MadarBridge_restore_session_cached_impl(
+        153 => wire__crate__api__bridge__MadarBridge_restore_session_cached_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        150 => wire__crate__api__bridge__MadarBridge_reward_board_impl(ptr, rust_vec_len, data_len),
-        151 => wire__crate__api__bridge__MadarBridge_reward_redemptions_impl(
+        156 => wire__crate__api__bridge__MadarBridge_reward_board_impl(ptr, rust_vec_len, data_len),
+        157 => wire__crate__api__bridge__MadarBridge_reward_redemptions_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        152 => wire__crate__api__bridge__MadarBridge_sale_tax_inclusive_impl(
+        158 => wire__crate__api__bridge__MadarBridge_sale_tax_inclusive_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        158 => {
+        164 => {
             wire__crate__api__bridge__MadarBridge_set_device_code_impl(ptr, rust_vec_len, data_len)
         }
-        167 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
-        169 => wire__crate__api__bridge__MadarBridge_shift_cash_sales_minor_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        174 => {
+        172 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
+        175 => {
             wire__crate__api__bridge__MadarBridge_split_auto_fill_impl(ptr, rust_vec_len, data_len)
         }
-        175 => {
+        176 => {
             wire__crate__api__bridge__MadarBridge_split_rest_here_impl(ptr, rust_vec_len, data_len)
         }
-        184 => {
+        184 => wire__crate__api__bridge__MadarBridge_sync_on_till_open_status_impl(
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        185 => wire__crate__api__bridge__MadarBridge_sync_status_impl(ptr, rust_vec_len, data_len),
+        187 => {
             wire__crate__api__bridge__MadarBridge_tender_summary_impl(ptr, rust_vec_len, data_len)
         }
-        185 => wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
+        188 => wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        186 => {
+        189 => wire__crate__api__bridge__MadarBridge_till_cash_sales_minor_impl(
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        193 => {
             wire__crate__api__bridge__MadarBridge_toggle_reward_impl(ptr, rust_vec_len, data_len)
         }
-        187 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        190 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
+        194 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
+        197 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        192 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
-        196 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        197 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        198 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        199 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
+        203 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        204 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        205 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -16490,7 +17363,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::routes::AppRoute {
         match self {
             crate::api::routes::AppRoute::DeviceSetup => [0.into_dart()].into_dart(),
             crate::api::routes::AppRoute::Login => [1.into_dart()].into_dart(),
-            crate::api::routes::AppRoute::OpenShift => [2.into_dart()].into_dart(),
+            crate::api::routes::AppRoute::OpenTill => [2.into_dart()].into_dart(),
             crate::api::routes::AppRoute::Order => [3.into_dart()].into_dart(),
             crate::api::routes::AppRoute::KitchenDisplay { station_id } => {
                 [4.into_dart(), station_id.into_into_dart().into_dart()].into_dart()
@@ -16508,6 +17381,31 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::routes::AppRoute>
 {
     fn into_into_dart(self) -> crate::api::routes::AppRoute {
         self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::sync::AssetSyncView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.needed.into_into_dart().into_dart(),
+            self.0.missing.into_into_dart().into_dart(),
+            self.0.downloading.into_into_dart().into_dart(),
+            self.0.bytes_done.into_into_dart().into_dart(),
+            self.0.bytes_total.into_into_dart().into_dart(),
+            self.0.last_error.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::sync::AssetSyncView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::sync::AssetSyncView>>
+    for crate::api::sync::AssetSyncView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::sync::AssetSyncView> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -16539,6 +17437,33 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::bookings::BookingV
     for crate::api::bookings::BookingView
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::bookings::BookingView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::BranchOpenTillView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.till_id.into_into_dart().into_dart(),
+            self.0.teller_id.into_into_dart().into_dart(),
+            self.0.teller_name.into_into_dart().into_dart(),
+            self.0.device_code.into_into_dart().into_dart(),
+            self.0.device_label.into_into_dart().into_dart(),
+            self.0.opened_at.into_into_dart().into_dart(),
+            self.0.is_this_device.into_into_dart().into_dart(),
+            self.0.source.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::BranchOpenTillView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::BranchOpenTillView>>
+    for crate::api::till::BranchOpenTillView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::BranchOpenTillView> {
         self.into()
     }
 }
@@ -16795,7 +17720,7 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cart::CartTotals>>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::shift::CashMovementView> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::CashMovementView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.id.into_into_dart().into_dart(),
@@ -16809,13 +17734,13 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::shift::CashMovemen
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::shift::CashMovementView>
+    for FrbWrapper<crate::api::till::CashMovementView>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::shift::CashMovementView>>
-    for crate::api::shift::CashMovementView
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::CashMovementView>>
+    for crate::api::till::CashMovementView
 {
-    fn into_into_dart(self) -> FrbWrapper<crate::api::shift::CashMovementView> {
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::CashMovementView> {
         self.into()
     }
 }
@@ -16959,7 +17884,7 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::CheckoutSp
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::CloseCountCheck> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::drawer::CloseCountCheck> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.entered.into_into_dart().into_dart(),
@@ -16971,13 +17896,83 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::CloseCountCh
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::till::CloseCountCheck>
+    for FrbWrapper<crate::api::drawer::CloseCountCheck>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::CloseCountCheck>>
-    for crate::api::till::CloseCountCheck
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::drawer::CloseCountCheck>>
+    for crate::api::drawer::CloseCountCheck
 {
-    fn into_into_dart(self) -> FrbWrapper<crate::api::till::CloseCountCheck> {
+    fn into_into_dart(self) -> FrbWrapper<crate::api::drawer::CloseCountCheck> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::CloseTillMethodView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.method.into_into_dart().into_dart(),
+            self.0.label.into_into_dart().into_dart(),
+            self.0.is_cash.into_into_dart().into_dart(),
+            self.0.system_total_minor.into_into_dart().into_dart(),
+            self.0.order_count.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::CloseTillMethodView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::CloseTillMethodView>>
+    for crate::api::till::CloseTillMethodView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::CloseTillMethodView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::CloseTillOutcomeView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.queued.into_into_dart().into_dart(),
+            self.0.reconciliation.into_into_dart().into_dart(),
+            self.0.last_till_warning.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::CloseTillOutcomeView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::CloseTillOutcomeView>>
+    for crate::api::till::CloseTillOutcomeView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::CloseTillOutcomeView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::CloseTillPreviewView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.till.into_into_dart().into_dart(),
+            self.0.expected_cash_minor.into_into_dart().into_dart(),
+            self.0.methods.into_into_dart().into_dart(),
+            self.0.last_till_warning.into_into_dart().into_dart(),
+            self.0.from_server.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::CloseTillPreviewView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::CloseTillPreviewView>>
+    for crate::api::till::CloseTillPreviewView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::CloseTillPreviewView> {
         self.into()
     }
 }
@@ -17099,7 +18094,6 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::device::DeviceConf
         [
             self.0.branch_id.into_into_dart().into_dart(),
             self.0.branch_name.into_into_dart().into_dart(),
-            self.0.till_id.into_into_dart().into_dart(),
             self.0.station_id.into_into_dart().into_dart(),
             self.0.printer_host.into_into_dart().into_dart(),
             self.0.printer_port.into_into_dart().into_dart(),
@@ -17508,6 +18502,28 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::printing::KitchenC
     for crate::api::printing::KitchenChit
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::printing::KitchenChit> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::LastTillWarningView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.open_bills_count.into_into_dart().into_dart(),
+            self.0.open_bills_amount_minor.into_into_dart().into_dart(),
+            self.0.seated_tables_count.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::LastTillWarningView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::LastTillWarningView>>
+    for crate::api::till::LastTillWarningView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::LastTillWarningView> {
         self.into()
     }
 }
@@ -17937,6 +18953,54 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::cart::ModifierOpti
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::OpenBillsNoticeView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.open_bills_count.into_into_dart().into_dart(),
+            self.0.open_bills_amount_minor.into_into_dart().into_dart(),
+            self.0.oldest_opened_at.into_into_dart().into_dart(),
+            self.0.old_bills_count.into_into_dart().into_dart(),
+            self.0.old_bill_hours.into_into_dart().into_dart(),
+            self.0.seated_tables_count.into_into_dart().into_dart(),
+            self.0.since.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::OpenBillsNoticeView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::OpenBillsNoticeView>>
+    for crate::api::till::OpenBillsNoticeView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::OpenBillsNoticeView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::OpenTillOutcome> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.till.into_into_dart().into_dart(),
+            self.0.verification.into_into_dart().into_dart(),
+            self.0.open_elsewhere.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::OpenTillOutcome>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::OpenTillOutcome>>
+    for crate::api::till::OpenTillOutcome
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::OpenTillOutcome> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::catalog::OptionalFieldView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -18128,7 +19192,7 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::sync::OutboxItemVi
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::PaymentMethodChoice> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::drawer::PaymentMethodChoice> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.code.into_into_dart().into_dart(),
@@ -18139,13 +19203,13 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::PaymentMetho
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::till::PaymentMethodChoice>
+    for FrbWrapper<crate::api::drawer::PaymentMethodChoice>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::PaymentMethodChoice>>
-    for crate::api::till::PaymentMethodChoice
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::drawer::PaymentMethodChoice>>
+    for crate::api::drawer::PaymentMethodChoice
 {
-    fn into_into_dart(self) -> FrbWrapper<crate::api::till::PaymentMethodChoice> {
+    fn into_into_dart(self) -> FrbWrapper<crate::api::drawer::PaymentMethodChoice> {
         self.into()
     }
 }
@@ -18323,6 +19387,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::ReceiptVie
         [
             self.0.local_order_id.into_into_dart().into_dart(),
             self.0.order_number.into_into_dart().into_dart(),
+            self.0.display_number.into_into_dart().into_dart(),
             self.0.order_ref.into_into_dart().into_dart(),
             self.0.is_voided.into_into_dart().into_dart(),
             self.0.lines.into_into_dart().into_dart(),
@@ -18415,6 +19480,56 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::catalog::RecipeSte
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::ReconciliationInput> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.method.into_into_dart().into_dart(),
+            self.0.status.into_into_dart().into_dart(),
+            self.0.declared_amount_minor.into_into_dart().into_dart(),
+            self.0.note.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::ReconciliationInput>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::ReconciliationInput>>
+    for crate::api::till::ReconciliationInput
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::ReconciliationInput> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::ReconciliationLineView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.method.into_into_dart().into_dart(),
+            self.0.label.into_into_dart().into_dart(),
+            self.0.is_cash.into_into_dart().into_dart(),
+            self.0.system_total_minor.into_into_dart().into_dart(),
+            self.0.status.into_into_dart().into_dart(),
+            self.0.declared_amount_minor.into_into_dart().into_dart(),
+            self.0.note.into_into_dart().into_dart(),
+            self.0.changed_after_close.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::ReconciliationLineView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::ReconciliationLineView>>
+    for crate::api::till::ReconciliationLineView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::ReconciliationLineView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::RefundLineView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -18438,24 +19553,24 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::RefundLine
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::RefundMethodPlan> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::drawer::RefundMethodPlan> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.options.into_into_dart().into_dart(),
             self.0.default_code.into_into_dart().into_dart(),
-            self.0.crosses_shift.into_into_dart().into_dart(),
+            self.0.crosses_till.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::till::RefundMethodPlan>
+    for FrbWrapper<crate::api::drawer::RefundMethodPlan>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::RefundMethodPlan>>
-    for crate::api::till::RefundMethodPlan
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::drawer::RefundMethodPlan>>
+    for crate::api::drawer::RefundMethodPlan
 {
-    fn into_into_dart(self) -> FrbWrapper<crate::api::till::RefundMethodPlan> {
+    fn into_into_dart(self) -> FrbWrapper<crate::api::drawer::RefundMethodPlan> {
         self.into()
     }
 }
@@ -18622,217 +19737,21 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::SessionSnap
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::ShiftRefundsView> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.0.shift_id.into_into_dart().into_dart(),
-            self.0.refund_count.into_into_dart().into_dart(),
-            self.0.refunded_minor.into_into_dart().into_dart(),
-            self.0.refunded_cash_minor.into_into_dart().into_dart(),
-            self.0.refunds.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::orders::ShiftRefundsView>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::ShiftRefundsView>>
-    for crate::api::orders::ShiftRefundsView
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::orders::ShiftRefundsView> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::shift::ShiftReportCashLine> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.0.amount_minor.into_into_dart().into_dart(),
-            self.0.note.into_into_dart().into_dart(),
-            self.0.moved_by_name.into_into_dart().into_dart(),
-            self.0.created_at.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::shift::ShiftReportCashLine>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::shift::ShiftReportCashLine>>
-    for crate::api::shift::ShiftReportCashLine
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::shift::ShiftReportCashLine> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::shift::ShiftReportPaymentLine> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.0.method.into_into_dart().into_dart(),
-            self.0.is_cash.into_into_dart().into_dart(),
-            self.0.order_count.into_into_dart().into_dart(),
-            self.0.total_minor.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::shift::ShiftReportPaymentLine>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::shift::ShiftReportPaymentLine>>
-    for crate::api::shift::ShiftReportPaymentLine
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::shift::ShiftReportPaymentLine> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::shift::ShiftReportView> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.0.teller_name.into_into_dart().into_dart(),
-            self.0.opened_at.into_into_dart().into_dart(),
-            self.0.closed_at.into_into_dart().into_dart(),
-            self.0.printed_at.into_into_dart().into_dart(),
-            self.0.is_open.into_into_dart().into_dart(),
-            self.0.expected_cash_minor.into_into_dart().into_dart(),
-            self.0.opening_cash_minor.into_into_dart().into_dart(),
-            self.0.opening_cash_was_edited.into_into_dart().into_dart(),
-            self.0
-                .opening_cash_original_minor
-                .into_into_dart()
-                .into_dart(),
-            self.0.opening_cash_edit_reason.into_into_dart().into_dart(),
-            self.0
-                .closing_cash_declared_minor
-                .into_into_dart()
-                .into_dart(),
-            self.0.total_payments_minor.into_into_dart().into_dart(),
-            self.0.net_payments_minor.into_into_dart().into_dart(),
-            self.0.voided_amount_minor.into_into_dart().into_dart(),
-            self.0.refunds_issued_minor.into_into_dart().into_dart(),
-            self.0
-                .refunds_issued_cash_minor
-                .into_into_dart()
-                .into_dart(),
-            self.0.refunds_issued_count.into_into_dart().into_dart(),
-            self.0
-                .cash_in_refunded_sales_minor
-                .into_into_dart()
-                .into_dart(),
-            self.0.cash_movements_net_minor.into_into_dart().into_dart(),
-            self.0.cash_in_minor.into_into_dart().into_dart(),
-            self.0.cash_out_minor.into_into_dart().into_dart(),
-            self.0.payment_lines.into_into_dart().into_dart(),
-            self.0.cash_movements.into_into_dart().into_dart(),
-            self.0.from_server.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::shift::ShiftReportView>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::shift::ShiftReportView>>
-    for crate::api::shift::ShiftReportView
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::shift::ShiftReportView> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::shift::ShiftStatsView> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.0.sales_minor.into_into_dart().into_dart(),
-            self.0.order_count.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::shift::ShiftStatsView>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::shift::ShiftStatsView>>
-    for crate::api::shift::ShiftStatsView
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::shift::ShiftStatsView> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::shift::ShiftSummaryView> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.0.id.into_into_dart().into_dart(),
-            self.0.branch_name.into_into_dart().into_dart(),
-            self.0.teller_name.into_into_dart().into_dart(),
-            self.0.opened_at.into_into_dart().into_dart(),
-            self.0.closed_at.into_into_dart().into_dart(),
-            self.0.opening_cash_minor.into_into_dart().into_dart(),
-            self.0.closing_declared_minor.into_into_dart().into_dart(),
-            self.0.closing_system_minor.into_into_dart().into_dart(),
-            self.0.discrepancy_minor.into_into_dart().into_dart(),
-            self.0.status.into_into_dart().into_dart(),
-            self.0.is_open.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::shift::ShiftSummaryView>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::shift::ShiftSummaryView>>
-    for crate::api::shift::ShiftSummaryView
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::shift::ShiftSummaryView> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::ShiftView> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.0.id.into_into_dart().into_dart(),
-            self.0.branch_id.into_into_dart().into_dart(),
-            self.0.teller_id.into_into_dart().into_dart(),
-            self.0.teller_name.into_into_dart().into_dart(),
-            self.0.opening_cash_minor.into_into_dart().into_dart(),
-            self.0.opened_at.into_into_dart().into_dart(),
-            self.0.status.into_into_dart().into_dart(),
-            self.0.is_open.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::types::ShiftView>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::ShiftView>>
-    for crate::api::types::ShiftView
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::types::ShiftView> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::sync::SyncStatusView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.0.pending.into_into_dart().into_dart(),
-            self.0.failed.into_into_dart().into_dart(),
-            self.0.blocked.into_into_dart().into_dart(),
+            self.0.phase.into_into_dart().into_dart(),
+            self.0.next_seq.into_into_dart().into_dart(),
+            self.0.pending_outbox.into_into_dart().into_dart(),
+            self.0.dead_outbox.into_into_dart().into_dart(),
+            self.0.last_ok_at.into_into_dart().into_dart(),
+            self.0.last_full_at.into_into_dart().into_dart(),
+            self.0.stale_reason.into_into_dart().into_dart(),
+            self.0.last_error.into_into_dart().into_dart(),
+            self.0.assets.into_into_dart().into_dart(),
             self.0.online.into_into_dart().into_dart(),
             self.0.auth_paused.into_into_dart().into_dart(),
+            self.0.blocked.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -19047,25 +19966,280 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::tickets::TicketVie
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::shift::TillView> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillElsewhereView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.0.id.into_into_dart().into_dart(),
-            self.0.name.into_into_dart().into_dart(),
-            self.0.is_default.into_into_dart().into_dart(),
-            self.0.is_active.into_into_dart().into_dart(),
+            self.0.till_id.into_into_dart().into_dart(),
+            self.0.device_code.into_into_dart().into_dart(),
+            self.0.device_label.into_into_dart().into_dart(),
+            self.0.opened_at.into_into_dart().into_dart(),
+            self.0.source.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::shift::TillView>
+    for FrbWrapper<crate::api::till::TillElsewhereView>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::shift::TillView>>
-    for crate::api::shift::TillView
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::TillElsewhereView>>
+    for crate::api::till::TillElsewhereView
 {
-    fn into_into_dart(self) -> FrbWrapper<crate::api::shift::TillView> {
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::TillElsewhereView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::sync::TillOpenSyncView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.state.into_into_dart().into_dart(),
+            self.0.till_id.into_into_dart().into_dart(),
+            self.0.started_at.into_into_dart().into_dart(),
+            self.0.finished_at.into_into_dart().into_dart(),
+            self.0.stale_reason.into_into_dart().into_dart(),
+            self.0.changes_applied.into_into_dart().into_dart(),
+            self.0.pending_outbox.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::sync::TillOpenSyncView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::sync::TillOpenSyncView>>
+    for crate::api::sync::TillOpenSyncView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::sync::TillOpenSyncView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::TillRefundsView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.till_id.into_into_dart().into_dart(),
+            self.0.refund_count.into_into_dart().into_dart(),
+            self.0.refunded_minor.into_into_dart().into_dart(),
+            self.0.refunded_cash_minor.into_into_dart().into_dart(),
+            self.0.refunds.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::orders::TillRefundsView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::TillRefundsView>>
+    for crate::api::orders::TillRefundsView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::orders::TillRefundsView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillReportCashLine> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.amount_minor.into_into_dart().into_dart(),
+            self.0.note.into_into_dart().into_dart(),
+            self.0.moved_by_name.into_into_dart().into_dart(),
+            self.0.created_at.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::TillReportCashLine>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::TillReportCashLine>>
+    for crate::api::till::TillReportCashLine
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::TillReportCashLine> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillReportPaymentLine> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.method.into_into_dart().into_dart(),
+            self.0.is_cash.into_into_dart().into_dart(),
+            self.0.order_count.into_into_dart().into_dart(),
+            self.0.total_minor.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::TillReportPaymentLine>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::TillReportPaymentLine>>
+    for crate::api::till::TillReportPaymentLine
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::TillReportPaymentLine> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillReportView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.teller_name.into_into_dart().into_dart(),
+            self.0.opened_at.into_into_dart().into_dart(),
+            self.0.closed_at.into_into_dart().into_dart(),
+            self.0.printed_at.into_into_dart().into_dart(),
+            self.0.is_open.into_into_dart().into_dart(),
+            self.0.expected_cash_minor.into_into_dart().into_dart(),
+            self.0.opening_cash_minor.into_into_dart().into_dart(),
+            self.0.opening_cash_was_edited.into_into_dart().into_dart(),
+            self.0
+                .opening_cash_original_minor
+                .into_into_dart()
+                .into_dart(),
+            self.0.opening_cash_edit_reason.into_into_dart().into_dart(),
+            self.0
+                .closing_cash_declared_minor
+                .into_into_dart()
+                .into_dart(),
+            self.0.total_payments_minor.into_into_dart().into_dart(),
+            self.0.net_payments_minor.into_into_dart().into_dart(),
+            self.0.voided_amount_minor.into_into_dart().into_dart(),
+            self.0.refunds_issued_minor.into_into_dart().into_dart(),
+            self.0
+                .refunds_issued_cash_minor
+                .into_into_dart()
+                .into_dart(),
+            self.0.refunds_issued_count.into_into_dart().into_dart(),
+            self.0
+                .cash_in_refunded_sales_minor
+                .into_into_dart()
+                .into_dart(),
+            self.0.cash_movements_net_minor.into_into_dart().into_dart(),
+            self.0.cash_in_minor.into_into_dart().into_dart(),
+            self.0.cash_out_minor.into_into_dart().into_dart(),
+            self.0.payment_lines.into_into_dart().into_dart(),
+            self.0.cash_movements.into_into_dart().into_dart(),
+            self.0.from_server.into_into_dart().into_dart(),
+            self.0.device_code.into_into_dart().into_dart(),
+            self.0.order_number_first.into_into_dart().into_dart(),
+            self.0.order_number_last.into_into_dart().into_dart(),
+            self.0.reconciliation.into_into_dart().into_dart(),
+            self.0.old_bills_count.into_into_dart().into_dart(),
+            self.0.open_bills_count.into_into_dart().into_dart(),
+            self.0
+                .opened_while_another_open
+                .into_into_dart()
+                .into_dart(),
+            self.0.verification.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::TillReportView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::TillReportView>>
+    for crate::api::till::TillReportView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::TillReportView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillStatsView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.sales_minor.into_into_dart().into_dart(),
+            self.0.order_count.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::TillStatsView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::TillStatsView>>
+    for crate::api::till::TillStatsView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::TillStatsView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillSummaryView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.id.into_into_dart().into_dart(),
+            self.0.branch_name.into_into_dart().into_dart(),
+            self.0.teller_name.into_into_dart().into_dart(),
+            self.0.opened_at.into_into_dart().into_dart(),
+            self.0.closed_at.into_into_dart().into_dart(),
+            self.0.opening_cash_minor.into_into_dart().into_dart(),
+            self.0.closing_declared_minor.into_into_dart().into_dart(),
+            self.0.closing_system_minor.into_into_dart().into_dart(),
+            self.0.discrepancy_minor.into_into_dart().into_dart(),
+            self.0.status.into_into_dart().into_dart(),
+            self.0.is_open.into_into_dart().into_dart(),
+            self.0.device_code.into_into_dart().into_dart(),
+            self.0.verification.into_into_dart().into_dart(),
+            self.0
+                .opened_while_another_open
+                .into_into_dart()
+                .into_dart(),
+            self.0.reconciliation_status.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::TillSummaryView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::TillSummaryView>>
+    for crate::api::till::TillSummaryView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::TillSummaryView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::TillView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.id.into_into_dart().into_dart(),
+            self.0.branch_id.into_into_dart().into_dart(),
+            self.0.teller_id.into_into_dart().into_dart(),
+            self.0.teller_name.into_into_dart().into_dart(),
+            self.0.opening_cash_minor.into_into_dart().into_dart(),
+            self.0.opened_at.into_into_dart().into_dart(),
+            self.0.status.into_into_dart().into_dart(),
+            self.0.is_open.into_into_dart().into_dart(),
+            self.0.device_id.into_into_dart().into_dart(),
+            self.0.device_code.into_into_dart().into_dart(),
+            self.0.verification.into_into_dart().into_dart(),
+            self.0
+                .opened_while_another_open
+                .into_into_dart()
+                .into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::types::TillView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::TillView>>
+    for crate::api::types::TillView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::types::TillView> {
         self.into()
     }
 }
@@ -19253,7 +20427,7 @@ impl SseEncode for crate::api::routes::AppRoute {
             crate::api::routes::AppRoute::Login => {
                 <i32>::sse_encode(1, serializer);
             }
-            crate::api::routes::AppRoute::OpenShift => {
+            crate::api::routes::AppRoute::OpenTill => {
                 <i32>::sse_encode(2, serializer);
             }
             crate::api::routes::AppRoute::Order => {
@@ -19270,6 +20444,18 @@ impl SseEncode for crate::api::routes::AppRoute {
                 unimplemented!("");
             }
         }
+    }
+}
+
+impl SseEncode for crate::api::sync::AssetSyncView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.needed, serializer);
+        <u32>::sse_encode(self.missing, serializer);
+        <bool>::sse_encode(self.downloading, serializer);
+        <u64>::sse_encode(self.bytes_done, serializer);
+        <u64>::sse_encode(self.bytes_total, serializer);
+        <Option<String>>::sse_encode(self.last_error, serializer);
     }
 }
 
@@ -19296,6 +20482,20 @@ impl SseEncode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u8(self as _).unwrap();
+    }
+}
+
+impl SseEncode for crate::api::till::BranchOpenTillView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.till_id, serializer);
+        <String>::sse_encode(self.teller_id, serializer);
+        <String>::sse_encode(self.teller_name, serializer);
+        <Option<String>>::sse_encode(self.device_code, serializer);
+        <Option<String>>::sse_encode(self.device_label, serializer);
+        <String>::sse_encode(self.opened_at, serializer);
+        <bool>::sse_encode(self.is_this_device, serializer);
+        <String>::sse_encode(self.source, serializer);
     }
 }
 
@@ -19424,7 +20624,7 @@ impl SseEncode for crate::api::cart::CartTotals {
     }
 }
 
-impl SseEncode for crate::api::shift::CashMovementView {
+impl SseEncode for crate::api::till::CashMovementView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
@@ -19500,13 +20700,53 @@ impl SseEncode for crate::api::orders::CheckoutSplit {
     }
 }
 
-impl SseEncode for crate::api::till::CloseCountCheck {
+impl SseEncode for crate::api::drawer::CloseCountCheck {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.entered, serializer);
         <i64>::sse_encode(self.variance_minor, serializer);
         <String>::sse_encode(self.verdict, serializer);
         <bool>::sse_encode(self.needs_reason, serializer);
+    }
+}
+
+impl SseEncode for crate::api::till::CloseTillMethodView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.method, serializer);
+        <String>::sse_encode(self.label, serializer);
+        <bool>::sse_encode(self.is_cash, serializer);
+        <i64>::sse_encode(self.system_total_minor, serializer);
+        <i64>::sse_encode(self.order_count, serializer);
+    }
+}
+
+impl SseEncode for crate::api::till::CloseTillOutcomeView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.queued, serializer);
+        <Vec<crate::api::till::ReconciliationLineView>>::sse_encode(
+            self.reconciliation,
+            serializer,
+        );
+        <Option<crate::api::till::LastTillWarningView>>::sse_encode(
+            self.last_till_warning,
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::till::CloseTillPreviewView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::types::TillView>::sse_encode(self.till, serializer);
+        <i64>::sse_encode(self.expected_cash_minor, serializer);
+        <Vec<crate::api::till::CloseTillMethodView>>::sse_encode(self.methods, serializer);
+        <Option<crate::api::till::LastTillWarningView>>::sse_encode(
+            self.last_till_warning,
+            serializer,
+        );
+        <bool>::sse_encode(self.from_server, serializer);
     }
 }
 
@@ -19575,7 +20815,6 @@ impl SseEncode for crate::api::device::DeviceConfigView {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Option<String>>::sse_encode(self.branch_id, serializer);
         <Option<String>>::sse_encode(self.branch_name, serializer);
-        <Option<String>>::sse_encode(self.till_id, serializer);
         <Option<String>>::sse_encode(self.station_id, serializer);
         <Option<String>>::sse_encode(self.printer_host, serializer);
         <Option<u16>>::sse_encode(self.printer_port, serializer);
@@ -19801,6 +21040,15 @@ impl SseEncode for crate::api::printing::KitchenChit {
     }
 }
 
+impl SseEncode for crate::api::till::LastTillWarningView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.open_bills_count, serializer);
+        <i64>::sse_encode(self.open_bills_amount_minor, serializer);
+        <i64>::sse_encode(self.seated_tables_count, serializer);
+    }
+}
+
 impl SseEncode for crate::api::cart::LinePreviewView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19866,6 +21114,16 @@ impl SseEncode for Vec<crate::api::bookings::BookingView> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::bookings::BookingView>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::till::BranchOpenTillView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::till::BranchOpenTillView>::sse_encode(item, serializer);
         }
     }
 }
@@ -19950,12 +21208,12 @@ impl SseEncode for Vec<crate::api::cart::CartOptionalView> {
     }
 }
 
-impl SseEncode for Vec<crate::api::shift::CashMovementView> {
+impl SseEncode for Vec<crate::api::till::CashMovementView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::shift::CashMovementView>::sse_encode(item, serializer);
+            <crate::api::till::CashMovementView>::sse_encode(item, serializer);
         }
     }
 }
@@ -19996,6 +21254,16 @@ impl SseEncode for Vec<crate::api::orders::CheckoutSplit> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::orders::CheckoutSplit>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::till::CloseTillMethodView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::till::CloseTillMethodView>::sse_encode(item, serializer);
         }
     }
 }
@@ -20220,12 +21488,12 @@ impl SseEncode for Vec<crate::api::sync::OutboxItemView> {
     }
 }
 
-impl SseEncode for Vec<crate::api::till::PaymentMethodChoice> {
+impl SseEncode for Vec<crate::api::drawer::PaymentMethodChoice> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::till::PaymentMethodChoice>::sse_encode(item, serializer);
+            <crate::api::drawer::PaymentMethodChoice>::sse_encode(item, serializer);
         }
     }
 }
@@ -20310,6 +21578,26 @@ impl SseEncode for Vec<crate::api::catalog::RecipeStepView> {
     }
 }
 
+impl SseEncode for Vec<crate::api::till::ReconciliationInput> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::till::ReconciliationInput>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::till::ReconciliationLineView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::till::ReconciliationLineView>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::orders::RefundLineView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20360,36 +21648,6 @@ impl SseEncode for Vec<crate::api::loyalty::RewardPick> {
     }
 }
 
-impl SseEncode for Vec<crate::api::shift::ShiftReportCashLine> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::api::shift::ShiftReportCashLine>::sse_encode(item, serializer);
-        }
-    }
-}
-
-impl SseEncode for Vec<crate::api::shift::ShiftReportPaymentLine> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::api::shift::ShiftReportPaymentLine>::sse_encode(item, serializer);
-        }
-    }
-}
-
-impl SseEncode for Vec<crate::api::shift::ShiftSummaryView> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::api::shift::ShiftSummaryView>::sse_encode(item, serializer);
-        }
-    }
-}
-
 impl SseEncode for Vec<crate::api::floor::TableSittingView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20420,12 +21678,32 @@ impl SseEncode for Vec<crate::api::tickets::TicketView> {
     }
 }
 
-impl SseEncode for Vec<crate::api::shift::TillView> {
+impl SseEncode for Vec<crate::api::till::TillReportCashLine> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::shift::TillView>::sse_encode(item, serializer);
+            <crate::api::till::TillReportCashLine>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::till::TillReportPaymentLine> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::till::TillReportPaymentLine>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::till::TillSummaryView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::till::TillSummaryView>::sse_encode(item, serializer);
         }
     }
 }
@@ -20671,6 +21949,28 @@ impl SseEncode for crate::api::cart::ModifierOptionView {
     }
 }
 
+impl SseEncode for crate::api::till::OpenBillsNoticeView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.open_bills_count, serializer);
+        <i64>::sse_encode(self.open_bills_amount_minor, serializer);
+        <Option<String>>::sse_encode(self.oldest_opened_at, serializer);
+        <i64>::sse_encode(self.old_bills_count, serializer);
+        <i64>::sse_encode(self.old_bill_hours, serializer);
+        <i64>::sse_encode(self.seated_tables_count, serializer);
+        <Option<String>>::sse_encode(self.since, serializer);
+    }
+}
+
+impl SseEncode for crate::api::till::OpenTillOutcome {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<crate::api::types::TillView>>::sse_encode(self.till, serializer);
+        <String>::sse_encode(self.verification, serializer);
+        <Option<crate::api::till::TillElsewhereView>>::sse_encode(self.open_elsewhere, serializer);
+    }
+}
+
 impl SseEncode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20731,12 +22031,32 @@ impl SseEncode for Option<i64> {
     }
 }
 
+impl SseEncode for Option<crate::api::till::LastTillWarningView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::till::LastTillWarningView>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::loyalty::LoyaltyMemberView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::loyalty::LoyaltyMemberView>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::till::OpenBillsNoticeView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::till::OpenBillsNoticeView>::sse_encode(value, serializer);
         }
     }
 }
@@ -20751,22 +22071,32 @@ impl SseEncode for Option<crate::api::types::SessionSnapshot> {
     }
 }
 
-impl SseEncode for Option<crate::api::types::ShiftView> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::types::ShiftView>::sse_encode(value, serializer);
-        }
-    }
-}
-
 impl SseEncode for Option<crate::api::tickets::TicketBillView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::tickets::TicketBillView>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::till::TillElsewhereView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::till::TillElsewhereView>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::types::TillView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::types::TillView>::sse_encode(value, serializer);
         }
     }
 }
@@ -20888,7 +22218,7 @@ impl SseEncode for crate::api::sync::OutboxItemView {
     }
 }
 
-impl SseEncode for crate::api::till::PaymentMethodChoice {
+impl SseEncode for crate::api::drawer::PaymentMethodChoice {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.code, serializer);
@@ -20990,6 +22320,7 @@ impl SseEncode for crate::api::orders::ReceiptView {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.local_order_id, serializer);
         <Option<i64>>::sse_encode(self.order_number, serializer);
+        <String>::sse_encode(self.display_number, serializer);
         <Option<String>>::sse_encode(self.order_ref, serializer);
         <bool>::sse_encode(self.is_voided, serializer);
         <Vec<crate::api::orders::ReceiptLineView>>::sse_encode(self.lines, serializer);
@@ -21043,6 +22374,30 @@ impl SseEncode for crate::api::catalog::RecipeStepView {
     }
 }
 
+impl SseEncode for crate::api::till::ReconciliationInput {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.method, serializer);
+        <String>::sse_encode(self.status, serializer);
+        <Option<i64>>::sse_encode(self.declared_amount_minor, serializer);
+        <Option<String>>::sse_encode(self.note, serializer);
+    }
+}
+
+impl SseEncode for crate::api::till::ReconciliationLineView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.method, serializer);
+        <String>::sse_encode(self.label, serializer);
+        <bool>::sse_encode(self.is_cash, serializer);
+        <i64>::sse_encode(self.system_total_minor, serializer);
+        <String>::sse_encode(self.status, serializer);
+        <Option<i64>>::sse_encode(self.declared_amount_minor, serializer);
+        <Option<String>>::sse_encode(self.note, serializer);
+        <bool>::sse_encode(self.changed_after_close, serializer);
+    }
+}
+
 impl SseEncode for crate::api::orders::RefundLineView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -21053,12 +22408,12 @@ impl SseEncode for crate::api::orders::RefundLineView {
     }
 }
 
-impl SseEncode for crate::api::till::RefundMethodPlan {
+impl SseEncode for crate::api::drawer::RefundMethodPlan {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <Vec<crate::api::till::PaymentMethodChoice>>::sse_encode(self.options, serializer);
+        <Vec<crate::api::drawer::PaymentMethodChoice>>::sse_encode(self.options, serializer);
         <Option<String>>::sse_encode(self.default_code, serializer);
-        <bool>::sse_encode(self.crosses_shift, serializer);
+        <bool>::sse_encode(self.crosses_till, serializer);
     }
 }
 
@@ -21146,117 +22501,21 @@ impl SseEncode for crate::api::types::SessionSnapshot {
     }
 }
 
-impl SseEncode for crate::api::orders::ShiftRefundsView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.shift_id, serializer);
-        <i64>::sse_encode(self.refund_count, serializer);
-        <i64>::sse_encode(self.refunded_minor, serializer);
-        <i64>::sse_encode(self.refunded_cash_minor, serializer);
-        <Vec<crate::api::orders::RefundView>>::sse_encode(self.refunds, serializer);
-    }
-}
-
-impl SseEncode for crate::api::shift::ShiftReportCashLine {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i64>::sse_encode(self.amount_minor, serializer);
-        <String>::sse_encode(self.note, serializer);
-        <String>::sse_encode(self.moved_by_name, serializer);
-        <String>::sse_encode(self.created_at, serializer);
-    }
-}
-
-impl SseEncode for crate::api::shift::ShiftReportPaymentLine {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.method, serializer);
-        <bool>::sse_encode(self.is_cash, serializer);
-        <i64>::sse_encode(self.order_count, serializer);
-        <i64>::sse_encode(self.total_minor, serializer);
-    }
-}
-
-impl SseEncode for crate::api::shift::ShiftReportView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.teller_name, serializer);
-        <String>::sse_encode(self.opened_at, serializer);
-        <Option<String>>::sse_encode(self.closed_at, serializer);
-        <String>::sse_encode(self.printed_at, serializer);
-        <bool>::sse_encode(self.is_open, serializer);
-        <i64>::sse_encode(self.expected_cash_minor, serializer);
-        <i64>::sse_encode(self.opening_cash_minor, serializer);
-        <bool>::sse_encode(self.opening_cash_was_edited, serializer);
-        <Option<i64>>::sse_encode(self.opening_cash_original_minor, serializer);
-        <Option<String>>::sse_encode(self.opening_cash_edit_reason, serializer);
-        <Option<i64>>::sse_encode(self.closing_cash_declared_minor, serializer);
-        <i64>::sse_encode(self.total_payments_minor, serializer);
-        <i64>::sse_encode(self.net_payments_minor, serializer);
-        <i64>::sse_encode(self.voided_amount_minor, serializer);
-        <i64>::sse_encode(self.refunds_issued_minor, serializer);
-        <i64>::sse_encode(self.refunds_issued_cash_minor, serializer);
-        <i64>::sse_encode(self.refunds_issued_count, serializer);
-        <i64>::sse_encode(self.cash_in_refunded_sales_minor, serializer);
-        <i64>::sse_encode(self.cash_movements_net_minor, serializer);
-        <i64>::sse_encode(self.cash_in_minor, serializer);
-        <i64>::sse_encode(self.cash_out_minor, serializer);
-        <Vec<crate::api::shift::ShiftReportPaymentLine>>::sse_encode(
-            self.payment_lines,
-            serializer,
-        );
-        <Vec<crate::api::shift::ShiftReportCashLine>>::sse_encode(self.cash_movements, serializer);
-        <bool>::sse_encode(self.from_server, serializer);
-    }
-}
-
-impl SseEncode for crate::api::shift::ShiftStatsView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i64>::sse_encode(self.sales_minor, serializer);
-        <i64>::sse_encode(self.order_count, serializer);
-    }
-}
-
-impl SseEncode for crate::api::shift::ShiftSummaryView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.id, serializer);
-        <Option<String>>::sse_encode(self.branch_name, serializer);
-        <Option<String>>::sse_encode(self.teller_name, serializer);
-        <String>::sse_encode(self.opened_at, serializer);
-        <Option<String>>::sse_encode(self.closed_at, serializer);
-        <i64>::sse_encode(self.opening_cash_minor, serializer);
-        <Option<i64>>::sse_encode(self.closing_declared_minor, serializer);
-        <Option<i64>>::sse_encode(self.closing_system_minor, serializer);
-        <Option<i64>>::sse_encode(self.discrepancy_minor, serializer);
-        <String>::sse_encode(self.status, serializer);
-        <bool>::sse_encode(self.is_open, serializer);
-    }
-}
-
-impl SseEncode for crate::api::types::ShiftView {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.id, serializer);
-        <String>::sse_encode(self.branch_id, serializer);
-        <String>::sse_encode(self.teller_id, serializer);
-        <String>::sse_encode(self.teller_name, serializer);
-        <i64>::sse_encode(self.opening_cash_minor, serializer);
-        <String>::sse_encode(self.opened_at, serializer);
-        <String>::sse_encode(self.status, serializer);
-        <bool>::sse_encode(self.is_open, serializer);
-    }
-}
-
 impl SseEncode for crate::api::sync::SyncStatusView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <u32>::sse_encode(self.pending, serializer);
-        <u32>::sse_encode(self.failed, serializer);
-        <u32>::sse_encode(self.blocked, serializer);
+        <String>::sse_encode(self.phase, serializer);
+        <Option<i64>>::sse_encode(self.next_seq, serializer);
+        <u32>::sse_encode(self.pending_outbox, serializer);
+        <u32>::sse_encode(self.dead_outbox, serializer);
+        <Option<String>>::sse_encode(self.last_ok_at, serializer);
+        <Option<String>>::sse_encode(self.last_full_at, serializer);
+        <Option<String>>::sse_encode(self.stale_reason, serializer);
+        <Option<String>>::sse_encode(self.last_error, serializer);
+        <crate::api::sync::AssetSyncView>::sse_encode(self.assets, serializer);
         <bool>::sse_encode(self.online, serializer);
         <bool>::sse_encode(self.auth_paused, serializer);
+        <u32>::sse_encode(self.blocked, serializer);
     }
 }
 
@@ -21367,13 +22626,146 @@ impl SseEncode for crate::api::tickets::TicketView {
     }
 }
 
-impl SseEncode for crate::api::shift::TillView {
+impl SseEncode for crate::api::till::TillElsewhereView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.till_id, serializer);
+        <Option<String>>::sse_encode(self.device_code, serializer);
+        <Option<String>>::sse_encode(self.device_label, serializer);
+        <String>::sse_encode(self.opened_at, serializer);
+        <String>::sse_encode(self.source, serializer);
+    }
+}
+
+impl SseEncode for crate::api::sync::TillOpenSyncView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.state, serializer);
+        <Option<String>>::sse_encode(self.till_id, serializer);
+        <Option<String>>::sse_encode(self.started_at, serializer);
+        <Option<String>>::sse_encode(self.finished_at, serializer);
+        <Option<String>>::sse_encode(self.stale_reason, serializer);
+        <u32>::sse_encode(self.changes_applied, serializer);
+        <u32>::sse_encode(self.pending_outbox, serializer);
+    }
+}
+
+impl SseEncode for crate::api::orders::TillRefundsView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.till_id, serializer);
+        <i64>::sse_encode(self.refund_count, serializer);
+        <i64>::sse_encode(self.refunded_minor, serializer);
+        <i64>::sse_encode(self.refunded_cash_minor, serializer);
+        <Vec<crate::api::orders::RefundView>>::sse_encode(self.refunds, serializer);
+    }
+}
+
+impl SseEncode for crate::api::till::TillReportCashLine {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.amount_minor, serializer);
+        <String>::sse_encode(self.note, serializer);
+        <String>::sse_encode(self.moved_by_name, serializer);
+        <String>::sse_encode(self.created_at, serializer);
+    }
+}
+
+impl SseEncode for crate::api::till::TillReportPaymentLine {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.method, serializer);
+        <bool>::sse_encode(self.is_cash, serializer);
+        <i64>::sse_encode(self.order_count, serializer);
+        <i64>::sse_encode(self.total_minor, serializer);
+    }
+}
+
+impl SseEncode for crate::api::till::TillReportView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.teller_name, serializer);
+        <String>::sse_encode(self.opened_at, serializer);
+        <Option<String>>::sse_encode(self.closed_at, serializer);
+        <String>::sse_encode(self.printed_at, serializer);
+        <bool>::sse_encode(self.is_open, serializer);
+        <i64>::sse_encode(self.expected_cash_minor, serializer);
+        <i64>::sse_encode(self.opening_cash_minor, serializer);
+        <bool>::sse_encode(self.opening_cash_was_edited, serializer);
+        <Option<i64>>::sse_encode(self.opening_cash_original_minor, serializer);
+        <Option<String>>::sse_encode(self.opening_cash_edit_reason, serializer);
+        <Option<i64>>::sse_encode(self.closing_cash_declared_minor, serializer);
+        <i64>::sse_encode(self.total_payments_minor, serializer);
+        <i64>::sse_encode(self.net_payments_minor, serializer);
+        <i64>::sse_encode(self.voided_amount_minor, serializer);
+        <i64>::sse_encode(self.refunds_issued_minor, serializer);
+        <i64>::sse_encode(self.refunds_issued_cash_minor, serializer);
+        <i64>::sse_encode(self.refunds_issued_count, serializer);
+        <i64>::sse_encode(self.cash_in_refunded_sales_minor, serializer);
+        <i64>::sse_encode(self.cash_movements_net_minor, serializer);
+        <i64>::sse_encode(self.cash_in_minor, serializer);
+        <i64>::sse_encode(self.cash_out_minor, serializer);
+        <Vec<crate::api::till::TillReportPaymentLine>>::sse_encode(self.payment_lines, serializer);
+        <Vec<crate::api::till::TillReportCashLine>>::sse_encode(self.cash_movements, serializer);
+        <bool>::sse_encode(self.from_server, serializer);
+        <Option<String>>::sse_encode(self.device_code, serializer);
+        <Option<i64>>::sse_encode(self.order_number_first, serializer);
+        <Option<i64>>::sse_encode(self.order_number_last, serializer);
+        <Vec<crate::api::till::ReconciliationLineView>>::sse_encode(
+            self.reconciliation,
+            serializer,
+        );
+        <Option<i64>>::sse_encode(self.old_bills_count, serializer);
+        <Option<i64>>::sse_encode(self.open_bills_count, serializer);
+        <bool>::sse_encode(self.opened_while_another_open, serializer);
+        <String>::sse_encode(self.verification, serializer);
+    }
+}
+
+impl SseEncode for crate::api::till::TillStatsView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.sales_minor, serializer);
+        <i64>::sse_encode(self.order_count, serializer);
+    }
+}
+
+impl SseEncode for crate::api::till::TillSummaryView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
-        <String>::sse_encode(self.name, serializer);
-        <bool>::sse_encode(self.is_default, serializer);
-        <bool>::sse_encode(self.is_active, serializer);
+        <Option<String>>::sse_encode(self.branch_name, serializer);
+        <Option<String>>::sse_encode(self.teller_name, serializer);
+        <String>::sse_encode(self.opened_at, serializer);
+        <Option<String>>::sse_encode(self.closed_at, serializer);
+        <i64>::sse_encode(self.opening_cash_minor, serializer);
+        <Option<i64>>::sse_encode(self.closing_declared_minor, serializer);
+        <Option<i64>>::sse_encode(self.closing_system_minor, serializer);
+        <Option<i64>>::sse_encode(self.discrepancy_minor, serializer);
+        <String>::sse_encode(self.status, serializer);
+        <bool>::sse_encode(self.is_open, serializer);
+        <Option<String>>::sse_encode(self.device_code, serializer);
+        <String>::sse_encode(self.verification, serializer);
+        <bool>::sse_encode(self.opened_while_another_open, serializer);
+        <Option<String>>::sse_encode(self.reconciliation_status, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::TillView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.branch_id, serializer);
+        <String>::sse_encode(self.teller_id, serializer);
+        <String>::sse_encode(self.teller_name, serializer);
+        <i64>::sse_encode(self.opening_cash_minor, serializer);
+        <String>::sse_encode(self.opened_at, serializer);
+        <String>::sse_encode(self.status, serializer);
+        <bool>::sse_encode(self.is_open, serializer);
+        <Option<String>>::sse_encode(self.device_id, serializer);
+        <Option<String>>::sse_encode(self.device_code, serializer);
+        <String>::sse_encode(self.verification, serializer);
+        <bool>::sse_encode(self.opened_while_another_open, serializer);
     }
 }
 
@@ -21425,6 +22817,13 @@ impl SseEncode for u32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u32::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for u64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u64::<NativeEndian>(self).unwrap();
     }
 }
 

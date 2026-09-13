@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS sync_cursors (
 CREATE TABLE IF NOT EXISTS outbox (
   seq             INTEGER PRIMARY KEY AUTOINCREMENT,  -- global FIFO order
   id              TEXT NOT NULL UNIQUE,               -- client-minted uuid (dedups enqueue)
-  op_type         TEXT NOT NULL,                      -- create_order | void_order | open_shift | ...
+  op_type         TEXT NOT NULL,                      -- create_order | void_order | open_till | ...
   idempotency_key TEXT NOT NULL,                      -- in-body exactly-once token (dedups on the server)
   payload         TEXT NOT NULL,                      -- canonical request JSON
   event_at        TEXT NOT NULL,                      -- client real-event time (RFC3339)
@@ -55,12 +55,12 @@ CREATE TABLE IF NOT EXISTS outbox (
   attempts        INTEGER NOT NULL DEFAULT 0,
   last_error      TEXT,
   server_id       TEXT,                               -- set on ack
-  depends_on_seq  INTEGER,                            -- gate dependents (e.g. order after its open_shift)
+  depends_on_seq  INTEGER,                            -- gate dependents (e.g. order after its open_till)
   next_attempt_at INTEGER NOT NULL DEFAULT 0,         -- epoch ms backoff gate (0 = ready now)
   synced_at       INTEGER,                            -- epoch ms when acked (recovery-log retention)
   user_id         TEXT,                               -- teller who enqueued (drain scopes to JWT holder)
   clock_offset_ms INTEGER,                            -- device→server skew at enqueue (correct-at-sync)
-  shift_id        TEXT                                -- the shift this op belongs to (close-last gating)
+  shift_id        TEXT                                -- LEGACY (<= v0.6): never written since the tills rework
 );
 CREATE INDEX IF NOT EXISTS outbox_status_seq ON outbox(status, seq);
 
@@ -91,7 +91,38 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE outbox ADD COLUMN user_id TEXT",
     "ALTER TABLE outbox ADD COLUMN clock_offset_ms INTEGER",
     "ALTER TABLE outbox ADD COLUMN shift_id TEXT",
+    // ── tills rework (TILLS_CONTRACT §4.3 / §10.3) ──
+    "ALTER TABLE outbox ADD COLUMN till_id TEXT",
+    "ALTER TABLE outbox ADD COLUMN device_id TEXT",
+    "ALTER TABLE outbox ADD COLUMN entity_type TEXT",
+    "ALTER TABLE outbox ADD COLUMN entity_id TEXT",
 ];
+
+/// Tables + indexes created AFTER the column migrations (they reference them).
+const POST_MIGRATION_SCHEMA: &str = r#"
+CREATE INDEX IF NOT EXISTS outbox_till_seq ON outbox(till_id, status, seq);
+CREATE INDEX IF NOT EXISTS outbox_entity ON outbox(entity_type, entity_id, status);
+-- One changefeed mirror for every POS-synced type (`sync_pull.rs`).
+CREATE TABLE IF NOT EXISTS sync_rows (
+  type      TEXT NOT NULL,
+  id        TEXT NOT NULL,
+  branch_id TEXT NOT NULL,
+  seq       INTEGER NOT NULL,
+  data      TEXT NOT NULL,
+  PRIMARY KEY (branch_id, type, id)
+);
+CREATE INDEX IF NOT EXISTS sync_rows_type ON sync_rows(branch_id, type);
+-- Content-addressed asset files on disk (`assets.rs`).
+CREATE TABLE IF NOT EXISTS asset_files (
+  hash        TEXT PRIMARY KEY,
+  ext         TEXT NOT NULL,
+  bytes       INTEGER NOT NULL,
+  verified_at TEXT NOT NULL
+);
+"#;
+
+/// kv guard for the one-shot tills data migration.
+pub(crate) const MIGR_TILLS_V1: &str = "migr:tills_v1";
 
 /// An op to enqueue. `id` is the client uuid (re-enqueue with the same `id` is a
 /// no-op, so retries/replays don't duplicate).
@@ -108,8 +139,13 @@ pub struct NewOutboxOp {
     pub user_id: Option<String>,
     /// Device→server clock skew (ms) captured at enqueue, for correct-at-sync.
     pub clock_offset_ms: Option<i64>,
-    /// The shift this op belongs to (close-last gating; None for shift-less ops).
-    pub shift_id: Option<String>,
+    /// The till this op belongs to (per-till FIFO + close gating; None = till-less).
+    pub till_id: Option<String>,
+    /// The device that queued it (sent on the replay envelope).
+    pub device_id: Option<String>,
+    /// The synced entity this op changes, so a pull never clobbers it (§10.3 A3).
+    pub entity_type: Option<String>,
+    pub entity_id: Option<String>,
 }
 
 /// A queued outbox row.
@@ -129,7 +165,10 @@ pub struct OutboxItem {
     pub next_attempt_at: i64,
     pub user_id: Option<String>,
     pub clock_offset_ms: Option<i64>,
-    pub shift_id: Option<String>,
+    pub till_id: Option<String>,
+    pub device_id: Option<String>,
+    pub entity_type: Option<String>,
+    pub entity_id: Option<String>,
 }
 
 /// One queued Sentry envelope awaiting upload (see `crate::obs`).
@@ -186,6 +225,8 @@ impl Store {
             "CREATE INDEX IF NOT EXISTS outbox_due ON outbox(status, next_attempt_at, seq)",
             [],
         );
+        conn.execute_batch(POST_MIGRATION_SCHEMA)?;
+        migrate_tills_v1(&conn)?;
         Ok(Store {
             conn: Mutex::new(conn),
         })
@@ -297,8 +338,9 @@ impl Store {
         let conn = self.lock();
         conn.execute(
             "INSERT INTO outbox(id, op_type, idempotency_key, payload, event_at, enqueued_at,
-                                depends_on_seq, user_id, clock_offset_ms, shift_id)
-             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
+                                depends_on_seq, user_id, clock_offset_ms, till_id,
+                                device_id, entity_type, entity_id)
+             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
              ON CONFLICT(id) DO NOTHING",
             params![
                 op.id,
@@ -310,7 +352,10 @@ impl Store {
                 op.depends_on_seq,
                 op.user_id,
                 op.clock_offset_ms,
-                op.shift_id
+                op.till_id,
+                op.device_id,
+                op.entity_type,
+                op.entity_id
             ],
         )?;
         Ok(conn.query_row("SELECT seq FROM outbox WHERE id=?1", [&op.id], |r| r.get(0))?)
@@ -326,8 +371,9 @@ impl Store {
     pub fn upsert_mirror(&self, op: &NewOutboxOp) -> CoreResult<()> {
         self.lock().execute(
             "INSERT INTO outbox(id, op_type, idempotency_key, payload, event_at, enqueued_at,
-                                depends_on_seq, user_id, clock_offset_ms, shift_id)
-             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
+                                depends_on_seq, user_id, clock_offset_ms, till_id,
+                                device_id, entity_type, entity_id)
+             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
              ON CONFLICT(id) DO UPDATE SET
                 payload=excluded.payload, op_type=excluded.op_type,
                 idempotency_key=excluded.idempotency_key, event_at=excluded.event_at,
@@ -343,7 +389,10 @@ impl Store {
                 op.depends_on_seq,
                 op.user_id,
                 op.clock_offset_ms,
-                op.shift_id
+                op.till_id,
+                op.device_id,
+                op.entity_type,
+                op.entity_id
             ],
         )?;
         Ok(())
@@ -463,7 +512,7 @@ impl Store {
     }
 
     /// The seq of the live (non-acked) op with this client `id`, for wiring a
-    /// dependency at enqueue (e.g. an order onto its still-queued open_shift).
+    /// dependency at enqueue (e.g. an order onto its still-queued open_till).
     /// `None` when no such row exists or it's already acked (no gate needed).
     pub fn live_seq_of(&self, id: &str) -> CoreResult<Option<i64>> {
         Ok(self
@@ -476,43 +525,7 @@ impl Store {
             .optional()?)
     }
 
-    /// The seq of the most recent NOT-YET-ACKED `close_shift` (pending/inflight or
-    /// dead), so a freshly-opened shift can DEPEND on it: the branch must be
-    /// confirmed free — the prior shift's close fully drained — before the next
-    /// `open_shift` replays, or the open races the still-open prior shift and 409s
-    /// ("a shift is already open for this branch"). `None` when no close is queued
-    /// (the branch is already free, e.g. the prior shift closed online). A dead
-    /// close cascades the dependent open dead, surfacing the stuck branch instead
-    /// of dead-lettering the open with a misleading conflict.
-    pub fn latest_unsynced_close_seq(&self) -> CoreResult<Option<i64>> {
-        Ok(self.lock().query_row(
-            "SELECT MAX(seq) FROM outbox \
-             WHERE op_type='close_shift' AND status IN ('pending','inflight','dead')",
-            [],
-            |r| r.get::<_, Option<i64>>(0),
-        )?)
-    }
 
-    /// True while any order/void/cash for `shift_id` is still un-acked — pending,
-    /// inflight, OR **dead** — (excluding `exclude_seq`, the close itself). A shift
-    /// close must be the LAST thing that syncs for its shift; counting `dead` too
-    /// means a close NEVER overtakes a failed order (which would land the close with
-    /// an undercounted Z-report and strand the order). The dead write surfaces in
-    /// the stuck list and the close waits until it's retried-and-acked or discarded
-    /// — mirroring how the dependency gate (`drain_outbox`) and
-    /// `latest_unsynced_close_seq` already treat `dead` as still-blocking. Waiting
-    /// burns no retry budget, so this never deadlocks; the dead ROOT surfaces the
-    /// jam. Shift-scoped, so a later shift's orders never block an earlier close.
-    pub fn has_live_shift_writes(&self, shift_id: &str, exclude_seq: i64) -> CoreResult<bool> {
-        let n: i64 = self.lock().query_row(
-            "SELECT COUNT(*) FROM outbox \
-             WHERE status IN ('pending','inflight','dead') AND shift_id=?1 AND seq<>?2 \
-               AND op_type IN ('create_order','void_order','cash_movement')",
-            params![shift_id, exclude_seq],
-            |r| r.get(0),
-        )?;
-        Ok(n > 0)
-    }
 
     /// Reset every dead command back to `pending` (clearing its error + backoff)
     /// so the next drain retries it. Returns how many were requeued.
@@ -532,42 +545,9 @@ impl Store {
         Ok(n > 0)
     }
 
-    /// Distinct shift ids of THIS teller's never-synced (queued/dead) `open_shift`
-    /// commands, excluding `keep` — i.e. shifts the device optimistically opened
-    /// offline that never became real server-side. Used to recover orphaned sales:
-    /// when the teller's real open shift is `keep`, every op on one of these dead
-    /// shifts belongs on `keep`. Scoped to the teller so a shared-till device never
-    /// re-points another teller's work.
-    pub fn orphan_open_shift_ids(&self, teller_id: &str, keep: &str) -> CoreResult<Vec<String>> {
-        let conn = self.lock();
-        let mut stmt = conn.prepare(
-            "SELECT DISTINCT shift_id FROM outbox \
-             WHERE op_type='open_shift' AND status IN ('pending','inflight','dead') \
-               AND user_id=?1 AND shift_id IS NOT NULL AND shift_id<>?2",
-        )?;
-        let rows: Vec<String> = stmt
-            .query_map(params![teller_id, keep], |r| r.get::<_, String>(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(rows)
-    }
 
-    /// Shift ids whose `open_shift` op has DEAD-lettered for this teller — the roots
-    /// that strand their dependent orders. Narrower than [`orphan_open_shift_ids`]
-    /// (DEAD only, not pending): the drain auto-heal re-points just these onto the
-    /// live shift, so a legitimately-pending sequential shift is never merged.
-    pub fn dead_open_shift_ids(&self, teller_id: &str) -> CoreResult<Vec<String>> {
-        let conn = self.lock();
-        let mut stmt = conn.prepare(
-            "SELECT DISTINCT shift_id FROM outbox \
-             WHERE op_type='open_shift' AND status='dead' AND user_id=?1 AND shift_id IS NOT NULL",
-        )?;
-        let rows: Vec<String> = stmt
-            .query_map([teller_id], |r| r.get::<_, String>(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(rows)
-    }
 
-    /// Count create_order ops blocked because their `open_shift` dependency
+    /// Count create_order ops blocked because their `open_till` dependency
     /// DEAD-lettered — the "stuck sales" the sync center surfaces (and the auto-heal
     /// clears). They are neither sent (dependency dead) nor lost (still queued).
     pub fn count_orders_blocked_by_dead_dep(&self) -> CoreResult<u32> {
@@ -582,39 +562,119 @@ impl Store {
         Ok(n as u32)
     }
 
-    /// Re-point every non-acked (pending/inflight/dead) op tied to shift `old` onto
-    /// shift `new`: rewrites the `shift_id` column AND any occurrence of the id inside
-    /// the JSON payload (UUIDs are unique, so a plain string replace is safe).
-    ///
-    /// The `open_shift` op replays idempotently against `new` because the backend
-    /// dedups the open on its in-PAYLOAD `request.id` (rewritten above), NOT on the
-    /// outbox row's `id`/`idempotency_key` columns (which are local bookkeeping and
-    /// never sent — `/sync/replay` posts the payload envelope). Those columns are
-    /// therefore left UNTOUCHED: rewriting them to `new` made every orphan open's row
-    /// `id` collide on `outbox.id UNIQUE` when two orphans were re-pointed onto the
-    /// same target, aborting the second remap and stranding its paid offline sales
-    /// permanently. Returns rows touched.
-    pub fn remap_shift(&self, old: &str, new: &str) -> CoreResult<u32> {
+
+
+    /// G3 (TILLS_CONTRACT §4.4): true while a LOWER-seq order/void/cash/refund/settle
+    /// for `till_id` is still pending or inflight (excluding `exclude_seq`, the close
+    /// itself). A `dead` op does NOT hold the close: it surfaces in the stuck list
+    /// and a late replay onto the closed till is accepted server-side (the server
+    /// recomputes cash and reconciliation), so closing never deadlocks on it.
+    pub fn has_live_till_writes(&self, till_id: &str, exclude_seq: i64) -> CoreResult<bool> {
+        let n: i64 = self.lock().query_row(
+            "SELECT COUNT(*) FROM outbox \
+             WHERE status IN ('pending','inflight') AND till_id=?1 AND seq<>?2 \
+               AND (?2 < 0 OR seq < ?2) \
+               AND op_type NOT IN ('open_till','open_shift','close_till','close_shift')",
+            params![till_id, exclude_seq],
+            |r| r.get(0),
+        )?;
+        Ok(n > 0)
+    }
+
+    /// Requeue (dead → pending, clearing error + backoff) every dead op for one
+    /// till — the retry for a dead `open_till` and everything waiting on it.
+    pub fn requeue_dead_for_till(&self, till_id: &str) -> CoreResult<u32> {
         let n = self.lock().execute(
-            "UPDATE outbox SET \
-                payload = replace(payload, ?1, ?2), \
-                shift_id = ?2 \
-             WHERE shift_id = ?1 AND status IN ('pending','inflight','dead')",
-            params![old, new],
+            "UPDATE outbox SET status='pending', last_error=NULL, attempts=0, next_attempt_at=0 \
+             WHERE status='dead' AND till_id=?1",
+            params![till_id],
         )?;
         Ok(n as u32)
     }
 
-    /// Requeue (dead → pending, clearing error + backoff) every dead op for one
-    /// shift — the recovery counterpart of [`remap_shift`], so re-pointed sales
-    /// replay on the next drain. Returns rows requeued.
-    pub fn requeue_dead_for_shift(&self, shift_id: &str) -> CoreResult<u32> {
-        let n = self.lock().execute(
-            "UPDATE outbox SET status='pending', last_error=NULL, attempts=0, next_attempt_at=0 \
-             WHERE status='dead' AND shift_id=?1",
-            params![shift_id],
+    /// Every un-acked op of one till, FIFO.
+    pub fn list_active_for_till(&self, till_id: &str) -> CoreResult<Vec<OutboxItem>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {COLS} FROM outbox \
+             WHERE status IN ('pending','inflight','dead') AND till_id=?1 ORDER BY seq ASC"
+        ))?;
+        let rows: Vec<OutboxItem> = stmt
+            .query_map([till_id], map_item)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// Dead-letter counts per till (till-less ops under `""`), for the sync center.
+    pub fn dead_count_by_till(&self) -> CoreResult<Vec<(String, u32)>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT COALESCE(till_id,''), COUNT(*) FROM outbox WHERE status='dead' \
+             GROUP BY COALESCE(till_id,'') ORDER BY 1",
         )?;
-        Ok(n as u32)
+        let rows = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as u32)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// G1/G2 gating for one due op: `true` when it must wait this pass.
+    /// - its explicit dependency is pending/inflight/dead (never cascades);
+    /// - an EARLIER op of the same till is still pending/inflight (per-till FIFO;
+    ///   a dead earlier op isolates itself and does not hold the till's queue,
+    ///   except a dead `open_till`, which holds every op of its till);
+    /// - it is a close and the till still has live writes (G3).
+    pub fn must_wait(&self, item: &OutboxItem) -> CoreResult<bool> {
+        if let Some(dep) = item.depends_on_seq {
+            if matches!(
+                self.status_of_seq(dep)?.as_deref(),
+                Some("pending") | Some("inflight") | Some("dead")
+            ) {
+                return Ok(true);
+            }
+        }
+        let Some(till) = item.till_id.as_deref() else {
+            return Ok(false);
+        };
+        let conn = self.lock();
+        let blocking: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM outbox WHERE till_id=?1 AND seq < ?2 AND ( \
+                 status IN ('pending','inflight') \
+                 OR (status='dead' AND op_type IN ('open_till','open_shift')) )",
+            params![till, item.seq],
+            |r| r.get(0),
+        )?;
+        Ok(blocking > 0)
+    }
+
+    /// Run `f` inside ONE SQLite transaction (commit on Ok, roll back on Err).
+    pub(crate) fn with_tx<R>(
+        &self,
+        f: impl FnOnce(&rusqlite::Transaction<'_>) -> CoreResult<R>,
+    ) -> CoreResult<R> {
+        let mut conn = self.lock();
+        let tx = conn.transaction()?;
+        let out = f(&tx)?;
+        tx.commit()?;
+        Ok(out)
+    }
+
+    /// Read-only access to the connection for multi-statement reads.
+    pub(crate) fn with_conn<R>(&self, f: impl FnOnce(&Connection) -> CoreResult<R>) -> CoreResult<R> {
+        let conn = self.lock();
+        f(&conn)
+    }
+
+    /// Every kv row under `prefix` (literal prefix match), key order.
+    pub fn kv_list_prefix(&self, prefix: &str) -> CoreResult<Vec<(String, String)>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT k, v FROM kv WHERE substr(k, 1, length(?1)) = ?1 ORDER BY k",
+        )?;
+        let rows = stmt
+            .query_map([prefix], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
     }
 
     /// Mark an op inflight (about to hit the network). Crash recovery
@@ -718,7 +778,7 @@ impl Store {
     /// many rows went.
     ///
     /// Prefix matching is `substr`, not `LIKE`: every cache prefix here contains
-    /// an underscore (`cache:shift_orders:`), and `LIKE` would read that as a
+    /// an underscore (`cache:till_orders:`), and `LIKE` would read that as a
     /// single-character wildcard.
     pub fn purge_cache_older_than(&self, prefix: &str, cutoff: &str) -> CoreResult<u32> {
         let n = self.lock().execute(
@@ -884,7 +944,8 @@ impl Store {
 
 /// The column list every `OutboxItem` SELECT shares (kept in sync with `map_item`).
 const COLS: &str = "seq,id,op_type,idempotency_key,payload,event_at,status,attempts,last_error,\
-                    server_id,depends_on_seq,next_attempt_at,user_id,clock_offset_ms,shift_id";
+                    server_id,depends_on_seq,next_attempt_at,user_id,clock_offset_ms,till_id,\
+                    device_id,entity_type,entity_id";
 
 /// Map a row selected with `COLS` into an `OutboxItem`.
 fn map_item(r: &rusqlite::Row<'_>) -> rusqlite::Result<OutboxItem> {
@@ -903,8 +964,44 @@ fn map_item(r: &rusqlite::Row<'_>) -> rusqlite::Result<OutboxItem> {
         next_attempt_at: r.get(11)?,
         user_id: r.get(12)?,
         clock_offset_ms: r.get(13)?,
-        shift_id: r.get(14)?,
+        till_id: r.get(14)?,
+        device_id: r.get(15)?,
+        entity_type: r.get(16)?,
+        entity_id: r.get(17)?,
     })
+}
+
+/// One-shot tills data migration (TILLS_CONTRACT §4.3), guarded by kv
+/// `migr:tills_v1`. Carries every queued row over — nothing is deleted and no
+/// payload is rewritten (legacy payloads decode through serde aliases at send):
+/// `till_id` from the legacy `shift_id` column, and the legacy op names renamed.
+/// Runs in one transaction so a crash leaves either the old or the new state.
+fn migrate_tills_v1(conn: &Connection) -> CoreResult<()> {
+    let done: Option<String> = conn
+        .query_row("SELECT v FROM kv WHERE k=?1", [MIGR_TILLS_V1], |r| r.get(0))
+        .optional()?;
+    if done.as_deref() == Some("done") {
+        return Ok(());
+    }
+    conn.execute_batch(
+        "BEGIN IMMEDIATE;
+         UPDATE outbox SET till_id = shift_id WHERE till_id IS NULL AND shift_id IS NOT NULL;
+         UPDATE outbox SET op_type = 'open_till'  WHERE op_type = 'open_shift'  AND status IN ('pending','inflight','dead');
+         UPDATE outbox SET op_type = 'close_till' WHERE op_type = 'close_shift' AND status IN ('pending','inflight','dead');",
+    )?;
+    let res = conn.execute(
+        "INSERT INTO kv(k, v, updated_at) VALUES(?1, 'done', ?2)
+         ON CONFLICT(k) DO UPDATE SET v='done', updated_at=excluded.updated_at",
+        params![MIGR_TILLS_V1, now_iso()],
+    );
+    match res {
+        Ok(_) => conn.execute_batch("COMMIT;")?,
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK;");
+            return Err(e.into());
+        }
+    }
+    Ok(())
 }
 
 fn now_iso() -> String {
@@ -920,6 +1017,195 @@ fn now_ms() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // tills rework: migrations, per-till gating, dead-letter isolation
+    // ════════════════════════════════════════════════════════════════════════
+
+    fn till_op(id: &str, op_type: &str, till: Option<&str>) -> NewOutboxOp {
+        NewOutboxOp {
+            id: id.into(),
+            op_type: op_type.into(),
+            idempotency_key: id.into(),
+            payload: "{}".into(),
+            event_at: "2026-09-13T10:00:00Z".into(),
+            till_id: till.map(Into::into),
+            ..Default::default()
+        }
+    }
+
+    fn column_names(s: &Store) -> Vec<String> {
+        s.with_conn(|c| {
+            let mut st = c.prepare("PRAGMA table_info(outbox)")?;
+            let names = st
+                .query_map([], |r| r.get::<_, String>(1))?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(names)
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn store_migrates_outbox_till_columns() {
+        let path = temp_db("tills_cols");
+        build_old_outbox(&path, &["till_id", "device_id", "entity_type", "entity_id"]);
+        let s = Store::open(path.to_str().unwrap()).unwrap();
+        let cols = column_names(&s);
+        for c in ["shift_id", "till_id", "device_id", "entity_type", "entity_id"] {
+            assert!(cols.iter().any(|x| x == c), "missing column {c}");
+        }
+        let idx: i64 = s
+            .with_conn(|c| {
+                Ok(c.query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='outbox_till_seq'",
+                    [],
+                    |r| r.get(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(idx, 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn store_migrates_legacy_op_types_once() {
+        let path = temp_db("tills_ops");
+        {
+            // A v0.6-shaped store: legacy op names + the shift_id column, no till_id.
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT NOT NULL, updated_at TEXT NOT NULL);
+                 CREATE TABLE outbox (seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE,
+                   op_type TEXT NOT NULL, idempotency_key TEXT NOT NULL, payload TEXT NOT NULL,
+                   event_at TEXT NOT NULL, enqueued_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+                   attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, server_id TEXT, depends_on_seq INTEGER,
+                   next_attempt_at INTEGER NOT NULL DEFAULT 0, synced_at INTEGER, user_id TEXT,
+                   clock_offset_ms INTEGER, shift_id TEXT);
+                 INSERT INTO outbox(id,op_type,idempotency_key,payload,event_at,enqueued_at,status,shift_id)
+                   VALUES ('S1','open_shift','S1','{\"branch_id\":\"B\",\"request\":{\"id\":\"S1\"}}','t','t','pending','S1'),
+                          ('S1:close','close_shift','S1:close','{\"shift_id\":\"S1\",\"request\":{\"closing_cash_declared\":1}}','t','t','dead','S1'),
+                          ('S0','open_shift','S0','{}','t','t','acked','S0'),
+                          ('o1','create_order','o1','{\"request\":{\"shift_id\":\"S1\"}}','t','t','pending','S1');",
+            )
+            .unwrap();
+        }
+        let s = Store::open(path.to_str().unwrap()).unwrap();
+        let rows = s.list_active().unwrap();
+        assert_eq!(rows.len(), 3, "no row lost");
+        let by_id = |id: &str| rows.iter().find(|r| r.id == id).unwrap().clone();
+        assert_eq!(by_id("S1").op_type, "open_till");
+        assert_eq!(by_id("S1:close").op_type, "close_till");
+        assert_eq!(by_id("o1").till_id.as_deref(), Some("S1"));
+        // Payloads are untouched (translated at send time).
+        assert!(by_id("o1").payload.contains("shift_id"));
+        // Acked history is not rewritten.
+        let acked: String = s
+            .with_conn(|c| {
+                Ok(c.query_row("SELECT op_type FROM outbox WHERE id='S0'", [], |r| r.get(0))?)
+            })
+            .unwrap();
+        assert_eq!(acked, "open_shift");
+        assert_eq!(s.kv_get(MIGR_TILLS_V1).unwrap().as_deref(), Some("done"));
+        // Once only: a legacy-named row written after the guard is left alone.
+        s.enqueue(&till_op("late", "open_shift", Some("S9"))).unwrap();
+        drop(s);
+        let s = Store::open(path.to_str().unwrap()).unwrap();
+        assert!(s
+            .list_active()
+            .unwrap()
+            .iter()
+            .any(|r| r.id == "late" && r.op_type == "open_shift"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn per_till_fifo_independent_tills() {
+        let s = Store::open("").unwrap();
+        let a1 = s.enqueue(&till_op("a1", "create_order", Some("A"))).unwrap();
+        s.enqueue(&till_op("a2", "create_order", Some("A"))).unwrap();
+        s.enqueue(&till_op("b1", "create_order", Some("B"))).unwrap();
+        s.enqueue(&till_op("n1", "fire_open_ticket", None)).unwrap();
+        let due = s.due_for_sync(now_ms() + 1, None).unwrap();
+        let wait: Vec<(String, bool)> = due
+            .iter()
+            .map(|i| (i.id.clone(), s.must_wait(i).unwrap()))
+            .collect();
+        assert_eq!(
+            wait,
+            vec![
+                ("a1".into(), false),
+                ("a2".into(), true), // behind a1 in till A
+                ("b1".into(), false), // till B does not wait on A
+                ("n1".into(), false), // till-less never waits on a till
+            ]
+        );
+        // A inflight still holds A's tail; acked releases it.
+        s.mark_inflight(a1).unwrap();
+        let a2 = s.due_for_sync(now_ms() + 1, None).unwrap().into_iter().find(|i| i.id == "a2").unwrap();
+        assert!(s.must_wait(&a2).unwrap());
+        s.mark_acked(a1, None).unwrap();
+        assert!(!s.must_wait(&a2).unwrap());
+    }
+
+    #[test]
+    fn dead_op_isolated_to_its_till() {
+        let s = Store::open("").unwrap();
+        let a1 = s.enqueue(&till_op("a1", "create_order", Some("A"))).unwrap();
+        s.enqueue(&till_op("a2", "create_order", Some("A"))).unwrap();
+        s.enqueue(&till_op("b1", "create_order", Some("B"))).unwrap();
+        s.mark_dead(a1, "422").unwrap();
+        let due = s.due_for_sync(now_ms() + 1, None).unwrap();
+        for i in &due {
+            assert!(!s.must_wait(i).unwrap(), "{} must not wait on a dead order", i.id);
+        }
+        // A dead OPEN holds only its own till.
+        let t2 = Store::open("").unwrap();
+        let open = t2.enqueue(&till_op("A", "open_till", Some("A"))).unwrap();
+        t2.enqueue(&till_op("a1", "create_order", Some("A"))).unwrap();
+        t2.enqueue(&till_op("b1", "create_order", Some("B"))).unwrap();
+        t2.mark_dead(open, "transport").unwrap();
+        let due = t2.due_for_sync(now_ms() + 1, None).unwrap();
+        let a1 = due.iter().find(|i| i.id == "a1").unwrap();
+        let b1 = due.iter().find(|i| i.id == "b1").unwrap();
+        assert!(t2.must_wait(a1).unwrap());
+        assert!(!t2.must_wait(b1).unwrap());
+        assert_eq!(t2.dead_count_by_till().unwrap(), vec![("A".to_string(), 1)]);
+        // Retry for the till revives the open and releases its queue.
+        assert_eq!(t2.requeue_dead_for_till("A").unwrap(), 1);
+        assert_eq!(t2.list_active_for_till("A").unwrap().len(), 2);
+    }
+
+    #[test]
+    fn close_waits_on_pending_not_dead() {
+        let s = Store::open("").unwrap();
+        let o1 = s.enqueue(&till_op("o1", "create_order", Some("T"))).unwrap();
+        let o2 = s.enqueue(&till_op("o2", "cash_movement", Some("T"))).unwrap();
+        let close = s.enqueue(&till_op("T:close", "close_till", Some("T"))).unwrap();
+        assert!(s.has_live_till_writes("T", close).unwrap());
+        s.mark_acked(o1, None).unwrap();
+        assert!(s.has_live_till_writes("T", close).unwrap(), "o2 still pending");
+        s.mark_dead(o2, "boom").unwrap();
+        assert!(
+            !s.has_live_till_writes("T", close).unwrap(),
+            "a dead write does not hold the close"
+        );
+        // A write queued AFTER the close (higher seq) never holds it.
+        s.enqueue(&till_op("late", "create_order", Some("T"))).unwrap();
+        assert!(!s.has_live_till_writes("T", close).unwrap());
+        // Another till's writes never hold it.
+        s.enqueue(&till_op("x", "create_order", Some("U"))).unwrap();
+        assert!(!s.has_live_till_writes("T", close).unwrap());
+    }
+
+    #[test]
+    fn kv_list_prefix_is_literal() {
+        let s = Store::open("").unwrap();
+        s.kv_put("device_till:u1", "t1").unwrap();
+        s.kv_put("device_till:u2", "t2").unwrap();
+        s.kv_put("device_tillXu3", "t3").unwrap();
+        let rows = s.kv_list_prefix("device_till:").unwrap();
+        assert_eq!(rows.len(), 2);
+    }
 
     fn op(id: &str) -> NewOutboxOp {
         NewOutboxOp {
@@ -1017,7 +1303,7 @@ mod tests {
     fn op_with(
         id: &str,
         op_type: &str,
-        shift_id: Option<&str>,
+        till_id: Option<&str>,
         depends_on_seq: Option<i64>,
     ) -> NewOutboxOp {
         NewOutboxOp {
@@ -1027,232 +1313,13 @@ mod tests {
             payload: "{}".into(),
             event_at: "2026-06-19T10:00:00Z".into(),
             depends_on_seq,
-            shift_id: shift_id.map(|s| s.into()),
+            till_id: till_id.map(|s| s.into()),
             ..Default::default()
         }
     }
 
-    #[test]
-    fn remap_shift_recovers_orphaned_ops_onto_the_real_shift() {
-        // The offline data-loss scenario: the device optimistically opened shift B
-        // offline and rang orders on it, but B could never be created server-side
-        // (the branch already had the teller's real shift A open), so the open +
-        // orders dead-lettered. Recovery = re-point B's ops onto A and requeue.
-        let s = Store::open("").unwrap();
-        const B: &str = "00000000-0000-0000-0000-0000000000bb"; // orphan offline shift
-        const A: &str = "00000000-0000-0000-0000-0000000000aa"; // teller's REAL shift
-        const T: &str = "00000000-0000-0000-0000-0000000000a1"; // the teller
 
-        let mut open = op_with(B, "open_shift", Some(B), None);
-        open.payload = format!("{{\"request\":{{\"id\":\"{B}\"}}}}");
-        open.user_id = Some(T.into());
-        let open_seq = s.enqueue(&open).unwrap();
 
-        let order = |id: &str| {
-            let mut o = op_with(id, "create_order", Some(B), Some(open_seq));
-            o.payload = format!("{{\"request\":{{\"shift_id\":\"{B}\"}}}}");
-            o.user_id = Some(T.into());
-            o
-        };
-        s.enqueue(&order("order-1")).unwrap();
-        let o2_seq = s.enqueue(&order("order-2")).unwrap();
-
-        // The open + one order dead-lettered (the cascade); one order is still pending.
-        s.mark_dead(
-            open_seq,
-            "Conflict: A shift is already open for this branch",
-        )
-        .unwrap();
-        s.mark_dead(o2_seq, "a required earlier action failed to sync")
-            .unwrap();
-
-        // 1) The teller's orphan open shift is discoverable (excluding the real one).
-        assert_eq!(s.orphan_open_shift_ids(T, A).unwrap(), vec![B.to_string()]);
-        // …and scoped to the teller — another teller's work is never re-pointed.
-        assert!(s
-            .orphan_open_shift_ids("00000000-0000-0000-0000-0000000000a2", A)
-            .unwrap()
-            .is_empty());
-        // …and never re-points onto itself.
-        assert!(s.orphan_open_shift_ids(T, B).unwrap().is_empty());
-
-        // 2) Remap B → A: rewrites shift_id + the payload (the open op's local row
-        // id is deliberately left as B — see remap_shift; idempotency rides the payload).
-        assert_eq!(
-            s.remap_shift(B, A).unwrap(),
-            3,
-            "open + 2 orders re-pointed"
-        );
-        for it in s.list_active().unwrap() {
-            assert_eq!(
-                it.shift_id.as_deref(),
-                Some(A),
-                "shift_id column re-pointed"
-            );
-            assert!(
-                !it.payload.contains(B),
-                "stale orphan id gone: {}",
-                it.payload
-            );
-            assert!(
-                it.payload.contains(A),
-                "payload carries the real shift: {}",
-                it.payload
-            );
-        }
-        let open_now = s
-            .list_active()
-            .unwrap()
-            .into_iter()
-            .find(|i| i.op_type == "open_shift")
-            .unwrap();
-        assert_eq!(
-            open_now.id, B,
-            "open op KEEPS its own row id (only the payload request.id → A)"
-        );
-        assert!(
-            open_now.payload.contains(A) && !open_now.payload.contains(B),
-            "open payload request.id → A"
-        );
-
-        // 3) Requeue the dead ones so the recovered sales replay on the next drain.
-        assert_eq!(s.requeue_dead_for_shift(A).unwrap(), 2);
-        assert_eq!(s.dead_count().unwrap(), 0);
-        assert_eq!(s.pending_count().unwrap(), 3);
-    }
-
-    #[test]
-    fn remap_shift_handles_two_orphans_onto_one_target_without_unique_collision() {
-        // Critical regression (audit #2): a device optimistically opened TWO shifts
-        // offline (e.g. an open, an app restart, a second open attempt) and rang sales
-        // on each. Both dead-letter on reconnect (the branch already has the teller's
-        // real shift T open). Recovery re-points BOTH onto T. Rewriting each open op's
-        // row id to T used to collide on outbox.id UNIQUE, aborting the second remap
-        // and stranding its paid offline sales forever.
-        let s = Store::open("").unwrap();
-        const A: &str = "00000000-0000-0000-0000-0000000000aa"; // orphan 1
-        const B: &str = "00000000-0000-0000-0000-0000000000bb"; // orphan 2
-        const T: &str = "00000000-0000-0000-0000-0000000000a1"; // the teller's REAL shift
-        const TELLER: &str = "00000000-0000-0000-0000-0000000000c1";
-
-        for shift in [A, B] {
-            let mut open = op_with(shift, "open_shift", Some(shift), None);
-            open.payload = format!("{{\"request\":{{\"id\":\"{shift}\"}}}}");
-            open.user_id = Some(TELLER.into());
-            let seq = s.enqueue(&open).unwrap();
-            let mut order = op_with(
-                &format!("order-{shift}"),
-                "create_order",
-                Some(shift),
-                Some(seq),
-            );
-            order.payload = format!("{{\"request\":{{\"shift_id\":\"{shift}\"}}}}");
-            order.user_id = Some(TELLER.into());
-            s.enqueue(&order).unwrap();
-            s.mark_dead(seq, "Conflict: a shift is already open for this branch")
-                .unwrap();
-        }
-
-        // BOTH remaps must succeed — the second no longer collides on outbox.id.
-        assert_eq!(
-            s.remap_shift(A, T).unwrap(),
-            2,
-            "orphan A: open + order re-pointed"
-        );
-        assert_eq!(
-            s.remap_shift(B, T).unwrap(),
-            2,
-            "orphan B: open + order re-pointed (NO UNIQUE collision)"
-        );
-
-        // Every op now targets T, and BOTH orphan opens survive with their own row ids.
-        let active = s.list_active().unwrap();
-        assert!(
-            active.iter().all(|it| it.shift_id.as_deref() == Some(T)),
-            "all re-pointed to T"
-        );
-        assert!(
-            active.iter().all(|it| it.payload.contains(T)
-                && !it.payload.contains(A)
-                && !it.payload.contains(B)),
-            "every payload carries T, none the orphan ids",
-        );
-        let opens: Vec<String> = active
-            .iter()
-            .filter(|i| i.op_type == "open_shift")
-            .map(|i| i.id.clone())
-            .collect();
-        assert_eq!(opens.len(), 2, "both orphan opens preserved");
-        assert!(
-            opens.contains(&A.to_string()) && opens.contains(&B.to_string()),
-            "each keeps its unique row id"
-        );
-
-        // None stranded: requeue brings both shifts' dead opens back to pending.
-        assert_eq!(
-            s.requeue_dead_for_shift(T).unwrap(),
-            2,
-            "both orphan opens requeued, nothing lost"
-        );
-    }
-
-    #[test]
-    fn latest_unsynced_close_seq_gates_the_next_open() {
-        // The sequential-handover gate: a freshly-opened shift DEPENDS on the prior
-        // shift's still-queued close, so the open never races the un-closed branch.
-        let s = Store::open("").unwrap();
-
-        // Nothing queued → no gate (the branch is free / prior shift closed online).
-        assert_eq!(s.latest_unsynced_close_seq().unwrap(), None);
-
-        // An order + an open are NOT closes — they never gate a later open.
-        s.enqueue(&op_with("ord", "create_order", Some("S0"), None))
-            .unwrap();
-        s.enqueue(&op_with("openS0", "open_shift", Some("S0"), None))
-            .unwrap();
-        assert_eq!(
-            s.latest_unsynced_close_seq().unwrap(),
-            None,
-            "only close_shift gates"
-        );
-
-        // A pending close → the next open must depend on it.
-        let close_a = s
-            .enqueue(&op_with("closeA", "close_shift", Some("A"), None))
-            .unwrap();
-        assert_eq!(s.latest_unsynced_close_seq().unwrap(), Some(close_a));
-
-        // The MOST RECENT un-synced close wins (sequential handover, latest branch state).
-        let close_b = s
-            .enqueue(&op_with("closeB", "close_shift", Some("B"), None))
-            .unwrap();
-        assert!(close_b > close_a);
-        assert_eq!(s.latest_unsynced_close_seq().unwrap(), Some(close_b));
-
-        // An INFLIGHT close still gates (it hasn't landed yet).
-        s.mark_inflight(close_b).unwrap();
-        assert_eq!(s.latest_unsynced_close_seq().unwrap(), Some(close_b));
-
-        // A DEAD close still gates — the open then cascades dead (branch stuck),
-        // surfacing the jam instead of dead-lettering the open on a 409.
-        s.mark_dead(close_b, "boom").unwrap();
-        assert_eq!(s.latest_unsynced_close_seq().unwrap(), Some(close_b));
-
-        // Once the latest close ACKS, the gate falls back to the earlier un-synced
-        // close; when ALL closes ack, the branch is free → no gate.
-        s.mark_acked(close_b, None).unwrap();
-        assert_eq!(
-            s.latest_unsynced_close_seq().unwrap(),
-            Some(close_a),
-            "falls back to the earlier open close"
-        );
-        s.mark_acked(close_a, None).unwrap();
-        assert_eq!(
-            s.latest_unsynced_close_seq().unwrap(),
-            None,
-            "all closes landed → branch free"
-        );
-    }
 
     #[test]
     fn open_upgrades_an_old_schema_db_without_erroring() {
@@ -1342,14 +1409,14 @@ mod tests {
     fn gating_and_dependency_lookups() {
         let s = Store::open("").unwrap();
         let open = s
-            .enqueue(&op_with("shiftX", "open_shift", Some("shiftX"), None))
+            .enqueue(&op_with("shiftX", "open_till", Some("shiftX"), None))
             .unwrap();
         let ord = s
             .enqueue(&op_with("o1", "create_order", Some("shiftX"), Some(open)))
             .unwrap();
         s.enqueue(&op_with(
             "shiftX:close",
-            "close_shift",
+            "close_till",
             Some("shiftX"),
             Some(open),
         ))
@@ -1359,12 +1426,12 @@ mod tests {
         assert_eq!(s.live_seq_of("shiftX").unwrap(), Some(open));
         // The close must wait — an order for the shift is still live.
         assert!(s
-            .has_live_shift_writes("shiftX", s.live_seq_of("shiftX:close").unwrap().unwrap())
+            .has_live_till_writes("shiftX", s.live_seq_of("shiftX:close").unwrap().unwrap())
             .unwrap());
         // Order acked → no live shift writes left → close may proceed.
         s.mark_acked(ord, Some("srv-o1")).unwrap();
         assert!(!s
-            .has_live_shift_writes("shiftX", s.live_seq_of("shiftX:close").unwrap().unwrap())
+            .has_live_till_writes("shiftX", s.live_seq_of("shiftX:close").unwrap().unwrap())
             .unwrap());
         // Acked op is no longer a live dependency target.
         assert_eq!(s.live_seq_of("o1").unwrap(), None);
@@ -1415,8 +1482,8 @@ mod tests {
     #[test]
     fn purge_cache_older_than_drops_only_stale_rows_under_the_prefix() {
         let s = Store::open("").unwrap();
-        s.kv_put("cache:shift_orders:old", "[]").unwrap();
-        s.kv_put("cache:shift_orders:fresh", "[]").unwrap();
+        s.kv_put("cache:till_orders:old", "[]").unwrap();
+        s.kv_put("cache:till_orders:fresh", "[]").unwrap();
         s.kv_put("cache:open_tickets", "[]").unwrap(); // live mirror, never swept
         s.kv_put("current_shift", "{}").unwrap(); // not a cache at all
 
@@ -1424,24 +1491,24 @@ mod tests {
         s.lock()
             .execute(
                 "UPDATE kv SET updated_at = '2020-01-01T00:00:00+00:00' WHERE k = ?1",
-                params!["cache:shift_orders:old"],
+                params!["cache:till_orders:old"],
             )
             .unwrap();
 
         let cutoff = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
         assert_eq!(
-            s.purge_cache_older_than("cache:shift_orders:", &cutoff)
+            s.purge_cache_older_than("cache:till_orders:", &cutoff)
                 .unwrap(),
             1,
             "only the aged row goes"
         );
-        assert!(s.kv_get("cache:shift_orders:old").unwrap().is_none());
-        assert!(s.kv_get("cache:shift_orders:fresh").unwrap().is_some());
+        assert!(s.kv_get("cache:till_orders:old").unwrap().is_none());
+        assert!(s.kv_get("cache:till_orders:fresh").unwrap().is_some());
         assert!(s.kv_get("cache:open_tickets").unwrap().is_some());
         assert!(s.kv_get("current_shift").unwrap().is_some());
     }
 
-    /// `LIKE` would read the `_` in `cache:shift_orders:` as a wildcard and let
+    /// `LIKE` would read the `_` in `cache:till_orders:` as a wildcard and let
     /// the sweep reach keys it was never scoped to; the prefix match must be literal.
     #[test]
     fn reclaim_free_pages_is_idempotent_and_records_its_one_time_migration() {
@@ -1504,7 +1571,7 @@ mod tests {
             .unwrap();
         let cutoff = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
         assert_eq!(
-            s.purge_cache_older_than("cache:shift_orders:", &cutoff)
+            s.purge_cache_older_than("cache:till_orders:", &cutoff)
                 .unwrap(),
             0,
             "the underscore must not match an arbitrary character"
@@ -1560,6 +1627,10 @@ mod tests {
             ("user_id", "TEXT"),
             ("clock_offset_ms", "INTEGER"),
             ("shift_id", "TEXT"),
+            ("till_id", "TEXT"),
+            ("device_id", "TEXT"),
+            ("entity_type", "TEXT"),
+            ("entity_id", "TEXT"),
         ];
         // Columns that always existed pre-orchestration (never omitted).
         let mut cols = vec![
@@ -1618,7 +1689,7 @@ mod tests {
         );
         assert_eq!(row.user_id, None, "legacy row has NULL user_id");
         assert_eq!(row.clock_offset_ms, None);
-        assert_eq!(row.shift_id, None);
+        assert_eq!(row.till_id, None);
         // pending() round-trips the same row through the full mapper independently.
         assert_eq!(s.pending().unwrap().len(), 1);
         // The backoff-gate index must now exist (open creates it post-migration).
@@ -1684,11 +1755,11 @@ mod tests {
     #[test]
     fn migrate_missing_shift_id() {
         let path = temp_db("missing_shift");
-        build_old_outbox(&path, &["shift_id"]);
-        let s = Store::open(path.to_str().unwrap()).expect("open must add shift_id");
+        build_old_outbox(&path, &["shift_id", "till_id", "device_id", "entity_type", "entity_id"]);
+        let s = Store::open(path.to_str().unwrap()).expect("open must add till_id");
         assert_old_row_survives_with_defaults(&s);
         // shift gating queries the freshly-added column without erroring.
-        assert!(!s.has_live_shift_writes("any-shift", -1).unwrap());
+        assert!(!s.has_live_till_writes("any-shift", -1).unwrap());
         let _ = std::fs::remove_file(&path);
     }
 
@@ -1705,6 +1776,10 @@ mod tests {
                 "user_id",
                 "clock_offset_ms",
                 "shift_id",
+                "till_id",
+                "device_id",
+                "entity_type",
+                "entity_id",
             ],
         );
         let s = Store::open(path.to_str().unwrap()).expect("open must fully migrate, not crash");
@@ -1730,6 +1805,10 @@ mod tests {
                 "user_id",
                 "clock_offset_ms",
                 "shift_id",
+                "till_id",
+                "device_id",
+                "entity_type",
+                "entity_id",
             ],
         );
         {
@@ -1752,7 +1831,7 @@ mod tests {
             assert_eq!(old.next_attempt_at, 0);
             assert_eq!(old.user_id, None);
             assert_eq!(old.clock_offset_ms, None);
-            assert_eq!(old.shift_id, None);
+            assert_eq!(old.till_id, None);
         }
         {
             // Third open on the now-modern DB must also succeed unchanged.
@@ -1977,7 +2056,7 @@ mod tests {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // has_live_shift_writes — close-last gating
+    // has_live_till_writes — close-last gating
     // ════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -1985,34 +2064,34 @@ mod tests {
         let s = Store::open("").unwrap();
         // Only the close itself is live for the shift.
         let close = s
-            .enqueue(&op_with("close", "close_shift", Some("sh1"), None))
+            .enqueue(&op_with("close", "close_till", Some("sh1"), None))
             .unwrap();
         // Excluding the close's own seq → no OTHER live writes → false.
-        assert!(!s.has_live_shift_writes("sh1", close).unwrap());
-        // Without excluding it... close_shift isn't a counted op_type anyway → still false.
-        assert!(!s.has_live_shift_writes("sh1", -1).unwrap());
+        assert!(!s.has_live_till_writes("sh1", close).unwrap());
+        // Without excluding it... close_till isn't a counted op_type anyway → still false.
+        assert!(!s.has_live_till_writes("sh1", -1).unwrap());
     }
 
     #[test]
     fn has_live_shift_writes_counts_only_relevant_op_types() {
         let s = Store::open("").unwrap();
-        // A non-write op for the shift (e.g. open_shift) must NOT gate the close.
-        s.enqueue(&op_with("open", "open_shift", Some("sh1"), None))
+        // A non-write op for the shift (e.g. open_till) must NOT gate the close.
+        s.enqueue(&op_with("open", "open_till", Some("sh1"), None))
             .unwrap();
-        assert!(!s.has_live_shift_writes("sh1", -1).unwrap());
+        assert!(!s.has_live_till_writes("sh1", -1).unwrap());
         // A real write (create_order) DOES gate it.
         s.enqueue(&op_with("o1", "create_order", Some("sh1"), None))
             .unwrap();
-        assert!(s.has_live_shift_writes("sh1", -1).unwrap());
+        assert!(s.has_live_till_writes("sh1", -1).unwrap());
         // void_order and cash_movement gate too.
         let s2 = Store::open("").unwrap();
         s2.enqueue(&op_with("v", "void_order", Some("sh2"), None))
             .unwrap();
-        assert!(s2.has_live_shift_writes("sh2", -1).unwrap());
+        assert!(s2.has_live_till_writes("sh2", -1).unwrap());
         let s3 = Store::open("").unwrap();
         s3.enqueue(&op_with("c", "cash_movement", Some("sh3"), None))
             .unwrap();
-        assert!(s3.has_live_shift_writes("sh3", -1).unwrap());
+        assert!(s3.has_live_till_writes("sh3", -1).unwrap());
     }
 
     #[test]
@@ -2021,38 +2100,10 @@ mod tests {
         // A live order belongs to a DIFFERENT shift; sh1's close is unblocked.
         s.enqueue(&op_with("o-other", "create_order", Some("sh2"), None))
             .unwrap();
-        assert!(!s.has_live_shift_writes("sh1", -1).unwrap());
-        assert!(s.has_live_shift_writes("sh2", -1).unwrap());
+        assert!(!s.has_live_till_writes("sh1", -1).unwrap());
+        assert!(s.has_live_till_writes("sh2", -1).unwrap());
     }
 
-    #[test]
-    fn has_live_shift_writes_gates_on_unacked_writes_including_dead() {
-        let s = Store::open("").unwrap();
-        let o = s
-            .enqueue(&op_with("o1", "create_order", Some("sh1"), None))
-            .unwrap();
-        assert!(s.has_live_shift_writes("sh1", -1).unwrap());
-        // An ACKED write no longer gates (the close may proceed past a landed order).
-        s.mark_acked(o, Some("srv")).unwrap();
-        assert!(!s.has_live_shift_writes("sh1", -1).unwrap());
-        // A DEAD write STILL gates — the close must not overtake a failed order
-        // (that would land an undercounted Z-report and strand the sale). It clears
-        // only when the dead write is retried-and-acked or explicitly discarded.
-        let o2 = s
-            .enqueue(&op_with("o2", "create_order", Some("sh1"), None))
-            .unwrap();
-        s.mark_dead(o2, "boom").unwrap();
-        assert!(s.has_live_shift_writes("sh1", -1).unwrap());
-        // Discarding the dead row releases the gate.
-        assert!(s.discard_dead("o2").unwrap());
-        assert!(!s.has_live_shift_writes("sh1", -1).unwrap());
-        // Inflight write DOES gate.
-        let o3 = s
-            .enqueue(&op_with("o3", "create_order", Some("sh1"), None))
-            .unwrap();
-        s.mark_inflight(o3).unwrap();
-        assert!(s.has_live_shift_writes("sh1", -1).unwrap());
-    }
 
     // ════════════════════════════════════════════════════════════════════════
     // retry semantics — attempts bump vs no-count
@@ -2210,7 +2261,7 @@ mod tests {
             depends_on_seq: Some(7),
             user_id: Some("alice".into()),
             clock_offset_ms: Some(-250),
-            shift_id: Some("shift-7".into()),
+            till_id: Some("shift-7".into()),
         };
         s.enqueue(&full).unwrap();
         let row = s
@@ -2226,7 +2277,7 @@ mod tests {
         assert_eq!(row.depends_on_seq, Some(7));
         assert_eq!(row.user_id.as_deref(), Some("alice"));
         assert_eq!(row.clock_offset_ms, Some(-250));
-        assert_eq!(row.shift_id.as_deref(), Some("shift-7"));
+        assert_eq!(row.till_id.as_deref(), Some("shift-7"));
         assert_eq!(row.attempts, 0);
         assert_eq!(row.next_attempt_at, 0);
         assert_eq!(row.last_error, None);
@@ -2349,46 +2400,6 @@ mod tests {
         assert_eq!(s.pending().unwrap()[0].status, "pending");
     }
 
-    /// An order stranded by a DEAD open_shift is surfaced (blocked count) and HEALS
-    /// when its ops are re-pointed onto a live shift and the dead open is revived —
-    /// the auto-heal / recover_orphaned_orders path. No sale is ever lost.
-    #[test]
-    fn dead_open_shift_blocks_order_then_heals_on_remap() {
-        let s = Store::open("").unwrap();
-        const A: &str = "00000000-0000-0000-0000-0000000000aa"; // failed offline shift
-        const B: &str = "00000000-0000-0000-0000-0000000000bb"; // the teller's new shift
-        const T: &str = "00000000-0000-0000-0000-0000000000a1"; // the teller
-
-        // Teller opened A offline, rang an order on it, then A's open DIED.
-        let mut open = op("open-A");
-        open.op_type = "open_shift".into();
-        open.shift_id = Some(A.into());
-        open.user_id = Some(T.into());
-        let open_seq = s.enqueue(&open).unwrap();
-        let mut order = op("order-1");
-        order.op_type = "create_order".into();
-        order.shift_id = Some(A.into());
-        order.depends_on_seq = Some(open_seq);
-        s.enqueue(&order).unwrap();
-        s.mark_dead(open_seq, "open rejected").unwrap();
-
-        // The order is now BLOCKED by the dead open (surfaced to the sync center),
-        // and the dead-open lookup is teller-scoped.
-        assert_eq!(s.count_orders_blocked_by_dead_dep().unwrap(), 1);
-        assert_eq!(s.dead_open_shift_ids(T).unwrap(), vec![A.to_string()]);
-        assert!(s
-            .dead_open_shift_ids("00000000-0000-0000-0000-0000000000a2")
-            .unwrap()
-            .is_empty());
-
-        // Heal: re-point A's ops onto the live shift B and revive the dead open.
-        assert!(s.remap_shift(A, B).unwrap() >= 2, "open + order re-pointed");
-        s.requeue_dead_for_shift(B).unwrap();
-
-        // No longer blocked — the order rides B, whose open is pending again.
-        assert_eq!(s.count_orders_blocked_by_dead_dep().unwrap(), 0);
-        assert!(s.dead_open_shift_ids(T).unwrap().is_empty());
-    }
 
     // ── Model-based stateful testing of the durable outbox ──────────────────────
     // The offline sync engine's correctness lives here: as queued work moves

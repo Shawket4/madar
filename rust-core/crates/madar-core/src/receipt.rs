@@ -12,7 +12,7 @@
 //! the contract this module pins down is the bytes, not the delivery.
 
 use crate::checkout::{ReceiptModifierView, ReceiptView};
-use crate::shift::ShiftReportView;
+use crate::till::TillReportView;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Align {
@@ -335,8 +335,8 @@ fn push_modifier(out: &mut Vec<Line>, prefix: &str, m: &ReceiptModifierView, cur
 /// Localized labels for the Z-report — resolved once by the FFI caller. Covers
 /// the full detailed layout (shift header, payments, drawer ops, reconciliation)
 /// matching the Flutter Z-report. (`cash_moves`/`by_method` are retained for the
-/// legacy text `layout_shift_report`, now unused by the FFI.)
-pub struct ShiftReportLabels {
+/// legacy text `layout_till_report`, now unused by the FFI.)
+pub struct TillReportLabels {
     pub title: String,
     pub business_date: String,
     pub printed_at: String,
@@ -376,26 +376,26 @@ pub struct ShiftReportLabels {
 
 /// Render the shift report (Z-report) to ESC/POS bytes.
 pub fn escpos_shift_report(
-    report: &ShiftReportView,
+    report: &TillReportView,
     store: &str,
     currency: &str,
     width: u32,
-    labels: &ShiftReportLabels,
+    labels: &TillReportLabels,
     brand: PrinterBrand,
 ) -> Vec<u8> {
     encode_for(
         brand,
-        &layout_shift_report(report, store, currency, width, labels),
+        &layout_till_report(report, store, currency, width, labels),
     )
 }
 
 /// Build the Z-report's visible lines — pure, no bytes. Golden-tested.
-pub fn layout_shift_report(
-    report: &ShiftReportView,
+pub fn layout_till_report(
+    report: &TillReportView,
     store: &str,
     currency: &str,
     width: u32,
-    labels: &ShiftReportLabels,
+    labels: &TillReportLabels,
 ) -> Vec<Line> {
     let w = (width.max(16)) as usize;
     let cur = currency;
@@ -758,7 +758,7 @@ mod tests {
 
     #[test]
     fn shift_report_layout_has_drawer_lines_and_methods() {
-        let report = ShiftReportView {
+        let report = TillReportView {
             teller_name: "Mona".into(),
             opened_at: "t".into(),
             closed_at: None,
@@ -780,20 +780,20 @@ mod tests {
             cash_movements_net_minor: 1000,
             cash_in_minor: 3000,
             cash_out_minor: 2000,
-            payment_lines: vec![crate::shift::ShiftReportPaymentLine {
+            payment_lines: vec![crate::till::TillReportPaymentLine {
                 method: "Cash".into(),
                 is_cash: true,
                 order_count: 3,
                 total_minor: 5000,
             }],
             cash_movements: vec![
-                crate::shift::ShiftReportCashLine {
+                crate::till::TillReportCashLine {
                     amount_minor: 3000,
                     note: "float".into(),
                     moved_by_name: "Mona".into(),
                     created_at: "t".into(),
                 },
-                crate::shift::ShiftReportCashLine {
+                crate::till::TillReportCashLine {
                     amount_minor: -2000,
                     note: "".into(),
                     moved_by_name: "Mona".into(),
@@ -803,7 +803,7 @@ mod tests {
             from_server: true,
         };
         let labels = z_labels();
-        let lines = layout_shift_report(&report, "Cafe Madar", "EGP", 32, &labels);
+        let lines = layout_till_report(&report, "Cafe Madar", "EGP", 32, &labels);
         let joined: String = lines
             .iter()
             .map(|l| l.text.clone())
@@ -832,7 +832,7 @@ mod tests {
         report.refunds_issued_cash_minor = 2500;
         report.refunds_issued_count = 2;
         report.cash_in_refunded_sales_minor = 1200;
-        let joined: String = layout_shift_report(&report, "Cafe Madar", "EGP", 32, &z_labels())
+        let joined: String = layout_till_report(&report, "Cafe Madar", "EGP", 32, &z_labels())
             .iter()
             .map(|l| l.text.clone())
             .collect::<Vec<_>>()
@@ -851,7 +851,7 @@ mod tests {
 
     #[test]
     fn a_shift_with_no_refunds_says_nothing_about_them() {
-        let joined: String = layout_shift_report(&z_report(), "Cafe Madar", "EGP", 32, &z_labels())
+        let joined: String = layout_till_report(&z_report(), "Cafe Madar", "EGP", 32, &z_labels())
             .iter()
             .map(|l| l.text.clone())
             .collect::<Vec<_>>()
@@ -861,8 +861,8 @@ mod tests {
 
     /// A minimal report with no refunds — the two tests above differ only in
     /// what they give back.
-    fn z_report() -> ShiftReportView {
-        ShiftReportView {
+    fn z_report() -> TillReportView {
+        TillReportView {
             teller_name: "Mona".into(),
             opened_at: "t".into(),
             closed_at: None,
@@ -1673,10 +1673,10 @@ mod tests {
         assert!(lines.iter().any(|l| l.text == "-".repeat(16)));
     }
 
-    // ── layout_shift_report: empty / conditional sections ─────────────────────
+    // ── layout_till_report: empty / conditional sections ─────────────────────
 
-    fn z_labels() -> ShiftReportLabels {
-        ShiftReportLabels {
+    fn z_labels() -> TillReportLabels {
+        TillReportLabels {
             title: "Shift Report".into(),
             business_date: "Business Date".into(),
             printed_at: "Printed at".into(),
@@ -1713,8 +1713,8 @@ mod tests {
         }
     }
 
-    fn empty_report() -> ShiftReportView {
-        ShiftReportView {
+    fn empty_report() -> TillReportView {
+        TillReportView {
             teller_name: "Mona".into(),
             opened_at: "t".into(),
             closed_at: None,
@@ -1744,7 +1744,7 @@ mod tests {
 
     #[test]
     fn layout_shift_report_minimal_has_core_rows_no_optional_sections() {
-        let lines = layout_shift_report(&empty_report(), "Cafe", "EGP", 32, &z_labels());
+        let lines = layout_till_report(&empty_report(), "Cafe", "EGP", 32, &z_labels());
         let text: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
         // Title + opening + payments + expected always present.
         assert!(text.iter().any(|t| t.starts_with("Opening")));
@@ -1766,7 +1766,7 @@ mod tests {
         let mut rep = empty_report();
         rep.cash_in_minor = 2500;
         rep.cash_out_minor = 0;
-        let lines = layout_shift_report(&rep, "Cafe", "EGP", 32, &z_labels());
+        let lines = layout_till_report(&rep, "Cafe", "EGP", 32, &z_labels());
         assert!(lines
             .iter()
             .any(|l| l.text.starts_with("Cash in") && l.text.ends_with("25.00 EGP")));
@@ -1777,7 +1777,7 @@ mod tests {
     fn layout_shift_report_cash_out_prints_negative_signed() {
         let mut rep = empty_report();
         rep.cash_out_minor = 1800; // stored positive, printed negated
-        let lines = layout_shift_report(&rep, "Cafe", "EGP", 32, &z_labels());
+        let lines = layout_till_report(&rep, "Cafe", "EGP", 32, &z_labels());
         assert!(lines
             .iter()
             .any(|l| l.text.starts_with("Cash out") && l.text.ends_with("-18.00 EGP")));
@@ -1786,13 +1786,13 @@ mod tests {
     #[test]
     fn layout_shift_report_blank_note_movement_labels_by_name() {
         let mut rep = empty_report();
-        rep.cash_movements = vec![crate::shift::ShiftReportCashLine {
+        rep.cash_movements = vec![crate::till::TillReportCashLine {
             amount_minor: 500,
             note: "   ".into(),
             moved_by_name: "Mona".into(),
             created_at: "t".into(),
         }];
-        let lines = layout_shift_report(&rep, "Cafe", "EGP", 32, &z_labels());
+        let lines = layout_till_report(&rep, "Cafe", "EGP", 32, &z_labels());
         // A whitespace-only note falls back to the mover's name.
         assert!(lines
             .iter()
@@ -1805,20 +1805,20 @@ mod tests {
     fn layout_shift_report_voided_block_only_when_positive() {
         let mut rep = empty_report();
         rep.voided_amount_minor = 750;
-        let lines = layout_shift_report(&rep, "Cafe", "EGP", 32, &z_labels());
+        let lines = layout_till_report(&rep, "Cafe", "EGP", 32, &z_labels());
         assert!(lines
             .iter()
             .any(|l| l.text.starts_with("Voided") && l.text.ends_with("7.50 EGP")));
 
         let mut rep0 = empty_report();
         rep0.voided_amount_minor = 0;
-        let lines0 = layout_shift_report(&rep0, "Cafe", "EGP", 32, &z_labels());
+        let lines0 = layout_till_report(&rep0, "Cafe", "EGP", 32, &z_labels());
         assert!(!lines0.iter().any(|l| l.text.starts_with("Voided")));
     }
 
     #[test]
     fn layout_shift_report_header_is_double_size_bold() {
-        let lines = layout_shift_report(&empty_report(), "Cafe Madar", "EGP", 32, &z_labels());
+        let lines = layout_till_report(&empty_report(), "Cafe Madar", "EGP", 32, &z_labels());
         assert_eq!(lines[0].text, "Cafe Madar");
         assert_eq!(lines[0].size, Size::Double);
         assert!(lines[0].bold);
@@ -1827,7 +1827,7 @@ mod tests {
 
     #[test]
     fn layout_shift_report_clamps_width_to_sixteen() {
-        let lines = layout_shift_report(&empty_report(), "Cafe", "EGP", 1, &z_labels());
+        let lines = layout_till_report(&empty_report(), "Cafe", "EGP", 1, &z_labels());
         // Dividers reflect the clamped 16-col width.
         assert!(lines.iter().any(|l| l.text == "-".repeat(16)));
     }

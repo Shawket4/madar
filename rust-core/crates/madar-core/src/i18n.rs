@@ -99,7 +99,7 @@ fn en(key: &str) -> Option<&'static str> {
         // order
         "order.title" => "Order",
         "order.coming_soon" => "Catalog & ordering — coming next.",
-        "order.close_shift" => "Close shift",
+        "order.close_till" => "Close shift",
         "shift.close_title" => "Close shift",
         "shift.closing_desc" => "Count the drawer and close out your shift.",
         "shift.summary" => "Shift summary",
@@ -597,7 +597,7 @@ fn en(key: &str) -> Option<&'static str> {
         "history.voided" => "Voided",
         "history.order" => "Order",
         // order-history table (Flutter-style columns / filters / stats)
-        "history.current_shift" => "Current shift",
+        "history.current_till" => "Current shift",
         "history.no_match" => "No matching orders",
         // all-orders search (history lookup across shifts)
         "search.title" => "Find orders",
@@ -764,7 +764,7 @@ fn en(key: &str) -> Option<&'static str> {
         "sell.round_n" => "Round",
         // selling redesign (2026-09-13)
         "sell.order_title" => "Order",
-        "sell.open_shift" => "Open shift",
+        "sell.open_till" => "Open shift",
         "sell.no_shift" => "No shift is open — open one to take payment",
         "sell.customer" => "Customer",
         "sell.discount" => "Discount",
@@ -1133,7 +1133,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "common.done" => "تم",
         "order.title" => "طلب",
         "order.coming_soon" => "القائمة والطلبات — قريبًا.",
-        "order.close_shift" => "إغلاق الوردية",
+        "order.close_till" => "إغلاق الوردية",
         "shift.close_title" => "إغلاق الوردية",
         "shift.closing_desc" => "احسب الدرج وأغلق ورديتك.",
         "shift.summary" => "ملخص الوردية",
@@ -1621,7 +1621,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "history.voided" => "مُبطَل",
         "history.order" => "طلب",
         // order-history table (Flutter-style columns / filters / stats)
-        "history.current_shift" => "الوردية الحالية",
+        "history.current_till" => "الوردية الحالية",
         "history.no_match" => "لا توجد طلبات مطابقة",
         "search.title" => "ابحث عن الطلبات",
         "search.teller_hint" => "اسم الكاشير",
@@ -1777,7 +1777,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "sell.round_n" => "جولة",
         // selling redesign (2026-09-13)
         "sell.order_title" => "الطلب",
-        "sell.open_shift" => "افتح وردية",
+        "sell.open_till" => "افتح وردية",
         "sell.no_shift" => "لا توجد وردية مفتوحة — افتح وردية لتحصيل المبالغ",
         "sell.customer" => "العميل",
         "sell.discount" => "خصم",

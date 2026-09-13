@@ -6,6 +6,45 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+class AssetSyncView {
+  final int needed;
+  final int missing;
+  final bool downloading;
+  final BigInt bytesDone;
+  final BigInt bytesTotal;
+  final String? lastError;
+
+  const AssetSyncView({
+    required this.needed,
+    required this.missing,
+    required this.downloading,
+    required this.bytesDone,
+    required this.bytesTotal,
+    this.lastError,
+  });
+
+  @override
+  int get hashCode =>
+      needed.hashCode ^
+      missing.hashCode ^
+      downloading.hashCode ^
+      bytesDone.hashCode ^
+      bytesTotal.hashCode ^
+      lastError.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AssetSyncView &&
+          runtimeType == other.runtimeType &&
+          needed == other.needed &&
+          missing == other.missing &&
+          downloading == other.downloading &&
+          bytesDone == other.bytesDone &&
+          bytesTotal == other.bytesTotal &&
+          lastError == other.lastError;
+}
+
 /// One diagnostic log line.
 class DiagLogView {
   final String at;
@@ -35,7 +74,7 @@ class DiagLogView {
 class OutboxItemView {
   final String id;
 
-  /// `open_shift` | `close_shift` | `create_order` | …
+  /// `open_till` | `close_till` | `create_order` | …
   final String opType;
 
   /// `pending` | `inflight` | `dead`.
@@ -75,49 +114,116 @@ class OutboxItemView {
           eventAt == other.eventAt;
 }
 
-/// One-shot sync health for the action-bar chip + offline banner. `pending` is
-/// the in-flight/queued set, `failed` the stuck (dead) set, `online` the
-/// session's connectivity. The host maps these to the chip label/tone.
+/// Sync health (§10.3).
 class SyncStatusView {
-  final int pending;
-  final int failed;
+  /// `idle` | `draining` | `pulling` | `applying` | `done` | `offline` | `error`.
+  final String phase;
+  final PlatformInt64? nextSeq;
+  final int pendingOutbox;
+  final int deadOutbox;
+  final String? lastOkAt;
+  final String? lastFullAt;
 
-  /// Orders STRANDED by a dead `open_shift` (waiting on a dependency that will
-  /// never ack). When >0 with no open shift, the host can offer
-  /// `recover_orphaned_orders()`.
-  final int blocked;
+  /// `offline` | `checksum_mismatch` | `resync_failed` | `http_error`.
+  final String? staleReason;
+  final String? lastError;
+  final AssetSyncView assets;
   final bool online;
-
-  /// `true` when the outbox is parked on a 401 — the host prompts a re-login
-  /// to resume syncing (nothing drains until then).
   final bool authPaused;
+  final int blocked;
 
   const SyncStatusView({
-    required this.pending,
-    required this.failed,
-    required this.blocked,
+    required this.phase,
+    this.nextSeq,
+    required this.pendingOutbox,
+    required this.deadOutbox,
+    this.lastOkAt,
+    this.lastFullAt,
+    this.staleReason,
+    this.lastError,
+    required this.assets,
     required this.online,
     required this.authPaused,
+    required this.blocked,
   });
 
   @override
   int get hashCode =>
-      pending.hashCode ^
-      failed.hashCode ^
-      blocked.hashCode ^
+      phase.hashCode ^
+      nextSeq.hashCode ^
+      pendingOutbox.hashCode ^
+      deadOutbox.hashCode ^
+      lastOkAt.hashCode ^
+      lastFullAt.hashCode ^
+      staleReason.hashCode ^
+      lastError.hashCode ^
+      assets.hashCode ^
       online.hashCode ^
-      authPaused.hashCode;
+      authPaused.hashCode ^
+      blocked.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is SyncStatusView &&
           runtimeType == other.runtimeType &&
-          pending == other.pending &&
-          failed == other.failed &&
-          blocked == other.blocked &&
+          phase == other.phase &&
+          nextSeq == other.nextSeq &&
+          pendingOutbox == other.pendingOutbox &&
+          deadOutbox == other.deadOutbox &&
+          lastOkAt == other.lastOkAt &&
+          lastFullAt == other.lastFullAt &&
+          staleReason == other.staleReason &&
+          lastError == other.lastError &&
+          assets == other.assets &&
           online == other.online &&
-          authPaused == other.authPaused;
+          authPaused == other.authPaused &&
+          blocked == other.blocked;
+}
+
+/// The Open-till screen's sync strip (decision 15).
+class TillOpenSyncView {
+  /// `running` | `done` | `stale`.
+  final String state;
+  final String? tillId;
+  final String? startedAt;
+  final String? finishedAt;
+  final String? staleReason;
+  final int changesApplied;
+  final int pendingOutbox;
+
+  const TillOpenSyncView({
+    required this.state,
+    this.tillId,
+    this.startedAt,
+    this.finishedAt,
+    this.staleReason,
+    required this.changesApplied,
+    required this.pendingOutbox,
+  });
+
+  @override
+  int get hashCode =>
+      state.hashCode ^
+      tillId.hashCode ^
+      startedAt.hashCode ^
+      finishedAt.hashCode ^
+      staleReason.hashCode ^
+      changesApplied.hashCode ^
+      pendingOutbox.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillOpenSyncView &&
+          runtimeType == other.runtimeType &&
+          state == other.state &&
+          tillId == other.tillId &&
+          startedAt == other.startedAt &&
+          finishedAt == other.finishedAt &&
+          staleReason == other.staleReason &&
+          changesApplied == other.changesApplied &&
+          pendingOutbox == other.pendingOutbox;
 }
 
 /// Display styles, mirroring Flutter's `formatting.dart` helpers + the receipt stamp.

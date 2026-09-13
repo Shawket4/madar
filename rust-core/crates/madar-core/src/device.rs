@@ -5,7 +5,7 @@
 //! persisted HERE, in the core's SQLite kv store — NOT in Swift `UserDefaults` /
 //! Kotlin `SharedPreferences`. The hosts only call the getters/setters and render.
 //!
-//! `app_route`, `open_shift`, `refresh_shift`, `sign_in` and printing all read this
+//! `app_route`, `open_till`, `refresh_till`, `sign_in` and printing all read this
 //! config instead of taking host-passed parameters. One JSON blob under one kv key
 //! keeps it a simple singleton (there is exactly one device binding per install).
 
@@ -32,9 +32,6 @@ pub(crate) struct DeviceConfig {
     pub branch_id: Option<String>,
     /// Cached branch display name (so the login screen shows it offline).
     pub branch_name: Option<String>,
-    /// The till (drawer) a POS device opens its shift on. `None` = the branch's
-    /// default till. Irrelevant for a kitchen/waiter device (no shift).
-    pub till_id: Option<String>,
     /// The kitchen station a KDS device displays. Required to route a kitchen-role
     /// session to the board; unused by POS/waiter devices.
     pub station_id: Option<String>,
@@ -133,7 +130,6 @@ pub(crate) fn update(store: &Store, f: impl FnOnce(&mut DeviceConfig)) -> CoreRe
 pub struct DeviceConfigView {
     pub branch_id: Option<String>,
     pub branch_name: Option<String>,
-    pub till_id: Option<String>,
     pub station_id: Option<String>,
     pub printer_host: Option<String>,
     pub printer_port: Option<u16>,
@@ -153,7 +149,6 @@ impl From<DeviceConfig> for DeviceConfigView {
         DeviceConfigView {
             branch_id: c.branch_id,
             branch_name: c.branch_name,
-            till_id: c.till_id,
             station_id: c.station_id,
             printer_host: c.printer_host,
             printer_port: c.printer_port,

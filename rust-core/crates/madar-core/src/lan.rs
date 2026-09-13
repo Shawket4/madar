@@ -181,11 +181,26 @@ pub struct Peer {
     pub port: u16,
     /// The station a KDS device shows (None for a waiter/till).
     pub station_id: Option<String>,
-    /// `Some(shift_id)` when this is a till advertising an OPEN shift — the LAN
+    /// `Some(till_id)` when this is a till advertising an OPEN shift — the LAN
     /// shift-open gate's freshest signal. `None` otherwise.
     pub open_shift_id: Option<String>,
+    /// The peer's managed device code (`36B`), when it advertises one.
+    pub device_code: Option<String>,
+    /// Every open till the peer holds, one per person (new beacons only).
+    pub open_tills: Vec<BeaconTill>,
     /// Last heartbeat (clock-corrected wall ms); drives TTL expiry.
     pub last_seen_ms: i64,
+}
+
+/// One open till in a beacon: whose it is and since when (TILLS_CONTRACT §4.6).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
+pub struct BeaconTill {
+    pub till_id: String,
+    pub person_id: String,
+    #[serde(default)]
+    pub person_name: String,
+    #[serde(default)]
+    pub opened_at: String,
 }
 
 /// How long after its last heartbeat a peer is considered gone. Short enough that a
@@ -247,7 +262,45 @@ impl PeerRegistry {
     pub fn branch_has_open_till(&self, branch_id: &str, now_ms: i64) -> bool {
         self.live_for_branch(branch_id, now_ms)
             .iter()
-            .any(|p| p.open_shift_id.is_some())
+            .any(|p| p.open_shift_id.is_some() || !p.open_tills.is_empty())
+    }
+
+    /// A live peer at the branch advertising `person_id`'s open till — the LAN half
+    /// of "one open till per person" (an old peer's bare `open_shift_id` names no
+    /// person, so it can never block anyone).
+    pub fn person_open_till(
+        &self,
+        branch_id: &str,
+        person_id: &str,
+        now_ms: i64,
+    ) -> Option<(Peer, BeaconTill)> {
+        self.live_for_branch(branch_id, now_ms)
+            .into_iter()
+            .find_map(|p| {
+                p.open_tills
+                    .iter()
+                    .find(|t| t.person_id == person_id && !t.till_id.is_empty())
+                    .map(|t| (p.clone(), t.clone()))
+            })
+    }
+
+    /// At least one live TELLER peer at the branch (a LAN verification is only
+    /// meaningful when someone who could hold a till is listening).
+    pub fn has_live_teller_peer(&self, branch_id: &str, now_ms: i64) -> bool {
+        self.live_for_branch(branch_id, now_ms)
+            .iter()
+            .any(|p| p.role == "teller")
+    }
+
+    /// Every open till advertised at the branch: `(peer, till)`.
+    pub fn branch_open_tills(&self, branch_id: &str, now_ms: i64) -> Vec<(Peer, BeaconTill)> {
+        let mut out = Vec::new();
+        for p in self.live_for_branch(branch_id, now_ms) {
+            for t in &p.open_tills {
+                out.push((p.clone(), t.clone()));
+            }
+        }
+        out
     }
 }
 
@@ -326,14 +379,19 @@ pub struct LanConfig {
 /// `recv_from` (no local-IP detection needed), so the payload carries only the TCP
 /// port + identity + the open-shift advert (the LAN shift-open gate's signal).
 #[derive(Serialize, Deserialize, Clone, Debug)]
-struct Beacon {
-    device_id: String,
-    branch_id: String,
-    role: String,
-    station_id: Option<String>,
-    open_shift_id: Option<String>,
-    tcp_port: u16,
-    sent_at_ms: i64,
+pub(crate) struct Beacon {
+    pub(crate) device_id: String,
+    pub(crate) branch_id: String,
+    pub(crate) role: String,
+    pub(crate) station_id: Option<String>,
+    /// KEPT for old peers: the first open till id on this device.
+    pub(crate) open_shift_id: Option<String>,
+    #[serde(default)]
+    pub(crate) device_code: Option<String>,
+    #[serde(default)]
+    pub(crate) open_tills: Vec<BeaconTill>,
+    pub(crate) tcp_port: u16,
+    pub(crate) sent_at_ms: i64,
 }
 
 /// State shared with the spawned relay tasks.
@@ -342,8 +400,10 @@ struct RelayShared {
     registry: Mutex<PeerRegistry>,
     seen: Mutex<SeenSet>,
     inbound: Arc<dyn LanInbound>,
-    /// This till's currently-open shift, advertised in the beacon (or `None`).
-    open_shift: Mutex<Option<String>>,
+    /// This device's open tills (one per person), advertised in the beacon.
+    open_tills: Mutex<Vec<BeaconTill>>,
+    /// This device's managed code, advertised in the beacon + mDNS TXT.
+    device_code: Mutex<Option<String>>,
     /// The actually-bound TCP port (after OS assignment), advertised in the beacon.
     bound_tcp_port: Mutex<u16>,
     /// Manually-configured hub peers (`host`, `port`) — the always-works fallback
@@ -370,7 +430,8 @@ impl LanRelay {
                 registry: Mutex::new(PeerRegistry::new()),
                 seen: Mutex::new(SeenSet::new()),
                 inbound,
-                open_shift: Mutex::new(None),
+                open_tills: Mutex::new(Vec::new()),
+                device_code: Mutex::new(None),
                 bound_tcp_port: Mutex::new(bound),
                 manual: Mutex::new(Vec::new()),
             }),
@@ -386,8 +447,40 @@ impl LanRelay {
 
     /// Update the advertised open-shift (the LAN shift-open gate's truth). Pass the
     /// open shift's id when this till opens, `None` when it closes.
-    pub fn set_open_shift(&self, shift_id: Option<String>) {
-        *self.shared.open_shift.lock().unwrap() = shift_id;
+    pub fn set_open_tills(&self, tills: Vec<BeaconTill>) {
+        *self.shared.open_tills.lock().unwrap() = tills;
+    }
+
+    /// Set the device code advertised in the beacon (and mDNS on next start).
+    pub fn set_device_code(&self, code: Option<String>) {
+        *self.shared.device_code.lock().unwrap() = code;
+    }
+
+    /// See [`PeerRegistry::person_open_till`].
+    pub fn person_open_till(&self, person_id: &str) -> Option<(Peer, BeaconTill)> {
+        self.shared.registry.lock().unwrap().person_open_till(
+            &self.shared.cfg.branch_id,
+            person_id,
+            now_ms(),
+        )
+    }
+
+    /// See [`PeerRegistry::has_live_teller_peer`].
+    pub fn has_live_teller_peer(&self) -> bool {
+        self.shared
+            .registry
+            .lock()
+            .unwrap()
+            .has_live_teller_peer(&self.shared.cfg.branch_id, now_ms())
+    }
+
+    /// See [`PeerRegistry::branch_open_tills`].
+    pub fn branch_open_tills(&self) -> Vec<(Peer, BeaconTill)> {
+        self.shared
+            .registry
+            .lock()
+            .unwrap()
+            .branch_open_tills(&self.shared.cfg.branch_id, now_ms())
     }
 
     /// Inject a discovered peer (TTL-tracked) — the iOS-Bonjour bridge feeds peers
@@ -586,7 +679,18 @@ impl LanRelay {
             }
         };
         let port = self.tcp_port();
+        let code_txt = self.shared.device_code.lock().unwrap().clone().unwrap_or_default();
+        // `open_shift_id` stays in TXT for old peers; `open_tills` is beacon-only (size).
+        let open_txt = self
+            .shared
+            .open_tills
+            .lock()
+            .unwrap()
+            .first()
+            .map(|t| t.till_id.clone())
+            .unwrap_or_default();
         let props: HashMap<String, String> = [
+            ("open_shift_id", open_txt.as_str()),
             ("device_id", self.shared.cfg.device_id.as_str()),
             ("branch_id", self.shared.cfg.branch_id.as_str()),
             ("role", self.shared.cfg.role.as_str()),
@@ -595,6 +699,7 @@ impl LanRelay {
                 self.shared.cfg.station_id.as_deref().unwrap_or(""),
             ),
             ("tcp_port", &port.to_string()),
+            ("device_code", &code_txt),
         ]
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -768,12 +873,15 @@ async fn bind_beacon(port: u16) -> std::io::Result<UdpSocket> {
 /// open-shift advert (refreshed each tick so a closed till stops counting fast).
 async fn beacon_send_loop(shared: Arc<RelayShared>, sock: Arc<UdpSocket>) {
     loop {
+        let open_tills = shared.open_tills.lock().unwrap().clone();
         let beacon = Beacon {
             device_id: shared.cfg.device_id.clone(),
             branch_id: shared.cfg.branch_id.clone(),
             role: shared.cfg.role.clone(),
             station_id: shared.cfg.station_id.clone(),
-            open_shift_id: shared.open_shift.lock().unwrap().clone(),
+            open_shift_id: open_tills.first().map(|t| t.till_id.clone()),
+            device_code: shared.device_code.lock().unwrap().clone(),
+            open_tills,
             tcp_port: *shared.bound_tcp_port.lock().unwrap(),
             sent_at_ms: now_ms(),
         };
@@ -834,6 +942,8 @@ async fn beacon_recv_loop(shared: Arc<RelayShared>, sock: Arc<UdpSocket>) {
             port: beacon.tcp_port,
             station_id: beacon.station_id,
             open_shift_id: beacon.open_shift_id,
+            device_code: beacon.device_code,
+            open_tills: beacon.open_tills,
             last_seen_ms: now_ms(),
         });
     }
@@ -862,14 +972,24 @@ fn ingest_mdns(shared: &Arc<RelayShared>, info: &mdns_sd::ResolvedService) {
     let port = prop("tcp_port")
         .and_then(|p| p.parse::<u16>().ok())
         .unwrap_or_else(|| info.get_port());
-    shared.registry.lock().unwrap().upsert(Peer {
+    let mut reg = shared.registry.lock().unwrap();
+    // Discovery never erases a signed beacon's adverts (mDNS TXT is unsigned).
+    let (open_shift_id, open_tills) = reg
+        .live_for_branch(&branch_id, now_ms())
+        .into_iter()
+        .find(|p| p.device_id == device_id)
+        .map(|p| (p.open_shift_id.clone(), p.open_tills.clone()))
+        .unwrap_or((None, Vec::new()));
+    reg.upsert(Peer {
         device_id,
         branch_id,
         role: prop("role").unwrap_or_default(),
         host,
         port,
         station_id: prop("station_id").filter(|s| !s.is_empty()),
-        open_shift_id: None,
+        open_shift_id,
+        device_code: prop("device_code").filter(|s| !s.is_empty()),
+        open_tills,
         last_seen_ms: now_ms(),
     });
 }
@@ -877,6 +997,112 @@ fn ingest_mdns(shared: &Arc<RelayShared>, info: &mdns_sd::ResolvedService) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The exact beacon body a pre-rework (v0.6) peer sends: no device_code, no
+    /// open_tills.
+    const OLD_BEACON: &str = r#"{"device_id":"old-dev","branch_id":"B1","role":"teller","station_id":null,
+        "open_shift_id":"S-OLD","tcp_port":7431,"sent_at_ms":1}"#;
+
+    /// The v0.6 `Beacon` struct, verbatim, so the test proves an OLD peer can read a
+    /// NEW beacon (serde ignores the new fields).
+    #[derive(serde::Deserialize)]
+    #[allow(dead_code)]
+    struct OldBeacon {
+        device_id: String,
+        branch_id: String,
+        role: String,
+        station_id: Option<String>,
+        open_shift_id: Option<String>,
+        tcp_port: u16,
+        sent_at_ms: i64,
+    }
+
+    #[test]
+    fn beacon_backward_compat_old_peer_parses_new() {
+        let new = Beacon {
+            device_id: "new-dev".into(),
+            branch_id: "B1".into(),
+            role: "teller".into(),
+            station_id: None,
+            open_shift_id: Some("T1".into()),
+            device_code: Some("36B".into()),
+            open_tills: vec![
+                BeaconTill {
+                    till_id: "T1".into(),
+                    person_id: "U1".into(),
+                    person_name: "Sara".into(),
+                    opened_at: "2026-09-13T09:00:00Z".into(),
+                },
+                BeaconTill {
+                    till_id: "T2".into(),
+                    person_id: "U2".into(),
+                    person_name: "Omar".into(),
+                    opened_at: "2026-09-13T10:00:00Z".into(),
+                },
+            ],
+            tcp_port: 7431,
+            sent_at_ms: 5,
+        };
+        let json = serde_json::to_string(&new).unwrap();
+        let old: OldBeacon = serde_json::from_str(&json).expect("old peer parses a new beacon");
+        assert_eq!(old.open_shift_id.as_deref(), Some("T1"), "old gate still sees an open till");
+    }
+
+    #[test]
+    fn beacon_new_peer_parses_old() {
+        let b: Beacon = serde_json::from_str(OLD_BEACON).expect("new peer parses an old beacon");
+        assert_eq!(b.open_shift_id.as_deref(), Some("S-OLD"));
+        assert!(b.open_tills.is_empty());
+        assert!(b.device_code.is_none());
+        // An old peer's bare open shift keeps the branch "operating" but names no
+        // person, so it never blocks anyone's open.
+        let mut reg = PeerRegistry::new();
+        reg.upsert(Peer {
+            device_id: b.device_id,
+            branch_id: b.branch_id,
+            role: b.role,
+            host: "10.0.0.2".into(),
+            port: b.tcp_port,
+            station_id: None,
+            open_shift_id: b.open_shift_id,
+            device_code: b.device_code,
+            open_tills: b.open_tills,
+            last_seen_ms: 1_000,
+        });
+        assert!(reg.branch_has_open_till("B1", 1_500));
+        assert!(reg.person_open_till("B1", "U1", 1_500).is_none());
+        assert!(reg.has_live_teller_peer("B1", 1_500));
+    }
+
+    #[test]
+    fn person_open_till_finds_the_person_on_a_live_peer_only() {
+        let mut reg = PeerRegistry::new();
+        let till = BeaconTill {
+            till_id: "T7".into(),
+            person_id: "U1".into(),
+            person_name: "Sara".into(),
+            opened_at: "x".into(),
+        };
+        reg.upsert(Peer {
+            device_id: "d2".into(),
+            branch_id: "B1".into(),
+            role: "teller".into(),
+            host: "h".into(),
+            port: 1,
+            station_id: None,
+            open_shift_id: Some("T7".into()),
+            device_code: Some("K2".into()),
+            open_tills: vec![till.clone()],
+            last_seen_ms: 1_000,
+        });
+        let (peer, t) = reg.person_open_till("B1", "U1", 1_000).unwrap();
+        assert_eq!(peer.device_code.as_deref(), Some("K2"));
+        assert_eq!(t, till);
+        assert!(reg.person_open_till("B1", "U2", 1_000).is_none());
+        // Expired peer no longer counts.
+        assert!(reg.person_open_till("B1", "U1", 1_000 + PEER_TTL_MS + 1).is_none());
+        assert_eq!(reg.branch_open_tills("B1", 1_000).len(), 1);
+    }
 
     fn msg(id: &str, branch: &str) -> LanMessage {
         LanMessage {
@@ -970,7 +1196,7 @@ mod tests {
         assert!(m.hops_exhausted());
     }
 
-    fn peer(id: &str, branch: &str, open_shift: Option<&str>, last_seen_ms: i64) -> Peer {
+    fn peer(id: &str, branch: &str, open_till: Option<&str>, last_seen_ms: i64) -> Peer {
         Peer {
             device_id: id.into(),
             branch_id: branch.into(),
@@ -978,7 +1204,9 @@ mod tests {
             host: format!("10.0.0.{}", id.len()),
             port: 7777,
             station_id: None,
-            open_shift_id: open_shift.map(|s| s.into()),
+            open_shift_id: open_till.map(|s| s.into()),
+            device_code: None,
+            open_tills: Vec::new(),
             last_seen_ms,
         }
     }
@@ -1062,6 +1290,8 @@ mod tests {
             port,
             station_id: None,
             open_shift_id: None,
+            device_code: None,
+            open_tills: Vec::new(),
             last_seen_ms: now_ms(),
         }
     }

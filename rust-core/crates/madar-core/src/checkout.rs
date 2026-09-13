@@ -1,10 +1,10 @@
 //! Checkout — turn the cart into an order and place it through the durable
-//! outbox (offline-safe), mirroring the `open_shift` pattern in `lib.rs`.
+//! outbox (offline-safe), mirroring the `open_till` pattern in `lib.rs`.
 //!
 //! Pricing is client-authoritative: `pricing::price_cart` is the money source of
 //! truth and the server records our subtotal/tax/total **verbatim** (so the DB
 //! equals the printed receipt even if the POS was offline or its menu cache was
-//! stale). Like `open_shift`, the wire has no client idempotency key, so true
+//! stale). Like `open_till`, the wire has no client idempotency key, so true
 //! exactly-once isn't available: we key the OUTBOX row by a client order UUID
 //! (the local queue won't double-enqueue) and ack on 2xx. A duplicate is only
 //! possible if the server commits but its response is lost — the same known
@@ -26,6 +26,76 @@ use crate::store::Store;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CheckoutCommand {
     pub request: models::CreateOrderRequest,
+    /// Per-device numbering + till verification (TILLS_CONTRACT §3 R4). Absent on
+    /// orders queued before the tills rework — those keep server numbering.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device: Option<OrderDeviceStamp>,
+}
+
+/// What a device-numbered order carries beside the generated request.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct OrderDeviceStamp {
+    pub device_id: String,
+    pub device_code: String,
+    /// The device's per-business-day sequence (the `RRRR` of `order_ref`).
+    pub order_number: i64,
+    /// `server` | `lan` | `unverified` — the till's verification at ring-up.
+    pub verification: String,
+}
+
+/// `"36B-12"` — the number people read (contract §4.7).
+pub fn display_number(device_code: &str, order_number: i64) -> String {
+    if device_code.is_empty() {
+        order_number.to_string()
+    } else {
+        format!("{device_code}-{order_number}")
+    }
+}
+
+/// The display number for an order the server sent with only `order_number` +
+/// `order_ref`: a device-numbered order's ref is `<BR>-<YYMMDD>-<DEV>-<RRRR>` with
+/// `RRRR == order_number`, so the device code is read back from the ref.
+pub fn display_number_from_ref(order_ref: Option<&str>, order_number: i64) -> String {
+    if let Some(r) = order_ref {
+        let parts: Vec<&str> = r.split('~').next().unwrap_or(r).split('-').collect();
+        if parts.len() == 4 && parts[3].parse::<i64>().ok() == Some(order_number) {
+            return display_number(parts[2], order_number);
+        }
+    }
+    order_number.to_string()
+}
+
+/// The `/sync/replay` envelope for a queued order: the generated request with
+/// `shift_id` renamed `till_id` (sending both would be a duplicate field under
+/// the server alias) and the device stamp merged in.
+pub(crate) fn order_envelope(
+    cmd: &CheckoutCommand,
+    teller_id: &str,
+    this_device_id: &str,
+) -> serde_json::Value {
+    let mut request = serde_json::to_value(&cmd.request).unwrap_or(serde_json::Value::Null);
+    if let Some(obj) = request.as_object_mut() {
+        if let Some(t) = obj.remove("shift_id") {
+            obj.insert("till_id".into(), t);
+        }
+        match &cmd.device {
+            Some(d) => {
+                obj.insert("device_id".into(), d.device_id.clone().into());
+                obj.insert("device_code".into(), d.device_code.clone().into());
+                obj.insert("order_number".into(), d.order_number.into());
+                obj.insert("verification".into(), d.verification.clone().into());
+            }
+            None => {
+                obj.insert("device_id".into(), this_device_id.into());
+            }
+        }
+    }
+    let (device_id, device_code) = match &cmd.device {
+        Some(d) => (d.device_id.clone(), Some(d.device_code.clone())),
+        None => (this_device_id.to_string(), None),
+    };
+    serde_json::json!({ "op": "create_order", "teller_id": teller_id, "device_id": device_id,
+        "device_code": device_code, "request": request })
 }
 
 /// A priced modifier on a receipt line (an addon or a chosen optional). The
@@ -82,6 +152,8 @@ pub struct ReceiptView {
     pub order_number: Option<i64>,
     /// Cross-channel order reference (e.g. delivery ticket id), printed when set.
     pub order_ref: Option<String>,
+    /// What people read: `36B-12` (empty until numbered).
+    pub display_number: String,
     /// `true` when the order is voided — prints a `*** VOIDED ***` stamp.
     pub is_voided: bool,
     pub lines: Vec<ReceiptLineView>,
@@ -228,14 +300,14 @@ pub(crate) const KEY_ORG_LOGO_PNG: &str = "org_logo_png";
 /// already counts the prior orders, queued≈0) or sits in the outbox (offline: queued
 /// grows). Without the base, an online receipt always predicted `#1` (queued drains
 /// instantly) while the server stored the real number — the online-only mismatch.
-pub(crate) fn order_base_key(shift_id: &str) -> String {
-    format!("order_base:{shift_id}")
+pub(crate) fn order_base_key(till_id: &str) -> String {
+    format!("order_base:{till_id}")
 }
 
 /// The synced base for a shift (0 when none recorded yet).
-pub(crate) fn order_base(store: &Store, shift_id: &str) -> i64 {
+pub(crate) fn order_base(store: &Store, till_id: &str) -> i64 {
     store
-        .kv_get(&order_base_key(shift_id))
+        .kv_get(&order_base_key(till_id))
         .ok()
         .flatten()
         .and_then(|s| s.parse::<i64>().ok())
@@ -244,9 +316,9 @@ pub(crate) fn order_base(store: &Store, shift_id: &str) -> i64 {
 
 /// Raise the synced base to at least `n` (monotonic; a stale/out-of-order ack never
 /// lowers it). Called when the server confirms an order's number on ack.
-pub(crate) fn bump_order_base(store: &Store, shift_id: &str, n: i64) {
-    if n > order_base(store, shift_id) {
-        let _ = store.kv_put(&order_base_key(shift_id), &n.to_string());
+pub(crate) fn bump_order_base(store: &Store, till_id: &str, n: i64) {
+    if n > order_base(store, till_id) {
+        let _ = store.kv_put(&order_base_key(till_id), &n.to_string());
     }
 }
 
@@ -265,11 +337,17 @@ pub(crate) fn device_code_or_default(store: &Store) -> String {
     gen
 }
 
-/// Mint this order's display number + CLIENT-AUTHORITATIVE ref:
+/// Mint this order's per-DEVICE number + CLIENT-AUTHORITATIVE ref (tills rework):
+/// `order_number` IS the device's per-business-day sequence `RRRR` and is SENT
+/// with `device_code`, so `36B-12` is the same offline, on the receipt, and on the
+/// server — across people and tills on this device, with no shared counter.
+/// (The old per-shift prediction below is kept only as documentation of why the
+/// base counter exists for pre-rework queued orders.)
+///
 /// - `order_number` is PREDICTED per-shift (the order's position in its shift) to
 ///   match the server's `MAX(order_number)+1` exactly — one device numbers a shift,
 ///   so the offline receipt's `#N` equals the synced one. It is NOT sent (the
-///   server owns the `UNIQUE(shift_id, order_number)` column).
+///   server owns the `UNIQUE(till_id, order_number)` column).
 /// - `order_ref` = `<BRANCH>-<YYMMDD>-<DEVICE>-<RRRR>`, where RRRR is this device's
 ///   monotonic per-business-day sequence (INDEPENDENT of order_number, so it stays
 ///   globally unique across shifts and devices with no shared counter). This IS
@@ -280,7 +358,7 @@ pub(crate) fn device_code_or_default(store: &Store) -> String {
 /// local id and the server mints its deterministic fallback.
 pub(crate) fn mint_order_ref(
     store: &Store,
-    shift_id: &str,
+    till_id: &str,
     now_rfc3339: &str,
 ) -> Option<(i64, String)> {
     let branch_code = store
@@ -294,8 +372,7 @@ pub(crate) fn mint_order_ref(
     // Per-shift display number = synced base + (still-queued for this shift) + 1,
     // which equals the server's MAX(order_number)+1 both online (base counts the
     // already-synced orders, queued≈0) and offline (base is frozen, queued grows).
-    let order_number =
-        order_base(store, shift_id) + crate::orders::queued(store, shift_id).ok()?.len() as i64 + 1;
+    let _ = till_id;
     // Per-(device, business-day) ref sequence — its own counter, NOT order_number.
     let ref_key = format!("ref_seq:{yymmdd}");
     let ref_seq = store
@@ -306,10 +383,7 @@ pub(crate) fn mint_order_ref(
         .unwrap_or(0)
         + 1;
     let _ = store.kv_put(&ref_key, &ref_seq.to_string());
-    Some((
-        order_number,
-        format!("{branch_code}-{yymmdd}-{device}-{ref_seq:04}"),
-    ))
+    Some((ref_seq, format!("{branch_code}-{yymmdd}-{device}-{ref_seq:04}")))
 }
 
 /// Map priced cart lines to the wire `OrderItemInput`s the backend records
@@ -376,7 +450,7 @@ pub(crate) fn prepare(
     ctx: cart::Ctx<'_>,
     locale: &str,
     branch_id: &str,
-    shift_id: &str,
+    till_id: &str,
     input: &CheckoutInput,
     policy: &crate::tax::TaxPolicy,
     now_rfc3339: String,
@@ -392,7 +466,7 @@ pub(crate) fn prepare(
     }
 
     let branch_uuid = parse_uuid(branch_id, "branch_id")?;
-    let shift_uuid = parse_uuid(shift_id, "shift_id")?;
+    let shift_uuid = parse_uuid(till_id, "till_id")?;
     let reward_units = reward_units_by_line(&lines, &input.loyalty_redemptions)?;
 
     // The wire wants the raw `name` column (the backend validates against it),
@@ -587,7 +661,7 @@ pub(crate) fn prepare(
     // Mint the per-shift display number (predicted, NOT sent) + the client-
     // authoritative order_ref (SENT, stored verbatim) so the offline ring-up receipt
     // is byte-identical to the synced reprint.
-    let (mint_number, mint_ref) = match mint_order_ref(store, shift_id, &now_rfc3339) {
+    let (mint_number, mint_ref) = match mint_order_ref(store, till_id, &now_rfc3339) {
         Some((n, r)) => (Some(n), Some(r)),
         None => (None, None),
     };
@@ -595,6 +669,9 @@ pub(crate) fn prepare(
     let receipt = ReceiptView {
         local_order_id: order_id.to_string(),
         order_number: mint_number,
+        display_number: mint_number
+            .map(|n| display_number(&device_code_or_default(store), n))
+            .unwrap_or_default(),
         order_ref: mint_ref,
         is_voided: false,
         lines: lines
@@ -649,7 +726,7 @@ pub(crate) fn prepare(
 
     Ok(Prepared {
         order_id,
-        command: CheckoutCommand { request },
+        command: CheckoutCommand { request, device: None },
         receipt,
         event_at: now_rfc3339,
     })
@@ -845,7 +922,7 @@ pub(crate) fn queued_cash_total(store: &Store) -> CoreResult<i64> {
             // A queued pay-in/pay-out (signed): the drawer already moved.
             "cash_movement" => {
                 if let Ok(cmd) =
-                    serde_json::from_str::<crate::shift::CashMovementCommand>(&item.payload)
+                    serde_json::from_str::<crate::till::CashMovementCommand>(&item.payload)
                 {
                     total += cmd.request.amount as i64;
                 }
@@ -858,8 +935,8 @@ pub(crate) fn queued_cash_total(store: &Store) -> CoreResult<i64> {
 
 /// Like [`queued_cash_total`] but scoped to ONE shift — for reconstructing a past
 /// OFFLINE shift's Z-report (the drawer holds that shift's queued cash sales +
-/// movements). Matches the outbox row's `shift_id`.
-pub(crate) fn queued_cash_total_for(store: &Store, shift_id: &str) -> CoreResult<i64> {
+/// movements). Matches the outbox row's `till_id`.
+pub(crate) fn queued_cash_total_for(store: &Store, till_id: &str) -> CoreResult<i64> {
     let raw = menu::cached_payment_methods(store)?;
     let cash_names: std::collections::HashSet<String> = raw
         .iter()
@@ -868,7 +945,7 @@ pub(crate) fn queued_cash_total_for(store: &Store, shift_id: &str) -> CoreResult
         .collect();
     let mut total = 0i64;
     for item in store.list_active_of_types(&["create_order", "cash_movement"])? {
-        if item.shift_id.as_deref() != Some(shift_id) {
+        if item.till_id.as_deref() != Some(till_id) {
             continue;
         }
         // Inflight = already sent → the synced report counts it; skip to avoid a
@@ -884,7 +961,7 @@ pub(crate) fn queued_cash_total_for(store: &Store, shift_id: &str) -> CoreResult
             }
             "cash_movement" => {
                 if let Ok(cmd) =
-                    serde_json::from_str::<crate::shift::CashMovementCommand>(&item.payload)
+                    serde_json::from_str::<crate::till::CashMovementCommand>(&item.payload)
                 {
                     total += cmd.request.amount as i64;
                 }
@@ -1463,7 +1540,7 @@ mod tests {
                 idempotency_key: id.into(),
                 payload: serde_json::to_string(&cmd).unwrap(),
                 event_at: "2026-06-20T12:00:00+00:00".into(),
-                shift_id: Some(shift.into()),
+                till_id: Some(shift.into()),
                 ..Default::default()
             })
             .unwrap();
@@ -1943,8 +2020,8 @@ mod tests {
         let mv = |id: &str, amount: i32| {
             let mut r = models::CashMovementRequest::new(amount, "drawer".into());
             r.client_ref = Some(Some(uuid::Uuid::new_v4()));
-            let cmd = crate::shift::CashMovementCommand {
-                shift_id: "s1".into(),
+            let cmd = crate::till::CashMovementCommand {
+                till_id: "s1".into(),
                 request: r,
             };
             store
@@ -1968,7 +2045,7 @@ mod tests {
     fn queued_cash_total_for_is_scoped_to_one_shift() {
         // The OFFLINE Z-report drawer figure for a PAST shift: sum only THAT shift's
         // still-queued cash sales + cash movements (scoped by the outbox row's
-        // shift_id), never another shift's or non-cash sales.
+        // till_id), never another shift's or non-cash sales.
         let store = Store::open("").unwrap();
         seed_methods(&store);
         const A: &str = "00000000-0000-0000-0000-0000000000aa";
@@ -1988,7 +2065,7 @@ mod tests {
                     idempotency_key: id.into(),
                     payload: serde_json::to_string(&CheckoutCommand { request: req }).unwrap(),
                     event_at: "2026-06-20T12:00:00+00:00".into(),
-                    shift_id: Some(shift.into()),
+                    till_id: Some(shift.into()),
                     ..Default::default()
                 })
                 .unwrap();
@@ -1996,8 +2073,8 @@ mod tests {
         let movement = |id: &str, shift: &str, amount: i32| {
             let mut r = models::CashMovementRequest::new(amount, "drawer".into());
             r.client_ref = Some(Some(uuid::Uuid::new_v4()));
-            let cmd = crate::shift::CashMovementCommand {
-                shift_id: shift.into(),
+            let cmd = crate::till::CashMovementCommand {
+                till_id: shift.into(),
                 request: r,
             };
             store
@@ -2007,7 +2084,7 @@ mod tests {
                     idempotency_key: id.into(),
                     payload: serde_json::to_string(&cmd).unwrap(),
                     event_at: "2026-06-20T12:00:00+00:00".into(),
-                    shift_id: Some(shift.into()),
+                    till_id: Some(shift.into()),
                     ..Default::default()
                 })
                 .unwrap();
@@ -2070,11 +2147,11 @@ mod tests {
     fn queued_cash_total_ignores_unrelated_op_types() {
         let store = Store::open("").unwrap();
         seed_methods(&store);
-        // An open_shift op (unrelated) must contribute nothing.
+        // An open_till op (unrelated) must contribute nothing.
         store
             .enqueue(&crate::store::NewOutboxOp {
                 id: "open".into(),
-                op_type: "open_shift".into(),
+                op_type: "open_till".into(),
                 idempotency_key: "open".into(),
                 payload: "{}".into(),
                 event_at: "2026-06-20T12:00:00+00:00".into(),

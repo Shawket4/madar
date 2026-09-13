@@ -21,7 +21,7 @@ sealed class AppRoute with _$AppRoute {
   const factory AppRoute.login() = AppRoute_Login;
 
   /// Signed in, no open shift → open-shift screen.
-  const factory AppRoute.openShift() = AppRoute_OpenShift;
+  const factory AppRoute.openTill() = AppRoute_OpenTill;
 
   /// Signed in with an open shift → order screen.
   const factory AppRoute.order() = AppRoute_Order;

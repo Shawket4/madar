@@ -40,7 +40,6 @@ class BranchView {
 class DeviceConfigView {
   final String? branchId;
   final String? branchName;
-  final String? tillId;
   final String? stationId;
   final String? printerHost;
   final int? printerPort;
@@ -56,7 +55,6 @@ class DeviceConfigView {
   const DeviceConfigView({
     this.branchId,
     this.branchName,
-    this.tillId,
     this.stationId,
     this.printerHost,
     this.printerPort,
@@ -74,7 +72,6 @@ class DeviceConfigView {
   int get hashCode =>
       branchId.hashCode ^
       branchName.hashCode ^
-      tillId.hashCode ^
       stationId.hashCode ^
       printerHost.hashCode ^
       printerPort.hashCode ^
@@ -94,7 +91,6 @@ class DeviceConfigView {
           runtimeType == other.runtimeType &&
           branchId == other.branchId &&
           branchName == other.branchName &&
-          tillId == other.tillId &&
           stationId == other.stationId &&
           printerHost == other.printerHost &&
           printerPort == other.printerPort &&

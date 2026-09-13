@@ -1,0 +1,2101 @@
+//! Tills (TILLS_CONTRACT §4). A till is a PERSON's sales session on this device
+//! (what "shift" used to be). Opening one is the first OUTBOX WRITE: an optimistic
+//! local record + a queued, idempotent `open_till` command whose client-minted UUID
+//! is the till PK (so replay never needs a remap). Several people can each hold an
+//! open till on one device; `current` is the SIGNED-IN person's till here.
+
+use madar_api::models;
+use serde::{Deserialize, Serialize};
+
+use crate::error::CoreResult;
+use crate::store::Store;
+pub use crate::till_wire::TillWire;
+use crate::till_wire::{CloseTillRequestWire, OpenTillRequestWire};
+
+/// LEGACY kv key (<= v0.6): the device's one current shift (`Shift` JSON). Read
+/// once by [`migrate_legacy_current`] and then removed.
+pub(crate) const LEGACY_CURRENT_SHIFT_KEY: &str = "current_shift";
+/// kv key naming the person whose session is live (the `current` till's owner).
+pub(crate) const ACTIVE_USER_KEY: &str = "till:active_user";
+/// kv key holding the suggested opening cash for the NEXT till — the previous
+/// till's declared closing (cash continuity).
+pub(crate) const SUGGESTED_OPEN_CASH_KEY: &str = "shift:suggested_open_cash";
+
+/// kv key for one till record (`TillWire` JSON).
+pub(crate) fn record_key(till_id: &str) -> String {
+    format!("till:rec:{till_id}")
+}
+/// kv key: the till this device holds for `user_id` (contract §4.3).
+pub(crate) fn device_till_key(user_id: &str) -> String {
+    format!("{DEVICE_TILL_PREFIX}{user_id}")
+}
+pub(crate) const DEVICE_TILL_PREFIX: &str = "device_till:";
+
+/// kv key holding the last SERVER report seen for a till id, so a close that
+/// happens offline still knows what the till actually took.
+pub(crate) fn report_cache_key(till_id: &str) -> String {
+    format!("cache:till_report:{till_id}")
+}
+/// Pre-rework key for the same cache — read as a fallback.
+pub(crate) fn legacy_report_cache_key(till_id: &str) -> String {
+    format!("cache:shift_report:{till_id}")
+}
+
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TillView {
+    pub id: String,
+    pub branch_id: String,
+    pub teller_id: String,
+    pub teller_name: String,
+    pub opening_cash_minor: i64,
+    pub opened_at: String,
+    pub status: String,
+    pub is_open: bool,
+    pub device_id: Option<String>,
+    pub device_code: Option<String>,
+    /// `server` | `lan` | `unverified` | `legacy`.
+    pub verification: String,
+    pub opened_while_another_open: bool,
+}
+
+/// Outbox payload for `open_till` (legacy `open_shift` payloads decode too: the
+/// device fields default and the old `request.till_id` is ignored).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub(crate) struct OpenTillCommand {
+    pub branch_id: String,
+    #[serde(default)]
+    pub device_id: String,
+    #[serde(default)]
+    pub device_code: String,
+    /// `server` | `lan` | `unverified`.
+    #[serde(default)]
+    pub verification: String,
+    pub request: OpenTillRequestWire,
+}
+
+/// Outbox payload for `close_till` (legacy `close_shift` payloads decode via the alias).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub(crate) struct CloseTillCommand {
+    #[serde(alias = "shift_id")]
+    pub till_id: String,
+    #[serde(default)]
+    pub device_id: Option<String>,
+    pub request: CloseTillRequestWire,
+}
+
+/// Outbox payload for an offline cash movement. Idempotent on `client_ref`.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub(crate) struct CashMovementCommand {
+    #[serde(alias = "shift_id")]
+    pub till_id: String,
+    #[serde(default)]
+    pub device_id: Option<String>,
+    pub request: models::CashMovementRequest,
+}
+
+/// A cash-drawer movement (pay-in / pay-out). `amount_minor` is signed:
+/// positive = cash in, negative = cash out.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct CashMovementView {
+    pub id: String,
+    /// `pay_in` | `pay_out` | `safe_drop` | `correction` — what the sign
+    /// alone cannot say (a safe drop and a pay-out both take cash out).
+    #[serde(default)]
+    pub kind: String,
+    pub amount_minor: i64,
+    pub note: String,
+    pub moved_by_name: String,
+    pub created_at: String,
+}
+
+pub(crate) fn cash_movement_view(m: &models::CashMovement) -> CashMovementView {
+    CashMovementView {
+        // `client_ref` is the cross-boundary identity: an offline-rung movement
+        // carries it as its outbox id AND sends it; the server echoes it back here.
+        // Use it (not the server id) so `merge_cash_for_view` dedups the still-queued
+        // copy against this synced row — otherwise the drawer double-counts a movement
+        // whose response was lost (the exact case client_ref/idempotency exists for).
+        id: m
+            .client_ref
+            .flatten()
+            .map(|r| r.to_string())
+            .unwrap_or_else(|| m.id.to_string()),
+        kind: crate::till_views::movement_kind(Some(&m.kind), m.amount as i64),
+        amount_minor: m.amount as i64,
+        note: m.note.clone(),
+        moved_by_name: m.moved_by_name.clone(),
+        created_at: m.created_at.to_rfc3339(),
+    }
+}
+
+/// Merge synced server cash movements with the still-queued offline ones, dropping
+/// a queued movement that has ALREADY synced (its `client_ref`, now the view `id`,
+/// identifies a server row). Server first (chronological), then the queued tail.
+pub fn merge_cash_for_view(
+    server: Vec<CashMovementView>,
+    queued: Vec<CashMovementView>,
+) -> Vec<CashMovementView> {
+    let seen: std::collections::HashSet<String> = server.iter().map(|m| m.id.clone()).collect();
+    let mut out = server;
+    out.extend(queued.into_iter().filter(|q| !seen.contains(&q.id)));
+    out
+}
+
+/// A past till, projected for the history list.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct TillSummaryView {
+    pub id: String,
+    pub branch_name: Option<String>,
+    /// Teller who owns the till (the Teller column in the past-tills table).
+    pub teller_name: Option<String>,
+    pub opened_at: String,
+    pub closed_at: Option<String>,
+    pub opening_cash_minor: i64,
+    pub closing_declared_minor: Option<i64>,
+    pub closing_system_minor: Option<i64>,
+    pub discrepancy_minor: Option<i64>,
+    pub status: String,
+    pub is_open: bool,
+    #[serde(default)]
+    pub device_code: Option<String>,
+    #[serde(default = "legacy_verification")]
+    pub verification: String,
+    #[serde(default)]
+    pub opened_while_another_open: bool,
+    #[serde(default)]
+    pub reconciliation_status: Option<String>,
+}
+
+fn legacy_verification() -> String {
+    "legacy".into()
+}
+
+pub(crate) fn till_summary_view(s: &TillWire) -> TillSummaryView {
+    TillSummaryView {
+        id: s.id.clone(),
+        branch_name: s.branch_name.clone(),
+        teller_name: Some(s.teller_name.clone()).filter(|x| !x.is_empty()),
+        opened_at: s.opened_at.clone(),
+        closed_at: s.closed_at.clone(),
+        opening_cash_minor: s.opening_cash,
+        closing_declared_minor: s.closing_cash_declared,
+        closing_system_minor: s.closing_cash_system,
+        discrepancy_minor: s.cash_discrepancy,
+        status: s.status.clone(),
+        is_open: s.status == "open",
+        device_code: s.device_code.clone(),
+        verification: s.verification.clone().unwrap_or_else(legacy_verification),
+        opened_while_another_open: s.opened_while_another_open,
+        reconciliation_status: s.reconciliation_status.clone(),
+    }
+}
+
+/// Shift ids the device has CLOSED OFFLINE — a `close_till` still queued/inflight/
+/// dead in the outbox — each mapped to its locally-declared closing cash + close
+/// time. The past-shifts list overlays these so a shift closed offline reads as
+/// CLOSED, not still-active: the server snapshot the list is projected from keeps
+/// the shift OPEN until the close actually syncs.
+pub(crate) fn queued_close_overlay(
+    store: &Store,
+) -> std::collections::HashMap<String, (Option<String>, i64)> {
+    let mut out = std::collections::HashMap::new();
+    for item in store
+        .list_active_of_types(&["close_till", "close_shift"])
+        .unwrap_or_default()
+    {
+        if let Ok(cmd) = serde_json::from_str::<CloseTillCommand>(&item.payload) {
+            let closed_at = cmd.request.closed_at.map(|d| d.to_rfc3339());
+            out.insert(
+                cmd.till_id,
+                (closed_at, cmd.request.closing_cash_declared as i64),
+            );
+        }
+    }
+    out
+}
+
+/// Teller `user_id` → display name, from the cached offline-auth bundle — so a
+/// shift reconstructed from the outbox can show WHO opened it, even offline.
+fn teller_names(store: &Store) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    if let Ok(Some(raw)) = store.kv_get(crate::session::BUNDLE_KEY) {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
+            if let Some(tellers) = v.get("tellers").and_then(|t| t.as_array()) {
+                for t in tellers {
+                    if let (Some(uid), Some(name)) = (
+                        t.get("user_id").and_then(|x| x.as_str()),
+                        t.get("name").and_then(|x| x.as_str()),
+                    ) {
+                        map.insert(uid.to_string(), name.to_string());
+                    }
+                }
+            }
+        }
+    }
+    map
+}
+
+/// Shifts this device OPENED that aren't on the server yet — reconstructed from the
+/// outbox `open_till` commands — so the past-shifts list is COMPLETE offline, not
+/// just the synced shifts. A shift opened AND closed entirely offline (the normal
+/// offline workflow) is invisible to the server until it syncs, so it must come
+/// from here. Closed state + declared cash come from a matching queued close; the
+/// teller name from the cached bundle. They drop out of here once the open acks
+/// (the queue clears) and the server list carries them instead.
+pub(crate) fn local_tills(store: &Store) -> Vec<TillSummaryView> {
+    let closes = queued_close_overlay(store);
+    let names = teller_names(store);
+    let mut out = Vec::new();
+    for item in store
+        .list_active_of_types(&["open_till", "open_shift"])
+        .unwrap_or_default()
+    {
+        let cmd: OpenTillCommand = match serde_json::from_str(&item.payload) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let id = cmd.request.id.to_string();
+        let opened_at = cmd
+            .request
+            .opened_at
+            .map(|d| d.to_rfc3339())
+            .unwrap_or_else(|| item.event_at.clone());
+        let teller = item.user_id.as_deref().and_then(|u| names.get(u).cloned());
+        let (closed_at, declared) = match closes.get(&id) {
+            Some((ca, d)) => (ca.clone(), Some(*d)),
+            None => (None, None),
+        };
+        let is_open = declared.is_none();
+        out.push(TillSummaryView {
+            id,
+            branch_name: None,
+            teller_name: teller,
+            opened_at,
+            closed_at,
+            opening_cash_minor: cmd.request.opening_cash as i64,
+            closing_declared_minor: declared,
+            closing_system_minor: None,
+            discrepancy_minor: None,
+            status: if is_open {
+                "open".into()
+            } else {
+                "closed".into()
+            },
+            is_open,
+            device_code: Some(cmd.device_code.clone()).filter(|c| !c.is_empty()),
+            verification: if cmd.verification.is_empty() {
+                "unverified".into()
+            } else {
+                cmd.verification.clone()
+            },
+            opened_while_another_open: false,
+            reconciliation_status: None,
+        });
+    }
+    out
+}
+
+/// One payment-method line in the shift report.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TillReportPaymentLine {
+    pub method: String,
+    pub is_cash: bool,
+    pub order_count: i64,
+    pub total_minor: i64,
+}
+
+/// The shift report shown on close (drives the system-cash + discrepancy) and in
+/// a report preview. `expected_cash_minor` is the server's expected drawer cash
+/// PLUS still-queued cash sales (offline: opening cash + queued cash).
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TillReportView {
+    /// Teller who ran the shift, and the open/close/print timestamps (RFC3339) —
+    /// the host stamps them to the branch timezone for display.
+    pub teller_name: String,
+    pub opened_at: String,
+    /// `None` while the shift is still open.
+    pub closed_at: Option<String>,
+    pub printed_at: String,
+    pub is_open: bool,
+    pub expected_cash_minor: i64,
+    pub opening_cash_minor: i64,
+    /// Opening-cash mismatch: when the teller's opening count differed from the
+    /// suggested (last close), `opening_cash_was_edited` is set, `*_original_minor`
+    /// is the suggested amount, and `*_edit_reason` is the teller's note. The
+    /// report shows the signed difference + reason. (Server path only; the offline
+    /// fallback has no original to diff against.)
+    pub opening_cash_was_edited: bool,
+    pub opening_cash_original_minor: Option<i64>,
+    pub opening_cash_edit_reason: Option<String>,
+    /// Cash actually counted at close (the drawer count). `None` until closed —
+    /// drives the reconciliation block + the over/short difference.
+    pub closing_cash_declared_minor: Option<i64>,
+    pub total_payments_minor: i64,
+    pub net_payments_minor: i64,
+    pub voided_amount_minor: i64,
+    /// Refunds ISSUED FROM THIS DRAWER — money out, keyed on the refund's own
+    /// shift, which need not be the shift that made the sale. `*_cash_minor`
+    /// is the slice that left the drawer and the only part `expected_cash`
+    /// subtracts; the rest went back the way it came.
+    pub refunds_issued_minor: i64,
+    pub refunds_issued_cash_minor: i64,
+    pub refunds_issued_count: i64,
+    /// Cash taken on this shift's sales that were later fully refunded. The
+    /// payment lines leave those sales out — they are revenue, and the sale
+    /// was undone — but the notes DID go into the drawer, so expected cash
+    /// counts them. Without this line the report does not add up.
+    pub cash_in_refunded_sales_minor: i64,
+    pub cash_movements_net_minor: i64,
+    /// Pay-in / pay-out drawer totals (separate, not just the net) — Z-report depth.
+    pub cash_in_minor: i64,
+    pub cash_out_minor: i64,
+    pub payment_lines: Vec<TillReportPaymentLine>,
+    /// Each individual cash movement (newest-first), for the itemised drawer block.
+    pub cash_movements: Vec<TillReportCashLine>,
+    /// `false` = offline fallback (no server figures, just opening + queued).
+    pub from_server: bool,
+    /// The device the till was opened on (receipts / Z report).
+    pub device_code: Option<String>,
+    /// This till's device order-number range (`36B-1` … `36B-42`).
+    pub order_number_first: Option<i64>,
+    pub order_number_last: Option<i64>,
+    /// Per-method close reconciliation (empty while open / pre-rework).
+    pub reconciliation: Vec<ReconciliationLineView>,
+    /// Old / all open bills at the branch when the till closed.
+    pub old_bills_count: Option<i64>,
+    pub open_bills_count: Option<i64>,
+    pub opened_while_another_open: bool,
+    /// `server` | `lan` | `unverified` | `legacy`.
+    pub verification: String,
+}
+
+/// Lay the tills-rework extras over a report view (server or cached).
+pub(crate) fn apply_report_extras(
+    view: &mut TillReportView,
+    extras: &crate::till_wire::TillReportExtrasWire,
+    label: &dyn Fn(&str) -> String,
+) {
+    if let Some(t) = &extras.till {
+        view.device_code = t.device_code.clone();
+        view.opened_while_another_open = t.opened_while_another_open;
+        view.verification = t.verification.clone().unwrap_or_else(|| "legacy".into());
+    }
+    view.reconciliation = reconciliation_lines_from_wire(&extras.reconciliation, label);
+    view.old_bills_count = extras.old_bills_at_close;
+    view.open_bills_count = extras.open_bills_at_close;
+    if let Some(r) = &extras.order_number_range {
+        view.order_number_first = r.first;
+        view.order_number_last = r.last;
+        if view.device_code.is_none() {
+            view.device_code = r.device_code.clone();
+        }
+    }
+}
+
+/// One itemised cash-drawer movement on the report. `amount_minor` is signed
+/// (positive = pay-in, negative = pay-out).
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TillReportCashLine {
+    pub amount_minor: i64,
+    pub note: String,
+    pub moved_by_name: String,
+    pub created_at: String,
+}
+
+/// Project the server report, adding still-queued cash sales to expected cash.
+pub(crate) fn report_view(
+    report: &models::ShiftReportResponse,
+    queued_cash: i64,
+) -> TillReportView {
+    let shift = &report.shift;
+    TillReportView {
+        teller_name: shift.teller_name.clone(),
+        opened_at: shift.opened_at.to_rfc3339(),
+        closed_at: shift.closed_at.flatten().map(|d| d.to_rfc3339()),
+        printed_at: report.printed_at.to_rfc3339(),
+        is_open: shift.status == "open",
+        opening_cash_was_edited: shift.opening_cash_was_edited,
+        opening_cash_original_minor: shift.opening_cash_original.flatten().map(|v| v as i64),
+        opening_cash_edit_reason: shift
+            .opening_cash_edit_reason
+            .clone()
+            .flatten()
+            .filter(|s| !s.is_empty()),
+        closing_cash_declared_minor: shift.closing_cash_declared.flatten().map(|v| v as i64),
+        expected_cash_minor: report.expected_cash + queued_cash,
+        opening_cash_minor: shift.opening_cash as i64,
+        total_payments_minor: report.total_payments,
+        net_payments_minor: report.net_payments,
+        voided_amount_minor: report.voided_amount,
+        // `#[serde(default)]` on the wire: a server older than refunds simply
+        // reports nothing given back, which is what it means.
+        refunds_issued_minor: report.refunds_issued_amount.unwrap_or(0),
+        refunds_issued_cash_minor: report.refunds_issued_cash.unwrap_or(0),
+        refunds_issued_count: report.refunds_issued_count.unwrap_or(0),
+        cash_in_refunded_sales_minor: report.cash_in_refunded_sales.unwrap_or(0),
+        cash_movements_net_minor: report.cash_movements_net,
+        cash_in_minor: report.cash_movements_in,
+        cash_out_minor: report.cash_movements_out,
+        payment_lines: report
+            .payment_summary
+            .iter()
+            .map(|p| TillReportPaymentLine {
+                method: p.payment_method.clone(),
+                is_cash: p.is_cash,
+                order_count: p.order_count,
+                total_minor: p.total,
+            })
+            .collect(),
+        cash_movements: report
+            .cash_movements
+            .iter()
+            .map(|m| TillReportCashLine {
+                amount_minor: m.amount as i64,
+                note: m.note.clone(),
+                moved_by_name: m.moved_by_name.clone(),
+                created_at: m.created_at.to_rfc3339(),
+            })
+            .collect(),
+        from_server: true,
+        device_code: None,
+        order_number_first: None,
+        order_number_last: None,
+        reconciliation: vec![],
+        old_bills_count: None,
+        open_bills_count: None,
+        opened_while_another_open: false,
+        verification: "legacy".into(),
+    }
+}
+
+/// Offline fallback: expected = opening cash + still-queued cash sales; the
+/// drawer block is reconstructed from the still-queued cash movements.
+pub(crate) fn offline_report_view(
+    opening_cash_minor: i64,
+    queued_cash: i64,
+    movements: Vec<TillReportCashLine>,
+    teller_name: String,
+    opened_at: String,
+    printed_at: String,
+) -> TillReportView {
+    let cash_in: i64 = movements
+        .iter()
+        .filter(|m| m.amount_minor > 0)
+        .map(|m| m.amount_minor)
+        .sum();
+    let cash_out: i64 = movements
+        .iter()
+        .filter(|m| m.amount_minor < 0)
+        .map(|m| -m.amount_minor)
+        .sum();
+    TillReportView {
+        teller_name,
+        opened_at,
+        closed_at: None,
+        printed_at,
+        is_open: true,
+        opening_cash_was_edited: false,
+        opening_cash_original_minor: None,
+        opening_cash_edit_reason: None,
+        closing_cash_declared_minor: None,
+        expected_cash_minor: opening_cash_minor + queued_cash,
+        opening_cash_minor,
+        total_payments_minor: 0,
+        net_payments_minor: 0,
+        voided_amount_minor: 0,
+        // Offline the server's figures are unavailable, and a refund queued
+        // locally has not been priced into anything yet. Zero here is honest:
+        // this fallback reports the drawer, not the books.
+        refunds_issued_minor: 0,
+        refunds_issued_cash_minor: 0,
+        refunds_issued_count: 0,
+        cash_in_refunded_sales_minor: 0,
+        cash_movements_net_minor: cash_in - cash_out,
+        cash_in_minor: cash_in,
+        cash_out_minor: cash_out,
+        payment_lines: vec![],
+        cash_movements: movements,
+        from_server: false,
+        device_code: None,
+        order_number_first: None,
+        order_number_last: None,
+        reconciliation: vec![],
+        old_bills_count: None,
+        open_bills_count: None,
+        opened_while_another_open: false,
+        verification: "unverified".into(),
+    }
+}
+
+/// Offline close against a CACHED server report: the real figures the server
+/// last knew for this shift, plus the work this device has not drained yet.
+///
+/// This is the offline path whenever the shift has ever been reported on while
+/// online. `queued` holds only movements still in the outbox — the server's copy
+/// already carries every drained one, so the two lists are disjoint and appending
+/// cannot double count. `from_server` stays FALSE: the figures are real but they
+/// are a snapshot, and the teller is entitled to see that the device is offline.
+pub(crate) fn cached_report_view(
+    report: &models::ShiftReportResponse,
+    queued_cash: i64,
+    queued: Vec<TillReportCashLine>,
+) -> TillReportView {
+    let mut view = report_view(report, queued_cash);
+    view.from_server = false;
+    if queued.is_empty() {
+        return view;
+    }
+    view.cash_movements.extend(queued);
+    // Recompute the drawer split over the union rather than trusting the
+    // server's totals, which predate the queued movements.
+    view.cash_in_minor = view
+        .cash_movements
+        .iter()
+        .filter(|m| m.amount_minor > 0)
+        .map(|m| m.amount_minor)
+        .sum();
+    view.cash_out_minor = view
+        .cash_movements
+        .iter()
+        .filter(|m| m.amount_minor < 0)
+        .map(|m| -m.amount_minor)
+        .sum();
+    view.cash_movements_net_minor = view.cash_in_minor - view.cash_out_minor;
+    view
+}
+
+pub(crate) fn view_from(t: &TillWire) -> TillView {
+    TillView {
+        id: t.id.clone(),
+        branch_id: t.branch_id.clone(),
+        teller_id: t.teller_id.clone(),
+        teller_name: t.teller_name.clone(),
+        opening_cash_minor: t.opening_cash,
+        opened_at: t.opened_at.clone(),
+        status: t.status.clone(),
+        is_open: t.status == "open",
+        device_id: t.device_id.clone(),
+        device_code: t.device_code.clone(),
+        verification: t
+            .verification
+            .clone()
+            .unwrap_or_else(|| "legacy".to_string()),
+        opened_while_another_open: t.opened_while_another_open,
+    }
+}
+
+/// A generated legacy `Shift` as a till record (ack of a legacy-shaped body).
+pub(crate) fn wire_from_shift(shift: &models::Shift) -> Option<TillWire> {
+    serde_json::to_value(shift)
+        .ok()
+        .and_then(|v| serde_json::from_value(v).ok())
+}
+
+/// Cache the suggested opening cash (previous declared closing) for the next
+/// till. A non-positive value clears it (no carryover to suggest).
+pub(crate) fn cache_suggested_opening_cash(store: &Store, minor: i64) -> CoreResult<()> {
+    store.kv_put(SUGGESTED_OPEN_CASH_KEY, &minor.max(0).to_string())
+}
+
+/// The suggested opening cash for the next till (0 when none is known).
+pub(crate) fn suggested_opening_cash(store: &Store) -> CoreResult<i64> {
+    Ok(store
+        .kv_get(SUGGESTED_OPEN_CASH_KEY)?
+        .and_then(|s| s.parse::<i64>().ok())
+        .unwrap_or(0))
+}
+
+// ── person-scoped till state ────────────────────────────────────────────────
+
+/// Record whose session is live, so `current` resolves THEIR till. `None` on
+/// sign-out (the records themselves stay: an open till is device state).
+pub(crate) fn set_active_user(store: &Store, user_id: Option<&str>) -> CoreResult<()> {
+    migrate_legacy_current(store)?;
+    match user_id.filter(|u| !u.is_empty()) {
+        Some(u) => store.kv_put(ACTIVE_USER_KEY, u),
+        None => store.kv_delete(ACTIVE_USER_KEY),
+    }
+}
+
+pub(crate) fn active_user(store: &Store) -> Option<String> {
+    store
+        .kv_get(ACTIVE_USER_KEY)
+        .ok()
+        .flatten()
+        .filter(|s| !s.is_empty())
+}
+
+/// One-shot: the pre-rework device-global `current_shift` becomes a till record
+/// held for its teller on this device. Loses nothing; idempotent.
+pub(crate) fn migrate_legacy_current(store: &Store) -> CoreResult<()> {
+    let Some(raw) = store.kv_get(LEGACY_CURRENT_SHIFT_KEY)? else {
+        return Ok(());
+    };
+    if raw != "null" {
+        if let Ok(t) = serde_json::from_str::<TillWire>(&raw) {
+            if !t.id.is_empty() && store.kv_get(&record_key(&t.id))?.is_none() {
+                save(store, &t)?;
+            }
+        }
+    }
+    store.kv_delete(LEGACY_CURRENT_SHIFT_KEY)
+}
+
+/// A till record by id (any person, any status).
+pub(crate) fn record(store: &Store, till_id: &str) -> Option<TillWire> {
+    store
+        .kv_get(&record_key(till_id))
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+}
+
+/// The signed-in person's till on this device (open or locally closed).
+pub(crate) fn current_record(store: &Store) -> CoreResult<Option<TillWire>> {
+    migrate_legacy_current(store)?;
+    let Some(user) = active_user(store) else {
+        return Ok(None);
+    };
+    let Some(till_id) = store.kv_get(&device_till_key(&user))? else {
+        return Ok(None);
+    };
+    Ok(record(store, &till_id))
+}
+
+pub(crate) fn current(store: &Store) -> CoreResult<Option<TillView>> {
+    Ok(current_record(store)?.as_ref().map(view_from))
+}
+
+/// Persist a till record and point its teller's device slot at it.
+pub(crate) fn save(store: &Store, till: &TillWire) -> CoreResult<()> {
+    store.kv_put(&record_key(&till.id), &serde_json::to_string(till)?)?;
+    if !till.teller_id.is_empty() {
+        store.kv_put(&device_till_key(&till.teller_id), &till.id)?;
+    }
+    Ok(())
+}
+
+/// Update a stored record without moving any device slot (a late ack of a till
+/// that is no longer anyone's current one).
+pub(crate) fn update_record(store: &Store, till: &TillWire) -> CoreResult<()> {
+    store.kv_put(&record_key(&till.id), &serde_json::to_string(till)?)
+}
+
+/// Drop the signed-in person's device slot (server says none / force-closed).
+pub(crate) fn clear(store: &Store) -> CoreResult<()> {
+    if let Some(user) = active_user(store) {
+        store.kv_delete(&device_till_key(&user))?;
+    }
+    Ok(())
+}
+
+/// Drop whichever person's slot points at `till_id` (a dead open, a force-close).
+pub(crate) fn clear_till(store: &Store, till_id: &str) -> CoreResult<()> {
+    for (k, v) in store.kv_list_prefix(DEVICE_TILL_PREFIX)? {
+        if v == till_id {
+            store.kv_delete(&k)?;
+        }
+    }
+    Ok(())
+}
+
+/// Mark the signed-in person's till closed optimistically. No-op without one.
+pub(crate) fn close_local(store: &Store) -> CoreResult<()> {
+    if let Some(mut t) = current_record(store)? {
+        t.status = "closed".into();
+        update_record(store, &t)?;
+    }
+    Ok(())
+}
+
+/// Every OPEN till this device holds, one per person — the LAN advert.
+pub(crate) fn open_on_device(store: &Store) -> Vec<TillWire> {
+    let mut out: Vec<TillWire> = store
+        .kv_list_prefix(DEVICE_TILL_PREFIX)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(_, id)| record(store, &id))
+        .filter(|t| t.status == "open")
+        .collect();
+    out.sort_by(|a, b| a.opened_at.cmp(&b.opened_at));
+    out
+}
+
+// ── open: verification (contract §4.5) ─────────────────────────────────────
+
+/// Where the person's till is open, when it is not this device.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TillElsewhereView {
+    pub till_id: String,
+    pub device_code: Option<String>,
+    pub device_label: Option<String>,
+    pub opened_at: String,
+    /// `server` | `lan`.
+    pub source: String,
+}
+
+/// What `open_till` did.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OpenTillOutcome {
+    pub till: Option<TillView>,
+    /// `server` | `lan` | `unverified` (empty when blocked).
+    pub verification: String,
+    pub open_elsewhere: Option<TillElsewhereView>,
+}
+
+/// A LAN peer's advert of an open till (`lan::BeaconTill` + its device).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LanTillSighting {
+    pub till_id: String,
+    pub device_id: String,
+    pub device_code: Option<String>,
+    pub opened_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum OpenDecision {
+    /// The person's till is open on another device — no enqueue.
+    Blocked(TillElsewhereView),
+    /// The server already holds the person's open till on THIS device.
+    Resume(TillWire),
+    /// Open a new till with this verification.
+    Allow(&'static str),
+}
+
+/// Decide an open from what can actually VERIFY it. Device-local memory is
+/// deliberately not an input: the only checks are the live server and live LAN
+/// peers; when neither answers, the open is allowed and marked unverified.
+///
+/// `server` = the `/tills/branches/{b}/current` prefill when the call succeeded.
+/// `lan_sighting` = a live peer advertising this person's open till on ANOTHER
+/// device. `lan_teller_peer_live` = at least one live teller peer at the branch.
+pub(crate) fn decide_open(
+    server: Option<&crate::till_wire::TillPreFillWire>,
+    this_device_id: &str,
+    lan_sighting: Option<&LanTillSighting>,
+    lan_teller_peer_live: bool,
+) -> OpenDecision {
+    if let Some(pf) = server {
+        if let Some(b) = pf
+            .open_elsewhere
+            .iter()
+            .find(|b| b.device_id.as_deref() != Some(this_device_id))
+        {
+            return OpenDecision::Blocked(TillElsewhereView {
+                till_id: b.id.clone(),
+                device_code: b.device_code.clone(),
+                device_label: b.device_label.clone(),
+                opened_at: b.opened_at.clone(),
+                source: "server".into(),
+            });
+        }
+        if let Some(t) = pf.open_till.as_ref().filter(|t| t.status == "open") {
+            if t.device_id.as_deref() == Some(this_device_id) {
+                return OpenDecision::Resume(t.clone());
+            }
+            // An open till the server did not list as elsewhere but that names a
+            // different device is still elsewhere.
+            if t.device_id.is_some() {
+                return OpenDecision::Blocked(TillElsewhereView {
+                    till_id: t.id.clone(),
+                    device_code: t.device_code.clone(),
+                    device_label: t.device_label.clone(),
+                    opened_at: t.opened_at.clone(),
+                    source: "server".into(),
+                });
+            }
+            // A legacy till (opened by an old client, no device): it is the
+            // person's drawer and no other device claims it — resume it here.
+            return OpenDecision::Resume(t.clone());
+        }
+        return OpenDecision::Allow("server");
+    }
+    if let Some(s) = lan_sighting.filter(|s| s.device_id != this_device_id) {
+        return OpenDecision::Blocked(TillElsewhereView {
+            till_id: s.till_id.clone(),
+            device_code: s.device_code.clone(),
+            device_label: None,
+            opened_at: s.opened_at.clone(),
+            source: "lan".into(),
+        });
+    }
+    if lan_teller_peer_live {
+        OpenDecision::Allow("lan")
+    } else {
+        OpenDecision::Allow("unverified")
+    }
+}
+
+/// What to do with the local till after the server's prefill comes back.
+#[derive(Debug)]
+pub(crate) enum TillReconcile {
+    /// The server holds the person's open till on this device — adopt it.
+    Adopt(Box<TillWire>),
+    /// Keep the local state (our open/close has not reached the server yet).
+    KeepLocal,
+    /// The server authoritatively has no open till here (e.g. force-closed).
+    Clear,
+}
+
+/// Reconcile the signed-in person's local till with `/tills/.../current`. PURE.
+/// - "no open till here" is authoritative only once our own `open_till` has
+///   reached the server (`open_pending` keeps the optimistic till);
+/// - "still open" is stale while our `close_till` is queued (`close_pending`);
+/// - a till the server reports open on ANOTHER device is never adopted here.
+pub(crate) fn reconcile(
+    prefill: &crate::till_wire::TillPreFillWire,
+    this_device_id: &str,
+    local: Option<&TillView>,
+    open_pending: bool,
+    close_pending: bool,
+) -> TillReconcile {
+    if let Some(t) = prefill.open_till.as_ref().filter(|t| t.status == "open") {
+        let here = t.device_id.is_none() || t.device_id.as_deref() == Some(this_device_id);
+        if here {
+            if close_pending && local.map(|l| l.id == t.id).unwrap_or(false) {
+                return TillReconcile::KeepLocal;
+            }
+            if open_pending && local.map(|l| l.is_open && l.id != t.id).unwrap_or(false) {
+                // Our own offline-opened till has not synced; the server's is an
+                // older one. Both are kept server-side (flagged); keep ours here.
+                return TillReconcile::KeepLocal;
+            }
+            return TillReconcile::Adopt(Box::new(t.clone()));
+        }
+    }
+    if open_pending || close_pending {
+        TillReconcile::KeepLocal
+    } else {
+        TillReconcile::Clear
+    }
+}
+
+// ── close: reconciliation + warnings (contract §4.8) ───────────────────────
+
+/// Open bills left at the branch, shown after a till opens. `None` when zero.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OpenBillsNoticeView {
+    pub open_bills_count: i64,
+    pub open_bills_amount_minor: i64,
+    pub oldest_opened_at: Option<String>,
+    pub old_bills_count: i64,
+    pub old_bill_hours: i64,
+    pub seated_tables_count: i64,
+    pub since: Option<String>,
+}
+
+pub(crate) fn open_bills_notice_view(
+    w: &crate::till_wire::OpenBillsNoticeWire,
+) -> Option<OpenBillsNoticeView> {
+    (w.open_bills_count > 0).then(|| OpenBillsNoticeView {
+        open_bills_count: w.open_bills_count,
+        open_bills_amount_minor: w.open_bills_amount,
+        oldest_opened_at: w.oldest_opened_at.clone(),
+        old_bills_count: w.old_bills_count,
+        old_bill_hours: w.old_bill_hours,
+        seated_tables_count: w.seated_tables_count,
+        since: w.since.clone(),
+    })
+}
+
+/// A bill as the local mirror knows it: when it opened and what it holds.
+#[derive(Clone, Debug)]
+pub(crate) struct LocalBill {
+    pub opened_at: String,
+    pub amount_minor: i64,
+}
+
+/// The notice computed from local mirrors (offline). Old = opened more than
+/// `old_bill_hours` before `now`.
+pub(crate) fn local_open_bills_notice(
+    bills: &[LocalBill],
+    seated_tables: i64,
+    old_bill_hours: i64,
+    since: Option<String>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<OpenBillsNoticeView> {
+    if bills.is_empty() {
+        return None;
+    }
+    let cutoff = now - chrono::Duration::hours(old_bill_hours.max(1));
+    let parse = |s: &str| {
+        chrono::DateTime::parse_from_rfc3339(s)
+            .ok()
+            .map(|d| d.with_timezone(&chrono::Utc))
+    };
+    let oldest = bills
+        .iter()
+        .filter_map(|b| parse(&b.opened_at).map(|d| (d, b.opened_at.clone())))
+        .min_by_key(|(d, _)| *d)
+        .map(|(_, s)| s);
+    Some(OpenBillsNoticeView {
+        open_bills_count: bills.len() as i64,
+        open_bills_amount_minor: bills.iter().map(|b| b.amount_minor).sum(),
+        oldest_opened_at: oldest,
+        old_bills_count: bills
+            .iter()
+            .filter(|b| parse(&b.opened_at).map(|d| d < cutoff).unwrap_or(false))
+            .count() as i64,
+        old_bill_hours: old_bill_hours.max(1),
+        seated_tables_count: seated_tables,
+        since,
+    })
+}
+
+/// One method line the teller checks at close.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReconciliationInput {
+    pub method: String,
+    /// `checked` | `disagreed`.
+    pub status: String,
+    pub declared_amount_minor: Option<i64>,
+    pub note: Option<String>,
+}
+
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CloseTillMethodView {
+    pub method: String,
+    pub label: String,
+    pub is_cash: bool,
+    pub system_total_minor: i64,
+    pub order_count: i64,
+}
+
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LastTillWarningView {
+    pub open_bills_count: i64,
+    pub open_bills_amount_minor: i64,
+    pub seated_tables_count: i64,
+}
+
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CloseTillPreviewView {
+    pub till: TillView,
+    pub expected_cash_minor: i64,
+    pub methods: Vec<CloseTillMethodView>,
+    pub last_till_warning: Option<LastTillWarningView>,
+    pub from_server: bool,
+}
+
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReconciliationLineView {
+    pub method: String,
+    pub label: String,
+    pub is_cash: bool,
+    pub system_total_minor: i64,
+    /// `checked` | `disagreed` | `unreviewed`.
+    pub status: String,
+    pub declared_amount_minor: Option<i64>,
+    pub note: Option<String>,
+    pub changed_after_close: bool,
+}
+
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CloseTillOutcomeView {
+    /// `true` while the close is still in the outbox.
+    pub queued: bool,
+    pub reconciliation: Vec<ReconciliationLineView>,
+    pub last_till_warning: Option<LastTillWarningView>,
+}
+
+/// A till open at the branch: from the server list, a LAN advert, or both.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BranchOpenTillView {
+    pub till_id: String,
+    pub teller_id: String,
+    pub teller_name: String,
+    pub device_code: Option<String>,
+    pub device_label: Option<String>,
+    pub opened_at: String,
+    pub is_this_device: bool,
+    /// `server` | `lan` | `both`.
+    pub source: String,
+}
+
+pub(crate) fn preview_methods_from_wire(
+    methods: &[crate::till_wire::CloseTillMethodWire],
+    label: &dyn Fn(&str) -> String,
+) -> Vec<CloseTillMethodView> {
+    methods
+        .iter()
+        .map(|m| CloseTillMethodView {
+            method: m.method.clone(),
+            label: label(&m.method),
+            is_cash: m.is_cash,
+            system_total_minor: m.system_total,
+            order_count: m.order_count,
+        })
+        .collect()
+}
+
+/// The offline preview: every method the report (server snapshot + queued work)
+/// shows as USED, with the cash row always present at the expected drawer cash.
+pub(crate) fn offline_preview_methods(
+    report: &TillReportView,
+    queued_by_method: &[(String, bool, i64, i64)],
+    label: &dyn Fn(&str) -> String,
+) -> Vec<CloseTillMethodView> {
+    let mut rows: Vec<CloseTillMethodView> = Vec::new();
+    let mut add = |method: &str, is_cash: bool, total: i64, count: i64| {
+        if let Some(r) = rows.iter_mut().find(|r| r.method == method) {
+            r.system_total_minor += total;
+            r.order_count += count;
+        } else {
+            rows.push(CloseTillMethodView {
+                method: method.to_string(),
+                label: label(method),
+                is_cash,
+                system_total_minor: total,
+                order_count: count,
+            });
+        }
+    };
+    for p in &report.payment_lines {
+        add(&p.method, p.is_cash, p.total_minor, p.order_count);
+    }
+    for (m, c, t, n) in queued_by_method {
+        add(m, *c, *t, *n);
+    }
+    // The cash row is always present and carries what should be in the drawer.
+    match rows.iter_mut().find(|r| r.is_cash) {
+        Some(cash) => cash.system_total_minor = report.expected_cash_minor,
+        None => rows.insert(
+            0,
+            CloseTillMethodView {
+                method: "Cash".into(),
+                label: label("Cash"),
+                is_cash: true,
+                system_total_minor: report.expected_cash_minor,
+                order_count: 0,
+            },
+        ),
+    }
+    rows.sort_by(|a, b| b.is_cash.cmp(&a.is_cash).then(a.method.cmp(&b.method)));
+    rows
+}
+
+/// Validate + convert the close inputs (non-blocking rules, contract §2.2 T9):
+/// a non-cash `disagreed` line needs an amount and a note; the cash line's
+/// status is derived from the count, so it is never sent as input.
+pub(crate) fn reconciliation_wire(
+    inputs: &[ReconciliationInput],
+) -> Result<Vec<crate::till_wire::ReconciliationInputWire>, crate::error::CoreError> {
+    let mut out = Vec::new();
+    for i in inputs {
+        let status = i.status.trim().to_ascii_lowercase();
+        if status != "checked" && status != "disagreed" {
+            return Err(crate::error::CoreError::Validation {
+                field: "reconciliation.status".into(),
+                detail: format!("unknown status {}", i.status),
+            });
+        }
+        let note = i
+            .note
+            .as_deref()
+            .map(str::trim)
+            .filter(|n| !n.is_empty())
+            .map(str::to_string);
+        if status == "disagreed" {
+            if i.declared_amount_minor.is_none() {
+                return Err(crate::error::CoreError::Validation {
+                    field: "reconciliation.declared_amount".into(),
+                    detail: "RECONCILIATION_AMOUNT_REQUIRED".into(),
+                });
+            }
+            if note.is_none() {
+                return Err(crate::error::CoreError::Validation {
+                    field: "reconciliation.note".into(),
+                    detail: "RECONCILIATION_NOTE_REQUIRED".into(),
+                });
+            }
+        }
+        out.push(crate::till_wire::ReconciliationInputWire {
+            method: i.method.clone(),
+            status: status.clone(),
+            declared_amount: if status == "disagreed" {
+                i.declared_amount_minor
+                    .and_then(|v| i32::try_from(v).ok())
+            } else {
+                None
+            },
+            note,
+        });
+    }
+    Ok(out)
+}
+
+/// The lines as recorded at close, offline: what the teller said per method,
+/// methods left out as `unreviewed`, the cash line from the count.
+pub(crate) fn local_reconciliation_lines(
+    methods: &[CloseTillMethodView],
+    inputs: &[crate::till_wire::ReconciliationInputWire],
+    closing_cash_minor: i64,
+    cash_note: Option<&str>,
+) -> Vec<ReconciliationLineView> {
+    methods
+        .iter()
+        .map(|m| {
+            if m.is_cash {
+                let matches = closing_cash_minor == m.system_total_minor;
+                return ReconciliationLineView {
+                    method: m.method.clone(),
+                    label: m.label.clone(),
+                    is_cash: true,
+                    system_total_minor: m.system_total_minor,
+                    status: if matches { "checked" } else { "disagreed" }.into(),
+                    declared_amount_minor: Some(closing_cash_minor),
+                    note: cash_note.map(str::to_string),
+                    changed_after_close: false,
+                };
+            }
+            match inputs.iter().find(|i| i.method == m.method) {
+                Some(i) => ReconciliationLineView {
+                    method: m.method.clone(),
+                    label: m.label.clone(),
+                    is_cash: false,
+                    system_total_minor: m.system_total_minor,
+                    status: i.status.clone(),
+                    declared_amount_minor: i.declared_amount.map(|v| v as i64),
+                    note: i.note.clone(),
+                    changed_after_close: false,
+                },
+                None => ReconciliationLineView {
+                    method: m.method.clone(),
+                    label: m.label.clone(),
+                    is_cash: false,
+                    system_total_minor: m.system_total_minor,
+                    status: "unreviewed".into(),
+                    declared_amount_minor: None,
+                    note: None,
+                    changed_after_close: false,
+                },
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn reconciliation_lines_from_wire(
+    lines: &[crate::till_wire::TillReconciliationLineWire],
+    label: &dyn Fn(&str) -> String,
+) -> Vec<ReconciliationLineView> {
+    lines
+        .iter()
+        .map(|l| ReconciliationLineView {
+            method: l.method.clone(),
+            label: label(&l.method),
+            is_cash: l.is_cash,
+            system_total_minor: l.system_total,
+            status: l.status.clone(),
+            declared_amount_minor: l.declared_amount,
+            note: l.note.clone(),
+            changed_after_close: l.changed_after_close
+                || (l.current_system_total != 0 && l.current_system_total != l.system_total),
+        })
+        .collect()
+}
+
+/// The last-till warning (never blocks): only when no other open till remains
+/// and something is still open or seated.
+pub(crate) fn last_till_warning(
+    other_open_tills: usize,
+    open_bills_count: i64,
+    open_bills_amount_minor: i64,
+    seated_tables_count: i64,
+) -> Option<LastTillWarningView> {
+    (other_open_tills == 0 && (open_bills_count > 0 || seated_tables_count > 0)).then(|| {
+        LastTillWarningView {
+            open_bills_count,
+            open_bills_amount_minor,
+            seated_tables_count,
+        }
+    })
+}
+
+pub(crate) fn last_till_warning_from_wire(
+    w: &crate::till_wire::LastTillWarningWire,
+) -> Option<LastTillWarningView> {
+    (w.is_last_open_till && (w.open_bills_count > 0 || w.seated_tables_count > 0)).then(|| {
+        LastTillWarningView {
+            open_bills_count: w.open_bills_count,
+            open_bills_amount_minor: w.open_bills_amount,
+            seated_tables_count: w.seated_tables_count,
+        }
+    })
+}
+
+// ── payment method availability (decision 10) ──────────────────────────────
+
+/// Effective methods = active org methods ∩ branch list ∩ user list ∩ device list,
+/// where an absent list means "no restriction". Order of `all` is preserved.
+pub(crate) fn effective_method_ids(
+    all_active: &[String],
+    branch: Option<&[String]>,
+    user: Option<&[String]>,
+    device: Option<&[String]>,
+) -> Vec<String> {
+    all_active
+        .iter()
+        .filter(|id| {
+            [branch, user, device]
+                .iter()
+                .all(|list| list.map(|l| l.iter().any(|x| x == *id)).unwrap_or(true))
+        })
+        .cloned()
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::till_wire::{TillBriefWire, TillPreFillWire};
+
+    const DEV: &str = "dddddddd-0000-0000-0000-000000000001";
+    const OTHER_DEV: &str = "dddddddd-0000-0000-0000-000000000002";
+
+    fn rec(id: &str, teller: &str, status: &str) -> TillWire {
+        TillWire {
+            id: id.into(),
+            branch_id: "B1".into(),
+            teller_id: teller.into(),
+            teller_name: format!("name-{teller}"),
+            status: status.into(),
+            opening_cash: 500,
+            opened_at: "2026-09-13T09:00:00Z".into(),
+            device_id: Some(DEV.into()),
+            verification: Some("server".into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn open_till_server_blocks_elsewhere() {
+        let pf = TillPreFillWire {
+            open_elsewhere: vec![TillBriefWire {
+                id: "T9".into(),
+                device_id: Some(OTHER_DEV.into()),
+                device_code: Some("36B".into()),
+                opened_at: "2026-09-13T08:00:00Z".into(),
+                status: "open".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        match decide_open(Some(&pf), DEV, None, true) {
+            OpenDecision::Blocked(e) => {
+                assert_eq!(e.till_id, "T9");
+                assert_eq!(e.source, "server");
+                assert_eq!(e.device_code.as_deref(), Some("36B"));
+            }
+            other => panic!("expected blocked, got {other:?}"),
+        }
+        // A clean prefill allows, verified by the server (LAN is not consulted).
+        let clean = TillPreFillWire::default();
+        assert_eq!(
+            decide_open(Some(&clean), DEV, None, false),
+            OpenDecision::Allow("server")
+        );
+        // The person's open till ON THIS device resumes instead of opening twice.
+        let mut here = TillPreFillWire::default();
+        here.open_till = Some(rec("T1", "U1", "open"));
+        assert!(matches!(
+            decide_open(Some(&here), DEV, None, false),
+            OpenDecision::Resume(t) if t.id == "T1"
+        ));
+    }
+
+    #[test]
+    fn open_till_lan_blocks_elsewhere() {
+        let sighting = LanTillSighting {
+            till_id: "T7".into(),
+            device_id: OTHER_DEV.into(),
+            device_code: Some("K2".into()),
+            opened_at: "2026-09-13T07:00:00Z".into(),
+        };
+        match decide_open(None, DEV, Some(&sighting), true) {
+            OpenDecision::Blocked(e) => {
+                assert_eq!(e.source, "lan");
+                assert_eq!(e.till_id, "T7");
+            }
+            other => panic!("expected blocked, got {other:?}"),
+        }
+        // A live teller peer with no sighting verifies the open over the LAN.
+        assert_eq!(decide_open(None, DEV, None, true), OpenDecision::Allow("lan"));
+        // A peer advertising OUR device is not "elsewhere".
+        let own = LanTillSighting {
+            device_id: DEV.into(),
+            ..sighting
+        };
+        assert_eq!(
+            decide_open(None, DEV, Some(&own), true),
+            OpenDecision::Allow("lan")
+        );
+    }
+
+    #[test]
+    fn open_till_offline_unverified_allowed() {
+        assert_eq!(
+            decide_open(None, DEV, None, false),
+            OpenDecision::Allow("unverified")
+        );
+    }
+
+    #[test]
+    fn open_till_ignores_device_local_memory() {
+        // The device REMEMBERS the person holding an open till recorded against
+        // another device (a cached list, an old record). Fully offline with no
+        // peers, that memory is not a check: the decision has no input for it and
+        // the open is allowed, unverified.
+        let store = Store::open("").unwrap();
+        let mut remembered = rec("OLD", "U1", "open");
+        remembered.device_id = Some(OTHER_DEV.into());
+        save(&store, &remembered).unwrap();
+        set_active_user(&store, Some("U1")).unwrap();
+        assert_eq!(
+            decide_open(None, DEV, None, false),
+            OpenDecision::Allow("unverified")
+        );
+    }
+
+    #[test]
+    fn two_tills_one_device_are_person_scoped() {
+        let store = Store::open("").unwrap();
+        save(&store, &rec("TA", "UA", "open")).unwrap();
+        save(&store, &rec("TB", "UB", "open")).unwrap();
+        set_active_user(&store, Some("UA")).unwrap();
+        assert_eq!(current(&store).unwrap().unwrap().id, "TA");
+        set_active_user(&store, Some("UB")).unwrap();
+        assert_eq!(current(&store).unwrap().unwrap().id, "TB");
+        // Closing B's till leaves A's open and advertised.
+        close_local(&store).unwrap();
+        assert!(!current(&store).unwrap().unwrap().is_open);
+        let open: Vec<String> = open_on_device(&store).into_iter().map(|t| t.id).collect();
+        assert_eq!(open, vec!["TA".to_string()]);
+        // Signed out: nobody's till is current, both records stay.
+        set_active_user(&store, None).unwrap();
+        assert!(current(&store).unwrap().is_none());
+        assert!(record(&store, "TA").is_some() && record(&store, "TB").is_some());
+        // A person with no till on this device has none current.
+        set_active_user(&store, Some("UC")).unwrap();
+        assert!(current(&store).unwrap().is_none());
+    }
+
+    #[test]
+    fn legacy_current_shift_becomes_the_tellers_till() {
+        let store = Store::open("").unwrap();
+        let json = r#"{"branch_id":"00000000-0000-0000-0000-0000000000b1",
+          "id":"00000000-0000-0000-0000-0000000000a1","opened_at":"2026-06-20T09:00:00Z",
+          "opening_cash":50000,"opening_cash_was_edited":false,"status":"open",
+          "teller_id":"00000000-0000-0000-0000-0000000000c1","teller_name":"Sara","till_id":"ee"}"#;
+        store.kv_put(LEGACY_CURRENT_SHIFT_KEY, json).unwrap();
+        set_active_user(&store, Some("00000000-0000-0000-0000-0000000000c1")).unwrap();
+        let v = current(&store).unwrap().unwrap();
+        assert_eq!(v.teller_name, "Sara");
+        assert_eq!(v.opening_cash_minor, 50000);
+        assert!(v.is_open);
+        assert_eq!(v.verification, "legacy");
+        assert!(store.kv_get(LEGACY_CURRENT_SHIFT_KEY).unwrap().is_none());
+        // A literal "null" legacy value migrates to nothing.
+        store.kv_put(LEGACY_CURRENT_SHIFT_KEY, "null").unwrap();
+        migrate_legacy_current(&store).unwrap();
+        assert!(store.kv_get(LEGACY_CURRENT_SHIFT_KEY).unwrap().is_none());
+    }
+
+    #[test]
+    fn reconcile_adopts_only_a_till_on_this_device() {
+        let local = view_from(&rec("T1", "U1", "open"));
+        let mut pf = TillPreFillWire::default();
+        pf.open_till = Some(rec("T1", "U1", "open"));
+        assert!(matches!(
+            reconcile(&pf, DEV, Some(&local), false, false),
+            TillReconcile::Adopt(_)
+        ));
+        // Open on another device: never adopted here.
+        let mut elsewhere = rec("T2", "U1", "open");
+        elsewhere.device_id = Some(OTHER_DEV.into());
+        pf.open_till = Some(elsewhere);
+        assert!(matches!(
+            reconcile(&pf, DEV, None, false, false),
+            TillReconcile::Clear
+        ));
+        // Our close is queued: the server's "still open" is stale.
+        pf.open_till = Some(rec("T1", "U1", "open"));
+        assert!(matches!(
+            reconcile(&pf, DEV, Some(&local), false, true),
+            TillReconcile::KeepLocal
+        ));
+        // None on the server but our open is queued: keep the optimistic till.
+        let none = TillPreFillWire::default();
+        assert!(matches!(
+            reconcile(&none, DEV, Some(&local), true, false),
+            TillReconcile::KeepLocal
+        ));
+        assert!(matches!(
+            reconcile(&none, DEV, Some(&local), false, false),
+            TillReconcile::Clear
+        ));
+    }
+
+    #[test]
+    fn available_methods_intersection_offline() {
+        let all: Vec<String> = ["cash", "cib-counter", "cib-2", "wallet"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let branch = vec!["cash".to_string(), "cib-counter".into(), "cib-2".into()];
+        let user = vec!["cash".to_string(), "cib-counter".into(), "wallet".into()];
+        let device = vec!["cib-counter".to_string(), "cash".into()];
+        assert_eq!(
+            effective_method_ids(&all, Some(&branch), Some(&user), Some(&device)),
+            vec!["cash".to_string(), "cib-counter".into()]
+        );
+        // No rows anywhere = no restriction.
+        assert_eq!(effective_method_ids(&all, None, None, None), all);
+        // Only the device narrows.
+        assert_eq!(
+            effective_method_ids(&all, None, None, Some(&device)),
+            vec!["cash".to_string(), "cib-counter".into()]
+        );
+    }
+
+    #[test]
+    fn reconciliation_requires_amount_and_note_on_disagree_and_rolls_unreviewed() {
+        let bad = [ReconciliationInput {
+            method: "Card".into(),
+            status: "disagreed".into(),
+            declared_amount_minor: Some(100),
+            note: Some("  ".into()),
+        }];
+        assert!(reconciliation_wire(&bad).is_err());
+        let ok = [ReconciliationInput {
+            method: "Card".into(),
+            status: "checked".into(),
+            declared_amount_minor: Some(999),
+            note: None,
+        }];
+        let wire = reconciliation_wire(&ok).unwrap();
+        assert_eq!(wire[0].declared_amount, None, "checked carries no amount");
+        let methods = vec![
+            CloseTillMethodView {
+                method: "Cash".into(),
+                label: "Cash".into(),
+                is_cash: true,
+                system_total_minor: 1000,
+                order_count: 3,
+            },
+            CloseTillMethodView {
+                method: "Card".into(),
+                label: "Card".into(),
+                is_cash: false,
+                system_total_minor: 500,
+                order_count: 1,
+            },
+            CloseTillMethodView {
+                method: "Wallet".into(),
+                label: "Wallet".into(),
+                is_cash: false,
+                system_total_minor: 200,
+                order_count: 1,
+            },
+        ];
+        let lines = local_reconciliation_lines(&methods, &wire, 900, Some("short"));
+        assert_eq!(lines[0].status, "disagreed");
+        assert_eq!(lines[0].declared_amount_minor, Some(900));
+        assert_eq!(lines[1].status, "checked");
+        assert_eq!(lines[2].status, "unreviewed");
+    }
+
+    #[test]
+    fn last_till_warning_only_when_last_and_something_open() {
+        assert!(last_till_warning(1, 3, 100, 2).is_none());
+        assert!(last_till_warning(0, 0, 0, 0).is_none());
+        let w = last_till_warning(0, 2, 4500, 0).unwrap();
+        assert_eq!(w.open_bills_amount_minor, 4500);
+    }
+
+    #[test]
+    fn open_bills_notice_counts_old_bills() {
+        let now = chrono::DateTime::parse_from_rfc3339("2026-09-13T12:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let bills = vec![
+            LocalBill {
+                opened_at: "2026-09-13T11:00:00Z".into(),
+                amount_minor: 100,
+            },
+            LocalBill {
+                opened_at: "2026-09-13T07:00:00Z".into(),
+                amount_minor: 250,
+            },
+        ];
+        let n = local_open_bills_notice(&bills, 1, 3, None, now).unwrap();
+        assert_eq!(n.open_bills_count, 2);
+        assert_eq!(n.old_bills_count, 1);
+        assert_eq!(n.open_bills_amount_minor, 350);
+        assert_eq!(n.oldest_opened_at.as_deref(), Some("2026-09-13T07:00:00Z"));
+        assert!(local_open_bills_notice(&[], 0, 3, None, now).is_none());
+    }
+
+    #[test]
+    fn legacy_outbox_payloads_decode_into_till_commands() {
+        let open = r#"{"branch_id":"B1","request":{"id":"00000000-0000-0000-0000-0000000000a1",
+            "opening_cash":500,"till_id":"00000000-0000-0000-0000-0000000000ee","opened_at":"2026-06-20T09:00:00+00:00"}}"#;
+        let cmd: OpenTillCommand = serde_json::from_str(open).unwrap();
+        assert_eq!(cmd.request.opening_cash, 500);
+        assert!(cmd.device_id.is_empty() && cmd.verification.is_empty());
+        let close = r#"{"shift_id":"S1","request":{"closing_cash_declared":480,"cash_note":null}}"#;
+        let c: CloseTillCommand = serde_json::from_str(close).unwrap();
+        assert_eq!(c.till_id, "S1");
+        assert!(c.request.reconciliation.is_empty());
+        let cash = r#"{"shift_id":"S1","request":{"amount":100,"note":"float"}}"#;
+        let m: CashMovementCommand = serde_json::from_str(cash).unwrap();
+        assert_eq!(m.till_id, "S1");
+        // Re-serialized, the new name is written.
+        assert!(serde_json::to_string(&m).unwrap().contains("\"till_id\""));
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+    #[test]
+    fn suggested_opening_cash_roundtrips_and_clamps() {
+        let store = Store::open("").unwrap();
+        assert_eq!(suggested_opening_cash(&store).unwrap(), 0); // none known yet
+        cache_suggested_opening_cash(&store, 48000).unwrap();
+        assert_eq!(suggested_opening_cash(&store).unwrap(), 48000);
+        cache_suggested_opening_cash(&store, -5).unwrap(); // non-positive clears
+        assert_eq!(suggested_opening_cash(&store).unwrap(), 0);
+    }
+
+
+
+    #[test]
+    fn offline_report_view_is_opening_plus_queued() {
+        let moves = vec![
+            TillReportCashLine {
+                amount_minor: 5000,
+                note: "float".into(),
+                moved_by_name: "Mona".into(),
+                created_at: "t".into(),
+            },
+            TillReportCashLine {
+                amount_minor: -1500,
+                note: "supplier".into(),
+                moved_by_name: "Mona".into(),
+                created_at: "t".into(),
+            },
+        ];
+        let v = offline_report_view(
+            50000,
+            2280,
+            moves,
+            "Mona".into(),
+            "2026-06-24T09:00:00+03:00".into(),
+            "2026-06-24T21:00:00+03:00".into(),
+        );
+        assert_eq!(v.expected_cash_minor, 52280);
+        assert_eq!(v.opening_cash_minor, 50000);
+        assert!(!v.from_server);
+        assert!(v.payment_lines.is_empty());
+        // Pay-in / pay-out split derived from the queued movements.
+        assert_eq!(v.cash_in_minor, 5000);
+        assert_eq!(v.cash_out_minor, 1500);
+        assert_eq!(v.cash_movements_net_minor, 3500);
+        assert_eq!(v.cash_movements.len(), 2);
+    }
+
+    #[test]
+    fn report_view_adds_queued_cash_to_server_expected() {
+        let mut report = models::ShiftReportResponse::default();
+        report.expected_cash = 60000;
+        report.shift = Box::new(models::Shift {
+            opening_cash: 50000,
+            ..Default::default()
+        });
+        report.total_payments = 15000;
+        report.payment_summary = vec![models::PaymentSummaryRow::new(
+            true,
+            3,
+            "Cash".into(),
+            12000,
+        )];
+        let v = report_view(&report, 2280);
+        assert_eq!(v.expected_cash_minor, 62280); // 60000 + 2280 queued
+        assert_eq!(v.opening_cash_minor, 50000);
+        assert_eq!(v.total_payments_minor, 15000);
+        assert_eq!(v.payment_lines.len(), 1);
+        assert_eq!(v.payment_lines[0].total_minor, 12000);
+        assert!(v.from_server);
+    }
+
+    // ── cached_report_view: the offline close of a shift that already sold ────
+
+    /// The regression this exists for: a teller signs into a shift that ALREADY
+    /// has sales (opened on another device, or their own already-drained ones),
+    /// then loses the network and closes. The outbox holds none of those sales,
+    /// so rebuilding from local state alone expects only the opening float and
+    /// the drawer reads a huge phantom "over".
+    #[test]
+    fn cached_report_view_keeps_the_server_figures_a_drained_shift_already_had() {
+        let mut report = models::ShiftReportResponse::default();
+        report.expected_cash = 60000; // opening 50000 + 10000 already taken
+        report.shift = Box::new(models::Shift {
+            opening_cash: 50000,
+            ..Default::default()
+        });
+        report.total_payments = 10000;
+        report.payment_summary = vec![models::PaymentSummaryRow::new(
+            true,
+            4,
+            "Cash".into(),
+            10000,
+        )];
+
+        // Nothing of this is in the outbox — it all drained before we went offline.
+        let v = cached_report_view(&report, 0, vec![]);
+
+        // The old offline path returned opening cash (50000) and no payments.
+        assert_eq!(v.expected_cash_minor, 60000);
+        assert_eq!(v.total_payments_minor, 10000);
+        assert_eq!(v.payment_lines.len(), 1);
+        // Real figures, but a snapshot — the teller still sees "offline".
+        assert!(!v.from_server);
+    }
+
+    #[test]
+    fn cached_report_view_adds_queued_work_on_top_without_double_counting() {
+        let mut report = models::ShiftReportResponse::default();
+        report.expected_cash = 60000;
+        report.shift = Box::new(models::Shift {
+            opening_cash: 50000,
+            ..Default::default()
+        });
+        // The server already knows about this drained pay-in.
+        report.cash_movements = vec![models::CashMovementSummaryRow {
+            amount: 2000,
+            note: "float top-up".into(),
+            moved_by_name: "Mona".into(),
+            ..Default::default()
+        }];
+        report.cash_movements_in = 2000;
+        report.cash_movements_net = 2000;
+
+        // …and these two are still sitting in our outbox, undrained.
+        let queued = vec![
+            TillReportCashLine {
+                amount_minor: 1500,
+                note: "pay-in".into(),
+                moved_by_name: "Ali".into(),
+                created_at: "2026-09-06T10:00:00Z".into(),
+            },
+            TillReportCashLine {
+                amount_minor: -500,
+                note: "pay-out".into(),
+                moved_by_name: "Ali".into(),
+                created_at: "2026-09-06T11:00:00Z".into(),
+            },
+        ];
+        let v = cached_report_view(&report, 3000, queued);
+
+        assert_eq!(v.expected_cash_minor, 63000); // 60000 + 3000 queued cash sales
+                                                  // The drained movement is listed once, alongside the two queued ones.
+        assert_eq!(v.cash_movements.len(), 3);
+        assert_eq!(v.cash_in_minor, 3500); // 2000 drained + 1500 queued
+        assert_eq!(v.cash_out_minor, 500);
+        assert_eq!(v.cash_movements_net_minor, 3000);
+        assert!(!v.from_server);
+    }
+
+
+    // ── report_view: full field projection + movements + ordering ─────────────
+
+    #[test]
+    fn report_view_projects_every_field_and_preserves_movement_order() {
+        let mut report = models::ShiftReportResponse::default();
+        report.expected_cash = 30000;
+        report.shift = Box::new(models::Shift {
+            opening_cash: 20000,
+            ..Default::default()
+        });
+        report.total_payments = 9000;
+        report.net_payments = 8500; // distinct from total (a void)
+        report.voided_amount = 500;
+        report.cash_movements_net = 1200;
+        report.cash_movements_in = 3000;
+        report.cash_movements_out = 1800;
+        report.payment_summary = vec![
+            models::PaymentSummaryRow::new(true, 2, "Cash".into(), 5000),
+            models::PaymentSummaryRow::new(false, 1, "Card".into(), 4000),
+        ];
+        report.cash_movements = vec![
+            models::CashMovementSummaryRow {
+                amount: 3000,
+                note: "float".into(),
+                moved_by_name: "Mona".into(),
+                ..Default::default()
+            },
+            models::CashMovementSummaryRow {
+                amount: -1800,
+                note: "".into(),
+                moved_by_name: "Ali".into(),
+                ..Default::default()
+            },
+        ];
+        let v = report_view(&report, 0);
+        // Every server figure mapped through verbatim (queued = 0 here).
+        assert_eq!(v.expected_cash_minor, 30000);
+        assert_eq!(v.net_payments_minor, 8500);
+        assert_eq!(v.voided_amount_minor, 500);
+        assert_eq!(v.cash_movements_net_minor, 1200);
+        assert_eq!(v.cash_in_minor, 3000);
+        assert_eq!(v.cash_out_minor, 1800);
+        // Payment lines keep order and per-row fields.
+        assert_eq!(v.payment_lines.len(), 2);
+        assert_eq!(v.payment_lines[0].method, "Cash");
+        assert!(v.payment_lines[0].is_cash);
+        assert_eq!(v.payment_lines[0].order_count, 2);
+        assert_eq!(v.payment_lines[1].method, "Card");
+        assert!(!v.payment_lines[1].is_cash);
+        // Movement order preserved; note + signed amount mapped.
+        assert_eq!(v.cash_movements.len(), 2);
+        assert_eq!(v.cash_movements[0].amount_minor, 3000);
+        assert_eq!(v.cash_movements[0].note, "float");
+        assert_eq!(v.cash_movements[0].moved_by_name, "Mona");
+        assert_eq!(v.cash_movements[1].amount_minor, -1800);
+        assert_eq!(v.cash_movements[1].moved_by_name, "Ali");
+    }
+
+    #[test]
+    fn report_view_default_response_is_all_zero_and_empty() {
+        // A defaulted server response (no sales, no movements) projects cleanly.
+        let report = models::ShiftReportResponse::default();
+        let v = report_view(&report, 0);
+        assert_eq!(v.expected_cash_minor, 0);
+        assert_eq!(v.opening_cash_minor, 0);
+        assert_eq!(v.total_payments_minor, 0);
+        assert_eq!(v.net_payments_minor, 0);
+        assert_eq!(v.voided_amount_minor, 0);
+        assert_eq!(v.cash_in_minor, 0);
+        assert_eq!(v.cash_out_minor, 0);
+        assert!(v.payment_lines.is_empty());
+        assert!(v.cash_movements.is_empty());
+        assert!(v.from_server);
+    }
+
+    #[test]
+    fn report_view_negative_queued_cash_lowers_expected() {
+        // queued_cash is just added — a negative (net cash refund queued) lowers it.
+        let mut report = models::ShiftReportResponse::default();
+        report.expected_cash = 60000;
+        let v = report_view(&report, -1500);
+        assert_eq!(v.expected_cash_minor, 58500);
+    }
+
+    // ── offline_report_view: cash split / net / empties / boundaries ──────────
+
+    #[test]
+    fn offline_report_view_empty_movements_is_pure_opening_plus_queued() {
+        let v = offline_report_view(
+            50000,
+            2280,
+            vec![],
+            "Mona".into(),
+            "2026-06-24T09:00:00+03:00".into(),
+            "2026-06-24T21:00:00+03:00".into(),
+        );
+        assert_eq!(v.expected_cash_minor, 52280);
+        assert_eq!(v.opening_cash_minor, 50000);
+        assert_eq!(v.cash_in_minor, 0);
+        assert_eq!(v.cash_out_minor, 0);
+        assert_eq!(v.cash_movements_net_minor, 0);
+        assert!(v.cash_movements.is_empty());
+        assert!(v.payment_lines.is_empty());
+        assert!(!v.from_server);
+        // Sales figures are always zero in the offline fallback.
+        assert_eq!(v.total_payments_minor, 0);
+        assert_eq!(v.net_payments_minor, 0);
+        assert_eq!(v.voided_amount_minor, 0);
+    }
+
+    #[test]
+    fn offline_report_view_zero_amount_movement_counts_as_neither_in_nor_out() {
+        // amount == 0 is excluded from both the >0 and <0 filters (boundary).
+        let moves = vec![TillReportCashLine {
+            amount_minor: 0,
+            note: "noop".into(),
+            moved_by_name: "Mona".into(),
+            created_at: "t".into(),
+        }];
+        let v = offline_report_view(
+            10000,
+            0,
+            moves,
+            "Mona".into(),
+            "2026-06-24T09:00:00+03:00".into(),
+            "2026-06-24T21:00:00+03:00".into(),
+        );
+        assert_eq!(v.cash_in_minor, 0);
+        assert_eq!(v.cash_out_minor, 0);
+        assert_eq!(v.cash_movements_net_minor, 0);
+        assert_eq!(v.cash_movements.len(), 1); // still itemised
+    }
+
+    #[test]
+    fn offline_report_view_only_pay_outs_net_is_negative() {
+        let moves = vec![
+            TillReportCashLine {
+                amount_minor: -2000,
+                note: "supplier".into(),
+                moved_by_name: "Ali".into(),
+                created_at: "t".into(),
+            },
+            TillReportCashLine {
+                amount_minor: -500,
+                note: "tips".into(),
+                moved_by_name: "Ali".into(),
+                created_at: "t".into(),
+            },
+        ];
+        let v = offline_report_view(
+            30000,
+            0,
+            moves,
+            "Mona".into(),
+            "2026-06-24T09:00:00+03:00".into(),
+            "2026-06-24T21:00:00+03:00".into(),
+        );
+        assert_eq!(v.cash_in_minor, 0);
+        assert_eq!(v.cash_out_minor, 2500); // stored as a positive magnitude
+        assert_eq!(v.cash_movements_net_minor, -2500);
+    }
+
+    #[test]
+    fn offline_report_view_preserves_given_movement_order() {
+        // The fallback itemises the movements exactly as handed in (newest-first
+        // is the caller's responsibility) — no reordering.
+        let moves = vec![
+            TillReportCashLine {
+                amount_minor: 100,
+                note: "a".into(),
+                moved_by_name: "X".into(),
+                created_at: "3".into(),
+            },
+            TillReportCashLine {
+                amount_minor: 200,
+                note: "b".into(),
+                moved_by_name: "X".into(),
+                created_at: "2".into(),
+            },
+            TillReportCashLine {
+                amount_minor: 300,
+                note: "c".into(),
+                moved_by_name: "X".into(),
+                created_at: "1".into(),
+            },
+        ];
+        let v = offline_report_view(
+            0,
+            0,
+            moves,
+            "Mona".into(),
+            "2026-06-24T09:00:00+03:00".into(),
+            "2026-06-24T21:00:00+03:00".into(),
+        );
+        assert_eq!(v.cash_movements[0].note, "a");
+        assert_eq!(v.cash_movements[1].note, "b");
+        assert_eq!(v.cash_movements[2].note, "c");
+        assert_eq!(v.cash_in_minor, 600);
+    }
+
+    // ── cash_movement_view ────────────────────────────────────────────────────
+
+    #[test]
+    fn cash_movement_view_maps_fields_and_widens_amount() {
+        let m = models::CashMovement {
+            amount: -1500, // i32 → i64
+            note: "supplier".into(),
+            moved_by_name: "Mona".into(),
+            created_at: chrono::DateTime::parse_from_rfc3339("2026-06-20T09:30:00+02:00").unwrap(),
+            ..Default::default()
+        };
+        let v = cash_movement_view(&m);
+        assert_eq!(v.amount_minor, -1500_i64);
+        assert_eq!(v.note, "supplier");
+        assert_eq!(v.moved_by_name, "Mona");
+        // created_at is rendered as an RFC3339 string in the source offset.
+        assert!(v.created_at.starts_with("2026-06-20T09:30:00"));
+        // id comes from the model's uuid (defaulted → all-zero uuid).
+        assert_eq!(v.id, "00000000-0000-0000-0000-000000000000");
+    }
+
+    #[test]
+    fn cash_movement_view_positive_amount_kept() {
+        let m = models::CashMovement {
+            amount: 4200,
+            ..Default::default()
+        };
+        let v = cash_movement_view(&m);
+        assert_eq!(v.amount_minor, 4200);
+    }
+
+    #[test]
+    fn cash_movement_view_prefers_client_ref_as_identity() {
+        // A synced-from-offline movement: the server echoes the client_ref. The view
+        // must adopt it as `id` (the cross-boundary identity), NOT the server uuid, so
+        // the still-queued copy dedups against it (otherwise the drawer double-counts).
+        let cref = uuid::Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap();
+        let server_id = uuid::Uuid::parse_str("99999999-9999-9999-9999-999999999999").unwrap();
+        let m = models::CashMovement {
+            id: server_id,
+            client_ref: Some(Some(cref)),
+            ..Default::default()
+        };
+        assert_eq!(
+            cash_movement_view(&m).id,
+            cref.to_string(),
+            "must use client_ref, not server id"
+        );
+        // A live online-only movement (no client_ref) falls back to the server id.
+        let m2 = models::CashMovement {
+            id: server_id,
+            ..Default::default()
+        };
+        assert_eq!(cash_movement_view(&m2).id, server_id.to_string());
+    }
+
+    #[test]
+    fn merge_cash_for_view_dedups_synced_movement() {
+        let view = |id: &str, amt: i64| CashMovementView {
+            id: id.into(),
+            kind: "pay_in".into(),
+            amount_minor: amt,
+            note: String::new(),
+            moved_by_name: String::new(),
+            created_at: String::new(),
+        };
+        // 'ref-1' synced (server row id == client_ref) AND still queued → must dedup.
+        let server = vec![view("ref-1", 100)];
+        let queued = vec![view("ref-1", 100), view("ref-2", 50)]; // ref-2 is offline-only
+        let merged = merge_cash_for_view(server, queued);
+        assert_eq!(
+            merged.len(),
+            2,
+            "a synced movement must not double the drawer"
+        );
+        assert_eq!(merged.iter().filter(|m| m.id == "ref-1").count(), 1);
+        // Drawer net is correct (150), not double-counted (would be 250).
+        assert_eq!(merged.iter().map(|m| m.amount_minor).sum::<i64>(), 150);
+    }
+
+    // ── till_summary_view: Option<Option<T>> flatten ────────────────────────
+
+
+
+
+    // ── view_from / current / save / clear / close_local ─────────────────────
+
+
+
+
+
+
+
+
+    // ── suggested opening cash: clamp boundary ───────────────────────────────
+
+    #[test]
+    fn cache_suggested_opening_cash_clamps_negative_to_zero_exactly() {
+        let store = Store::open("").unwrap();
+        cache_suggested_opening_cash(&store, 0).unwrap(); // boundary: 0 stays 0
+        assert_eq!(suggested_opening_cash(&store).unwrap(), 0);
+        cache_suggested_opening_cash(&store, -1).unwrap(); // just below clamps
+        assert_eq!(suggested_opening_cash(&store).unwrap(), 0);
+        cache_suggested_opening_cash(&store, 1).unwrap(); // just above kept
+        assert_eq!(suggested_opening_cash(&store).unwrap(), 1);
+    }
+
+    #[test]
+    fn suggested_opening_cash_defaults_to_zero_on_garbage() {
+        let store = Store::open("").unwrap();
+        store
+            .kv_put(SUGGESTED_OPEN_CASH_KEY, "not-a-number")
+            .unwrap();
+        // Unparseable cached value falls back to 0, not an error.
+        assert_eq!(suggested_opening_cash(&store).unwrap(), 0);
+    }
+
+    // ── reconcile: remaining matrix corners ──────────────────────────────────
+
+
+
+
+
+    // Property-based: the OFFLINE Z-report cash math (expected = opening + queued
+    // cash; cash_in/out split by movement sign) must equal an independent
+    // re-statement for any movement mix — this is the drawer figure a teller
+    // reconciles against when the shift closed with no connectivity.
+    mod cash_proptests {
+        use super::*;
+        use proptest::prelude::*;
+
+        fn movement(amount_minor: i64) -> TillReportCashLine {
+            TillReportCashLine {
+                amount_minor,
+                note: String::new(),
+                moved_by_name: String::new(),
+                created_at: String::new(),
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn offline_report_cash_math(
+                opening in 0i64..10_000_000,
+                queued in 0i64..10_000_000,
+                amounts in prop::collection::vec(-1_000_000i64..1_000_000, 0..30),
+            ) {
+                let movements: Vec<TillReportCashLine> =
+                    amounts.iter().map(|&a| movement(a)).collect();
+                let r = offline_report_view(
+                    opening, queued, movements, "T".into(), "o".into(), "p".into());
+
+                // Expected drawer cash = opening float + still-queued cash sales.
+                prop_assert_eq!(r.expected_cash_minor, opening + queued);
+                // Movements split by sign; both legs non-negative; net is in − out.
+                let exp_in: i64 = amounts.iter().filter(|&&a| a > 0).sum();
+                let exp_out: i64 = amounts.iter().filter(|&&a| a < 0).map(|a| -a).sum();
+                prop_assert_eq!(r.cash_in_minor, exp_in);
+                prop_assert_eq!(r.cash_out_minor, exp_out);
+                prop_assert!(r.cash_in_minor >= 0 && r.cash_out_minor >= 0);
+                prop_assert_eq!(r.cash_movements_net_minor, exp_in - exp_out);
+                prop_assert!(r.is_open);
+                prop_assert!(!r.from_server);
+            }
+        }
+    }
+}
