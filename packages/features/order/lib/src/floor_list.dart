@@ -536,8 +536,7 @@ class FloorListView extends StatelessWidget {
     };
     final guest = (r.ticket?.customerName ?? r.table.heldOrderName)?.trim();
     final meta = <String>[
-      if (seated != null)
-        MadarFormat.ltr(MadarFormat.elapsed(seated, locale: locale)),
+      if (seated != null) MadarFormat.elapsed(seated, locale: locale),
       if (model.covers case final n? when model.occupied)
         '$n ${words.guests}'
       else if (!model.occupied)

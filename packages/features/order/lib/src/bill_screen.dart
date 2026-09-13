@@ -131,11 +131,18 @@ class _BillScreenState extends ConsumerState<BillScreen>
     if (mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
   }
 
-  /// ⋯ — Move table, Void bill. Guest name and covers are not here: nothing
+  /// ⋯ — Move table, Void bill (and, on a phone, History and Unseat). Guest name and covers are not here: nothing
   /// on the bridge updates a ticket's header after its first round.
-  Future<void> _more(TicketView t) async {
+  Future<void> _more(TicketView t, {bool phone = false}) async {
     final bridge = ref.read(bridgeProvider);
     final hasFloor = ref.read(orderProvider).hasFloor;
+    final label = ref
+        .read(orderProvider)
+        .floorLayout
+        ?.tables
+        .where((x) => x.id == t.tableId)
+        .firstOrNull
+        ?.label;
     await showMadarSheet<void>(
       context,
       size: SheetSize.hug,
@@ -147,6 +154,22 @@ class _BillScreenState extends ConsumerState<BillScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.sm,
           children: [
+            if (phone && t.tableId != null && label != null)
+              MadarButton(
+                label: bridge.tr(key: 'tables.history'),
+                glyph: MadarGlyph.clock,
+                variant: MadarButtonVariant.secondary,
+                onTap: () {
+                  Navigator.of(sheetContext).maybePop();
+                  unawaited(
+                    showTableHistory(
+                      context,
+                      tableId: t.tableId!,
+                      label: label,
+                    ),
+                  );
+                },
+              ),
             if (t.tableId != null && hasFloor)
               MadarButton(
                 label: bridge.tr(key: 'tables.move'),
@@ -155,6 +178,16 @@ class _BillScreenState extends ConsumerState<BillScreen>
                 onTap: () {
                   Navigator.of(sheetContext).maybePop();
                   unawaited(_move(t));
+                },
+              ),
+            if (phone && t.tableId != null)
+              MadarButton(
+                label: orderWord(bridge, 'floor.unseat'),
+                glyph: MadarGlyph.users,
+                variant: MadarButtonVariant.ghost,
+                onTap: () {
+                  Navigator.of(sheetContext).maybePop();
+                  unawaited(_unseat(t));
                 },
               ),
             MadarButton(
@@ -290,16 +323,15 @@ class _BillScreenState extends ConsumerState<BillScreen>
     final opened = DateTime.tryParse(ticket.openedAt);
     final seatedFor = opened == null
         ? null
-        : formatSeatedFor(
+        : MadarFormat.elapsed(
             DateTime.now().toUtc().difference(opened.toUtc()),
-            units: DurationUnits.of(bridge),
+            locale: ref.watch(localeProvider).locale,
           );
     // On a phone the tag and the ⋯ leave the title no room for a ref, so
     // the ref steps down a line; the table stays the largest thing.
-    final refInTitle = layout.isTablet;
     final subtitle = [
-      if (!refInTitle && ticket.ticketRef != null && tableLabel != null)
-        ticket.ticketRef!,
+      if (ticket.ticketRef != null && tableLabel != null)
+        MadarFormat.ltr(ticket.ticketRef!),
       if (ticket.guestCount != null && ticket.guestCount! > 0)
         '${ticket.guestCount} ${bridge.tr(key: 'tables.guests')}',
       if (ticket.waiterName?.trim().isNotEmpty ?? false) ticket.waiterName!,
@@ -312,22 +344,31 @@ class _BillScreenState extends ConsumerState<BillScreen>
     final ready = ticket.ready;
     final queued = ticket.queuedOffline || ticket.status == 'queued';
 
-    final headerActions = <Widget>[
+    final pills = <Widget>[
       if (ready)
-        MadarTag(
-          label: orderWord(bridge, 'bill.ready'),
-          tone: MadarTone.success,
-          glyph: MadarGlyph.checkCircle,
+        MadarStatusPill(
+          MadarStatus(
+            orderWord(bridge, 'bill.ready'),
+            tone: MadarTone.success,
+            glyph: MadarGlyph.checkCircle,
+          ),
         ),
       if (queued)
-        MadarTag(
-          label: orderWord(bridge, 'bill.queued'),
-          tone: MadarTone.warning,
-          glyph: MadarGlyph.half,
+        MadarStatusPill(
+          MadarStatus(
+            orderWord(bridge, 'bill.queued'),
+            tone: MadarTone.warning,
+            glyph: MadarGlyph.wifiOff,
+          ),
         ),
+    ];
+    // A phone's header has room for the ⋯ alone; the doors move into it.
+    final wide = layout.isTablet;
+    final headerActions = <Widget>[
+      if (wide) ...pills,
       // The table's own doors, from its bill: where it has been, where the
       // party goes next, unseating, and back to the table's floor sheet.
-      if (ticket.tableId != null && tableLabel != null)
+      if (wide && ticket.tableId != null && tableLabel != null)
         MadarGlyphTile(
           key: const ValueKey('bill.history'),
           glyph: MadarGlyph.clock,
@@ -340,21 +381,21 @@ class _BillScreenState extends ConsumerState<BillScreen>
             ),
           ),
         ),
-      if (ticket.tableId != null && state.hasFloor)
+      if (wide && ticket.tableId != null && state.hasFloor)
         MadarGlyphTile(
           key: const ValueKey('bill.move'),
           glyph: MadarGlyph.move,
           semanticLabel: bridge.tr(key: 'tables.move'),
           onTap: () => unawaited(_move(ticket)),
         ),
-      if (ticket.tableId != null)
+      if (wide && ticket.tableId != null)
         MadarGlyphTile(
           key: const ValueKey('bill.unseat'),
           glyph: MadarGlyph.users,
           semanticLabel: orderWord(bridge, 'floor.unseat'),
           onTap: () => unawaited(_unseat(ticket)),
         ),
-      if (ticket.tableId != null && state.hasFloor)
+      if (wide && ticket.tableId != null && state.hasFloor)
         MadarGlyphTile(
           key: const ValueKey('bill.table_actions'),
           glyph: MadarGlyph.table,
@@ -367,49 +408,45 @@ class _BillScreenState extends ConsumerState<BillScreen>
       MadarGlyphTile(
         glyph: MadarGlyph.more,
         semanticLabel: bridge.tr(key: 'chrome.more'),
-        onTap: () => unawaited(_more(ticket)),
+        onTap: () => unawaited(_more(ticket, phone: !wide)),
       ),
     ];
 
-    final body = ListView(
-      padding: EdgeInsetsDirectional.symmetric(
-        horizontal: layout.gutter,
-        vertical: Space.md,
-      ),
-      children: [
-        if (rounds.isEmpty)
-          MadarCard(
-            child: Text(
-              bridge.tr(key: 'tables.bill_pending'),
-              style: MadarType.body.copyWith(color: colors.textMuted),
-            ),
+    final roundsColumn = <Widget>[
+      if (!wide && pills.isNotEmpty) ...[
+        Wrap(spacing: Space.sm, runSpacing: Space.sm, children: pills),
+        const SizedBox(height: Space.lg),
+      ],
+      if (rounds.isEmpty)
+        MadarCard(
+          child: Text(
+            bridge.tr(key: 'tables.bill_pending'),
+            style: MadarType.body.copyWith(color: colors.textMuted),
           ),
-        for (final round in rounds) ...[
-          _RoundCard(
-            round: round,
-            currency: currency,
-            roundWord: bridge.tr(key: 'tables.round'),
-            voidedWord: orderWord(bridge, 'bill.voided'),
-            onVoidLine: (line) => unawaited(_voidLine(ticket, line)),
-            time: round.firedAt.isEmpty
-                ? ''
-                : bridge.formatTime(
-                    rfc3339: round.firedAt,
-                    style: TimeStyle.time,
-                  ),
-          ),
-          const SizedBox(height: Space.md),
-        ],
-        // The bill as the SERVER prices it — the figure the drawer collects.
-        // Without one (a fire that has not synced) the subtotal shows, named
-        // as a subtotal, rather than passing itself off as a total.
-        _BillTotals(
-          bill: ticket.bill,
-          subtotalMinor: ticket.subtotalMinor,
+        ),
+      for (final (i, round) in rounds.indexed) ...[
+        if (i > 0) const SizedBox(height: Space.xl),
+        _RoundCard(
+          round: round,
           currency: currency,
-          bridge: bridge,
+          roundWord: bridge.tr(key: 'tables.round'),
+          voidedWord: orderWord(bridge, 'bill.voided'),
+          onVoidLine: (line) => unawaited(_voidLine(ticket, line)),
+          time: round.firedAt.isEmpty
+              ? ''
+              : bridge.formatTime(
+                  rfc3339: round.firedAt,
+                  style: TimeStyle.time,
+                ),
         ),
       ],
+    ];
+    // The bill as the SERVER prices it — the figure the drawer collects.
+    final totals = _BillTotals(
+      bill: ticket.bill,
+      subtotalMinor: ticket.subtotalMinor,
+      currency: currency,
+      bridge: bridge,
     );
 
     final addRound = MadarButton(
@@ -423,9 +460,7 @@ class _BillScreenState extends ConsumerState<BillScreen>
     final charge = canCharge
         ? MadarMoneyBar(
             label: orderWord(bridge, 'sell.charge'),
-            // What the drawer will actually take. The button used to say the
-            // subtotal while the tender screen collected the total — the same
-            // discrepancy, on the same bill, one tap apart.
+            // What the drawer will actually take — the total, not the lines.
             amountMinor: ticket.bill?.totalMinor ?? ticket.subtotalMinor,
             currency: currency,
             enabled: state.shiftOpen && !state.isBusy,
@@ -436,60 +471,89 @@ class _BillScreenState extends ConsumerState<BillScreen>
             onTap: () => unawaited(_charge(ticket, title)),
           )
         : null;
-    // Side by side on an iPad; stacked on a phone, where a money bar with
-    // its figure and a labelled button do not share 358 points.
-    final footer = Padding(
-      padding: EdgeInsetsDirectional.fromSTEB(
-        layout.gutter,
-        Space.md,
-        layout.gutter,
-        Space.md,
-      ),
-      child: layout.isTablet || charge == null
-          ? Row(
-              spacing: Space.md,
-              children: [
-                Expanded(child: addRound),
-                if (charge != null) Expanded(child: charge),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.sm,
-              children: [addRound, charge],
-            ),
-    );
 
     return MadarPageScaffold(
-      title: ticket.ticketRef == null || tableLabel == null || !refInTitle
-          ? title
-          : '$title · ${ticket.ticketRef}',
+      title: title,
       subtitle: subtitle.isEmpty ? null : subtitle,
+      width: MadarContentWidth.full,
       actions: headerActions,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: Responsive.billMaxWidth),
-          child: Column(
+      body: LayoutBuilder(
+        builder: (context, box) {
+          // Wide: the rounds at the start, the money and its two acts in a
+          // column at the end — the total never scrolls away from Charge.
+          if (layout.isTablet && box.maxWidth >= 860) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+                    children: roundsColumn,
+                  ),
+                ),
+                const SizedBox(width: Space.xl),
+                SizedBox(
+                  width: 360,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      spacing: Space.md,
+                      children: [totals, ?charge, addRound],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: body),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+                  children: [
+                    ...roundsColumn,
+                    const SizedBox(height: Space.xl),
+                    totals,
+                  ],
+                ),
+              ),
               const MadarHairline(),
-              footer,
+              Padding(
+                padding: EdgeInsetsDirectional.only(
+                  top: Space.md,
+                  bottom: Space.md + MediaQuery.paddingOf(context).bottom,
+                ),
+                child: layout.isTablet || charge == null
+                    ? Row(
+                        spacing: Space.md,
+                        children: [
+                          Expanded(child: addRound),
+                          if (charge != null) Expanded(child: charge),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: Space.sm,
+                        children: [charge, addRound],
+                      ),
+              ),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 }
 
-/// The money at the foot of a bill.
+/// The money at the foot of a bill, as summary lines in one card.
 ///
-/// One card, and which lines it shows is decided by what the server sent: a
-/// discount line only when something was taken off, a service line only when
-/// one was charged, and the tax line worded by whether the menu prices already
-/// contain it. The hero is the TOTAL — what the drawer collects — except on a
-/// bill the server has not priced yet, where it is honestly a subtotal.
+/// Which lines show is decided by what the server sent: a discount only when
+/// something was taken off, service only when charged, tax worded by whether
+/// the menu prices already contain it. The emphasised line is the TOTAL — what
+/// the drawer collects — except on a bill the server has not priced yet,
+/// where it is honestly a subtotal.
 class _BillTotals extends StatelessWidget {
   const _BillTotals({
     required this.bill,
@@ -507,25 +571,6 @@ class _BillTotals extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final b = bill;
-    Widget line(String label, int minor, {bool negative = false}) => Padding(
-      padding: const EdgeInsetsDirectional.only(bottom: Space.xs),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: MadarType.body.copyWith(color: colors.textSecondary),
-            ),
-          ),
-          MoneyText(
-            negative ? -minor : minor,
-            currency: currency,
-            style: MadarType.money,
-            color: colors.textSecondary,
-          ),
-        ],
-      ),
-    );
     final rate = b == null || b.taxRate <= 0
         ? ''
         : ' ${Money.ratePercent(b.taxRate)}%';
@@ -534,49 +579,45 @@ class _BillTotals extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (b != null) ...[
-            line(bridge.tr(key: 'order.subtotal'), b.subtotalMinor),
+            MadarSummaryLine(
+              label: bridge.tr(key: 'order.subtotal'),
+              minor: b.subtotalMinor,
+              currency: currency,
+            ),
             if (b.discountMinor > 0)
-              line(
-                bridge.tr(key: 'order.discount'),
-                b.discountMinor,
-                negative: true,
+              MadarSummaryLine(
+                label: bridge.tr(key: 'order.discount'),
+                minor: -b.discountMinor,
+                currency: currency,
               ),
             if (b.serviceChargeMinor > 0)
-              line(
-                bridge.tr(key: 'order.service_charge'),
-                b.serviceChargeMinor,
-              ),
-            // Inclusive tax is already inside the total, so it reads as a
-            // note under it rather than a term added to it.
-            if (b.taxMinor > 0 && !b.taxInclusive)
-              line('${bridge.tr(key: 'order.tax')}$rate', b.taxMinor),
-            const MadarHairline(),
-            const SizedBox(height: Space.xs),
-          ],
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  bridge.tr(key: b == null ? 'order.subtotal' : 'order.total'),
-                  style: MadarType.h3.copyWith(color: colors.textPrimary),
-                ),
-              ),
-              MoneyText(
-                b?.totalMinor ?? subtotalMinor,
+              MadarSummaryLine(
+                label: bridge.tr(key: 'order.service_charge'),
+                minor: b.serviceChargeMinor,
                 currency: currency,
-                style: MadarType.moneyLg,
-                color: colors.textPrimary,
               ),
-            ],
+            // Inclusive tax is already inside the total: a note under it,
+            // not a term added to it.
+            if (b.taxMinor > 0 && !b.taxInclusive)
+              MadarSummaryLine(
+                label: '${bridge.tr(key: 'order.tax')}$rate',
+                minor: b.taxMinor,
+                currency: currency,
+              ),
+            const SizedBox(height: Space.xs),
+            const MadarHairline(light: true),
+          ],
+          MadarSummaryLine(
+            label: bridge.tr(key: b == null ? 'order.subtotal' : 'order.total'),
+            minor: b?.totalMinor ?? subtotalMinor,
+            currency: currency,
+            emphasis: true,
           ),
           if (b != null && b.taxInclusive && b.taxMinor > 0)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(top: Space.xs),
-              child: Text(
-                '${bridge.tr(key: 'charge.vat_included')}$rate '
-                '${Money.format(b.taxMinor, currency: currency)}',
-                style: MadarType.bodySm.copyWith(color: colors.textMuted),
-              ),
+            Text(
+              '${bridge.tr(key: 'charge.vat_included')}$rate '
+              '${Money.format(b.taxMinor, currency: currency, locale: MadarFormat.localeOf(context))}',
+              style: MadarType.bodySm.copyWith(color: colors.textMuted),
             ),
         ],
       ),
@@ -584,7 +625,7 @@ class _BillTotals extends StatelessWidget {
   }
 }
 
-/// One round: "ROUND 1 · 19:02" over its lines.
+/// One round: a section header ("ROUND 1", its time) over a card of lines.
 class _RoundCard extends StatelessWidget {
   const _RoundCard({
     required this.round,
@@ -605,62 +646,63 @@ class _RoundCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return MadarCard(
-      flush: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              Space.card,
-              Space.lg,
-              Space.card,
-              Space.xs,
-            ),
-            child: MadarSectionHeader(
-              text: '$roundWord ${round.number}',
-              trailing: time.isEmpty
-                  ? null
-                  : Text(
-                      time,
-                      textDirection: TextDirection.ltr,
-                      style: MadarType.num.copyWith(color: colors.textMuted),
-                    ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        MadarSectionHeader(
+          text: '$roundWord ${round.number}',
+          trailing: time.isEmpty
+              ? null
+              : Text(
+                  time,
+                  textDirection: TextDirection.ltr,
+                  style: MadarType.num.copyWith(color: colors.textMuted),
+                ),
+        ),
+        const SizedBox(height: Space.md),
+        MadarCard(
+          flush: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final (i, line) in round.lines.indexed) ...[
+                if (i > 0) const MadarHairline(light: true),
+                MadarRow(
+                  // A voided line is history: nothing to tap.
+                  onTap: line.voided ? null : () => onVoidLine(line),
+                  title: '${line.qty}× ${line.name}',
+                  titleStyle: line.voided
+                      ? MadarType.title.copyWith(
+                          color: colors.textMuted,
+                          decoration: TextDecoration.lineThrough,
+                        )
+                      : null,
+                  subtitle: [
+                    if (line.sizeLabel case final s? when s.isNotEmpty) s,
+                    ...line.modifiers,
+                  ].join(' · ').ifEmptyNull,
+                  trailing: line.voided
+                      ? MadarStatusPill(
+                          MadarStatus(voidedWord, tone: MadarTone.danger),
+                        )
+                      : null,
+                  chevron: false,
+                  value: MoneyText(
+                    line.lineTotalMinor,
+                    currency: currency,
+                    color: line.voided ? colors.textMuted : colors.textPrimary,
+                    style: line.voided
+                        ? MadarType.money.copyWith(
+                            decoration: TextDecoration.lineThrough,
+                          )
+                        : null,
+                  ),
+                ),
+              ],
+            ],
           ),
-          for (final line in round.lines)
-            MadarRow(
-              dense: true,
-              // A voided line is history: nothing to tap.
-              onTap: line.voided ? null : () => onVoidLine(line),
-              title: '${line.qty}× ${line.name}',
-              titleStyle: line.voided
-                  ? MadarType.title.copyWith(
-                      color: colors.textMuted,
-                      decoration: TextDecoration.lineThrough,
-                    )
-                  : null,
-              subtitle: [
-                if (line.sizeLabel case final s? when s.isNotEmpty) s,
-                ...line.modifiers,
-              ].join(' · ').ifEmptyNull,
-              trailing: line.voided
-                  ? MadarTag(label: voidedWord, tone: MadarTone.danger)
-                  : null,
-              value: MoneyText(
-                line.lineTotalMinor,
-                currency: currency,
-                color: line.voided ? colors.textMuted : colors.textPrimary,
-                style: line.voided
-                    ? MadarType.money.copyWith(
-                        decoration: TextDecoration.lineThrough,
-                      )
-                    : null,
-              ),
-            ),
-          const SizedBox(height: Space.sm),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

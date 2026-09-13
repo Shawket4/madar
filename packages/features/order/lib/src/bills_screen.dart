@@ -137,11 +137,22 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
     final others = live.where((t) => !mine.contains(t)).toList(growable: false);
     final now = DateTime.now().toUtc();
 
-    Widget group(String title, List<TicketView> list) => Column(
+    Widget group(String? title, List<TicketView> list) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        MadarSectionHeader(text: title),
-        const SizedBox(height: Space.sm),
+        if (title != null) ...[
+          MadarSectionHeader(
+            text: title,
+            trailing: Text(
+              '${list.length}',
+              textDirection: TextDirection.ltr,
+              style: MadarType.numMd.copyWith(
+                color: context.madarColors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: Space.md),
+        ],
         MadarCard(
           flush: true,
           child: Column(
@@ -171,6 +182,8 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
     return MadarPageScaffold(
       safeTop: false,
       title: orderWord(bridge, 'bills.title'),
+      width: MadarContentWidth.reading,
+      glyph: MadarGlyph.receipt,
       actions: [
         if (!state.hasFloor)
           MadarButton(
@@ -182,42 +195,25 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
       ],
       body: SafeArea(
         top: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: Space.md),
-            Expanded(
-              child: live.isEmpty
-                  ? EmptyState(
-                      icon: 'doc.text',
-                      title: bridge.tr(key: 'waiter.no_tickets'),
-                    )
-                  : Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxWidth: Responsive.billMaxWidth,
-                        ),
-                        child: ListView(
-                          padding: EdgeInsetsDirectional.symmetric(
-                            horizontal: layout.gutter,
-                          ),
-                          children: [
-                            if (mine.isNotEmpty)
-                              group(orderWord(bridge, 'bills.mine'), mine),
-                            if (others.isNotEmpty)
-                              group(
-                                mine.isEmpty
-                                    ? orderWord(bridge, 'bills.title')
-                                    : orderWord(bridge, 'bills.others'),
-                                others,
-                              ),
-                          ],
-                        ),
-                      ),
+        child: live.isEmpty
+            ? EmptyState(
+                icon: 'doc.text',
+                title: bridge.tr(key: 'waiter.no_tickets'),
+              )
+            : ListView(
+                padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+                children: [
+                  if (mine.isNotEmpty)
+                    group(orderWord(bridge, 'bills.mine'), mine),
+                  if (others.isNotEmpty)
+                    // A section header only when the list is grouped — never
+                    // "BILLS" under the page's own title.
+                    group(
+                      mine.isEmpty ? null : orderWord(bridge, 'bills.others'),
+                      others,
                     ),
-            ),
-          ],
-        ),
+                ],
+              ),
       ),
     );
   }
@@ -247,46 +243,48 @@ class _BillRow extends StatelessWidget {
     final t = ticket;
     final ready = t.ready;
     final queued = t.queuedOffline || t.status == 'queued';
-    final bar = ready
-        ? colors.success
-        : queued
-        ? colors.warning
-        : colors.accent;
     final opened = DateTime.tryParse(t.openedAt);
     final age = opened == null
         ? null
-        : formatSeatedFor(
+        : MadarFormat.elapsed(
             now.difference(opened.toUtc()),
-            units: DurationUnits.of(bridge),
+            locale: bridge.locale(),
           );
     final rounds = t.lines.isEmpty
         ? 0
         : t.lines.map((l) => l.roundNumber).reduce((a, b) => a > b ? a : b);
-    final subtitle = [
-      if (ready)
-        orderWord(bridge, 'bill.ready')
-      else if (queued)
-        orderWord(bridge, 'bill.queued')
-      else if (rounds > 0)
-        '${bridge.tr(key: 'tables.round')} $rounds',
-      ?age,
-      if (t.waiterName?.trim().isNotEmpty ?? false) t.waiterName!,
-    ].join(' · ');
-    return MadarRow(
-      bar: bar,
+    final total = t.bill?.totalMinor ?? t.subtotalMinor;
+    return MadarListRow.bill(
       title: tableLabel ?? t.customerName ?? t.ticketRef ?? '',
-      subtitle: subtitle,
+      meta: [
+        ?age,
+        if (rounds > 0) '${bridge.tr(key: 'tables.round')} $rounds',
+        if (t.waiterName?.trim().isNotEmpty ?? false) t.waiterName!,
+        if (tableLabel != null && (t.customerName?.trim().isNotEmpty ?? false))
+          t.customerName!,
+      ].join(' · '),
       // What the party owes, as the server priced it — not the lines alone.
-      value: (t.bill?.totalMinor ?? t.subtotalMinor) > 0
-          ? MoneyText(t.bill?.totalMinor ?? t.subtotalMinor, currency: currency)
-          : null,
-      trailing: queued
-          ? MadarGlyphIcon(
-              MadarGlyph.half,
-              size: IconSize.md,
-              color: colors.warning,
+      minor: total > 0 ? total : null,
+      currency: currency,
+      status: ready
+          ? MadarStatus(
+              orderWord(bridge, 'bill.ready'),
+              tone: MadarTone.success,
+              glyph: MadarGlyph.checkCircle,
+            )
+          : queued
+          ? MadarStatus(
+              orderWord(bridge, 'bill.queued'),
+              tone: MadarTone.warning,
+              glyph: MadarGlyph.wifiOff,
             )
           : null,
+      rail: ready
+          ? MadarTone.success
+          : queued
+          ? MadarTone.warning
+          : null,
+      railColor: ready || queued ? null : colors.info,
       onTap: onTap,
     );
   }

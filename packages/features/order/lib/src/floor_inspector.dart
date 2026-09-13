@@ -152,8 +152,7 @@ class FloorWorklist extends StatelessWidget {
       title: r.table.label,
       meta: [
         reason,
-        if (seated != null)
-          MadarFormat.ltr(MadarFormat.elapsed(seated, locale: locale)),
+        if (seated != null) MadarFormat.elapsed(seated, locale: locale),
         if (r.urgency == FloorUrgency.reserved) ?r.table.bookingGuest,
       ].join(' · '),
       minor: r.model.billTotalMinor,
