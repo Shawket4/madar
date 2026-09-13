@@ -37,6 +37,7 @@ fn core_at(base: String, db_path: String) -> Arc<MadarCore> {
         environment: "dev".into(),
         db_path,
         locale: "en".into(),
+        app_version: None,
     })
     .expect("core")
 }
@@ -175,6 +176,7 @@ async fn signed_in_core(fx: &Fixture) -> std::sync::Arc<MadarCore> {
         environment: "dev".into(),
         db_path: String::new(), // in-memory store per test run
         locale: "en".into(),
+        app_version: None,
     })
     .expect("core");
 

@@ -230,7 +230,7 @@ impl MadarCore {
         loop {
             let params = orders_api::ListOrdersParams {
                 branch_id: Some(branch_id.to_string()),
-                shift_id: Some(till_id.to_string()),
+                till_id: Some(till_id.to_string()),
                 updated_after: None,
                 page: Some(page),
                 per_page: Some(200),

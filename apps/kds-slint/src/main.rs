@@ -505,7 +505,7 @@ fn main() {
 
     let core = {
         let _guard = rt().enter(); // core spawns supervisors on this runtime
-        MadarCore::new(MadarConfig { base_url, environment, db_path, locale })
+        MadarCore::new(MadarConfig { base_url, environment, db_path, locale, app_version: None })
             .expect("core boot")
     };
     let _ = core.restore_session_cached();

@@ -25,6 +25,7 @@ pub(crate) struct VoidOrderCommand {
 /// not the one open when the network returned.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct RefundOrderCommand {
+    #[serde(deserialize_with = "crate::till::de_legacy_till_request")]
     pub request: models::CreateRefundRequest,
 }
 
@@ -277,9 +278,9 @@ pub(crate) fn order_refunds_view(r: &models::OrderRefunds) -> OrderRefundsView {
     }
 }
 
-pub(crate) fn till_refunds_view(r: &models::ShiftRefunds) -> TillRefundsView {
+pub(crate) fn till_refunds_view(r: &models::TillRefunds) -> TillRefundsView {
     TillRefundsView {
-        till_id: r.shift_id.to_string(),
+        till_id: r.till_id.to_string(),
         refund_count: r.refund_count,
         refunded_minor: r.refunded_amount,
         refunded_cash_minor: r.refunded_cash,
@@ -594,7 +595,7 @@ pub(crate) fn queued(store: &Store, till_id: &str) -> CoreResult<Vec<OrderSummar
             Err(_) => continue,
         };
         let r = &cmd.request;
-        if r.shift_id.to_string() != till_id {
+        if r.till_id.to_string() != till_id {
             continue;
         }
         out.push(OrderSummaryView {
@@ -1054,6 +1055,7 @@ mod tests {
             1400,  // tax_amount
             uid(33),
             "Tara".into(), // teller_name
+            uid(32),       // till_id (same as the deprecated shift_id)
             11400,         // total_amount
             items,
         );
@@ -1080,6 +1082,7 @@ mod tests {
             total - (total as f64 / 1.14).round() as i32,
             uid(43),
             "Bob".into(),
+            uid(42), // till_id
             total,
         );
         o.status = status.into();
@@ -1459,7 +1462,7 @@ mod tests {
     fn queued_created_at_is_rfc3339_from_request() {
         let store = Store::open("").unwrap();
         let mut req = models::CreateOrderRequest::new(uid(60), vec![], "Cash".into(), uid(61));
-        req.shift_id = uuid::Uuid::parse_str(SHIFT).unwrap();
+        req.till_id = uuid::Uuid::parse_str(SHIFT).unwrap();
         req.created_at = Some(Some(ts()));
         let cmd = CheckoutCommand { request: req, device: None };
         store

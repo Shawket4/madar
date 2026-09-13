@@ -63,6 +63,7 @@ fn v060_store_fixture_boots_a_core_with_the_tellers_till() {
         environment: "dev".into(),
         db_path: path.to_str().unwrap().into(),
         locale: "ar".into(),
+        app_version: None,
     })
     .expect("core boots on a v0.6.0 store");
     assert_eq!(core.pending_outbox_count().unwrap(), 5);

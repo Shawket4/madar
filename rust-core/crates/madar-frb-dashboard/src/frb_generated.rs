@@ -1059,6 +1059,7 @@ const _: fn() = || {
         let _: String = MadarConfig.environment;
         let _: String = MadarConfig.db_path;
         let _: String = MadarConfig.locale;
+        let _: Option<String> = MadarConfig.app_version;
     }
     {
         let SessionSnapshot = None::<crate::api::types::SessionSnapshot>.unwrap();
@@ -1366,11 +1367,13 @@ impl SseDecode for crate::api::types::MadarConfig {
         let mut var_environment = <String>::sse_decode(deserializer);
         let mut var_dbPath = <String>::sse_decode(deserializer);
         let mut var_locale = <String>::sse_decode(deserializer);
+        let mut var_appVersion = <Option<String>>::sse_decode(deserializer);
         return crate::api::types::MadarConfig {
             base_url: var_baseUrl,
             environment: var_environment,
             db_path: var_dbPath,
             locale: var_locale,
+            app_version: var_appVersion,
         };
     }
 }
@@ -1829,6 +1832,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::MadarConfig
             self.0.environment.into_into_dart().into_dart(),
             self.0.db_path.into_into_dart().into_dart(),
             self.0.locale.into_into_dart().into_dart(),
+            self.0.app_version.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2143,6 +2147,7 @@ impl SseEncode for crate::api::types::MadarConfig {
         <String>::sse_encode(self.environment, serializer);
         <String>::sse_encode(self.db_path, serializer);
         <String>::sse_encode(self.locale, serializer);
+        <Option<String>>::sse_encode(self.app_version, serializer);
     }
 }
 

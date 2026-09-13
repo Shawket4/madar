@@ -94,57 +94,22 @@ pub(crate) fn availability_list(
 }
 
 // ── wire ────────────────────────────────────────────────────────────────────
+//
+// The response is the generated `madar_api::models::PullResponse` (one shape for
+// incremental, full and resync pages). Row `data` stays lean JSON: the backend
+// projects each of the 22 types itself and the device stores it verbatim.
 
-/// Per-type count + checksum the server sends on a final page.
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq, Eq, Default)]
-pub(crate) struct TypeChecksum {
-    #[serde(default)]
-    pub count: i64,
-    #[serde(default)]
-    pub checksum: String,
-}
+use madar_api::models::{PullResponse, TypeChecksum};
 
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq)]
-pub(crate) struct ChangeWire {
-    pub seq: i64,
-    #[serde(rename = "type")]
-    pub ty: String,
-    pub id: String,
-    pub op: String,
-    #[serde(default)]
-    pub data: Option<serde_json::Value>,
-}
+type Checksums = std::collections::BTreeMap<String, TypeChecksum>;
 
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq)]
-pub(crate) struct LedgerWindow {
-    pub from: String,
-}
-
-/// Any `/sync/pull` response (incremental, full or resync).
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq, Default)]
-pub(crate) struct PullResponse {
-    #[serde(default)]
-    pub full: bool,
-    #[serde(default)]
-    pub resync_required: bool,
-    #[serde(default)]
-    pub since: Option<i64>,
-    #[serde(default)]
-    pub next: Option<i64>,
-    #[serde(default)]
-    pub has_more: bool,
-    #[serde(default)]
-    pub changes: Vec<ChangeWire>,
-    #[serde(default)]
-    pub types: Vec<String>,
-    #[serde(default)]
-    pub data: std::collections::BTreeMap<String, Vec<serde_json::Value>>,
-    #[serde(default)]
-    pub checksums: std::collections::BTreeMap<String, TypeChecksum>,
-    #[serde(default)]
-    pub ledger_window: Option<LedgerWindow>,
-    #[serde(default)]
-    pub asset_bundle: Option<serde_json::Value>,
+/// The server's per-type checksums (final page only).
+fn server_checksums(resp: &PullResponse) -> Checksums {
+    resp.checksums
+        .clone()
+        .unwrap_or_default()
+        .into_iter()
+        .collect()
 }
 
 /// Every type the POS syncs (§10.1).
@@ -185,10 +150,7 @@ pub(crate) enum PullNext {
 }
 
 /// Compare server checksums with local ones (state types only).
-pub(crate) fn mismatched_types(
-    server: &std::collections::BTreeMap<String, TypeChecksum>,
-    local: &std::collections::BTreeMap<String, TypeChecksum>,
-) -> Vec<String> {
+pub(crate) fn mismatched_types(server: &Checksums, local: &Checksums) -> Vec<String> {
     server
         .iter()
         .filter(|(ty, _)| !is_ledger(ty))
@@ -198,18 +160,15 @@ pub(crate) fn mismatched_types(
 }
 
 #[allow(dead_code)]
-pub(crate) fn decide_next(
-    resp: &PullResponse,
-    local: &std::collections::BTreeMap<String, TypeChecksum>,
-) -> PullNext {
-    if resp.resync_required {
+pub(crate) fn decide_next(resp: &PullResponse, local: &Checksums) -> PullNext {
+    if resp.resync_required.unwrap_or(false) {
         return PullNext::FullFetch;
     }
     if resp.has_more {
         return PullNext::MorePages;
     }
     PullNext::Done {
-        refetch: mismatched_types(&resp.checksums, local),
+        refetch: mismatched_types(&server_checksums(resp), local),
     }
 }
 
@@ -302,10 +261,22 @@ pub(crate) fn apply_page_with(
     store.with_tx(|tx| {
         let mut n = 0u32;
         let is_prot = |ty: &str, id: &str| protected.contains(&(ty.to_string(), id.to_string()));
+        let next = resp.next.flatten();
+        let types = resp.types.clone().unwrap_or_default();
         if resp.full {
-            let window = resp.ledger_window.as_ref().map(|w| w.from.clone());
-            for ty in &resp.types {
-                let rows = resp.data.get(ty).cloned().unwrap_or_default();
+            let window = resp
+                .ledger_window
+                .clone()
+                .flatten()
+                .and_then(|w| parse_ts(&w.from));
+            for ty in &types {
+                let rows: Vec<serde_json::Value> = resp
+                    .data
+                    .as_ref()
+                    .and_then(|d| d.get(ty))
+                    .and_then(|v| v.as_array())
+                    .cloned()
+                    .unwrap_or_default();
                 let mut present = std::collections::HashSet::new();
                 for r in &rows {
                     let id = r.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -336,7 +307,7 @@ pub(crate) fn apply_page_with(
                             .and_then(|v| {
                                 ["updated_at", "closed_at", "created_at", "opened_at"]
                                     .iter()
-                                    .find_map(|k| v.get(*k).and_then(|x| x.as_str()).map(str::to_string))
+                                    .find_map(|k| v.get(*k).and_then(|x| x.as_str()).and_then(parse_ts))
                             });
                         let inside = match (&window, changed) {
                             (Some(w), Some(c)) => c >= *w,
@@ -354,32 +325,31 @@ pub(crate) fn apply_page_with(
                     n += 1;
                 }
             }
-            let all = ALL_TYPES.iter().all(|t| resp.types.iter().any(|x| x == t));
+            let all = ALL_TYPES.iter().all(|t| types.iter().any(|x| x == t));
             if move_cursor && all {
-                if let Some(next) = resp.next {
+                if let Some(next) = next {
                     put_kv(tx, &format!("{K_NEXT}{branch}"), &next.to_string())?;
                 }
                 put_kv(tx, &format!("{K_LAST_FULL}{branch}"), &chrono::Utc::now().to_rfc3339())?;
             }
         } else {
-            for c in &resp.changes {
-                let prot = is_prot(&c.ty, &c.id);
-                if c.op == "delete" {
+            for c in resp.changes.as_deref().unwrap_or_default() {
+                let id = c.id.to_string();
+                let prot = is_prot(&c.r#type, &id);
+                if c.op == "delete" || c.data.is_null() {
                     if !prot {
                         n += tx.execute(
                             "DELETE FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
-                            rusqlite::params![branch, c.ty, c.id],
+                            rusqlite::params![branch, c.r#type, id],
                         )? as u32;
                     }
-                } else if let Some(d) = &c.data {
-                    if upsert_row(tx, branch, &c.ty, &c.id, c.seq, d, prot)? {
-                        n += 1;
-                    }
+                } else if upsert_row(tx, branch, &c.r#type, &id, c.seq, &c.data, prot)? {
+                    n += 1;
                 }
                 hook(n)?;
             }
             if move_cursor {
-                if let Some(next) = resp.next {
+                if let Some(next) = next {
                     put_kv(tx, &format!("{K_NEXT}{branch}"), &next.to_string())?;
                 }
             }
@@ -388,12 +358,16 @@ pub(crate) fn apply_page_with(
     })
 }
 
+/// An RFC 3339 instant (row timestamps and the ledger window compare as times,
+/// never as strings — Postgres and chrono spell the same instant differently).
+fn parse_ts(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    chrono::DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|d| d.with_timezone(&chrono::Utc))
+}
+
 /// Local per-type checksums (protected rows included with their seq).
-pub(crate) fn local_checksums(
-    store: &Store,
-    branch: &str,
-    types: &[String],
-) -> std::collections::BTreeMap<String, TypeChecksum> {
+pub(crate) fn local_checksums(store: &Store, branch: &str, types: &[String]) -> Checksums {
     let mut out = std::collections::BTreeMap::new();
     for ty in types.iter().filter(|t| !is_ledger(t)) {
         let rows: Vec<(String, i64)> = store
@@ -460,15 +434,28 @@ impl MadarCore {
         self.sync_state.lock().unwrap_or_else(|e| e.into_inner()).phase = phase.into();
     }
 
-    async fn post_pull(&self, since: Option<i64>, body: &serde_json::Value) -> Result<PullResponse, CoreError> {
-        let path = match since {
-            Some(s) => format!("/sync/pull?since={s}"),
-            None => "/sync/pull".to_string(),
-        };
-        let text = self.api.post_json(&path, body).await?;
-        serde_json::from_str(&text).map_err(|e| CoreError::Internal {
-            detail: format!("decode /sync/pull: {e}"),
-        })
+    async fn post_pull(
+        &self,
+        since: Option<i64>,
+        branch: &str,
+        types: Option<Vec<String>>,
+    ) -> Result<PullResponse, CoreError> {
+        let branch_id = uuid::Uuid::parse_str(branch).map_err(|_| CoreError::Validation {
+            field: "branch_id".into(),
+            detail: "session branch is not a UUID".into(),
+        })?;
+        let mut request = madar_api::models::PullRequest::new(branch_id);
+        request.device_id = uuid::Uuid::parse_str(&self.lan_device_id()).ok().map(Some);
+        request.types = types.map(Some);
+        madar_api::apis::sync_api::pull(
+            &self.api.config(),
+            madar_api::apis::sync_api::PullParams {
+                pull_request: request,
+                since,
+            },
+        )
+        .await
+        .map_err(crate::net::map_api_error)
     }
 
     /// One pull (single-flight). `full` = snapshot; otherwise from `sync:next`.
@@ -494,7 +481,6 @@ impl MadarCore {
         let branch = self.sync_branch().ok_or_else(|| CoreError::Unauthenticated {
             detail: "not signed in".into(),
         })?;
-        let device_id = self.lan_device_id();
         let mut since: Option<i64> = if full {
             None
         } else {
@@ -503,58 +489,53 @@ impl MadarCore {
                 .and_then(|v| v.parse().ok())
         };
         let mut applied = 0u32;
-        let mut bundle: Option<serde_json::Value> = None;
+        let mut bundle: Option<madar_api::models::AssetBundleRef> = None;
         loop {
             self.set_phase("pulling");
-            let body = serde_json::json!({ "branch_id": branch, "device_id": device_id });
-            let resp = self.post_pull(since, &body).await?;
-            if resp.resync_required {
+            let resp = self.post_pull(since, &branch, None).await?;
+            if resp.resync_required.unwrap_or(false) {
+                if since.is_none() {
+                    // A full pull never asks for a resync; refuse to loop on one.
+                    return Err(CoreError::Internal {
+                        detail: "sync pull: resync_required on a full snapshot".into(),
+                    });
+                }
                 since = None;
                 continue;
             }
             self.set_phase("applying");
             let protected = protected_rows(&self.store);
             applied += apply_page(&self.store, &branch, &resp, &protected, true)?;
-            if resp.full && resp.asset_bundle.is_some() {
-                bundle = resp.asset_bundle.clone();
-            }
             if resp.full {
-                since = resp.next;
-                if resp.has_more {
-                    continue;
+                if let Some(b) = resp.asset_bundle.clone().flatten() {
+                    bundle = Some(*b);
                 }
-            } else if resp.has_more {
-                since = resp.next;
+            }
+            if resp.has_more {
+                since = resp.next.flatten();
                 continue;
             }
-            let types: Vec<String> = resp.checksums.keys().cloned().collect();
+            let server = server_checksums(&resp);
+            let types: Vec<String> = server.keys().cloned().collect();
             let local = local_checksums(&self.store, &branch, &types);
-            let mismatched = mismatched_types(&resp.checksums, &local);
+            let mismatched = mismatched_types(&server, &local);
             let mut stale = None;
             if !mismatched.is_empty() {
-                {
-                    let body = serde_json::json!({ "branch_id": branch, "device_id": device_id, "types": mismatched });
-                    let fix = self.post_pull(None, &body).await?;
-                    let protected = protected_rows(&self.store);
-                    applied += apply_page(&self.store, &branch, &fix, &protected, false)?;
-                    let local = local_checksums(&self.store, &branch, &mismatched);
-                    if !mismatched_types(&fix.checksums, &local).is_empty() {
-                        stale = Some("checksum_mismatch".to_string());
-                    }
+                let fix = self.post_pull(None, &branch, Some(mismatched.clone())).await?;
+                let protected = protected_rows(&self.store);
+                applied += apply_page(&self.store, &branch, &fix, &protected, false)?;
+                let local = local_checksums(&self.store, &branch, &mismatched);
+                if !mismatched_types(&server_checksums(&fix), &local).is_empty() {
+                    stale = Some("checksum_mismatch".to_string());
                 }
             }
             self.store
                 .kv_put(&format!("{K_LAST_OK}{branch}"), &chrono::Utc::now().to_rfc3339())?;
             self.sync_state.lock().unwrap_or_else(|e| e.into_inner()).stale_reason = stale;
             // §11.7: after rows land, fetch the files they reference (non-fatal).
-            let b = bundle.as_ref().and_then(|v| {
-                Some((
-                    v.get("url")?.as_str()?.to_string(),
-                    v.get("seq")?.as_i64()?,
-                    v.get("bytes")?.as_u64()?,
-                    v.get("sha256")?.as_str()?.to_string(),
-                ))
-            });
+            let b = bundle
+                .as_ref()
+                .map(|v| (v.url.clone(), v.seq, v.bytes.max(0) as u64, v.sha256.clone()));
             let _ = self.sync_assets_after_pull(b).await;
             return Ok(applied);
         }
@@ -625,20 +606,29 @@ mod tests {
 
     const B: &str = "B1";
 
-    fn change(seq: i64, ty: &str, id: &str, op: &str, v: i64) -> ChangeWire {
-        ChangeWire {
+    /// Stable UUID for a readable test label (the wire id is a UUID).
+    fn uid(label: &str) -> String {
+        uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, label.as_bytes()).to_string()
+    }
+
+    fn change(seq: i64, ty: &str, id: &str, op: &str, v: i64) -> madar_api::models::PullChange {
+        madar_api::models::PullChange {
             seq,
-            ty: ty.into(),
-            id: id.into(),
+            r#type: ty.into(),
+            id: uuid::Uuid::parse_str(&uid(id)).unwrap(),
             op: op.into(),
-            data: (op == "upsert").then(|| serde_json::json!({ "id": id, "v": v })),
+            data: if op == "upsert" {
+                serde_json::json!({ "id": uid(id), "v": v })
+            } else {
+                serde_json::Value::Null
+            },
         }
     }
 
-    fn incr(next: i64, changes: Vec<ChangeWire>) -> PullResponse {
+    fn incr(next: i64, changes: Vec<madar_api::models::PullChange>) -> PullResponse {
         PullResponse {
-            next: Some(next),
-            changes,
+            next: Some(Some(next)),
+            changes: Some(changes),
             ..Default::default()
         }
     }
@@ -649,7 +639,7 @@ mod tests {
                 use rusqlite::OptionalExtension;
                 Ok(c.query_row(
                     "SELECT seq, data FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
-                    rusqlite::params![B, ty, id],
+                    rusqlite::params![B, ty, uid(id)],
                     |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)),
                 )
                 .optional()?)
@@ -697,15 +687,20 @@ mod tests {
     }
 
     fn full(types: &[&str], rows: Vec<(&str, serde_json::Value)>, next: i64) -> PullResponse {
-        let mut data = std::collections::BTreeMap::new();
-        for (ty, r) in rows {
-            data.entry(ty.to_string()).or_insert_with(Vec::new).push(r);
+        let mut data = serde_json::Map::new();
+        for ty in types {
+            data.insert(ty.to_string(), serde_json::json!([]));
+        }
+        for (ty, mut r) in rows {
+            let label = r["id"].as_str().unwrap().to_string();
+            r["id"] = uid(&label).into();
+            data.get_mut(ty).unwrap().as_array_mut().unwrap().push(r);
         }
         PullResponse {
             full: true,
-            next: Some(next),
-            types: types.iter().map(|s| s.to_string()).collect(),
-            data,
+            next: Some(Some(next)),
+            types: Some(types.iter().map(|s| s.to_string()).collect()),
+            data: Some(serde_json::Value::Object(data)),
             ..Default::default()
         }
     }
@@ -715,7 +710,7 @@ mod tests {
         let store = Store::open("").unwrap();
         apply_page(&store, B, &incr(3, vec![change(3, "open_ticket", "t1", "upsert", 1)]), &Protected::new(), true).unwrap();
         let mut prot = Protected::new();
-        prot.insert(("open_ticket".into(), "t1".into()));
+        prot.insert(("open_ticket".into(), uid("t1")));
         // snapshot lacks t1 → would delete, but it is protected
         apply_page(&store, B, &full(&["open_ticket"], vec![], 20), &prot, true).unwrap();
         assert!(row(&store, "open_ticket", "t1").is_some());
@@ -746,9 +741,11 @@ mod tests {
         apply_page(&store, B, &incr(7, vec![change(7, "menu_item", "a", "upsert", 1)]), &Protected::new(), true).unwrap();
         let local = local_checksums(&store, B, &["menu_item".to_string(), "category".to_string()]);
         let mut resp = incr(7, vec![]);
-        resp.checksums.insert("menu_item".into(), TypeChecksum { count: 2, checksum: "ffff".into() });
-        resp.checksums.insert("category".into(), local["category"].clone());
-        resp.checksums.insert("order".into(), TypeChecksum { count: 99, checksum: "x".into() });
+        let mut sums = std::collections::HashMap::new();
+        sums.insert("menu_item".to_string(), TypeChecksum { count: 2, checksum: "ffff".into() });
+        sums.insert("category".to_string(), local["category"].clone());
+        sums.insert("order".to_string(), TypeChecksum { count: 99, checksum: "x".into() });
+        resp.checksums = Some(sums);
         assert_eq!(decide_next(&resp, &local), PullNext::Done { refetch: vec!["menu_item".into()] });
         // the self-heal apply (subset full, move_cursor=false) leaves the cursor
         let fix = full(&["menu_item"], vec![("menu_item", serde_json::json!({"id":"b","seq":8}))], 99);
@@ -759,7 +756,7 @@ mod tests {
 
     #[test]
     fn resync_required_triggers_full() {
-        let resp = PullResponse { resync_required: true, ..Default::default() };
+        let resp = PullResponse { resync_required: Some(true), ..Default::default() };
         assert_eq!(decide_next(&resp, &Default::default()), PullNext::FullFetch);
         let more = PullResponse { has_more: true, ..Default::default() };
         assert_eq!(decide_next(&more, &Default::default()), PullNext::MorePages);
@@ -779,6 +776,71 @@ mod tests {
         let (a, b, c) = tokio::join!(mk(calls.clone()), mk(calls.clone()), mk(calls.clone()));
         assert!(a.is_ok() && b.is_ok() && c.is_ok());
         assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    /// The three bodies exactly as `MadarRust/src/sync/pull/mod.rs` serializes them
+    /// (skipped empties, `data: null` on a delete, `asset_bundle: null` on a full
+    /// page with no bundle built) decode and apply.
+    #[test]
+    fn backend_pull_bodies_decode_and_apply() {
+        let resync: PullResponse = serde_json::from_str(
+            r#"{"full":false,"resync_required":true,"since":1200,"has_more":false,"server_time":"2026-09-13T10:00:00+00:00"}"#,
+        )
+        .unwrap();
+        assert_eq!(decide_next(&resync, &Default::default()), PullNext::FullFetch);
+
+        let a = uid("a");
+        let incr: PullResponse = serde_json::from_str(&format!(
+            r#"{{"full":false,"since":1200,"next":1203,"has_more":false,"server_time":"2026-09-13T10:00:00+00:00",
+               "changes":[{{"seq":1201,"type":"open_ticket","id":"{a}","op":"upsert","data":{{"id":"{a}","status":"open"}}}},
+                          {{"seq":1203,"type":"table_occupancy","id":"{a}","op":"delete","data":null}}],
+               "checksums":{{"open_ticket":{{"count":1,"checksum":"0123456789abcdef"}}}}}}"#
+        ))
+        .unwrap();
+        let store = Store::open("").unwrap();
+        assert_eq!(apply_page(&store, B, &incr, &Protected::new(), true).unwrap(), 1);
+        assert_eq!(cursor(&store).as_deref(), Some("1203"));
+        assert_eq!(row(&store, "open_ticket", "a").unwrap().0, 1201);
+
+        let full: PullResponse = serde_json::from_str(
+            r#"{"full":true,"next":1350,"has_more":false,"server_time":"2026-09-13T10:00:00+00:00",
+               "types":["open_ticket"],"data":{"open_ticket":[]},
+               "checksums":{"open_ticket":{"count":0,"checksum":"e3b0c44298fc1c14"}},
+               "ledger_window":{"from":"2026-09-11T10:00:00.123456+00:00"},"asset_bundle":null}"#,
+        )
+        .unwrap();
+        assert!(full.asset_bundle.clone().flatten().is_none());
+        apply_page(&store, B, &full, &Protected::new(), true).unwrap();
+        assert!(row(&store, "open_ticket", "a").is_none(), "absent from the snapshot");
+        assert_eq!(cursor(&store).as_deref(), Some("1203"), "a subset snapshot keeps the cursor");
+        let local = local_checksums(&store, B, &["open_ticket".to_string()]);
+        assert_eq!(local["open_ticket"].checksum, "e3b0c44298fc1c14", "empty set hashes like the backend");
+    }
+
+    #[test]
+    fn ledger_rows_compare_the_window_as_instants() {
+        let store = Store::open("").unwrap();
+        // Same instant spelled two ways: Postgres `+00:00` with micros vs `Z`.
+        let inside = serde_json::json!({"id": uid("o1"), "created_at": "2026-09-11T10:00:00.5+00:00"});
+        let older = serde_json::json!({"id": uid("o2"), "created_at": "2026-09-11T09:59:59Z"});
+        store
+            .with_conn(|c| {
+                for (id, d) in [("o1", &inside), ("o2", &older)] {
+                    c.execute(
+                        "INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES('order',?1,?2,1,?3)",
+                        rusqlite::params![uid(id), B, d.to_string()],
+                    )?;
+                }
+                Ok(())
+            })
+            .unwrap();
+        let mut snap = full(&["order"], vec![], 9);
+        snap.ledger_window = Some(Some(Box::new(madar_api::models::LedgerWindow {
+            from: "2026-09-11T10:00:00Z".into(),
+        })));
+        apply_page(&store, B, &snap, &Protected::new(), true).unwrap();
+        assert!(row(&store, "order", "o1").is_none(), "inside the window and absent: replaced");
+        assert!(row(&store, "order", "o2").is_some(), "older than the window: kept until pruning");
     }
 
     #[test]

@@ -92,7 +92,6 @@ pub mod tickets;
 /// Drawer and Orders decisions the screens used to make (labels, refund
 /// method, close count, cash sales, tax inclusivity, shift order paging).
 pub mod till_views;
-pub mod till_wire;
 pub mod till_ops;
 pub mod sync_pull;
 pub mod assets;
@@ -352,6 +351,7 @@ impl MadarCore {
             config.base_url.clone(),
             clock_skew_secs.clone(),
             Some(device_id),
+            config.app_version.as_deref(),
         )?;
         let images = filestore::FileStore::new(&config.db_path, "images");
         let animations = filestore::FileStore::new(&config.db_path, "animations");
@@ -1068,7 +1068,7 @@ impl MadarCore {
                     Ok(c) => c,
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
-                rebase_opt(&mut cmd.request.opened_at, delta);
+                rebase_dopt(&mut cmd.request.opened_at, delta);
                 (
                     serde_json::json!({ "op": "open_till", "teller_id": teller_id, "branch_id": cmd.branch_id,
                         "device_id": cmd.device_id, "device_code": cmd.device_code,
@@ -1081,7 +1081,12 @@ impl MadarCore {
                     Ok(c) => c,
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
-                rebase_opt(&mut cmd.request.closed_at, delta);
+                rebase_dopt(&mut cmd.request.closed_at, delta);
+                // A close queued before the rework carries no reconciliation: send
+                // it as an explicit empty list (every method reads `unreviewed`).
+                if cmd.request.reconciliation.clone().flatten().is_none() {
+                    cmd.request.reconciliation = Some(Some(vec![]));
+                }
                 let device_id = cmd.device_id.clone().unwrap_or_else(|| self.lan_device_id());
                 (
                     serde_json::json!({ "op": "close_till", "teller_id": teller_id, "till_id": cmd.till_id,
@@ -1423,7 +1428,7 @@ impl MadarCore {
                     // object we can't decode as a Shift still means the open LANDED
                     // (replay is idempotent) — count it, don't loop forever.
                     "open_till" | "open_shift" => {
-                        match serde_json::from_value::<till::TillWire>(obj.clone()) {
+                        match serde_json::from_value::<till::TillRecord>(obj.clone()) {
                             Ok(server) if !server.id.is_empty() => {
                                 // Refresh the stored record with the server's view
                                 // (flag, verification, device snapshot) without
@@ -1443,6 +1448,22 @@ impl MadarCore {
                             }
                             _ => SendOutcome::Acked(None),
                         }
+                    }
+                    // The close's per-method lines, as the server recorded them —
+                    // `close_till` shows these once the queued close has landed.
+                    "close_till" | "close_shift" => {
+                        if let Ok(resp) =
+                            serde_json::from_value::<madar_api::models::CloseTillResponse>(obj.clone())
+                        {
+                            let id = resp.till.id.to_string();
+                            if let Ok(raw) = serde_json::to_string(&resp) {
+                                let _ = self.store.kv_put(&till::close_result_key(&id), &raw);
+                            }
+                            if till::record(&self.store, &id).is_some() {
+                                let _ = till::update_record(&self.store, &till::TillRecord::from_api(&resp.till));
+                            }
+                        }
+                        SendOutcome::Acked(None)
                     }
                     // The money path. `OrderFull` flattens the order, so a real
                     // create response carries the order `id` at the TOP level. A
@@ -1857,15 +1878,6 @@ fn compute_backoff_ms(attempts: i64, seq: i64) -> i64 {
     let capped = exp.min(K_MAX_BACKOFF_MS);
     let jitter = (seq.wrapping_mul(2_654_435_761)).rem_euclid(1000);
     (capped + jitter).min(K_MAX_BACKOFF_MS)
-}
-
-/// Re-base a single-`Option` timestamp (hand-written tills wire structs).
-fn rebase_opt(field: &mut Option<chrono::DateTime<chrono::FixedOffset>>, delta_ms: i64) {
-    if delta_ms != 0 {
-        if let Some(dt) = field.as_mut() {
-            *dt += chrono::Duration::milliseconds(delta_ms);
-        }
-    }
 }
 
 /// Re-base a double-`Option` timestamp (the generated `Option<Option<DateTime>>`).
@@ -5675,7 +5687,7 @@ impl MadarCore {
         let per_page = 50i64;
         let params = orders_api::ListOrdersParams {
             branch_id: Some(branch_id),
-            shift_id: None,
+            till_id: None,
             updated_after: None,
             page: Some(page.max(1) as i64),
             per_page: Some(per_page),
@@ -5736,35 +5748,32 @@ impl MadarCore {
         &self,
         till_id: String,
     ) -> Result<till::TillReportView, CoreError> {
-        use madar_api::apis::shifts_api;
-        let key = format!("cache:till_report:{till_id}");
+        use madar_api::apis::tills_api;
+        let label = |m: &str| self.payment_method_label(m.to_string());
         if self.current_session().map(|s| s.online).unwrap_or(false) {
-            if let Ok(report) = shifts_api::get_shift_report(
+            if let Ok(report) = tills_api::get_till_report(
                 &self.api.config(),
-                shifts_api::GetShiftReportParams {
-                    shift_id: till_id.clone(),
+                tills_api::GetTillReportParams {
+                    till_id: till_id.clone(),
                 },
             )
             .await
             {
-                timefmt::remember_payload_tz(&self.store, &report.timezone);
-                cache_views(&self.store, &key, std::slice::from_ref(&report));
-                // A partially-synced past shift may still hold queued cash not in
+                timefmt::remember_payload_tz(&self.store, &Some(report.timezone.clone()));
+                till::cache_report(&self.store, &till_id, &report);
+                // A partially-synced past till may still hold queued cash not in
                 // the (cached) server report — add it, else expected_cash is
                 // understated and the drawer reads a false "over".
                 return Ok(till::report_view(
                     &report,
                     checkout::queued_cash_total_for(&self.store, &till_id)?,
+                    &label,
                 ));
             }
         }
         // Offline / fetch failed: the last-synced report if we have one…
-        if let Some(report) =
-            cached_views::<madar_api::models::ShiftReportResponse>(&self.store, &key)
-                .into_iter()
-                .next()
-        {
-            return Ok(till::report_view(&report, 0));
+        if let Some(report) = till::cached_report(&self.store, &till_id) {
+            return Ok(till::report_view(&report, 0, &label));
         }
         // …otherwise an offline-only shift: reconstruct the drawer from local state.
         self.offline_report_for(&till_id)
@@ -5949,10 +5958,10 @@ impl MadarCore {
     ) -> Result<orders::TillRefundsView, CoreError> {
         use madar_api::apis::refunds_api;
         let key = format!("cache:refunds:shift:{till_id}");
-        match refunds_api::list_shift_refunds(
+        match refunds_api::list_till_refunds(
             &self.api.config(),
-            refunds_api::ListShiftRefundsParams {
-                shift_id: till_id.clone(),
+            refunds_api::ListTillRefundsParams {
+                till_id: till_id.clone(),
             },
         )
         .await
@@ -6034,7 +6043,7 @@ impl MadarCore {
         request.note = Some(note);
         request.issued_at = Some(Some(issued_at));
         request.client_ref = Some(Some(client_ref));
-        request.shift_id = Some(Some(uuid::Uuid::parse_str(&open_till.id).map_err(
+        request.till_id = Some(Some(uuid::Uuid::parse_str(&open_till.id).map_err(
             |_| CoreError::Validation {
                 field: "till_id".into(),
                 detail: "the open shift has no server id".into(),
@@ -7598,6 +7607,7 @@ mod tests {
             environment: "dev".into(),
             db_path: dir.join("madar.db").to_string_lossy().into_owned(),
             locale: "en".into(),
+            app_version: None,
         })
         .unwrap();
         core.store
@@ -7619,6 +7629,7 @@ mod tests {
             environment: "dev".into(),
             db_path: dir.join("madar.db").to_string_lossy().into_owned(),
             locale: "en".into(),
+            app_version: None,
         })
         .unwrap();
         // One item using one preset step and one written step.
@@ -7727,6 +7738,7 @@ mod tests {
             environment: "dev".into(),
             db_path: String::new(),
             locale: "en".into(),
+            app_version: None,
         })
         .unwrap();
 
@@ -7801,6 +7813,7 @@ mod tests {
             environment: "dev".into(),
             db_path: String::new(),
             locale: "en".into(),
+            app_version: None,
         })
         .unwrap();
 
@@ -7917,7 +7930,7 @@ mod lifecycle_tests {
 
     fn seed_shift_returning_id(core: &MadarCore, teller: uuid::Uuid, status: &str) -> String {
         let id = uuid::Uuid::new_v4();
-        let s = till::TillWire {
+        let s = till::TillRecord {
             id: id.to_string(),
             branch_id: uuid::Uuid::new_v4().to_string(),
             teller_id: teller.to_string(),
@@ -8760,6 +8773,7 @@ mod lifecycle_tests {
             environment: "dev".into(),
             db_path: String::new(),
             locale: "en".into(),
+            app_version: None,
         })
         .unwrap();
         let salt = SaltString::encode_b64(b"madar-test-salt").unwrap();
@@ -8815,6 +8829,7 @@ mod lifecycle_tests {
             environment: "dev".into(),
             db_path: String::new(),
             locale: "en".into(),
+            app_version: None,
         })
         .unwrap();
         let salt = SaltString::encode_b64(b"madar-test-salt").unwrap();
@@ -8886,6 +8901,7 @@ mod lifecycle_tests {
             environment: "dev".into(),
             db_path: String::new(),
             locale: "en".into(),
+            app_version: None,
         })
         .unwrap();
         let salt = SaltString::encode_b64(b"madar-test-salt").unwrap();
@@ -9079,7 +9095,10 @@ mod lifecycle_tests {
         );
         req.idempotency_key = Some(Some(uuid::Uuid::new_v4()));
         // A pre-rework payload: no device stamp, `shift_id` inside the request.
-        let legacy = serde_json::json!({ "request": req }).to_string();
+        let mut request = serde_json::to_value(&req).unwrap();
+        let till = request.as_object_mut().unwrap().remove("till_id").unwrap();
+        request.as_object_mut().unwrap().insert("shift_id".into(), till);
+        let legacy = serde_json::json!({ "request": request }).to_string();
         assert!(legacy.contains("shift_id"));
         core.store
             .enqueue(&store::NewOutboxOp {
@@ -9330,6 +9349,7 @@ mod lifecycle_tests {
             environment: "dev".into(),
             db_path: String::new(),
             locale: "en".into(),
+            app_version: None,
         })
         .unwrap();
 
@@ -9462,6 +9482,7 @@ mod lifecycle_tests {
             environment: "dev".into(),
             db_path: String::new(),
             locale: "en".into(),
+            app_version: None,
         })
         .unwrap();
         let salt = SaltString::encode_b64(b"madar-test-salt").unwrap();
@@ -9562,6 +9583,7 @@ mod lifecycle_tests {
             environment: "dev".into(),
             db_path: db.clone(),
             locale: "en".into(),
+            app_version: None,
         };
         let now = chrono::Utc::now().timestamp();
 

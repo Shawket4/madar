@@ -36,6 +36,7 @@ pub(crate) struct AddRoundCommand {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct SettleTicketCommand {
     pub ticket_id: String,
+    #[serde(deserialize_with = "crate::till::de_legacy_till_request")]
     pub request: models::SettleOpenTicketRequest,
 }
 

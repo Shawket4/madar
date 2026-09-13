@@ -2,9 +2,11 @@
 //! LAN verification and an unverified fallback, cash, close with per-method
 //! reconciliation, force-close, reports, lists, and the device identity.
 
+use madar_api::apis::{devices_api, tills_api};
+use madar_api::models;
+
 use crate::error::CoreError;
-use crate::till::{self, TillView, TillWire};
-use crate::till_wire::*;
+use crate::till::{self, TillRecord, TillView};
 use crate::{cached_views, cache_views, cash_i32, checkout, net, store, till_views, MadarCore};
 
 struct SessionParts {
@@ -30,13 +32,6 @@ impl MadarCore {
             name: s.display_name.clone(),
             role: s.role.clone(),
             online: s.online,
-        })
-    }
-
-    async fn get_json<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T, CoreError> {
-        let body = self.api.get_text(path, &[]).await?;
-        serde_json::from_str(&body).map_err(|e| CoreError::Internal {
-            detail: format!("decode {path}: {e}"),
         })
     }
 
@@ -76,10 +71,20 @@ impl MadarCore {
         }
     }
 
-    async fn server_prefill(&self, branch: &str) -> Option<TillPreFillWire> {
-        self.get_json::<TillPreFillWire>(&format!("/tills/branches/{branch}/current"))
-            .await
-            .ok()
+    async fn fetch_prefill(&self, branch: &str) -> Result<models::TillPreFill, CoreError> {
+        tills_api::get_current_till(
+            &self.api.config(),
+            tills_api::GetCurrentTillParams {
+                branch_id: branch.to_string(),
+                teller_id: None,
+            },
+        )
+        .await
+        .map_err(net::map_api_error)
+    }
+
+    async fn server_prefill(&self, branch: &str) -> Option<models::TillPreFill> {
+        self.fetch_prefill(branch).await.ok()
     }
 
     // ── public surface ─────────────────────────────────────────────────────
@@ -171,7 +176,7 @@ impl MadarCore {
         let opening_cash = cash_i32(opening_cash_minor, "opening_cash")?;
         let reason = opening_reason.filter(|r| !r.trim().is_empty());
         let code = checkout::device_code_or_default(&self.store);
-        let local = TillWire {
+        let local = TillRecord {
             id: till_id.to_string(),
             branch_id: sp.branch_id.clone(),
             teller_id: sp.user_id.clone(),
@@ -192,14 +197,14 @@ impl MadarCore {
             device_id: dev.clone(),
             device_code: code,
             verification: verification.to_string(),
-            request: OpenTillRequestWire {
-                id: till_id,
+            request: models::OpenTillRequest {
+                id: Some(Some(till_id)),
                 opening_cash,
-                opening_cash_edited: Some(reason.is_some()),
-                edit_reason: reason,
-                opened_at: Some(opened_at),
-                device_id: uuid::Uuid::parse_str(&dev).ok(),
-                verification: Some(verification.to_string()),
+                opening_cash_edited: Some(Some(reason.is_some())),
+                edit_reason: reason.map(Some),
+                opened_at: Some(Some(opened_at)),
+                device_id: uuid::Uuid::parse_str(&dev).ok().map(Some),
+                verification: Some(Some(verification.to_string())),
             },
         };
         let (user_id, clock_offset_ms) = self.outbox_meta();
@@ -232,11 +237,12 @@ impl MadarCore {
         if sp.role != "teller" {
             return Ok(None);
         }
-        let pf: TillPreFillWire = self
-            .get_json(&format!("/tills/branches/{}/current", sp.branch_id))
-            .await?;
+        let pf = self.fetch_prefill(&sp.branch_id).await?;
         if self.store.pending_count().map(|n| n == 0).unwrap_or(false) {
-            let s = pf.last_close_declared.unwrap_or(pf.suggested_opening_cash);
+            let s = pf
+                .last_close_declared
+                .flatten()
+                .unwrap_or(pf.suggested_opening_cash) as i64;
             if s > 0 {
                 till::cache_suggested_opening_cash(&self.store, s)?;
             }
@@ -275,12 +281,13 @@ impl MadarCore {
     pub async fn open_bills_notice(&self) -> Result<Option<till::OpenBillsNoticeView>, CoreError> {
         let sp = self.session_parts()?;
         if sp.online {
-            if let Ok(w) = self
-                .get_json::<OpenBillsNoticeWire>(&format!(
-                    "/tills/branches/{}/open-bills-notice",
-                    sp.branch_id
-                ))
-                .await
+            if let Ok(w) = tills_api::get_open_bills_notice(
+                &self.api.config(),
+                tills_api::GetOpenBillsNoticeParams {
+                    branch_id: sp.branch_id.clone(),
+                },
+            )
+            .await
             {
                 return Ok(till::open_bills_notice_view(&w));
             }
@@ -408,12 +415,11 @@ impl MadarCore {
         let key = format!("cache:cash:{}", t.id);
         let online = self.current_session().map(|s| s.online).unwrap_or(false);
         let server: Vec<till::CashMovementView> = if online {
-            match self
-                .get_json::<Vec<madar_api::models::CashMovement>>(&format!(
-                    "/tills/{}/cash-movements",
-                    t.id
-                ))
-                .await
+            match tills_api::list_cash_movements(
+                &self.api.config(),
+                tills_api::ListCashMovementsParams { till_id: t.id.clone() },
+            )
+            .await
             {
                 Ok(list) => {
                     let v: Vec<_> = list.iter().map(till::cash_movement_view).collect();
@@ -468,15 +474,13 @@ impl MadarCore {
         let t = self.open_till_or_err()?;
         let label = self.method_label_fn();
         if self.current_session().map(|s| s.online).unwrap_or(false) {
-            if let Ok(p) = self
-                .get_json::<CloseTillPreviewWire>(&format!("/tills/{}/close-preview", t.id))
-                .await
+            if let Ok(p) = tills_api::close_preview(
+                &self.api.config(),
+                tills_api::ClosePreviewParams { till_id: t.id.clone() },
+            )
+            .await
             {
-                let _ = self.store.kv_put(
-                    &format!("till:close_preview:{}", t.id),
-                    &serde_json::to_string(&p).unwrap_or_default(),
-                );
-                let mut methods = till::preview_methods_from_wire(&p.methods, &label);
+                let mut methods = till::preview_methods_from_api(&p.methods, &label);
                 // add still-queued sales the server has not seen
                 for (m, c, tot, n) in self.queued_by_method(&t.id) {
                     match methods.iter_mut().find(|r| r.method == m) {
@@ -505,7 +509,8 @@ impl MadarCore {
                     last_till_warning: p
                         .last_till_warning
                         .as_ref()
-                        .and_then(till::last_till_warning_from_wire),
+                        .and_then(|w| w.as_deref())
+                        .and_then(till::last_till_warning_from_api),
                     from_server: true,
                 });
             }
@@ -553,12 +558,12 @@ impl MadarCore {
         let closed_at = self.corrected_now().fixed_offset();
         let dev = self.lan_device_id();
         let cash_note = cash_note.filter(|n| !n.trim().is_empty());
-        let request = CloseTillRequestWire {
+        let request = models::CloseTillRequest {
             closing_cash_declared: cash_i32(closing_cash_minor, "closing_cash")?,
-            cash_note: cash_note.clone(),
-            closed_at: Some(closed_at),
-            device_id: uuid::Uuid::parse_str(&dev).ok(),
-            reconciliation: inputs.clone(),
+            cash_note: cash_note.clone().map(Some),
+            closed_at: Some(Some(closed_at)),
+            device_id: uuid::Uuid::parse_str(&dev).ok().map(Some),
+            reconciliation: Some(Some(inputs.clone())),
         };
         till::close_local(&self.store)?;
         crate::cart::clear_all(&self.store)?;
@@ -591,10 +596,10 @@ impl MadarCore {
         let label = self.method_label_fn();
         let reconciliation = match self
             .store
-            .kv_get(&format!("till:close_result:{}", t.id))?
-            .and_then(|raw| serde_json::from_str::<CloseTillResponseWire>(&raw).ok())
+            .kv_get(&till::close_result_key(&t.id))?
+            .and_then(|raw| serde_json::from_str::<models::CloseTillResponse>(&raw).ok())
         {
-            Some(r) if !queued => till::reconciliation_lines_from_wire(&r.reconciliation, &label),
+            Some(r) if !queued => till::reconciliation_lines_from_api(&r.reconciliation, &label),
             _ => till::local_reconciliation_lines(&methods, &inputs, closing_cash_minor, cash_note.as_deref()),
         };
         Ok(till::CloseTillOutcomeView {
@@ -619,12 +624,18 @@ impl MadarCore {
                 detail: "say why the till was closed for someone else".into(),
             });
         }
-        self.api
-            .post_json(
-                &format!("/tills/{till_id}/force-close"),
-                &serde_json::json!({ "reason": reason, "device_id": self.lan_device_id() }),
-            )
-            .await?;
+        tills_api::force_close_till(
+            &self.api.config(),
+            tills_api::ForceCloseTillParams {
+                till_id: till_id.clone(),
+                force_close_request: models::ForceCloseRequest {
+                    reason: Some(Some(reason)),
+                    device_id: uuid::Uuid::parse_str(&self.lan_device_id()).ok().map(Some),
+                },
+            },
+        )
+        .await
+        .map_err(net::map_api_error)?;
         if let Some(mut r) = till::record(&self.store, &till_id) {
             r.status = "force_closed".into();
             till::update_record(&self.store, &r)?;
@@ -643,14 +654,15 @@ impl MadarCore {
         let queued_cash = checkout::queued_cash_total_for(&self.store, &t.id)?;
         let label = self.method_label_fn();
         if self.current_session().map(|s| s.online).unwrap_or(false) {
-            if let Ok(body) = self.api.get_text(&format!("/tills/{}/report", t.id), &[]).await {
-                if let Ok((report, extras)) = decode_till_report(&body) {
-                    crate::timefmt::remember_payload_tz(&self.store, &report.timezone);
-                    let _ = self.store.kv_put(&till::report_cache_key(&t.id), &body);
-                    let mut v = till::report_view(&report, queued_cash);
-                    till::apply_report_extras(&mut v, &extras, &label);
-                    return Ok(v);
-                }
+            if let Ok(report) = tills_api::get_till_report(
+                &self.api.config(),
+                tills_api::GetTillReportParams { till_id: t.id.clone() },
+            )
+            .await
+            {
+                crate::timefmt::remember_payload_tz(&self.store, &Some(report.timezone.clone()));
+                till::cache_report(&self.store, &t.id, &report);
+                return Ok(till::report_view(&report, queued_cash, &label));
             }
         }
         let teller = self.current_session().map(|s| s.display_name).unwrap_or_default();
@@ -670,25 +682,8 @@ impl MadarCore {
                     })
             })
             .collect();
-        let cached = self
-            .store
-            .kv_get(&till::report_cache_key(&t.id))?
-            .and_then(|b| decode_till_report(&b).ok())
-            .or_else(|| {
-                cached_views::<madar_api::models::ShiftReportResponse>(
-                    &self.store,
-                    &till::legacy_report_cache_key(&t.id),
-                )
-                .into_iter()
-                .next()
-                .map(|r| (r, TillReportExtrasWire::default()))
-            });
-        let mut v = match cached {
-            Some((report, extras)) => {
-                let mut v = till::cached_report_view(&report, queued_cash, movements);
-                till::apply_report_extras(&mut v, &extras, &label);
-                v
-            }
+        let mut v = match till::cached_report(&self.store, &t.id) {
+            Some(report) => till::cached_report_view(&report, queued_cash, movements, &label),
             None => till::offline_report_view(
                 t.opening_cash_minor,
                 queued_cash,
@@ -709,14 +704,28 @@ impl MadarCore {
         let sp = self.session_parts()?;
         const KEY: &str = "cache:tills";
         let mut views: Vec<till::TillSummaryView> = if sp.online {
-            match self
-                .get_json::<serde_json::Value>(&format!("/tills/branches/{}", sp.branch_id))
-                .await
+            match tills_api::list_tills(
+                &self.api.config(),
+                tills_api::ListTillsParams {
+                    branch_id: sp.branch_id.clone(),
+                    status: None,
+                    teller_id: None,
+                    device_id: None,
+                    flagged: None,
+                    from: None,
+                    to: None,
+                    page: None,
+                    per_page: None,
+                },
+            )
+            .await
             {
-                Ok(v) => {
-                    let data = v.get("data").cloned().unwrap_or(v);
-                    let list: Vec<TillWire> = serde_json::from_value(data).unwrap_or_default();
-                    let out: Vec<_> = list.iter().map(till::till_summary_view).collect();
+                Ok(page) => {
+                    let out: Vec<_> = page
+                        .data
+                        .iter()
+                        .map(|t| till::till_summary_view(&TillRecord::from_api(t)))
+                        .collect();
                     cache_views(&self.store, KEY, &out);
                     out
                 }
@@ -750,11 +759,15 @@ impl MadarCore {
         let dev = self.lan_device_id();
         let mut out: Vec<till::BranchOpenTillView> = Vec::new();
         if sp.online {
-            if let Ok(list) = self
-                .get_json::<Vec<TillWire>>(&format!("/tills/branches/{}/open", sp.branch_id))
-                .await
+            if let Ok(list) = tills_api::list_open_tills(
+                &self.api.config(),
+                tills_api::ListOpenTillsParams {
+                    branch_id: sp.branch_id.clone(),
+                },
+            )
+            .await
             {
-                for t in list {
+                for t in list.iter().map(TillRecord::from_api) {
                     out.push(till::BranchOpenTillView {
                         is_this_device: t.device_id.as_deref() == Some(dev.as_str()),
                         till_id: t.id,
@@ -826,21 +839,28 @@ impl MadarCore {
         }
         let _ = self.store.kv_put(checkout::KEY_DEVICE_CODE, &clean);
         self.lan_sync_open_tills();
-        if let (Ok(handle), Some(sp), Some(me)) = (
-            tokio::runtime::Handle::try_current(),
-            self.session_parts().ok(),
-            self.self_arc(),
-        ) {
-            if sp.online {
-                let body = serde_json::json!({
-                    "id": self.lan_device_id(), "code": clean, "kind": "pos",
-                    "platform": std::env::consts::OS, "app_version": env!("CARGO_PKG_VERSION"),
-                    "branch_id": sp.branch_id,
-                });
-                handle.spawn(async move {
-                    let _ = me.api.post_json("/devices/register", &body).await;
-                });
-            }
+        let ids = (
+            uuid::Uuid::parse_str(&self.lan_device_id()).ok(),
+            self.session_parts()
+                .ok()
+                .filter(|sp| sp.online)
+                .and_then(|sp| uuid::Uuid::parse_str(&sp.branch_id).ok()),
+        );
+        if let (Ok(handle), (Some(id), Some(branch_id)), Some(me)) =
+            (tokio::runtime::Handle::try_current(), ids, self.self_arc())
+        {
+            let mut request = models::RegisterDeviceRequest::new(branch_id, clean, id, "pos".into());
+            request.platform = Some(Some(std::env::consts::OS.to_string()));
+            request.app_version = Some(Some(net::app_version(self.config.app_version.as_deref())));
+            handle.spawn(async move {
+                let _ = devices_api::register_device(
+                    &me.api.config(),
+                    devices_api::RegisterDeviceParams {
+                        register_device_request: request,
+                    },
+                )
+                .await;
+            });
         }
     }
 
@@ -913,11 +933,11 @@ impl MadarCore {
         if cmd.verification.is_empty() {
             cmd.verification = "unverified".into();
         }
-        if cmd.request.device_id.is_none() {
-            cmd.request.device_id = uuid::Uuid::parse_str(&cmd.device_id).ok();
+        if cmd.request.device_id.flatten().is_none() {
+            cmd.request.device_id = uuid::Uuid::parse_str(&cmd.device_id).ok().map(Some);
         }
-        if cmd.request.verification.is_none() {
-            cmd.request.verification = Some(cmd.verification.clone());
+        if cmd.request.verification.clone().flatten().is_none() {
+            cmd.request.verification = Some(Some(cmd.verification.clone()));
         }
         Ok(cmd)
     }

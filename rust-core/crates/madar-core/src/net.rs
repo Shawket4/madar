@@ -68,7 +68,7 @@ impl ApiClient {
         base_url: String,
         clock_skew: Arc<std::sync::atomic::AtomicI64>,
     ) -> CoreResult<Self> {
-        Self::with_device(base_url, clock_skew, None)
+        Self::with_device(base_url, clock_skew, None, None)
     }
 
     /// The client every request of this install goes through, carrying the
@@ -79,13 +79,14 @@ impl ApiClient {
         base_url: String,
         clock_skew: Arc<std::sync::atomic::AtomicI64>,
         device_id: Option<String>,
+        app_version: Option<&str>,
     ) -> CoreResult<Self> {
         let user_agent = format!("madar-core/{}", env!("CARGO_PKG_VERSION"));
         let mut headers = reqwest::header::HeaderMap::new();
         if let Some(Ok(v)) = device_id.as_deref().map(reqwest::header::HeaderValue::from_str) {
             headers.insert("X-Madar-Device", v);
         }
-        if let Ok(v) = reqwest::header::HeaderValue::from_str(&client_header()) {
+        if let Ok(v) = reqwest::header::HeaderValue::from_str(&client_header(app_version)) {
             headers.insert("X-Madar-Client", v);
         }
         let http = reqwest::Client::builder()
@@ -329,8 +330,19 @@ impl ApiClient {
     }
 }
 
+/// The app version the headers and device registration report: the host's
+/// (`MadarConfig.app_version`), else the build's `MADAR_APP_VERSION`, else the
+/// first tills-rework version (so the header is never empty).
+pub(crate) fn app_version(host: Option<&str>) -> String {
+    host.map(str::trim)
+        .filter(|v| !v.is_empty())
+        .or(option_env!("MADAR_APP_VERSION"))
+        .unwrap_or("0.7.0")
+        .to_string()
+}
+
 /// `pos/<semver> (<platform>)` — the `X-Madar-Client` value.
-pub(crate) fn client_header() -> String {
+pub(crate) fn client_header(host_version: Option<&str>) -> String {
     let platform = match std::env::consts::OS {
         "macos" => "macos",
         "ios" => "ios",
@@ -338,10 +350,8 @@ pub(crate) fn client_header() -> String {
         "windows" => "windows",
         _ => "linux",
     };
-    // The core crate's own version is not the app's; the tills-rework client is
-    // >= 0.7.0 by definition (the server only uses this to pick legacy adapters).
-    let version = option_env!("MADAR_APP_VERSION").unwrap_or("0.7.0");
-    format!("pos/{version} ({platform})")
+    // The core crate's own version is not the app's: the host passes it.
+    format!("pos/{} ({platform})", app_version(host_version))
 }
 
 /// Translate the generated client's transport/response error into the coarse,
@@ -538,6 +548,16 @@ fn reason(status: u16) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn client_header_carries_the_host_app_version() {
+        assert!(client_header(Some("0.7.3")).starts_with("pos/0.7.3 ("));
+        // Blank or absent: still populated, never `pos/ (…)`.
+        for host in [None, Some(""), Some("  ")] {
+            let h = client_header(host);
+            assert!(!h.starts_with("pos/ ") && h.starts_with("pos/"), "{h}");
+        }
+    }
 
     #[test]
     fn client_builds_and_swaps_bearer() {

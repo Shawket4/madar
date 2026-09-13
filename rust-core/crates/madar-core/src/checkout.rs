@@ -25,6 +25,7 @@ use crate::store::Store;
 /// The outbox payload for a queued order (op_type `"create_order"`).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CheckoutCommand {
+    #[serde(deserialize_with = "crate::till::de_legacy_till_request")]
     pub request: models::CreateOrderRequest,
     /// Per-device numbering + till verification (TILLS_CONTRACT §3 R4). Absent on
     /// orders queued before the tills rework — those keep server numbering.
@@ -66,8 +67,7 @@ pub fn display_number_from_ref(order_ref: Option<&str>, order_number: i64) -> St
 }
 
 /// The `/sync/replay` envelope for a queued order: the generated request with
-/// `shift_id` renamed `till_id` (sending both would be a duplicate field under
-/// the server alias) and the device stamp merged in.
+/// the device stamp merged in.
 pub(crate) fn order_envelope(
     cmd: &CheckoutCommand,
     teller_id: &str,
@@ -75,9 +75,6 @@ pub(crate) fn order_envelope(
 ) -> serde_json::Value {
     let mut request = serde_json::to_value(&cmd.request).unwrap_or(serde_json::Value::Null);
     if let Some(obj) = request.as_object_mut() {
-        if let Some(t) = obj.remove("shift_id") {
-            obj.insert("till_id".into(), t);
-        }
         match &cmd.device {
             Some(d) => {
                 obj.insert("device_id".into(), d.device_id.clone().into());
@@ -1320,7 +1317,7 @@ mod tests {
         let r = &p.command.request;
         assert_eq!(r.payment_method, "Cash");
         assert_eq!(r.branch_id.to_string(), BRANCH);
-        assert_eq!(r.shift_id.to_string(), SHIFT);
+        assert_eq!(r.till_id.to_string(), SHIFT);
         assert_eq!(r.items.len(), 1);
         assert_eq!(r.items[0].quantity, 2);
         assert_eq!(

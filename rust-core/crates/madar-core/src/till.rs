@@ -9,8 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::CoreResult;
 use crate::store::Store;
-pub use crate::till_wire::TillWire;
-use crate::till_wire::{CloseTillRequestWire, OpenTillRequestWire};
 
 /// LEGACY kv key (<= v0.6): the device's one current shift (`Shift` JSON). Read
 /// once by [`migrate_legacy_current`] and then removed.
@@ -21,7 +19,7 @@ pub(crate) const ACTIVE_USER_KEY: &str = "till:active_user";
 /// till's declared closing (cash continuity).
 pub(crate) const SUGGESTED_OPEN_CASH_KEY: &str = "shift:suggested_open_cash";
 
-/// kv key for one till record (`TillWire` JSON).
+/// kv key for one till record (`TillRecord` JSON).
 pub(crate) fn record_key(till_id: &str) -> String {
     format!("till:rec:{till_id}")
 }
@@ -37,8 +35,48 @@ pub(crate) fn report_cache_key(till_id: &str) -> String {
     format!("cache:till_report:{till_id}")
 }
 /// Pre-rework key for the same cache — read as a fallback.
-pub(crate) fn legacy_report_cache_key(till_id: &str) -> String {
+fn legacy_report_cache_key(till_id: &str) -> String {
     format!("cache:shift_report:{till_id}")
+}
+/// kv key holding the server's `CloseTillResponse` once a queued close acks.
+pub(crate) fn close_result_key(till_id: &str) -> String {
+    format!("till:close_result:{till_id}")
+}
+
+/// Remember the server's report for a till (read back offline).
+pub(crate) fn cache_report(store: &Store, till_id: &str, report: &models::TillReportResponse) {
+    if let Ok(raw) = serde_json::to_string(report) {
+        let _ = store.kv_put(&report_cache_key(till_id), &raw);
+    }
+}
+
+/// The last server report seen for a till. Reads the current object form, the
+/// one-element list an earlier build wrote under the same key, and — once — the
+/// pre-rework `ShiftReportResponse` (key `shift`, no rework fields), so a device
+/// updated mid-till still closes offline against real figures.
+pub(crate) fn cached_report(store: &Store, till_id: &str) -> Option<models::TillReportResponse> {
+    let parse = |raw: &str| -> Option<models::TillReportResponse> {
+        let v: serde_json::Value = serde_json::from_str(raw).ok()?;
+        let mut v = match v {
+            serde_json::Value::Array(mut a) if !a.is_empty() => a.swap_remove(0),
+            other => other,
+        };
+        let obj = v.as_object_mut()?;
+        if let Some(shift) = obj.remove("shift") {
+            obj.entry("till").or_insert(shift);
+        }
+        if let Some(till) = obj.get_mut("till").and_then(|t| t.as_object_mut()) {
+            till.entry("verification").or_insert_with(|| "legacy".into());
+            till.entry("opened_while_another_open").or_insert(false.into());
+            till.entry("disagreement_count").or_insert(0.into());
+        }
+        obj.entry("reconciliation").or_insert_with(|| serde_json::json!([]));
+        obj.entry("order_number_range").or_insert_with(|| serde_json::json!({}));
+        serde_json::from_value(v).ok()
+    };
+    [report_cache_key(till_id), legacy_report_cache_key(till_id)]
+        .iter()
+        .find_map(|k| store.kv_get(k).ok().flatten().and_then(|raw| parse(&raw)))
 }
 
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -59,6 +97,124 @@ pub struct TillView {
     pub opened_while_another_open: bool,
 }
 
+/// A till as this device stores it (kv `till:record:{id}`): the optimistic local
+/// open, later refreshed from the server's `Till`. A LOCAL record, not a wire
+/// type — its JSON is what older builds persisted (a legacy `Shift` body decodes
+/// too), so every field defaults.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct TillRecord {
+    pub id: String,
+    #[serde(default)]
+    pub branch_id: String,
+    #[serde(default)]
+    pub branch_name: Option<String>,
+    #[serde(default)]
+    pub teller_id: String,
+    #[serde(default)]
+    pub teller_name: String,
+    #[serde(default = "open_status")]
+    pub status: String,
+    #[serde(default)]
+    pub opening_cash: i64,
+    #[serde(default)]
+    pub opening_cash_original: Option<i64>,
+    #[serde(default)]
+    pub opening_cash_was_edited: bool,
+    #[serde(default)]
+    pub opening_cash_edit_reason: Option<String>,
+    #[serde(default)]
+    pub closing_cash_declared: Option<i64>,
+    #[serde(default)]
+    pub closing_cash_system: Option<i64>,
+    #[serde(default)]
+    pub cash_discrepancy: Option<i64>,
+    #[serde(default)]
+    pub opened_at: String,
+    #[serde(default)]
+    pub closed_at: Option<String>,
+    #[serde(default)]
+    pub force_closed_at: Option<String>,
+    #[serde(default)]
+    pub timezone: Option<String>,
+    #[serde(default)]
+    pub device_id: Option<String>,
+    #[serde(default)]
+    pub device_code: Option<String>,
+    #[serde(default)]
+    pub device_label: Option<String>,
+    #[serde(default)]
+    pub verification: Option<String>,
+    #[serde(default)]
+    pub opened_while_another_open: bool,
+    #[serde(default)]
+    pub other_till_id: Option<String>,
+    #[serde(default)]
+    pub reconciliation_status: Option<String>,
+    #[serde(default)]
+    pub disagreement_count: i64,
+    #[serde(default)]
+    pub open_bills_at_close: Option<i64>,
+    #[serde(default)]
+    pub old_bills_at_close: Option<i64>,
+}
+
+fn open_status() -> String {
+    "open".into()
+}
+
+impl TillRecord {
+    /// The server's `Till` as the stored record.
+    pub(crate) fn from_api(t: &models::Till) -> Self {
+        Self {
+            id: t.id.to_string(),
+            branch_id: t.branch_id.to_string(),
+            branch_name: t.branch_name.clone().flatten(),
+            teller_id: t.teller_id.to_string(),
+            teller_name: t.teller_name.clone(),
+            status: t.status.clone(),
+            opening_cash: t.opening_cash as i64,
+            opening_cash_original: t.opening_cash_original.flatten().map(i64::from),
+            opening_cash_was_edited: t.opening_cash_was_edited,
+            opening_cash_edit_reason: t.opening_cash_edit_reason.clone().flatten(),
+            closing_cash_declared: t.closing_cash_declared.flatten().map(i64::from),
+            closing_cash_system: t.closing_cash_system.flatten().map(i64::from),
+            cash_discrepancy: t.cash_discrepancy.flatten().map(i64::from),
+            opened_at: t.opened_at.to_rfc3339(),
+            closed_at: t.closed_at.flatten().map(|d| d.to_rfc3339()),
+            force_closed_at: t.force_closed_at.flatten().map(|d| d.to_rfc3339()),
+            timezone: t.timezone.clone().flatten(),
+            device_id: t.device_id.flatten().map(|u| u.to_string()),
+            device_code: t.device_code.clone().flatten(),
+            device_label: t.device_label.clone().flatten(),
+            verification: Some(t.verification.clone()),
+            opened_while_another_open: t.opened_while_another_open,
+            other_till_id: t.other_till_id.flatten().map(|u| u.to_string()),
+            reconciliation_status: t.reconciliation_status.clone().flatten(),
+            disagreement_count: t.disagreement_count,
+            open_bills_at_close: t.open_bills_at_close.flatten().map(i64::from),
+            old_bills_at_close: t.old_bills_at_close.flatten().map(i64::from),
+        }
+    }
+}
+
+/// Decode a queued request written before the tills rework: the generated
+/// request types now name the till `till_id`, and a payload queued by an older
+/// build still says `shift_id` inside `request` (create_order, settle, refund).
+/// Old rows must replay (decision 12), so the name is carried over on read.
+pub(crate) fn de_legacy_till_request<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    let mut v = serde_json::Value::deserialize(d)?;
+    if let Some(obj) = v.as_object_mut() {
+        if let Some(legacy) = obj.remove("shift_id") {
+            obj.entry("till_id").or_insert(legacy);
+        }
+    }
+    serde_json::from_value(v).map_err(serde::de::Error::custom)
+}
+
 /// Outbox payload for `open_till` (legacy `open_shift` payloads decode too: the
 /// device fields default and the old `request.till_id` is ignored).
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -71,7 +227,7 @@ pub(crate) struct OpenTillCommand {
     /// `server` | `lan` | `unverified`.
     #[serde(default)]
     pub verification: String,
-    pub request: OpenTillRequestWire,
+    pub request: models::OpenTillRequest,
 }
 
 /// Outbox payload for `close_till` (legacy `close_shift` payloads decode via the alias).
@@ -81,7 +237,7 @@ pub(crate) struct CloseTillCommand {
     pub till_id: String,
     #[serde(default)]
     pub device_id: Option<String>,
-    pub request: CloseTillRequestWire,
+    pub request: models::CloseTillRequest,
 }
 
 /// Outbox payload for an offline cash movement. Idempotent on `client_ref`.
@@ -173,7 +329,7 @@ fn legacy_verification() -> String {
     "legacy".into()
 }
 
-pub(crate) fn till_summary_view(s: &TillWire) -> TillSummaryView {
+pub(crate) fn till_summary_view(s: &TillRecord) -> TillSummaryView {
     TillSummaryView {
         id: s.id.clone(),
         branch_name: s.branch_name.clone(),
@@ -207,7 +363,7 @@ pub(crate) fn queued_close_overlay(
         .unwrap_or_default()
     {
         if let Ok(cmd) = serde_json::from_str::<CloseTillCommand>(&item.payload) {
-            let closed_at = cmd.request.closed_at.map(|d| d.to_rfc3339());
+            let closed_at = cmd.request.closed_at.flatten().map(|d| d.to_rfc3339());
             out.insert(
                 cmd.till_id,
                 (closed_at, cmd.request.closing_cash_declared as i64),
@@ -257,10 +413,16 @@ pub(crate) fn local_tills(store: &Store) -> Vec<TillSummaryView> {
             Ok(c) => c,
             Err(_) => continue,
         };
-        let id = cmd.request.id.to_string();
+        let id = cmd
+            .request
+            .id
+            .flatten()
+            .map(|u| u.to_string())
+            .unwrap_or_else(|| item.id.clone());
         let opened_at = cmd
             .request
             .opened_at
+            .flatten()
             .map(|d| d.to_rfc3339())
             .unwrap_or_else(|| item.event_at.clone());
         let teller = item.user_id.as_deref().and_then(|u| names.get(u).cloned());
@@ -374,29 +536,6 @@ pub struct TillReportView {
     pub verification: String,
 }
 
-/// Lay the tills-rework extras over a report view (server or cached).
-pub(crate) fn apply_report_extras(
-    view: &mut TillReportView,
-    extras: &crate::till_wire::TillReportExtrasWire,
-    label: &dyn Fn(&str) -> String,
-) {
-    if let Some(t) = &extras.till {
-        view.device_code = t.device_code.clone();
-        view.opened_while_another_open = t.opened_while_another_open;
-        view.verification = t.verification.clone().unwrap_or_else(|| "legacy".into());
-    }
-    view.reconciliation = reconciliation_lines_from_wire(&extras.reconciliation, label);
-    view.old_bills_count = extras.old_bills_at_close;
-    view.open_bills_count = extras.open_bills_at_close;
-    if let Some(r) = &extras.order_number_range {
-        view.order_number_first = r.first;
-        view.order_number_last = r.last;
-        if view.device_code.is_none() {
-            view.device_code = r.device_code.clone();
-        }
-    }
-}
-
 /// One itemised cash-drawer movement on the report. `amount_minor` is signed
 /// (positive = pay-in, negative = pay-out).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -410,10 +549,11 @@ pub struct TillReportCashLine {
 
 /// Project the server report, adding still-queued cash sales to expected cash.
 pub(crate) fn report_view(
-    report: &models::ShiftReportResponse,
+    report: &models::TillReportResponse,
     queued_cash: i64,
+    label: &dyn Fn(&str) -> String,
 ) -> TillReportView {
-    let shift = &report.shift;
+    let shift = &report.till;
     TillReportView {
         teller_name: shift.teller_name.clone(),
         opened_at: shift.opened_at.to_rfc3339(),
@@ -463,14 +603,18 @@ pub(crate) fn report_view(
             })
             .collect(),
         from_server: true,
-        device_code: None,
-        order_number_first: None,
-        order_number_last: None,
-        reconciliation: vec![],
-        old_bills_count: None,
-        open_bills_count: None,
-        opened_while_another_open: false,
-        verification: "legacy".into(),
+        device_code: shift
+            .device_code
+            .clone()
+            .flatten()
+            .or_else(|| report.order_number_range.device_code.clone().flatten()),
+        order_number_first: report.order_number_range.first.flatten().map(i64::from),
+        order_number_last: report.order_number_range.last.flatten().map(i64::from),
+        reconciliation: reconciliation_lines_from_api(&report.reconciliation, label),
+        old_bills_count: report.old_bills_at_close.flatten().map(i64::from),
+        open_bills_count: report.open_bills_at_close.flatten().map(i64::from),
+        opened_while_another_open: shift.opened_while_another_open,
+        verification: shift.verification.clone(),
     }
 }
 
@@ -542,11 +686,12 @@ pub(crate) fn offline_report_view(
 /// cannot double count. `from_server` stays FALSE: the figures are real but they
 /// are a snapshot, and the teller is entitled to see that the device is offline.
 pub(crate) fn cached_report_view(
-    report: &models::ShiftReportResponse,
+    report: &models::TillReportResponse,
     queued_cash: i64,
     queued: Vec<TillReportCashLine>,
+    label: &dyn Fn(&str) -> String,
 ) -> TillReportView {
-    let mut view = report_view(report, queued_cash);
+    let mut view = report_view(report, queued_cash, label);
     view.from_server = false;
     if queued.is_empty() {
         return view;
@@ -570,7 +715,7 @@ pub(crate) fn cached_report_view(
     view
 }
 
-pub(crate) fn view_from(t: &TillWire) -> TillView {
+pub(crate) fn view_from(t: &TillRecord) -> TillView {
     TillView {
         id: t.id.clone(),
         branch_id: t.branch_id.clone(),
@@ -588,13 +733,6 @@ pub(crate) fn view_from(t: &TillWire) -> TillView {
             .unwrap_or_else(|| "legacy".to_string()),
         opened_while_another_open: t.opened_while_another_open,
     }
-}
-
-/// A generated legacy `Shift` as a till record (ack of a legacy-shaped body).
-pub(crate) fn wire_from_shift(shift: &models::Shift) -> Option<TillWire> {
-    serde_json::to_value(shift)
-        .ok()
-        .and_then(|v| serde_json::from_value(v).ok())
 }
 
 /// Cache the suggested opening cash (previous declared closing) for the next
@@ -638,7 +776,7 @@ pub(crate) fn migrate_legacy_current(store: &Store) -> CoreResult<()> {
         return Ok(());
     };
     if raw != "null" {
-        if let Ok(t) = serde_json::from_str::<TillWire>(&raw) {
+        if let Ok(t) = serde_json::from_str::<TillRecord>(&raw) {
             if !t.id.is_empty() && store.kv_get(&record_key(&t.id))?.is_none() {
                 save(store, &t)?;
             }
@@ -648,7 +786,7 @@ pub(crate) fn migrate_legacy_current(store: &Store) -> CoreResult<()> {
 }
 
 /// A till record by id (any person, any status).
-pub(crate) fn record(store: &Store, till_id: &str) -> Option<TillWire> {
+pub(crate) fn record(store: &Store, till_id: &str) -> Option<TillRecord> {
     store
         .kv_get(&record_key(till_id))
         .ok()
@@ -657,7 +795,7 @@ pub(crate) fn record(store: &Store, till_id: &str) -> Option<TillWire> {
 }
 
 /// The signed-in person's till on this device (open or locally closed).
-pub(crate) fn current_record(store: &Store) -> CoreResult<Option<TillWire>> {
+pub(crate) fn current_record(store: &Store) -> CoreResult<Option<TillRecord>> {
     migrate_legacy_current(store)?;
     let Some(user) = active_user(store) else {
         return Ok(None);
@@ -673,7 +811,7 @@ pub(crate) fn current(store: &Store) -> CoreResult<Option<TillView>> {
 }
 
 /// Persist a till record and point its teller's device slot at it.
-pub(crate) fn save(store: &Store, till: &TillWire) -> CoreResult<()> {
+pub(crate) fn save(store: &Store, till: &TillRecord) -> CoreResult<()> {
     store.kv_put(&record_key(&till.id), &serde_json::to_string(till)?)?;
     if !till.teller_id.is_empty() {
         store.kv_put(&device_till_key(&till.teller_id), &till.id)?;
@@ -683,7 +821,7 @@ pub(crate) fn save(store: &Store, till: &TillWire) -> CoreResult<()> {
 
 /// Update a stored record without moving any device slot (a late ack of a till
 /// that is no longer anyone's current one).
-pub(crate) fn update_record(store: &Store, till: &TillWire) -> CoreResult<()> {
+pub(crate) fn update_record(store: &Store, till: &TillRecord) -> CoreResult<()> {
     store.kv_put(&record_key(&till.id), &serde_json::to_string(till)?)
 }
 
@@ -715,8 +853,8 @@ pub(crate) fn close_local(store: &Store) -> CoreResult<()> {
 }
 
 /// Every OPEN till this device holds, one per person — the LAN advert.
-pub(crate) fn open_on_device(store: &Store) -> Vec<TillWire> {
-    let mut out: Vec<TillWire> = store
+pub(crate) fn open_on_device(store: &Store) -> Vec<TillRecord> {
+    let mut out: Vec<TillRecord> = store
         .kv_list_prefix(DEVICE_TILL_PREFIX)
         .unwrap_or_default()
         .into_iter()
@@ -765,7 +903,7 @@ pub(crate) enum OpenDecision {
     /// The person's till is open on another device — no enqueue.
     Blocked(TillElsewhereView),
     /// The server already holds the person's open till on THIS device.
-    Resume(TillWire),
+    Resume(Box<TillRecord>),
     /// Open a new till with this verification.
     Allow(&'static str),
 }
@@ -778,7 +916,7 @@ pub(crate) enum OpenDecision {
 /// `lan_sighting` = a live peer advertising this person's open till on ANOTHER
 /// device. `lan_teller_peer_live` = at least one live teller peer at the branch.
 pub(crate) fn decide_open(
-    server: Option<&crate::till_wire::TillPreFillWire>,
+    server: Option<&models::TillPreFill>,
     this_device_id: &str,
     lan_sighting: Option<&LanTillSighting>,
     lan_teller_peer_live: bool,
@@ -787,19 +925,20 @@ pub(crate) fn decide_open(
         if let Some(b) = pf
             .open_elsewhere
             .iter()
-            .find(|b| b.device_id.as_deref() != Some(this_device_id))
+            .find(|b| !same_device(&b.device_id, this_device_id))
         {
             return OpenDecision::Blocked(TillElsewhereView {
-                till_id: b.id.clone(),
-                device_code: b.device_code.clone(),
-                device_label: b.device_label.clone(),
-                opened_at: b.opened_at.clone(),
+                till_id: b.id.to_string(),
+                device_code: b.device_code.clone().flatten(),
+                device_label: b.device_label.clone().flatten(),
+                opened_at: b.opened_at.to_rfc3339(),
                 source: "server".into(),
             });
         }
-        if let Some(t) = pf.open_till.as_ref().filter(|t| t.status == "open") {
+        if let Some(t) = open_till_of(pf) {
+            let t = TillRecord::from_api(t);
             if t.device_id.as_deref() == Some(this_device_id) {
-                return OpenDecision::Resume(t.clone());
+                return OpenDecision::Resume(Box::new(t));
             }
             // An open till the server did not list as elsewhere but that names a
             // different device is still elsewhere.
@@ -814,7 +953,7 @@ pub(crate) fn decide_open(
             }
             // A legacy till (opened by an old client, no device): it is the
             // person's drawer and no other device claims it — resume it here.
-            return OpenDecision::Resume(t.clone());
+            return OpenDecision::Resume(Box::new(t));
         }
         return OpenDecision::Allow("server");
     }
@@ -834,11 +973,28 @@ pub(crate) fn decide_open(
     }
 }
 
+/// Does a server device id name this device? (ids compare as UUIDs, so case
+/// never makes this device look like another one).
+fn same_device(device_id: &Option<Option<uuid::Uuid>>, this_device_id: &str) -> bool {
+    match (device_id.flatten(), uuid::Uuid::parse_str(this_device_id)) {
+        (Some(d), Ok(me)) => d == me,
+        _ => false,
+    }
+}
+
+/// The prefill's open till, when it is actually open.
+fn open_till_of(pf: &models::TillPreFill) -> Option<&models::Till> {
+    pf.open_till
+        .as_ref()
+        .and_then(|o| o.as_deref())
+        .filter(|t| t.status == "open")
+}
+
 /// What to do with the local till after the server's prefill comes back.
 #[derive(Debug)]
 pub(crate) enum TillReconcile {
     /// The server holds the person's open till on this device — adopt it.
-    Adopt(Box<TillWire>),
+    Adopt(Box<TillRecord>),
     /// Keep the local state (our open/close has not reached the server yet).
     KeepLocal,
     /// The server authoritatively has no open till here (e.g. force-closed).
@@ -851,14 +1007,15 @@ pub(crate) enum TillReconcile {
 /// - "still open" is stale while our `close_till` is queued (`close_pending`);
 /// - a till the server reports open on ANOTHER device is never adopted here.
 pub(crate) fn reconcile(
-    prefill: &crate::till_wire::TillPreFillWire,
+    prefill: &models::TillPreFill,
     this_device_id: &str,
     local: Option<&TillView>,
     open_pending: bool,
     close_pending: bool,
 ) -> TillReconcile {
-    if let Some(t) = prefill.open_till.as_ref().filter(|t| t.status == "open") {
-        let here = t.device_id.is_none() || t.device_id.as_deref() == Some(this_device_id);
+    if let Some(api) = open_till_of(prefill) {
+        let t = TillRecord::from_api(api);
+        let here = t.device_id.is_none() || same_device(&api.device_id, this_device_id);
         if here {
             if close_pending && local.map(|l| l.id == t.id).unwrap_or(false) {
                 return TillReconcile::KeepLocal;
@@ -868,7 +1025,7 @@ pub(crate) fn reconcile(
                 // older one. Both are kept server-side (flagged); keep ours here.
                 return TillReconcile::KeepLocal;
             }
-            return TillReconcile::Adopt(Box::new(t.clone()));
+            return TillReconcile::Adopt(Box::new(t));
         }
     }
     if open_pending || close_pending {
@@ -894,16 +1051,16 @@ pub struct OpenBillsNoticeView {
 }
 
 pub(crate) fn open_bills_notice_view(
-    w: &crate::till_wire::OpenBillsNoticeWire,
+    w: &models::OpenBillsNotice,
 ) -> Option<OpenBillsNoticeView> {
     (w.open_bills_count > 0).then(|| OpenBillsNoticeView {
         open_bills_count: w.open_bills_count,
         open_bills_amount_minor: w.open_bills_amount,
-        oldest_opened_at: w.oldest_opened_at.clone(),
+        oldest_opened_at: w.oldest_opened_at.flatten().map(|d| d.to_rfc3339()),
         old_bills_count: w.old_bills_count,
-        old_bill_hours: w.old_bill_hours,
+        old_bill_hours: i64::from(w.old_bill_hours),
         seated_tables_count: w.seated_tables_count,
-        since: w.since.clone(),
+        since: w.since.flatten().map(|d| d.to_rfc3339()),
     })
 }
 
@@ -1028,8 +1185,8 @@ pub struct BranchOpenTillView {
     pub source: String,
 }
 
-pub(crate) fn preview_methods_from_wire(
-    methods: &[crate::till_wire::CloseTillMethodWire],
+pub(crate) fn preview_methods_from_api(
+    methods: &[models::CloseTillMethod],
     label: &dyn Fn(&str) -> String,
 ) -> Vec<CloseTillMethodView> {
     methods
@@ -1095,7 +1252,7 @@ pub(crate) fn offline_preview_methods(
 /// status is derived from the count, so it is never sent as input.
 pub(crate) fn reconciliation_wire(
     inputs: &[ReconciliationInput],
-) -> Result<Vec<crate::till_wire::ReconciliationInputWire>, crate::error::CoreError> {
+) -> Result<Vec<models::ReconciliationInput>, crate::error::CoreError> {
     let mut out = Vec::new();
     for i in inputs {
         let status = i.status.trim().to_ascii_lowercase();
@@ -1125,17 +1282,15 @@ pub(crate) fn reconciliation_wire(
                 });
             }
         }
-        out.push(crate::till_wire::ReconciliationInputWire {
-            method: i.method.clone(),
-            status: status.clone(),
-            declared_amount: if status == "disagreed" {
-                i.declared_amount_minor
-                    .and_then(|v| i32::try_from(v).ok())
-            } else {
-                None
-            },
-            note,
-        });
+        let mut line = models::ReconciliationInput::new(i.method.clone(), status.clone());
+        if status == "disagreed" {
+            line.declared_amount = i
+                .declared_amount_minor
+                .and_then(|v| i32::try_from(v).ok())
+                .map(Some);
+        }
+        line.note = note.map(Some);
+        out.push(line);
     }
     Ok(out)
 }
@@ -1144,7 +1299,7 @@ pub(crate) fn reconciliation_wire(
 /// methods left out as `unreviewed`, the cash line from the count.
 pub(crate) fn local_reconciliation_lines(
     methods: &[CloseTillMethodView],
-    inputs: &[crate::till_wire::ReconciliationInputWire],
+    inputs: &[models::ReconciliationInput],
     closing_cash_minor: i64,
     cash_note: Option<&str>,
 ) -> Vec<ReconciliationLineView> {
@@ -1171,8 +1326,8 @@ pub(crate) fn local_reconciliation_lines(
                     is_cash: false,
                     system_total_minor: m.system_total_minor,
                     status: i.status.clone(),
-                    declared_amount_minor: i.declared_amount.map(|v| v as i64),
-                    note: i.note.clone(),
+                    declared_amount_minor: i.declared_amount.flatten().map(i64::from),
+                    note: i.note.clone().flatten(),
                     changed_after_close: false,
                 },
                 None => ReconciliationLineView {
@@ -1190,8 +1345,8 @@ pub(crate) fn local_reconciliation_lines(
         .collect()
 }
 
-pub(crate) fn reconciliation_lines_from_wire(
-    lines: &[crate::till_wire::TillReconciliationLineWire],
+pub(crate) fn reconciliation_lines_from_api(
+    lines: &[models::TillReconciliationLine],
     label: &dyn Fn(&str) -> String,
 ) -> Vec<ReconciliationLineView> {
     lines
@@ -1200,12 +1355,11 @@ pub(crate) fn reconciliation_lines_from_wire(
             method: l.method.clone(),
             label: label(&l.method),
             is_cash: l.is_cash,
-            system_total_minor: l.system_total,
+            system_total_minor: i64::from(l.system_total),
             status: l.status.clone(),
-            declared_amount_minor: l.declared_amount,
-            note: l.note.clone(),
-            changed_after_close: l.changed_after_close
-                || (l.current_system_total != 0 && l.current_system_total != l.system_total),
+            declared_amount_minor: l.declared_amount.flatten().map(i64::from),
+            note: l.note.clone().flatten(),
+            changed_after_close: l.changed_after_close,
         })
         .collect()
 }
@@ -1227,8 +1381,8 @@ pub(crate) fn last_till_warning(
     })
 }
 
-pub(crate) fn last_till_warning_from_wire(
-    w: &crate::till_wire::LastTillWarningWire,
+pub(crate) fn last_till_warning_from_api(
+    w: &models::LastTillWarning,
 ) -> Option<LastTillWarningView> {
     (w.is_last_open_till && (w.open_bills_count > 0 || w.seated_tables_count > 0)).then(|| {
         LastTillWarningView {
@@ -1264,13 +1418,31 @@ pub(crate) fn effective_method_ids(
 mod tests {
     use super::*;
 
-    use crate::till_wire::{TillBriefWire, TillPreFillWire};
-
     const DEV: &str = "dddddddd-0000-0000-0000-000000000001";
     const OTHER_DEV: &str = "dddddddd-0000-0000-0000-000000000002";
 
-    fn rec(id: &str, teller: &str, status: &str) -> TillWire {
-        TillWire {
+    /// A server `Till` open on `device` (ids are stable v5 UUIDs of the labels).
+    fn api(id: &str, teller: &str, status: &str, device: &str) -> Box<models::Till> {
+        Box::new(models::Till {
+            id: uid(id),
+            branch_id: uid("B1"),
+            teller_id: uid(teller),
+            teller_name: format!("name-{teller}"),
+            status: status.into(),
+            opening_cash: 500,
+            opened_at: chrono::DateTime::parse_from_rfc3339("2026-09-13T09:00:00Z").unwrap(),
+            device_id: Some(Some(uuid::Uuid::parse_str(device).unwrap())),
+            verification: "server".into(),
+            ..Default::default()
+        })
+    }
+
+    fn uid(label: &str) -> uuid::Uuid {
+        uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, label.as_bytes())
+    }
+
+    fn rec(id: &str, teller: &str, status: &str) -> TillRecord {
+        TillRecord {
             id: id.into(),
             branch_id: "B1".into(),
             teller_id: teller.into(),
@@ -1286,12 +1458,12 @@ mod tests {
 
     #[test]
     fn open_till_server_blocks_elsewhere() {
-        let pf = TillPreFillWire {
-            open_elsewhere: vec![TillBriefWire {
-                id: "T9".into(),
-                device_id: Some(OTHER_DEV.into()),
-                device_code: Some("36B".into()),
-                opened_at: "2026-09-13T08:00:00Z".into(),
+        let pf = models::TillPreFill {
+            open_elsewhere: vec![models::TillBrief {
+                id: uid("T9"),
+                device_id: Some(Some(uuid::Uuid::parse_str(OTHER_DEV).unwrap())),
+                device_code: Some(Some("36B".into())),
+                opened_at: chrono::DateTime::parse_from_rfc3339("2026-09-13T08:00:00Z").unwrap(),
                 status: "open".into(),
                 ..Default::default()
             }],
@@ -1299,24 +1471,26 @@ mod tests {
         };
         match decide_open(Some(&pf), DEV, None, true) {
             OpenDecision::Blocked(e) => {
-                assert_eq!(e.till_id, "T9");
+                assert_eq!(e.till_id, uid("T9").to_string());
                 assert_eq!(e.source, "server");
                 assert_eq!(e.device_code.as_deref(), Some("36B"));
             }
             other => panic!("expected blocked, got {other:?}"),
         }
         // A clean prefill allows, verified by the server (LAN is not consulted).
-        let clean = TillPreFillWire::default();
+        let clean = models::TillPreFill::default();
         assert_eq!(
             decide_open(Some(&clean), DEV, None, false),
             OpenDecision::Allow("server")
         );
         // The person's open till ON THIS device resumes instead of opening twice.
-        let mut here = TillPreFillWire::default();
-        here.open_till = Some(rec("T1", "U1", "open"));
+        let here = models::TillPreFill {
+            open_till: Some(Some(api("T1", "U1", "open", DEV))),
+            ..Default::default()
+        };
         assert!(matches!(
             decide_open(Some(&here), DEV, None, false),
-            OpenDecision::Resume(t) if t.id == "T1"
+            OpenDecision::Resume(t) if t.id == uid("T1").to_string()
         ));
     }
 
@@ -1419,29 +1593,31 @@ mod tests {
 
     #[test]
     fn reconcile_adopts_only_a_till_on_this_device() {
-        let local = view_from(&rec("T1", "U1", "open"));
-        let mut pf = TillPreFillWire::default();
-        pf.open_till = Some(rec("T1", "U1", "open"));
+        let mut local_rec = rec("T1", "U1", "open");
+        local_rec.id = uid("T1").to_string();
+        let local = view_from(&local_rec);
+        let mut pf = models::TillPreFill {
+            open_till: Some(Some(api("T1", "U1", "open", DEV))),
+            ..Default::default()
+        };
         assert!(matches!(
             reconcile(&pf, DEV, Some(&local), false, false),
             TillReconcile::Adopt(_)
         ));
         // Open on another device: never adopted here.
-        let mut elsewhere = rec("T2", "U1", "open");
-        elsewhere.device_id = Some(OTHER_DEV.into());
-        pf.open_till = Some(elsewhere);
+        pf.open_till = Some(Some(api("T2", "U1", "open", OTHER_DEV)));
         assert!(matches!(
             reconcile(&pf, DEV, None, false, false),
             TillReconcile::Clear
         ));
         // Our close is queued: the server's "still open" is stale.
-        pf.open_till = Some(rec("T1", "U1", "open"));
+        pf.open_till = Some(Some(api("T1", "U1", "open", DEV)));
         assert!(matches!(
             reconcile(&pf, DEV, Some(&local), false, true),
             TillReconcile::KeepLocal
         ));
         // None on the server but our open is queued: keep the optimistic till.
-        let none = TillPreFillWire::default();
+        let none = models::TillPreFill::default();
         assert!(matches!(
             reconcile(&none, DEV, Some(&local), true, false),
             TillReconcile::KeepLocal
@@ -1553,6 +1729,45 @@ mod tests {
     }
 
     #[test]
+    fn queued_requests_with_shift_id_decode_as_till_id() {
+        let till = "00000000-0000-0000-0000-00000000c0de";
+        let settle = format!(r#"{{"ticket_id":"k1","request":{{"payment_method":"Cash","shift_id":"{till}"}}}}"#);
+        let cmd: crate::tickets::SettleTicketCommand = serde_json::from_str(&settle).unwrap();
+        assert_eq!(cmd.request.till_id.to_string(), till);
+        let refund = format!(
+            r#"{{"request":{{"amount":100,"method":"Cash","order_id":"{till}","reason":"other","shift_id":"{till}"}}}}"#
+        );
+        let cmd: crate::orders::RefundOrderCommand = serde_json::from_str(&refund).unwrap();
+        assert_eq!(cmd.request.till_id.flatten().unwrap().to_string(), till);
+        // A payload that already says `till_id` wins over a stray legacy name.
+        let both = format!(
+            r#"{{"ticket_id":"k1","request":{{"payment_method":"Cash","till_id":"{till}","shift_id":"00000000-0000-0000-0000-000000000001"}}}}"#
+        );
+        let cmd: crate::tickets::SettleTicketCommand = serde_json::from_str(&both).unwrap();
+        assert_eq!(cmd.request.till_id.to_string(), till);
+    }
+
+    #[test]
+    fn cached_report_reads_the_pre_rework_shift_report() {
+        let store = Store::open("").unwrap();
+        let legacy = r#"[{"shift":{"id":"00000000-0000-0000-0000-0000000000a1","branch_id":"00000000-0000-0000-0000-0000000000b1",
+            "teller_id":"00000000-0000-0000-0000-0000000000c1","teller_name":"Sara","status":"open","opening_cash":500,
+            "opened_at":"2026-09-01T09:00:00Z","opening_cash_was_edited":false},
+            "cash_movements":[],"cash_movements_in":0,"cash_movements_net":0,"cash_movements_out":0,"cash_tips":0,
+            "expected_cash":900,"net_payments":0,"non_cash_tips":0,"payment_summary":[],"printed_at":"2026-09-01T18:00:00Z",
+            "total_payments":0,"total_tips":0,"voided_amount":0,"cash_adjustments":0,"safe_drops":0}]"#;
+        store.kv_put("cache:shift_report:T1", legacy).unwrap();
+        let r = cached_report(&store, "T1").expect("legacy report read");
+        assert_eq!(r.expected_cash, 900);
+        assert_eq!(r.till.verification, "legacy");
+        // A fresh write takes the current key and wins.
+        let mut fresh = r.clone();
+        fresh.expected_cash = 1200;
+        cache_report(&store, "T1", &fresh);
+        assert_eq!(cached_report(&store, "T1").unwrap().expected_cash, 1200);
+    }
+
+    #[test]
     fn legacy_outbox_payloads_decode_into_till_commands() {
         let open = r#"{"branch_id":"B1","request":{"id":"00000000-0000-0000-0000-0000000000a1",
             "opening_cash":500,"till_id":"00000000-0000-0000-0000-0000000000ee","opened_at":"2026-06-20T09:00:00+00:00"}}"#;
@@ -1562,7 +1777,7 @@ mod tests {
         let close = r#"{"shift_id":"S1","request":{"closing_cash_declared":480,"cash_note":null}}"#;
         let c: CloseTillCommand = serde_json::from_str(close).unwrap();
         assert_eq!(c.till_id, "S1");
-        assert!(c.request.reconciliation.is_empty());
+        assert!(c.request.reconciliation.is_none(), "filled with [] when sent");
         let cash = r#"{"shift_id":"S1","request":{"amount":100,"note":"float"}}"#;
         let m: CashMovementCommand = serde_json::from_str(cash).unwrap();
         assert_eq!(m.till_id, "S1");
@@ -1631,9 +1846,9 @@ mod tests {
 
     #[test]
     fn report_view_adds_queued_cash_to_server_expected() {
-        let mut report = models::ShiftReportResponse::default();
+        let mut report = models::TillReportResponse::default();
         report.expected_cash = 60000;
-        report.shift = Box::new(models::Shift {
+        report.till = Box::new(models::Till {
             opening_cash: 50000,
             ..Default::default()
         });
@@ -1644,7 +1859,7 @@ mod tests {
             "Cash".into(),
             12000,
         )];
-        let v = report_view(&report, 2280);
+        let v = report_view(&report, 2280, &|m| m.to_string());
         assert_eq!(v.expected_cash_minor, 62280); // 60000 + 2280 queued
         assert_eq!(v.opening_cash_minor, 50000);
         assert_eq!(v.total_payments_minor, 15000);
@@ -1662,9 +1877,9 @@ mod tests {
     /// the drawer reads a huge phantom "over".
     #[test]
     fn cached_report_view_keeps_the_server_figures_a_drained_shift_already_had() {
-        let mut report = models::ShiftReportResponse::default();
+        let mut report = models::TillReportResponse::default();
         report.expected_cash = 60000; // opening 50000 + 10000 already taken
-        report.shift = Box::new(models::Shift {
+        report.till = Box::new(models::Till {
             opening_cash: 50000,
             ..Default::default()
         });
@@ -1677,7 +1892,7 @@ mod tests {
         )];
 
         // Nothing of this is in the outbox — it all drained before we went offline.
-        let v = cached_report_view(&report, 0, vec![]);
+        let v = cached_report_view(&report, 0, vec![], &|m| m.to_string());
 
         // The old offline path returned opening cash (50000) and no payments.
         assert_eq!(v.expected_cash_minor, 60000);
@@ -1689,9 +1904,9 @@ mod tests {
 
     #[test]
     fn cached_report_view_adds_queued_work_on_top_without_double_counting() {
-        let mut report = models::ShiftReportResponse::default();
+        let mut report = models::TillReportResponse::default();
         report.expected_cash = 60000;
-        report.shift = Box::new(models::Shift {
+        report.till = Box::new(models::Till {
             opening_cash: 50000,
             ..Default::default()
         });
@@ -1720,7 +1935,7 @@ mod tests {
                 created_at: "2026-09-06T11:00:00Z".into(),
             },
         ];
-        let v = cached_report_view(&report, 3000, queued);
+        let v = cached_report_view(&report, 3000, queued, &|m| m.to_string());
 
         assert_eq!(v.expected_cash_minor, 63000); // 60000 + 3000 queued cash sales
                                                   // The drained movement is listed once, alongside the two queued ones.
@@ -1736,9 +1951,9 @@ mod tests {
 
     #[test]
     fn report_view_projects_every_field_and_preserves_movement_order() {
-        let mut report = models::ShiftReportResponse::default();
+        let mut report = models::TillReportResponse::default();
         report.expected_cash = 30000;
-        report.shift = Box::new(models::Shift {
+        report.till = Box::new(models::Till {
             opening_cash: 20000,
             ..Default::default()
         });
@@ -1766,7 +1981,7 @@ mod tests {
                 ..Default::default()
             },
         ];
-        let v = report_view(&report, 0);
+        let v = report_view(&report, 0, &|m| m.to_string());
         // Every server figure mapped through verbatim (queued = 0 here).
         assert_eq!(v.expected_cash_minor, 30000);
         assert_eq!(v.net_payments_minor, 8500);
@@ -1793,8 +2008,8 @@ mod tests {
     #[test]
     fn report_view_default_response_is_all_zero_and_empty() {
         // A defaulted server response (no sales, no movements) projects cleanly.
-        let report = models::ShiftReportResponse::default();
-        let v = report_view(&report, 0);
+        let report = models::TillReportResponse::default();
+        let v = report_view(&report, 0, &|m| m.to_string());
         assert_eq!(v.expected_cash_minor, 0);
         assert_eq!(v.opening_cash_minor, 0);
         assert_eq!(v.total_payments_minor, 0);
@@ -1810,9 +2025,9 @@ mod tests {
     #[test]
     fn report_view_negative_queued_cash_lowers_expected() {
         // queued_cash is just added — a negative (net cash refund queued) lowers it.
-        let mut report = models::ShiftReportResponse::default();
+        let mut report = models::TillReportResponse::default();
         report.expected_cash = 60000;
-        let v = report_view(&report, -1500);
+        let v = report_view(&report, -1500, &|m| m.to_string());
         assert_eq!(v.expected_cash_minor, 58500);
     }
 

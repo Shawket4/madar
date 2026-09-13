@@ -15,6 +15,7 @@ pub struct _MadarConfig {
     pub environment: String,
     pub db_path: String,
     pub locale: String,
+    pub app_version: Option<String>,
 }
 
 #[frb(mirror(LoginMode))]
