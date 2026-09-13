@@ -433,17 +433,13 @@ class _Mark extends StatelessWidget {
       width: Metrics.railMark,
       height: Metrics.railMark,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: colors.brand,
-        borderRadius: BorderRadius.circular(Radii.control),
-      ),
-      // Reversed on the accent square, which is dark in both themes — the
-      // mark would otherwise take its ink from the ambient brightness, and
-      // the square is not the ambient anything.
+      // No plate: the mark sits straight on the rail, in the rail's own ink,
+      // so it reads on the chrome in every theme — the ambient ink would
+      // follow the page's brightness, and the rail is not the page.
       child: AnimatedBrandMark(
         symbolSize: _railMarkArtwork,
         wordmark: false,
-        ink: colors.onBrand,
+        ink: colors.onChrome,
       ),
     );
     if (onTap == null) return ExcludeSemantics(child: mark);
