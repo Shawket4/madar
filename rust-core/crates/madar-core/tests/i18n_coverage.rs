@@ -56,6 +56,8 @@ const ALLOWED_IDENTICAL: &[&str] = &[
     // A phone-number format hint ("01x xxxx xxxx"): digits and placeholder
     // letters, not language content.
     "loyalty.phone_placeholder",
+    // A column header that is only the number sign, the same in both scripts.
+    "history.col_number",
     // A quoting template: the Arabic guillemets around a placeholder carry no
     // letters of their own.
     "common.quoted",
