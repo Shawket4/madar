@@ -176,3 +176,158 @@ async fn enqueue_and_pull_outcomes_notify_subscribers() {
     let got = sub.next(Duration::from_millis(5)).await.unwrap();
     assert!(got.contains(&changes::OUTBOX.to_string()) && got.contains(&changes::CASH_MOVEMENTS.to_string()));
 }
+
+// ── Phase 2: shifts/tills, orders and cash on the ledger read path ──────────
+
+fn seed_methods(core: &crate::MadarCore) {
+    core.store
+        .kv_put(
+            menu::K_PAYMENT_METHODS,
+            r##"[{"id":"00000000-0000-0000-0000-0000000000e1","name":"Cash","is_cash":true,"is_active":true,"created_at":"2026-01-01T00:00:00Z"},
+                 {"id":"00000000-0000-0000-0000-0000000000e2","name":"Card","is_cash":false,"is_active":true,"created_at":"2026-01-01T00:00:00Z"}]"##,
+        )
+        .unwrap();
+}
+
+async fn ring(core: &crate::MadarCore, price: i64, method_id: &str, tendered: i64) -> crate::checkout::ReceiptView {
+    core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), price).unwrap();
+    core.checkout(
+        None,
+        crate::checkout::CheckoutInput {
+            payment_method_id: method_id.into(),
+            amount_tendered_minor: tendered,
+            tip_minor: 0,
+            tip_payment_method_id: None,
+            customer_name: None,
+            notes: None,
+            splits: vec![],
+            loyalty_customer_id: None,
+            loyalty_redemptions: vec![],
+        },
+    )
+    .await
+    .unwrap()
+}
+
+const CASH: &str = "00000000-0000-0000-0000-0000000000e1";
+const CARD: &str = "00000000-0000-0000-0000-0000000000e2";
+
+/// A whole offline till: sell cash and card, pay out, void the cash sale, refund
+/// part of the card sale, preview the close, close — every figure from the rows,
+/// with no network at all.
+#[tokio::test]
+async fn an_offline_till_day_is_computed_from_its_rows() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    let till = core.open_till(10_000, None).await.unwrap().till.unwrap();
+    let cash_sale = ring(&core, 1_000, CASH, 5_000).await;
+    let card_sale = ring(&core, 2_500, CARD, 0).await;
+    assert!(cash_sale.queued_offline && card_sale.queued_offline);
+    core.record_cash_movement(-500, "milk".into(), Some("pay_out".into()), None).await.unwrap();
+
+    let report = core.till_report().await.unwrap();
+    assert_eq!(report.expected_cash_minor, 10_000 + cash_sale.total_minor - 500);
+    assert!(!report.from_server, "queued work is not the server's figure yet");
+    assert_eq!(report.cash_out_minor, 500);
+
+    let orders = core.list_till_orders().await.unwrap();
+    assert_eq!(orders.len(), 2);
+    assert!(orders.iter().all(|o| o.status == "queued" && o.queued));
+    let cash_row = orders.iter().find(|o| o.total_minor == cash_sale.total_minor).unwrap();
+
+    core.void_order(cash_row.id.clone(), "mistake".into(), None, false).await.unwrap();
+    let report = core.till_report().await.unwrap();
+    assert_eq!(report.expected_cash_minor, 10_000 - 500, "the voided cash sale left the drawer");
+    assert_eq!(report.voided_amount_minor, cash_sale.total_minor);
+    let orders = core.list_till_orders().await.unwrap();
+    assert_eq!(orders.iter().find(|o| o.id == cash_row.id).unwrap().status, "voided");
+
+    let movements = core.list_cash_movements().await.unwrap();
+    assert_eq!(movements.len(), 1);
+    assert_eq!((movements[0].amount_minor, movements[0].kind.as_str()), (-500, "pay_out"));
+
+    let preview = core.close_till_preview().await.unwrap();
+    assert_eq!(preview.expected_cash_minor, 9_500);
+    let cash_line = preview.methods.iter().find(|m| m.is_cash).unwrap();
+    assert_eq!(cash_line.system_total_minor, 9_500);
+    let card_line = preview.methods.iter().find(|m| m.method == "Card").unwrap();
+    assert_eq!(card_line.system_total_minor, card_sale.total_minor);
+
+    let outcome = core.close_till(9_500, None, vec![]).await.unwrap();
+    assert!(outcome.queued);
+    let tills = core.list_tills().await.unwrap();
+    let t = tills.iter().find(|x| x.id == till.id).unwrap();
+    assert!(!t.is_open && t.status == "closed");
+    let z = core.till_report_for(till.id.clone()).await.unwrap();
+    assert_eq!(z.expected_cash_minor, 9_500);
+    assert_eq!(z.closing_cash_declared_minor, Some(9_500));
+}
+
+/// The replay answers each op; the answers fold into the rows, the sale never
+/// leaves the list, and a snapshot that does not list it yet cannot remove it.
+#[tokio::test]
+async fn acked_sales_fold_and_survive_the_next_snapshot() {
+    let stub = Stub::start(|r| {
+        if r.path.starts_with("/sync/replay") {
+            let body = r.json();
+            let op = body["op"].as_str().unwrap_or("");
+            return Some(match op {
+                "open_till" => StubResponse::json(201, serde_json::json!({
+                    "id": body["request"]["id"], "branch_id": testkit::BRANCH, "teller_id": testkit::TELLER,
+                    "teller_name": "Sara", "status": "open", "opening_cash": body["request"]["opening_cash"],
+                    "opened_at": body["request"]["opened_at"], "opening_cash_was_edited": false,
+                    "verification": "unverified", "opened_while_another_open": false, "disagreement_count": 0})),
+                "create_order" => {
+                    let req = &body["request"];
+                    StubResponse::json(201, serde_json::json!({
+                        "id": uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, req["idempotency_key"].as_str().unwrap().as_bytes()),
+                        "branch_id": req["branch_id"], "till_id": req["till_id"], "shift_id": req["till_id"],
+                        "teller_id": testkit::TELLER, "teller_name": "Sara", "order_number": 7, "order_ref": req["order_ref"],
+                        "status": "completed", "order_type": "takeaway", "payment_method": req["payment_method"],
+                        "payment_legs": [], "subtotal": req["subtotal"], "tax_amount": req["tax_amount"],
+                        "total_amount": req["total_amount"], "discount_amount": 0, "discount_value": 0, "delivery_fee": 0,
+                        "created_at": req["created_at"], "items": []}))
+                }
+                _ => StubResponse::json(200, serde_json::json!({"id": uuid::Uuid::new_v4()})),
+            });
+        }
+        if r.path.starts_with("/sync/pull") {
+            // A snapshot taken before the sale committed: no orders at all.
+            return Some(StubResponse::text(
+                200,
+                r#"{"full":true,"next":10,"has_more":false,"server_time":"2026-09-14T10:00:00Z","types":["till","order","cash_movement","refund"],"data":{"till":[],"order":[],"cash_movement":[],"refund":[]},"ledger_window":{"from":"2020-01-01T00:00:00Z"}}"#,
+            ));
+        }
+        None
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_methods(&core);
+    core.set_online(true);
+    let _till = core.open_till(1_000, None).await.unwrap().till.unwrap();
+    let sale = ring(&core, 700, CASH, 700).await;
+    assert!(!sale.queued_offline, "acked straight away");
+    let orders = core.list_till_orders().await.unwrap();
+    assert_eq!(orders.len(), 1);
+    assert_eq!(orders[0].order_number, Some(7), "the server's answer folded in");
+    assert!(!orders[0].queued);
+    core.pull(false).await.unwrap();
+    let orders = core.list_till_orders().await.unwrap();
+    assert_eq!(orders.len(), 1, "the snapshot could not remove a freshly acked sale");
+    assert_eq!(core.till_report().await.unwrap().expected_cash_minor, 1_000 + sale.total_minor);
+}
+
+/// Every read-path mode serves; shadow logs the legacy/new difference.
+#[tokio::test]
+async fn shadow_mode_serves_legacy_and_logs_divergence() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    ring(&core, 400, CASH, 400).await;
+    for mode in [crate::readpath::ReadPathMode::Legacy, crate::readpath::ReadPathMode::Shadow, crate::readpath::ReadPathMode::New] {
+        core.set_read_path_mode("ledger".into(), mode).unwrap();
+        assert_eq!(core.list_till_orders().await.unwrap().len(), 1, "{mode:?}");
+        assert!(core.till_report().await.is_ok());
+    }
+    assert!(core.set_read_path_mode("nope".into(), crate::readpath::ReadPathMode::New).is_err());
+}

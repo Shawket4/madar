@@ -124,13 +124,11 @@ pub(crate) fn modify(conn: &Connection, ty: &str, key: &str, f: impl FnOnce(&mut
     let origin = if prev.origin == "local" { Origin::Local } else { Origin::Fetch };
     write_row(conn, ty, key, &raw, origin, srv.as_ref())?;
     // write_row(Fetch) would not touch acked/seq; restore the exact ack flag.
-    if ty != T_TILL {
-        let (table, kcol) = super::table_of(ty).unwrap();
-        conn.execute(
-            &format!("UPDATE {table} SET acked=?1 WHERE {kcol}=?2"),
-            params![prev.acked as i64, key],
-        )?;
-    }
+    let (table, kcol) = super::table_of(ty).unwrap();
+    conn.execute(
+        &format!("UPDATE {table} SET acked=?1 WHERE {kcol}=?2"),
+        params![prev.acked as i64, key],
+    )?;
     Ok(true)
 }
 

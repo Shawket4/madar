@@ -438,7 +438,7 @@ impl MadarCore {
         })
     }
 
-    pub async fn list_cash_movements(&self) -> Result<Vec<till::CashMovementView>, CoreError> {
+    pub(crate) async fn legacy_list_cash_movements(&self) -> Result<Vec<till::CashMovementView>, CoreError> {
         let t = till::current(&self.store)?.ok_or_else(|| CoreError::Validation {
             field: "till".into(),
             detail: "no till".into(),
@@ -523,7 +523,7 @@ impl MadarCore {
     }
 
     /// What closing will check (online: server; offline: local computation).
-    pub async fn close_till_preview(&self) -> Result<till::CloseTillPreviewView, CoreError> {
+    pub(crate) async fn legacy_close_till_preview(&self) -> Result<till::CloseTillPreviewView, CoreError> {
         let t = self.open_till_or_err()?;
         let label = self.method_label_fn();
         if self.current_session().map(|s| s.online).unwrap_or(false) {
@@ -568,7 +568,7 @@ impl MadarCore {
                 });
             }
         }
-        let report = self.till_report().await?;
+        let report = self.legacy_till_report().await?;
         let methods = till::offline_preview_methods(&report, &self.queued_by_method(&t.id), &label);
         let others = self
             .lan
@@ -704,7 +704,7 @@ impl MadarCore {
     }
 
     /// The current till's report (drives the close count).
-    pub async fn till_report(&self) -> Result<till::TillReportView, CoreError> {
+    pub(crate) async fn legacy_till_report(&self) -> Result<till::TillReportView, CoreError> {
         let t = till::current(&self.store)?.ok_or_else(|| CoreError::Validation {
             field: "till".into(),
             detail: "no till".into(),
@@ -758,7 +758,7 @@ impl MadarCore {
     }
 
     /// Past tills for this branch, newest first.
-    pub async fn list_tills(&self) -> Result<Vec<till::TillSummaryView>, CoreError> {
+    pub(crate) async fn legacy_list_tills(&self) -> Result<Vec<till::TillSummaryView>, CoreError> {
         let sp = self.session_parts()?;
         const KEY: &str = "cache:tills";
         let mut views: Vec<till::TillSummaryView> = if sp.online {

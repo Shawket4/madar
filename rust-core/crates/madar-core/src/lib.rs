@@ -89,6 +89,8 @@ pub mod staff;
 pub mod store;
 pub mod changes;
 pub(crate) mod scheduler;
+pub mod readpath;
+mod ledger_ops;
 #[cfg(test)]
 mod testkit;
 #[cfg(test)]
@@ -5374,7 +5376,7 @@ impl MadarCore {
     /// The current shift's orders — the still-queued sales (from the outbox,
     /// shown first, always available offline) plus the server's synced orders
     /// when online (best-effort). Errors if there's no current shift.
-    pub async fn list_till_orders(&self) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
+    pub(crate) async fn legacy_list_till_orders(&self) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
         let shift = till::current(&self.store)?.ok_or_else(|| CoreError::Validation {
             field: "shift".into(),
             detail: "no shift".into(),
@@ -5437,7 +5439,7 @@ impl MadarCore {
         &self,
         order_id: String,
     ) -> Result<orders::OrderDetailView, CoreError> {
-        let o = self.get_order_or_cache(&order_id).await?;
+        let o = self.order_full_for(&order_id).await?;
         Ok(orders::order_detail_view(&o, &self.current_locale()))
     }
 
@@ -5718,7 +5720,7 @@ impl MadarCore {
         width: u32,
         brand: receipt::PrinterBrand,
     ) -> Result<Vec<u8>, CoreError> {
-        let o = self.get_order_or_cache(&order_id).await?;
+        let o = self.order_full_for(&order_id).await?;
         let receipt = orders::order_to_receipt(&o, &self.current_locale());
         Ok(self.render_receipt(receipt, store_name, currency, width, brand))
     }
@@ -5729,14 +5731,14 @@ impl MadarCore {
         &self,
         order_id: String,
     ) -> Result<checkout::ReceiptView, CoreError> {
-        let o = self.get_order_or_cache(&order_id).await?;
+        let o = self.order_full_for(&order_id).await?;
         Ok(orders::order_to_receipt(&o, &self.current_locale()))
     }
 
     /// A PAST shift's synced orders (history-screen expansion). Live when online
     /// (cached write-through, same key as the current-shift list), else the last-
     /// synced snapshot — so an expanded past shift keeps its orders offline.
-    pub async fn list_orders_for_till(
+    pub(crate) async fn legacy_list_orders_for_till(
         &self,
         till_id: String,
     ) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
@@ -5857,7 +5859,11 @@ impl MadarCore {
         // date); a teller filter excludes them (no echoed teller name yet). Dedup
         // by order_ref against the server page (an order that just synced is there).
         if page.max(1) == 1 && f_teller.is_none() {
-            let q: Vec<orders::OrderSummaryView> = orders::queued_all(&self.store)?
+            let unsent = match readpath::mode(&self.store, "ledger") {
+                readpath::ReadPathMode::Legacy => orders::queued_all(&self.store)?,
+                _ => ledger::views::unsent_orders(&self.store)?,
+            };
+            let q: Vec<orders::OrderSummaryView> = unsent
                 .into_iter()
                 .filter(|o| {
                     f_status.as_deref().map_or(true, |s| o.status == s)
@@ -5885,7 +5891,7 @@ impl MadarCore {
     /// write-through), else the cached report; and for a shift opened+closed
     /// entirely OFFLINE — which never had a server report — reconstructed from the
     /// local opening cash + that shift's queued cash sales + movements.
-    pub async fn till_report_for(
+    pub(crate) async fn legacy_till_report_for(
         &self,
         till_id: String,
     ) -> Result<till::TillReportView, CoreError> {
@@ -6055,7 +6061,7 @@ impl MadarCore {
     /// and refuses anything over it. What it prevents is the teller typing a
     /// second full refund into a sale that already had one, which no amount of
     /// server-side refusal makes a pleasant thing to do in front of a customer.
-    pub async fn list_order_refunds(
+    pub(crate) async fn legacy_list_order_refunds(
         &self,
         order_id: String,
     ) -> Result<orders::OrderRefundsView, CoreError> {
@@ -6110,7 +6116,7 @@ impl MadarCore {
     /// Cached like the per-order read, because the close screen is exactly
     /// where a till is most likely to be offline: the network went, the
     /// shift ends anyway, and the teller still has to count.
-    pub async fn list_till_refunds(
+    pub(crate) async fn legacy_list_till_refunds(
         &self,
         till_id: String,
     ) -> Result<orders::TillRefundsView, CoreError> {

@@ -222,10 +222,26 @@ impl MadarCore {
         branch_id: &str,
         till_id: &str,
     ) -> Option<Vec<crate::orders::OrderSummaryView>> {
+        Some(
+            self.fetch_shift_order_models(branch_id, till_id)
+                .await?
+                .iter()
+                .map(crate::orders::from_server)
+                .collect(),
+        )
+    }
+
+    /// [`Self::fetch_shift_orders_all_pages`] as the server's models (the ledger
+    /// stores them as rows for a till the device does not hold completely).
+    pub(crate) async fn fetch_shift_order_models(
+        &self,
+        branch_id: &str,
+        till_id: &str,
+    ) -> Option<Vec<madar_api::models::Order>> {
         use madar_api::apis::orders_api;
         /// A guard, not a business rule: 50 × 200 sales is past any shift.
         const MAX_PAGES: i64 = 50;
-        let mut views = Vec::new();
+        let mut all = Vec::new();
         let mut page = 1i64;
         loop {
             let params = orders_api::ListOrdersParams {
@@ -250,15 +266,14 @@ impl MadarCore {
             let resp = orders_api::list_orders(&self.api.config(), params)
                 .await
                 .ok()?;
-            // Do NOT preload these into cache:order:{id}: the list element is
-            // models::Order (no items), not the OrderFull an offline reprint reads.
-            views.extend(resp.data.iter().map(crate::orders::from_server));
-            if page >= resp.total_pages || resp.data.is_empty() || page >= MAX_PAGES {
+            let done = page >= resp.total_pages || resp.data.is_empty() || page >= MAX_PAGES;
+            all.extend(resp.data);
+            if done {
                 break;
             }
             page += 1;
         }
-        Some(views)
+        Some(all)
     }
 }
 

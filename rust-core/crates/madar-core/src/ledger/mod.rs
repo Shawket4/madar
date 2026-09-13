@@ -99,7 +99,7 @@ pub(crate) struct Stored {
 
 pub(crate) fn stored(conn: &Connection, ty: &str, key: &str) -> CoreResult<Option<Stored>> {
     let (table, kcol) = table_of(ty).expect("ledger type");
-    let acked = if ty == T_TILL { "0" } else { "acked" };
+    let acked = "acked";
     let row: Option<(String, Option<String>, i64, String, i64)> = conn
         .query_row(
             &format!("SELECT raw, srv_raw, srv_seq, origin, {acked} FROM {table} WHERE {kcol}=?1"),
@@ -171,13 +171,14 @@ pub(crate) fn write_row(
         T_TILL => {
             conn.execute(
                 "INSERT INTO ledger_tills(id, branch_id, teller_id, status, opening_cash, closing_cash_system, opened_at,
-                                          closed_at, raw, srv_raw, srv_seq, origin, local_updated_at)
-                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
+                                          closed_at, raw, srv_raw, srv_seq, origin, local_updated_at, acked)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)
                  ON CONFLICT(id) DO UPDATE SET branch_id=excluded.branch_id, teller_id=excluded.teller_id,
                    status=excluded.status, opening_cash=excluded.opening_cash,
                    closing_cash_system=excluded.closing_cash_system, opened_at=excluded.opened_at,
                    closed_at=excluded.closed_at, raw=excluded.raw, srv_raw=excluded.srv_raw,
-                   srv_seq=excluded.srv_seq, origin=excluded.origin, local_updated_at=excluded.local_updated_at",
+                   srv_seq=excluded.srv_seq, origin=excluded.origin, local_updated_at=excluded.local_updated_at,
+                   acked=excluded.acked",
                 params![
                     key,
                     s(v, "branch_id").unwrap_or(""),
@@ -191,7 +192,8 @@ pub(crate) fn write_row(
                     srv,
                     srv_seq,
                     origin_word,
-                    now
+                    now,
+                    acked as i64
                 ],
             )?;
         }

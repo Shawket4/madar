@@ -21,9 +21,6 @@ use crate::store::OutboxItem;
 
 /// Flag a row acknowledged without changing its data.
 fn mark_acked(conn: &Connection, ty: &str, key: &str) -> CoreResult<()> {
-    if ty == T_TILL {
-        return Ok(());
-    }
     let (table, kcol) = super::table_of(ty).unwrap();
     conn.execute(
         &format!("UPDATE {table} SET acked=1, local_updated_at=?1 WHERE {kcol}=?2 AND srv_seq=0"),

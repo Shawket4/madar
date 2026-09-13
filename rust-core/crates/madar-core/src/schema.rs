@@ -108,6 +108,7 @@ fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
            srv_raw       TEXT,                      -- last server version while a local op holds the row
            srv_seq       INTEGER NOT NULL DEFAULT 0,
            origin        TEXT NOT NULL,             -- server|local
+           acked         INTEGER NOT NULL DEFAULT 0, -- an op for it acked, the feed has not confirmed it yet
            complete      INTEGER NOT NULL DEFAULT 0, -- every ledger row of this till is local
            local_updated_at INTEGER NOT NULL
          );
