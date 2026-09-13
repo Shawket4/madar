@@ -18,6 +18,7 @@ import 'package:feature_order/feature_order.dart';
 import 'package:feature_order/src/bundle_detail_sheet.dart';
 import 'package:feature_order/src/cart_anchor.dart';
 import 'package:feature_order/src/item_detail_sheet.dart';
+import 'package:feature_order/src/sell_cart.dart';
 import 'package:feature_order/src/sell_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -414,7 +415,7 @@ class _FakeBridge implements MadarBridge {
 
   /// Mutable: `setLocale` flips it, so a test can switch language mid-flight.
   bool rtl;
-  final bool shiftOpen;
+  bool shiftOpen;
 
   /// The table each park landed on, in order — null means the counter.
   final List<String?> parked = [];
@@ -425,15 +426,37 @@ class _FakeBridge implements MadarBridge {
   /// How many times a cart was emptied.
   int cleared = 0;
 
-  /// The core's carts, one per context (`null` = takeaway), and the active
-  /// context — the fake keeps them apart exactly the way the core does.
+  /// The core's carts, one per context (`null` = takeaway) — the fake keeps
+  /// them apart exactly the way the core does. Nothing is ever active.
   final Map<String?, List<CartLineView>> carts = {null: List.of(_cart)};
-  String? context;
+
+  /// Each context's persisted meta.
+  final Map<String?, CartMeta> metas = {};
+
+  /// The signed-in person; a teller swap changes it.
+  String userId = 'u-1';
+
+  /// Every fire, as (context, booking) — which cart went to the kitchen.
+  final List<(String?, String?)> fired = [];
+
+  /// Rounds added, as (context, ticket).
+  final List<(String?, String)> rounds = [];
+
+  /// Table statuses written to the local mirror, as (table, status).
+  final List<(String, String)> statuses = [];
 
   /// Tables seated during the test — the floor reads them back seated.
   final Set<String> seated = {};
 
-  List<CartLineView> get _inHand => carts[context] ??= [];
+  List<CartLineView> _cartOf(Invocation i) =>
+      carts[i.namedArguments[#tableId] as String?] ??= [];
+
+  /// A sign-out: the core empties every context and its meta.
+  void signOut(String nextUser) {
+    carts.clear();
+    metas.clear();
+    userId = nextUser;
+  }
 
   ShiftView? get _shift => shiftOpen
       ? const ShiftView(
@@ -468,7 +491,7 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #currentSession) {
       return SessionSnapshot(
-        userId: 'u-1',
+        userId: userId,
         displayName: 'Sara',
         role: role,
         currencyCode: 'EGP',
@@ -498,20 +521,47 @@ class _FakeBridge implements MadarBridge {
     // both are bridge calls the fake has to answer or the whole flow throws.
     // Recorded, because the ORDER of them is the fix: park, clear, adopt.
     if (name == #holdCartOnTable) {
-      parked.add(invocation.namedArguments[#tableId] as String?);
-      _inHand.clear();
+      parked.add(invocation.namedArguments[#ontoTableId] as String?);
+      _cartOf(invocation).clear();
       return Future<bool>.value(false);
     }
     if (name == #cartClear) {
       cleared += 1;
-      _inHand.clear();
+      _cartOf(invocation).clear();
       return Future<void>.value();
     }
-    if (name == #cartSetContext) {
-      context = invocation.namedArguments[#tableId] as String?;
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+    if (name == #cartMeta) {
+      return Future<CartMeta>.value(
+        metas[invocation.namedArguments[#tableId] as String?] ??
+            const CartMeta(name: ''),
+      );
     }
-    if (name == #cartContext) return Future<String?>.value(context);
+    if (name == #cartSetMeta) {
+      metas[invocation.namedArguments[#tableId] as String?] =
+          invocation.namedArguments[#meta]! as CartMeta;
+      return Future<void>.value();
+    }
+    if (name == #seatBooking || name == #completeDraft) {
+      return Future<void>.value();
+    }
+    if (name == #mirrorTableStatus) {
+      statuses.add((
+        invocation.namedArguments[#tableId]! as String,
+        invocation.namedArguments[#status]! as String,
+      ));
+      return Future<void>.value();
+    }
+    if (name == #addTicketRound) {
+      rounds.add((
+        invocation.namedArguments[#tableId] as String?,
+        invocation.namedArguments[#ticketId]! as String,
+      ));
+      _cartOf(invocation).clear();
+      metas.remove(invocation.namedArguments[#tableId]);
+      return Future<TicketFiredView>.value(
+        const TicketFiredView(ticketId: 'tk-1', queuedOffline: false),
+      );
+    }
     // No printer configured: a fired round prints nothing.
     if (name == #deviceConfig) {
       return const DeviceConfigView(reconfiguring: false, configured: true);
@@ -520,14 +570,14 @@ class _FakeBridge implements MadarBridge {
       final id = invocation.namedArguments[#itemId] as String;
       final label = invocation.namedArguments[#name] as String;
       final minor = invocation.namedArguments[#unitPriceMinor] as int;
-      final i = _inHand.indexWhere((l) => l.itemId == id);
+      final i = _cartOf(invocation).indexWhere((l) => l.itemId == id);
       if (i < 0) {
-        _inHand.add(_cartLine(id, label, minor, 1));
+        _cartOf(invocation).add(_cartLine(id, label, minor, 1));
       } else {
-        final l = _inHand[i];
-        _inHand[i] = _cartLine(id, label, minor, l.qty + 1);
+        final l = _cartOf(invocation)[i];
+        _cartOf(invocation)[i] = _cartLine(id, label, minor, l.qty + 1);
       }
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #validateItemSelections) {
       return Future<List<GroupViolationView>>.value(const []);
@@ -535,43 +585,53 @@ class _FakeBridge implements MadarBridge {
     if (name == #cartAddConfigured) {
       final id = invocation.namedArguments[#itemId] as String;
       final item = _items.firstWhere((i) => i.id == id);
-      _inHand.add(_cartLine(id, item.name, item.basePriceMinor, 1));
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+      _cartOf(invocation).add(_cartLine(id, item.name, item.basePriceMinor, 1));
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #cartAddBundle) {
       final id = invocation.namedArguments[#bundleId] as String;
-      _inHand.add(_cartLine(id, 'Combo', 9000, 1));
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+      _cartOf(invocation).add(_cartLine(id, 'Combo', 9000, 1));
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #fireTicket) {
-      _inHand.clear();
+      fired.add((
+        invocation.namedArguments[#tableId] as String?,
+        invocation.namedArguments[#bookingId] as String?,
+      ));
+      _cartOf(invocation).clear();
+      metas.remove(invocation.namedArguments[#tableId]);
       return Future<TicketFiredView>.value(
         const TicketFiredView(ticketId: 'tk-new', queuedOffline: false),
       );
     }
     if (name == #cartLines) {
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #cartTotals) return Future<CartTotals>.value(_totals);
     if (name == #listDrafts) return Future<List<DraftView>>.value(drafts);
     if (name == #switchToDraft) {
       // What the one core call does: park the cart in hand if asked, then
       // bring the draft in.
-      if (invocation.namedArguments[#parkInHand] != null &&
-          _inHand.isNotEmpty) {
-        parked.add(context);
-        _inHand.clear();
+      final from = invocation.namedArguments[#fromTableId] as String?;
+      final inHand = carts[from] ??= [];
+      if (invocation.namedArguments[#parkInHand] != null && inHand.isNotEmpty) {
+        parked.add(from);
+        inHand.clear();
       }
       final id = invocation.namedArguments[#id] as String;
       final draft = drafts.where((d) => d.id == id).firstOrNull;
-      // Into the DRAFT's own context — never over the cart in hand.
-      context = draft?.tableId;
-      _inHand
+      // Into the DRAFT's own context — never over another cart.
+      final target = (carts[draft?.tableId] ??= [])
         ..clear()
         ..add(_cartLine('latte', 'Latte', 4500, 1));
+      metas[draft?.tableId] = CartMeta(
+        name: draft?.name ?? '',
+        draftId: id,
+        tableLabel: draft?.tableLabel,
+      );
       return Future<DraftSwitchView>.value(
         DraftSwitchView(
-          lines: List.of(_inHand),
+          lines: List.of(target),
           tableId: draft?.tableId,
           tableLabel: draft?.tableLabel,
           name: draft?.name ?? '',
@@ -597,10 +657,10 @@ class _FakeBridge implements MadarBridge {
       return Future<int>.value(ticket + _totals.subtotalMinor);
     }
     if (name == #restoreDraft) {
-      _inHand
+      _cartOf(invocation)
         ..clear()
         ..add(_cartLine('latte', 'Latte', 4500, 1));
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #seatTable) {
       seated.add(invocation.namedArguments[#tableId]! as String);
@@ -866,7 +926,7 @@ void main() {
     testWidgets('the counter on an iPad: tiles, cart column, Charge', (
       tester,
     ) async {
-      await _mount(tester, screen: const SellScreen(), size: _ipad);
+      await _mount(tester, screen: const TakeawaySellScreen(), size: _ipad);
       expect(find.text('Espresso'), findsWidgets);
       expect(find.text('Takeaway'), findsWidgets);
       await _capture(tester, 'sell-ipad');
@@ -875,7 +935,7 @@ void main() {
     testWidgets('the counter on a phone: tiles and the bottom bar', (
       tester,
     ) async {
-      await _mount(tester, screen: const SellScreen(), size: _phone);
+      await _mount(tester, screen: const TakeawaySellScreen(), size: _phone);
       expect(find.text('3 items'), findsOneWidget);
       await _capture(tester, 'sell-phone');
     });
@@ -883,64 +943,36 @@ void main() {
     testWidgets('a round on a bill: on the bill, this round, Fire', (
       tester,
     ) async {
-      // `SellScreen.forTable`, not the TAB. The tab is the counter and aims
-      // the cart back at takeaway every time it is shown — which is the
-      // whole point of the split: a teller who tapped a table, thought
-      // better of it and came back to Sell is no longer silently ringing up
-      // for that table.
-      final container = await _mount(
+      // The table's OWN screen over the table's own cart; it finds T2's bill
+      // by the table.
+      final bridge = _FakeBridge();
+      bridge.carts['t2'] = [_cartLine('latte', 'Latte', 4500, 1)];
+      await _mount(
         tester,
-        screen: const SellScreen.forTable(),
+        screen: const TableOrderScreen(tableId: 't2'),
         size: _ipad,
+        bridge: bridge,
       );
-      await container.read(orderProvider.notifier).pointCartAtTable('t2', 'T2');
-      container.read(orderProvider.notifier).selectTicket('tk-1');
-      await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('T2 · Round 3'), findsWidgets);
+      expect(find.text('T2 · 4 guests'), findsWidgets);
+      expect(find.text('Round 3'), findsWidgets);
       await _capture(tester, 'sell-round-ipad');
     });
 
-    testWidgets('the Sell TAB always comes back to takeaway', (tester) async {
-      // The report: tap a table, leave without firing, return to Sell — and
-      // you are still on that table with nothing saying so. The table keeps
-      // its own cart in the core, so nothing is lost either.
-      final container = await _mount(
-        tester,
-        screen: const SellScreen(),
-        size: _ipad,
-      );
-      await container.read(orderProvider.notifier).pointCartAtTable('t2', 'T2');
-      await tester.pump();
-      expect(container.read(orderProvider).cartTableId, 't2');
-
-      // What the tab does on every entry.
-      await container.read(orderProvider.notifier).pointCartAtTakeaway();
-      await tester.pump();
-      expect(
-        container.read(orderProvider).cartTableId,
-        isNull,
-        reason: 'the Sell tab is takeaway and only takeaway',
-      );
-      expect(container.read(orderProvider).cartTableLabel, isNull);
-
-      // And the two constructors really are two different errands.
-      expect(const SellScreen().forTable, isFalse);
-      expect(const SellScreen.forTable().forTable, isTrue);
-    });
-
-    testWidgets("a table's Sell pushed over the Sell tab: no duplicate "
+    testWidgets("a table's screen pushed over the Sell tab: no duplicate "
         'cart anchors, the flight lands on the visible cart', (tester) async {
-      await _mount(tester, screen: const SellScreen(), size: _ipad);
-      final tab = tester.element(find.byType(SellScreen));
+      await _mount(tester, screen: const TakeawaySellScreen(), size: _ipad);
+      final tab = tester.element(find.byType(TakeawaySellScreen));
       Navigator.of(tab).push(
-        MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
+        MaterialPageRoute<void>(
+          builder: (_) => const TableOrderScreen(tableId: 't1'),
+        ),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 400));
       expect(tester.takeException(), isNull);
-      final screens = find.byType(SellScreen, skipOffstage: false);
+      final screens = find.byType(OrderScreen, skipOffstage: false);
       expect(screens, findsNWidgets(2));
       final pads = find.byType(CartAnchorPad, skipOffstage: false);
       final anchors = {for (final e in pads.evaluate()) CartAnchors.maybeOf(e)};
@@ -956,7 +988,7 @@ void main() {
     ) async {
       await _mount(
         tester,
-        screen: const SellScreen(),
+        screen: const TakeawaySellScreen(),
         size: _phone,
         bridge: _FakeBridge(shiftOpen: false),
       );
@@ -1107,160 +1139,393 @@ void main() {
   });
 }
 
-/// THE report: "seating parties is fundamentally broken — if you have a cart
-/// with items already and you open a new table, it's already there. It's
-/// shared between them."
-///
-/// The core keeps one cart per context (takeaway, or a table) and the host
-/// only switches which one is in hand. Nothing is parked, cleared or copied
-/// to fake the isolation any more.
+/// THE owner decision: takeaway and every table are SEPARATE screens over
+/// SEPARATE carts. The Sell tab never shows a table — on launch, on a
+/// sign-in, on a tab change, however fast the tabs are switched — and a
+/// table's screen never shows takeaway or another table. Nothing is ever
+/// "in hand", so nothing can be aimed at the wrong cart.
 void _cartContextTests() {
-  List<String> inHand(ProviderContainer c) => [
-    for (final l in c.read(orderProvider).cartLines) '${l.name}x${l.qty}',
+  List<String> linesOf(ProviderContainer c, String? table) => [
+    for (final l in c.read(cartProvider(table)).lines) '${l.name}x${l.qty}',
   ];
+  int qty(_FakeBridge b, String? table) =>
+      (b.carts[table] ?? const []).fold(0, (n, l) => n + l.qty);
+  final takeaway = [for (final l in _cart) '${l.name}x${l.qty}'];
 
-  testWidgets('every table and the counter keep their own cart', (
-    tester,
-  ) async {
-    final bridge = _FakeBridge();
-    final container = await _mount(
-      tester,
-      screen: const SellScreen.forTable(),
-      size: _ipad,
-      bridge: bridge,
-    );
-    final notifier = container.read(orderProvider.notifier);
-    await tester.pump();
-    final takeaway = inHand(container);
-    expect(takeaway, isNotEmpty, reason: 'the counter has unfired work');
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 150));
+    }
+  }
 
-    // Add to T1.
-    await notifier.pointCartAtTable('t1', 'T1');
-    expect(inHand(container), isEmpty, reason: 'T1 starts with its own cart');
-    await notifier.addToCart(_items.first);
-    await notifier.addToCart(_items.first);
-    final t1 = inHand(container);
-    expect(t1, ['${_items.first.name}x2']);
-
-    // T2 is empty.
-    await notifier.pointCartAtTable('t2', 'T2');
-    expect(container.read(orderProvider).cartTableId, 't2');
-    expect(inHand(container), isEmpty);
-
-    // Takeaway is its own, untouched.
-    await notifier.pointCartAtTakeaway();
-    expect(container.read(orderProvider).cartTableId, isNull);
-    expect(inHand(container), takeaway);
-
-    // Back to T1: its items are there.
-    await notifier.pointCartAtTable('t1', 'T1');
-    expect(inHand(container), t1);
-
-    // Fire T1: T1 starts fresh, takeaway untouched.
-    expect(await notifier.fireOrAddRound(tableId: 't1'), isTrue);
-    expect(inHand(container), isEmpty);
-    expect(container.read(orderProvider).cartTableId, 't1');
-    await notifier.pointCartAtTakeaway();
-    expect(inHand(container), takeaway);
-
-    expect(bridge.parked, isEmpty, reason: 'switching never parks');
-    expect(bridge.cleared, 0, reason: 'switching never clears');
-    await tester.pump(const Duration(seconds: 5));
-  });
-
-  testWidgets("a table's parked order resumed from the Sell tab opens that "
-      "table's own screen; the tab stays takeaway", (tester) async {
-    final bridge = _FakeBridge(
-      drafts: const [
-        DraftView(
-          id: 'd-t5',
-          name: '',
-          itemCount: 1,
-          totalMinor: 4500,
-          createdAt: '2026-09-12T18:40:00Z',
-          tableId: 't5',
-          tableLabel: 'T5',
-          lockedByOther: false,
+  String? titleOf(WidgetTester tester, Finder screen) => tester
+      .widget<MadarPageScaffold>(
+        find.descendant(
+          of: screen,
+          matching: find.byType(MadarPageScaffold, skipOffstage: false),
+          skipOffstage: false,
         ),
-      ],
-    );
-    final container = await _mount(
+      )
+      .title;
+
+  _FakeBridge withSavedTable() => _FakeBridge()
+    ..carts['t2'] = [_cartLine('latte', 'Latte', 4500, 2)]
+    ..metas['t2'] = const CartMeta(name: 'Nour', tableLabel: 'T2');
+
+  group('separate carts', () {
+    for (final empty in [false, true]) {
+      testWidgets('a launch with saved table carts: the Sell tab is takeaway '
+          '(${empty ? 'empty' : 'its own lines'})', (tester) async {
+        final bridge = withSavedTable();
+        if (empty) bridge.carts[null] = [];
+        final c = await _mount(
+          tester,
+          screen: const TakeawaySellScreen(),
+          size: _ipad,
+          bridge: bridge,
+        );
+        await settle(tester);
+        expect(titleOf(tester, find.byType(OrderScreen)), 'Takeaway');
+        expect(linesOf(c, null), empty ? isEmpty : takeaway);
+        expect(find.textContaining('T2'), findsNothing);
+        expect(find.text('Latte'), findsWidgets, reason: 'the menu tile only');
+        expect(c.read(cartProvider(null)).name, isNull);
+      });
+    }
+
+    testWidgets('a launch on the Floor opens no table', (tester) async {
+      final bridge = withSavedTable();
+      await _mount(
+        tester,
+        screen: const FloorScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await settle(tester);
+      expect(find.byType(OrderScreen), findsNothing);
+      expect(qty(bridge, 't2'), 2, reason: "T2's cart is where it was");
+    });
+
+    testWidgets('a shift opened after launch moves no cart', (tester) async {
+      final bridge = withSavedTable()..shiftOpen = false;
+      final c = await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await settle(tester);
+      expect(find.byType(SellNoShiftNotice), findsOneWidget);
+      await c.read(cartProvider('t2').notifier).load();
+      bridge.shiftOpen = true;
+      await c.read(orderProvider.notifier).reconcileShift();
+      await settle(tester);
+      expect(find.byType(SellNoShiftNotice), findsNothing);
+      expect(titleOf(tester, find.byType(OrderScreen)), 'Takeaway');
+      expect(linesOf(c, null), takeaway);
+      expect(linesOf(c, 't2'), ['Lattex2']);
+    });
+
+    testWidgets('rapid tab switching with a table screen open, x10: titles '
+        'and lines hold, and each screen adds to its own cart', (tester) async {
+      final bridge = withSavedTable();
+      final tabs = GlobalKey<_TwoTabsState>();
+      final c = await _mount(
+        tester,
+        screen: _TwoTabs(key: tabs),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await settle(tester);
+      for (var i = 0; i < 10; i++) {
+        tabs.currentState!.show(i.isEven ? 1 : 0);
+        await tester.pump();
+      }
+      await settle(tester);
+      final sell = find.byType(TakeawaySellScreen, skipOffstage: false);
+      final table = find.byType(TableOrderScreen, skipOffstage: false);
+      expect(titleOf(tester, sell), 'Takeaway');
+      expect(titleOf(tester, table), 'T2 · 4 guests');
+      expect(linesOf(c, null), takeaway);
+      expect(linesOf(c, 't2'), ['Lattex2']);
+
+      final before = (qty(bridge, null), qty(bridge, 't2'));
+      tabs.currentState!.show(0);
+      await settle(tester);
+      await tester.tap(find.widgetWithText(SellTile, 'Mocha').hitTestable());
+      await settle(tester);
+      expect(qty(bridge, null), before.$1 + 1, reason: 'Sell adds to takeaway');
+      expect(qty(bridge, 't2'), before.$2);
+
+      tabs.currentState!.show(1);
+      await settle(tester);
+      await tester.tap(find.widgetWithText(SellTile, 'Mocha').hitTestable());
+      await settle(tester);
+      expect(qty(bridge, 't2'), before.$2 + 1, reason: 'T2 adds to T2');
+      expect(qty(bridge, null), before.$1 + 1);
+      expect(titleOf(tester, sell), 'Takeaway');
+      expect(titleOf(tester, table), 'T2 · 4 guests');
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets("a table's parked order resumed from the Sell strip opens "
+        "that table's screen; takeaway is untouched", (tester) async {
+      final bridge = _FakeBridge(
+        drafts: const [
+          DraftView(
+            id: 'd-t5',
+            name: '',
+            itemCount: 1,
+            totalMinor: 4500,
+            createdAt: '2026-09-12T18:40:00Z',
+            tableId: 't5',
+            tableLabel: 'T5',
+            lockedByOther: false,
+          ),
+        ],
+      );
+      final c = await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await settle(tester);
+      await tester.tap(find.text('T5'));
+      await settle(tester);
+      final pushed = find.byType(TableOrderScreen);
+      expect(pushed, findsOneWidget);
+      expect(tester.widget<TableOrderScreen>(pushed).tableId, 't5');
+      expect(linesOf(c, 't5'), ['Lattex1']);
+      expect(bridge.parked, isEmpty, reason: 'the takeaway cart is not parked');
+      expect(linesOf(c, null), takeaway);
+
+      Navigator.of(tester.element(pushed)).pop();
+      await settle(tester);
+      expect(find.byType(TableOrderScreen), findsNothing);
+      expect(titleOf(tester, find.byType(OrderScreen)), 'Takeaway');
+      expect(linesOf(c, null), takeaway);
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('a counter draft resumed from the strip fills takeaway only', (
       tester,
-      screen: const SellScreen(),
-      size: _ipad,
-      bridge: bridge,
-    );
-    await tester.pump();
-    final takeaway = inHand(container);
-    bool pushedForTable(Widget w) => w is SellScreen && w.forTable;
+    ) async {
+      final bridge = _FakeBridge();
+      final c = await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await settle(tester);
+      await c.read(orderProvider.notifier).resumeDraft('d1', parkInHand: true);
+      await settle(tester);
+      expect(bridge.parked, [null], reason: 'the order in hand parks first');
+      expect(linesOf(c, null), ['Lattex1']);
+      expect(c.read(cartProvider(null)).draftId, 'd1');
+      expect(find.byType(TableOrderScreen), findsNothing);
+    });
 
-    await tester.tap(find.text('T5'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byWidgetPredicate(pushedForTable), findsOneWidget);
-    expect(container.read(orderProvider).cartTableId, 't5');
-    expect(bridge.parked, isEmpty, reason: 'the takeaway cart is not parked');
-    expect(bridge.carts[null], isNotEmpty);
+    testWidgets('seating a booking puts it on the table cart; its screen '
+        'fires it', (tester) async {
+      final bridge = _FakeBridge();
+      final c = await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await settle(tester);
+      await c
+          .read(orderProvider.notifier)
+          .seatBooking(
+            _table(
+              id: 't6',
+              label: 'T6',
+              x: 0,
+              y: 0,
+              bookingId: 'bk-1',
+              bookingGuest: 'Nour',
+            ),
+          );
+      expect(c.read(cartProvider('t6')).bookingId, 'bk-1');
+      expect(c.read(cartProvider('t6')).meta.guestName, 'Nour');
+      expect(c.read(cartProvider(null)).bookingId, isNull);
 
-    Navigator.of(tester.element(find.byWidgetPredicate(pushedForTable))).pop();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byWidgetPredicate(pushedForTable), findsNothing);
-    expect(
-      container.read(orderProvider).cartTableId,
-      isNull,
-      reason: 'the Sell tab is takeaway and only takeaway',
-    );
-    expect(inHand(container), takeaway);
-    await tester.pump(const Duration(seconds: 5));
-  });
+      Navigator.of(tester.element(find.byType(TakeawaySellScreen))).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const TableOrderScreen(tableId: 't6'),
+        ),
+      );
+      await settle(tester);
+      await tester.tap(find.widgetWithText(SellTile, 'Mocha').hitTestable());
+      await settle(tester);
+      expect(await c.read(cartProvider('t6').notifier).fireOrAddRound(), true);
+      await settle(tester);
+      expect(bridge.fired, [('t6', 'bk-1')]);
+      expect(find.byType(TableOrderScreen), findsNothing, reason: 'it returns');
+      expect(linesOf(c, null), takeaway);
+      await tester.pump(const Duration(seconds: 5));
+    });
 
-  testWidgets('seating a booking and picking a table go through the switch', (
-    tester,
-  ) async {
-    final bridge = _FakeBridge();
-    final container = await _mount(
+    testWidgets('firing a table clears only that table', (tester) async {
+      final bridge = _FakeBridge();
+      final c = await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await settle(tester);
+      final t1 = c.read(cartProvider('t1').notifier);
+      await t1.add(_items.first);
+      await t1.add(_items.first);
+      expect(linesOf(c, 't1'), ['${_items.first.name}x2']);
+      expect(await t1.fireOrAddRound(), isTrue);
+      expect(linesOf(c, 't1'), isEmpty);
+      expect(linesOf(c, null), takeaway);
+      expect(bridge.fired, [('t1', null)]);
+
+      // T2 has a bill: its cart adds a round to it, still alone.
+      final t2 = c.read(cartProvider('t2').notifier);
+      await t2.add(_items.first);
+      expect(await t2.fireOrAddRound(), isTrue);
+      expect(bridge.rounds, [('t2', 'tk-1')]);
+      expect(linesOf(c, null), takeaway);
+      expect(bridge.cleared, 0);
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('settling a table sale leaves the table dirty, takeaway as '
+        'it was', (tester) async {
+      final bridge = _FakeBridge();
+      final c = await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await settle(tester);
+      final t1 = c.read(cartProvider('t1').notifier);
+      await t1.add(_items.first);
+      await t1.onOrderSettled(null);
+      expect(bridge.statuses, [('t1', 'dirty')]);
+      expect(c.read(orderProvider).pendingTableClear?.tableId, 't1');
+      expect(linesOf(c, null), takeaway);
+    });
+
+    testWidgets('a realtime tick during the push changes nothing', (
       tester,
-      screen: const SellScreen.forTable(),
-      size: _ipad,
-      bridge: bridge,
-    );
-    final notifier = container.read(orderProvider.notifier);
-    await tester.pump();
-    final takeaway = inHand(container);
+    ) async {
+      final bridge = withSavedTable();
+      final c = await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await settle(tester);
+      Navigator.of(tester.element(find.byType(TakeawaySellScreen))).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const TableOrderScreen(tableId: 't2'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      c.read(ticketTickProvider.notifier).bump();
+      c.read(connectivityPulseProvider.notifier).pulse();
+      await settle(tester);
+      final sell = find.byType(TakeawaySellScreen, skipOffstage: false);
+      expect(titleOf(tester, sell), 'Takeaway');
+      expect(titleOf(tester, find.byType(TableOrderScreen)), 'T2 · 4 guests');
+      expect(linesOf(c, null), takeaway);
+      expect(linesOf(c, 't2'), ['Lattex2']);
+    });
 
-    await notifier.setCartTable('t3', 'T3');
-    expect(bridge.context, 't3');
-    expect(inHand(container), isEmpty, reason: 'no takeaway lines leak in');
+    test('a restart restores both carts and their meta', () async {
+      final bridge = _FakeBridge();
+      final first = ProviderContainer(
+        overrides: [bridgeProvider.overrideWithValue(bridge)],
+      );
+      final t1 = first.read(cartProvider('t1').notifier);
+      await t1.add(_items.first);
+      await t1.updateMeta((m) => cartMetaWith(m, bookingId: 'bk-9', covers: 3));
+      await t1.setName('Nour');
+      await first.read(cartProvider(null).notifier).setName('Ali');
+      first.dispose();
 
-    await notifier.setCartTable(null, null);
-    expect(inHand(container), takeaway);
-  });
+      final again = ProviderContainer(
+        overrides: [bridgeProvider.overrideWithValue(bridge)],
+      );
+      addTearDown(again.dispose);
+      await again.read(cartProvider('t1').notifier).load();
+      await again.read(cartProvider(null).notifier).load();
+      final table = again.read(cartProvider('t1'));
+      expect(linesOf(again, 't1'), ['${_items.first.name}x1']);
+      expect(table.name, 'Nour');
+      expect(table.bookingId, 'bk-9');
+      expect(table.meta.covers, 3);
+      expect(table.startedAt, isNotNull);
+      expect(again.read(cartProvider(null)).name, 'Ali');
+      expect(linesOf(again, null), takeaway);
+    });
 
-  testWidgets('re-tapping the same table does not churn the cart', (
-    tester,
-  ) async {
-    final bridge = _FakeBridge();
-    final container = await _mount(
+    testWidgets('a teller swap empties every cart; the tab is takeaway', (
       tester,
-      screen: const SellScreen.forTable(),
-      size: _ipad,
-      bridge: bridge,
-    );
-    final notifier = container.read(orderProvider.notifier);
-    await tester.pump();
+    ) async {
+      final bridge = withSavedTable();
+      final c = await _mount(
+        tester,
+        screen: const TakeawaySellScreen(),
+        size: _ipad,
+        bridge: bridge,
+      );
+      await settle(tester);
+      await c.read(orderProvider.notifier).ensureInit();
+      await c.read(cartProvider('t2').notifier).load();
+      expect(linesOf(c, 't2'), ['Lattex2']);
 
-    await notifier.pointCartAtTable('t2', 'T2');
-    await notifier.addToCart(_items.first);
-    await notifier.pointCartAtTable('t2', 'T2');
-
-    expect(bridge.parked, isEmpty);
-    expect(bridge.cleared, 0);
-    expect(inHand(container), ['${_items.first.name}x1']);
-    expect(container.read(orderProvider).cartTableId, 't2');
+      bridge.signOut('u-2');
+      await c.read(orderProvider.notifier).ensureInit();
+      await settle(tester);
+      expect(linesOf(c, null), isEmpty);
+      expect(linesOf(c, 't2'), isEmpty);
+      expect(c.read(cartProvider('t2')).name, isNull);
+      expect(titleOf(tester, find.byType(OrderScreen)), 'Takeaway');
+    });
   });
+}
+
+/// Two tab stacks in an IndexedStack — the shell's shape, without the shell:
+/// the Sell tab's root, and a table's order screen standing on another tab.
+class _TwoTabs extends StatefulWidget {
+  const _TwoTabs({super.key});
+
+  @override
+  State<_TwoTabs> createState() => _TwoTabsState();
+}
+
+class _TwoTabsState extends State<_TwoTabs> {
+  int _index = 0;
+
+  void show(int i) => setState(() => _index = i);
+
+  @override
+  Widget build(BuildContext context) => IndexedStack(
+    index: _index,
+    children: [
+      Navigator(
+        onGenerateRoute: (_) =>
+            MaterialPageRoute<void>(builder: (_) => const TakeawaySellScreen()),
+      ),
+      Navigator(
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) => const TableOrderScreen(tableId: 't2'),
+        ),
+      ),
+    ],
+  );
 }
 
 /// THE freeze: "pressing a table, seating a party, then Add order routes to
@@ -1270,7 +1535,7 @@ void _cartContextTests() {
 /// off-screen under a full-bleed scrim that had already dismissed, so no tap
 /// ever reached anything again.
 void _tableOrderTests() {
-  bool pushedForTable(Widget w) => w is SellScreen && w.forTable;
+  bool pushedForTable(Widget w) => w is OrderScreen && w.tableId != null;
 
   Future<void> settle(WidgetTester tester) async {
     for (var i = 0; i < 8; i++) {
@@ -1418,14 +1683,14 @@ void _cartFlightTests() {
         Future<void> open(WidgetTester tester, {_FakeBridge? bridge}) async {
           await _mount(
             tester,
-            screen: const SellScreen(),
+            screen: const TakeawaySellScreen(),
             size: size,
             bridge: bridge,
           );
           if (!forTable) return;
-          Navigator.of(tester.element(find.byType(SellScreen))).push(
+          Navigator.of(tester.element(find.byType(TakeawaySellScreen))).push(
             MaterialPageRoute<void>(
-              builder: (_) => const SellScreen.forTable(),
+              builder: (_) => const TableOrderScreen(tableId: 't1'),
             ),
           );
           await tester.pump();
@@ -1488,7 +1753,7 @@ void _cartFlightTests() {
       final fake = _FakeBridge();
       final container = await _mount(
         tester,
-        screen: const SellScreen(),
+        screen: const TakeawaySellScreen(),
         size: _ipad,
         bridge: fake,
       );
@@ -1503,7 +1768,7 @@ void _cartFlightTests() {
       testWidgets('selected cards in the dark, $device', (tester) async {
         await _mount(
           tester,
-          screen: const SellScreen(),
+          screen: const TakeawaySellScreen(),
           size: size,
           dark: true,
         );

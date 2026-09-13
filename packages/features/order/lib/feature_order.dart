@@ -27,6 +27,7 @@ export 'src/order_providers.dart'
         CartState,
         OrderNotifier,
         OrderState,
+        cartMetaWith,
         cartProvider,
         orderProvider;
 export 'src/sell_screen.dart'

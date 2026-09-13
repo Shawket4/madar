@@ -75,6 +75,7 @@ const _item = MenuItemView(
 
 class _Fake implements MadarBridge {
   List<CartLineView> lines = [_latte];
+  CartMeta meta = const CartMeta(name: '');
 
   final Completer<bool> holdGate = Completer<bool>();
   final Completer<DraftSwitchView> switchGate = Completer<DraftSwitchView>();
@@ -102,6 +103,11 @@ class _Fake implements MadarBridge {
     }
     if (name == #cartLines) return Future<List<CartLineView>>.value(lines);
     if (name == #cartTotals) return Future<CartTotals>.value(_totals);
+    if (name == #cartMeta) return Future<CartMeta>.value(meta);
+    if (name == #cartSetMeta) {
+      meta = a[#meta]! as CartMeta;
+      return Future<void>.value();
+    }
     if (name == #listDrafts) {
       return Future<List<DraftView>>.value(const [_draft]);
     }
@@ -124,7 +130,10 @@ class _Fake implements MadarBridge {
     }
     if (name == #switchToDraft) {
       switches += 1;
-      return switchGate.future;
+      return switchGate.future.then((v) {
+        meta = const CartMeta(name: 'Omar', draftId: 'd-1');
+        return v;
+      });
     }
     if (name == #fireTicket) {
       fires += 1;
@@ -176,11 +185,11 @@ void main() {
   test('a double tap on Park parks the order once', () async {
     final bridge = _Fake();
     final c = _container(bridge);
-    final order = c.read(orderProvider.notifier);
-    await order.loadCart();
+    final cart = c.read(cartProvider(null).notifier);
+    await cart.load();
 
-    final first = order.holdCart();
-    final second = order.holdCart();
+    final first = cart.hold();
+    final second = cart.hold();
     bridge.holdGate.complete(false);
     await Future.wait([first, second]);
 
@@ -191,11 +200,11 @@ void main() {
     final bridge = _Fake();
     final c = _container(bridge);
     final order = c.read(orderProvider.notifier);
-    await order.loadCart();
+    await c.read(cartProvider(null).notifier).load();
     await order.loadDrafts();
 
-    final first = order.switchToHeldOrder('d-1');
-    final second = order.switchToHeldOrder('d-1');
+    final first = order.resumeDraft('d-1', parkInHand: true);
+    final second = order.resumeDraft('d-1', parkInHand: true);
     bridge.switchGate.complete(
       const DraftSwitchView(
         lines: [_latte],
@@ -208,18 +217,18 @@ void main() {
 
     expect(bridge.switches, 1);
     expect(bridge.holds, 0, reason: 'the park rides inside the one call');
-    expect(c.read(orderProvider).cartDraftId, 'd-1');
-    expect(c.read(orderProvider).cartName, 'Omar');
+    expect(c.read(cartProvider(null)).draftId, 'd-1');
+    expect(c.read(cartProvider(null)).name, 'Omar');
   });
 
   test('a double tap on Fire fires one round', () async {
     final bridge = _Fake();
     final c = _container(bridge);
-    final order = c.read(orderProvider.notifier);
-    await order.loadCart();
+    final cart = c.read(cartProvider('t1').notifier);
+    await cart.load();
 
-    final first = order.fireOrAddRound(tableId: 't1');
-    final second = order.fireOrAddRound(tableId: 't1');
+    final first = cart.fireOrAddRound();
+    final second = cart.fireOrAddRound();
     bridge.fireGate.complete(
       const TicketFiredView(ticketId: 'tk-1', queuedOffline: false),
     );
@@ -231,10 +240,10 @@ void main() {
   test('an edit the core refuses keeps the original line', () async {
     final bridge = _Fake()..refuseReplace = true;
     final c = _container(bridge);
-    final order = c.read(orderProvider.notifier);
-    await order.loadCart();
+    final cart = c.read(cartProvider(null).notifier);
+    await cart.load();
 
-    final ok = await order.addConfigured(
+    final ok = await cart.addConfigured(
       itemId: 'latte',
       addons: const [],
       optionalIds: const [],
@@ -244,7 +253,7 @@ void main() {
 
     expect(ok, isFalse);
     expect(bridge.removes, 0, reason: 'nothing is removed before the add');
-    expect(c.read(orderProvider).cartLines, [_latte]);
+    expect(c.read(cartProvider(null)).lines, [_latte]);
 
     // And the sheet stays open: its commit answers false and unlatches.
     final args = ItemSheetArgs(item: _item, addons: const [], editLine: _latte);

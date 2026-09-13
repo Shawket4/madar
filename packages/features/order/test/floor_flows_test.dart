@@ -113,10 +113,13 @@ class _Fake implements MadarBridge {
       return Future<List<TransferQueueView>>.value([]);
     }
     if (n == #listArrivals) return Future<List<BookingView>>.value([]);
-    if (n == #cartSetContext || n == #cartLines) {
+    if (n == #cartLines) {
       return Future<List<CartLineView>>.value([]);
     }
-    if (n == #cartContext) return Future<String?>.value();
+    if (n == #cartMeta) {
+      return Future<CartMeta>.value(const CartMeta(name: ''));
+    }
+    if (n == #cartSetMeta) return Future<void>.value();
     if (n == #holdCartOnTable) return Future<bool>.value(false);
     if (n == #cartTotals) {
       return Future<CartTotals>.value(
@@ -245,7 +248,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('floor.seat_and_order')));
     await _settle(tester);
     expect(fake.seated, ['t6']);
-    expect(find.byType(SellScreen), findsOneWidget);
+    final screen = tester.widget<OrderScreen>(find.byType(OrderScreen));
+    expect(screen.tableId, 't6', reason: "the table's own screen and cart");
   });
 
   testWidgets('move mode: same table and a dirty table explain; stays armed', (

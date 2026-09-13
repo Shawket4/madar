@@ -407,15 +407,19 @@ class _FakeBridge implements MadarBridge {
   /// How many times a cart was emptied.
   int cleared = 0;
 
-  /// The core's carts, one per context (`null` = takeaway), and the active
-  /// context — the fake keeps them apart exactly the way the core does.
+  /// The core's carts, one per context (`null` = takeaway) — the fake keeps
+  /// them apart exactly the way the core does. There is no active context:
+  /// every call names its own.
   final Map<String?, List<CartLineView>> carts = {null: List.of(_cart)};
-  String? context;
+
+  /// Each context's meta, as the core persists it.
+  final Map<String?, CartMeta> metas = {};
 
   /// Tables seated during the test — the floor reads them back seated.
   final Set<String> seated = {};
 
-  List<CartLineView> get _inHand => carts[context] ??= [];
+  List<CartLineView> _cartOf(Invocation i) =>
+      carts[i.namedArguments[#tableId] as String?] ??= [];
 
   ShiftView? get _shift => shiftOpen
       ? const ShiftView(
@@ -483,8 +487,8 @@ class _FakeBridge implements MadarBridge {
     // both are bridge calls the fake has to answer or the whole flow throws.
     // Recorded, because the ORDER of them is the fix: park, clear, adopt.
     if (name == #holdCartOnTable) {
-      parked.add(invocation.namedArguments[#tableId] as String?);
-      _inHand.clear();
+      parked.add(invocation.namedArguments[#ontoTableId] as String?);
+      _cartOf(invocation).clear();
       return Future<bool>.value(false);
     }
     if (name == #assignDraftTable) {
@@ -497,14 +501,20 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #cartClear) {
       cleared += 1;
-      _inHand.clear();
+      _cartOf(invocation).clear();
       return Future<void>.value();
     }
-    if (name == #cartSetContext) {
-      context = invocation.namedArguments[#tableId] as String?;
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+    if (name == #cartMeta) {
+      return Future<CartMeta>.value(
+        metas[invocation.namedArguments[#tableId] as String?] ??
+            const CartMeta(name: ''),
+      );
     }
-    if (name == #cartContext) return Future<String?>.value(context);
+    if (name == #cartSetMeta) {
+      metas[invocation.namedArguments[#tableId] as String?] =
+          invocation.namedArguments[#meta]! as CartMeta;
+      return Future<void>.value();
+    }
     // No printer configured: a fired round prints nothing.
     if (name == #deviceConfig) {
       return const DeviceConfigView(reconfiguring: false, configured: true);
@@ -513,14 +523,14 @@ class _FakeBridge implements MadarBridge {
       final id = invocation.namedArguments[#itemId] as String;
       final label = invocation.namedArguments[#name] as String;
       final minor = invocation.namedArguments[#unitPriceMinor] as int;
-      final i = _inHand.indexWhere((l) => l.itemId == id);
+      final i = _cartOf(invocation).indexWhere((l) => l.itemId == id);
       if (i < 0) {
-        _inHand.add(_cartLine(id, label, minor, 1));
+        _cartOf(invocation).add(_cartLine(id, label, minor, 1));
       } else {
-        final l = _inHand[i];
-        _inHand[i] = _cartLine(id, label, minor, l.qty + 1);
+        final l = _cartOf(invocation)[i];
+        _cartOf(invocation)[i] = _cartLine(id, label, minor, l.qty + 1);
       }
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #validateItemSelections) {
       return Future<List<GroupViolationView>>.value(const []);
@@ -528,43 +538,43 @@ class _FakeBridge implements MadarBridge {
     if (name == #cartAddConfigured) {
       final id = invocation.namedArguments[#itemId] as String;
       final item = _items.firstWhere((i) => i.id == id);
-      _inHand.add(_cartLine(id, item.name, item.basePriceMinor, 1));
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+      _cartOf(invocation).add(_cartLine(id, item.name, item.basePriceMinor, 1));
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #cartAddBundle) {
       final id = invocation.namedArguments[#bundleId] as String;
-      _inHand.add(_cartLine(id, 'Combo', 9000, 1));
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+      _cartOf(invocation).add(_cartLine(id, 'Combo', 9000, 1));
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #fireTicket) {
-      _inHand.clear();
+      _cartOf(invocation).clear();
       return Future<TicketFiredView>.value(
         const TicketFiredView(ticketId: 'tk-new', queuedOffline: false),
       );
     }
     if (name == #cartLines) {
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #cartTotals) return Future<CartTotals>.value(_totals);
     if (name == #listDrafts) return Future<List<DraftView>>.value(drafts);
     if (name == #switchToDraft) {
       // What the one core call does: park the cart in hand if asked, then
       // bring the draft in.
-      if (invocation.namedArguments[#parkInHand] != null &&
-          _inHand.isNotEmpty) {
-        parked.add(context);
-        _inHand.clear();
+      final from = invocation.namedArguments[#fromTableId] as String?;
+      final inHand = carts[from] ??= [];
+      if (invocation.namedArguments[#parkInHand] != null && inHand.isNotEmpty) {
+        parked.add(from);
+        inHand.clear();
       }
       final id = invocation.namedArguments[#id] as String;
       final draft = drafts.where((d) => d.id == id).firstOrNull;
-      // Into the DRAFT's own context — never over the cart in hand.
-      context = draft?.tableId;
-      _inHand
+      // Into the DRAFT's own context — never over another cart.
+      final target = (carts[draft?.tableId] ??= [])
         ..clear()
         ..add(_cartLine('latte', 'Latte', 4500, 1));
       return Future<DraftSwitchView>.value(
         DraftSwitchView(
-          lines: List.of(_inHand),
+          lines: List.of(target),
           tableId: draft?.tableId,
           tableLabel: draft?.tableLabel,
           name: draft?.name ?? '',
@@ -590,10 +600,10 @@ class _FakeBridge implements MadarBridge {
       return Future<int>.value(ticket + _totals.subtotalMinor);
     }
     if (name == #restoreDraft) {
-      _inHand
+      _cartOf(invocation)
         ..clear()
         ..add(_cartLine('latte', 'Latte', 4500, 1));
-      return Future<List<CartLineView>>.value(List.of(_inHand));
+      return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
     }
     if (name == #seatTable) {
       seated.add(invocation.namedArguments[#tableId]! as String);

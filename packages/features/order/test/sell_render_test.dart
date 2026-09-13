@@ -68,7 +68,7 @@ void main() {
       final bridge = _FakeBridge();
       final c = await _mount(
         tester,
-        screen: const SellScreen(),
+        screen: const TakeawaySellScreen(),
         size: _ipad,
         bridge: bridge,
       );
@@ -76,7 +76,12 @@ void main() {
       expect(lines, 1);
       await assignVia(tester, '__current__');
       expect(bridge.parked, ['t6'], reason: 'the lines go to the table');
-      expect(bridge.context, isNull, reason: 'the Sell tab stays takeaway');
+      expect(
+        bridge.carts['t6'] ?? const [],
+        isEmpty,
+        reason: 'the Sell tab never becomes the table',
+      );
+      expect(bridge.carts[null], isEmpty, reason: 'the lines left takeaway');
       expect(c.read(orderProvider).toast?.text, 'Held on T6');
     });
 
@@ -86,7 +91,7 @@ void main() {
       final bridge = _FakeBridge();
       final c = await _mount(
         tester,
-        screen: const SellScreen(),
+        screen: const TakeawaySellScreen(),
         size: _ipad,
         bridge: bridge,
       );
@@ -102,7 +107,7 @@ void main() {
       final bridge = _FakeBridge();
       await _mount(
         tester,
-        screen: const SellScreen(),
+        screen: const TakeawaySellScreen(),
         size: _ipad,
         bridge: bridge,
       );
@@ -141,7 +146,7 @@ void main() {
       final bridge = _FakeBridge();
       await _mount(
         tester,
-        screen: const SellScreen(),
+        screen: const TakeawaySellScreen(),
         size: _ipad,
         bridge: bridge,
       );
@@ -175,7 +180,7 @@ void main() {
         testWidgets('sell counter $tag', (tester) async {
           await _mount(
             tester,
-            screen: const SellScreen(),
+            screen: const TakeawaySellScreen(),
             size: size,
             dark: dark,
             bridge: _FakeBridge(rtl: ar),
@@ -198,16 +203,14 @@ void main() {
         if (dark) continue;
 
         testWidgets('sell round on a bill $tag', (tester) async {
-          final container = await _mount(
+          final bridge = _FakeBridge(rtl: ar);
+          bridge.carts['t2'] = List.of(_cart);
+          await _mount(
             tester,
-            screen: const SellScreen.forTable(),
+            screen: const TableOrderScreen(tableId: 't2'),
             size: size,
-            bridge: _FakeBridge(rtl: ar),
+            bridge: bridge,
           );
-          await container
-              .read(orderProvider.notifier)
-              .pointCartAtTable('t2', 'T2');
-          container.read(orderProvider.notifier).selectTicket('tk-1');
           await _settle(tester);
           await _capture(tester, 'sell-round-$tag');
         });
@@ -215,7 +218,7 @@ void main() {
         testWidgets('sell with no shift $tag', (tester) async {
           await _mount(
             tester,
-            screen: const SellScreen(),
+            screen: const TakeawaySellScreen(),
             size: size,
             bridge: _FakeBridge(rtl: ar, shiftOpen: false),
           );
@@ -226,7 +229,7 @@ void main() {
         testWidgets('sell item sheet $tag', (tester) async {
           await _mount(
             tester,
-            screen: const SellScreen(),
+            screen: const TakeawaySellScreen(),
             size: size,
             bridge: _FakeBridge(rtl: ar),
           );
@@ -239,7 +242,7 @@ void main() {
         testWidgets('sell bundle sheet $tag', (tester) async {
           await _mount(
             tester,
-            screen: const SellScreen(),
+            screen: const TakeawaySellScreen(),
             size: size,
             bridge: _FakeBridge(rtl: ar, bundles: const [_combo]),
           );

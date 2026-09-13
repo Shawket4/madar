@@ -169,12 +169,23 @@ class CartNotifier extends Notifier<CartState> {
     return CartState(tableId: arg);
   }
 
+  /// Bumped by every local write; a read that started before one does not
+  /// land over it (the first read races the first tap on a fresh cart).
+  int _writes = 0;
+
   /// Re-read lines, totals and meta from the core.
   Future<void> load() async {
-    final lines = await _order._quiet(() => _bridge.cartLines(tableId: arg));
-    final totals = await _order._quiet(() => _bridge.cartTotals(tableId: arg));
-    final meta = await _order._quiet(() => _bridge.cartMeta(tableId: arg));
+    final seen = _writes;
+    // Captured up front: the provider may be disposed across the awaits.
+    final order = _order;
+    final bridge = _bridge;
+    final lines = await order._quiet(() => bridge.cartLines(tableId: arg));
     if (!ref.mounted) return;
+    final totals = await order._quiet(() => bridge.cartTotals(tableId: arg));
+    if (!ref.mounted) return;
+    final meta = await order._quiet(() => bridge.cartMeta(tableId: arg));
+    if (!ref.mounted) return;
+    if (seen != _writes) return;
     state = state.copyWith(
       lines: lines ?? state.lines,
       totals: totals ?? state.totals,
@@ -185,6 +196,7 @@ class CartNotifier extends Notifier<CartState> {
 
   /// Replace this cart's meta — here and in the core.
   Future<void> updateMeta(CartMeta Function(CartMeta) change) async {
+    _writes += 1;
     final next = change(state.meta);
     state = state.copyWith(meta: next);
     await _order._quiet(() => _bridge.cartSetMeta(tableId: arg, meta: next));
@@ -194,6 +206,7 @@ class CartNotifier extends Notifier<CartState> {
   /// order's identity is stamped on its first line and forgotten once the
   /// cart empties (the booking, guest and covers stay with the table).
   Future<void> _apply(Future<List<CartLineView>> Function() op) async {
+    _writes += 1;
     try {
       final lines = await op();
       final totals =
@@ -295,6 +308,7 @@ class CartNotifier extends Notifier<CartState> {
   /// the await window with the dismissed Dismissible still in the tree
   /// throws), then the core reconciles and an Undo toast is offered.
   Future<void> swipeRemove(CartLineView line) async {
+    _writes += 1;
     state = state.copyWith(
       lines: state.lines.where((l) => l.key != line.key).toList(),
     );
