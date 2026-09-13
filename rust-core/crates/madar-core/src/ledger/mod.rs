@@ -1,0 +1,333 @@
+//! The money ledger as local rows (OFFLINE_B_DESIGN §2 P1, §3, §5, §7): tills,
+//! orders with their payment legs, cash movements and refunds.
+//!
+//! Every row has exactly ONE identity from the moment it exists on this device:
+//! the client-minted id when there is one (order `idempotency_key`, movement and
+//! refund `client_ref`, the till id), else the server id. So a sale rung offline,
+//! sent, answered, lost and re-sent is still ONE row, and a till's drawer can be
+//! computed from the rows without ever adding two lists together.
+//!
+//! Three writers, one set of rules:
+//! * the changefeed applier ([`apply`]) — server state, by seq;
+//! * the write path ([`local`]) — a local mutation, in the SAME transaction as
+//!   its outbox op;
+//! * ack folding ([`fold`]) — the server's answer to a sent op.
+//!
+//! A row with a live outbox op on it (pending, inflight or dead) is PROTECTED:
+//! server data for it is remembered in `srv_raw` but does not replace what the
+//! teller did, until the op resolves (acks, or is discarded).
+
+pub(crate) mod apply;
+pub(crate) mod fold;
+pub(crate) mod local;
+pub(crate) mod migrate;
+pub(crate) mod report;
+pub(crate) mod retention;
+pub(crate) mod views;
+
+use rusqlite::{params, Connection, OptionalExtension};
+use serde_json::Value;
+
+use crate::error::CoreResult;
+
+/// Changefeed wire types kept as ledger rows.
+pub(crate) const T_TILL: &str = "till";
+pub(crate) const T_ORDER: &str = "order";
+pub(crate) const T_CASH: &str = "cash_movement";
+pub(crate) const T_REFUND: &str = "refund";
+
+pub(crate) fn now_ms() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
+
+pub(crate) fn s<'a>(v: &'a Value, k: &str) -> Option<&'a str> {
+    v.get(k).and_then(Value::as_str).filter(|x| !x.is_empty())
+}
+pub(crate) fn i(v: &Value, k: &str) -> i64 {
+    v.get(k).and_then(Value::as_i64).unwrap_or(0)
+}
+pub(crate) fn b(v: &Value, k: &str) -> Option<bool> {
+    v.get(k).and_then(Value::as_bool)
+}
+
+/// The local identity of a wire row of `ty` (see the module docs).
+pub(crate) fn key_of(ty: &str, v: &Value) -> Option<String> {
+    let client = match ty {
+        T_ORDER => s(v, "idempotency_key"),
+        T_CASH | T_REFUND => s(v, "client_ref"),
+        _ => None,
+    };
+    client.or_else(|| s(v, "id")).map(str::to_string)
+}
+
+/// The ledger table + key column for a wire type.
+pub(crate) fn table_of(ty: &str) -> Option<(&'static str, &'static str)> {
+    Some(match ty {
+        T_TILL => ("ledger_tills", "id"),
+        T_ORDER => ("ledger_orders", "okey"),
+        T_CASH => ("ledger_cash", "ckey"),
+        T_REFUND => ("ledger_refunds", "rkey"),
+        _ => return None,
+    })
+}
+
+pub(crate) fn is_ledger_type(ty: &str) -> bool {
+    table_of(ty).is_some()
+}
+
+/// A live outbox op (pending / inflight / dead) holds this row.
+pub(crate) fn is_protected(conn: &Connection, ty: &str, key: &str) -> CoreResult<bool> {
+    Ok(conn
+        .query_row(
+            "SELECT 1 FROM outbox WHERE entity_type=?1 AND entity_id=?2 AND status IN ('pending','inflight','dead') LIMIT 1",
+            params![ty, key],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some())
+}
+
+/// What the store holds for one ledger row.
+#[derive(Debug, Clone)]
+pub(crate) struct Stored {
+    pub raw: Value,
+    pub srv_raw: Option<Value>,
+    pub srv_seq: i64,
+    pub origin: String,
+    pub acked: bool,
+}
+
+pub(crate) fn stored(conn: &Connection, ty: &str, key: &str) -> CoreResult<Option<Stored>> {
+    let (table, kcol) = table_of(ty).expect("ledger type");
+    let acked = if ty == T_TILL { "0" } else { "acked" };
+    let row: Option<(String, Option<String>, i64, String, i64)> = conn
+        .query_row(
+            &format!("SELECT raw, srv_raw, srv_seq, origin, {acked} FROM {table} WHERE {kcol}=?1"),
+            [key],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+        )
+        .optional()?;
+    Ok(row.map(|(raw, srv_raw, srv_seq, origin, acked)| Stored {
+        raw: serde_json::from_str(&raw).unwrap_or(Value::Null),
+        srv_raw: srv_raw.and_then(|x| serde_json::from_str(&x).ok()),
+        srv_seq,
+        origin,
+        acked: acked != 0,
+    }))
+}
+
+/// The key of the order row a server order id (or a client key) names.
+pub(crate) fn order_key_for(conn: &Connection, id_or_key: &str) -> CoreResult<Option<String>> {
+    Ok(conn
+        .query_row(
+            "SELECT okey FROM ledger_orders WHERE okey=?1 OR server_id=?1 LIMIT 1",
+            [id_or_key],
+            |r| r.get(0),
+        )
+        .optional()?)
+}
+
+/// Where a row came from, for [`write_row`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Origin {
+    /// The changefeed at this seq.
+    Feed(i64),
+    /// A server read outside the feed (a paged history fetch): seq 0, so any
+    /// feed row supersedes it.
+    Fetch,
+    /// The server's answer to one of this device's ops.
+    Ack,
+    /// This device, before the server has answered.
+    Local,
+}
+
+/// Write `v` as row `key` of `ty`, replacing what is there. The caller has
+/// already decided it SHOULD replace (the protection and seq rules live in
+/// `apply`, `local` and `fold`).
+pub(crate) fn write_row(
+    conn: &Connection,
+    ty: &str,
+    key: &str,
+    v: &Value,
+    origin: Origin,
+    srv_raw: Option<&Value>,
+) -> CoreResult<()> {
+    let prev = stored(conn, ty, key)?;
+    let srv_seq = match origin {
+        Origin::Feed(seq) => seq,
+        _ => prev.as_ref().map(|p| p.srv_seq).unwrap_or(0),
+    };
+    let origin_word = if origin == Origin::Local { "local" } else { "server" };
+    // Acked = "the server has this, the feed has not confirmed it yet".
+    let acked = match origin {
+        Origin::Ack => true,
+        Origin::Feed(_) => false,
+        _ => prev.as_ref().map(|p| p.acked).unwrap_or(false),
+    };
+    let raw = v.to_string();
+    let srv = srv_raw.map(Value::to_string);
+    let now = now_ms();
+    match ty {
+        T_TILL => {
+            conn.execute(
+                "INSERT INTO ledger_tills(id, branch_id, teller_id, status, opening_cash, closing_cash_system, opened_at,
+                                          closed_at, raw, srv_raw, srv_seq, origin, local_updated_at)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
+                 ON CONFLICT(id) DO UPDATE SET branch_id=excluded.branch_id, teller_id=excluded.teller_id,
+                   status=excluded.status, opening_cash=excluded.opening_cash,
+                   closing_cash_system=excluded.closing_cash_system, opened_at=excluded.opened_at,
+                   closed_at=excluded.closed_at, raw=excluded.raw, srv_raw=excluded.srv_raw,
+                   srv_seq=excluded.srv_seq, origin=excluded.origin, local_updated_at=excluded.local_updated_at",
+                params![
+                    key,
+                    s(v, "branch_id").unwrap_or(""),
+                    s(v, "teller_id").unwrap_or(""),
+                    s(v, "status").unwrap_or("open"),
+                    i(v, "opening_cash"),
+                    v.get("closing_cash_system").and_then(Value::as_i64),
+                    s(v, "opened_at").unwrap_or(""),
+                    s(v, "closed_at"),
+                    raw,
+                    srv,
+                    srv_seq,
+                    origin_word,
+                    now
+                ],
+            )?;
+        }
+        T_ORDER => {
+            conn.execute(
+                "INSERT INTO ledger_orders(okey, server_id, order_ref, branch_id, till_id, status, payment_method,
+                                           total_amount, tip_amount, tip_is_cash, tip_payment_method, created_at,
+                                           raw, srv_raw, srv_seq, origin, acked, local_updated_at)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)
+                 ON CONFLICT(okey) DO UPDATE SET server_id=COALESCE(excluded.server_id, ledger_orders.server_id),
+                   order_ref=excluded.order_ref, branch_id=excluded.branch_id, till_id=excluded.till_id,
+                   status=excluded.status, payment_method=excluded.payment_method,
+                   total_amount=excluded.total_amount, tip_amount=excluded.tip_amount,
+                   tip_is_cash=excluded.tip_is_cash, tip_payment_method=excluded.tip_payment_method,
+                   created_at=excluded.created_at, raw=excluded.raw, srv_raw=excluded.srv_raw,
+                   srv_seq=excluded.srv_seq, origin=excluded.origin, acked=excluded.acked,
+                   local_updated_at=excluded.local_updated_at",
+                params![
+                    key,
+                    server_id_of(ty, key, v, origin),
+                    s(v, "order_ref"),
+                    s(v, "branch_id").unwrap_or(""),
+                    s(v, "till_id").unwrap_or(""),
+                    s(v, "status").unwrap_or("completed"),
+                    s(v, "payment_method").unwrap_or(""),
+                    i(v, "total_amount"),
+                    i(v, "tip_amount"),
+                    b(v, "tip_is_cash"),
+                    s(v, "tip_payment_method"),
+                    s(v, "created_at").unwrap_or(""),
+                    raw,
+                    srv,
+                    srv_seq,
+                    origin_word,
+                    acked as i64,
+                    now
+                ],
+            )?;
+            conn.execute("DELETE FROM ledger_payments WHERE okey=?1", [key])?;
+            if let Some(legs) = v.get("payment_legs").and_then(Value::as_array) {
+                for (n, leg) in legs.iter().enumerate() {
+                    conn.execute(
+                        "INSERT INTO ledger_payments(okey, idx, method, amount, is_cash) VALUES(?1,?2,?3,?4,?5)",
+                        params![key, n as i64, s(leg, "method").unwrap_or(""), i(leg, "amount"), b(leg, "is_cash")],
+                    )?;
+                }
+            }
+        }
+        T_CASH => {
+            conn.execute(
+                "INSERT INTO ledger_cash(ckey, server_id, till_id, amount, kind, corrects_id, created_at, raw, srv_raw,
+                                         srv_seq, origin, acked, local_updated_at)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
+                 ON CONFLICT(ckey) DO UPDATE SET server_id=COALESCE(excluded.server_id, ledger_cash.server_id),
+                   till_id=excluded.till_id, amount=excluded.amount, kind=excluded.kind,
+                   corrects_id=excluded.corrects_id, created_at=excluded.created_at, raw=excluded.raw,
+                   srv_raw=excluded.srv_raw, srv_seq=excluded.srv_seq, origin=excluded.origin,
+                   acked=excluded.acked, local_updated_at=excluded.local_updated_at",
+                params![
+                    key,
+                    server_id_of(ty, key, v, origin),
+                    s(v, "till_id").unwrap_or(""),
+                    i(v, "amount"),
+                    s(v, "kind").unwrap_or(""),
+                    s(v, "corrects_id"),
+                    s(v, "created_at").unwrap_or(""),
+                    raw,
+                    srv,
+                    srv_seq,
+                    origin_word,
+                    acked as i64,
+                    now
+                ],
+            )?;
+        }
+        T_REFUND => {
+            conn.execute(
+                "INSERT INTO ledger_refunds(rkey, server_id, order_id, till_id, amount, method, is_cash, issued_at, raw,
+                                            srv_raw, srv_seq, origin, acked, local_updated_at)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)
+                 ON CONFLICT(rkey) DO UPDATE SET server_id=COALESCE(excluded.server_id, ledger_refunds.server_id),
+                   order_id=excluded.order_id, till_id=excluded.till_id, amount=excluded.amount,
+                   method=excluded.method, is_cash=excluded.is_cash, issued_at=excluded.issued_at,
+                   raw=excluded.raw, srv_raw=excluded.srv_raw, srv_seq=excluded.srv_seq,
+                   origin=excluded.origin, acked=excluded.acked, local_updated_at=excluded.local_updated_at",
+                params![
+                    key,
+                    server_id_of(ty, key, v, origin),
+                    s(v, "order_id").unwrap_or(""),
+                    s(v, "till_id").unwrap_or(""),
+                    i(v, "amount"),
+                    s(v, "method").unwrap_or(""),
+                    b(v, "is_cash").unwrap_or(false) as i64,
+                    s(v, "issued_at").unwrap_or(""),
+                    raw,
+                    srv,
+                    srv_seq,
+                    origin_word,
+                    acked as i64,
+                    now
+                ],
+            )?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// The server id a written row carries: a server-origin row's own `id` (a local
+/// row's `id` is its client key, which is not a server id).
+fn server_id_of(_ty: &str, key: &str, v: &Value, origin: Origin) -> Option<String> {
+    if origin == Origin::Local {
+        return None;
+    }
+    let id = s(v, "id")?;
+    // A server row keyed by its own id, or a client-keyed row whose server id
+    // differs from its key: both are real server ids.
+    let _ = key;
+    Some(id.to_string())
+}
+
+/// Remember `data` as the server's version of a PROTECTED row, advancing its seq.
+pub(crate) fn shadow(conn: &Connection, ty: &str, key: &str, data: &Value, seq: i64) -> CoreResult<()> {
+    let (table, kcol) = table_of(ty).expect("ledger type");
+    conn.execute(
+        &format!("UPDATE {table} SET srv_raw=?1, srv_seq=MAX(srv_seq, ?2) WHERE {kcol}=?3"),
+        params![data.to_string(), seq, key],
+    )?;
+    Ok(())
+}
+
+/// Delete one ledger row (its payment legs cascade).
+pub(crate) fn delete_row(conn: &Connection, ty: &str, key: &str) -> CoreResult<u32> {
+    let (table, kcol) = table_of(ty).expect("ledger type");
+    Ok(conn.execute(&format!("DELETE FROM {table} WHERE {kcol}=?1"), [key])? as u32)
+}
+
+#[cfg(test)]
+mod tests;

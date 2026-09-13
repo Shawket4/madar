@@ -19,7 +19,7 @@ type Step = fn(&Transaction<'_>) -> CoreResult<()>;
 
 /// The steps, in order. Step N brings the store from `user_version = N-1` to N.
 /// Append only: a shipped step is never edited.
-const STEPS: &[Step] = &[step1_sync_streams];
+const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger];
 
 /// The schema version this build writes.
 pub(crate) fn latest() -> i64 {
@@ -83,6 +83,134 @@ fn step1_sync_streams(tx: &Transaction<'_>) -> CoreResult<()> {
          );",
     )?;
     Ok(())
+}
+
+/// The money ledger as rows (§2 P1): tills, orders + payment legs, cash
+/// movements, refunds. `raw` keeps the wire JSON the projections read; the typed
+/// columns exist for filters, joins and the till computation.
+///
+/// Keys: a row is keyed by the CLIENT-minted id when one exists (order
+/// `idempotency_key`, movement/refund `client_ref`, the till id itself), else the
+/// server id — so a sale is ONE row from the moment it is rung to long after it
+/// has synced, and a lost response can never add it twice.
+fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
+    tx.execute_batch(
+        "CREATE TABLE IF NOT EXISTS ledger_tills (
+           id            TEXT PRIMARY KEY,
+           branch_id     TEXT NOT NULL,
+           teller_id     TEXT NOT NULL,
+           status        TEXT NOT NULL,
+           opening_cash  INTEGER NOT NULL DEFAULT 0,
+           closing_cash_system INTEGER,
+           opened_at     TEXT NOT NULL,
+           closed_at     TEXT,
+           raw           TEXT NOT NULL,             -- TillRecord JSON
+           srv_raw       TEXT,                      -- last server version while a local op holds the row
+           srv_seq       INTEGER NOT NULL DEFAULT 0,
+           origin        TEXT NOT NULL,             -- server|local
+           complete      INTEGER NOT NULL DEFAULT 0, -- every ledger row of this till is local
+           local_updated_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS ledger_tills_branch ON ledger_tills(branch_id, opened_at DESC);
+
+         CREATE TABLE IF NOT EXISTS ledger_orders (
+           okey          TEXT PRIMARY KEY,
+           server_id     TEXT UNIQUE,
+           order_ref     TEXT,
+           branch_id     TEXT NOT NULL,
+           till_id       TEXT NOT NULL,
+           status        TEXT NOT NULL,
+           payment_method TEXT NOT NULL,
+           total_amount  INTEGER NOT NULL DEFAULT 0,
+           tip_amount    INTEGER NOT NULL DEFAULT 0,
+           tip_is_cash   INTEGER,                   -- NULL: COALESCE(tip method,'cash') like the server
+           tip_payment_method TEXT,
+           created_at    TEXT NOT NULL,
+           raw           TEXT NOT NULL,             -- projection / command JSON
+           srv_raw       TEXT,
+           srv_seq       INTEGER NOT NULL DEFAULT 0,
+           origin        TEXT NOT NULL,
+           acked         INTEGER NOT NULL DEFAULT 0, -- a local op for it acked, the feed has not confirmed it yet
+           local_updated_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS ledger_orders_till ON ledger_orders(till_id, created_at DESC);
+         CREATE INDEX IF NOT EXISTS ledger_orders_branch ON ledger_orders(branch_id, created_at DESC);
+         CREATE INDEX IF NOT EXISTS ledger_orders_ref ON ledger_orders(order_ref);
+
+         CREATE TABLE IF NOT EXISTS ledger_payments (
+           okey          TEXT NOT NULL REFERENCES ledger_orders(okey) ON DELETE CASCADE ON UPDATE CASCADE,
+           idx           INTEGER NOT NULL,
+           method        TEXT NOT NULL,
+           amount        INTEGER NOT NULL,
+           is_cash       INTEGER,                   -- NULL: method = 'cash' (server COALESCE)
+           PRIMARY KEY (okey, idx)
+         );
+
+         CREATE TABLE IF NOT EXISTS ledger_cash (
+           ckey          TEXT PRIMARY KEY,
+           server_id     TEXT UNIQUE,
+           till_id       TEXT NOT NULL,
+           amount        INTEGER NOT NULL,
+           kind          TEXT NOT NULL,
+           corrects_id   TEXT,
+           created_at    TEXT NOT NULL,
+           raw           TEXT NOT NULL,
+           srv_raw       TEXT,
+           srv_seq       INTEGER NOT NULL DEFAULT 0,
+           origin        TEXT NOT NULL,
+           acked         INTEGER NOT NULL DEFAULT 0,
+           local_updated_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS ledger_cash_till ON ledger_cash(till_id, created_at);
+
+         CREATE TABLE IF NOT EXISTS ledger_refunds (
+           rkey          TEXT PRIMARY KEY,
+           server_id     TEXT UNIQUE,
+           order_id      TEXT NOT NULL,             -- the SERVER order id it refunds
+           till_id       TEXT NOT NULL,
+           amount        INTEGER NOT NULL,
+           method        TEXT NOT NULL,
+           is_cash       INTEGER NOT NULL,
+           issued_at     TEXT NOT NULL,
+           raw           TEXT NOT NULL,
+           srv_raw       TEXT,
+           srv_seq       INTEGER NOT NULL DEFAULT 0,
+           origin        TEXT NOT NULL,
+           acked         INTEGER NOT NULL DEFAULT 0,
+           local_updated_at INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS ledger_refunds_till ON ledger_refunds(till_id);
+         CREATE INDEX IF NOT EXISTS ledger_refunds_order ON ledger_refunds(order_id);",
+    )?;
+    Ok(())
+}
+
+/// A sale's full record (lines + modifiers) for detail and reprint, keyed by the
+/// server order id — replaces the `cache:order:<id>` blobs — and the server's
+/// Z report for a till whose ledger rows are NOT all on this device (a till from
+/// before this device's first snapshot) — replaces `cache:till_report:<id>`.
+fn step3_order_details(tx: &Transaction<'_>) -> CoreResult<()> {
+    tx.execute_batch(
+        "CREATE TABLE IF NOT EXISTS order_details (
+           order_id      TEXT PRIMARY KEY,
+           raw           TEXT NOT NULL,             -- OrderFull JSON
+           fetched_at    INTEGER NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS till_reports (
+           till_id       TEXT PRIMARY KEY,
+           raw           TEXT NOT NULL,             -- TillReportResponse JSON
+           fetched_at    INTEGER NOT NULL
+         );",
+    )?;
+    Ok(())
+}
+
+/// One-time move of everything a pre-B store knows about the ledger into the
+/// rows: the changefeed's ledger rows, the `cache:*` history blobs, the till
+/// records, and — above all — every still-queued outbox op, so the new read
+/// path sees the queue the moment the app updates.
+fn step4_backfill_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
+    crate::ledger::migrate::backfill(tx)
 }
 
 #[cfg(test)]

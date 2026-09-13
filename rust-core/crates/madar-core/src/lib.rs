@@ -99,6 +99,7 @@ pub mod tickets;
 /// Drawer and Orders decisions the screens used to make (labels, refund
 /// method, close count, cash sales, tax inclusivity, shift order paging).
 pub mod till_views;
+pub(crate) mod ledger;
 pub mod till_ops;
 pub mod sync_pull;
 pub mod assets;
