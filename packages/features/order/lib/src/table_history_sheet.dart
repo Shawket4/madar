@@ -101,12 +101,27 @@ class _TableHistorySheetState extends ConsumerState<TableHistorySheet> {
     final body = switch ((_loading, _failedKey, h)) {
       (true, _, _) => const SkeletonList(count: 4),
       (_, final String key, _) => EmptyState(
-        icon: key == 'tables.history_offline' ? 'wifi.slash' : 'xmark.circle',
+        icon: switch (key) {
+          'tables.history_offline' => 'wifi.slash',
+          'tables.history_forbidden' => 'lock',
+          'tables.history_missing' => 'questionmark.circle',
+          _ => 'xmark.circle',
+        },
         title: t(key),
+        actionLabel: key == 'tables.history_offline'
+            ? t('history.retry')
+            : null,
+        onAction: key == 'tables.history_offline'
+            ? () {
+                setState(() => (_failedKey = null, _loading = true));
+                unawaited(_load());
+              }
+            : null,
       ),
       (_, _, final TableHistoryView v) when v.sittings.isEmpty => EmptyState(
         icon: 'clock',
         title: t('tables.history_empty'),
+        message: t('tables.history_empty_hint'),
       ),
       (_, _, final TableHistoryView v) => _Body(
         bridge: bridge,

@@ -19,13 +19,21 @@ import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_screen.dart';
 import 'package:feature_order/src/table_history_sheet.dart';
-import 'package:feature_order/src/tables_screen.dart' show showTablePickerSheet;
+import 'package:feature_order/src/tables_screen.dart'
+    show moveParty, showTablePickerSheet;
 import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:feature_order/src/words.dart';
 import 'package:feature_settings/feature_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
+
+/// What a bill screen hands back to whoever pushed it when it closes itself
+/// for a reason the opener acts on.
+enum BillExit {
+  /// "Table actions": back to the room, with this table's floor sheet open.
+  tableActions,
+}
 
 /// One bill, full screen. A 640 column centred on an iPad; the width on a
 /// phone.
@@ -165,18 +173,36 @@ class _BillScreenState extends ConsumerState<BillScreen>
   }
 
   /// Move: the picker IS the room — tap the new table. A free target moves
-  /// the party; an occupied one swaps the two.
+  /// the party; an occupied one swaps the two, after saying so. The toast
+  /// offers Undo only once the core has actually moved them.
   Future<void> _move(TicketView t) async {
+    final from = t.tableId;
+    if (from == null) return;
     final pick = await showTablePickerSheet(
       context,
       ref,
-      currentTableId: t.tableId,
+      currentTableId: from,
       allowClear: false,
       forMove: true,
     );
     final to = pick?.tableId;
-    if (to == null || to == t.tableId || !mounted) return;
-    await _notifier.swapTables(t.tableId!, to);
+    if (to == null || !mounted) return;
+    await moveParty(context, ref, from: from, to: to);
+  }
+
+  /// Unseat, from the bill. A table with a bill is not unseated around it —
+  /// the party's money would vanish from the room — so this says what does
+  /// free it (charge or void) and offers the void.
+  Future<void> _unseat(TicketView t) async {
+    final bridge = ref.read(bridgeProvider);
+    final ok = await showMadarConfirm(
+      context,
+      title: orderWord(bridge, 'floor.unseat'),
+      body: orderWord(bridge, 'bill.unseat_has_bill'),
+      confirmLabel: orderWord(bridge, 'bill.void_bill'),
+      cancelLabel: bridge.tr(key: 'common.cancel'),
+    );
+    if (ok && mounted) await _void(t);
   }
 
   /// Tap a live line: take that one plate off the bill.
@@ -299,11 +325,11 @@ class _BillScreenState extends ConsumerState<BillScreen>
           tone: MadarTone.warning,
           glyph: MadarGlyph.half,
         ),
-      // The table's own doors, from its bill: where it has been, and where the
-      // party goes next. (Unseating a table with a bill is voiding the bill,
-      // which is under ⋯.)
+      // The table's own doors, from its bill: where it has been, where the
+      // party goes next, unseating, and back to the table's floor sheet.
       if (ticket.tableId != null && tableLabel != null)
         MadarGlyphTile(
+          key: const ValueKey('bill.history'),
           glyph: MadarGlyph.clock,
           semanticLabel: bridge.tr(key: 'tables.history'),
           onTap: () => unawaited(
@@ -316,9 +342,27 @@ class _BillScreenState extends ConsumerState<BillScreen>
         ),
       if (ticket.tableId != null && state.hasFloor)
         MadarGlyphTile(
+          key: const ValueKey('bill.move'),
           glyph: MadarGlyph.move,
           semanticLabel: bridge.tr(key: 'tables.move'),
           onTap: () => unawaited(_move(ticket)),
+        ),
+      if (ticket.tableId != null)
+        MadarGlyphTile(
+          key: const ValueKey('bill.unseat'),
+          glyph: MadarGlyph.users,
+          semanticLabel: orderWord(bridge, 'floor.unseat'),
+          onTap: () => unawaited(_unseat(ticket)),
+        ),
+      if (ticket.tableId != null && state.hasFloor)
+        MadarGlyphTile(
+          key: const ValueKey('bill.table_actions'),
+          glyph: MadarGlyph.table,
+          semanticLabel: orderWord(bridge, 'floor.table_actions'),
+          onTap: () {
+            final nav = Navigator.of(context);
+            if (nav.canPop()) nav.pop(BillExit.tableActions);
+          },
         ),
       MadarGlyphTile(
         glyph: MadarGlyph.more,

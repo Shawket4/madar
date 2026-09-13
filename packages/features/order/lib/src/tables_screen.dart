@@ -27,6 +27,71 @@ class TablePick {
   final String? label;
 }
 
+/// Why [to] cannot take the party on [from], as an i18n key — or null when it
+/// can. The same table explains itself instead of silently cancelling.
+String? moveRefusalKey(
+  FloorTableStateView to, {
+  required String? from,
+  required List<TicketView> tickets,
+}) {
+  if (to.id == from) return 'err.move_same';
+  if (tableIsMoveTarget(to, from: from, tickets: tickets)) return null;
+  return tableNeedsClearing(to) ? 'err.move_dirty' : 'err.move_booked';
+}
+
+/// Moves the party on [from] to [to] — every screen's one move. Refuses with
+/// the reason, confirms a swap ("Swap T2 ↔ T5?") when [to] is occupied, and
+/// offers Undo only after the core says it moved. Returns whether it moved.
+Future<bool> moveParty(
+  BuildContext context,
+  WidgetRef ref, {
+  required String from,
+  required String to,
+}) async {
+  final bridge = ref.read(bridgeProvider);
+  final notifier = ref.read(orderProvider.notifier);
+  final s = ref.read(orderProvider);
+  final tables = s.floorLayout?.tables ?? const <FloorTableStateView>[];
+  final target = tables.where((t) => t.id == to).firstOrNull;
+  final source = tables.where((t) => t.id == from).firstOrNull;
+  if (target == null) return false;
+  final refusal = moveRefusalKey(target, from: from, tickets: s.openTickets);
+  if (refusal != null) {
+    notifier.showToast(
+      bridge.tr(key: refusal),
+      tone: ChipTone.warning,
+      icon: 'xmark.circle',
+    );
+    return false;
+  }
+  final ticket = s.openTickets
+      .where((x) => x.tableId == to && isLiveTicket(x))
+      .firstOrNull;
+  if (urgencyOf(target, ticket) != FloorUrgency.free) {
+    final ok = await showMadarConfirm(
+      context,
+      title:
+          '${bridge.tr(key: 'tables.swap')} '
+          '${source?.label ?? ''} ↔ ${target.label}?',
+      confirmLabel: bridge.tr(key: 'tables.swap'),
+      cancelLabel: bridge.tr(key: 'common.cancel'),
+    );
+    if (!ok) return false;
+  }
+  final moved = await notifier.swapTables(from, to);
+  if (moved) {
+    notifier.showToast(
+      bridge.tr(key: 'tables.moved'),
+      tone: ChipTone.success,
+      icon: 'checkmark.circle',
+      actionLabel: bridge.tr(key: 'order.undo'),
+      action: () => unawaited(notifier.swapTables(to, from)),
+      seconds: 5,
+    );
+  }
+  return moved;
+}
+
 /// Grid picker over the branch layout, grouped by section. Occupied tables are
 /// disabled (except [currentTableId] — the order's own table stays pickable so
 /// "keep it" is obvious). Returns null when dismissed without a choice.
@@ -42,23 +107,30 @@ Future<TablePick?> showTablePickerSheet(
   bool forMove = false,
 }) async {
   final bridge = ref.read(bridgeProvider);
-  final layout = ref.read(orderProvider).floorLayout;
-  final tickets = ref.read(orderProvider).openTickets;
-  if (layout == null) return null;
+  if (ref.read(orderProvider).floorLayout == null) return null;
   return await showMadarSheet<TablePick>(
     context,
     size: SheetSize.hug,
-    builder: (sheetContext) => _TablePickerBody(
-      layout: layout,
-      tickets: tickets,
-      forMove: forMove,
-      currentTableId: currentTableId,
-      allowClear: allowClear,
-      title: bridge.tr(key: 'tables.pick'),
-      clearLabel: bridge.tr(key: 'tables.no_table'),
-      seatsWord: bridge.tr(key: 'tables.seats'),
-      noSectionLabel: bridge.tr(key: 'tables.no_section'),
-      words: TableStatusWords.of(bridge),
+    // Live: a table seated, bussed or held while the picker is open reads
+    // as such at once, not as it was when the sheet opened.
+    builder: (sheetContext) => Consumer(
+      builder: (_, r, _) {
+        final s = r.watch(orderProvider);
+        final layout = s.floorLayout;
+        if (layout == null) return const SizedBox.shrink();
+        return _TablePickerBody(
+          layout: layout,
+          tickets: s.openTickets,
+          forMove: forMove,
+          currentTableId: currentTableId,
+          allowClear: allowClear,
+          title: bridge.tr(key: 'tables.pick'),
+          clearLabel: bridge.tr(key: 'tables.no_table'),
+          seatsWord: bridge.tr(key: 'tables.seats'),
+          noSectionLabel: bridge.tr(key: 'tables.no_section'),
+          words: TableStatusWords.of(bridge),
+        );
+      },
     ),
   );
 }
@@ -570,6 +642,7 @@ class FloorCanvas extends StatelessWidget {
     required this.onTap,
     this.onLongPress,
     this.enabledOf,
+    this.onDisabledTap,
     this.selectedId,
     this.swapArmedId,
     this.zoomable = false,
@@ -589,6 +662,10 @@ class FloorCanvas extends StatelessWidget {
 
   /// Per-table interactivity (picker mode); null = everything tappable.
   final bool Function(FloorTableStateView)? enabledOf;
+
+  /// A dimmed table still answers a tap when this is set — to say WHY it
+  /// cannot be picked, rather than ignoring the finger.
+  final ValueChanged<FloorTableStateView>? onDisabledTap;
   final String? selectedId;
   final String? swapArmedId;
 
@@ -682,7 +759,9 @@ class FloorCanvas extends StatelessWidget {
                                 selected: selectedId == p.table.id,
                                 onTap: (enabledOf?.call(p.table) ?? true)
                                     ? () => onTap(p.table)
-                                    : null,
+                                    : onDisabledTap == null
+                                    ? null
+                                    : () => onDisabledTap!(p.table),
                                 onLongPress: onLongPress == null
                                     ? null
                                     : () => onLongPress!(p.table),

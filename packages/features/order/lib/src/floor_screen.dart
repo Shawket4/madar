@@ -27,6 +27,7 @@ import 'package:feature_order/src/tables_screen.dart'
     show
         FloorCanvas,
         TableStatusWords,
+        moveParty,
         showTablePickerSheet,
         tableBookingSeated,
         tableHasBooking,
@@ -46,6 +47,10 @@ const String _kNoSection = '__no_section__';
 
 /// The largest party the chip row offers before the number is typed.
 const int _kMaxPartyChip = 8;
+
+/// Added to the covers the seat sheet returns when "Seat & take order" was
+/// the button — the sheet's one result carries both answers.
+const int _kTakeOrder = 1000;
 
 /// The Floor.
 class FloorScreen extends ConsumerStatefulWidget {
@@ -104,22 +109,10 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
   Future<void> _onTable(FloorTableStateView t, TicketView? ticket) async {
     final from = _moveFrom;
     if (from != null) {
-      if (from == t.id) {
-        setState(() => _moveFrom = null);
-        return;
-      }
-      final tickets = ref.read(orderProvider).openTickets;
-      if (!tableIsMoveTarget(t, from: from, tickets: tickets)) {
-        // Say why rather than silently doing nothing; stay in move mode.
-        _notifier.showToast(
-          _tr(tableNeedsClearing(t) ? 'err.move_dirty' : 'err.move_booked'),
-          tone: ChipTone.warning,
-          icon: 'xmark.circle',
-        );
-        return;
-      }
-      setState(() => _moveFrom = null);
-      await _notifier.swapTables(from, t.id);
+      // Say why rather than silently doing nothing — the party's own table
+      // too; stay in move mode (the banner's ✕ leaves it).
+      final moved = await moveParty(context, ref, from: from, to: t.id);
+      if (moved && mounted) setState(() => _moveFrom = null);
       return;
     }
     // A cart parked on the table by the old flow. Nothing writes this any
@@ -155,7 +148,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
   }
 
   Future<void> _openBill(String ticketId, {bool charge = false}) async {
-    await MadarPages.push<void>(
+    final exit = await MadarPages.push<Object?>(
       context,
       (_) => BillScreen(
         ticketId: ticketId,
@@ -163,6 +156,16 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
         chargeOnOpen: charge,
       ),
     );
+    if (exit != BillExit.tableActions || !mounted) return;
+    // "Table actions" from the bill: this table's floor sheet, wherever the
+    // party sits now.
+    final s = ref.read(orderProvider);
+    final tableId = s.openTickets
+        .where((x) => x.id == ticketId)
+        .firstOrNull
+        ?.tableId;
+    final t = s.floorLayout?.tables.where((x) => x.id == tableId).firstOrNull;
+    if (t != null) await _onTable(t, _ticketOn(s.openTickets, t.id));
   }
 
   /// The bill on [tableId], re-reading the bills first when this device does
@@ -232,7 +235,16 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
             MadarButton(
               label: _w('floor.seat'),
               glyph: MadarGlyph.users,
+              variant: MadarButtonVariant.secondary,
               onTap: () => Navigator.of(sheetContext).maybePop(covers),
+            ),
+            // Seat and go straight to the order: one tap, not two.
+            MadarButton(
+              key: const ValueKey('floor.seat_and_order'),
+              label: _w('floor.seat_and_order'),
+              glyph: MadarGlyph.receipt,
+              onTap: () =>
+                  Navigator.of(sheetContext).maybePop(covers + _kTakeOrder),
             ),
             if (hasArrivals)
               MadarButton(
@@ -249,8 +261,13 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       await _pickArrivalFor(t);
       return;
     }
-    // Takes the table on every device. Opens nothing.
-    await _notifier.seatTable(t, covers: seat, bindCart: false);
+    final takeOrder = seat >= _kTakeOrder;
+    final covers0 = takeOrder ? seat - _kTakeOrder : seat;
+    // Takes the table on every device.
+    await _notifier.seatTable(t, covers: covers0, bindCart: false);
+    if (!takeOrder || !mounted) return;
+    await _notifier.pointCartAtTable(t.id, t.label);
+    await _toSell();
   }
 
   /// OCCUPIED — a party with or without a bill. One sheet, contents by what
@@ -818,6 +835,8 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
               : (x) =>
                     x.id == _moveFrom ||
                     tableIsMoveTarget(x, from: _moveFrom, tickets: tickets),
+          onDisabledTap: (t) =>
+              unawaited(_onTable(t, _ticketOn(tickets, t.id))),
           onTap: (t) => unawaited(_onTable(t, _ticketOn(tickets, t.id))),
         ),
       );

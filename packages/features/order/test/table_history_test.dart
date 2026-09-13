@@ -124,6 +124,23 @@ void main() {
       ),
     );
     expect(find.text('tables.history_empty'), findsOneWidget);
+    // And explains what WILL appear here.
+    expect(find.text('tables.history_empty_hint'), findsOneWidget);
+  });
+
+  testWidgets('offline offers a retry', (tester) async {
+    await _pump(tester, _FakeBridge(throws: true));
+    expect(find.text('history.retry'), findsOneWidget);
+  });
+
+  testWidgets('forbidden offers no retry', (tester) async {
+    await _pump(
+      tester,
+      _FakeBridge.failing(
+        const MadarError.forbidden(resource: 'api', action: 'no'),
+      ),
+    );
+    expect(find.text('history.retry'), findsNothing);
   });
 
   testWidgets('the figures lead, and a bill that took nothing is flagged', (
