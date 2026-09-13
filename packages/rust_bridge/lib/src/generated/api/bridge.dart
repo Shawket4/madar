@@ -60,6 +60,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// API base URL the core will talk to (from `.env`).
   String baseUrl();
 
+  /// A bill re-priced with rewards, under the settle's discount.
+  TicketBillView? billWithRewards({
+    required String ticketId,
+    required List<CheckoutRedemption> redemptions,
+    String? discountType,
+    double? discountValue,
+  });
+
   /// The branch's IANA timezone name (cached at login, or the Cairo fallback) —
   /// for any host that needs the raw zone (e.g. a platform date picker).
   String branchTimezone();
@@ -149,6 +157,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// nothing was removed (or it was already restored / the cart was cleared).
   Future<List<CartLineView>> cartRestoreRemoved({String? tableId});
 
+  /// A cart's lines a reward could name.
+  List<RewardLineInput> cartRewardLines({String? tableId});
+
   /// Apply a discount (by id) to the cart — reflected in `cart_totals`.
   Future<void> cartSetDiscount({String? tableId, required String discountId});
 
@@ -171,6 +182,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Priced cart summary at the session's org tax rate (0 when signed out),
   /// computed through the pricing engine.
   Future<CartTotals> cartTotals({String? tableId});
+
+  /// Cart totals with rewards applied — the figure Charge collects.
+  CartTotals cartTotalsWithRewards({
+    String? tableId,
+    required List<CheckoutRedemption> redemptions,
+  });
 
   /// Cash-drawer kick bytes for the chosen printer dialect — send via
   /// `send_to_printer` right after a CASH sale's receipt so the till pops.
@@ -588,6 +605,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// number shown to a customer is worse than asking the teller to reconnect.
   Future<LoyaltyScanView> loyaltyLookup({String? token, String? phone});
 
+  /// Re-read an attached member by id (balance, catalogue, per-order cap).
+  Future<LoyaltyScanView> loyaltyRefresh({required String customerId});
+
+  /// Why a settled sale's rewards were recorded without points, if they were.
+  String? loyaltyRefusal({required String opId});
+
   /// The branch's programme: whether one runs, what it collects, its name.
   /// Cached, so an offline till still knows whether to draw the control.
   Future<LoyaltyProgrammeView> loyaltySettings();
@@ -797,6 +820,20 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Best-effort — offline just leaves them pending again.
   Future<void> retryOutbox();
 
+  /// Apply the reward rules to the asked picks (cap, balance, catalogue,
+  /// bundles, shrunk or removed lines) and describe every line.
+  RewardBoardView rewardBoard({
+    required List<RewardLineInput> lines,
+    required LoyaltyScanView scan,
+    required List<RewardPick> picks,
+  });
+
+  /// The board's picks as the redemptions a checkout or settle sends.
+  List<CheckoutRedemption> rewardRedemptions({
+    required List<RewardLineInput> lines,
+    required List<RewardPick> picks,
+  });
+
   /// Whether a settled sale's tax was included, from its own figures.
   bool saleTaxInclusive({
     required PlatformInt64 subtotalMinor,
@@ -1005,6 +1042,17 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<CheckoutSplit> splits,
     required bool duePriced,
     required bool addsOnTop,
+  });
+
+  /// A bill's lines a reward could name.
+  List<RewardLineInput> ticketRewardLines({required String ticketId});
+
+  /// The tap on a reward line: one more unit, or clear it.
+  List<RewardPick> toggleReward({
+    required List<RewardLineInput> lines,
+    required LoyaltyScanView scan,
+    required List<RewardPick> picks,
+    required int line,
   });
 
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).

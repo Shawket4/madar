@@ -466,6 +466,7 @@ class ReceiptLineView {
 
   /// A bundle/combo line — its breakdown is in `components`, not `addons`.
   final bool isBundle;
+  final String? rewardLabel;
   final List<ReceiptModifierView> addons;
   final List<ReceiptModifierView> optionals;
   final List<ReceiptComponentView> components;
@@ -476,6 +477,7 @@ class ReceiptLineView {
     this.sizeLabel,
     required this.lineTotalMinor,
     required this.isBundle,
+    this.rewardLabel,
     required this.addons,
     required this.optionals,
     required this.components,
@@ -488,6 +490,7 @@ class ReceiptLineView {
       sizeLabel.hashCode ^
       lineTotalMinor.hashCode ^
       isBundle.hashCode ^
+      rewardLabel.hashCode ^
       addons.hashCode ^
       optionals.hashCode ^
       components.hashCode;
@@ -502,6 +505,7 @@ class ReceiptLineView {
           sizeLabel == other.sizeLabel &&
           lineTotalMinor == other.lineTotalMinor &&
           isBundle == other.isBundle &&
+          rewardLabel == other.rewardLabel &&
           addons == other.addons &&
           optionals == other.optionals &&
           components == other.components;
@@ -602,6 +606,9 @@ class ReceiptView {
   /// Every tender of a split sale; empty for a single payment.
   final List<ReceiptPaymentView> payments;
 
+  /// A sale whose rewards the server recorded without points, said for the teller.
+  final String? loyaltyNotice;
+
   const ReceiptView({
     required this.localOrderId,
     this.orderNumber,
@@ -632,6 +639,7 @@ class ReceiptView {
     required this.queuedOffline,
     required this.createdAt,
     required this.payments,
+    this.loyaltyNotice,
   });
 
   @override
@@ -664,7 +672,8 @@ class ReceiptView {
       deliveryNotes.hashCode ^
       queuedOffline.hashCode ^
       createdAt.hashCode ^
-      payments.hashCode;
+      payments.hashCode ^
+      loyaltyNotice.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -699,7 +708,8 @@ class ReceiptView {
           deliveryNotes == other.deliveryNotes &&
           queuedOffline == other.queuedOffline &&
           createdAt == other.createdAt &&
-          payments == other.payments;
+          payments == other.payments &&
+          loyaltyNotice == other.loyaltyNotice;
 }
 
 class RefundLineView {

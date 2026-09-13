@@ -53,6 +53,7 @@ const Map<String, String> coreDetailKeys = {
   'that line is no longer in the cart': 'err.line_gone',
   'unknown payment method': 'err.unknown_payment',
   'scan a card or type a phone number': 'err.scan_or_phone',
+  'a reward can only be redeemed online': 'loyalty.reward_offline',
   'no order to add points to': 'err.no_order_points',
   'table is taken': 'err.table_taken',
   'both tables are empty': 'err.move_both_empty',

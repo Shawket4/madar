@@ -605,7 +605,7 @@ impl MadarCore {
     }
 
     /// The active runtime locale (defaults to `config.locale`).
-    fn current_locale(&self) -> String {
+    pub fn current_locale(&self) -> String {
         self.locale
             .read()
             .unwrap_or_else(|e| e.into_inner())

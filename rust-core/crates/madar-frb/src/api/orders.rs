@@ -97,6 +97,7 @@ pub struct _ReceiptLineView {
     pub line_total_minor: i64,
     /// A bundle/combo line — its breakdown is in `components`, not `addons`.
     pub is_bundle: bool,
+    pub reward_label: Option<String>,
     pub addons: Vec<ReceiptModifierView>,
     pub optionals: Vec<ReceiptModifierView>,
     pub components: Vec<ReceiptComponentView>,
@@ -147,6 +148,8 @@ pub struct _ReceiptView {
     pub created_at: String,
     /// Every tender of a split sale; empty for a single payment.
     pub payments: Vec<ReceiptPaymentView>,
+    /// A sale whose rewards the server recorded without points, said for the teller.
+    pub loyalty_notice: Option<String>,
 }
 
 /// One tender on a split receipt.

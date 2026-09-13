@@ -110,6 +110,51 @@ pub struct _LoyaltyScanView {
     pub any_item: bool,
     /// What one line costs when `any_item` is on.
     pub any_item_cost: i64,
+    /// The shop's ceiling on reward items per order.
+    pub max_rewards_per_order: Option<i64>,
+}
+
+pub use madar_core::loyalty::{RewardBoardView, RewardLineInput, RewardLineState, RewardPick};
+
+#[frb(mirror(RewardLineInput))]
+pub struct _RewardLineInput {
+    pub name: String,
+    pub cart_index: Option<u32>,
+    pub ticket_line_id: Option<String>,
+    pub menu_item_id: Option<String>,
+    pub qty: i32,
+    pub line_total_minor: i64,
+    pub is_bundle: bool,
+}
+
+#[frb(mirror(RewardPick))]
+pub struct _RewardPick {
+    pub line: u32,
+    pub units: i32,
+}
+
+#[frb(mirror(RewardLineState))]
+pub struct _RewardLineState {
+    pub line: u32,
+    pub claimable: bool,
+    pub unit_cost: i64,
+    pub units: i32,
+    pub can_add: bool,
+    pub blocked_reason: Option<String>,
+    pub covered_minor: i64,
+    pub cost_label: String,
+}
+
+/// The rewards section, decided by the core: see `madar_core::loyalty::reward_board`.
+#[frb(mirror(RewardBoardView))]
+pub struct _RewardBoardView {
+    pub lines: Vec<RewardLineState>,
+    pub picks: Vec<RewardPick>,
+    pub cost: i64,
+    pub balance_after: i64,
+    pub units_claimed: i32,
+    pub covered_minor: i64,
+    pub adjusted_reason: Option<String>,
 }
 
 /// What came of pressing "add points" on a sale.
@@ -173,6 +218,92 @@ impl MadarBridge {
             .loyalty_lookup(token, phone)
             .await
             .map_err(MadarError::from)
+    }
+
+    /// Re-read an attached member by id (balance, catalogue, per-order cap).
+    pub async fn loyalty_refresh(&self, customer_id: String) -> Result<LoyaltyScanView, MadarError> {
+        self.inner
+            .loyalty_refresh(customer_id)
+            .await
+            .map_err(MadarError::from)
+    }
+
+    /// Apply the reward rules to the asked picks (cap, balance, catalogue,
+    /// bundles, shrunk or removed lines) and describe every line.
+    #[frb(sync)]
+    pub fn reward_board(
+        &self,
+        lines: Vec<RewardLineInput>,
+        scan: LoyaltyScanView,
+        picks: Vec<RewardPick>,
+    ) -> RewardBoardView {
+        madar_core::loyalty::reward_board(&lines, &scan, &picks, &self.inner.current_locale())
+    }
+
+    /// The tap on a reward line: one more unit, or clear it.
+    #[frb(sync)]
+    pub fn toggle_reward(
+        &self,
+        lines: Vec<RewardLineInput>,
+        scan: LoyaltyScanView,
+        picks: Vec<RewardPick>,
+        line: u32,
+    ) -> Vec<RewardPick> {
+        madar_core::loyalty::toggle_reward(&lines, &scan, &picks, line, &self.inner.current_locale())
+    }
+
+    /// The board's picks as the redemptions a checkout or settle sends.
+    #[frb(sync)]
+    pub fn reward_redemptions(
+        &self,
+        lines: Vec<RewardLineInput>,
+        picks: Vec<RewardPick>,
+    ) -> Vec<crate::api::orders::CheckoutRedemption> {
+        madar_core::loyalty::redemptions_from_picks(&lines, &picks)
+    }
+
+    /// A cart's lines a reward could name.
+    #[frb(sync)]
+    pub fn cart_reward_lines(&self, table_id: Option<String>) -> Result<Vec<RewardLineInput>, MadarError> {
+        self.inner.cart_reward_lines(table_id).map_err(MadarError::from)
+    }
+
+    /// A bill's lines a reward could name.
+    #[frb(sync)]
+    pub fn ticket_reward_lines(&self, ticket_id: String) -> Result<Vec<RewardLineInput>, MadarError> {
+        self.inner.ticket_reward_lines(ticket_id).map_err(MadarError::from)
+    }
+
+    /// Cart totals with rewards applied — the figure Charge collects.
+    #[frb(sync)]
+    pub fn cart_totals_with_rewards(
+        &self,
+        table_id: Option<String>,
+        redemptions: Vec<crate::api::orders::CheckoutRedemption>,
+    ) -> Result<crate::api::cart::CartTotals, MadarError> {
+        self.inner
+            .cart_totals_with_rewards(table_id, redemptions)
+            .map_err(MadarError::from)
+    }
+
+    /// A bill re-priced with rewards, under the settle's discount.
+    #[frb(sync)]
+    pub fn bill_with_rewards(
+        &self,
+        ticket_id: String,
+        redemptions: Vec<crate::api::orders::CheckoutRedemption>,
+        discount_type: Option<String>,
+        discount_value: Option<f64>,
+    ) -> Result<Option<crate::api::tickets::TicketBillView>, MadarError> {
+        self.inner
+            .bill_with_rewards(ticket_id, redemptions, discount_type, discount_value)
+            .map_err(MadarError::from)
+    }
+
+    /// Why a settled sale's rewards were recorded without points, if they were.
+    #[frb(sync)]
+    pub fn loyalty_refusal(&self, op_id: String) -> Option<String> {
+        self.inner.loyalty_refusal(op_id)
     }
 
     /// Is this sale still inside its 24-hour award window?

@@ -322,12 +322,16 @@ class LoyaltyScanView {
   /// What one line costs when `any_item` is on.
   final PlatformInt64 anyItemCost;
 
+  /// The shop's ceiling on reward items per order.
+  final PlatformInt64? maxRewardsPerOrder;
+
   const LoyaltyScanView({
     required this.member,
     required this.rewards,
     required this.recent,
     required this.anyItem,
     required this.anyItemCost,
+    this.maxRewardsPerOrder,
   });
 
   @override
@@ -336,7 +340,8 @@ class LoyaltyScanView {
       rewards.hashCode ^
       recent.hashCode ^
       anyItem.hashCode ^
-      anyItemCost.hashCode;
+      anyItemCost.hashCode ^
+      maxRewardsPerOrder.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -347,5 +352,158 @@ class LoyaltyScanView {
           rewards == other.rewards &&
           recent == other.recent &&
           anyItem == other.anyItem &&
-          anyItemCost == other.anyItemCost;
+          anyItemCost == other.anyItemCost &&
+          maxRewardsPerOrder == other.maxRewardsPerOrder;
+}
+
+/// The rewards section, decided by the core: see `madar_core::loyalty::reward_board`.
+class RewardBoardView {
+  final List<RewardLineState> lines;
+  final List<RewardPick> picks;
+  final PlatformInt64 cost;
+  final PlatformInt64 balanceAfter;
+  final int unitsClaimed;
+  final PlatformInt64 coveredMinor;
+  final String? adjustedReason;
+
+  const RewardBoardView({
+    required this.lines,
+    required this.picks,
+    required this.cost,
+    required this.balanceAfter,
+    required this.unitsClaimed,
+    required this.coveredMinor,
+    this.adjustedReason,
+  });
+
+  @override
+  int get hashCode =>
+      lines.hashCode ^
+      picks.hashCode ^
+      cost.hashCode ^
+      balanceAfter.hashCode ^
+      unitsClaimed.hashCode ^
+      coveredMinor.hashCode ^
+      adjustedReason.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RewardBoardView &&
+          runtimeType == other.runtimeType &&
+          lines == other.lines &&
+          picks == other.picks &&
+          cost == other.cost &&
+          balanceAfter == other.balanceAfter &&
+          unitsClaimed == other.unitsClaimed &&
+          coveredMinor == other.coveredMinor &&
+          adjustedReason == other.adjustedReason;
+}
+
+class RewardLineInput {
+  final String name;
+  final int? cartIndex;
+  final String? ticketLineId;
+  final String? menuItemId;
+  final int qty;
+  final PlatformInt64 lineTotalMinor;
+  final bool isBundle;
+
+  const RewardLineInput({
+    required this.name,
+    this.cartIndex,
+    this.ticketLineId,
+    this.menuItemId,
+    required this.qty,
+    required this.lineTotalMinor,
+    required this.isBundle,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      cartIndex.hashCode ^
+      ticketLineId.hashCode ^
+      menuItemId.hashCode ^
+      qty.hashCode ^
+      lineTotalMinor.hashCode ^
+      isBundle.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RewardLineInput &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          cartIndex == other.cartIndex &&
+          ticketLineId == other.ticketLineId &&
+          menuItemId == other.menuItemId &&
+          qty == other.qty &&
+          lineTotalMinor == other.lineTotalMinor &&
+          isBundle == other.isBundle;
+}
+
+class RewardLineState {
+  final int line;
+  final bool claimable;
+  final PlatformInt64 unitCost;
+  final int units;
+  final bool canAdd;
+  final String? blockedReason;
+  final PlatformInt64 coveredMinor;
+  final String costLabel;
+
+  const RewardLineState({
+    required this.line,
+    required this.claimable,
+    required this.unitCost,
+    required this.units,
+    required this.canAdd,
+    this.blockedReason,
+    required this.coveredMinor,
+    required this.costLabel,
+  });
+
+  @override
+  int get hashCode =>
+      line.hashCode ^
+      claimable.hashCode ^
+      unitCost.hashCode ^
+      units.hashCode ^
+      canAdd.hashCode ^
+      blockedReason.hashCode ^
+      coveredMinor.hashCode ^
+      costLabel.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RewardLineState &&
+          runtimeType == other.runtimeType &&
+          line == other.line &&
+          claimable == other.claimable &&
+          unitCost == other.unitCost &&
+          units == other.units &&
+          canAdd == other.canAdd &&
+          blockedReason == other.blockedReason &&
+          coveredMinor == other.coveredMinor &&
+          costLabel == other.costLabel;
+}
+
+class RewardPick {
+  final int line;
+  final int units;
+
+  const RewardPick({required this.line, required this.units});
+
+  @override
+  int get hashCode => line.hashCode ^ units.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RewardPick &&
+          runtimeType == other.runtimeType &&
+          line == other.line &&
+          units == other.units;
 }

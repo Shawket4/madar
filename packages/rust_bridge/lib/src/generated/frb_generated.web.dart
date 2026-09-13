@@ -131,6 +131,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   LoyaltyMemberView dco_decode_box_autoadd_loyalty_member_view(dynamic raw);
 
   @protected
+  LoyaltyScanView dco_decode_box_autoadd_loyalty_scan_view(dynamic raw);
+
+  @protected
   MadarConfig dco_decode_box_autoadd_madar_config(dynamic raw);
 
   @protected
@@ -448,6 +451,15 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<RefundView> dco_decode_list_refund_view(dynamic raw);
 
   @protected
+  List<RewardLineInput> dco_decode_list_reward_line_input(dynamic raw);
+
+  @protected
+  List<RewardLineState> dco_decode_list_reward_line_state(dynamic raw);
+
+  @protected
+  List<RewardPick> dco_decode_list_reward_pick(dynamic raw);
+
+  @protected
   List<ShiftReportCashLine> dco_decode_list_shift_report_cash_line(dynamic raw);
 
   @protected
@@ -620,6 +632,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   RefundView dco_decode_refund_view(dynamic raw);
 
   @protected
+  RewardBoardView dco_decode_reward_board_view(dynamic raw);
+
+  @protected
+  RewardLineInput dco_decode_reward_line_input(dynamic raw);
+
+  @protected
+  RewardLineState dco_decode_reward_line_state(dynamic raw);
+
+  @protected
+  RewardPick dco_decode_reward_pick(dynamic raw);
+
+  @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
 
   @protected
@@ -788,6 +812,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   LoyaltyMemberView sse_decode_box_autoadd_loyalty_member_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LoyaltyScanView sse_decode_box_autoadd_loyalty_scan_view(
     SseDeserializer deserializer,
   );
 
@@ -1215,6 +1244,19 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<RefundView> sse_decode_list_refund_view(SseDeserializer deserializer);
 
   @protected
+  List<RewardLineInput> sse_decode_list_reward_line_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<RewardLineState> sse_decode_list_reward_line_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<RewardPick> sse_decode_list_reward_pick(SseDeserializer deserializer);
+
+  @protected
   List<ShiftReportCashLine> sse_decode_list_shift_report_cash_line(
     SseDeserializer deserializer,
   );
@@ -1437,6 +1479,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   RefundView sse_decode_refund_view(SseDeserializer deserializer);
 
   @protected
+  RewardBoardView sse_decode_reward_board_view(SseDeserializer deserializer);
+
+  @protected
+  RewardLineInput sse_decode_reward_line_input(SseDeserializer deserializer);
+
+  @protected
+  RewardLineState sse_decode_reward_line_state(SseDeserializer deserializer);
+
+  @protected
+  RewardPick sse_decode_reward_pick(SseDeserializer deserializer);
+
+  @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
 
   @protected
@@ -1639,6 +1693,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_box_autoadd_loyalty_member_view(
     LoyaltyMemberView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_loyalty_scan_view(
+    LoyaltyScanView self,
     SseSerializer serializer,
   );
 
@@ -2183,6 +2243,24 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_reward_line_input(
+    List<RewardLineInput> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_reward_line_state(
+    List<RewardLineState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_reward_pick(
+    List<RewardPick> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_shift_report_cash_line(
     List<ShiftReportCashLine> self,
     SseSerializer serializer,
@@ -2475,6 +2553,27 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_refund_view(RefundView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_reward_board_view(
+    RewardBoardView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reward_line_input(
+    RewardLineInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reward_line_state(
+    RewardLineState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reward_pick(RewardPick self, SseSerializer serializer);
 
   @protected
   void sse_encode_session_snapshot(
