@@ -104,6 +104,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CheckoutInput dco_decode_box_autoadd_checkout_input(dynamic raw);
 
   @protected
+  CheckoutSplit dco_decode_box_autoadd_checkout_split(dynamic raw);
+
+  @protected
   double dco_decode_box_autoadd_f_64(dynamic raw);
 
   @protected
@@ -513,6 +516,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  CheckoutSplit? dco_decode_opt_box_autoadd_checkout_split(dynamic raw);
+
+  @protected
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
   @protected
@@ -741,6 +747,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   CheckoutInput sse_decode_box_autoadd_checkout_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CheckoutSplit sse_decode_box_autoadd_checkout_split(
     SseDeserializer deserializer,
   );
 
@@ -1292,6 +1303,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  CheckoutSplit? sse_decode_opt_box_autoadd_checkout_split(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
@@ -1563,6 +1579,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_box_autoadd_checkout_input(
     CheckoutInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_checkout_split(
+    CheckoutSplit self,
     SseSerializer serializer,
   );
 
@@ -2261,6 +2283,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_checkout_split(
+    CheckoutSplit? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);

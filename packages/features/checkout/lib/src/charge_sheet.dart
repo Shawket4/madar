@@ -656,9 +656,7 @@ class _Hero extends StatelessWidget {
       child: Column(
         spacing: Space.xs,
         children: [
-          _Eyebrow(
-            bridge.tr(key: s.heroIsSubtotal ? 'order.subtotal' : 'order.total'),
-          ),
+          _Eyebrow(bridge.tr(key: s.heroLabelKey)),
           // The figures roll as they change — the natives' numericText.
           AnimatedMoneyText(
             s.dueMinor,
@@ -1480,9 +1478,13 @@ class _CashSection extends StatelessWidget {
     final typed = s.tenderedMinor > 0;
     final short = s.shortMinor > 0;
 
-    final exact = MadarMoneyBar(
-      label: bridge.tr(key: 'order.exact'),
-      amountMinor: due,
+    // One selected style for the whole row: the amount in the field is the
+    // filled tile, every other tile is secondary — Exact included, until the
+    // amount in hand IS the due.
+    final exact = _PresetTile(
+      word: bridge.tr(key: 'order.exact'),
+      label: MadarFormat.ltr(Money.format(due)),
+      selected: typed && s.tenderedMinor == due,
       enabled: s.canChargeExact,
       loading: s.isPlacingOrder,
       onTap: onExact,
@@ -1493,7 +1495,7 @@ class _CashSection extends StatelessWidget {
           flex: _presetFlex,
           child: _PresetTile(
             label: p.label,
-            selected: s.tenderedMinor == p.amountMinor,
+            selected: typed && s.tenderedMinor == p.amountMinor,
             onTap: () => onTendered(p.amountMinor),
           ),
         ),
@@ -1564,39 +1566,77 @@ class _CashSection extends StatelessWidget {
   }
 }
 
-/// A round-note preset: 64 high on the sunk grey, the figure centred in
-/// mono. Ink once it is the amount in the field — never teal, so Exact
-/// stays the one lit primary in the row.
+/// A quick tender: 64 high on the sunk grey, the figure centred in mono,
+/// with Exact's word at the start. Filled ink once it is the amount in the
+/// field; every other tile stays secondary, so one style says "selected".
 class _PresetTile extends StatelessWidget {
   const _PresetTile({
     required this.label,
     required this.selected,
     required this.onTap,
+    this.word,
+    this.enabled = true,
+    this.loading = false,
   });
 
   /// The note as the core words it: "200", never "200.00".
   final String label;
+  final String? word;
   final bool selected;
+  final bool enabled;
+  final bool loading;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return TactileScale(
-      onTap: onTap,
-      child: Container(
-        height: Metrics.moneyBarHeight,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? colors.chromeAlt : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(Radii.control),
-        ),
-        child: Text(
-          label,
-          textDirection: TextDirection.ltr,
-          style: MadarType.numLg.copyWith(
-            fontSize: 18,
-            color: selected ? Colors.white : colors.textPrimary,
+    final ink = selected ? Colors.white : colors.textPrimary;
+    final figure = Text(
+      label,
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      overflow: TextOverflow.fade,
+      softWrap: false,
+      style: MadarType.numLg.copyWith(fontSize: 18, color: ink),
+    );
+    final w = word;
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      selected: selected,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.45,
+        child: TactileScale(
+          onTap: enabled && !loading ? onTap : null,
+          child: Container(
+            height: Metrics.moneyBarHeight,
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Space.lg,
+            ),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? colors.chromeAlt : colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(Radii.control),
+            ),
+            child: loading
+                ? MadarSpinner(color: ink)
+                : w == null
+                ? figure
+                : Row(
+                    spacing: Space.sm,
+                    children: [
+                      Text(w, style: MadarType.title.copyWith(color: ink)),
+                      Expanded(
+                        child: Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: figure,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),

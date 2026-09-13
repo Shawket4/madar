@@ -136,7 +136,7 @@ pub struct ReceiptPaymentView {
 
 /// One leg of a split payment (a method + the amount paid on it).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CheckoutSplit {
     pub payment_method_id: String,
     pub amount_minor: i64,
@@ -906,6 +906,14 @@ pub struct TenderSummaryView {
     pub split_allocated_minor: i64,
     /// Must reach zero before a split can charge. Negative when over-allocated.
     pub split_remaining_minor: i64,
+    /// The hero's word: `order.total` for a figure someone priced (a cart, a
+    /// server-priced bill, an online order); `order.subtotal` only for a fire
+    /// still in the outbox that nobody has priced yet.
+    pub due_label_key: String,
+    pub due_is_subtotal: bool,
+    /// Change is only honest when the due is the whole bill: always for a
+    /// priced figure; an unpriced subtotal only when nothing goes on top.
+    pub shows_change: bool,
 }
 
 /// Price the tender in hand. Pure arithmetic over what the screen holds, kept
@@ -916,6 +924,8 @@ pub fn tender_summary(
     tip_is_cash: bool,
     tendered_minor: i64,
     split_amounts: &[i64],
+    due_priced: bool,
+    adds_on_top: bool,
 ) -> TenderSummaryView {
     let tip = tip_minor.max(0);
     let due_cash = due_minor + if tip_is_cash { tip } else { 0 };
@@ -927,7 +937,52 @@ pub fn tender_summary(
         short_minor: (due_cash - tendered_minor).max(0),
         split_allocated_minor: allocated,
         split_remaining_minor: due_minor - allocated,
+        due_label_key: if due_priced {
+            "order.total"
+        } else {
+            "order.subtotal"
+        }
+        .to_string(),
+        due_is_subtotal: !due_priced,
+        shows_change: due_priced || !adds_on_top,
     }
+}
+
+/// "Rest here": what [target]'s leg becomes so the split covers the due —
+/// its own amount plus whatever every leg together still leaves, never
+/// below zero.
+pub fn split_rest_here(due_minor: i64, legs: &[CheckoutSplit], target: &str) -> i64 {
+    let allocated: i64 = legs.iter().map(|l| l.amount_minor.max(0)).sum();
+    let own = legs
+        .iter()
+        .find(|l| l.payment_method_id == target)
+        .map_or(0, |l| l.amount_minor.max(0));
+    (own + due_minor - allocated).max(0)
+}
+
+/// A typed leg auto-fills the split: when exactly one OTHER method is still
+/// open (never typed, or the leg filled automatically before), that leg
+/// takes the rest. `legs` is every method in order with its amount (zero
+/// when empty); `typed` the ids a person has typed into. Returns the leg to
+/// fill and its amount, or none when the teller must decide.
+pub fn split_auto_fill(
+    due_minor: i64,
+    legs: &[CheckoutSplit],
+    typed: &[String],
+    typed_id: &str,
+) -> Option<CheckoutSplit> {
+    let mut open = legs
+        .iter()
+        .filter(|l| l.payment_method_id != typed_id)
+        .filter(|l| !typed.iter().any(|t| t == &l.payment_method_id));
+    let only = open.next()?;
+    if open.next().is_some() {
+        return None;
+    }
+    Some(CheckoutSplit {
+        payment_method_id: only.payment_method_id.clone(),
+        amount_minor: split_rest_here(due_minor, legs, &only.payment_method_id),
+    })
 }
 
 fn display_label(store: &Store, locale: &str, id: &str) -> Option<String> {
@@ -953,7 +1008,7 @@ mod tests {
     /// The bug: in split mode the bar dropped the tip while the charge sent it.
     #[test]
     fn a_split_charge_total_still_carries_the_tip() {
-        let t = tender_summary(17_500, 2_000, false, 0, &[10_000, 7_500]);
+        let t = tender_summary(17_500, 2_000, false, 0, &[10_000, 7_500], true, false);
         assert_eq!(t.charge_total_minor, 19_500);
         assert_eq!(
             t.split_remaining_minor, 0,
@@ -964,18 +1019,57 @@ mod tests {
 
     #[test]
     fn a_cash_tip_is_due_in_cash_and_moves_the_change() {
-        let t = tender_summary(17_500, 2_000, true, 20_000, &[]);
+        let t = tender_summary(17_500, 2_000, true, 20_000, &[], true, false);
         assert_eq!(t.due_cash_minor, 19_500);
         assert_eq!(t.change_minor, 500);
         assert_eq!(t.short_minor, 0);
-        let card_tip = tender_summary(17_500, 2_000, false, 17_000, &[]);
+        let card_tip = tender_summary(17_500, 2_000, false, 17_000, &[], true, false);
         assert_eq!(card_tip.due_cash_minor, 17_500);
         assert_eq!(card_tip.short_minor, 500);
         // A negative leg never counts toward the split.
         assert_eq!(
-            tender_summary(100, 0, false, 0, &[-50, 60]).split_remaining_minor,
+            tender_summary(100, 0, false, 0, &[-50, 60], true, false).split_remaining_minor,
             40
         );
+    }
+
+    fn leg(id: &str, minor: i64) -> CheckoutSplit {
+        CheckoutSplit {
+            payment_method_id: id.into(),
+            amount_minor: minor,
+        }
+    }
+
+    #[test]
+    fn an_unpriced_bill_says_subtotal_and_a_priced_one_total() {
+        let priced = tender_summary(17_500, 0, false, 0, &[], true, true);
+        assert_eq!(priced.due_label_key, "order.total");
+        assert!(priced.shows_change && !priced.due_is_subtotal);
+        let fire = tender_summary(17_500, 0, false, 0, &[], false, true);
+        assert_eq!(fire.due_label_key, "order.subtotal");
+        assert!(!fire.shows_change);
+        assert!(tender_summary(1, 0, false, 0, &[], false, false).shows_change);
+    }
+
+    #[test]
+    fn rest_here_tops_a_leg_up_to_the_due() {
+        let legs = [leg("cash", 5_000), leg("card", 0)];
+        assert_eq!(split_rest_here(17_500, &legs, "card"), 12_500);
+        assert_eq!(split_rest_here(17_500, &legs, "cash"), 17_500);
+        let over = [leg("cash", 20_000), leg("card", 3_000)];
+        assert_eq!(split_rest_here(17_500, &over, "card"), 0);
+    }
+
+    #[test]
+    fn typing_one_leg_fills_the_only_open_one() {
+        let legs = [leg("cash", 5_000), leg("card", 0)];
+        let typed = vec!["cash".to_string()];
+        assert_eq!(
+            split_auto_fill(17_500, &legs, &typed, "cash"),
+            Some(leg("card", 12_500))
+        );
+        let three = [leg("cash", 5_000), leg("card", 0), leg("wallet", 0)];
+        assert_eq!(split_auto_fill(17_500, &three, &typed, "cash"), None);
     }
 
     #[test]

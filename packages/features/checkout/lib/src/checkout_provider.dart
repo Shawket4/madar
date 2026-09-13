@@ -116,6 +116,9 @@ class CheckoutState {
       shortMinor: 0,
       splitAllocatedMinor: 0,
       splitRemainingMinor: 0,
+      dueLabelKey: 'order.total',
+      dueIsSubtotal: false,
+      showsChange: true,
     ),
     this.receipt,
     this.outcome,
@@ -280,15 +283,15 @@ class CheckoutState {
   /// shows its full TOTAL and is labelled Total; only a fire still in the
   /// outbox, which nobody has priced, falls back to its subtotal and says so.
   int get dueMinor => summary.totalMinor;
-  bool get heroIsSubtotal => switch (target) {
-    BillChargeTarget(:final ticket) => ticket.bill == null,
-    _ => false,
+  bool get dueIsPriced => switch (target) {
+    BillChargeTarget(:final ticket) => ticket.bill != null,
+    _ => true,
   };
 
-  /// Change is only honest when the figure is the whole bill: a priced total
-  /// always is; an unpriced subtotal only when nothing is added on top.
-  bool get showsChange =>
-      !heroIsSubtotal || (serviceChargeRate == 0 && taxInclusive);
+  /// The hero's word and whether change is honest — the core's decision.
+  bool get heroIsSubtotal => tender.dueIsSubtotal;
+  String get heroLabelKey => tender.dueLabelKey;
+  bool get showsChange => tender.showsChange;
 
   /// What the Charge bar takes — the due plus the tip, split or not.
   int get chargeTotalMinor => tender.chargeTotalMinor;
@@ -597,6 +600,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       tipIsCash: s.tipIsCash,
       tenderedMinor: s.tenderedMinor,
       splits: s.splitLegs,
+      duePriced: s.dueIsPriced,
+      addsOnTop: s.serviceChargeRate > 0 || !s.taxInclusive,
     );
     return tender == s.tender ? s : s.copyWith(tender: tender);
   }
@@ -657,6 +662,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   Future<void> start(ChargeTarget target) {
     _session += 1;
     _inFlight = null;
+    _typedLegs.clear();
     if (_live) state = _priced(CheckoutState(target: target));
     return switch (target) {
       CartChargeTarget() => _startCart(_session),
@@ -879,7 +885,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// Split on or off. Turning it OFF drops every leg: the amounts typed for a
   /// split must never ride along with the single payment that replaced it.
   void toggleSplit() {
-    _autoLeg = null;
+    _typedLegs.clear();
     _update(
       (s) => s.copyWith(
         splitMode: !s.splitMode,
@@ -889,45 +895,53 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     );
   }
 
-  /// The one leg the drawer filled by itself — it keeps following what is
-  /// left until the teller types into it.
-  String? _autoLeg;
+  /// The legs a person has typed into; every other leg is the core's to
+  /// fill while it is the only one left open.
+  final Set<String> _typedLegs = {};
 
-  /// A typed leg. When exactly one method is left untouched (or it is the leg
-  /// the drawer filled), it takes what remains, so a two-way split is one
-  /// amount typed instead of two.
+  List<CheckoutSplit> get _allLegs => [
+    for (final m in state.paymentMethods)
+      CheckoutSplit(
+        paymentMethodId: m.id,
+        amountMinor: state.splitAmounts[m.id] ?? 0,
+      ),
+  ];
+
+  /// A typed leg. The core names the one open leg (if any) that takes what
+  /// remains, so a two-way split is one amount typed instead of two.
   void setSplitAmount(String id, int minor) {
-    if (id == _autoLeg) _autoLeg = null;
+    _typedLegs.add(id);
     _update(
       (s) =>
           s.copyWith(splitAmounts: {...s.splitAmounts, id: minor}, error: null),
     );
-    final s = state;
-    final open = [
-      for (final m in s.paymentMethods)
-        if (m.id != id &&
-            (!s.splitAmounts.containsKey(m.id) || m.id == _autoLeg))
-          m.id,
-    ];
-    if (open.length != 1) return;
-    _autoLeg = open.single;
-    fillSplitRest(open.single, auto: true);
+    final fill = _bridge.splitAutoFill(
+      dueMinor: state.dueMinor,
+      legs: _allLegs,
+      typed: _typedLegs.toList(),
+      typedId: id,
+    );
+    if (fill == null) return;
+    _setLeg(fill.paymentMethodId, fill.amountMinor);
   }
 
-  /// "Rest here": the core's remaining figure moves onto [id]'s leg.
-  void fillSplitRest(String id, {bool auto = false}) {
-    if (!auto) _autoLeg = null;
-    final s = state;
-    // Relative to this leg's own amount: what is left once every OTHER leg
-    // is counted, as the core's tender summary states it.
-    final rest = (s.splitAmounts[id] ?? 0) + s.splitRemaining;
-    _update(
-      (st) => st.copyWith(
-        splitAmounts: {...st.splitAmounts, id: rest < 0 ? 0 : rest},
-        error: null,
+  /// "Rest here": the core's rest for [id]'s leg.
+  void fillSplitRest(String id) {
+    _typedLegs.add(id);
+    _setLeg(
+      id,
+      _bridge.splitRestHere(
+        dueMinor: state.dueMinor,
+        legs: _allLegs,
+        target: id,
       ),
     );
   }
+
+  void _setLeg(String id, int minor) => _update(
+    (st) =>
+        st.copyWith(splitAmounts: {...st.splitAmounts, id: minor}, error: null),
+  );
 
   /// Surface (or clear) a failure inside the drawer.
   void setError(UiText? message) => _update((s) => s.copyWith(error: message));

@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1447056363;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1125156828;
 
 // Section: executor
 
@@ -8974,6 +8974,116 @@ fn wire__crate__api__bridge__MadarBridge_sign_in_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_split_auto_fill_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_split_auto_fill",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_due_minor = <i64>::sse_decode(&mut deserializer);
+            let api_legs = <Vec<crate::api::orders::CheckoutSplit>>::sse_decode(&mut deserializer);
+            let api_typed = <Vec<String>>::sse_decode(&mut deserializer);
+            let api_typed_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>(crate::api::bridge::MadarBridge::split_auto_fill(
+                    &*api_that_guard,
+                    api_due_minor,
+                    api_legs,
+                    api_typed,
+                    api_typed_id,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_split_rest_here_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_split_rest_here",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_due_minor = <i64>::sse_decode(&mut deserializer);
+            let api_legs = <Vec<crate::api::orders::CheckoutSplit>>::sse_decode(&mut deserializer);
+            let api_target = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>(crate::api::bridge::MadarBridge::split_rest_here(
+                    &*api_that_guard,
+                    api_due_minor,
+                    api_legs,
+                    api_target,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_start_realtime_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -9459,6 +9569,8 @@ fn wire__crate__api__bridge__MadarBridge_tender_summary_impl(
             let api_tendered_minor = <i64>::sse_decode(&mut deserializer);
             let api_splits =
                 <Vec<crate::api::orders::CheckoutSplit>>::sse_decode(&mut deserializer);
+            let api_due_priced = <bool>::sse_decode(&mut deserializer);
+            let api_adds_on_top = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
@@ -9482,6 +9594,8 @@ fn wire__crate__api__bridge__MadarBridge_tender_summary_impl(
                     api_tip_is_cash,
                     api_tendered_minor,
                     api_splits,
+                    api_due_priced,
+                    api_adds_on_top,
                 ))?;
                 std::result::Result::Ok(output_ok)
             })())
@@ -10914,6 +11028,9 @@ const _: fn() = || {
         let _: i64 = TenderSummaryView.short_minor;
         let _: i64 = TenderSummaryView.split_allocated_minor;
         let _: i64 = TenderSummaryView.split_remaining_minor;
+        let _: String = TenderSummaryView.due_label_key;
+        let _: bool = TenderSummaryView.due_is_subtotal;
+        let _: bool = TenderSummaryView.shows_change;
     }
     {
         let TicketBillView = None::<crate::api::tickets::TicketBillView>.unwrap();
@@ -13195,6 +13312,19 @@ impl SseDecode for Option<String> {
     }
 }
 
+impl SseDecode for Option<crate::api::orders::CheckoutSplit> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::orders::CheckoutSplit>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<f64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -14074,6 +14204,9 @@ impl SseDecode for crate::api::orders::TenderSummaryView {
         let mut var_shortMinor = <i64>::sse_decode(deserializer);
         let mut var_splitAllocatedMinor = <i64>::sse_decode(deserializer);
         let mut var_splitRemainingMinor = <i64>::sse_decode(deserializer);
+        let mut var_dueLabelKey = <String>::sse_decode(deserializer);
+        let mut var_dueIsSubtotal = <bool>::sse_decode(deserializer);
+        let mut var_showsChange = <bool>::sse_decode(deserializer);
         return crate::api::orders::TenderSummaryView {
             charge_total_minor: var_chargeTotalMinor,
             due_cash_minor: var_dueCashMinor,
@@ -14081,6 +14214,9 @@ impl SseDecode for crate::api::orders::TenderSummaryView {
             short_minor: var_shortMinor,
             split_allocated_minor: var_splitAllocatedMinor,
             split_remaining_minor: var_splitRemainingMinor,
+            due_label_key: var_dueLabelKey,
+            due_is_subtotal: var_dueIsSubtotal,
+            shows_change: var_showsChange,
         };
     }
 }
@@ -14984,79 +15120,79 @@ fn pde_ffi_dispatcher_primary_impl(
         162 => {
             wire__crate__api__bridge__MadarBridge_sign_in_impl(port, ptr, rust_vec_len, data_len)
         }
-        163 => wire__crate__api__bridge__MadarBridge_start_realtime_impl(
+        165 => wire__crate__api__bridge__MadarBridge_start_realtime_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        164 => wire__crate__api__bridge__MadarBridge_start_reconfigure_impl(
+        166 => wire__crate__api__bridge__MadarBridge_start_reconfigure_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        165 => wire__crate__api__bridge__MadarBridge_suggested_opening_cash_minor_impl(
+        167 => wire__crate__api__bridge__MadarBridge_suggested_opening_cash_minor_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        166 => wire__crate__api__bridge__MadarBridge_swap_floor_tables_impl(
+        168 => wire__crate__api__bridge__MadarBridge_swap_floor_tables_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        167 => wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
+        169 => wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        168 => {
+        170 => {
             wire__crate__api__bridge__MadarBridge_sync_now_impl(port, ptr, rust_vec_len, data_len)
         }
-        169 => wire__crate__api__bridge__MadarBridge_sync_status_impl(
+        171 => wire__crate__api__bridge__MadarBridge_sync_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        170 => wire__crate__api__bridge__MadarBridge_table_history_impl(
+        172 => wire__crate__api__bridge__MadarBridge_table_history_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        173 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
+        175 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        174 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
+        176 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        176 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+        178 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        178 => {
+        180 => {
             wire__crate__api__bridge__MadarBridge_void_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        179 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
+        181 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        180 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
+        182 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
             port,
             ptr,
             rust_vec_len,
@@ -15184,19 +15320,25 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        171 => {
+        163 => {
+            wire__crate__api__bridge__MadarBridge_split_auto_fill_impl(ptr, rust_vec_len, data_len)
+        }
+        164 => {
+            wire__crate__api__bridge__MadarBridge_split_rest_here_impl(ptr, rust_vec_len, data_len)
+        }
+        173 => {
             wire__crate__api__bridge__MadarBridge_tender_summary_impl(ptr, rust_vec_len, data_len)
         }
-        172 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        175 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
+        174 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
+        177 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        177 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
-        181 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        182 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        183 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        179 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
+        183 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        184 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        185 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -17646,6 +17788,9 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::TenderSumm
             self.0.short_minor.into_into_dart().into_dart(),
             self.0.split_allocated_minor.into_into_dart().into_dart(),
             self.0.split_remaining_minor.into_into_dart().into_dart(),
+            self.0.due_label_key.into_into_dart().into_dart(),
+            self.0.due_is_subtotal.into_into_dart().into_dart(),
+            self.0.shows_change.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -19363,6 +19508,16 @@ impl SseEncode for Option<String> {
     }
 }
 
+impl SseEncode for Option<crate::api::orders::CheckoutSplit> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::orders::CheckoutSplit>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<f64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19924,6 +20079,9 @@ impl SseEncode for crate::api::orders::TenderSummaryView {
         <i64>::sse_encode(self.short_minor, serializer);
         <i64>::sse_encode(self.split_allocated_minor, serializer);
         <i64>::sse_encode(self.split_remaining_minor, serializer);
+        <String>::sse_encode(self.due_label_key, serializer);
+        <bool>::sse_encode(self.due_is_subtotal, serializer);
+        <bool>::sse_encode(self.shows_change, serializer);
     }
 }
 

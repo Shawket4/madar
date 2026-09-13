@@ -169,6 +169,33 @@ class _Fake implements MadarBridge {
     if (name == #renderReceipt) {
       return Future<Uint8List>.value(Uint8List.fromList([1, 2, 3]));
     }
+    if (name == #splitRestHere) {
+      final legs = a[#legs] as List<CheckoutSplit>;
+      final sum = legs.fold(0, (x, l) => x + l.amountMinor);
+      final own = legs
+          .where((l) => l.paymentMethodId == a[#target])
+          .fold(0, (x, l) => x + l.amountMinor);
+      final rest = own + (a[#dueMinor] as int) - sum;
+      return rest < 0 ? 0 : rest;
+    }
+    if (name == #splitAutoFill) {
+      final legs = a[#legs] as List<CheckoutSplit>;
+      final typed = a[#typed] as List<String>;
+      final open = legs
+          .where(
+            (l) =>
+                l.paymentMethodId != a[#typedId] &&
+                !typed.contains(l.paymentMethodId),
+          )
+          .toList();
+      if (open.length != 1) return null;
+      final sum = legs.fold(0, (x, l) => x + l.amountMinor);
+      final rest = open.single.amountMinor + (a[#dueMinor] as int) - sum;
+      return CheckoutSplit(
+        paymentMethodId: open.single.paymentMethodId,
+        amountMinor: rest < 0 ? 0 : rest,
+      );
+    }
     if (name == #tenderSummary) {
       final due = a[#dueMinor] as int;
       final tip = a[#tipMinor] as int;
@@ -185,6 +212,9 @@ class _Fake implements MadarBridge {
         shortMinor: dueCash > tendered ? dueCash - tendered : 0,
         splitAllocatedMinor: allocated,
         splitRemainingMinor: due - allocated,
+        dueLabelKey: (a[#duePriced] as bool) ? 'order.total' : 'order.subtotal',
+        dueIsSubtotal: !(a[#duePriced] as bool),
+        showsChange: (a[#duePriced] as bool) || !(a[#addsOnTop] as bool),
       );
     }
     if (name == #cashQuickTenders) return const <CashQuickTenderView>[];

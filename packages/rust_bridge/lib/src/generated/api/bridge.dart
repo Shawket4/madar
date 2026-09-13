@@ -900,6 +900,21 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// One-call sign-in: online first, offline PIN unlock fallback.
   Future<SessionSnapshot> signIn({required LoginRequest req});
 
+  /// The leg a typed amount auto-fills (the only one still open), if any.
+  CheckoutSplit? splitAutoFill({
+    required PlatformInt64 dueMinor,
+    required List<CheckoutSplit> legs,
+    required List<String> typed,
+    required String typedId,
+  });
+
+  /// "Rest here": the amount [target]'s leg takes so the split covers the due.
+  PlatformInt64 splitRestHere({
+    required PlatformInt64 dueMinor,
+    required List<CheckoutSplit> legs,
+    required String target,
+  });
+
   /// Open the device's ONE session-level subscription. The core owns topic
   /// policy and alert decisions; `events` refreshes boards, `alerts`
   /// performs platform primitives. Idempotent while a subscription lives.
@@ -959,6 +974,8 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required bool tipIsCash,
     required PlatformInt64 tenderedMinor,
     required List<CheckoutSplit> splits,
+    required bool duePriced,
+    required bool addsOnTop,
   });
 
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).

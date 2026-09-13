@@ -156,6 +156,17 @@ final _ticket = TicketView(
   waiterName: 'Sara',
   guestCount: 4,
   subtotalMinor: 17500,
+  // Priced by the server, so the hero reads its Total.
+  bill: const TicketBillView(
+    subtotalMinor: 15351,
+    discountMinor: 0,
+    serviceChargeMinor: 0,
+    taxMinor: 2149,
+    totalMinor: 17500,
+    taxRate: 0.14,
+    serviceChargeRate: 0,
+    taxInclusive: true,
+  ),
   openedAt: '2026-09-10T18:30:00Z',
   queuedOffline: false,
   lines: [
@@ -274,6 +285,7 @@ class _FakeBridge implements MadarBridge {
   @override
   dynamic noSuchMethod(Invocation invocation) {
     final name = invocation.memberName;
+    final a = invocation.namedArguments;
     if (name == #tr) {
       final key = invocation.namedArguments[#key] as String? ?? '';
       // The core's REAL tables first (read out of i18n.rs), so the PNGs show
@@ -347,6 +359,33 @@ class _FakeBridge implements MadarBridge {
     if (name == #loyaltyLookup) return Future<LoyaltyScanView>.value(_scan);
     if (name == #loyaltyAwardWindowOpen) return true;
     if (name == #clearTable) return Future<void>.value();
+    if (name == #splitRestHere) {
+      final legs = a[#legs] as List<CheckoutSplit>;
+      final sum = legs.fold(0, (x, l) => x + l.amountMinor);
+      final own = legs
+          .where((l) => l.paymentMethodId == a[#target])
+          .fold(0, (x, l) => x + l.amountMinor);
+      final rest = own + (a[#dueMinor] as int) - sum;
+      return rest < 0 ? 0 : rest;
+    }
+    if (name == #splitAutoFill) {
+      final legs = a[#legs] as List<CheckoutSplit>;
+      final typed = a[#typed] as List<String>;
+      final open = legs
+          .where(
+            (l) =>
+                l.paymentMethodId != a[#typedId] &&
+                !typed.contains(l.paymentMethodId),
+          )
+          .toList();
+      if (open.length != 1) return null;
+      final sum = legs.fold(0, (x, l) => x + l.amountMinor);
+      final rest = open.single.amountMinor + (a[#dueMinor] as int) - sum;
+      return CheckoutSplit(
+        paymentMethodId: open.single.paymentMethodId,
+        amountMinor: rest < 0 ? 0 : rest,
+      );
+    }
     if (name == #tenderSummary) return fakeTenderSummary(invocation);
     if (name == #cashQuickTenders) return fakeCashQuickTenders(invocation);
     return null;
@@ -374,6 +413,9 @@ TenderSummaryView fakeTenderSummary(Invocation invocation) {
     shortMinor: dueCash > tendered ? dueCash - tendered : 0,
     splitAllocatedMinor: allocated,
     splitRemainingMinor: due - allocated,
+    dueLabelKey: (a[#duePriced] as bool) ? 'order.total' : 'order.subtotal',
+    dueIsSubtotal: !(a[#duePriced] as bool),
+    showsChange: (a[#duePriced] as bool) || !(a[#addsOnTop] as bool),
   );
 }
 

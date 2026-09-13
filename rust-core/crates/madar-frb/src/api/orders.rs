@@ -173,6 +173,9 @@ pub struct _TenderSummaryView {
     pub short_minor: i64,
     pub split_allocated_minor: i64,
     pub split_remaining_minor: i64,
+    pub due_label_key: String,
+    pub due_is_subtotal: bool,
+    pub shows_change: bool,
 }
 
 /// One leg of a split payment (a method + the amount paid on it).
@@ -316,6 +319,8 @@ impl MadarBridge {
         tip_is_cash: bool,
         tendered_minor: i64,
         splits: Vec<CheckoutSplit>,
+        due_priced: bool,
+        adds_on_top: bool,
     ) -> TenderSummaryView {
         let amounts: Vec<i64> = splits.iter().map(|leg| leg.amount_minor).collect();
         madar_core::checkout::tender_summary(
@@ -324,7 +329,27 @@ impl MadarBridge {
             tip_is_cash,
             tendered_minor,
             &amounts,
+            due_priced,
+            adds_on_top,
         )
+    }
+
+    /// "Rest here": the amount [target]'s leg takes so the split covers the due.
+    #[frb(sync)]
+    pub fn split_rest_here(&self, due_minor: i64, legs: Vec<CheckoutSplit>, target: String) -> i64 {
+        madar_core::checkout::split_rest_here(due_minor, &legs, &target)
+    }
+
+    /// The leg a typed amount auto-fills (the only one still open), if any.
+    #[frb(sync)]
+    pub fn split_auto_fill(
+        &self,
+        due_minor: i64,
+        legs: Vec<CheckoutSplit>,
+        typed: Vec<String>,
+        typed_id: String,
+    ) -> Option<CheckoutSplit> {
+        madar_core::checkout::split_auto_fill(due_minor, &legs, &typed, &typed_id)
     }
 
     pub async fn checkout(&self, input: CheckoutInput) -> Result<ReceiptView, MadarError> {

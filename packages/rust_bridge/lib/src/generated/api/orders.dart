@@ -847,6 +847,9 @@ class TenderSummaryView {
   final PlatformInt64 shortMinor;
   final PlatformInt64 splitAllocatedMinor;
   final PlatformInt64 splitRemainingMinor;
+  final String dueLabelKey;
+  final bool dueIsSubtotal;
+  final bool showsChange;
 
   const TenderSummaryView({
     required this.chargeTotalMinor,
@@ -855,6 +858,9 @@ class TenderSummaryView {
     required this.shortMinor,
     required this.splitAllocatedMinor,
     required this.splitRemainingMinor,
+    required this.dueLabelKey,
+    required this.dueIsSubtotal,
+    required this.showsChange,
   });
 
   @override
@@ -864,7 +870,10 @@ class TenderSummaryView {
       changeMinor.hashCode ^
       shortMinor.hashCode ^
       splitAllocatedMinor.hashCode ^
-      splitRemainingMinor.hashCode;
+      splitRemainingMinor.hashCode ^
+      dueLabelKey.hashCode ^
+      dueIsSubtotal.hashCode ^
+      showsChange.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -876,5 +885,8 @@ class TenderSummaryView {
           changeMinor == other.changeMinor &&
           shortMinor == other.shortMinor &&
           splitAllocatedMinor == other.splitAllocatedMinor &&
-          splitRemainingMinor == other.splitRemainingMinor;
+          splitRemainingMinor == other.splitRemainingMinor &&
+          dueLabelKey == other.dueLabelKey &&
+          dueIsSubtotal == other.dueIsSubtotal &&
+          showsChange == other.showsChange;
 }
