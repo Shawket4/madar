@@ -355,7 +355,18 @@ class _Rows extends ConsumerWidget {
         onAction: notifier.load,
       );
     }
-    if (filtered.isEmpty) {
+    final hasShift = ref.watch(historyProvider.select((s) => s.hasShift));
+    if (scope == OrdersScope.thisShift && !hasShift) {
+      // No shift is a place to be, not an error: say so and offer every
+      // shift, where yesterday's sale is.
+      return EmptyState(
+        icon: 'lock',
+        title: t('history.no_shift'),
+        actionLabel: t('order.all'),
+        onAction: () => notifier.setScope(OrdersScope.all),
+      );
+    }
+    if (filtered.isEmpty && !(scope == OrdersScope.all && hasMore)) {
       return EmptyState(
         icon: rowsEmpty ? 'tray' : 'line.3.horizontal.decrease.circle',
         title: rowsEmpty ? t('history.empty') : t('history.no_match'),
@@ -398,13 +409,9 @@ class _Rows extends ConsumerWidget {
               itemCount: visible.length + (remaining > 0 ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index >= visible.length) {
+                  // One word for one action in both scopes.
                   return _MoreRow(
-                    label: scope == OrdersScope.thisShift
-                        ? t('history.show_more').replaceAll(
-                            '{count}',
-                            '${remaining < kHistoryPageSize ? remaining : kHistoryPageSize}',
-                          )
-                        : t('search.load_more'),
+                    label: t('search.load_more'),
                     loading: loadingMore,
                     onTap: notifier.showMore,
                   );

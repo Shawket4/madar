@@ -28,6 +28,10 @@ import 'package:design_system/design_system.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
+/// How many further server pages a search under All fetches on its own
+/// looking for a match before it stops and leaves "Load more" to the teller.
+const int kSearchAutoPages = 5;
+
 /// Client-side page under This shift — how many rows paint before "Show
 /// more". The full shift stays in memory.
 const int kHistoryPageSize = 20;
@@ -255,12 +259,21 @@ class HistoryNotifier extends Notifier<HistoryState> {
 
   @override
   HistoryState build() {
-    ref.localizedBridge;
+    ref
+      ..localizedBridge
+      // A sale, a refund, a void or a settled bill moves this shift's list
+      // without anybody touching the screen; re-read quietly so the list is
+      // never the one from when it was opened.
+      ..listen(drawerTickProvider, (_, _) => _refreshQuietly())
+      ..listen(ticketTickProvider, (_, _) => _refreshQuietly())
+      ..listen(connectivityPulseProvider, (_, _) => _refreshQuietly());
     _alive = true;
     ref.onDispose(() => _alive = false);
     unawaited(Future.microtask(load));
     unawaited(Future.microtask(_loadProgramme));
-    return const HistoryState();
+    // Loading from the first frame: "No shift open" must not flash before
+    // the shift has been asked about.
+    return const HistoryState(loading: true);
   }
 
   MadarBridge get _bridge => ref.read(bridgeProvider);
@@ -279,6 +292,15 @@ class HistoryNotifier extends Notifier<HistoryState> {
     state = state.copyWith(loyaltyOffered: offered);
   }
 
+  /// A background re-read: only the This shift ledger (All is paged by
+  /// hand, and re-fetching it would throw away the pages loaded so far).
+  void _refreshQuietly() {
+    if (!_alive || state.scope != OrdersScope.thisShift || state.loading) {
+      return;
+    }
+    unawaited(_loadShift());
+  }
+
   /// Load the active scope from scratch.
   Future<void> load() => switch (state.scope) {
     OrdersScope.thisShift => _loadShift(),
@@ -288,22 +310,14 @@ class HistoryNotifier extends Notifier<HistoryState> {
   /// The shift's rows, its stats for the header, and whether a shift is
   /// open — each best-effort, like the natives' loadHistory: a stats call
   /// that fails must not empty a list that loaded.
+  ///
+  /// No open shift is a STATE, not a failure: the list says so and offers
+  /// All, instead of asking the core for a shift that is not there and
+  /// raising a red toast on every visit. A list that cannot be read is an
+  /// error with a retry, never an empty shift.
   Future<void> _loadShift() async {
     if (!_alive) return;
     state = state.copyWith(loading: true, error: null);
-    List<OrderSummaryView> rows;
-    try {
-      rows = await _bridge.listShiftOrders();
-    } on MadarError catch (e) {
-      rows = const [];
-      surfaceError(e);
-    }
-    ShiftStatsView? stats;
-    try {
-      stats = await _bridge.shiftStats(orders: rows);
-    } on MadarError {
-      stats = null;
-    }
     var hasShift = false;
     try {
       hasShift = (await _bridge.currentShift())?.isOpen ?? false;
@@ -311,13 +325,43 @@ class HistoryNotifier extends Notifier<HistoryState> {
       hasShift = false;
     }
     if (!_alive || state.scope != OrdersScope.thisShift) return;
-    state = _derive(
-      state.copyWith(
-        rows: rows,
-        stats: stats,
-        hasShift: hasShift,
+    if (!hasShift) {
+      state = _derive(
+        state.copyWith(
+          rows: const <OrderSummaryView>[],
+          stats: null,
+          hasShift: false,
+          loading: false,
+        ),
+      );
+      _keepSelectionHonest();
+      return;
+    }
+    List<OrderSummaryView> rows;
+    try {
+      rows = await _bridge.listShiftOrders();
+    } on MadarError catch (e) {
+      if (!_alive || state.scope != OrdersScope.thisShift) return;
+      if (e is MadarError_Unauthenticated &&
+          ref.read(shellProvider).session != null) {
+        ref.read(reauthRequestProvider.notifier).request();
+      }
+      state = state.copyWith(
         loading: false,
-      ),
+        hasShift: true,
+        error: UiText.error(e),
+      );
+      return;
+    }
+    ShiftStatsView? stats;
+    try {
+      stats = await _bridge.shiftStats(orders: rows);
+    } on MadarError {
+      stats = null;
+    }
+    if (!_alive || state.scope != OrdersScope.thisShift) return;
+    state = _derive(
+      state.copyWith(rows: rows, stats: stats, hasShift: true, loading: false),
     );
     _keepSelectionHonest();
   }
@@ -375,6 +419,7 @@ class HistoryNotifier extends Notifier<HistoryState> {
         ),
       );
       _keepSelectionHonest();
+      _seekMatch();
     } on MadarError catch (e) {
       if (seq != _querySeq || !_alive) return;
       if (e is MadarError_Unauthenticated &&
@@ -413,9 +458,32 @@ class HistoryNotifier extends Notifier<HistoryState> {
 
   /// Live search-query change — re-derives and resets the page.
   void setSearch(String query) {
+    _autoPages = 0;
     state = _derive(
       state.copyWith(search: query, visibleLimit: kHistoryPageSize),
     );
+    _seekMatch();
+  }
+
+  /// Pages fetched on their own for the current query.
+  int _autoPages = 0;
+
+  /// The server cannot search by number, customer or amount, so under All a
+  /// query with no match in the loaded pages keeps fetching — a few pages,
+  /// then "Load more" is the teller's. It used to stop at the first page and
+  /// say "No match" for a sale one page further back.
+  void _seekMatch() {
+    if (state.scope != OrdersScope.all ||
+        state.search.trim().isEmpty ||
+        state.filtered.isNotEmpty ||
+        !state.hasMore ||
+        state.loading ||
+        state.loadingMore ||
+        _autoPages >= kSearchAutoPages) {
+      return;
+    }
+    _autoPages += 1;
+    unawaited(_loadAll(reset: false));
   }
 
   /// Chip tap. Under All the Voided chip changes the server query, so the
@@ -574,11 +642,24 @@ class HistoryNotifier extends Notifier<HistoryState> {
 
     // The shift mirror and the server both hand rows back newest first;
     // the sort only pins that when a queued sale is appended out of order.
-    final filtered = <OrderSummaryView>[
-      for (final o in s.rows)
-        if (s.filter.matches(o) && matchesSearch(o)) o,
-    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return s.copyWith(filtered: filtered);
+    // By the INSTANT, not the string: RFC 3339 with different offsets does
+    // not sort as text. Ties keep their arrival order (List.sort is not
+    // stable), so equal times never swap rows between reloads.
+    final indexed =
+        <(int, DateTime?, OrderSummaryView)>[
+          for (final (i, o) in s.rows.indexed)
+            if (s.filter.matches(o) && matchesSearch(o))
+              (i, DateTime.tryParse(o.createdAt), o),
+        ]..sort((a, b) {
+          final ta = a.$2;
+          final tb = b.$2;
+          if (ta != null && tb != null) {
+            final c = tb.compareTo(ta);
+            if (c != 0) return c;
+          }
+          return a.$1.compareTo(b.$1);
+        });
+    return s.copyWith(filtered: [for (final e in indexed) e.$3]);
   }
 }
 

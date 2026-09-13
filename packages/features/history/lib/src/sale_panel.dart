@@ -558,14 +558,17 @@ class _Actions extends ConsumerWidget {
                   Expanded(
                     child: _ReprintButton(order: o, receipt: receipt),
                   ),
-                  MadarButton(
-                    label: '',
-                    glyph: MadarGlyph.receipt,
-                    variant: MadarButtonVariant.ghost,
-                    size: MadarButtonSize.compact,
-                    tooltip: t('chrome.view'),
-                    onTap: () =>
-                        unawaited(_previewReceipt(context, ref, o, receipt)),
+                  // Preview says so: an unlabeled glyph (or a long press) is
+                  // not a way in anybody finds.
+                  Expanded(
+                    child: MadarButton(
+                      label: t('history.preview_receipt'),
+                      glyph: MadarGlyph.receipt,
+                      variant: MadarButtonVariant.ghost,
+                      size: MadarButtonSize.compact,
+                      onTap: () =>
+                          unawaited(_previewReceipt(context, ref, o, receipt)),
+                    ),
                   ),
                 ],
                 if (canAward)
@@ -905,13 +908,15 @@ class _MoreSheet extends ConsumerWidget {
 /// The void form's state (reason / restock / busy / error).
 class _VoidFormState {
   const _VoidFormState({
-    this.reason = 'mistake',
+    this.reason,
     this.restock = true,
     this.busy = false,
     this.error,
   });
 
-  final String reason;
+  /// Null until chosen — a void's reason is the teller's, never a default
+  /// the report then attributes to them.
+  final String? reason;
   final bool restock;
   final bool busy;
   final UiText? error;
@@ -943,7 +948,8 @@ class _VoidFormNotifier extends Notifier<_VoidFormState> {
     return const _VoidFormState();
   }
 
-  void selectReason(String reason) => state = state.copyWith(reason: reason);
+  void selectReason(String reason) =>
+      state = state.copyWith(reason: reason, error: null);
 
   void toggleRestock({required bool on}) => state = state.copyWith(restock: on);
 
@@ -952,12 +958,19 @@ class _VoidFormNotifier extends Notifier<_VoidFormState> {
   /// closed, the order is not this branch's) lands in [_VoidFormState.error]
   /// in the server's words — the till cannot pre-check them.
   Future<bool> confirm({required String orderId, required String note}) async {
+    final reason = state.reason;
+    if (reason == null) {
+      state = state.copyWith(
+        error: const UiText.key('history.reason_required'),
+      );
+      return false;
+    }
     final bridge = ref.read(bridgeProvider);
     state = state.copyWith(busy: true, error: null);
     try {
       await bridge.voidOrder(
         orderId: orderId,
-        reason: state.reason,
+        reason: reason,
         note: note.isEmpty ? null : note,
         restoreInventory: state.restock,
       );
@@ -1014,7 +1027,9 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
 
   late int _amountMinor = widget.order.totalMinor;
   final TextEditingController _note = TextEditingController();
-  String _reason = 'customer';
+
+  /// Null until chosen: no silent "customer asked" on the books.
+  String? _reason;
   bool _busy = false;
   UiText? _error;
 
@@ -1047,6 +1062,11 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
     final bridge = ref.read(bridgeProvider);
     final minor = _amountMinor;
     if (minor <= 0) return;
+    final reason = _reason;
+    if (reason == null) {
+      setState(() => _error = const UiText.key('history.reason_required'));
+      return;
+    }
     // Against what is LEFT, not against the sale: a second refund on a sale
     // already half given back is over by half, and the server refuses it.
     if (minor > _cap) {
@@ -1065,7 +1085,7 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
         // drawer short against a card takings line that never moved, and the
         // till has no list of methods on this screen to offer instead.
         method: widget.order.paymentLabel,
-        reason: _reason,
+        reason: reason,
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       );
       ref.read(shellProvider.notifier).refresh();
@@ -1171,7 +1191,10 @@ class _RefundSheetState extends ConsumerState<_RefundSheet> {
                         label: t(label),
                         selected: _reason == key,
                         enabled: !_busy,
-                        onTap: () => setState(() => _reason = key),
+                        onTap: () => setState(() {
+                          _reason = key;
+                          _error = null;
+                        }),
                       ),
                   ],
                 ),

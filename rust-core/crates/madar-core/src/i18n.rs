@@ -978,6 +978,8 @@ fn en(key: &str) -> Option<&'static str> {
         "shift.closed_report_title" => "Shift closed — Z report",
         "cash.confirm_pay_out" => "Pay out {amount} from the drawer?",
         "till.preview_x" => "Preview X report",
+        "history.reason_required" => "Choose why first.",
+        "history.preview_receipt" => "Preview",
         _ => return None,
     })
 }
@@ -1879,6 +1881,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "shift.closed_report_title" => "أُغلقت الوردية — تقرير Z",
         "cash.confirm_pay_out" => "صرف {amount} من الدرج؟",
         "till.preview_x" => "معاينة تقرير X",
+        "history.reason_required" => "اختر السبب أولاً.",
+        "history.preview_receipt" => "معاينة",
         _ => return None,
     })
 }
