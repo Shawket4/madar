@@ -35,6 +35,9 @@ dependencies:
   # Direct (not just transitive via rust_bridge) so observability.dart may
   # name the FRB exception types it tags Rust-core failures by.
   flutter_rust_bridge: 2.13.0
+  # The app's own version (pubspec `version`, as the platform bundle carries
+  # it) for the core's `X-Madar-Client` header. Already linked via Sentry.
+  package_info_plus: ^10.2.1
   path_provider: ^2.1.5
   rust_bridge: ^0.1.0
   # Crash/error reporting to the SELF-HOSTED Sentry at sentry.madar-pos.cloud.

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // `Override` moved to the misc library in Riverpod 3.
 import 'package:flutter_riverpod/misc.dart';
 import 'package:madar/app/host_vault.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:rust_bridge/rust_bridge.dart';
 
@@ -17,6 +18,18 @@ const _apiBase = String.fromEnvironment(
   defaultValue: 'https://api.madar-pos.cloud',
 );
 const _environment = String.fromEnvironment('MADAR_ENV', defaultValue: 'prod');
+
+/// This build's version as the platform bundle reports it (the pubspec
+/// `version`), for the core's client header. `null` when the platform cannot
+/// say (a test host without the plugin) — the core then falls back.
+Future<String?> appVersion() async {
+  try {
+    final version = (await PackageInfo.fromPlatform()).version;
+    return version.isEmpty ? null : version;
+  } on Object {
+    return null;
+  }
+}
 
 /// What a successful boot yields: the live core handle + the host vault.
 class BootData {
@@ -69,6 +82,7 @@ class BootNotifier extends AsyncNotifier<BootData> {
           environment: _environment,
           dbPath: '${docs.path}${Platform.pathSeparator}madar.db',
           locale: vault.locale.isEmpty ? 'en' : vault.locale,
+          appVersion: await appVersion(),
         ),
       );
 
