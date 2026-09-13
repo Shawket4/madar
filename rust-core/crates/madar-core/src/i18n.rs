@@ -1810,7 +1810,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "nav.sell" => "البيع",
         "nav.floor" => "الصالة",
         "nav.queue" => "الوارد",
-        "nav.till" => "الصندوق",
+        "nav.till" => "الوردية",
         "nav.bills" => "الفواتير",
         "nav.me" => "أنا",
         "chrome.stuck" => "متعثر",
@@ -1955,16 +1955,16 @@ fn ar(key: &str) -> Option<&'static str> {
         "queue.declined" => "تم الرفض",
         "queue.need_shift" => "افتح الوردية أولاً",
         // till (the drawer tab), cash in / out kinds, the close arithmetic
-        "till.title" => "الصندوق",
+        "till.title" => "الوردية",
         "till.open_since" => "مفتوحة منذ",
         "till.sales" => "المبيعات",
         "till.cash_in_till" => "النقد في الخزنة",
         "till.this_shift" => "هذه الوردية",
         "till.orders_this_shift" => "طلبات هذه الوردية",
         "till.print_x" => "طباعة تقرير X",
-        "till.drawers" => "الأدراج",
+        "till.drawers" => "الخزن",
         "till.force_close_unavailable" => {
-            "الإغلاق الإجباري غير متاح من الصندوق بعد — استخدم لوحة التحكم."
+            "الإغلاق الإجباري غير متاح من هذا الجهاز بعد — استخدم لوحة التحكم."
         }
         "cash.pay_out" => "سحب",
         "cash.pay_in" => "إيداع",
@@ -1979,7 +1979,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "till.z_preview" => "معاينة تقرير Z",
         "till.why_short" => "ما سبب النقص؟",
         "till.why_over" => "ما سبب الزيادة؟",
-        "till.close_hint" => "الإغلاق يوقف البيع والتحصيل على هذا الصندوق.",
+        "till.close_hint" => "الإغلاق يوقف البيع والتحصيل على هذه الوردية.",
         "till.reason_required" => "السبب مطلوب",
         "tills.force_closed" => "أُغلقت إجبارياً",
         // orders (history): this shift / all, the sale, void versus refund
@@ -2155,6 +2155,16 @@ fn ar(key: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn arabic_till_words_follow_the_rework() {
+        // Decision 14: the till (a person's session) is الوردية; the physical
+        // drawer is الخزنة.
+        assert_eq!(super::ar("nav.till"), Some("الوردية"));
+        assert_eq!(super::ar("till.title"), Some("الوردية"));
+        assert_eq!(super::ar("till.drawer_matches"), Some("الخزنة مطابق"));
+        assert_eq!(super::en("till.drawer_matches"), Some("Drawer matches"));
+    }
+
     use super::*;
 
     #[test]
