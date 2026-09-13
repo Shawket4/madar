@@ -96,6 +96,8 @@ pub struct LoyaltyScanView {
     pub any_item: bool,
     /// What any line costs in that mode. Meaningless unless `any_item`.
     pub any_item_cost: i64,
+    /// The shop's ceiling on reward ITEMS per order; `None` = no ceiling.
+    pub max_rewards_per_order: Option<i64>,
 }
 
 /// What came of pressing "add points" on a sale.
@@ -408,6 +410,7 @@ pub fn scan_view(s: &madar_api::models::ScanResult, locale: &str) -> LoyaltyScan
             .collect(),
         any_item: s.any_item,
         any_item_cost: s.any_item_cost as i64,
+        max_rewards_per_order: s.max_rewards_per_order.flatten().map(i64::from),
         recent: s
             .recent
             .iter()
@@ -421,6 +424,243 @@ pub fn scan_view(s: &madar_api::models::ScanResult, locale: &str) -> LoyaltyScan
                 created_at: e.created_at.to_rfc3339(),
             })
             .collect(),
+    }
+}
+
+// ── Rewards on a basket ──────────────────────────────────────────────────────
+//
+// Which lines a member's balance may cover, how many units, what that costs and
+// what it takes off the bill — decided HERE, from the same rules the server's
+// `loyalty::redeem::plan` applies, so the Charge screen never offers what the
+// server would refuse and never charges for what it covered.
+
+/// A line a reward could cover, as the reward rules see it.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RewardLineInput {
+    /// `None` for a bundle or a line with no menu item — never coverable.
+    pub menu_item_id: Option<String>,
+    pub qty: i32,
+    /// The line as charged (modifiers included, before any reward).
+    pub line_total_minor: i64,
+    pub is_bundle: bool,
+}
+
+/// A reward applied to one line: which line (its position in the list the
+/// board was built from) and how many of its units.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RewardPick {
+    pub line: u32,
+    pub units: i32,
+}
+
+/// One line on the board.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RewardLineState {
+    pub line: u32,
+    /// The balance's catalogue lists this line (or any item is claimable).
+    pub claimable: bool,
+    /// What one unit costs, in the member's currency. 0 when not claimable.
+    pub unit_cost: i64,
+    /// Units currently covered.
+    pub units: i32,
+    /// Tapping would cover one more unit.
+    pub can_add: bool,
+    /// Why it cannot, in the till's language; `None` when it can (or when the
+    /// line is simply fully covered, which the tap then clears).
+    pub blocked_reason: Option<String>,
+    /// Minor units the covered units take off this line.
+    pub covered_minor: i64,
+    /// Ready-made cost, e.g. "5 orders".
+    pub cost_label: String,
+}
+
+/// Everything the rewards section renders, and the picks to send.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RewardBoardView {
+    pub lines: Vec<RewardLineState>,
+    /// The picks that survive the rules — what Charge must send. Differs from
+    /// what was asked when a line shrank, vanished, or the balance/cap moved.
+    pub picks: Vec<RewardPick>,
+    /// Balance spent by `picks`.
+    pub cost: i64,
+    pub balance_after: i64,
+    /// Reward ITEMS claimed (what the per-order cap counts).
+    pub units_claimed: i32,
+    /// Minor units taken off the bill before any discount.
+    pub covered_minor: i64,
+    /// The asked picks did not all survive; says why, in the till's language.
+    pub adjusted_reason: Option<String>,
+}
+
+/// What one unit of `line` costs, if this balance's programme lets it be taken.
+fn unit_cost_for(line: &RewardLineInput, scan: &LoyaltyScanView) -> Option<i64> {
+    if line.is_bundle {
+        return None;
+    }
+    let item = line.menu_item_id.as_deref()?;
+    // The first catalogue entry for the item, as the server resolves it.
+    let listed = scan.rewards.iter().find(|r| r.menu_item_id == item);
+    match listed {
+        Some(r) => Some(r.cost_amount),
+        None if scan.any_item => Some(scan.any_item_cost),
+        None => None,
+    }
+    .filter(|c| *c > 0)
+}
+
+/// Minor units covering `units` of a line: whole units at the line's charged
+/// per-unit price, never more than the line. Same rule as the server's
+/// `redeem::covered_minor`, pinned by `loyalty_reward_vectors.json`.
+pub fn covered_minor(line_total_minor: i64, qty: i64, units: i64) -> i64 {
+    if qty <= 0 {
+        return 0;
+    }
+    let per_unit = line_total_minor / qty;
+    (per_unit.max(0) * units.max(0)).min(line_total_minor.max(0))
+}
+
+/// Apply the rules to the asked picks and describe every line.
+///
+/// Picks are honoured in the order given; a pick for a line that is gone, a
+/// bundle, or a non-reward is dropped; units are clamped to the line; and
+/// picks that would overrun the per-order cap or the balance are trimmed —
+/// each trim named in `adjusted_reason` so the teller hears it before Charge,
+/// not from the server after.
+pub fn reward_board(
+    lines: &[RewardLineInput],
+    scan: &LoyaltyScanView,
+    asked: &[RewardPick],
+    locale: &str,
+) -> RewardBoardView {
+    let tr = |k: &str| crate::i18n::tr(locale, k);
+    let balance = scan.member.balance.max(0);
+    let cap = scan.max_rewards_per_order.filter(|c| *c > 0);
+    let mut picks: Vec<RewardPick> = Vec::new();
+    let mut cost = 0i64;
+    let mut claimed = 0i64;
+    let mut reason: Option<String> = None;
+    for p in asked {
+        let Some(line) = lines.get(p.line as usize) else {
+            reason.get_or_insert_with(|| tr("loyalty.reward_line_gone"));
+            continue;
+        };
+        if picks.iter().any(|q| q.line == p.line) {
+            continue;
+        }
+        let Some(unit) = unit_cost_for(line, scan) else {
+            reason.get_or_insert_with(|| tr("loyalty.reward_not_on_offer"));
+            continue;
+        };
+        let mut units = p.units.clamp(0, line.qty.max(0)) as i64;
+        if (units as i32) < p.units {
+            reason.get_or_insert_with(|| tr("loyalty.reward_line_shrank"));
+        }
+        if let Some(c) = cap {
+            let room = (c - claimed).max(0);
+            if units > room {
+                units = room;
+                reason.get_or_insert_with(|| cap_reason(c, locale));
+            }
+        }
+        let affordable = (balance - cost) / unit;
+        if units > affordable {
+            units = affordable.max(0);
+            reason.get_or_insert_with(|| tr("loyalty.reward_balance_short"));
+        }
+        if units <= 0 {
+            continue;
+        }
+        cost += unit * units;
+        claimed += units;
+        picks.push(RewardPick {
+            line: p.line,
+            units: units as i32,
+        });
+    }
+
+    let states = lines
+        .iter()
+        .enumerate()
+        .map(|(i, line)| {
+            let unit = unit_cost_for(line, scan);
+            let units = picks
+                .iter()
+                .find(|p| p.line as usize == i)
+                .map(|p| p.units)
+                .unwrap_or(0);
+            let blocked_reason = match unit {
+                None if line.is_bundle => Some(tr("loyalty.reward_no_bundles")),
+                None => None,
+                Some(_) if units >= line.qty => None,
+                Some(_) if cap.is_some_and(|c| claimed >= c) => {
+                    Some(cap_reason(cap.unwrap_or(0), locale))
+                }
+                Some(u) if balance - cost < u => Some(tr("loyalty.reward_balance_short")),
+                Some(_) => None,
+            };
+            let can_add = unit.is_some() && units < line.qty && blocked_reason.is_none();
+            RewardLineState {
+                line: i as u32,
+                claimable: unit.is_some(),
+                unit_cost: unit.unwrap_or(0),
+                units,
+                can_add,
+                blocked_reason,
+                covered_minor: covered_minor(line.line_total_minor, line.qty as i64, units as i64),
+                cost_label: unit
+                    .map(|u| format!("{u} {}", balance_label(&scan.member.mode, locale)))
+                    .unwrap_or_default(),
+            }
+        })
+        .collect::<Vec<_>>();
+    let covered = states.iter().map(|s| s.covered_minor).sum();
+    RewardBoardView {
+        lines: states,
+        picks,
+        cost,
+        balance_after: balance - cost,
+        units_claimed: claimed as i32,
+        covered_minor: covered,
+        adjusted_reason: reason,
+    }
+}
+
+/// The tap on a line: cover one more unit, or — when it is fully covered or
+/// can take no more — take its cover off. Returns the new asked picks; render
+/// them through [`reward_board`].
+pub fn toggle_reward(
+    lines: &[RewardLineInput],
+    scan: &LoyaltyScanView,
+    picks: &[RewardPick],
+    line: u32,
+    locale: &str,
+) -> Vec<RewardPick> {
+    let board = reward_board(lines, scan, picks, locale);
+    let mut next = board.picks.clone();
+    let Some(state) = board.lines.get(line as usize) else {
+        return next;
+    };
+    if !state.claimable {
+        return next;
+    }
+    match next.iter_mut().find(|p| p.line == line) {
+        Some(p) if state.can_add => p.units += 1,
+        Some(_) => next.retain(|p| p.line != line),
+        None if state.can_add => next.push(RewardPick { line, units: 1 }),
+        None => {}
+    }
+    next
+}
+
+fn cap_reason(cap: i64, locale: &str) -> String {
+    if cap == 1 {
+        crate::i18n::tr(locale, "loyalty.reward_cap_one")
+    } else {
+        crate::i18n::tr(locale, "loyalty.reward_cap_many").replace("{n}", &cap.to_string())
     }
 }
 
@@ -623,5 +863,141 @@ mod tests {
     fn a_shop_with_no_programme_says_so() {
         let s = madar_api::models::LoyaltySettings::default();
         assert!(!programme_view(&s, "en").enabled);
+    }
+
+    // ── the reward board ─────────────────────────────────────────────────────
+
+    fn scan(balance: i64, cap: Option<i64>, any_item: bool) -> LoyaltyScanView {
+        LoyaltyScanView {
+            member: member_view(&member("Ali", balance as i32, 5), "en"),
+            rewards: vec![LoyaltyRewardView {
+                menu_item_id: "latte".into(),
+                name: "Latte".into(),
+                price_minor: 5_000,
+                cost_currency: "visits".into(),
+                cost_amount: 5,
+                cost_label: "5 orders".into(),
+            }],
+            recent: vec![],
+            any_item,
+            any_item_cost: 8,
+            max_rewards_per_order: cap,
+        }
+    }
+
+    fn line(item: &str, qty: i32, total: i64) -> RewardLineInput {
+        RewardLineInput {
+            menu_item_id: Some(item.into()),
+            qty,
+            line_total_minor: total,
+            is_bundle: false,
+        }
+    }
+
+    fn pick(line: u32, units: i32) -> RewardPick {
+        RewardPick { line, units }
+    }
+
+    #[test]
+    fn a_reward_covers_the_drink_as_chosen_and_only_the_catalogue_is_offered() {
+        // Three oat lattes at 6,750 each; a cake that is not a reward.
+        let lines = [line("latte", 3, 20_250), line("cake", 1, 9_000)];
+        let b = reward_board(&lines, &scan(12, None, false), &[pick(0, 2)], "en");
+        assert_eq!(b.picks, vec![pick(0, 2)]);
+        assert_eq!(b.cost, 10);
+        assert_eq!(b.balance_after, 2);
+        assert_eq!(b.covered_minor, 13_500);
+        assert!(!b.lines[1].claimable);
+        assert!(!b.lines[0].can_add, "2 left on the card, a latte costs 5");
+        assert_eq!(
+            b.lines[0].blocked_reason.as_deref(),
+            Some("Not enough on the card for another")
+        );
+    }
+
+    #[test]
+    fn the_per_order_cap_is_enforced_before_charge_and_says_so() {
+        let lines = [line("latte", 3, 15_000)];
+        let b = reward_board(&lines, &scan(50, Some(1), false), &[pick(0, 3)], "en");
+        assert_eq!(b.picks, vec![pick(0, 1)]);
+        assert_eq!(
+            b.adjusted_reason.as_deref(),
+            Some("One reward per order here")
+        );
+        assert_eq!(
+            b.lines[0].blocked_reason.as_deref(),
+            Some("One reward per order here")
+        );
+        let ar = reward_board(&lines, &scan(50, Some(2), false), &[pick(0, 3)], "ar");
+        assert_eq!(ar.picks, vec![pick(0, 2)]);
+        assert!(ar.adjusted_reason.unwrap().contains('2'));
+    }
+
+    #[test]
+    fn a_line_reduced_or_removed_after_the_tap_clamps_or_drops_its_reward() {
+        let s = scan(50, None, false);
+        let shrunk = reward_board(&[line("latte", 1, 5_000)], &s, &[pick(0, 3)], "en");
+        assert_eq!(shrunk.picks, vec![pick(0, 1)]);
+        assert!(shrunk.adjusted_reason.is_some());
+        let gone = reward_board(&[], &s, &[pick(0, 1)], "en");
+        assert!(gone.picks.is_empty());
+        assert_eq!(gone.covered_minor, 0);
+        // A line replaced by a non-reward item keeps no reward.
+        let replaced = reward_board(&[line("cake", 1, 9_000)], &s, &[pick(0, 1)], "en");
+        assert!(replaced.picks.is_empty());
+    }
+
+    #[test]
+    fn bundles_zero_cost_and_any_item_follow_the_servers_rules() {
+        let mut bundle = line("latte", 1, 5_000);
+        bundle.is_bundle = true;
+        let b = reward_board(&[bundle], &scan(50, None, true), &[pick(0, 1)], "en");
+        assert!(b.picks.is_empty());
+        assert_eq!(
+            b.lines[0].blocked_reason.as_deref(),
+            Some("Bundles can't be taken as a reward")
+        );
+        let any = reward_board(
+            &[line("cake", 1, 9_000)],
+            &scan(8, None, true),
+            &[pick(0, 1)],
+            "en",
+        );
+        assert_eq!(any.cost, 8);
+        let mut free = scan(50, None, false);
+        free.rewards[0].cost_amount = 0;
+        let zero = reward_board(&[line("latte", 1, 5_000)], &free, &[pick(0, 1)], "en");
+        assert!(
+            zero.picks.is_empty(),
+            "a reward priced at nothing is not offered"
+        );
+    }
+
+    #[test]
+    fn a_tap_adds_a_unit_until_the_line_is_covered_then_clears_it() {
+        let lines = [line("latte", 2, 10_000)];
+        let s = scan(50, None, false);
+        let one = toggle_reward(&lines, &s, &[], 0, "en");
+        assert_eq!(one, vec![pick(0, 1)]);
+        let two = toggle_reward(&lines, &s, &one, 0, "en");
+        assert_eq!(two, vec![pick(0, 2)]);
+        assert!(toggle_reward(&lines, &s, &two, 0, "en").is_empty());
+        assert!(toggle_reward(&lines, &s, &[], 5, "en").is_empty());
+    }
+
+    #[test]
+    fn two_rewards_that_outrun_the_balance_keep_the_first() {
+        let lines = [line("latte", 1, 5_000), line("latte", 1, 5_000)];
+        let b = reward_board(
+            &lines,
+            &scan(7, None, false),
+            &[pick(0, 1), pick(1, 1)],
+            "en",
+        );
+        assert_eq!(b.picks, vec![pick(0, 1)]);
+        assert_eq!(
+            b.adjusted_reason.as_deref(),
+            Some("Not enough on the card for another")
+        );
     }
 }
