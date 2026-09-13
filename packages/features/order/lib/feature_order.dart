@@ -3,7 +3,7 @@
 /// The three screens the redesign put at the centre of the till, over the
 /// shared `orderProvider` (one cart / board truth for every surface):
 ///
-///   * `SellScreen`  — the catalog with quick-add and the cart beside it
+///   * `TakeawaySellScreen` / `TableOrderScreen` — the menu beside ONE cart
 ///                     (a column on an iPad, a bar on a phone); the counter
 ///                     screen and, entered from a table or a bill, the round
 ///                     builder.
@@ -21,8 +21,16 @@ library;
 export 'src/bill_screen.dart' show BillScreen;
 export 'src/bills_screen.dart' show BillsScreen;
 export 'src/floor_screen.dart' show FloorScreen, FloorView;
-export 'src/order_providers.dart' show OrderNotifier, OrderState, orderProvider;
-export 'src/sell_screen.dart' show SellScreen;
+export 'src/order_providers.dart'
+    show
+        CartNotifier,
+        CartState,
+        OrderNotifier,
+        OrderState,
+        cartProvider,
+        orderProvider;
+export 'src/sell_screen.dart'
+    show MenuGrid, OrderScreen, TableOrderScreen, TakeawaySellScreen;
 export 'src/table_clear_prompt.dart'
     show listenForTableClear, showTableClearPrompt;
 export 'src/table_history_sheet.dart' show showTableHistory;

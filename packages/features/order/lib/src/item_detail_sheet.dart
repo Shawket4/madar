@@ -64,7 +64,11 @@ class ItemSheetArgs {
     this.editLine,
     this.configureSeed,
     this.isConfiguring = false,
+    this.tableId,
   });
+
+  /// The cart a commit lands in (null = takeaway).
+  final String? tableId;
 
   final MenuItemView item;
 
@@ -494,7 +498,7 @@ class ItemConfigNotifier extends Notifier<ItemConfigState> {
     if (state.committing) return false;
     state = state.copyWith(committing: true);
     final ok = await ref
-        .read(orderProvider.notifier)
+        .read(cartProvider(arg.tableId).notifier)
         .addConfigured(
           itemId: arg.item.id,
           sizeLabel: state.size,
@@ -560,8 +564,12 @@ class ItemDetailSheet extends ConsumerStatefulWidget {
     this.editLine,
     this.configureSeed,
     this.isConfiguring = false,
+    this.tableId,
     super.key,
   });
+
+  /// The cart the sheet adds to (null = takeaway, else that table's).
+  final String? tableId;
 
   final MenuItemView item;
 
@@ -605,6 +613,7 @@ class _ItemDetailSheetState extends ConsumerState<ItemDetailSheet> {
     editLine: widget.editLine,
     configureSeed: widget.configureSeed,
     isConfiguring: widget.isConfiguring,
+    tableId: widget.tableId,
   );
 
   late final TextEditingController _notes = TextEditingController(

@@ -72,10 +72,10 @@ class SellCta {
 /// needs an open shift, and is refused outright where the shop puts every sale
 /// on a table, because the server refuses it too and saying so here is kinder
 /// than saying so after the tender.
-SellCta sellCtaFor(OrderState s, MadarBridge bridge) {
+SellCta sellCtaFor(OrderState s, CartState c, MadarBridge bridge) {
   final sendsToKitchen =
-      s.isWaiter || s.cartTableId != null || s.activeTicketId != null;
-  final count = s.cartTotals.itemCount;
+      s.isWaiter || c.tableId != null || cartTicket(s, c) != null;
+  final count = c.totals.itemCount;
   if (sendsToKitchen) {
     return SellCta(
       sendsToKitchen: true,
@@ -96,7 +96,7 @@ SellCta sellCtaFor(OrderState s, MadarBridge bridge) {
   return SellCta(
     sendsToKitchen: false,
     label: orderWord(bridge, 'sell.charge'),
-    amountMinor: s.cartTotals.totalMinor,
+    amountMinor: c.totals.totalMinor,
     itemCount: count,
     enabled: count > 0 && reason == null,
     reason: reason,
@@ -106,7 +106,11 @@ SellCta sellCtaFor(OrderState s, MadarBridge bridge) {
 
 /// Emptying the whole cart — every line, including anything configured.
 /// Shares its wording with the cart panel's own Clear.
-Future<void> _confirmClearCart(BuildContext context, WidgetRef ref) async {
+Future<void> _confirmClearCart(
+  BuildContext context,
+  WidgetRef ref,
+  String? tableId,
+) async {
   final bridge = ref.read(bridgeProvider);
   final ok = await showMadarConfirm(
     context,
@@ -114,7 +118,7 @@ Future<void> _confirmClearCart(BuildContext context, WidgetRef ref) async {
         .tr(key: 'order.clear_cart_title')
         .replaceAll(
           '{count}',
-          '${ref.read(orderProvider).cartTotals.itemCount}',
+          '${ref.read(cartProvider(tableId)).totals.itemCount}',
         ),
     body: bridge.tr(key: 'order.clear_cart_body'),
     confirmLabel: bridge.tr(key: 'order.clear_cart'),
@@ -122,17 +126,21 @@ Future<void> _confirmClearCart(BuildContext context, WidgetRef ref) async {
   );
   if (!ok) return;
   MadarHaptics.impact();
-  await ref.read(orderProvider.notifier).clearCart();
+  await ref.read(cartProvider(tableId).notifier).clear();
 }
 
 /// The cart column / sheet.
 class SellCart extends ConsumerWidget {
   const SellCart({
+    required this.tableId,
     required this.onTerminal,
     required this.onEditLine,
     this.onClose,
     super.key,
   });
+
+  /// The cart this panel shows — null = takeaway, else that table's own.
+  final String? tableId;
 
   /// Charge or Fire — the screen decides which drawer that opens.
   final VoidCallback onTerminal;
@@ -146,15 +154,15 @@ class SellCart extends ConsumerWidget {
     final colors = context.madarColors;
     final bridge = ref.bridge;
     final state = ref.watch(orderProvider);
-    final cta = sellCtaFor(state, bridge);
-    final ticket = state.activeTicket;
-    final lines = state.cartLines;
-    final tableLabel = _tableLabel(state, ticket);
+    final cart = ref.watch(cartProvider(tableId));
+    final cta = sellCtaFor(state, cart, bridge);
+    final ticket = cartTicket(state, cart);
+    final lines = cart.lines;
+    final tableLabel = cartTableLabel(state, cart);
     // Parking is a teller's counter/takeaway move only (see CLAUDE.md's role
     // table) — never with a table or a bill already targeted, and never for
     // a waiter, whose "parking" is the open ticket.
-    final isCounterFlow =
-        !state.isWaiter && state.cartTableId == null && ticket == null;
+    final isCounterFlow = !state.isWaiter && tableId == null && ticket == null;
     final canPark = isCounterFlow && lines.isNotEmpty;
 
     return ColoredBox(
@@ -169,20 +177,24 @@ class SellCart extends ConsumerWidget {
             // header over it, so there the cart carries the context itself.
             title: onClose == null
                 ? orderWord(bridge, 'sell.order_title')
-                : _title(bridge, state, ticket, tableLabel),
-            itemCount: state.cartTotals.itemCount,
-            onMore: () => unawaited(_moreSheet(context, ref, state)),
+                : _title(bridge, state, cart, ticket, tableLabel),
+            itemCount: cart.totals.itemCount,
+            onMore: () => unawaited(_moreSheet(context, ref, cart)),
             onClose: onClose,
           ),
           const MadarHairline(),
           // The parked-orders strip: what is already parked, and the pencil
           // to rename it. Without it parking reads as a dead end.
           if (isCounterFlow && (state.drafts.isNotEmpty || lines.isNotEmpty))
-            const TellerHeldStrip(),
+            TellerHeldStrip(tableId: tableId),
           // Who the sale is for and what comes off it — on the cart, where
           // the teller is looking, not three taps deep inside Charge.
           if (lines.isNotEmpty)
-            _CartSummary(counter: isCounterFlow, lineCount: lines.length),
+            _CartSummary(
+              tableId: tableId,
+              counter: isCounterFlow,
+              lineCount: lines.length,
+            ),
           Expanded(
             child: lines.isEmpty && ticket == null
                 // The Lottie was already in the bundle and already supported
@@ -256,6 +268,7 @@ class SellCart extends ConsumerWidget {
                       ],
                       for (final line in lines)
                         _RoundLine(
+                          tableId: tableId,
                           key: ValueKey('round-${line.key}'),
                           line: line,
                           currency: state.currency,
@@ -268,12 +281,13 @@ class SellCart extends ConsumerWidget {
           ),
           if (lines.isNotEmpty)
             _CartFooter(
+              tableId: tableId,
               cta: cta,
               ticket: ticket,
               onTerminal: onTerminal,
               canPark: canPark,
               onHold: () =>
-                  unawaited(ref.read(orderProvider.notifier).holdCart()),
+                  unawaited(ref.read(cartProvider(tableId).notifier).hold()),
             ),
           // A round with nothing in it yet still needs a way to be built; the
           // empty-state above says so. Nothing else to draw.
@@ -288,6 +302,7 @@ class SellCart extends ConsumerWidget {
   static String _title(
     MadarBridge bridge,
     OrderState s,
+    CartState cart,
     TicketView? ticket,
     String? tableLabel,
   ) {
@@ -300,19 +315,12 @@ class SellCart extends ConsumerWidget {
       return '$tableLabel · ${bridge.tr(key: 'tables.round')} 1';
     }
     if (s.isWaiter) {
-      final name = s.cartName;
+      final name = cart.name;
       return name == null
           ? orderWord(bridge, 'bills.new_bill')
           : '${orderWord(bridge, 'bills.new_bill')} · $name';
     }
     return orderWord(bridge, 'sell.takeaway');
-  }
-
-  static String? _tableLabel(OrderState s, TicketView? ticket) {
-    final id = ticket?.tableId ?? s.cartTableId;
-    if (id == null) return s.cartTableLabel;
-    return s.floorLayout?.tables.where((t) => t.id == id).firstOrNull?.label ??
-        s.cartTableLabel;
   }
 
   /// Clear — the ⋯. Park used to live here too, buried behind a menu icon
@@ -322,7 +330,7 @@ class SellCart extends ConsumerWidget {
   Future<void> _moreSheet(
     BuildContext context,
     WidgetRef ref,
-    OrderState s,
+    CartState cart,
   ) async {
     final bridge = ref.read(bridgeProvider);
     await showMadarSheet<void>(
@@ -340,13 +348,13 @@ class SellCart extends ConsumerWidget {
               label: bridge.tr(key: 'order.clear'),
               glyph: MadarGlyph.trash,
               variant: MadarButtonVariant.danger,
-              enabled: s.cartLines.isNotEmpty,
+              enabled: cart.lines.isNotEmpty,
               onTap: () {
                 Navigator.of(sheetContext).maybePop();
                 // Confirm on the SCREEN's context, not the sheet's: the
                 // sheet is closing, and a dialog raised from a context that
                 // is being torn down never appears.
-                unawaited(_confirmClearCart(context, ref));
+                unawaited(_confirmClearCart(context, ref, tableId));
               },
             ),
           ],
@@ -499,12 +507,14 @@ class _OnBillLine extends StatelessWidget {
 /// count and removes it at zero.
 class _RoundLine extends ConsumerWidget {
   const _RoundLine({
+    required this.tableId,
     required this.line,
     required this.currency,
     this.onEdit,
     super.key,
   });
 
+  final String? tableId;
   final CartLineView line;
   final String currency;
   final VoidCallback? onEdit;
@@ -512,7 +522,7 @@ class _RoundLine extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
-    final notifier = ref.read(orderProvider.notifier);
+    final notifier = ref.read(cartProvider(tableId).notifier);
     final mods = <String>[
       if (line.sizeLabel case final s? when s.isNotEmpty) s,
       for (final a in line.addons)
@@ -582,7 +592,7 @@ class _RoundLine extends ConsumerWidget {
           ),
           MadarStepper(
             value: line.qty,
-            onChanged: (q) => unawaited(notifier.setCartQty(line.key, q)),
+            onChanged: (q) => unawaited(notifier.setQty(line.key, q)),
           ),
         ],
       ),
@@ -608,7 +618,7 @@ class _RoundLine extends ConsumerWidget {
             confirmLabel: ref.read(bridgeProvider).tr(key: 'order.remove_line'),
             cancelLabel: ref.read(bridgeProvider).tr(key: 'common.cancel'),
           ),
-          onDismissed: (_) => unawaited(notifier.swipeRemoveCartLine(line)),
+          onDismissed: (_) => unawaited(notifier.swipeRemove(line)),
           background: Container(
             alignment: AlignmentDirectional.centerEnd,
             padding: const EdgeInsetsDirectional.symmetric(
@@ -635,6 +645,7 @@ class _RoundLine extends ConsumerWidget {
 /// Round · Bill so far · Fire, or Charge · total.
 class _CartFooter extends ConsumerWidget {
   const _CartFooter({
+    required this.tableId,
     required this.cta,
     required this.ticket,
     required this.onTerminal,
@@ -642,6 +653,7 @@ class _CartFooter extends ConsumerWidget {
     required this.onHold,
   });
 
+  final String? tableId;
   final SellCta cta;
   final TicketView? ticket;
   final VoidCallback onTerminal;
@@ -655,9 +667,9 @@ class _CartFooter extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final bridge = ref.bridge;
-    final totals = ref.watch(orderProvider.select((s) => s.cartTotals));
+    final totals = ref.watch(cartProvider(tableId).select((c) => c.totals));
     final currency = ref.watch(orderProvider.select((s) => s.currency));
-    final isBusy = ref.watch(orderProvider.select((s) => s.isBusy));
+    final isBusy = ref.watch(cartProvider(tableId).select((c) => c.isBusy));
     final itemsWord = bridge.tr(key: 'waiter.items');
     return ColoredBox(
       color: colors.surface,
@@ -684,6 +696,7 @@ class _CartFooter extends ConsumerWidget {
                       ref
                           .watch(
                             _billSoFarProvider((
+                              tableId,
                               ticket!.subtotalMinor,
                               totals.subtotalMinor,
                             )),
@@ -749,12 +762,11 @@ class _CartFooter extends ConsumerWidget {
 
 /// "Bill so far" for (ticket subtotal, round subtotal) — the core adds them.
 /// The round's figure is in the key only so a changed round re-asks.
-final FutureProviderFamily<int, (int, int)> _billSoFarProvider = FutureProvider
-    .autoDispose
-    .family<int, (int, int)>(
+final FutureProviderFamily<int, (String?, int, int)> _billSoFarProvider =
+    FutureProvider.autoDispose.family<int, (String?, int, int)>(
       (ref, key) => ref
           .read(bridgeProvider)
-          .cartBillSoFarMinor(ticketSubtotalMinor: key.$1),
+          .cartBillSoFarMinor(tableId: key.$1, ticketSubtotalMinor: key.$2),
     );
 
 class _FigureRow extends StatelessWidget {
@@ -801,7 +813,15 @@ class _FigureRow extends StatelessWidget {
 /// the terminal verb sits at the end. Hidden while the cart is empty — the
 /// next tile tap is the next sale.
 class SellBar extends ConsumerWidget {
-  const SellBar({required this.onOpen, required this.onTerminal, super.key});
+  const SellBar({
+    required this.tableId,
+    required this.onOpen,
+    required this.onTerminal,
+    super.key,
+  });
+
+  /// The cart this bar is for (null = takeaway).
+  final String? tableId;
 
   final VoidCallback onOpen;
   final VoidCallback onTerminal;
@@ -811,11 +831,12 @@ class SellBar extends ConsumerWidget {
     final colors = context.madarColors;
     final bridge = ref.bridge;
     final state = ref.watch(orderProvider);
-    final cta = sellCtaFor(state, bridge);
+    final cart = ref.watch(cartProvider(tableId));
+    final cta = sellCtaFor(state, cart, bridge);
     if (cta.itemCount <= 0) return const SizedBox.shrink();
-    final isBusy = state.isBusy;
+    final isBusy = cart.isBusy;
     final figure = cta.sendsToKitchen
-        ? state.cartTotals.subtotalMinor
+        ? cart.totals.subtotalMinor
         : cta.amountMinor;
     return Container(
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -950,7 +971,13 @@ class SellNoShiftNotice extends ConsumerWidget {
 /// and on the counter its customer and discount. Unset, each says what it
 /// adds; set, it reads the name, the discount or the note and is lit.
 class _CartSummary extends ConsumerWidget {
-  const _CartSummary({required this.counter, required this.lineCount});
+  const _CartSummary({
+    required this.tableId,
+    required this.counter,
+    required this.lineCount,
+  });
+
+  final String? tableId;
 
   final bool counter;
 
@@ -961,12 +988,14 @@ class _CartSummary extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.madarColors;
     final bridge = ref.bridge;
-    final name = ref.watch(orderProvider.select((s) => s.cartName));
+    final name = ref.watch(cartProvider(tableId).select((c) => c.name));
     final discountMinor = ref.watch(
-      orderProvider.select((s) => s.cartTotals.discountMinor),
+      cartProvider(tableId).select((c) => c.totals.discountMinor),
     );
-    final discount = ref.watch(_cartDiscountLabelProvider(discountMinor)).value;
-    final note = ref.watch(_cartNoteProvider(lineCount)).value;
+    final discount = ref
+        .watch(_cartDiscountLabelProvider((tableId, discountMinor)))
+        .value;
+    final note = ref.watch(_cartNoteProvider((tableId, lineCount))).value;
     return ColoredBox(
       color: colors.surface,
       child: Column(
@@ -988,7 +1017,8 @@ class _CartSummary extends ConsumerWidget {
                     label: name ?? orderWord(bridge, 'sell.customer'),
                     glyph: MadarGlyph.user,
                     selected: name != null,
-                    onTap: () => unawaited(editLiveOrderName(context, ref)),
+                    onTap: () =>
+                        unawaited(editLiveOrderName(context, ref, tableId)),
                   ),
                   MadarChip(
                     label: discount ?? orderWord(bridge, 'sell.discount'),
@@ -998,9 +1028,10 @@ class _CartSummary extends ConsumerWidget {
                       final changed = await showCartDiscountPicker(
                         context,
                         ref,
+                        tableId: tableId,
                       );
                       if (changed) {
-                        await ref.read(orderProvider.notifier).loadCart();
+                        await ref.read(cartProvider(tableId).notifier).load();
                       }
                     }()),
                   ),
@@ -1009,7 +1040,7 @@ class _CartSummary extends ConsumerWidget {
                   label: note ?? orderWord(bridge, 'sell.note'),
                   glyph: MadarGlyph.note,
                   selected: note != null,
-                  onTap: () => unawaited(editCartNote(context, ref)),
+                  onTap: () => unawaited(editCartNote(context, ref, tableId)),
                 ),
               ],
             ),
@@ -1022,15 +1053,22 @@ class _CartSummary extends ConsumerWidget {
 }
 
 /// The cart's order note, from the core.
-final FutureProviderFamily<String?, int> _cartNoteProvider = FutureProvider
-    .autoDispose
-    .family<String?, int>((ref, _) => ref.read(bridgeProvider).cartNote());
+final FutureProviderFamily<String?, (String?, int)> _cartNoteProvider =
+    FutureProvider.autoDispose.family<String?, (String?, int)>(
+      (ref, key) => ref.read(bridgeProvider).cartNote(tableId: key.$1),
+    );
 
 /// Type (or clear) the note for the whole order. The core keeps it with the
 /// cart and carries it on the checkout and the fired ticket.
-Future<void> editCartNote(BuildContext context, WidgetRef ref) async {
+Future<void> editCartNote(
+  BuildContext context,
+  WidgetRef ref,
+  String? tableId,
+) async {
   final bridge = ref.read(bridgeProvider);
-  final controller = TextEditingController(text: await bridge.cartNote() ?? '');
+  final controller = TextEditingController(
+    text: await bridge.cartNote(tableId: tableId) ?? '',
+  );
   if (!context.mounted) return;
   final saved = await showMadarSheet<String>(
     context,
@@ -1060,17 +1098,23 @@ Future<void> editCartNote(BuildContext context, WidgetRef ref) async {
   );
   controller.dispose();
   if (saved == null) return;
-  await bridge.cartSetNote(note: saved.trim().isEmpty ? null : saved.trim());
+  await bridge.cartSetNote(
+    tableId: tableId,
+    note: saved.trim().isEmpty ? null : saved.trim(),
+  );
   ref.invalidate(_cartNoteProvider);
 }
 
 /// The applied cart discount's label, or null — re-asked whenever the cart's
 /// discount figure moves.
-final FutureProviderFamily<String?, int> _cartDiscountLabelProvider =
-    FutureProvider.autoDispose.family<String?, int>((ref, minor) async {
-      if (minor <= 0) return null;
+final FutureProviderFamily<String?, (String?, int)> _cartDiscountLabelProvider =
+    FutureProvider.autoDispose.family<String?, (String?, int)>((
+      ref,
+      key,
+    ) async {
+      if (key.$2 <= 0) return null;
       final bridge = ref.read(bridgeProvider);
-      final id = await bridge.cartDiscountId();
+      final id = await bridge.cartDiscountId(tableId: key.$1);
       if (id == null) return null;
       final all = await bridge.listDiscounts();
       final d = all.where((d) => d.id == id).firstOrNull;

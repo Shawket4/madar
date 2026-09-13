@@ -107,7 +107,10 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
     if (name == null || !mounted) return;
     await _notifier.startNewBill(name);
     if (!mounted) return;
-    await MadarPages.push<void>(context, (_) => const SellScreen());
+    await MadarPages.push<void>(
+      context,
+      (_) => const TakeawaySellScreen(pushed: true),
+    );
   }
 
   @override

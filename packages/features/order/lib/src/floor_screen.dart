@@ -140,8 +140,9 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
         );
         return;
       }
-      await _notifier.switchToHeldOrder(held);
-      await _toSell();
+      // Into the draft's own table cart; the Sell tab's cart is untouched.
+      final landed = await _notifier.resumeDraft(held);
+      if (landed?.tableId case final id?) await _toTable(id);
       return;
     }
     if (!MadarLayout.of(context).isPhone) {
@@ -256,14 +257,9 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       case FloorAction.seat:
         if (_walkInId == t.id) setState(() => _walkInId = null);
         // Takes the table on every device.
-        await _notifier.seatTable(
-          t,
-          covers: covers ?? t.seats,
-          bindCart: false,
-        );
+        await _notifier.seatTable(t, covers: covers ?? t.seats);
         if (!takeOrder || !mounted) return;
-        await _notifier.pointCartAtTable(t.id, t.label);
-        await _toSell();
+        await _toTable(t.id);
       case FloorAction.seatBooking:
         if (tableHasBooking(t) && tableIsReserved(t)) {
           if (t.bookingParty case final n? when n > 0) {
@@ -283,12 +279,10 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
           setState(() => _walkInId = t.id);
         }
       case FloorAction.takeOrder:
-        await _notifier.pointCartAtTable(t.id, t.label);
-        await _toSell();
+        await _toTable(t.id);
       case FloorAction.addRound:
-        await _notifier.pointCartAtTable(t.id, t.label);
-        if (ticket != null) _notifier.selectTicket(ticket.id);
-        await _toSell();
+        // The table's cart finds the table's bill on its own.
+        await _toTable(t.id);
       case FloorAction.openBill:
         await _openBillOn(t.id);
       case FloorAction.charge:
@@ -378,10 +372,13 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
     await _notifier.afterBillCharged(ticket.id);
   }
 
-  /// Taking an order FOR A TABLE opens its own screen, not the Sell tab.
-  Future<void> _toSell() async {
+  /// Taking an order FOR A TABLE opens that table's own screen and cart.
+  Future<void> _toTable(String tableId) async {
     if (!mounted) return;
-    await MadarPages.push<void>(context, (_) => const SellScreen.forTable());
+    await MadarPages.push<void>(
+      context,
+      (_) => TableOrderScreen(tableId: tableId),
+    );
   }
 
   /// Cancelling a queued table transfer — small, but irreversible here.

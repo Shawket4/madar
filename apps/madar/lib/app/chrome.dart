@@ -448,29 +448,10 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     final reselect = tab == _current;
     // Tapping the tab already in front takes its stack back to its root.
     if (reselect) stack?.popUntil((r) => r.isFirst);
-    // The Sell tab is the counter and only the counter. Tabs live in an
-    // IndexedStack, so SellScreen's initState runs once; aiming the cart
-    // back at takeaway has to happen every time the tab's ROOT is shown —
-    // including a re-tap of the tab already in front of the teller. A
-    // table's Sell left standing on the Sell stack keeps its table; it
-    // re-aims the cart itself when its tab comes back.
-    final toTakeaway =
-        tab == _Tab.sell && (reselect || !(stack?.canPop() ?? false));
-    void aim() =>
-        unawaited(ref.read(orderProvider.notifier).pointCartAtTakeaway());
-    if (reselect) {
-      if (toTakeaway) aim();
-      return;
-    }
+    if (reselect) return;
+    // Nothing is re-aimed: the Sell tab's screen reads the takeaway cart and
+    // a table's screen its table's, whichever tab is in front.
     setState(() => _chosen = tab);
-    // After the frame that puts the tab in front: a table's Sell on the tab
-    // being left notes the table it was for as it goes behind, before the
-    // cart is aimed away from it.
-    if (toTakeaway) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) aim();
-      });
-    }
   }
 
   /// A Queue › Bills row opens the Bill, on the teller's side.
@@ -500,7 +481,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   Widget _body(_Tab tab) {
     final teller = _kind == ShellKind.teller;
     return switch (tab) {
-      _Tab.sell => const SellScreen(),
+      _Tab.sell => const TakeawaySellScreen(),
       // canCharge is the one place a role reaches a shared screen, and it is
       // decided HERE, by which shell mounted it — never by a flag below.
       _Tab.floor => FloorScreen(canCharge: teller),

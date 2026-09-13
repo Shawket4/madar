@@ -4,7 +4,7 @@ import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/held_orders_strip.dart';
 import 'package:feature_order/src/order_providers.dart';
-import 'package:feature_order/src/sell_screen.dart';
+import 'package:feature_order/src/sell_screen.dart' show TableOrderScreen;
 import 'package:feature_order/src/tables_screen.dart' show showTablePickerSheet;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,23 +16,21 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// Drawn by `SellCart` (sell_cart.dart) on the counter: it shows what is
 /// already parked and carries the live order's rename pencil.
 class TellerHeldStrip extends ConsumerWidget {
-  const TellerHeldStrip({super.key});
+  const TellerHeldStrip({this.tableId, super.key});
+
+  /// The cart whose live chip leads the strip (null = takeaway).
+  final String? tableId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
     final drafts = ref.watch(orderProvider.select((s) => s.drafts));
-    final cartStartedAtIso = ref.watch(
-      orderProvider.select((s) => s.cartStartedAtIso),
-    );
-    final cartName = ref.watch(orderProvider.select((s) => s.cartName));
-    final cartDraftId = ref.watch(orderProvider.select((s) => s.cartDraftId));
-    final hasLines = ref.watch(
-      orderProvider.select((s) => s.cartLines.isNotEmpty),
-    );
-    final itemCount = ref.watch(
-      orderProvider.select((s) => s.cartTotals.itemCount),
-    );
+    final cart = ref.watch(cartProvider(tableId));
+    final cartStartedAtIso = cart.startedAt;
+    final cartName = cart.name;
+    final cartDraftId = cart.draftId;
+    final hasLines = cart.lines.isNotEmpty;
+    final itemCount = cart.totals.itemCount;
     // A live cart restored FROM a draft keeps that draft's strip key, so the
     // chip is the SAME chip across hold/restore cycles — its drag position
     // and time label never jump.
@@ -69,49 +67,48 @@ class TellerHeldStrip extends ConsumerWidget {
             sortKey: cartStartedAtIso ?? '',
             title: _chipTitle(
               cartName,
-              ref.watch(orderProvider.select((s) => s.cartTableLabel)),
+              cartTableLabel(ref.watch(orderProvider), cart),
             ),
             count: itemCount,
             selected: true,
             onTap: () {},
-            onRename: () => unawaited(editLiveOrderName(context, ref)),
+            onRename: () => unawaited(editLiveOrderName(context, ref, tableId)),
           ),
       ],
     );
   }
 
-  /// Resume a parked order. One parked AT THE COUNTER swaps into this cart.
-  /// One that belongs to a TABLE is that table's errand, not the counter's:
-  /// it opens in its own pushed `SellScreen.forTable` — exactly as it would
-  /// from the floor — and on the way back the cart is aimed at takeaway
-  /// again, so the Sell tab never silently turns into that table. The
-  /// takeaway cart in hand stays in its own context the whole time.
+  /// Resume a parked order. One parked AT THE COUNTER swaps into this cart
+  /// (the cart in hand parks first, tab-style). One that belongs to a TABLE
+  /// is that table's errand: it fills THAT table's cart and opens its own
+  /// order screen — this cart is never touched.
   Future<void> _openDraft(
     BuildContext context,
     WidgetRef ref,
     DraftView draft,
   ) async {
     final notifier = ref.read(orderProvider.notifier);
-    final tableId = draft.tableId;
-    if (tableId == null || draft.lockedByOther) {
-      await notifier.switchToHeldOrder(draft.id);
+    if (draft.tableId == null || draft.lockedByOther) {
+      await notifier.resumeDraft(
+        draft.id,
+        fromTableId: tableId,
+        parkInHand: true,
+      );
       return;
     }
-    // The strip leaves the tree the moment the cart turns to the table —
-    // hold on to the navigator now.
     // The strip may sit in the cart SHEET (a root surface): the page belongs
-    // on the tab it was opened over, which navigatorOf finds.
+    // on the tab it was opened over, which navigatorOf finds — and the sheet
+    // goes away first, or the table's page opens BEHIND it.
     final navigator = MadarPages.navigatorOf(context);
-    // On a phone the strip sits in the cart SHEET, a root surface: put it
-    // away first, or the table's page opens BEHIND it.
     if (ModalRoute.of(context) is MadarSheetRoute) {
       MadarSheet.close<void>(context);
     }
-    await notifier.restoreDraft(draft.id);
+    final landed = await notifier.resumeDraft(draft.id);
+    final table = landed?.tableId;
+    if (table == null) return;
     await navigator.push(
-      MaterialPageRoute<void>(builder: (_) => const SellScreen.forTable()),
+      MaterialPageRoute<void>(builder: (_) => TableOrderScreen(tableId: table)),
     );
-    await notifier.pointCartAtTakeaway();
   }
 
   /// Discarding a parked order loses its lines for good — it confirms,
@@ -233,11 +230,15 @@ class TellerHeldStrip extends ConsumerWidget {
 /// the draft's name; empty clears back to the time label) + the table pick
 /// (applied when the order parks). The table row only renders when the
 /// branch has a floor layout — no layout, no table anything.
-Future<void> editLiveOrderName(BuildContext context, WidgetRef ref) async {
+Future<void> editLiveOrderName(
+  BuildContext context,
+  WidgetRef ref,
+  String? tableId,
+) async {
   final bridge = ref.read(bridgeProvider);
-  final notifier = ref.read(orderProvider.notifier);
+  final notifier = ref.read(cartProvider(tableId).notifier);
   final controller = TextEditingController(
-    text: ref.read(orderProvider).cartName ?? '',
+    text: ref.read(cartProvider(tableId)).name ?? '',
   );
   final hasFloor = ref.read(orderProvider).hasFloor;
   final saved = await showMadarSheet<String>(
@@ -264,8 +265,9 @@ Future<void> editLiveOrderName(BuildContext context, WidgetRef ref) async {
             const SizedBox(height: Space.md),
             Consumer(
               builder: (context, sheetRef, _) {
-                final label = sheetRef.watch(
-                  orderProvider.select((s) => s.cartTableLabel),
+                final label = cartTableLabel(
+                  sheetRef.watch(orderProvider),
+                  sheetRef.watch(cartProvider(tableId)),
                 );
                 return MadarButton(
                   label: label == null
@@ -277,22 +279,20 @@ Future<void> editLiveOrderName(BuildContext context, WidgetRef ref) async {
                     final pick = await showTablePickerSheet(
                       sheetContext,
                       sheetRef,
-                      currentTableId: sheetRef.read(orderProvider).cartTableId,
+                      currentTableId: tableId,
                     );
-                    if (pick == null ||
-                        pick.tableId ==
-                            sheetRef.read(orderProvider).cartTableId) {
+                    if (pick == null || pick.tableId == tableId) {
                       return;
                     }
                     // Assigning PARKS the order on that table — the lines go
                     // with it. (A context switch here left them behind.)
                     // The typed name rides along; the sheet closes without
                     // re-applying it over the emptied cart.
-                    notifier.setCartName(controller.text);
+                    await notifier.setName(controller.text);
                     if (sheetContext.mounted) {
                       await Navigator.of(sheetContext).maybePop();
                     }
-                    await notifier.holdCartOn(pick.tableId, pick.label);
+                    await notifier.holdOn(pick.tableId, pick.label);
                   }()),
                 );
               },
@@ -308,7 +308,7 @@ Future<void> editLiveOrderName(BuildContext context, WidgetRef ref) async {
     ),
   );
   if (saved != null) {
-    ref.read(orderProvider.notifier).setCartName(saved);
+    await ref.read(cartProvider(tableId).notifier).setName(saved);
   }
   controller.dispose();
 }

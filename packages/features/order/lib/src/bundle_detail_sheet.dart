@@ -15,9 +15,12 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// equality on purpose — each sheet instance creates its own args once, so
 /// its [bundleConfigProvider] member auto-disposes with it.
 class BundleSheetArgs {
-  BundleSheetArgs({required this.bundle});
+  BundleSheetArgs({required this.bundle, this.tableId});
 
   final BundleView bundle;
+
+  /// The cart the bundle lands in (null = takeaway).
+  final String? tableId;
 }
 
 /// Per-component config, keyed by the component's index (handles a bundle
@@ -81,7 +84,9 @@ class BundleConfigNotifier extends Notifier<BundleConfigState> {
         ),
       );
     }
-    await ref.read(orderProvider.notifier).addBundle(bundle.id, components);
+    await ref
+        .read(cartProvider(arg.tableId).notifier)
+        .addBundle(bundle.id, components);
     return true;
   }
 }
@@ -103,9 +108,12 @@ bundleConfigProvider = NotifierProvider.autoDispose
 /// instead of writing to the cart. "Add to cart" records one bundle line
 /// via the core (cart_add_bundle), where component up-charges are resolved.
 class BundleDetailSheet extends ConsumerStatefulWidget {
-  const BundleDetailSheet({required this.bundle, super.key});
+  const BundleDetailSheet({required this.bundle, this.tableId, super.key});
 
   final BundleView bundle;
+
+  /// The cart the bundle lands in (null = takeaway).
+  final String? tableId;
 
   @override
   ConsumerState<BundleDetailSheet> createState() => _BundleDetailSheetState();
@@ -114,7 +122,10 @@ class BundleDetailSheet extends ConsumerStatefulWidget {
 class _BundleDetailSheetState extends ConsumerState<BundleDetailSheet> {
   /// Created once per presentation — the identity key that gives this sheet
   /// its own [bundleConfigProvider] member.
-  late final BundleSheetArgs _args = BundleSheetArgs(bundle: widget.bundle);
+  late final BundleSheetArgs _args = BundleSheetArgs(
+    bundle: widget.bundle,
+    tableId: widget.tableId,
+  );
 
   /// Anchors the footer CTA — the add-to-cart flight launches from here.
   final GlobalKey _footerKey = GlobalKey();

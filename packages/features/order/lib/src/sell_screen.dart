@@ -17,6 +17,7 @@ import 'package:design_system/design_system.dart';
 import 'package:feature_checkout/feature_checkout.dart';
 import 'package:feature_order/src/bundle_detail_sheet.dart';
 import 'package:feature_order/src/cart_anchor.dart';
+import 'package:feature_order/src/floor_list.dart' show groupBillByRound;
 import 'package:feature_order/src/item_detail_sheet.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_cart.dart';
@@ -84,36 +85,55 @@ double sellTileExtent(double width, TextScaler textScaler) =>
     // The selected state's 2px border, so choosing a tile never reflows it.
     2;
 
-/// Sell.
-class SellScreen extends ConsumerStatefulWidget {
-  /// The SELL TAB — the counter, and only the counter.
-  ///
-  /// It aims the cart at takeaway every time it is shown, which is the fix
-  /// for two reports at once: a teller who tapped a table, changed their
-  /// mind and came back to Sell used to still be ringing up for that table
-  /// with no sign of it, and a cart half-built at the counter used to follow
-  /// them onto it. Retargeting parks whatever is in hand first, so nothing
-  /// is lost either way.
-  const SellScreen({super.key}) : forTable = false;
+/// The SELL TAB — the counter's takeaway cart, and only that cart.
+///
+/// It reads `cartProvider(null)` and nothing else, so a launch, a sign-in, a
+/// tab change or a table screen standing on another tab can never make it
+/// show a table. [pushed] is the waiter's "+ New bill" at a floorless branch,
+/// which opens the same counter cart as a page of its own.
+class TakeawaySellScreen extends StatelessWidget {
+  const TakeawaySellScreen({this.pushed = false, super.key});
 
-  /// Taking an order FOR A TABLE — a pushed screen of its own, with its own
-  /// back, reached from the floor or from a bill. Same menu, different
-  /// errand: it keeps whatever target the caller already set instead of
-  /// resetting to the counter.
-  const SellScreen.forTable({super.key}) : forTable = true;
-
-  /// See the two constructors. False = the Sell tab = takeaway.
-  final bool forTable;
+  /// Pushed as a page (pays the top inset) rather than a tab body.
+  final bool pushed;
 
   @override
-  ConsumerState<SellScreen> createState() => _SellScreenState();
+  Widget build(BuildContext context) =>
+      OrderScreen(tableId: null, pushed: pushed);
 }
 
-class _SellScreenState extends ConsumerState<SellScreen>
-    with RealtimeGatedPoll<SellScreen> {
+/// Taking an order FOR ONE TABLE — a pushed page with its own back, bound to
+/// `cartProvider(tableId)` for its whole life. Same menu, different cart.
+class TableOrderScreen extends StatelessWidget {
+  const TableOrderScreen({required this.tableId, super.key});
+
+  final String tableId;
+
+  @override
+  Widget build(BuildContext context) =>
+      OrderScreen(tableId: tableId, pushed: true);
+}
+
+/// The order screen over ONE cart context: the shared [MenuGrid] beside (or
+/// above) that context's own cart. Use [TakeawaySellScreen] or
+/// [TableOrderScreen].
+class OrderScreen extends ConsumerStatefulWidget {
+  const OrderScreen({required this.tableId, required this.pushed, super.key});
+
+  /// The context — null = takeaway. Fixed for the life of the screen.
+  final String? tableId;
+
+  /// Pushed as a page rather than mounted as a tab body.
+  final bool pushed;
+
+  @override
+  ConsumerState<OrderScreen> createState() => _OrderScreenState();
+}
+
+class _OrderScreenState extends ConsumerState<OrderScreen>
+    with RealtimeGatedPoll<OrderScreen> {
   final _search = TextEditingController();
   bool _searching = false;
-  String? _categoryId;
 
   /// Whether an item needs its sheet, remembered per item. The answer needs
   /// the item's modifier groups from the core, which is a bridge call — once
@@ -121,69 +141,22 @@ class _SellScreenState extends ConsumerState<SellScreen>
   /// between the finger and the cart.
   final _needsSheet = <String, bool>{};
 
-  /// This screen's cart landing pads — its own, so a table's pushed Sell
-  /// never shares a GlobalKey with the Sell tab mounted underneath it.
+  /// This screen's cart landing pads — its own, so a table's screen never
+  /// shares a GlobalKey with the Sell tab mounted underneath it.
   final _anchors = CartAnchors();
 
+  String? get _tableId => widget.tableId;
+
   OrderNotifier get _notifier => ref.read(orderProvider.notifier);
+  CartNotifier get _cart => ref.read(cartProvider(_tableId).notifier);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(() async {
-        await _notifier.ensureInit();
-        // The TAB is the counter. Aiming the cart back at takeaway parks
-        // anything still pointed at a table, so returning here from a table
-        // you never fired lands you where the tab says you are.
-        // Only while the tab is what's on screen: a table's Sell pushed over
-        // it before this lands must not have its cart yanked to takeaway
-        // (that is how a table's screen came up titled "Takeaway").
-        if (!widget.forTable &&
-            mounted &&
-            (ModalRoute.of(context)?.isCurrent ?? true)) {
-          await _notifier.pointCartAtTakeaway();
-        }
-      }());
+      unawaited(_notifier.ensureInit());
     });
-  }
-
-  /// Whether this screen's tab is the one in front, as last seen.
-  bool? _tabActive;
-
-  /// What a TABLE'S Sell was ringing up when its tab went behind another.
-  ({String? table, String? label, String? ticket})? _leftWith;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Pages live in their tab's stack, so the Sell tab can be shown while a
-    // table's Sell stands on the Floor tab — and the Sell tab aims the cart
-    // at takeaway. Coming back to the table's screen aims it back at the
-    // table it was taking the order for, and the bill it was adding to.
-    final active = MadarPages.isActive(context);
-    final was = _tabActive;
-    _tabActive = active;
-    if (!widget.forTable || was == null || was == active) return;
-    final s = ref.read(orderProvider);
-    if (!active) {
-      _leftWith = (
-        table: s.cartTableId,
-        label: s.cartTableLabel,
-        ticket: s.activeTicketId,
-      );
-      return;
-    }
-    final left = _leftWith;
-    _leftWith = null;
-    final table = left?.table;
-    if (left == null || table == null) return;
-    if (s.cartTableId == table && s.activeTicketId == left.ticket) return;
-    unawaited(() async {
-      await _notifier.pointCartAtTable(table, left.label ?? '');
-      if (left.ticket != null) _notifier.selectTicket(left.ticket);
-    }());
   }
 
   @override
@@ -242,16 +215,14 @@ class _SellScreenState extends ConsumerState<SellScreen>
   });
 
   /// The quick-add path skips the sheet, but a recipe's base modifier — full
-  /// -fat milk under a latte — must still land on the line: the owner's
-  /// report was that skipping the sheet silently skipped the default too.
-  /// `addConfigured` (not `addToCart`) is what carries an addon selection,
-  /// so an item with a default rides the exact same commit path — and so the
-  /// exact same "selected" chip / recipe BASE flag — a manual pick gets in
-  /// [ItemDetailSheet]; plain items keep the cheaper `addToCart`.
+  /// -fat milk under a latte — must still land on the line. `addConfigured`
+  /// is what carries an addon selection, so an item with a default rides the
+  /// exact same commit path a manual pick gets in [ItemDetailSheet]; plain
+  /// items keep the cheaper `add`.
   Future<void> _quickAdd(MenuItemView item) {
     final milk = item.defaultMilkAddonId;
-    if (milk == null) return _notifier.addToCart(item);
-    return _notifier.addConfigured(
+    if (milk == null) return _cart.add(item);
+    return _cart.addConfigured(
       itemId: item.id,
       addons: [AddonSelection(addonItemId: milk, qty: 1)],
       optionalIds: const [],
@@ -260,15 +231,10 @@ class _SellScreenState extends ConsumerState<SellScreen>
     );
   }
 
-  /// Mirrors `ItemDetailSheet._flyToCart` — the same dot arcing into the cart
-  /// anchor, just launched from the tapped tile instead of a sheet footer,
-  /// since quick-add skips the sheet the flight used to live behind entirely
-  /// (the reported bug: tapping a tile added the item with no motion at all).
+  /// The dot arcing into THIS screen's cart anchor from the tapped tile.
   void _flyToCart(Offset origin) {
     // `_anchors` directly, NOT `CartAnchors.maybeOf(context)`: this State's
-    // context sits ABOVE the `CartAnchorScope` its own build() provides, so
-    // the lookup always came back null and every quick-add silently skipped
-    // the flight. The sheets are fine — they are wrapped in the scope.
+    // context sits ABOVE the `CartAnchorScope` its own build() provides.
     final to = _anchors.center();
     if (to == null) return;
     playCartFlight(
@@ -293,6 +259,7 @@ class _SellScreenState extends ConsumerState<SellScreen>
           addons: addons,
           groups: groups,
           editLine: edit,
+          tableId: _tableId,
         ),
       ),
     );
@@ -311,46 +278,46 @@ class _SellScreenState extends ConsumerState<SellScreen>
       maxWidth: Responsive.sheetCompactMaxWidth,
       builder: (_) => CartAnchorScope(
         anchors: _anchors,
-        child: BundleDetailSheet(bundle: bundle),
+        child: BundleDetailSheet(bundle: bundle, tableId: _tableId),
       ),
     );
   }
 
   // ── terminal ───────────────────────────────────────────────────────────────
 
-  /// Charge a counter cart through the tender drawer, or fire the round —
-  /// once per tap: a double tap opened two drawers over one cart.
+  /// Charge this cart through the tender drawer, or fire its round — once
+  /// per tap: a double tap opened two drawers over one cart.
   Future<void> _terminal() => _once(_terminalOnce);
 
   Future<void> _terminalOnce() async {
     final state = ref.read(orderProvider);
-    final cta = sellCtaFor(state, ref.read(bridgeProvider));
+    final cart = ref.read(cartProvider(_tableId));
+    final cta = sellCtaFor(state, cart, ref.read(bridgeProvider));
     if (!cta.enabled) return;
     if (cta.sendsToKitchen) {
-      // A round on an existing bill, or the first round on a table (or on a
-      // table-less bill at a floorless branch). The notifier reads the target
-      // from state; the covers picked at seating ride along.
-      await _notifier.fireOrAddRound(tableId: state.cartTableId);
+      // A round on this cart's bill, or its first round. The covers picked
+      // at seating and the booking ride along from the cart's own meta.
+      await _cart.fireOrAddRound();
       return;
     }
     // Captured BEFORE the drawer: settling clears the cart (and with it the
     // draft identity) — this is the parked order the sale completes.
-    final settledDraftId = state.cartDraftId;
+    final settledDraftId = cart.draftId;
     final outcome = await showCharge(
       context,
-      const ChargeTarget.cart(),
+      ChargeTarget.cart(tableId: _tableId),
       // "Not printed — no printer ›" on the Done card lands on the printer
       // sheet, not on a dead end.
       onPrinterSettings: () => unawaited(showPrinterSheet(context)),
     );
     if (!mounted) return;
     if (outcome != null) {
-      await _notifier.onOrderSettled(settledDraftId);
+      await _cart.onOrderSettled(settledDraftId);
       return;
     }
     // Closed without taking money: the cart is as it was, but the drawer
     // may have applied a discount to it on the way.
-    await _notifier.loadCart();
+    await _cart.load();
   }
 
   Future<void> _openCartSheet() async {
@@ -360,6 +327,7 @@ class _SellScreenState extends ConsumerState<SellScreen>
       builder: (sheetContext) => CartAnchorScope(
         anchors: _anchors,
         child: SellCart(
+          tableId: _tableId,
           onTerminal: () {
             Navigator.of(sheetContext).maybePop();
             unawaited(_terminal());
@@ -371,13 +339,6 @@ class _SellScreenState extends ConsumerState<SellScreen>
     );
   }
 
-  /// Parked carts — counter only, narrow layout only (see the header chip
-  /// below): opens the cart sheet, which now leads with `TellerHeldStrip` —
-  /// every parked draft, one tap to switch, × to discard, a pencil to
-  /// rename the live one. The strip is the redesign's answer to the old
-  /// drafts list.
-  Future<void> _openParked() => _openCartSheet();
-
   // ── build ──────────────────────────────────────────────────────────────────
 
   @override
@@ -387,8 +348,8 @@ class _SellScreenState extends ConsumerState<SellScreen>
     // Back to where the round came from once it is in — only when this
     // screen was PUSHED (from a table, from a bill). As a tab it stays.
     ref
-      ..listen(orderProvider.select((s) => s.firedSeq), (prev, next) {
-        if (prev == null || next == prev) return;
+      ..listen(cartProvider(_tableId).select((c) => c.firedSeq), (prev, next) {
+        if (prev == null || next == prev || !widget.pushed) return;
         if (Navigator.of(context).canPop()) Navigator.of(context).pop();
       })
       ..listen(ticketTickProvider, (_, _) {
@@ -411,26 +372,13 @@ class _SellScreenState extends ConsumerState<SellScreen>
     );
 
     final layout = MadarLayout.of(context);
-    final isWaiter = ref.watch(orderProvider.select((s) => s.isWaiter));
-    final drafts = ref.watch(orderProvider.select((s) => s.drafts.length));
-    final title = ref.watch(orderProvider.select(_headerTitleOf));
+    final order = ref.watch(orderProvider);
+    final cart = ref.watch(cartProvider(_tableId));
+    final header = orderHeaderFor(bridge, order, cart);
     final counter =
-        !isWaiter &&
-        ref.watch(
-          orderProvider.select(
-            (s) => s.cartTableId == null && s.activeTicketId == null,
-          ),
-        );
+        !order.isWaiter && _tableId == null && cartTicket(order, cart) == null;
+    final drafts = order.drafts.length;
 
-    final guests = ref.watch(orderProvider.select(_guestsOf));
-    final pageTitle = title == null
-        ? orderWord(bridge, 'sell.takeaway')
-        : title(bridge);
-    // A table's party size under its name — "4 guests" — once it is known
-    // (the bill's own count, else what was picked at seating).
-    final pageSubtitle = guests == null
-        ? null
-        : '$guests ${bridge.tr(key: 'tables.guests')}';
     final headerActions = <Widget>[
       MadarGlyphTile(
         glyph: _searching ? MadarGlyph.close : MadarGlyph.search,
@@ -440,30 +388,18 @@ class _SellScreenState extends ConsumerState<SellScreen>
           if (!_searching) _search.clear();
         }),
       ),
-      // Wide layout keeps the cart column on-screen — its own
-      // `TellerHeldStrip` already shows every parked draft, so a second
-      // entry point here would just be a shortcut to something already
-      // visible. Narrow hides the cart behind a sheet, so this is that
-      // sheet's only door.
-      // Only with something parked: with nothing, it opened a sheet with
-      // nothing in it and no way on.
+      // Narrow hides the cart (and its parked strip) behind a sheet, so this
+      // is that sheet's door — only with something parked.
       if (counter && !layout.isTablet && drafts > 0)
-        // An ACTION, not a filter — so it is the kit's button, like every
-        // other action. A chip says "this is one of a set you choose
-        // between"; this opens a sheet.
         MadarButton(
-          // The bag and the count: with the word, the button squeezed the
-          // page title to "Takea…" on a phone. The word rides as a tooltip.
           label: '$drafts',
           tooltip: orderWord(bridge, 'sell.parked'),
           glyph: MadarGlyph.bag,
           variant: MadarButtonVariant.secondary,
           size: MadarButtonSize.compact,
-          onTap: () => unawaited(_openParked()),
+          onTap: () => unawaited(_openCartSheet()),
         ),
     ];
-    // The search field belongs to the whole screen; the CATEGORY strip does
-    // not — see below, where it sits inside the catalog column.
     final headerBelow = _searching
         ? MadarField(
             controller: _search,
@@ -474,25 +410,135 @@ class _SellScreenState extends ConsumerState<SellScreen>
           )
         : null;
 
-    // INSIDE the catalog side of the split, not above it.
-    //
-    // The header spans the window, so a strip hung under it ran straight
-    // across the divider and over the cart — on an iPad the categories
-    // finished somewhere in the middle of the Takeaway column. It is the
-    // catalog's own filter and it belongs to the catalog's width; it already
-    // scrolls horizontally, so once it is bounded correctly the scrolling
-    // does what it was always meant to do.
-    final categories = _searching
-        ? null
-        : _CategoryChips(
-            selected: _categoryId,
-            onSelect: (id) => setState(() => _categoryId = id),
-          );
+    final catalog = MenuGrid(
+      tableId: _tableId,
+      query: _searching ? _search.text : null,
+      onItemTap: (item, origin) => unawaited(_onTileTap(item, origin)),
+      onItemLongPress: (item) => unawaited(_openItemSheet(item)),
+      onBundleTap: (b) => unawaited(_openBundle(b)),
+    );
 
-    final catalog = Column(
+    // As a tab body the shell's top bar above it already paid the top inset;
+    // pushed it is the topmost thing and pays the inset itself.
+    return CartAnchorScope(
+      anchors: _anchors,
+      child: MadarPageScaffold(
+        safeTop: widget.pushed,
+        width: MadarContentWidth.full,
+        glyph: _tableId == null ? MadarGlyph.bag : MadarGlyph.table,
+        bodyInset: false,
+        title: header.title,
+        subtitle: header.subtitle,
+        actions: headerActions,
+        below: headerBelow,
+        body: SafeArea(
+          top: false,
+          child: layout.isTablet
+              ? Row(
+                  children: [
+                    Expanded(child: catalog),
+                    const VerticalDivider(width: 1, thickness: 1),
+                    SizedBox(
+                      width: Responsive.cartColumnWidth,
+                      child: SellCart(
+                        tableId: _tableId,
+                        onTerminal: () => unawaited(_terminal()),
+                        onEditLine: (line) => unawaited(_editLine(line)),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  children: [
+                    Expanded(child: catalog),
+                    SellBar(
+                      tableId: _tableId,
+                      onOpen: () => unawaited(_openCartSheet()),
+                      onTerminal: () => unawaited(_terminal()),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The page header over one cart: "Takeaway" at the counter; "T5 · 4 guests"
+/// with the round under it for a table; "New bill · Sara" for a waiter's
+/// table-less bill.
+({String title, String? subtitle}) orderHeaderFor(
+  MadarBridge bridge,
+  OrderState s,
+  CartState c,
+) {
+  final ticket = cartTicket(s, c);
+  final label = cartTableLabel(s, c);
+  final round = ticket == null ? 1 : groupBillByRound(ticket.lines).length + 1;
+  final roundWord = '${bridge.tr(key: 'tables.round')} $round';
+  if (label != null) {
+    final guests = cartGuests(s, c);
+    return (
+      title: guests == null
+          ? label
+          : '$label · $guests ${bridge.tr(key: 'tables.guests')}',
+      subtitle: roundWord,
+    );
+  }
+  if (ticket != null) {
+    final who = ticket.customerName ?? ticket.ticketRef ?? '';
+    return (title: who, subtitle: roundWord);
+  }
+  if (s.isWaiter) {
+    final name = c.name;
+    return (
+      title: name == null
+          ? orderWord(bridge, 'bills.new_bill')
+          : '${orderWord(bridge, 'bills.new_bill')} · $name',
+      subtitle: null,
+    );
+  }
+  return (title: orderWord(bridge, 'sell.takeaway'), subtitle: null);
+}
+
+/// The menu both order screens share: category chips over the tile grid,
+/// filtered by the chip and the search. The in-cart badges count [tableId]'s
+/// cart — the screen's own, never another's.
+class MenuGrid extends ConsumerStatefulWidget {
+  const MenuGrid({
+    required this.tableId,
+    required this.onItemTap,
+    required this.onItemLongPress,
+    required this.onBundleTap,
+    this.query,
+    super.key,
+  });
+
+  final String? tableId;
+
+  /// The search text while searching (null = not searching: chips shown).
+  final String? query;
+  final void Function(MenuItemView item, Offset origin) onItemTap;
+  final ValueChanged<MenuItemView> onItemLongPress;
+  final ValueChanged<BundleView> onBundleTap;
+
+  @override
+  ConsumerState<MenuGrid> createState() => _MenuGridState();
+}
+
+class _MenuGridState extends ConsumerState<MenuGrid> {
+  String? _categoryId;
+
+  @override
+  Widget build(BuildContext context) {
+    final layout = MadarLayout.of(context);
+    final searching = widget.query != null;
+    // The strip belongs to the catalog's width, not the window's: hung under
+    // the page header it ran across the divider and over the cart.
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (categories != null)
+        if (!searching)
           Padding(
             padding: EdgeInsetsDirectional.fromSTEB(
               layout.gutter,
@@ -500,114 +546,23 @@ class _SellScreenState extends ConsumerState<SellScreen>
               layout.gutter,
               0,
             ),
-            child: categories,
+            child: _CategoryChips(
+              selected: _categoryId,
+              onSelect: (id) => setState(() => _categoryId = id),
+            ),
           ),
         Expanded(
           child: _Catalog(
-            categoryId: _categoryId,
-            query: _search.text,
-            onItemTap: (item, origin) => unawaited(_onTileTap(item, origin)),
-            onItemLongPress: (item) => unawaited(_openItemSheet(item)),
-            onBundleTap: (b) => unawaited(_openBundle(b)),
+            tableId: widget.tableId,
+            categoryId: searching ? null : _categoryId,
+            query: widget.query ?? '',
+            onItemTap: widget.onItemTap,
+            onItemLongPress: widget.onItemLongPress,
+            onBundleTap: widget.onBundleTap,
           ),
         ),
       ],
     );
-
-    // As a tab body the shell's top bar above it already paid the top inset;
-    // pushed for a table it is the topmost thing and pays the inset itself.
-    return CartAnchorScope(
-      anchors: _anchors,
-      child: MadarPageScaffold(
-        safeTop: widget.forTable,
-        // On the spec grid (SPEC §3, Sell = full): the title sits where every
-        // other page's does, the tab's glyph (or the back tile) beside it.
-        // The body lays its own gutters — the cart column runs to the edge.
-        width: MadarContentWidth.full,
-        glyph: MadarGlyph.bag,
-        bodyInset: false,
-        title: pageTitle,
-        subtitle: pageSubtitle,
-        actions: headerActions,
-        below: headerBelow,
-        body: SafeArea(
-          top: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: layout.isTablet
-                    ? Row(
-                        children: [
-                          Expanded(child: catalog),
-                          const VerticalDivider(width: 1, thickness: 1),
-                          SizedBox(
-                            width: Responsive.cartColumnWidth,
-                            child: SellCart(
-                              onTerminal: () => unawaited(_terminal()),
-                              onEditLine: (line) => unawaited(_editLine(line)),
-                            ),
-                          ),
-                        ],
-                      )
-                    : Column(
-                        children: [
-                          Expanded(child: catalog),
-                          SellBar(
-                            onOpen: () => unawaited(_openCartSheet()),
-                            onTerminal: () => unawaited(_terminal()),
-                          ),
-                        ],
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// The party size of the table in hand, or null when none is known.
-  static int? _guestsOf(OrderState s) {
-    final ticket = s.activeTicket;
-    final tableId = ticket?.tableId ?? s.cartTableId;
-    final n =
-        ticket?.guestCount ??
-        (tableId == null ? null : s.pendingCovers[tableId]);
-    return n == null || n <= 0 ? null : n;
-  }
-
-  /// The header's title, or null for the plain counter — a function of the
-  /// slice so the header rebuilds only when the target changes.
-  static String Function(MadarBridge)? _headerTitleOf(OrderState s) {
-    final ticket = s.activeTicket;
-    final tableId = ticket?.tableId ?? s.cartTableId;
-    final tableLabel = tableId == null
-        ? null
-        : s.floorLayout?.tables
-                  .where((t) => t.id == tableId)
-                  .firstOrNull
-                  ?.label ??
-              s.cartTableLabel;
-    if (ticket != null) {
-      final rounds = ticket.lines.isEmpty
-          ? 0
-          : ticket.lines
-                .map((l) => l.roundNumber)
-                .reduce((a, b) => a > b ? a : b);
-      final who = tableLabel ?? ticket.customerName ?? ticket.ticketRef ?? '';
-      return (b) => '$who · ${b.tr(key: 'tables.round')} ${rounds + 1}';
-    }
-    if (tableLabel != null) {
-      return (b) => '$tableLabel · ${b.tr(key: 'tables.round')} 1';
-    }
-    if (s.isWaiter) {
-      final name = s.cartName;
-      return (b) => name == null
-          ? orderWord(b, 'bills.new_bill')
-          : '${orderWord(b, 'bills.new_bill')} · $name';
-    }
-    return null;
   }
 }
 
@@ -660,6 +615,7 @@ class _CategoryChips extends ConsumerWidget {
 /// The tile grid, filtered by category and search.
 class _Catalog extends ConsumerWidget {
   const _Catalog({
+    required this.tableId,
     required this.categoryId,
     required this.query,
     required this.onItemTap,
@@ -667,6 +623,7 @@ class _Catalog extends ConsumerWidget {
     required this.onBundleTap,
   });
 
+  final String? tableId;
   final String? categoryId;
   final String query;
 
@@ -738,7 +695,7 @@ class _Catalog extends ConsumerWidget {
     }
 
     final items = ref.watch(orderProvider.select((s) => s.menuItems));
-    final cartLines = ref.watch(orderProvider.select((s) => s.cartLines));
+    final cartLines = ref.watch(cartProvider(tableId).select((c) => c.lines));
     final categories = ref.watch(orderProvider.select((s) => s.categories));
     final q = query.trim().toLowerCase();
     final visible = items

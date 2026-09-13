@@ -106,12 +106,23 @@ class _BillScreenState extends ConsumerState<BillScreen>
   // ── acts ───────────────────────────────────────────────────────────────────
 
   Future<void> _addRound(TicketView t, String? tableLabel) async {
-    if (t.tableId != null) {
-      await _notifier.pointCartAtTable(t.tableId!, tableLabel ?? '');
+    final table = t.tableId;
+    if (table != null) {
+      // The table's own cart; it finds this bill by the table.
+      await MadarPages.push<void>(
+        context,
+        (_) => TableOrderScreen(tableId: table),
+      );
+      return;
     }
-    _notifier.selectTicket(t.id);
-    if (!mounted) return;
-    await MadarPages.push<void>(context, (_) => const SellScreen.forTable());
+    // A table-less bill rides the counter cart for as long as the round is
+    // being built, and lets it go again on the way back.
+    final cart = _notifier.cartOf(null)..selectTicket(t.id);
+    await MadarPages.push<void>(
+      context,
+      (_) => const TakeawaySellScreen(pushed: true),
+    );
+    cart.selectTicket(null);
   }
 
   /// Charge = the ONE tender drawer, over this bill. It takes the money,
