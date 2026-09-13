@@ -41,6 +41,8 @@ class MadarColors extends ThemeExtension<MadarColors> {
     required this.onChromeMuted,
     required this.brand,
     required this.onBrand,
+    this.info = const Color(0xFF2563C9),
+    this.infoBg = const Color(0xFFE1EBFA),
   });
 
   // ── Work surface ──────────────────────────────────────────────────────
@@ -125,6 +127,13 @@ class MadarColors extends ThemeExtension<MadarColors> {
   /// The mark's ink on a [brand] plate.
   final Color onBrand;
 
+  /// A real blue for "somebody is here" — the floor's occupied tables. The
+  /// accent is near-black, which made the busiest tables the dullest.
+  final Color info;
+
+  /// The wash behind [info].
+  final Color infoBg;
+
   /// Light: ink on paper.
   static const light = MadarColors(
     bg: Color(0xFFF1F3F3),
@@ -188,6 +197,8 @@ class MadarColors extends ThemeExtension<MadarColors> {
     onChromeMuted: Color(0xFF8FA4AB),
     brand: Color(0xFF2AA7B8),
     onBrand: Color(0xFF06191D),
+    info: Color(0xFF6EA3F5),
+    infoBg: Color(0xFF172F4D),
   );
 
   static MadarColors of(BuildContext context) =>
@@ -229,6 +240,8 @@ class MadarColors extends ThemeExtension<MadarColors> {
       onChromeMuted: l(onChromeMuted, other.onChromeMuted),
       brand: l(brand, other.brand),
       onBrand: l(onBrand, other.onBrand),
+      info: l(info, other.info),
+      infoBg: l(infoBg, other.infoBg),
     );
   }
 }

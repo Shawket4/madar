@@ -132,17 +132,19 @@ class FloorTableModel {
     FloorUrgency.free => const [FloorAction.seat, FloorAction.history],
     FloorUrgency.seated || FloorUrgency.foodReady => [
       if (hasBill) ...[
-        FloorAction.openBill,
         if (canCharge) FloorAction.charge,
         FloorAction.addRound,
+        FloorAction.move,
+        FloorAction.openBill,
+        FloorAction.voidBill,
       ] else ...[
         FloorAction.takeOrder,
+        FloorAction.move,
+        FloorAction.unseat,
         // A bill this device has not heard of yet (the list is stale or
         // offline) is still reachable: the door re-reads the bills.
         FloorAction.openBill,
       ],
-      FloorAction.move,
-      if (!hasBill) FloorAction.unseat,
       FloorAction.history,
     ],
   };
@@ -184,8 +186,26 @@ enum FloorAction {
   seatBooking,
   noShow,
   walkIn,
+  voidBill,
   history,
 }
+
+/// The tables that owe the room a person right now, worst first: food up,
+/// plates to clear, a party waiting past [longWait], a booking whose hold has
+/// begun. [rows] come sorted by [buildFloorRows]; the order is kept.
+List<FloorRow> needsAttention(
+  List<FloorRow> rows, {
+  required DateTime now,
+  Duration longWait = const Duration(minutes: 45),
+}) => [
+  for (final r in rows)
+    if (r.urgency == FloorUrgency.foodReady ||
+        r.urgency == FloorUrgency.needsClearing ||
+        r.urgency == FloorUrgency.reserved ||
+        (r.urgency == FloorUrgency.seated &&
+            (r.seatedFor(now) ?? Duration.zero) >= longWait))
+      r,
+];
 
 /// Sort the room into a worklist.
 ///
@@ -387,6 +407,9 @@ class FloorListWords {
     required this.seats,
     required this.guests,
     this.units = DurationUnits.latin,
+    this.cleared = 'Cleared',
+    this.charge = 'Charge',
+    this.seat = 'Seat',
   });
 
   factory FloorListWords.of(MadarBridge bridge) => FloorListWords(
@@ -398,7 +421,15 @@ class FloorListWords {
     seats: bridge.tr(key: 'tables.seats'),
     guests: bridge.tr(key: 'tables.guests'),
     units: DurationUnits.of(bridge),
+    cleared: bridge.tr(key: 'floor.cleared'),
+    charge: bridge.tr(key: 'sell.charge'),
+    seat: bridge.tr(key: 'tables.seat_booking'),
   );
+
+  /// A row's one-tap acts.
+  final String cleared;
+  final String charge;
+  final String seat;
 
   /// The short hour/minute letters on a row's clock.
   final DurationUnits units;
@@ -414,11 +445,10 @@ class FloorListWords {
 
 // ── the list itself ──────────────────────────────────────────────────────────
 
-/// The room as rows, sorted by what needs a person.
-///
-/// Every row answers, without a tap: how long they have been sitting, what the
-/// bill is so far, whose table it is, and whether the kitchen is waiting. The
-/// plan can show none of that — it draws tables, it does not describe them.
+/// The room as rows, in bands by what needs a person — Needs clearing, Ready,
+/// Seated, Reserved, Free — each with its count. Every row answers without a
+/// tap: how long, how many, whose, how much; the one-tap act for its state
+/// (Cleared, Charge, Seat) sits on the row. The same tones as the plan.
 class FloorListView extends StatelessWidget {
   const FloorListView({
     required this.rows,
@@ -427,201 +457,131 @@ class FloorListView extends StatelessWidget {
     required this.words,
     required this.onTap,
     required this.onLongPress,
+    this.locale = 'en',
+    this.canCharge = false,
     this.armedId,
+    this.selectedId,
+    this.onAction,
     super.key,
   });
 
+  /// Sorted by [buildFloorRows]; the bands follow that order.
   final List<FloorRow> rows;
   final DateTime now;
   final String currency;
+  final String locale;
   final FloorListWords words;
+  final bool canCharge;
   final void Function(FloorTableStateView) onTap;
   final void Function(FloorTableStateView) onLongPress;
+
+  /// The row's own act (Cleared, Charge, Seat this party); null hides it.
+  final void Function(FloorAction action, FloorTableStateView table)? onAction;
 
   /// The table a move started from, so it reads as picked up.
   final String? armedId;
 
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
-      itemCount: rows.length,
-      separatorBuilder: (_, _) => const SizedBox(height: Space.sm),
-      itemBuilder: (context, i) => _FloorRowTile(
-        row: rows[i],
-        now: now,
-        currency: currency,
-        words: words,
-        armed: rows[i].table.id == armedId,
-        onTap: () => onTap(rows[i].table),
-        onLongPress: () => onLongPress(rows[i].table),
-      ),
-    );
-  }
-}
-
-class _FloorRowTile extends StatelessWidget {
-  const _FloorRowTile({
-    required this.row,
-    required this.now,
-    required this.currency,
-    required this.words,
-    required this.armed,
-    required this.onTap,
-    required this.onLongPress,
-  });
-
-  final FloorRow row;
-  final DateTime now;
-  final String currency;
-  final FloorListWords words;
-  final bool armed;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  /// The table the inspector shows.
+  final String? selectedId;
 
   @override
   Widget build(BuildContext context) {
+    final bands = <FloorUrgency, List<FloorRow>>{};
+    for (final r in rows) {
+      (bands[r.urgency] ??= []).add(r);
+    }
     final colors = context.madarColors;
-    final tone = _toneOf(colors, row.urgency);
-    final seated = row.seatedFor(now);
-
-    return Semantics(
-      button: true,
-      label: '${row.table.label} · ${_statusWord(words, row.urgency)}',
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        borderRadius: BorderRadius.circular(Radii.md),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: armed ? tone.withValues(alpha: 0.12) : colors.surface,
-            borderRadius: BorderRadius.circular(Radii.md),
-            border: Border.all(
-              color: armed ? tone : colors.borderLight,
-              width: armed ? 2 : 1,
+    return ListView(
+      padding: const EdgeInsetsDirectional.only(bottom: Space.xl),
+      children: [
+        for (final (i, band) in bands.entries.indexed) ...[
+          if (i > 0) const SizedBox(height: Space.xl),
+          MadarSectionHeader(
+            text: _statusWord(words, band.key),
+            glyph: floorGlyphOf(band.key),
+            trailing: Text(
+              '${band.value.length}',
+              textDirection: TextDirection.ltr,
+              style: MadarType.numMd.copyWith(color: colors.textSecondary),
             ),
           ),
-          padding: const EdgeInsetsDirectional.all(Space.md),
-          child: Row(
-            children: [
-              // The state, as a bar rather than a word: colour is the fastest
-              // thing to read across a list, and the word is still beside it.
-              Container(
-                width: 4,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: tone,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: Space.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            row.table.label,
-                            overflow: TextOverflow.ellipsis,
-                            style: MadarType.h3.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        if (row.sectionName != null) ...[
-                          const SizedBox(width: Space.sm),
-                          Flexible(
-                            child: Text(
-                              row.sectionName!,
-                              overflow: TextOverflow.ellipsis,
-                              style: MadarType.label.copyWith(
-                                color: colors.textMuted,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _subtitle(),
-                      overflow: TextOverflow.ellipsis,
-                      style: MadarType.body.copyWith(color: colors.textMuted),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: Space.md),
-              // The two numbers a teller actually wants: how long, how much.
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    seated == null
-                        ? _statusWord(words, row.urgency)
-                        : formatSeatedFor(seated, units: words.units),
-                    style: MadarType.label.copyWith(
-                      color: tone,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (row.model.billTotalMinor case final total?) ...[
-                    const SizedBox(height: 2),
-                    MoneyText(
-                      total,
-                      currency: currency,
-                      style: MadarType.money.copyWith(fontSize: 14),
-                    ),
-                  ],
+          const SizedBox(height: Space.md),
+          MadarCard(
+            flush: true,
+            child: Column(
+              children: [
+                for (final (j, r) in band.value.indexed) ...[
+                  if (j > 0) const MadarHairline(light: true),
+                  _row(r),
                 ],
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        ],
+      ],
     );
   }
 
-  /// Who is there and what is happening, in one line.
-  String _subtitle() {
-    final t = row.ticket;
-    if (t == null) {
-      // Whose order is parked here, when a draft is what occupies the
-      // table. Without it the row says "4 seats" about a table that is
-      // plainly taken.
-      final held = row.table.heldOrderName?.trim();
-      if (held != null && held.isNotEmpty) return held;
-      if (row.model.covers case final n? when row.model.occupied) {
-        return '$n ${words.guests}';
-      }
-      if (row.urgency == FloorUrgency.reserved) {
-        return row.table.bookingGuest ?? words.reserved;
-      }
-      if (row.urgency == FloorUrgency.needsClearing) return words.needsClearing;
-      return '${row.table.seats} ${words.seats}';
-    }
-    final parts = <String>[
-      if (row.model.covers case final n?)
+  Widget _row(FloorRow r) {
+    final seated = r.seatedFor(now);
+    final model = r.model;
+    final (FloorAction? act, String? label) = switch (r.urgency) {
+      FloorUrgency.needsClearing => (FloorAction.cleared, words.cleared),
+      FloorUrgency.foodReady when canCharge && r.ticket != null => (
+        FloorAction.charge,
+        words.charge,
+      ),
+      FloorUrgency.reserved => (FloorAction.seatBooking, words.seat),
+      _ => (null, null),
+    };
+    final guest = (r.ticket?.customerName ?? r.table.heldOrderName)?.trim();
+    final meta = <String>[
+      if (seated != null)
+        MadarFormat.ltr(MadarFormat.elapsed(seated, locale: locale)),
+      if (model.covers case final n? when model.occupied)
         '$n ${words.guests}'
-      else
-        '${row.table.seats} ${words.seats}',
-      if (t.customerName?.trim().isNotEmpty ?? false) t.customerName!.trim(),
-      ?row.model.server,
+      else if (!model.occupied)
+        '${r.table.seats} ${words.seats}',
+      ?model.server,
+      if (guest != null && guest.isNotEmpty) guest,
+      if (r.urgency == FloorUrgency.reserved) ?r.table.bookingGuest,
     ];
-    return parts.join(' · ');
+    return Semantics(
+      label: '${r.table.label} · ${_statusWord(words, r.urgency)}',
+      child: MadarListRow.bill(
+        key: ValueKey('floor.row.${r.table.id}'),
+        title: r.table.label,
+        meta: meta.join(' · '),
+        minor: model.billTotalMinor,
+        currency: currency,
+        rail: _toneOf(r.urgency),
+        selected: r.table.id == selectedId || r.table.id == armedId,
+        ctaLabel: onAction == null ? null : label,
+        onCta: onAction == null || act == null
+            ? null
+            : () => onAction!(act, r.table),
+        onTap: () => onTap(r.table),
+        chevron: false,
+      ),
+    );
   }
 }
 
-Color _toneOf(MadarColors colors, FloorUrgency u) => switch (u) {
-  FloorUrgency.needsClearing => colors.danger,
-  FloorUrgency.foodReady => colors.success,
-  FloorUrgency.seated => colors.accent,
-  FloorUrgency.reserved => colors.warning,
-  FloorUrgency.free => colors.textMuted,
+/// The state's glyph — the plan's, so a band, a chip and a table agree.
+MadarGlyph floorGlyphOf(FloorUrgency u) => switch (u) {
+  FloorUrgency.needsClearing => MadarGlyph.sparkle,
+  FloorUrgency.foodReady => MadarGlyph.checkCircle,
+  FloorUrgency.seated => MadarGlyph.users,
+  FloorUrgency.reserved => MadarGlyph.calendar,
+  FloorUrgency.free => MadarGlyph.hollow,
+};
+
+MadarTone _toneOf(FloorUrgency u) => switch (u) {
+  FloorUrgency.needsClearing => MadarTone.danger,
+  FloorUrgency.foodReady => MadarTone.success,
+  FloorUrgency.seated => MadarTone.accent,
+  FloorUrgency.reserved => MadarTone.warning,
+  FloorUrgency.free => MadarTone.neutral,
 };
 
 String _statusWord(FloorListWords w, FloorUrgency u) => switch (u) {

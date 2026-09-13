@@ -94,7 +94,7 @@ void main() {
     await _pump(tester, rows);
     expect(tester.takeException(), isNull);
     // The duration is what a teller scans for; it must survive the squeeze.
-    expect(find.text('2h 00m'), findsOneWidget);
+    expect(find.textContaining('2h 00m'), findsOneWidget);
   });
 
   testWidgets('a long room of rows scrolls rather than overflowing', (

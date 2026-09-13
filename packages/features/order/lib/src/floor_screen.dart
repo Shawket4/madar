@@ -18,6 +18,7 @@ import 'dart:async';
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:feature_order/src/bill_screen.dart';
+import 'package:feature_order/src/floor_inspector.dart';
 import 'package:feature_order/src/floor_list.dart';
 import 'package:feature_order/src/order_providers.dart';
 import 'package:feature_order/src/sell_screen.dart';
@@ -34,6 +35,7 @@ import 'package:feature_order/src/tables_screen.dart'
         tableIsMoveTarget,
         tableIsReserved,
         tableNeedsClearing;
+import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:feature_order/src/words.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,13 +46,6 @@ enum FloorView { plan, list }
 
 /// Tab id for tables that belong to no section (or an orphaned one).
 const String _kNoSection = '__no_section__';
-
-/// The largest party the chip row offers before the number is typed.
-const int _kMaxPartyChip = 8;
-
-/// Added to the covers the seat sheet returns when "Seat & take order" was
-/// the button — the sheet's one result carries both answers.
-const int _kTakeOrder = 1000;
 
 /// The Floor.
 class FloorScreen extends ConsumerStatefulWidget {
@@ -73,6 +68,15 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
 
   /// A move in progress: the table the party is leaving.
   String? _moveFrom;
+
+  /// The table the inspector shows (iPad and desktop); null = the worklist.
+  String? _selectedId;
+
+  /// A reserved table a walk-in is being seated at instead.
+  String? _walkInId;
+
+  /// The status summary chip that narrows the room; null = everything.
+  FloorUrgency? _filter;
 
   /// A reserved table flips by the clock (`held_from`), and "seated 12m"
   /// ages; a once-a-minute tick keeps both honest between pulls.
@@ -106,13 +110,21 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
 
   // ── the tap ────────────────────────────────────────────────────────────────
 
+  /// A table was tapped. A move in progress takes it as the destination.
+  /// Otherwise an iPad or desktop SELECTS it — the inspector beside the room
+  /// shows it — and a phone opens the same inspector as a sheet.
   Future<void> _onTable(FloorTableStateView t, TicketView? ticket) async {
     final from = _moveFrom;
     if (from != null) {
       // Say why rather than silently doing nothing — the party's own table
       // too; stay in move mode (the banner's ✕ leaves it).
       final moved = await moveParty(context, ref, from: from, to: t.id);
-      if (moved && mounted) setState(() => _moveFrom = null);
+      if (moved && mounted) {
+        setState(() {
+          _moveFrom = null;
+          _selectedId = t.id;
+        });
+      }
       return;
     }
     // A cart parked on the table by the old flow. Nothing writes this any
@@ -132,19 +144,178 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       await _toSell();
       return;
     }
-    if (tableNeedsClearing(t)) {
-      await _dirtySheet(t);
+    if (!MadarLayout.of(context).isPhone) {
+      setState(() {
+        _selectedId = t.id;
+        _walkInId = null;
+      });
       return;
     }
-    if (FloorTableModel(table: t, ticket: ticket).occupied) {
-      await _occupiedSheet(t, ticket);
-      return;
+    await _detailSheet(t.id);
+  }
+
+  /// The phone's inspector: the same detail, live, in a sheet. Every act
+  /// closes the sheet first and then happens.
+  Future<void> _detailSheet(String tableId, {bool walkIn = false}) async {
+    FloorAction? picked;
+    int? pickedCovers;
+    var pickedTakeOrder = false;
+    await showMadarSheet<void>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (sheetContext) => Consumer(
+        builder: (context, sheetRef, _) {
+          final s = sheetRef.watch(orderProvider);
+          final t = s.floorLayout?.tables
+              .where((x) => x.id == tableId)
+              .firstOrNull;
+          if (t == null) return const SizedBox.shrink();
+          return _detail(
+            t,
+            s,
+            walkIn: walkIn,
+            onAction: (a, {covers, takeOrder}) {
+              picked = a;
+              pickedCovers = covers;
+              pickedTakeOrder = takeOrder ?? false;
+              Navigator.of(sheetContext).maybePop();
+            },
+          );
+        },
+      ),
+    );
+    final a = picked;
+    if (a == null || !mounted) return;
+    final t = ref
+        .read(orderProvider)
+        .floorLayout
+        ?.tables
+        .where((x) => x.id == tableId)
+        .firstOrNull;
+    if (t == null) return;
+    await _perform(a, t, covers: pickedCovers, takeOrder: pickedTakeOrder);
+  }
+
+  /// The detail for [t], wired to [onAction].
+  Widget _detail(
+    FloorTableStateView t,
+    OrderState s, {
+    required void Function(FloorAction, {int? covers, bool? takeOrder})
+    onAction,
+    bool walkIn = false,
+    VoidCallback? onClose,
+  }) {
+    final ticket = _ticketOn(s.openTickets, t.id);
+    return FloorTableDetail(
+      key: ValueKey('floor.detail.${t.id}'),
+      // A walk-in on a reserved table is seated like a free one.
+      table: walkIn ? _asFree(t) : t,
+      ticket: ticket,
+      now: DateTime.now(),
+      currency: s.currency,
+      locale: ref.read(localeProvider).locale,
+      word: _w,
+      canCharge: widget.canCharge ?? !s.isWaiter,
+      sectionName: s.floorLayout?.sections
+          .where((x) => x.id == t.sectionId)
+          .firstOrNull
+          ?.name,
+      pendingCovers: s.pendingCovers[t.id],
+      hasArrivals: s.arrivals.isNotEmpty,
+      timeOf: (iso) => _bridge.formatTime(rfc3339: iso, style: TimeStyle.time),
+      onClose: onClose,
+      onAction: onAction,
+    );
+  }
+
+  FloorTableStateView _asFree(FloorTableStateView t) => FloorTableStateView(
+    id: t.id,
+    sectionId: t.sectionId,
+    label: t.label,
+    seats: t.seats,
+    shape: t.shape,
+    status: 'free',
+    posX: t.posX,
+    posY: t.posY,
+    width: t.width,
+    height: t.height,
+    rotation: t.rotation,
+    heldLockedByOther: false,
+  );
+
+  /// Every act on a table, from the inspector, its sheet, or a row's button.
+  Future<void> _perform(
+    FloorAction a,
+    FloorTableStateView t, {
+    int? covers,
+    bool takeOrder = false,
+  }) async {
+    final ticket = _ticketOn(ref.read(orderProvider).openTickets, t.id);
+    switch (a) {
+      case FloorAction.seat:
+        if (_walkInId == t.id) setState(() => _walkInId = null);
+        // Takes the table on every device.
+        await _notifier.seatTable(
+          t,
+          covers: covers ?? t.seats,
+          bindCart: false,
+        );
+        if (!takeOrder || !mounted) return;
+        await _notifier.pointCartAtTable(t.id, t.label);
+        await _toSell();
+      case FloorAction.seatBooking:
+        if (tableHasBooking(t) && tableIsReserved(t)) {
+          if (t.bookingParty case final n? when n > 0) {
+            _notifier.setPendingCovers(t.id, n);
+          }
+          await _notifier.seatBooking(t);
+        } else {
+          await _pickArrivalFor(t);
+        }
+      case FloorAction.noShow:
+        final id = t.bookingId;
+        if (id != null) await _notifier.noShowBooking(id);
+      case FloorAction.walkIn:
+        if (MadarLayout.of(context).isPhone) {
+          await _detailSheet(t.id, walkIn: true);
+        } else {
+          setState(() => _walkInId = t.id);
+        }
+      case FloorAction.takeOrder:
+        await _notifier.pointCartAtTable(t.id, t.label);
+        await _toSell();
+      case FloorAction.addRound:
+        await _notifier.pointCartAtTable(t.id, t.label);
+        if (ticket != null) _notifier.selectTicket(ticket.id);
+        await _toSell();
+      case FloorAction.openBill:
+        await _openBillOn(t.id);
+      case FloorAction.charge:
+        await _openBillOn(t.id, charge: true);
+      case FloorAction.move:
+        setState(() => _moveFrom = t.id);
+      case FloorAction.unseat:
+        await _confirmUnseat(t);
+      case FloorAction.cleared:
+        await _notifier.clearTable(t.id);
+      case FloorAction.voidBill:
+        if (ticket != null) await _voidBill(ticket);
+      case FloorAction.history:
+        await showTableHistory(context, tableId: t.id, label: t.label);
     }
-    if (tableHasBooking(t) && tableIsReserved(t)) {
-      await _bookedSheet(t);
-      return;
-    }
-    await _freeSheet(t);
+  }
+
+  /// Void the whole bill, with the reason the bill screen asks for.
+  Future<void> _voidBill(TicketView ticket) async {
+    final result = await showMadarSheet<VoidTicketResult>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (_) => WaiterVoidSheet(ticket: ticket),
+    );
+    if (result == null || !mounted) return;
+    await _notifier.voidTicket(ticket.id, result.reason);
   }
 
   Future<void> _openBill(String ticketId, {bool charge = false}) async {
@@ -157,8 +328,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       ),
     );
     if (exit != BillExit.tableActions || !mounted) return;
-    // "Table actions" from the bill: this table's floor sheet, wherever the
-    // party sits now.
+    // "Table actions" from the bill: this table, wherever the party sits now.
     final s = ref.read(orderProvider);
     final tableId = s.openTickets
         .where((x) => x.id == ticketId)
@@ -186,219 +356,12 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
   }
 
   /// Taking an order FOR A TABLE opens its own screen, not the Sell tab.
-  /// The tab is the counter; this errand has a table in hand and a back
-  /// button to the room it came from.
   Future<void> _toSell() async {
     if (!mounted) return;
     await MadarPages.push<void>(context, (_) => const SellScreen.forTable());
   }
 
-  // ── the sheets ─────────────────────────────────────────────────────────────
-
-  /// FREE: party size as chips, the table's capacity preselected; Seat.
-  Future<void> _freeSheet(FloorTableStateView t) async {
-    final section = ref
-        .read(orderProvider)
-        .floorLayout
-        ?.sections
-        .where((s) => s.id == t.sectionId)
-        .firstOrNull
-        ?.name;
-    final hasArrivals = ref.read(orderProvider).arrivals.isNotEmpty;
-    var covers = t.seats.clamp(1, _kMaxPartyChip);
-    final seat = await showMadarSheet<int>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheet) => _StateSheet(
-          title: t.label,
-          historyFor: t.id,
-          historyLabel: _tr('tables.history'),
-          subtitle: ['${t.seats} ${_tr('tables.seats')}', ?section].join(' · '),
-          children: [
-            MadarSectionHeader(text: _w('floor.party_size')),
-            const SizedBox(height: Space.sm),
-            Wrap(
-              spacing: Space.sm,
-              runSpacing: Space.sm,
-              children: [
-                for (var n = 1; n <= _kMaxPartyChip; n++)
-                  MadarChip.tile(
-                    label: '$n',
-                    selected: covers == n,
-                    onTap: () => setSheet(() => covers = n),
-                  ),
-              ],
-            ),
-            const SizedBox(height: Space.lg),
-            MadarButton(
-              label: _w('floor.seat'),
-              glyph: MadarGlyph.users,
-              variant: MadarButtonVariant.secondary,
-              onTap: () => Navigator.of(sheetContext).maybePop(covers),
-            ),
-            // Seat and go straight to the order: one tap, not two.
-            MadarButton(
-              key: const ValueKey('floor.seat_and_order'),
-              label: _w('floor.seat_and_order'),
-              glyph: MadarGlyph.receipt,
-              onTap: () =>
-                  Navigator.of(sheetContext).maybePop(covers + _kTakeOrder),
-            ),
-            if (hasArrivals)
-              MadarButton(
-                label: _w('floor.seat_booking_here'),
-                variant: MadarButtonVariant.ghost,
-                onTap: () => Navigator.of(sheetContext).maybePop(-1),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (seat == null || !mounted) return;
-    if (seat == -1) {
-      await _pickArrivalFor(t);
-      return;
-    }
-    final takeOrder = seat >= _kTakeOrder;
-    final covers0 = takeOrder ? seat - _kTakeOrder : seat;
-    // Takes the table on every device.
-    await _notifier.seatTable(t, covers: covers0, bindCart: false);
-    if (!takeOrder || !mounted) return;
-    await _notifier.pointCartAtTable(t.id, t.label);
-    await _toSell();
-  }
-
-  /// OCCUPIED — a party with or without a bill. One sheet, contents by what
-  /// the table allows ([FloorTableModel.actions]): the bill (its total, open
-  /// it, charge it, add a round) or the first order; move; unseat when there
-  /// is no bill; history always.
-  Future<void> _occupiedSheet(FloorTableStateView t, TicketView? ticket) async {
-    final model = FloorTableModel(table: t, ticket: ticket);
-    final canCharge = widget.canCharge ?? !ref.read(orderProvider).isWaiter;
-    final state = ref.read(orderProvider);
-    final covers = model.covers ?? state.pendingCovers[t.id];
-    final seatedFor = model.seatedFor(DateTime.now());
-    final guest = (ticket?.customerName ?? t.bookingGuest)?.trim();
-    final total = model.billTotalMinor;
-    final picked = await showMadarSheet<FloorAction>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (sheetContext) {
-        void pick(FloorAction a) => Navigator.of(sheetContext).pop(a);
-        Widget button(FloorAction a) => switch (a) {
-          FloorAction.openBill => MadarButton(
-            label: _w('floor.open_bill'),
-            glyph: MadarGlyph.receipt,
-            variant: model.hasBill
-                ? MadarButtonVariant.primary
-                : MadarButtonVariant.ghost,
-            onTap: () => pick(a),
-          ),
-          FloorAction.charge => MadarButton(
-            label: orderWord(_bridge, 'sell.charge'),
-            glyph: MadarGlyph.check,
-            variant: MadarButtonVariant.secondary,
-            onTap: () => pick(a),
-          ),
-          FloorAction.addRound => MadarButton(
-            label: _tr('tables.add_round'),
-            glyph: MadarGlyph.plus,
-            variant: MadarButtonVariant.ghost,
-            onTap: () => pick(a),
-          ),
-          FloorAction.takeOrder => MadarButton(
-            label: _w('floor.take_order'),
-            glyph: MadarGlyph.receipt,
-            onTap: () => pick(a),
-          ),
-          FloorAction.move => MadarButton(
-            label: _tr('tables.move'),
-            glyph: MadarGlyph.move,
-            variant: MadarButtonVariant.ghost,
-            onTap: () => pick(a),
-          ),
-          FloorAction.unseat => MadarButton(
-            label: _w('floor.unseat'),
-            variant: MadarButtonVariant.ghost,
-            onTap: () => pick(a),
-          ),
-          _ => const SizedBox.shrink(),
-        };
-        return _StateSheet(
-          title: t.label,
-          historyFor: t.id,
-          historyLabel: _tr('tables.history'),
-          subtitle: [
-            if (model.ready)
-              orderWord(_bridge, 'bill.ready')
-            else
-              _tr('tables.seated'),
-            if (seatedFor != null)
-              formatSeatedFor(seatedFor, units: DurationUnits.of(_bridge)),
-            if (covers != null) '$covers ${_tr('tables.guests')}',
-            ?model.server,
-            if (guest != null && guest.isNotEmpty) guest,
-          ].join(' · '),
-          children: [
-            if (total != null) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _w('floor.bill_so_far'),
-                      style: MadarType.body.copyWith(
-                        color: context.madarColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                  MoneyText(total, currency: state.currency),
-                ],
-              ),
-              const SizedBox(height: Space.md),
-            ],
-            for (final a in model.actions(canCharge: canCharge))
-              if (a != FloorAction.history) button(a),
-          ],
-        );
-      },
-    );
-    if (picked == null || !mounted) return;
-    switch (picked) {
-      case FloorAction.openBill:
-        await _openBillOn(t.id);
-      case FloorAction.charge:
-        await _openBillOn(t.id, charge: true);
-      case FloorAction.addRound:
-        await _notifier.pointCartAtTable(t.id, t.label);
-        if (ticket != null) _notifier.selectTicket(ticket.id);
-        await _toSell();
-      case FloorAction.takeOrder:
-        await _notifier.pointCartAtTable(t.id, t.label);
-        await _toSell();
-      case FloorAction.move:
-        setState(() => _moveFrom = t.id);
-      case FloorAction.unseat:
-        await _confirmUnseat(t);
-      case FloorAction.seat ||
-          FloorAction.cleared ||
-          FloorAction.seatBooking ||
-          FloorAction.noShow ||
-          FloorAction.walkIn ||
-          FloorAction.history:
-        break;
-    }
-  }
-
-  /// Unseating says nobody is there any more — the one act on this sheet a
-  /// mis-tap cannot walk back from other than seating the party again from
-  /// scratch (any bill, any covers on record, gone from the room). Destructive,
-  /// so it confirms first like every other floor action that erases rather
-  /// than merely tidies.
-  /// Cancelling a queued table transfer — the table keeps its bill where it
-  /// is and nothing moves. Small, but irreversible from the teller's side.
+  /// Cancelling a queued table transfer — small, but irreversible here.
   Future<void> _confirmCancelTransfer(String id) async {
     if (!mounted) return;
     final ok = await showMadarConfirm(
@@ -411,6 +374,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
     if (ok) await _notifier.cancelTransfer(id);
   }
 
+  /// Unseating erases the party from the room — it confirms first.
   Future<void> _confirmUnseat(FloorTableStateView t) async {
     if (!mounted) return;
     final ok = await showMadarConfirm(
@@ -421,87 +385,6 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       cancelLabel: _tr('common.cancel'),
     );
     if (ok) unawaited(_notifier.unseatTable(t.id));
-  }
-
-  /// NEEDS CLEARING: the one honest act. "Reprint last receipt" is not here
-  /// because nothing links a dirty table to its last sale.
-  Future<void> _dirtySheet(FloorTableStateView t) async {
-    await showMadarSheet<void>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (sheetContext) => _StateSheet(
-        title: t.label,
-        historyFor: t.id,
-        historyLabel: _tr('tables.history'),
-        subtitle: _tr('tables.needs_clearing'),
-        children: [
-          MadarButton(
-            label: _w('floor.cleared'),
-            glyph: MadarGlyph.check,
-            onTap: () {
-              Navigator.of(sheetContext).maybePop();
-              unawaited(_notifier.clearTable(t.id));
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// BOOKED, hold window open: seat the party, no-show them, or seat a
-  /// walk-in instead.
-  Future<void> _bookedSheet(FloorTableStateView t) async {
-    final when = t.bookingStartsAt == null
-        ? null
-        : _bridge.formatTime(
-            rfc3339: t.bookingStartsAt!,
-            style: TimeStyle.time,
-          );
-    final walkIn = await showMadarSheet<bool>(
-      context,
-      size: SheetSize.hug,
-      maxWidth: Responsive.sheetCompactMaxWidth,
-      builder: (sheetContext) => _StateSheet(
-        title: t.label,
-        historyFor: t.id,
-        historyLabel: _tr('tables.history'),
-        subtitle: [
-          if (t.bookingGuest?.trim().isNotEmpty ?? false) t.bookingGuest!,
-          if (t.bookingParty != null)
-            '${t.bookingParty} ${_tr('tables.guests')}',
-          ?when,
-        ].join(' · '),
-        children: [
-          MadarButton(
-            label: _tr('tables.seat_booking'),
-            glyph: MadarGlyph.users,
-            onTap: () {
-              Navigator.of(sheetContext).maybePop(false);
-              if (t.bookingParty case final n? when n > 0) {
-                _notifier.setPendingCovers(t.id, n);
-              }
-              unawaited(_notifier.seatBooking(t));
-            },
-          ),
-          MadarButton(
-            label: _tr('tables.no_show'),
-            variant: MadarButtonVariant.ghost,
-            onTap: () {
-              Navigator.of(sheetContext).maybePop(false);
-              final id = t.bookingId;
-              if (id != null) unawaited(_notifier.noShowBooking(id));
-            },
-          ),
-          MadarButton(
-            label: _w('floor.walk_in_here'),
-            variant: MadarButtonVariant.ghost,
-            onTap: () => Navigator.of(sheetContext).maybePop(true),
-          ),
-        ],
-      ),
-    );
-    if ((walkIn ?? false) && mounted) await _freeSheet(t);
   }
 
   /// Today's arrivals; tapping one seats it on [at] (or on its own table).
@@ -642,7 +525,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
     // The screen's words come through [_w]/[_tr], plain bridge reads. This is
     // what re-pulls them when the language changes under a pushed route.
     ref.watch(localeGenerationProvider);
-    final colors = context.madarColors;
+    final locale = ref.watch(localeProvider).locale;
     listenForTableClear(context, ref);
     ref
       ..listen(floorTickProvider, (_, _) => unawaited(_notifier.syncFloor()))
@@ -662,6 +545,7 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
     final sections = state.floorLayout?.sections ?? const <FloorSectionInfo>[];
     final allTables =
         state.floorLayout?.tables ?? const <FloorTableStateView>[];
+    final now = DateTime.now();
 
     // Tabs = the authored sections, plus an "unassigned" tab when tables sit
     // outside every section; the first tab that has tables is the default.
@@ -687,28 +571,22 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
         : allTables
               .where((t) => t.sectionId == activeId)
               .toList(growable: false);
+    String? sectionName(String? sid) =>
+        sections.where((s) => s.id == sid).firstOrNull?.name;
 
-    // The room at a glance.
-    var seated = 0;
-    var free = 0;
-    var dirty = 0;
-    var booked = 0;
-    for (final t in allTables) {
-      final occupied =
-          _ticketOn(tickets, t.id) != null ||
-          t.heldOrderId != null ||
-          t.status == 'seated' ||
-          tableBookingSeated(t);
-      if (occupied) {
-        seated++;
-      } else if (tableNeedsClearing(t)) {
-        dirty++;
-      } else if (tableIsReserved(t)) {
-        booked++;
-      } else {
-        free++;
-      }
-    }
+    // The section as a worklist — the list mode's rows and the counts.
+    final rows = buildFloorRows(
+      tables: tables,
+      ticketOn: (id) => _ticketOn(tickets, id),
+      sectionName: sectionName,
+      now: now,
+    );
+    final counts = <FloorUrgency, int>{
+      for (final u in FloorUrgency.values)
+        u: rows.where((r) => r.urgency == u).length,
+    };
+    final filter = (counts[_filter] ?? 0) > 0 ? _filter : null;
+    final selected = allTables.where((t) => t.id == _selectedId).firstOrNull;
 
     final segment = MadarSegmented<FloorView>(
       items: [
@@ -719,103 +597,185 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       onChanged: (v) => setState(() => _view = v),
     );
 
-    final summary = Wrap(
-      spacing: Space.lg,
-      runSpacing: Space.sm,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        _Count(tone: colors.accent, word: _tr('tables.seated'), n: seated),
-        _Count(tone: colors.success, word: _tr('tables.free'), n: free),
-        if (dirty > 0)
-          _Count(
-            tone: colors.danger,
-            word: _tr('tables.needs_clearing'),
-            n: dirty,
-          ),
-        if (booked > 0)
-          _Count(tone: colors.warning, word: _tr('tables.reserved'), n: booked),
-        MadarButton(
-          label: state.arrivals.isEmpty
-              ? _tr('tables.arrivals')
-              : '${_tr('tables.arrivals')} ${state.arrivals.length}',
+    final headerActions = <Widget>[
+      if (state.arrivals.isNotEmpty)
+        MadarChip(
+          key: const ValueKey('floor.arrivals'),
+          label: _tr('tables.arrivals'),
           glyph: MadarGlyph.calendar,
-          variant: MadarButtonVariant.ghost,
-          size: MadarButtonSize.compact,
+          count: state.arrivals.length,
           onTap: () => unawaited(_pickArrivalFor(null)),
         ),
-        MadarButton(
-          label: state.transferQueue.isEmpty
-              ? _tr('tables.waitlist')
-              : '${_tr('tables.waitlist')} ${state.transferQueue.length}',
+      if (state.transferQueue.isNotEmpty)
+        MadarChip(
+          key: const ValueKey('floor.waitlist'),
+          label: _tr('tables.waitlist'),
           glyph: MadarGlyph.clock,
-          variant: MadarButtonVariant.ghost,
-          size: MadarButtonSize.compact,
+          count: state.transferQueue.length,
           onTap: () => unawaited(_openWaitlist()),
         ),
-      ],
-    );
-
-    final headerActions = [
       if (layout.isTablet) SizedBox(width: 200, child: segment),
     ];
+
+    // ONE row: the sections, then the room's state as filters.
+    final statusChips = <Widget>[
+      for (final u in const [
+        FloorUrgency.needsClearing,
+        FloorUrgency.foodReady,
+        FloorUrgency.seated,
+        FloorUrgency.reserved,
+        FloorUrgency.free,
+      ])
+        if ((counts[u] ?? 0) > 0)
+          _StatusChip(
+            key: ValueKey('floor.filter.${u.name}'),
+            glyph: floorGlyphOf(u),
+            label: _urgencyWord(u),
+            tone: floorToneOf(u),
+            count: counts[u]!,
+            selected: filter == u,
+            onTap: () => setState(() => _filter = filter == u ? null : u),
+          ),
+    ];
+    final chipRow = SizedBox(
+      height: Metrics.chipHeight,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          if (tabs.length > 1)
+            for (final tab in tabs) ...[
+              MadarChip(
+                label: tab.$2,
+                count: countIn(tab.$1) == 0 ? null : countIn(tab.$1),
+                selected: tab.$1 == activeId,
+                onTap: () => setState(() {
+                  _sectionId = tab.$1;
+                  _filter = null;
+                }),
+              ),
+              const SizedBox(width: Space.sm),
+            ],
+          if (tabs.length > 1 && statusChips.isNotEmpty)
+            Center(
+              child: Container(
+                width: 1,
+                height: Space.xl,
+                margin: const EdgeInsetsDirectional.only(end: Space.sm),
+                color: context.madarColors.border,
+              ),
+            ),
+          for (final c in statusChips) ...[c, const SizedBox(width: Space.sm)],
+        ],
+      ),
+    );
     final headerBelow = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
         if (layout.isPhone) segment,
-        if (tabs.length > 1)
-          SizedBox(
-            height: Metrics.chipHeight,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                for (final (i, tab) in tabs.indexed) ...[
-                  if (i > 0) const SizedBox(width: Space.sm),
-                  MadarChip(
-                    label: tab.$2,
-                    count: countIn(tab.$1) == 0 ? null : countIn(tab.$1),
-                    selected: tab.$1 == activeId,
-                    onTap: () => setState(() => _sectionId = tab.$1),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        if (allTables.isNotEmpty) summary,
+        if (allTables.isNotEmpty) chipRow,
       ],
     );
 
+    return MadarPageScaffold(
+      safeTop: false,
+      title: _w('floor.title'),
+      width: MadarContentWidth.full,
+      glyph: MadarGlyph.grid,
+      bodyInset: false,
+      actions: headerActions,
+      below: headerBelow,
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsetsDirectional.fromSTEB(
+            layout.gutter,
+            Space.lg,
+            layout.gutter,
+            layout.gutter,
+          ),
+          child: allTables.isEmpty
+              ? EmptyState(
+                  icon: 'square.grid.2x2',
+                  title: _w('floor.no_layout_title'),
+                  message: _w('floor.no_layout_desc'),
+                  actionLabel: _tr('chrome.sync_data'),
+                  onAction: () => unawaited(_notifier.syncFloor()),
+                )
+              : _body(
+                  context,
+                  state: state,
+                  view: view,
+                  tables: tables,
+                  rows: rows,
+                  active: active,
+                  activeId: activeId,
+                  filter: filter,
+                  selected: selected,
+                  now: now,
+                  locale: locale,
+                ),
+        ),
+      ),
+    );
+  }
+
+  String _urgencyWord(FloorUrgency u) => switch (u) {
+    FloorUrgency.needsClearing => _tr('tables.needs_clearing'),
+    FloorUrgency.foodReady => _w('bill.ready'),
+    FloorUrgency.seated => _tr('tables.seated'),
+    FloorUrgency.reserved => _tr('tables.reserved'),
+    FloorUrgency.free => _tr('tables.free'),
+  };
+
+  /// The room and its inspector. iPad landscape and desktop: the room with
+  /// the inspector docked at the END side (it swaps in Arabic; the room
+  /// never mirrors). iPad portrait: the inspector under the room. Phone: the
+  /// room alone — the inspector is a sheet.
+  Widget _body(
+    BuildContext context, {
+    required OrderState state,
+    required FloorView view,
+    required List<FloorTableStateView> tables,
+    required List<FloorRow> rows,
+    required FloorSectionInfo? active,
+    required String activeId,
+    required FloorUrgency? filter,
+    required FloorTableStateView? selected,
+    required DateTime now,
+    required String locale,
+  }) {
+    final layout = MadarLayout.of(context);
+    final tickets = state.openTickets;
+    final colors = context.madarColors;
+    void tap(FloorTableStateView t) =>
+        unawaited(_onTable(t, _ticketOn(tickets, t.id)));
+    final moveFrom = _moveFrom;
+
     Widget room;
-    if (allTables.isEmpty) {
+    if (tables.isEmpty) {
       room = EmptyState(
         icon: 'square.grid.2x2',
-        title: _tr('tables.empty_title'),
-        message: _tr('tables.empty_desc'),
-        actionLabel: _tr('chrome.sync_data'),
-        onAction: () => unawaited(_notifier.syncFloor()),
+        title: _w('floor.empty_section'),
+        message: _w('floor.empty_section_desc'),
       );
     } else if (view == FloorView.list) {
       room = FloorListView(
-        rows: buildFloorRows(
-          tables: tables,
-          ticketOn: (id) => _ticketOn(tickets, id),
-          sectionName: (sid) =>
-              sections.where((s) => s.id == sid).firstOrNull?.name,
-          now: DateTime.now(),
-        ),
-        now: DateTime.now(),
+        rows: filter == null
+            ? rows
+            : rows.where((r) => r.urgency == filter).toList(growable: false),
+        now: now,
         currency: state.currency,
+        locale: locale,
         words: FloorListWords.of(_bridge),
-        armedId: _moveFrom,
-        onTap: (t) => unawaited(_onTable(t, _ticketOn(tickets, t.id))),
-        onLongPress: (t) => unawaited(_onTable(t, _ticketOn(tickets, t.id))),
+        canCharge: widget.canCharge ?? !state.isWaiter,
+        armedId: moveFrom,
+        selectedId: layout.isPhone ? null : selected?.id,
+        onTap: tap,
+        onLongPress: tap,
+        onAction: (a, t) => unawaited(_perform(a, t)),
       );
     } else {
-      // No outer scroller any more: the canvas gets the `Expanded` region
-      // below as a BOUNDED window, which is what lets `FloorCanvas` pan and
-      // pinch-zoom the room in both axes instead of only growing taller. Keyed
-      // by section so switching sections (terrace → inside → bar) cross-fades
-      // into the new room instead of snapping — "moving between them cleanly".
       room = AnimatedSwitcher(
         duration: MediaQuery.of(context).disableAnimations
             ? Duration.zero
@@ -828,106 +788,212 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
           seatsWord: _tr('tables.seats'),
           words: TableStatusWords.of(_bridge),
           zoomable: true,
-          swapArmedId: _moveFrom,
-          // While moving, the tables a party cannot go to read as such.
-          enabledOf: _moveFrom == null
+          fitLabel: _w('floor.fit_room'),
+          swapArmedId: moveFrom,
+          selectedId: layout.isPhone ? null : selected?.id,
+          // While moving, the tables a party cannot go to read as such; a
+          // status filter quiets the rest of the room the same way.
+          enabledOf: moveFrom != null
+              ? (x) =>
+                    x.id == moveFrom ||
+                    tableIsMoveTarget(x, from: moveFrom, tickets: tickets)
+              : filter == null
               ? null
-              : (x) =>
-                    x.id == _moveFrom ||
-                    tableIsMoveTarget(x, from: _moveFrom, tickets: tickets),
-          onDisabledTap: (t) =>
-              unawaited(_onTable(t, _ticketOn(tickets, t.id))),
-          onTap: (t) => unawaited(_onTable(t, _ticketOn(tickets, t.id))),
+              : (x) => urgencyOf(x, _ticketOn(tickets, x.id)) == filter,
+          onDisabledTap: tap,
+          onTap: tap,
         ),
       );
     }
 
-    // A tab body, never pushed (chrome.dart mounts it for _Tab.floor), so
-    // the shell's top bar has already paid the status-bar inset.
-    return MadarPageScaffold(
-      safeTop: false,
-      title: _w('floor.title'),
-      actions: headerActions,
-      below: headerBelow,
-      body: SafeArea(
-        top: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: Space.md),
-            if (_moveFrom != null)
-              Padding(
-                padding: EdgeInsetsDirectional.fromSTEB(
-                  layout.gutter,
-                  0,
-                  layout.gutter,
-                  Space.md,
-                ),
-                child: NoticeBanner(
-                  text: _tr('tables.swap_pick'),
-                  tone: ChipTone.accent,
-                  icon: 'arrow.triangle.2.circlepath',
-                  onTap: () => setState(() => _moveFrom = null),
-                  trailing: MadarGlyphIcon(
-                    MadarGlyph.close,
-                    size: IconSize.md,
-                    color: colors.textSecondary,
+    if (moveFrom != null) {
+      final label = state.floorLayout?.tables
+          .where((t) => t.id == moveFrom)
+          .firstOrNull
+          ?.label;
+      room = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.md,
+        children: [
+          NoticeBanner(
+            text: label == null
+                ? _tr('tables.swap_pick')
+                : '$label · ${_tr('tables.swap_pick')}',
+            tone: ChipTone.accent,
+            icon: 'arrow.triangle.2.circlepath',
+            onTap: () => setState(() => _moveFrom = null),
+            trailing: MadarGlyphIcon(
+              MadarGlyph.close,
+              size: IconSize.md,
+              color: colors.textSecondary,
+            ),
+          ),
+          Expanded(child: room),
+        ],
+      );
+    }
+
+    if (layout.isPhone) return room;
+
+    final inspector = DecoratedBox(
+      key: const ValueKey('floor.inspector'),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(Radii.card),
+        border: Border.all(color: colors.borderLight),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(Radii.card),
+        child: AnimatedSwitcher(
+          duration: MediaQuery.of(context).disableAnimations
+              ? Duration.zero
+              : MotionSpec.standardDuration,
+          layoutBuilder: (current, previous) =>
+              Stack(children: [...previous, ?current]),
+          child: selected == null
+              ? FloorWorklist(
+                  key: const ValueKey('floor.worklist'),
+                  rows: needsAttention(rows, now: now),
+                  now: now,
+                  currency: state.currency,
+                  locale: locale,
+                  word: _w,
+                  canCharge: widget.canCharge ?? !state.isWaiter,
+                  onSelect: (t) => setState(() => _selectedId = t.id),
+                  onAction: (a, t) => unawaited(_perform(a, t)),
+                )
+              : _detail(
+                  selected,
+                  state,
+                  walkIn: _walkInId == selected.id,
+                  onClose: () => setState(() {
+                    _selectedId = null;
+                    _walkInId = null;
+                  }),
+                  onAction: (a, {covers, takeOrder}) => unawaited(
+                    _perform(
+                      a,
+                      selected,
+                      covers: covers,
+                      takeOrder: takeOrder ?? false,
+                    ),
                   ),
                 ),
-              ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsetsDirectional.symmetric(
-                  horizontal: layout.gutter,
-                ),
-                child: room,
-              ),
-            ),
-            if (view == FloorView.plan && allTables.isNotEmpty)
-              Padding(
-                padding: EdgeInsetsDirectional.all(layout.gutter),
-                child: Wrap(
-                  spacing: Space.lg,
-                  runSpacing: Space.xs,
-                  children: [
-                    _Legend(tone: colors.accent, word: _tr('tables.seated')),
-                    _Legend(tone: colors.success, word: _tr('tables.free')),
-                    _Legend(
-                      tone: colors.danger,
-                      word: _tr('tables.needs_clearing'),
-                    ),
-                    _Legend(tone: colors.warning, word: _tr('tables.reserved')),
-                  ],
-                ),
-              ),
+        ),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        final portrait = box.maxHeight > box.maxWidth;
+        if (portrait) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: room),
+              const SizedBox(height: Space.lg),
+              SizedBox(height: box.maxHeight * 0.42, child: inspector),
+            ],
+          );
+        }
+        final side = (box.maxWidth * 0.35).clamp(340.0, 440.0);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: room),
+            const SizedBox(width: Space.lg),
+            SizedBox(width: side, child: inspector),
           ],
+        );
+      },
+    );
+  }
+}
+
+/// A status summary chip: the state's glyph in its tone, the word, the count.
+/// Tapping it narrows the room to that state; tapping it again widens it.
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.glyph,
+    required this.tone,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final MadarGlyph glyph;
+  final MadarTone tone;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final ink = tone == MadarTone.neutral
+        ? colors.textSecondary
+        : tone.color(colors);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$label, $count',
+      child: TactileScale(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: MediaQuery.of(context).disableAnimations
+              ? Duration.zero
+              : MotionSpec.standardDuration,
+          height: Metrics.chipHeight,
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.md),
+          decoration: BoxDecoration(
+            color: selected ? tone.tint(colors) : colors.surface,
+            borderRadius: BorderRadius.circular(Radii.pill),
+            border: Border.all(
+              color: selected ? ink : colors.borderLight,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: ExcludeSemantics(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: Space.sm,
+              children: [
+                MadarGlyphIcon(glyph, size: IconSize.xs, color: ink),
+                Text(
+                  label,
+                  style: MadarType.bodySm.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '$count',
+                  textDirection: TextDirection.ltr,
+                  style: MadarType.numMd.copyWith(color: ink),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-/// A sheet's body: title, one muted line, then whatever the state offers.
+/// A sheet's body: a title, one muted line, then the sheet's rows.
 class _StateSheet extends StatelessWidget {
   const _StateSheet({
     required this.title,
     required this.children,
     this.subtitle,
-    this.historyFor,
-    this.historyLabel,
   });
 
   final String title;
   final String? subtitle;
   final List<Widget> children;
-
-  /// The table to open a history for, appended as the quietest action on
-  /// every state sheet. Every table has a past, whatever it is doing now, so
-  /// the door belongs on all of them rather than on one.
-  final String? historyFor;
-
-  /// Already-localised label for that action.
-  final String? historyLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -948,76 +1014,9 @@ class _StateSheet extends StatelessWidget {
               ),
             ),
           const SizedBox(height: Space.lg),
-          for (final (i, child) in children.indexed) ...[
-            if (i > 0 && child is MadarButton) const SizedBox(height: Space.sm),
-            child,
-          ],
-          if (historyFor != null) ...[
-            const SizedBox(height: Space.sm),
-            MadarButton(
-              label: historyLabel ?? '',
-              glyph: MadarGlyph.clock,
-              variant: MadarButtonVariant.ghost,
-              onTap: () {
-                Navigator.of(context).maybePop();
-                unawaited(
-                  showTableHistory(context, tableId: historyFor!, label: title),
-                );
-              },
-            ),
-          ],
+          ...children,
         ],
       ),
-    );
-  }
-}
-
-/// "● 6 seated" — a dot in the state's colour, a mono count, the word.
-class _Count extends StatelessWidget {
-  const _Count({required this.tone, required this.word, required this.n});
-
-  final Color tone;
-  final String word;
-  final int n;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 6,
-      children: [
-        MadarGlyphIcon(MadarGlyph.full, size: IconSize.xs, color: tone),
-        Text(
-          '$n',
-          textDirection: TextDirection.ltr,
-          style: MadarType.numMd.copyWith(color: colors.textPrimary),
-        ),
-        Text(
-          word,
-          style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-        ),
-      ],
-    );
-  }
-}
-
-class _Legend extends StatelessWidget {
-  const _Legend({required this.tone, required this.word});
-
-  final Color tone;
-  final String word;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.madarColors;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 6,
-      children: [
-        MadarGlyphIcon(MadarGlyph.full, size: IconSize.xs, color: tone),
-        Text(word, style: MadarType.bodySm.copyWith(color: colors.textMuted)),
-      ],
     );
   }
 }

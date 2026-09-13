@@ -812,8 +812,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    // Floor → the table's Bill: a pushed route over the floor.
-    await tester.tap(find.text('T2'));
+    // Floor → the table's Bill: a pushed route over the floor. (The first
+    // T2 is the table; the inspector's worklist names it too.)
+    await tester.tap(find.text('T2').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     // The table's sheet leads to its bill.
@@ -980,6 +981,9 @@ void main() {
 
     testWidgets('a free table asks for a party size and seats', (tester) async {
       await _mount(tester, screen: const FloorScreen(), size: _phone);
+      // Free tables are the last band of the phone's worklist.
+      await tester.ensureVisible(find.text('T6'));
+      await tester.pump();
       await tester.tap(find.text('T6'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
@@ -992,7 +996,7 @@ void main() {
       tester,
     ) async {
       await _mount(tester, screen: const FloorScreen(), size: _ipad);
-      await tester.tap(find.text('T2'));
+      await tester.tap(find.text('T2').first);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       // The sheet shows the bill's doors, then the bill.
@@ -1324,12 +1328,17 @@ void _tableOrderTests() {
         size: size,
         bridge: bridge,
       );
-      await tester.tap(find.text('T6'));
+      await tester.ensureVisible(find.text('T6').first);
+      await tester.pump();
+      await tester.tap(find.text('T6').first);
       await settle(tester);
       await tester.tap(find.text('Seat'));
       await settle(tester);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('T6'));
+      // The table (first); an iPad's inspector names it too.
+      await tester.ensureVisible(find.text('T6').first);
+      await tester.pump();
+      await tester.tap(find.text('T6').first);
       await settle(tester);
       await tester.tap(find.text('Take an order'));
       await settle(tester);

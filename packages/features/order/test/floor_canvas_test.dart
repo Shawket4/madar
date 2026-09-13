@@ -602,11 +602,15 @@ void main() {
         ),
       );
       expect(find.text('Needs clearing'), findsNothing);
-      // "Sara · 5h" — the pill carries the table's CLOCK beside the name
-      // now. It used to read the bill's opened_at only on the list, and
-      // nothing at all on the canvas unless a parked order was sitting
-      // there, so a seated party showed a name and no time.
-      expect(find.textContaining('Sara'), findsOneWidget);
+      // The occupant is the truth: the table reads as seated, and says who.
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Semantics &&
+              (w.properties.label ?? '').startsWith('T1, Seated, Sara'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 
@@ -794,14 +798,11 @@ void main() {
     expect(a1 == a2, isFalse, reason: 'stacked tables must not overlap');
   });
 
-  testWidgets('a taken table is marked by its OCCUPANT PILL, not a solid body', (
+  testWidgets('a free table is a quiet white body; a bill tints it blue', (
     tester,
   ) async {
-    // The floor and the dashboard's authoring canvas draw the same glyph: every
-    // table is a quiet status-tinted surface at the same strength, and the
-    // SOLID mark is the occupant pill riding the bottom edge. Painting busy
-    // tables solid instead made the POS and the dashboard disagree about what
-    // the same room looked like.
+    // The redesign: free tables recede (white, a hairline), a party with a
+    // bill is the strongest tint in the room, and the bill says how much.
     await tester.pumpWidget(
       _host(
         SizedBox(
@@ -847,11 +848,13 @@ void main() {
     }
 
     const colors = MadarColors.light;
-    // Both bodies carry the SAME tint strength — only the hue differs.
-    expect(fillOf('BUSY'), colors.accent.withValues(alpha: kTableFillOpacity));
-    expect(fillOf('FREE'), colors.success.withValues(alpha: kTableFillOpacity));
-    // The occupant is what marks the table, and it names who is on it —
-    // beside the table's clock, where the box has room for both.
-    expect(find.textContaining('Sara'), findsOneWidget);
+    expect(fillOf('FREE'), colors.surface);
+    expect(
+      fillOf('BUSY'),
+      Color.alphaBlend(
+        colors.info.withValues(alpha: kTableFillBill),
+        colors.surface,
+      ),
+    );
   });
 }

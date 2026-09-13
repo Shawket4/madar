@@ -255,24 +255,25 @@ void main() {
     final c = await _mount(tester, const FloorScreen(), fake);
     await tester.tap(find.text('T2'));
     await _settle(tester);
-    await tester.tap(find.text(coreWord('tables.move')));
+    // The inspector beside the room: T2 selected, its Move.
+    await tester.tap(find.byKey(const ValueKey('floor.action.move')));
     await _settle(tester);
-    expect(find.text(coreWord('tables.swap_pick')), findsOneWidget);
+    expect(find.textContaining(coreWord('tables.swap_pick')), findsOneWidget);
 
-    await tester.tap(find.text('T2'));
+    await tester.tap(find.text('T2').first);
     await _settle(tester);
     expect(_toast(c), coreWord('err.move_same'));
     await tester.tap(find.text('T3'));
     await _settle(tester);
     expect(_toast(c), coreWord('err.move_dirty'));
     expect(fake.swaps, isEmpty);
-    expect(find.text(coreWord('tables.swap_pick')), findsOneWidget);
+    expect(find.textContaining(coreWord('tables.swap_pick')), findsOneWidget);
 
     // A free table moves, and only then does Undo appear.
     await tester.tap(find.text('T6'));
     await _settle(tester);
     expect(fake.swaps, [('t2', 't6')]);
     expect(c.read(orderProvider).toast?.actionLabel, coreWord('order.undo'));
-    expect(find.text(coreWord('tables.swap_pick')), findsNothing);
+    expect(find.textContaining(coreWord('tables.swap_pick')), findsNothing);
   });
 }
