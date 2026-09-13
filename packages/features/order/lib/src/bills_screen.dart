@@ -121,7 +121,6 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
       onPoll: () => unawaited(_notifier.loadOpenTickets()),
     );
 
-    final layout = MadarLayout.of(context);
     final state = ref.watch(orderProvider);
     final me = state.displayName.trim();
     final live = state.openTickets.where(isLiveTicket).toList(growable: false)

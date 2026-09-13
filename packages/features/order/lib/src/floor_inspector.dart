@@ -221,6 +221,8 @@ class FloorTableDetail extends StatefulWidget {
 class _FloorTableDetailState extends State<FloorTableDetail> {
   late int _covers = _defaultCovers;
 
+  void _setCovers(int n) => setState(() => _covers = n);
+
   int get _defaultCovers => widget.table.seats.clamp(1, 20);
 
   @override
@@ -426,7 +428,7 @@ extension on _FloorTableDetailState {
                   value: _covers,
                   min: 1,
                   max: 99,
-                  onChanged: (n) => setState(() => _covers = n),
+                  onChanged: _setCovers,
                 ),
                 const SizedBox(width: Space.md),
                 Expanded(

@@ -30,11 +30,9 @@ import 'package:feature_order/src/tables_screen.dart'
         TableStatusWords,
         moveParty,
         showTablePickerSheet,
-        tableBookingSeated,
         tableHasBooking,
         tableIsMoveTarget,
-        tableIsReserved,
-        tableNeedsClearing;
+        tableIsReserved;
 import 'package:feature_order/src/waiter_sheets.dart';
 import 'package:feature_order/src/words.dart';
 import 'package:flutter/material.dart';
