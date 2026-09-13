@@ -115,6 +115,7 @@ mod tests {
             created_at: now,
             updated_at: now,
             seated_at: None,
+            party_size: None,
         };
         let view = FloorTableView::from(model);
         assert_eq!(view.section_id, None);
