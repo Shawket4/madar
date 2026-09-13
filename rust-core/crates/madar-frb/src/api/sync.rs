@@ -8,7 +8,7 @@ use crate::api::error::MadarError;
 
 pub use madar_core::timefmt::TimeStyle;
 pub use madar_core::assets::AssetSyncView;
-pub use madar_core::sync_pull::{SyncStatusView, TillOpenSyncView};
+pub use madar_core::sync_pull::{FreshnessView, SyncStatusView, TillOpenSyncView};
 pub use madar_core::{DiagLogView, OutboxItemView};
 
 /// A queued/failed outbox command, projected for the sync center.
@@ -41,6 +41,18 @@ pub struct _SyncStatusView {
     pub online: bool,
     pub auth_paused: bool,
     pub blocked: u32,
+    /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`).
+    pub freshness: FreshnessView,
+}
+
+/// Freshness of the replicated store (OFFLINE_B_DESIGN §6).
+#[frb(mirror(FreshnessView))]
+pub struct _FreshnessView {
+    /// `fresh` | `stale` | `bootstrapping`.
+    pub state: String,
+    /// `offline` | `auth_expired` | `server_error` | `forbidden` | `decode` | `never_synced`.
+    pub reason: Option<String>,
+    pub age_secs: Option<u64>,
 }
 
 #[frb(mirror(AssetSyncView))]

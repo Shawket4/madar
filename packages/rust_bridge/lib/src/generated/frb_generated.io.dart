@@ -172,6 +172,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw);
+
+  @protected
   BranchOpenTillView dco_decode_branch_open_till_view(dynamic raw);
 
   @protected
@@ -275,6 +278,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   FloorTableStateView dco_decode_floor_table_state_view(dynamic raw);
+
+  @protected
+  FreshnessView dco_decode_freshness_view(dynamic raw);
 
   @protected
   GroupViolationView dco_decode_group_violation_view(dynamic raw);
@@ -630,6 +636,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
 
   @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
   OptionalFieldView dco_decode_optional_field_view(dynamic raw);
 
   @protected
@@ -942,6 +951,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
   BranchOpenTillView sse_decode_branch_open_till_view(
     SseDeserializer deserializer,
   );
@@ -1073,6 +1085,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   FloorTableStateView sse_decode_floor_table_state_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  FreshnessView sse_decode_freshness_view(SseDeserializer deserializer);
 
   @protected
   GroupViolationView sse_decode_group_violation_view(
@@ -1556,6 +1571,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
   OptionalFieldView sse_decode_optional_field_view(
     SseDeserializer deserializer,
   );
@@ -1938,6 +1956,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
   void sse_encode_branch_open_till_view(
     BranchOpenTillView self,
     SseSerializer serializer,
@@ -2104,6 +2125,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
     FloorTableStateView self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_freshness_view(FreshnessView self, SseSerializer serializer);
 
   @protected
   void sse_encode_group_violation_view(
@@ -2710,6 +2734,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
 
   @protected
   void sse_encode_optional_field_view(

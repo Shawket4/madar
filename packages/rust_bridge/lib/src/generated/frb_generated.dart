@@ -9467,6 +9467,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_u_64(raw);
+  }
+
+  @protected
   BranchOpenTillView dco_decode_branch_open_till_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -10032,6 +10038,19 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       bookingStatus: dco_decode_opt_String(arr[20]),
       seatedAt: dco_decode_opt_String(arr[21]),
       covers: dco_decode_opt_box_autoadd_i_32(arr[22]),
+    );
+  }
+
+  @protected
+  FreshnessView dco_decode_freshness_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return FreshnessView(
+      state: dco_decode_String(arr[0]),
+      reason: dco_decode_opt_String(arr[1]),
+      ageSecs: dco_decode_opt_box_autoadd_u_64(arr[2]),
     );
   }
 
@@ -11034,6 +11053,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
+  }
+
+  @protected
   OptionalFieldView dco_decode_optional_field_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -11510,8 +11535,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   SyncStatusView dco_decode_sync_status_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return SyncStatusView(
       phase: dco_decode_String(arr[0]),
       nextSeq: dco_decode_opt_box_autoadd_i_64(arr[1]),
@@ -11525,6 +11550,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       online: dco_decode_bool(arr[9]),
       authPaused: dco_decode_bool(arr[10]),
       blocked: dco_decode_u_32(arr[11]),
+      freshness: dco_decode_freshness_view(arr[12]),
     );
   }
 
@@ -12302,6 +12328,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_u_64(deserializer));
+  }
+
+  @protected
   BranchOpenTillView sse_decode_branch_open_till_view(
     SseDeserializer deserializer,
   ) {
@@ -13008,6 +13040,19 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       bookingStatus: var_bookingStatus,
       seatedAt: var_seatedAt,
       covers: var_covers,
+    );
+  }
+
+  @protected
+  FreshnessView sse_decode_freshness_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_state = sse_decode_String(deserializer);
+    var var_reason = sse_decode_opt_String(deserializer);
+    var var_ageSecs = sse_decode_opt_box_autoadd_u_64(deserializer);
+    return FreshnessView(
+      state: var_state,
+      reason: var_reason,
+      ageSecs: var_ageSecs,
     );
   }
 
@@ -14648,6 +14693,17 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_u_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   OptionalFieldView sse_decode_optional_field_view(
     SseDeserializer deserializer,
   ) {
@@ -15256,6 +15312,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_online = sse_decode_bool(deserializer);
     var var_authPaused = sse_decode_bool(deserializer);
     var var_blocked = sse_decode_u_32(deserializer);
+    var var_freshness = sse_decode_freshness_view(deserializer);
     return SyncStatusView(
       phase: var_phase,
       nextSeq: var_nextSeq,
@@ -15269,6 +15326,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       online: var_online,
       authPaused: var_authPaused,
       blocked: var_blocked,
+      freshness: var_freshness,
     );
   }
 
@@ -16186,6 +16244,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self, serializer);
+  }
+
+  @protected
   void sse_encode_branch_open_till_view(
     BranchOpenTillView self,
     SseSerializer serializer,
@@ -16653,6 +16717,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.bookingStatus, serializer);
     sse_encode_opt_String(self.seatedAt, serializer);
     sse_encode_opt_box_autoadd_i_32(self.covers, serializer);
+  }
+
+  @protected
+  void sse_encode_freshness_view(FreshnessView self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.state, serializer);
+    sse_encode_opt_String(self.reason, serializer);
+    sse_encode_opt_box_autoadd_u_64(self.ageSecs, serializer);
   }
 
   @protected
@@ -18020,6 +18092,16 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_u_64(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_optional_field_view(
     OptionalFieldView self,
     SseSerializer serializer,
@@ -18448,6 +18530,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self.online, serializer);
     sse_encode_bool(self.authPaused, serializer);
     sse_encode_u_32(self.blocked, serializer);
+    sse_encode_freshness_view(self.freshness, serializer);
   }
 
   @protected

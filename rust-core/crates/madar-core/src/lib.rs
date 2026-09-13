@@ -87,6 +87,13 @@ pub mod till;
 pub mod staff;
 /// Local store — SQLite mirror + durable outbox + id_map + sync cursors (PLAN §8).
 pub mod store;
+pub mod changes;
+pub(crate) mod scheduler;
+#[cfg(test)]
+mod testkit;
+#[cfg(test)]
+mod offline_b_tests;
+pub(crate) mod schema;
 /// Waiter open tickets — fire-now-pay-later dine-in tickets via the outbox.
 pub mod tickets;
 /// Drawer and Orders decisions the screens used to make (labels, refund
@@ -231,6 +238,13 @@ pub struct MadarCore {
     /// DNS-TLS not-ready right after a resume or rotation) must not flap it. Reset
     /// to 0 by any confirmed connectivity (a ping OK or an outbox ack).
     offline_probe_fails: std::sync::atomic::AtomicU32,
+    /// Outbox sends that actually reached the network layer (acked, rejected or
+    /// failed in transport). `refresh_connectivity` compares it across a drain to
+    /// learn whether the drain produced any connectivity evidence at all — a
+    /// backlog whose rows are all backoff-gated sends nothing and proves nothing.
+    sends_attempted: std::sync::atomic::AtomicU64,
+    /// The SSE stream is connected right now (fed by [`SyncNudgeListener`]).
+    realtime_connected: Arc<std::sync::atomic::AtomicBool>,
     /// Core-owned catalog image cache (menu/bundle photos + org logo).
     images: filestore::FileStore,
     /// Recipe-step animations, in their own directory so evicting the orphans
@@ -288,6 +302,8 @@ pub struct MadarCore {
     active_scope: RwLock<Option<ActiveScopeView>>,
     /// Sync engine phase + the till-open sync strip (`sync_pull.rs`).
     sync_state: sync_pull::SyncStateCell,
+    /// Nudge debounce + fallback poll (`scheduler.rs`).
+    scheduler: scheduler::SchedulerState,
     /// Weak self-handle so background work (the till-open sync) can own the core.
     me: std::sync::Weak<MadarCore>,
 }
@@ -326,6 +342,15 @@ impl MadarCore {
         // idempotent, non-blocking and infallible — with no DSN it is a no-op, so
         // this line changes nothing about how the core boots today.
         obs::init(store.clone(), &config.environment, &config.db_path);
+        if store.future_schema() {
+            // A store written by a newer build: it opens (the outbox is intact),
+            // but the sync applier stays off rather than write tables whose
+            // shape this build does not know.
+            obs::capture_bg_error(
+                "store.future_schema",
+                format!("local store is newer than this build (schema {})", schema::latest()),
+            );
+        }
         // Restore the last-known server skew so even a cold OFFLINE boot (no ping
         // yet) stamps queued ops with corrected, non-future times. SHARED with the
         // ApiClient so every response's Date header keeps it fresh.
@@ -378,6 +403,8 @@ impl MadarCore {
             catalog_cache: Mutex::new(None),
             cart_ops: Mutex::new(()),
             offline_probe_fails: std::sync::atomic::AtomicU32::new(0),
+            sends_attempted: std::sync::atomic::AtomicU64::new(0),
+            realtime_connected: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             auth_paused: std::sync::atomic::AtomicBool::new(false),
             borrowed_token: std::sync::atomic::AtomicBool::new(false),
             diag: Mutex::new(std::collections::VecDeque::new()),
@@ -388,6 +415,7 @@ impl MadarCore {
             lan: Arc::new(Mutex::new(None)),
             active_scope: RwLock::new(active_scope),
             sync_state: std::sync::Mutex::new(sync_pull::SyncState::default()),
+            scheduler: scheduler::SchedulerState::default(),
         }))
     }
 
@@ -866,6 +894,7 @@ impl MadarCore {
         // (or a device principal) drains everyone's queued work. The old
         // teller-scoped drain stranded a prior teller's ops on a shared till — the
         // "must be the same teller to sync" bug.
+        let mut acked_any = false;
         for item in self.store.due_for_sync(now_ms(), None)? {
             // Per-till gating (TILLS_CONTRACT §4.4): FIFO within a till, a dead op
             // isolated to itself (a dead open holds only its own till), and a
@@ -899,6 +928,8 @@ impl MadarCore {
             }
 
             self.store.mark_inflight(item.seq)?;
+            self.sends_attempted
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let outcome = self.send_outbox_item(&item).await;
             // A REAL outbox send is the authority for the online banner: a clean ack
             // proves we're online; a transport failure proves we're offline. (A
@@ -914,6 +945,7 @@ impl MadarCore {
                 // Applied server-side (or idempotently already-applied).
                 SendOutcome::Acked(server_id) => {
                     self.store.mark_acked(item.seq, server_id.as_deref())?;
+                    acked_any = true;
                 }
                 // Permanent rejection — surface in the stuck list, never silently drop.
                 SendOutcome::Dead(err) => {
@@ -970,6 +1002,11 @@ impl MadarCore {
         if self.borrowed_token.load(Relaxed) && self.store.pending_count()? == 0 {
             self.invalidate_borrowed_token();
             self.push_diag("warn", "offline backlog flushed under a previous teller's session — sign in again to continue");
+        }
+        // What acked is now on the server; the feed confirms it (and brings what
+        // other devices did meanwhile).
+        if acked_any {
+            self.nudge_sync();
         }
         Ok(())
     }
@@ -2137,7 +2174,11 @@ impl MadarCore {
         // Share the listener (Arc) so the LAN relay bridge forwards to the SAME sink
         // as the cloud SSE — a cross-LAN event and its cloud twin both land here and
         // dedup via the host's snapshot-reload.
-        let listener: Arc<dyn realtime::EventListener> = Arc::from(listener);
+        let listener: Arc<dyn realtime::EventListener> = Arc::new(scheduler::SyncNudgeListener {
+            inner: Arc::from(listener),
+            core: self.me.clone(),
+            connected: self.realtime_connected.clone(),
+        });
         *self
             .unified_listener
             .lock()
@@ -2198,6 +2239,13 @@ impl MadarCore {
             self.alert_memory.clone(),
             self.lan_device_id(),
         ));
+        // Every event (cloud or LAN) also nudges a changefeed pull, and the
+        // connection edge drives the core's fallback poll.
+        let alerting: Arc<dyn realtime::EventListener> = Arc::new(scheduler::SyncNudgeListener {
+            inner: alerting,
+            core: self.me.clone(),
+            connected: self.realtime_connected.clone(),
+        });
         *self
             .unified_listener
             .lock()
@@ -4665,19 +4713,18 @@ impl MadarCore {
         // Payment methods + discounts are CHECKOUT-time data — not needed to render
         // or FIRE the menu. A role that can read the menu but not these (a WAITER
         // fires tickets and never tenders, so it has no payment_methods:read grant)
-        // must STILL get its catalog. So these are best-effort: a 403/failure leaves
-        // them empty rather than aborting the whole catalog and blanking the menu.
-        // Once the changefeed holds a full snapshot, payment methods come from it
-        // (`project_pull_mirrors`) and this GET is skipped.
+        // must STILL get its catalog. So these are best-effort — but best-effort
+        // means "leave the mirror alone" on a failure, never "write an empty list
+        // over it": a 403 or a blip used to wipe every payment method and discount
+        // this till had, and the next sale could not be taken
+        // (OFFLINE_B_DESIGN §0, audit row 5). Once the changefeed holds a full
+        // snapshot, payment methods come from it (`project_pull_mirrors`) and
+        // this GET is skipped.
         let feed = branch_id.as_deref().is_some_and(|b| self.pull_feed_complete(b));
         let payment_methods = if feed {
             None
         } else {
-            Some(
-                payment_methods_api::list_payment_methods(&self.api.config())
-                    .await
-                    .unwrap_or_default(),
-            )
+            payment_methods_api::list_payment_methods(&self.api.config()).await.ok()
         };
 
         let discounts = discounts_api::list_discounts(
@@ -4687,7 +4734,7 @@ impl MadarCore {
             },
         )
         .await
-        .unwrap_or_default();
+        .ok();
 
         // Unified catalog (menu unification, `GET /catalog/sync`): the new
         // modifier model with branch-effective prices, revision-gated via
@@ -4710,24 +4757,29 @@ impl MadarCore {
             None => None,
         };
 
-        // All streams fetched OK → commit the mirror.
-        self.store.kv_put(menu::K_MENU_ITEMS, &menu_items_json)?;
-        self.store
-            .kv_put(menu::K_CATEGORIES, &serde_json::to_string(&categories)?)?;
-        self.store.kv_put(menu::K_ADDONS, &addons_json)?;
-        if let Some(unified) = unified_json {
-            self.store.kv_put(menu::K_UNIFIED, &unified)?;
+        // All required streams fetched OK → commit the mirror in ONE transaction.
+        let categories_json = serde_json::to_string(&categories)?;
+        let bundles_json = serde_json::to_string(&bundles.data)?;
+        let methods_json = payment_methods.as_ref().map(serde_json::to_string).transpose()?;
+        let discounts_json = discounts.as_ref().map(serde_json::to_string).transpose()?;
+        let mut rows: Vec<(&str, &str)> = vec![
+            (menu::K_MENU_ITEMS, &menu_items_json),
+            (menu::K_CATEGORIES, &categories_json),
+            (menu::K_ADDONS, &addons_json),
+            (menu::K_BUNDLES, &bundles_json),
+        ];
+        if let Some(unified) = unified_json.as_deref() {
+            rows.push((menu::K_UNIFIED, unified));
         }
-        self.store
-            .kv_put(menu::K_BUNDLES, &serde_json::to_string(&bundles.data)?)?;
-        if let Some(payment_methods) = payment_methods {
-            self.store.kv_put(
-                menu::K_PAYMENT_METHODS,
-                &serde_json::to_string(&payment_methods)?,
-            )?;
+        if let Some(m) = methods_json.as_deref() {
+            rows.push((menu::K_PAYMENT_METHODS, m));
         }
+        if let Some(d) = discounts_json.as_deref() {
+            rows.push((menu::K_DISCOUNTS, d));
+        }
+        self.store.kv_put_many(&rows)?;
         self.store
-            .kv_put(menu::K_DISCOUNTS, &serde_json::to_string(&discounts)?)?;
+            .emit_changes([changes::CATALOG, changes::PAYMENT_METHODS]);
 
         // A catalog sync also re-pulls the branch context (code, timezone, ORG LOGO
         // URL) + re-seeds the order-number base — the same get_branch persisted the
@@ -5250,23 +5302,46 @@ impl MadarCore {
                 // A lone failed /health probe is NOT proof we're offline: a waking
                 // radio / DNS-TLS-not-ready right after a resume or rotation errs the
                 // first request, then recovers. CONFIRM against a REAL network op
-                // before dropping the banner. If there's a flushable backlog, drain
-                // it — `drain_outbox` sets `online` from the actual send outcome (an
-                // ack ⇒ online, a transport failure ⇒ offline), so the OUTBOX is the
-                // authority. With nothing to flush (empty backlog / no bearer) we
-                // can't prove it that way, so require K_OFFLINE_CONFIRM consecutive
-                // failed probes — a single blip can't flap the banner.
-                let flushable = self.api.has_bearer()
-                    && !self.auth_paused.load(Relaxed)
-                    && self.store.pending_count().unwrap_or(0) > 0;
+                // before dropping the banner: drain the backlog, and let the SEND
+                // outcome decide (`drain_outbox` sets `online` from it — an ack ⇒
+                // online, a transport failure ⇒ offline).
+                //
+                // Only a drain that actually SENT something is evidence. A backlog
+                // whose every row is inside its backoff gate (or waiting on a
+                // dependency) sends nothing, and treating "there is a backlog" as
+                // "the drain will tell us" left the banner reading online forever
+                // while the network was gone (OFFLINE_B_DESIGN §0, audit row 4). So
+                // the probe failure counts toward K_OFFLINE_CONFIRM whenever the
+                // drain produced no send at all.
+                let flushable = self.api.has_bearer() && !self.auth_paused.load(Relaxed);
+                let before = self.sends_attempted.load(Relaxed);
                 if flushable {
                     let _ = self.drain_outbox().await;
-                } else if self.offline_probe_fails.fetch_add(1, Relaxed) + 1 >= K_OFFLINE_CONFIRM {
-                    self.set_online(false);
+                }
+                if self.sends_attempted.load(Relaxed) == before {
+                    self.note_connectivity(false);
                 }
                 self.current_session().map(|s| s.online).unwrap_or(false)
             }
         }
+    }
+
+    /// Connectivity evidence from a request that is not an outbox send (a probe
+    /// or a changefeed pull): success confirms online at once; a failure counts
+    /// toward [`K_OFFLINE_CONFIRM`] so one blip cannot flap the banner.
+    pub(crate) fn note_connectivity(&self, reachable: bool) {
+        use std::sync::atomic::Ordering::Relaxed;
+        if reachable {
+            self.set_online(true);
+        } else if self.offline_probe_fails.fetch_add(1, Relaxed) + 1 >= K_OFFLINE_CONFIRM {
+            self.set_online(false);
+        }
+    }
+
+    /// Is the device's SSE stream connected right now?
+    pub(crate) fn realtime_live(&self) -> bool {
+        self.realtime_connected
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// The current shift's orders — the still-queued sales (from the outbox,

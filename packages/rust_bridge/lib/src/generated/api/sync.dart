@@ -70,6 +70,30 @@ class DiagLogView {
           message == other.message;
 }
 
+/// Freshness of the replicated store (OFFLINE_B_DESIGN §6).
+class FreshnessView {
+  /// `fresh` | `stale` | `bootstrapping`.
+  final String state;
+
+  /// `offline` | `auth_expired` | `server_error` | `forbidden` | `decode` | `never_synced`.
+  final String? reason;
+  final BigInt? ageSecs;
+
+  const FreshnessView({required this.state, this.reason, this.ageSecs});
+
+  @override
+  int get hashCode => state.hashCode ^ reason.hashCode ^ ageSecs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FreshnessView &&
+          runtimeType == other.runtimeType &&
+          state == other.state &&
+          reason == other.reason &&
+          ageSecs == other.ageSecs;
+}
+
 /// A queued/failed outbox command, projected for the sync center.
 class OutboxItemView {
   final String id;
@@ -132,6 +156,9 @@ class SyncStatusView {
   final bool authPaused;
   final int blocked;
 
+  /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`).
+  final FreshnessView freshness;
+
   const SyncStatusView({
     required this.phase,
     this.nextSeq,
@@ -145,6 +172,7 @@ class SyncStatusView {
     required this.online,
     required this.authPaused,
     required this.blocked,
+    required this.freshness,
   });
 
   @override
@@ -160,7 +188,8 @@ class SyncStatusView {
       assets.hashCode ^
       online.hashCode ^
       authPaused.hashCode ^
-      blocked.hashCode;
+      blocked.hashCode ^
+      freshness.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -178,7 +207,8 @@ class SyncStatusView {
           assets == other.assets &&
           online == other.online &&
           authPaused == other.authPaused &&
-          blocked == other.blocked;
+          blocked == other.blocked &&
+          freshness == other.freshness;
 }
 
 /// The Open-till screen's sync strip (decision 15).

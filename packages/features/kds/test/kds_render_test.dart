@@ -306,6 +306,7 @@ class _FakeBridge implements MadarBridge {
         pendingOutbox: outbox.where((o) => o.status != 'dead').length,
         deadOutbox: outbox.where((o) => o.status == 'dead').length,
         blocked: 0,
+        freshness: const FreshnessView(state: 'fresh'),
         online: online,
         authPaused: false,
         phase: 'idle',

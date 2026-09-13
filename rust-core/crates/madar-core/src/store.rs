@@ -183,6 +183,11 @@ pub struct SentryEnvelopeRow {
 
 pub struct Store {
     conn: Mutex<Connection>,
+    /// Logical-table change notifications, sent after a write commits.
+    changes: crate::changes::TableChanges,
+    /// The file was written by a newer build (`schema::migrate`): the sync
+    /// applier leaves its tables alone.
+    future_schema: bool,
 }
 
 impl Store {
@@ -227,9 +232,28 @@ impl Store {
         );
         conn.execute_batch(POST_MIGRATION_SCHEMA)?;
         migrate_tills_v1(&conn)?;
+        let mut conn = conn;
+        let migrated = crate::schema::migrate(&mut conn)?;
         Ok(Store {
             conn: Mutex::new(conn),
+            changes: crate::changes::TableChanges::new(),
+            future_schema: migrated.future_schema,
         })
+    }
+
+    /// The store was written by a newer build than this one.
+    pub fn future_schema(&self) -> bool {
+        self.future_schema
+    }
+
+    /// Subscribe to logical-table change notifications (see `changes.rs`).
+    pub fn subscribe_changes(&self) -> crate::changes::TableChangeSubscription {
+        self.changes.subscribe()
+    }
+
+    /// Announce that `tables` changed (call AFTER the write committed).
+    pub fn emit_changes<'a>(&self, tables: impl IntoIterator<Item = &'a str>) {
+        self.changes.emit(tables);
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -246,6 +270,21 @@ impl Store {
             params![key, json, now_iso()],
         )?;
         Ok(())
+    }
+    /// Write several kv rows in ONE transaction: all land or none do (a crash
+    /// can never leave half a catalog).
+    pub fn kv_put_many(&self, rows: &[(&str, &str)]) -> CoreResult<()> {
+        self.with_tx(|tx| {
+            let now = now_iso();
+            for (k, v) in rows {
+                tx.execute(
+                    "INSERT INTO kv(k, v, updated_at) VALUES(?1, ?2, ?3)
+                     ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at",
+                    params![k, v, now],
+                )?;
+            }
+            Ok(())
+        })
     }
     pub fn kv_delete(&self, key: &str) -> CoreResult<()> {
         self.lock().execute("DELETE FROM kv WHERE k=?1", [key])?;
@@ -335,30 +374,9 @@ impl Store {
     /// Enqueue an op. Idempotent on `id`: re-enqueuing the same id is a no-op
     /// and returns the existing `seq` (so a double-tap or a re-run never dups).
     pub fn enqueue(&self, op: &NewOutboxOp) -> CoreResult<i64> {
-        let conn = self.lock();
-        conn.execute(
-            "INSERT INTO outbox(id, op_type, idempotency_key, payload, event_at, enqueued_at,
-                                depends_on_seq, user_id, clock_offset_ms, till_id,
-                                device_id, entity_type, entity_id)
-             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
-             ON CONFLICT(id) DO NOTHING",
-            params![
-                op.id,
-                op.op_type,
-                op.idempotency_key,
-                op.payload,
-                op.event_at,
-                now_iso(),
-                op.depends_on_seq,
-                op.user_id,
-                op.clock_offset_ms,
-                op.till_id,
-                op.device_id,
-                op.entity_type,
-                op.entity_id
-            ],
-        )?;
-        Ok(conn.query_row("SELECT seq FROM outbox WHERE id=?1", [&op.id], |r| r.get(0))?)
+        let seq = enqueue_on(&self.lock(), op)?;
+        self.changes.emit(crate::changes::tables_for_op(&op.op_type));
+        Ok(seq)
     }
 
     /// Upsert a state-TOGGLING LAN-mirror backup (kitchen bump/unbump on one line),
@@ -659,6 +677,18 @@ impl Store {
         Ok(out)
     }
 
+    /// [`Self::with_tx`] that also broadcasts the logical tables `f` names in
+    /// `touched` — after, and only after, the commit.
+    pub(crate) fn with_tx_touch<R>(
+        &self,
+        f: impl FnOnce(&rusqlite::Transaction<'_>, &mut Vec<&'static str>) -> CoreResult<R>,
+    ) -> CoreResult<R> {
+        let mut touched: Vec<&'static str> = Vec::new();
+        let out = self.with_tx(|tx| f(tx, &mut touched))?;
+        self.changes.emit(touched.iter().copied());
+        Ok(out)
+    }
+
     /// Read-only access to the connection for multi-statement reads.
     pub(crate) fn with_conn<R>(&self, f: impl FnOnce(&Connection) -> CoreResult<R>) -> CoreResult<R> {
         let conn = self.lock();
@@ -702,6 +732,7 @@ impl Store {
             "UPDATE outbox SET status='acked', server_id=?2, synced_at=?3 WHERE seq=?1",
             params![seq, server_id, now_ms()],
         )?;
+        self.changes.emit([crate::changes::OUTBOX]);
         Ok(())
     }
 
@@ -710,6 +741,7 @@ impl Store {
             "UPDATE outbox SET status='dead', last_error=?2 WHERE seq=?1",
             params![seq, error],
         )?;
+        self.changes.emit([crate::changes::OUTBOX]);
         Ok(())
     }
 
@@ -940,6 +972,34 @@ impl Store {
                 r.get::<_, i64>(0)
             })? as u32)
     }
+}
+
+/// Insert one outbox op on `conn` (a plain connection or an open transaction),
+/// idempotent on `id`; returns the row's `seq`. The caller emits the change.
+pub(crate) fn enqueue_on(conn: &Connection, op: &NewOutboxOp) -> CoreResult<i64> {
+    conn.execute(
+        "INSERT INTO outbox(id, op_type, idempotency_key, payload, event_at, enqueued_at,
+                            depends_on_seq, user_id, clock_offset_ms, till_id,
+                            device_id, entity_type, entity_id)
+         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
+         ON CONFLICT(id) DO NOTHING",
+        params![
+            op.id,
+            op.op_type,
+            op.idempotency_key,
+            op.payload,
+            op.event_at,
+            now_iso(),
+            op.depends_on_seq,
+            op.user_id,
+            op.clock_offset_ms,
+            op.till_id,
+            op.device_id,
+            op.entity_type,
+            op.entity_id
+        ],
+    )?;
+    Ok(conn.query_row("SELECT seq FROM outbox WHERE id=?1", [&op.id], |r| r.get(0))?)
 }
 
 /// The column list every `OutboxItem` SELECT shares (kept in sync with `map_item`).

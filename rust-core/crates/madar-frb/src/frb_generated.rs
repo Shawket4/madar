@@ -11713,6 +11713,12 @@ const _: fn() = || {
         let _: Option<i32> = FloorTableStateView.covers;
     }
     {
+        let FreshnessView = None::<crate::api::sync::FreshnessView>.unwrap();
+        let _: String = FreshnessView.state;
+        let _: Option<String> = FreshnessView.reason;
+        let _: Option<u64> = FreshnessView.age_secs;
+    }
+    {
         let GroupViolationView = None::<crate::api::cart::GroupViolationView>.unwrap();
         let _: String = GroupViolationView.group_id;
         let _: String = GroupViolationView.group_name;
@@ -12210,6 +12216,7 @@ const _: fn() = || {
         let _: bool = SyncStatusView.online;
         let _: bool = SyncStatusView.auth_paused;
         let _: u32 = SyncStatusView.blocked;
+        let _: crate::api::sync::FreshnessView = SyncStatusView.freshness;
     }
     {
         let TenderSummaryView = None::<crate::api::orders::TenderSummaryView>.unwrap();
@@ -13380,6 +13387,20 @@ impl SseDecode for crate::api::floor::FloorTableStateView {
             booking_status: var_bookingStatus,
             seated_at: var_seatedAt,
             covers: var_covers,
+        };
+    }
+}
+
+impl SseDecode for crate::api::sync::FreshnessView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_state = <String>::sse_decode(deserializer);
+        let mut var_reason = <Option<String>>::sse_decode(deserializer);
+        let mut var_ageSecs = <Option<u64>>::sse_decode(deserializer);
+        return crate::api::sync::FreshnessView {
+            state: var_state,
+            reason: var_reason,
+            age_secs: var_ageSecs,
         };
     }
 }
@@ -15034,6 +15055,17 @@ impl SseDecode for Option<u32> {
     }
 }
 
+impl SseDecode for Option<u64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<u64>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for crate::api::catalog::OptionalFieldView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -15681,6 +15713,7 @@ impl SseDecode for crate::api::sync::SyncStatusView {
         let mut var_online = <bool>::sse_decode(deserializer);
         let mut var_authPaused = <bool>::sse_decode(deserializer);
         let mut var_blocked = <u32>::sse_decode(deserializer);
+        let mut var_freshness = <crate::api::sync::FreshnessView>::sse_decode(deserializer);
         return crate::api::sync::SyncStatusView {
             phase: var_phase,
             next_seq: var_nextSeq,
@@ -15694,6 +15727,7 @@ impl SseDecode for crate::api::sync::SyncStatusView {
             online: var_online,
             auth_paused: var_authPaused,
             blocked: var_blocked,
+            freshness: var_freshness,
         };
     }
 }
@@ -18312,6 +18346,28 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::floor::FloorTableS
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::sync::FreshnessView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.state.into_into_dart().into_dart(),
+            self.0.reason.into_into_dart().into_dart(),
+            self.0.age_secs.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::sync::FreshnessView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::sync::FreshnessView>>
+    for crate::api::sync::FreshnessView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::sync::FreshnessView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::cart::GroupViolationView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -19760,6 +19816,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::sync::SyncStatusVi
             self.0.online.into_into_dart().into_dart(),
             self.0.auth_paused.into_into_dart().into_dart(),
             self.0.blocked.into_into_dart().into_dart(),
+            self.0.freshness.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -20935,6 +20992,15 @@ impl SseEncode for crate::api::floor::FloorTableStateView {
         <Option<String>>::sse_encode(self.booking_status, serializer);
         <Option<String>>::sse_encode(self.seated_at, serializer);
         <Option<i32>>::sse_encode(self.covers, serializer);
+    }
+}
+
+impl SseEncode for crate::api::sync::FreshnessView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.state, serializer);
+        <Option<String>>::sse_encode(self.reason, serializer);
+        <Option<u64>>::sse_encode(self.age_secs, serializer);
     }
 }
 
@@ -22130,6 +22196,16 @@ impl SseEncode for Option<u32> {
     }
 }
 
+impl SseEncode for Option<u64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <u64>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::api::catalog::OptionalFieldView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -22526,6 +22602,7 @@ impl SseEncode for crate::api::sync::SyncStatusView {
         <bool>::sse_encode(self.online, serializer);
         <bool>::sse_encode(self.auth_paused, serializer);
         <u32>::sse_encode(self.blocked, serializer);
+        <crate::api::sync::FreshnessView>::sse_encode(self.freshness, serializer);
     }
 }
 

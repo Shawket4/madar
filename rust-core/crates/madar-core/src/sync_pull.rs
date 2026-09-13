@@ -29,6 +29,121 @@ pub struct SyncStatusView {
     pub auth_paused: bool,
     /// Ops waiting on a dead dependency (the sync center's "stuck" count).
     pub blocked: u32,
+    /// How much the local data can be trusted right now (OFFLINE_B_DESIGN §6).
+    pub freshness: FreshnessView,
+}
+
+/// Typed freshness of the replicated store for the session branch.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct FreshnessView {
+    /// `fresh` | `stale` | `bootstrapping`.
+    pub state: String,
+    /// When stale / bootstrapping: `offline` | `auth_expired` | `server_error` |
+    /// `forbidden` | `decode` | `never_synced`.
+    pub reason: Option<String>,
+    /// Seconds since the last completed pull (`None` = never).
+    pub age_secs: Option<u64>,
+}
+
+/// A pull older than this is stale even with no error since (§6).
+pub(crate) const FRESH_FOR_MS: i64 = 60_000;
+
+/// The error class a failed pull records (`sync_streams.last_err_kind`).
+pub(crate) fn error_kind(e: &CoreError) -> &'static str {
+    match e {
+        CoreError::Unauthenticated { .. } => "auth",
+        CoreError::Forbidden { .. } => "forbidden",
+        CoreError::Server { status: 401, .. } => "auth",
+        CoreError::Server { status: 403, .. } => "forbidden",
+        CoreError::Internal { detail } if detail.starts_with("decode:") => "decode",
+        e if crate::net::is_connectivity_failure(e) => "offline",
+        _ => "server",
+    }
+}
+
+fn stream_key(branch: &str) -> String {
+    format!("branch:{branch}")
+}
+
+/// Record one pull attempt's outcome for `branch` (never fails the caller).
+pub(crate) fn record_pull_outcome(store: &Store, branch: &str, outcome: Result<(), &CoreError>, now_ms: i64) {
+    let key = stream_key(branch);
+    let _ = store.with_conn(|c| {
+        match outcome {
+            Ok(()) => c.execute(
+                "INSERT INTO sync_streams(stream, scope_key, state, last_ok_at, last_attempt_at, last_err, last_err_kind)
+                 VALUES(?1, ?2, 'live', ?3, ?3, NULL, NULL)
+                 ON CONFLICT(stream) DO UPDATE SET state='live', last_ok_at=?3, last_attempt_at=?3,
+                   last_err=NULL, last_err_kind=NULL",
+                rusqlite::params![key, branch, now_ms],
+            )?,
+            Err(e) => c.execute(
+                "INSERT INTO sync_streams(stream, scope_key, state, last_attempt_at, last_err, last_err_kind)
+                 VALUES(?1, ?2, 'stale', ?3, ?4, ?5)
+                 ON CONFLICT(stream) DO UPDATE SET
+                   state=CASE WHEN sync_streams.last_ok_at IS NULL THEN 'bootstrapping' ELSE 'stale' END,
+                   last_attempt_at=?3, last_err=?4, last_err_kind=?5",
+                rusqlite::params![key, branch, now_ms, e.to_string(), error_kind(e)],
+            )?,
+        };
+        Ok(())
+    });
+    store.emit_changes([crate::changes::SYNC]);
+}
+
+/// Freshness for `branch` from its stream row. `realtime_live` = the SSE stream
+/// is connected, which keeps a quiet branch fresh between pulls.
+pub(crate) fn freshness(store: &Store, branch: &str, realtime_live: bool, now_ms: i64) -> FreshnessView {
+    use rusqlite::OptionalExtension;
+    let row: Option<(Option<i64>, Option<String>)> = store
+        .with_conn(|c| {
+            Ok(c.query_row(
+                "SELECT last_ok_at, last_err_kind FROM sync_streams WHERE stream=?1",
+                [stream_key(branch)],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?)
+        })
+        .ok()
+        .flatten();
+    let complete = store
+        .kv_get(&format!("{K_LAST_FULL}{branch}"))
+        .ok()
+        .flatten()
+        .is_some();
+    let (last_ok, err_kind) = row.unwrap_or((None, None));
+    let age_secs = last_ok.map(|t| ((now_ms - t).max(0) / 1000) as u64);
+    let reason_of = |k: &str| {
+        match k {
+            "auth" => "auth_expired",
+            "forbidden" => "forbidden",
+            "decode" => "decode",
+            "offline" => "offline",
+            _ => "server_error",
+        }
+        .to_string()
+    };
+    if !complete {
+        return FreshnessView {
+            state: "bootstrapping".into(),
+            reason: Some(err_kind.as_deref().map(reason_of).unwrap_or_else(|| "never_synced".into())),
+            age_secs,
+        };
+    }
+    if let Some(k) = err_kind.as_deref() {
+        return FreshnessView { state: "stale".into(), reason: Some(reason_of(k)), age_secs };
+    }
+    let recent = last_ok.map(|t| now_ms - t <= FRESH_FOR_MS).unwrap_or(false);
+    if recent || (realtime_live && last_ok.is_some()) {
+        FreshnessView { state: "fresh".into(), reason: None, age_secs }
+    } else {
+        FreshnessView {
+            state: "stale".into(),
+            reason: Some(if last_ok.is_some() { "offline" } else { "never_synced" }.into()),
+            age_secs,
+        }
+    }
 }
 
 /// The one-line strip on the Open-till screen (decision 15).
@@ -482,6 +597,16 @@ impl MadarCore {
     /// One pull (single-flight). `full` = snapshot; otherwise from `sync:next`.
     pub(crate) async fn pull(&self, full: bool) -> Result<u32, CoreError> {
         let res = single_flight(|| self.pull_inner(full)).await;
+        if let Some(branch) = self.sync_branch() {
+            record_pull_outcome(&self.store, &branch, res.as_ref().map(|_| ()), chrono::Utc::now().timestamp_millis());
+        }
+        // A pull is a real network round trip: its outcome is connectivity
+        // evidence exactly like an outbox send (the backlog must not mask it).
+        match &res {
+            Ok(_) => self.note_connectivity(true),
+            Err(e) if crate::net::is_connectivity_failure(e) => self.note_connectivity(false),
+            Err(_) => {}
+        }
         let mut st = self.sync_state.lock().unwrap_or_else(|e| e.into_inner());
         match &res {
             Ok(_) => {
@@ -646,6 +771,12 @@ impl MadarCore {
             online,
             auth_paused: self.auth_paused.load(std::sync::atomic::Ordering::Relaxed) && online,
             blocked: self.store.count_orders_blocked_by_dead_dep().unwrap_or(0),
+            freshness: freshness(
+                &self.store,
+                &branch,
+                self.realtime_live(),
+                chrono::Utc::now().timestamp_millis(),
+            ),
         }
     }
 

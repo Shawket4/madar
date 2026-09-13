@@ -179,6 +179,7 @@ class _CoreBridge implements MadarBridge {
         pendingOutbox: 1,
         deadOutbox: 0,
         blocked: 0,
+        freshness: const FreshnessView(state: 'fresh'),
         online: false,
         authPaused: false,
         phase: 'idle',

@@ -143,6 +143,7 @@ class _Fake implements MadarBridge {
         pendingOutbox: 0,
         deadOutbox: 0,
         blocked: 0,
+        freshness: const FreshnessView(state: 'fresh'),
         online: true,
         authPaused: false,
         phase: 'idle',
