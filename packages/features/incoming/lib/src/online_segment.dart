@@ -1,5 +1,5 @@
-/// Queue › Online — the branch's live online orders as cards, one primary
-/// button per card and always the next step:
+/// Queue › Online — the branch's live online orders as a table (rows beside
+/// the order's pane on a wide iPad, like Bills), one next step per row:
 /// `NEW → Accept · ACCEPTED → Start preparing · PREPARING → Mark ready ·
 /// READY → Out for delivery / Picked up · OUT → Charge`.
 ///
@@ -115,6 +115,26 @@ class _OnlineSegmentState extends ConsumerState<OnlineSegment>
     );
   }
 
+  /// The order shown in the pane beside the list (wide layouts only).
+  String? _selectedId;
+
+  /// The row's one next step. Accept from a row takes the branch's base
+  /// ready-in time; the pane offers the other choices.
+  void _primary(DeliveryOrderView o, {int? readyIn}) {
+    final notifier = ref.read(incomingProvider.notifier);
+    switch (o.status) {
+      case 'received':
+        final prep = ref.read(incomingProvider).prepChoices;
+        unawaited(
+          notifier.acceptDelivery(o, readyInMinutes: readyIn ?? prep?.first),
+        );
+      case 'out_for_delivery':
+        unawaited(_charge(o));
+      default:
+        unawaited(notifier.advanceDelivery(o));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bridge = ref.bridge;
@@ -126,88 +146,13 @@ class _OnlineSegmentState extends ConsumerState<OnlineSegment>
     );
     final stale = ref.watch(incomingProvider.select((s) => s.onlineStale));
     final error = ref.watch(incomingProvider.select((s) => s.error));
-    final layout = context.madarLayout;
-    final gutter = layout.gutter;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= kTwoColumnMinWidth ? 2 : 1;
-        final banners = <Widget>[
-          if (stale)
-            NoticeBanner(
-              text: bridge.trOr(QueueKeys.offlineNotice),
-              icon: 'wifi.slash',
-            ),
-          if (error != null)
-            NoticeBanner(
-              text: error.of(ref.bridge),
-              tone: ChipTone.danger,
-              icon: 'exclamationmark.circle',
-            ),
-        ];
-        Widget body;
-        if (loading && orders.isEmpty && !stale) {
-          body = const Align(
-            alignment: Alignment.topCenter,
-            child: SkeletonList(count: 3),
-          );
-        } else if (orders.isEmpty) {
-          body = QuietEmpty(bridge.trOr(QueueKeys.emptyOnline));
-        } else {
-          body = _CardColumns(
-            columns: columns,
-            orders: orders,
-            onView: _view,
-            onCharge: _charge,
-            onDecline: _decline,
-            onCancel: _cancel,
-          );
-        }
-        return ListView(
-          padding: EdgeInsetsDirectional.symmetric(
-            horizontal: gutter,
-            vertical: Space.lg,
-          ),
-          children: [
-            for (final b in banners)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(bottom: Space.md),
-                child: b,
-              ),
-            body,
-            const SizedBox(height: Space.md),
-            // Accepting per channel stays at the foot of the segment on a
-            // phone; the tablet header carries it too, via the screen.
-            if (layout.isPhone) const AcceptingRow(),
-            const SizedBox(height: Space.xxl),
-          ],
-        );
-      },
+    final busyIds = ref.watch(incomingProvider.select((s) => s.busyOrderIds));
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
-  }
-}
+    final layout = context.madarLayout;
+    String t(String key) => bridge.tr(key: key);
 
-/// Cards laid in one or two columns of variable height — dealt left/right
-/// in order so the newest sit at the top of both. Its own widget so queue
-/// churn (SSE ticks) rebuilds the cards, never the banners above.
-class _CardColumns extends ConsumerWidget {
-  const _CardColumns({
-    required this.columns,
-    required this.orders,
-    required this.onView,
-    required this.onCharge,
-    required this.onDecline,
-    required this.onCancel,
-  });
-
-  final int columns;
-  final List<DeliveryOrderView> orders;
-  final Future<void> Function(DeliveryOrderView o) onView;
-  final Future<void> Function(DeliveryOrderView o) onCharge;
-  final Future<void> Function(DeliveryOrderView o) onDecline;
-  final Future<void> Function(DeliveryOrderView o) onCancel;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
     // New orders first (they want a hand), then by arrival.
     final sorted = [...orders]
       ..sort((a, b) {
@@ -216,512 +161,286 @@ class _CardColumns extends ConsumerWidget {
         if (ra != rb) return ra - rb;
         return a.createdAt.compareTo(b.createdAt);
       });
-    Widget card(DeliveryOrderView o) => _OnlineCard(
-      key: ValueKey(o.id),
-      order: o,
-      onView: () => unawaited(onView(o)),
-      onCharge: () => unawaited(onCharge(o)),
-      onDecline: () => unawaited(onDecline(o)),
-      onCancel: () => unawaited(onCancel(o)),
-    );
-    if (columns == 1) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.lg,
-        children: [for (final o in sorted) card(o)],
+
+    final MadarTableState<DeliveryOrderView> tableState;
+    if (loading && orders.isEmpty && !stale) {
+      tableState = const MadarTableState.loading(rows: 4);
+    } else if (error != null && orders.isEmpty && !stale) {
+      tableState = MadarTableState.error(
+        message: error.of(bridge),
+        retryLabel: t('history.retry'),
+        onRetry: _reload,
       );
+    } else {
+      tableState = MadarTableState.data(sorted);
     }
-    final cols = List.generate(columns, (_) => <Widget>[]);
-    for (final (i, o) in sorted.indexed) {
-      cols[i % columns].add(card(o));
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Space.lg,
-      children: [
-        for (final c in cols)
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.lg,
-              children: c,
-            ),
+
+    Widget primaryFor(DeliveryOrderView o) => MadarButton(
+      label: onlinePrimaryLabel(bridge, o),
+      size: MadarButtonSize.compact,
+      variant: o.status == 'received'
+          ? MadarButtonVariant.primary
+          : MadarButtonVariant.secondary,
+      loading: busyIds.contains(o.id),
+      onTap: () => _primary(o),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final inner = constraints.maxWidth - 2 * layout.gutter;
+        final split = !layout.isPhone && inner >= kQueueSplitMinWidth;
+        final paneWidth = queuePaneWidth(inner);
+        final selected = split
+            ? sorted.where((o) => o.id == _selectedId).firstOrNull ??
+                  sorted.firstOrNull
+            : null;
+
+        final table = MadarDataTable<DeliveryOrderView>(
+          state: tableState,
+          rowKey: (o) => o.id,
+          empty: MadarEmptyContent(
+            title: bridge.trOr(QueueKeys.emptyOnline),
+            message: t('queue.empty_online_hint'),
           ),
-      ],
+          columns: [
+            MadarColumn(
+              id: 'customer',
+              label: t('order.customer'),
+              text: (o) => o.customerName,
+              emphasis: true,
+              flex: 2,
+              phone: MadarPhoneRole.title,
+            ),
+            MadarColumn(
+              id: 'channel',
+              label: t('queue.col_channel'),
+              text: (o) => [
+                t('delivery.${o.channel}'),
+                if (o.paymentHint case final h? when h.isNotEmpty) h,
+                ?onlineReadyLabel(bridge, o),
+              ].join(' · '),
+              flex: 3,
+            ),
+            MadarColumn.status(
+              id: 'status',
+              label: t('queue.col_status'),
+              status: (o) => MadarStatus(
+                t('delivery.status.${o.status}'),
+                tone: deliveryTone(o.status),
+              ),
+              width: 150,
+            ),
+            MadarColumn(
+              id: 'time',
+              label: t('queue.col_time'),
+              text: (o) => clockLabel(bridge, o.createdAt),
+              mono: true,
+              muted: true,
+              width: 72,
+              priority: 1,
+            ),
+            MadarColumn.money(
+              id: 'total',
+              label: t('order.total'),
+              minor: (o) => o.totalMinor,
+              currency: currency,
+              width: 132,
+            ),
+            MadarColumn(
+              id: 'next',
+              label: '',
+              cell: (context, o) => primaryFor(o),
+              width: 136,
+              align: MadarColumnAlign.end,
+              phone: MadarPhoneRole.hidden,
+            ),
+          ],
+          rail: (o) => deliveryTone(o.status),
+          selected: split ? (o) => o.id == selected?.id : null,
+          onTap: (o) =>
+              split ? setState(() => _selectedId = o.id) : unawaited(_view(o)),
+          chevron: false,
+          trailing: layout.isPhone ? (context, o) => primaryFor(o) : null,
+        );
+
+        final list = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
+          children: [
+            if (stale)
+              NoticeBanner(
+                text: bridge.trOr(QueueKeys.offlineNotice),
+                icon: 'wifi.slash',
+              ),
+            if (error != null && (orders.isNotEmpty || stale))
+              NoticeBanner(
+                text: error.of(bridge),
+                tone: ChipTone.danger,
+                icon: 'exclamationmark.circle',
+              ),
+            Flexible(child: table),
+            // Accepting per channel stays at the foot of the segment on a
+            // phone; the tablet header carries it, via the screen.
+            if (layout.isPhone) const AcceptingRow(),
+          ],
+        );
+
+        return Padding(
+          padding: EdgeInsetsDirectional.fromSTEB(
+            layout.gutter,
+            Space.lg,
+            layout.gutter,
+            Space.lg,
+          ),
+          child: !split
+              ? list
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: Space.lg,
+                  children: [
+                    Expanded(child: list),
+                    SizedBox(
+                      width: paneWidth,
+                      child: selected == null
+                          ? const SizedBox.shrink()
+                          : MadarCard(
+                              flush: true,
+                              child: DeliveryDetailsSheet(
+                                key: ValueKey('pane-${selected.id}'),
+                                order: selected,
+                                footer: _OnlinePaneFooter(
+                                  key: ValueKey('foot-${selected.id}'),
+                                  order: selected,
+                                  onPrimary: (readyIn) =>
+                                      _primary(selected, readyIn: readyIn),
+                                  onDecline: () =>
+                                      unawaited(_decline(selected)),
+                                  onCancel: () => unawaited(_cancel(selected)),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
 
-/// One online order. The header names the state (tag), channel and ref;
-/// the body the customer and what they owe; the foot the one next step.
-/// A NEW card also lists the lines and the ready-in chips, because accept
-/// is the moment the teller reads the order.
-class _OnlineCard extends ConsumerStatefulWidget {
-  const _OnlineCard({
+/// What the kitchen said, or what the shop promised — never both, and
+/// nothing at all before the order is accepted (the core drops the promise
+/// the moment the kitchen calls the order ready).
+String? onlineReadyLabel(MadarBridge bridge, DeliveryOrderView o) {
+  final stamp = o.readyAt ?? o.promisedReadyAt;
+  if (stamp == null) return null;
+  final word = bridge.trOr(
+    o.readyAt == null ? QueueKeys.readyBy : QueueKeys.readyAt,
+  );
+  return '$word ${clockLabel(bridge, stamp)}';
+}
+
+/// The primary's word for an order's next step.
+String onlinePrimaryLabel(MadarBridge bridge, DeliveryOrderView o) =>
+    switch (o.status) {
+      'received' => bridge.trOr(QueueKeys.accept),
+      'out_for_delivery' => bridge.trOr(QueueKeys.chargeOnline),
+      'ready' when o.channel == 'pickup' => bridge.trOr(QueueKeys.pickedUp),
+      _ => bridge.tr(key: 'delivery.action.${nextDeliveryStatus(o.status)}'),
+    };
+
+/// Under the order in the pane: a NEW order's ready-in choice with Accept and
+/// Decline; later, the next step (Charge with its figure at the last one,
+/// the same bar Bills uses) and Cancel.
+class _OnlinePaneFooter extends ConsumerStatefulWidget {
+  const _OnlinePaneFooter({
     required this.order,
-    required this.onView,
-    required this.onCharge,
+    required this.onPrimary,
     required this.onDecline,
     required this.onCancel,
     super.key,
   });
 
   final DeliveryOrderView order;
-  final VoidCallback onView;
-  final VoidCallback onCharge;
+  final ValueChanged<int?> onPrimary;
   final VoidCallback onDecline;
   final VoidCallback onCancel;
 
   @override
-  ConsumerState<_OnlineCard> createState() => _OnlineCardState();
+  ConsumerState<_OnlinePaneFooter> createState() => _OnlinePaneFooterState();
 }
 
-class _OnlineCardState extends ConsumerState<_OnlineCard> {
-  /// The chosen ready-in chip; null = the branch's base (preselected).
-  final _readyIn = ValueNotifier<int?>(null);
-
-  @override
-  void dispose() {
-    _readyIn.dispose();
-    super.dispose();
-  }
+class _OnlinePaneFooterState extends ConsumerState<_OnlinePaneFooter> {
+  int? _readyIn;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.madarColors;
     final bridge = ref.bridge;
-    final currency = ref.watch(
-      shellProvider.select((s) => s.session?.currencyCode ?? ''),
-    );
     final o = widget.order;
     final busy = ref.watch(
       incomingProvider.select((s) => s.busyOrderIds.contains(o.id)),
     );
     final notice = ref.watch(incomingProvider.select((s) => s.notices[o.id]));
-    final prepChoices = ref.watch(
-      incomingProvider.select((s) => s.prepChoices),
+    final prep = ref.watch(incomingProvider.select((s) => s.prepChoices));
+    final currency = ref.watch(
+      shellProvider.select((s) => s.session?.currencyCode ?? ''),
     );
     final isNew = o.status == 'received';
-    final tone = deliveryTone(o.status);
-    final address = o.address;
-    final notes = o.deliveryNotes;
-    final hint = o.paymentHint;
-    // What the kitchen said, or what the shop promised — never both, and
-    // nothing at all before the order is accepted.
-    final readyStamp = o.readyAt ?? o.promisedReadyAt;
-    final readyLabel = readyStamp == null
-        ? null
-        : '${bridge.trOr(o.readyAt == null ? QueueKeys.readyBy : QueueKeys.readyAt)}'
-              ' ${clockLabel(bridge, readyStamp)}';
-    // The code and the figure are one word: never split across a wrap.
-    final feeLabel =
-        '${bridge.tr(key: 'receipt.delivery_fee')} '
-        '${Money.format(o.deliveryFeeMinor, currency: currency).replaceAll(' ', '\u00A0')}';
-    return MadarCard.column(
-      onTap: isNew ? null : widget.onView,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.sm,
       children: [
-        // State · channel · ref · arrived-at.
-        Row(
-          spacing: Space.sm,
-          children: [
-            MadarTag(
-              label: bridge.tr(key: 'delivery.status.${o.status}'),
-              tone: tone,
-              glyph: switch (o.status) {
-                'received' => MadarGlyph.full,
-                'preparing' => MadarGlyph.quarter,
-                'ready' => MadarGlyph.check,
-                'out_for_delivery' => MadarGlyph.bike,
-                _ => MadarGlyph.half,
-              },
-            ),
-            Flexible(
-              child: Text(
-                bridge.tr(key: 'delivery.${o.channel}'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-              ),
-            ),
-            if (o.orderRef case final ref?)
-              FigureText(
-                ref,
-                style: MadarType.numLg,
-                color: colors.textPrimary,
-              ),
-            const Spacer(),
-            FigureText(
-              clockLabel(bridge, o.createdAt),
-              style: MadarType.num,
-              color: colors.textMuted,
-            ),
-          ],
-        ),
-        // Who.
-        Row(
-          spacing: Space.md,
-          children: [
-            Flexible(
-              child: Text(
-                o.customerName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MadarType.h3.copyWith(color: colors.textPrimary),
-              ),
-            ),
-            FigureText(
-              o.customerPhone,
-              style: MadarType.numMd,
-              color: colors.textSecondary,
-            ),
-          ],
-        ),
-        if (isNew && address != null && address.isNotEmpty)
-          Text(
-            address,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: MadarType.body.copyWith(
-              fontWeight: FontWeight.w400,
-              color: colors.textSecondary,
-            ),
-          ),
-        if (isNew && notes != null && notes.isNotEmpty)
-          Text(
-            // The language's own quote marks: «…» read the right way in RTL.
-            bridge.tr(key: 'common.quoted').replaceAll('{text}', notes),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: MadarType.body.copyWith(
-              fontStyle: FontStyle.italic,
-              fontWeight: FontWeight.w400,
-              color: colors.textSecondary,
-            ),
-          ),
-        // What. A NEW card lists the lines; the rest only count them.
-        if (isNew)
-          _LinesBlock(order: o, currency: currency)
-        else
-          Row(
-            spacing: Space.sm,
-            children: [
-              Expanded(
-                child: Text(
-                  [
-                    '${o.itemCount} ${bridge.tr(key: 'delivery.items')}',
-                    if (o.deliveryFeeMinor > 0) feeLabel,
-                    if (hint != null && hint.isNotEmpty) hint,
-                    // The clock the customer was given, and then the one
-                    // that actually happened. The core dates the promise
-                    // from acceptance and drops it the moment the kitchen
-                    // calls the order ready, so only one ever shows.
-                    ?readyLabel,
-                  ].join(' · '),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: MadarType.bodySm.copyWith(color: colors.textSecondary),
-                ),
-              ),
-              MoneyText(
-                o.totalMinor,
-                currency: currency,
-                style: MadarType.moneyMd,
-                color: colors.textPrimary,
-              ),
-            ],
-          ),
         if (notice != null)
           CardNotice(
-            text: notice.of(ref.bridge),
+            text: notice.of(bridge),
             onDismiss: () =>
                 ref.read(incomingProvider.notifier).clearNotice(o.id),
           ),
-        // READY IN — only while the base is known; a chip whose minutes we
-        // cannot name is not offered, and Accept then just accepts.
-        if (isNew && prepChoices != null) ...[
-          MadarSectionHeader(
-            text: bridge.trOr(QueueKeys.readyIn),
-            trailing: bridge.trMaybe(QueueKeys.minutes) == null
-                ? null
-                : Text(
-                    bridge.trMaybe(QueueKeys.minutes)!,
-                    style: MadarType.bodySm.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-          ),
-          ValueListenableBuilder<int?>(
-            valueListenable: _readyIn,
-            builder: (_, chosen, _) => Row(
-              spacing: Space.sm,
-              children: [
-                for (final m in prepChoices)
-                  Expanded(
-                    // Scales down rather than overflowing a narrow card: four
-                    // "20 min" tiles did not fit a phone or a portrait iPad
-                    // column in English.
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: MadarChip.tile(
-                        label: bridge
-                            .tr(key: 'queue.prep_minutes')
-                            .replaceAll('{count}', '$m'),
-                        selected: (chosen ?? prepChoices.first) == m,
-                        onTap: () => _readyIn.value = m,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-        _Actions(
-          order: o,
-          busy: busy,
-          onPrimary: () {
-            switch (o.status) {
-              case 'received':
-                unawaited(
-                  ref
-                      .read(incomingProvider.notifier)
-                      .acceptDelivery(
-                        o,
-                        readyInMinutes: _readyIn.value ?? prepChoices?.first,
-                      ),
-                );
-              case 'out_for_delivery':
-                widget.onCharge();
-              default:
-                unawaited(
-                  ref.read(incomingProvider.notifier).advanceDelivery(o),
-                );
-            }
-          },
-          onView: widget.onView,
-          onDecline: widget.onDecline,
-          onCancel: widget.onCancel,
-        ),
-      ],
-    );
-  }
-}
-
-/// The priced lines on a NEW order, then fee · payment hint · total.
-class _LinesBlock extends ConsumerWidget {
-  const _LinesBlock({required this.order, required this.currency});
-
-  final DeliveryOrderView order;
-  final String currency;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.bridge;
-    final o = order;
-    final hint = o.paymentHint;
-    // The code and the figure are one word: never split across a wrap.
-    final feeLabel =
-        '${bridge.tr(key: 'receipt.delivery_fee')} '
-        '${Money.format(o.deliveryFeeMinor, currency: currency).replaceAll(' ', '\u00A0')}';
-    return Container(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Space.md,
-        vertical: Space.xs,
-      ),
-      decoration: BoxDecoration(
-        color: colors.bg,
-        borderRadius: BorderRadius.circular(Radii.control),
-      ),
-      child: Column(
-        children: [
-          for (final line in o.lines)
-            SizedBox(
-              height: kLineRowHeight,
-              child: Row(
-                spacing: Space.sm,
-                children: [
-                  FigureText(
-                    '${line.qty}×',
-                    style: MadarType.num,
-                    color: colors.textSecondary,
-                  ),
-                  Expanded(
-                    child: Text(
-                      [
-                        line.name,
-                        if (line.sizeLabel case final s? when s.isNotEmpty) s,
-                        ...line.modifiers,
-                      ].join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: MadarType.body.copyWith(
-                        fontWeight: FontWeight.w400,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  MoneyText(
-                    line.lineTotalMinor,
-                    currency: currency,
-                    style: MadarType.num,
-                    color: colors.textPrimary,
-                  ),
-                ],
-              ),
-            ),
-          Container(
-            constraints: const BoxConstraints(minHeight: kLineRowHeight),
-            padding: const EdgeInsetsDirectional.symmetric(vertical: Space.xs),
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: colors.borderLight)),
-            ),
-            child: Row(
-              spacing: Space.sm,
-              children: [
+        if (isNew && prep != null) ...[
+          MadarSectionHeader(text: bridge.trOr(QueueKeys.readyIn)),
+          Row(
+            spacing: Space.sm,
+            children: [
+              for (final m in prep)
                 Expanded(
-                  child: Text(
-                    [
-                      if (o.deliveryFeeMinor > 0) feeLabel,
-                      if (o.discountMinor > 0)
-                        '−${Money.format(o.discountMinor, currency: currency)}',
-                      if (hint != null && hint.isNotEmpty) hint,
-                    ].join(' · '),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: MadarType.bodySm.copyWith(
-                      color: colors.textSecondary,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: MadarChip.tile(
+                      label: bridge
+                          .tr(key: 'queue.prep_minutes')
+                          .replaceAll('{count}', '$m'),
+                      selected: (_readyIn ?? prep.first) == m,
+                      onTap: () => setState(() => _readyIn = m),
                     ),
                   ),
                 ),
-                MoneyText(
-                  o.totalMinor,
-                  currency: currency,
-                  style: MadarType.moneyMd,
-                  color: colors.textPrimary,
-                ),
-              ],
-            ),
+            ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// The card's foot: one primary (the next step), a quiet View, and ⋯ with
-/// Cancel. A NEW card has Decline in place of View and no ⋯ — declining IS
-/// its cancel.
-class _Actions extends ConsumerWidget {
-  const _Actions({
-    required this.order,
-    required this.busy,
-    required this.onPrimary,
-    required this.onView,
-    required this.onDecline,
-    required this.onCancel,
-  });
-
-  final DeliveryOrderView order;
-  final bool busy;
-  final VoidCallback onPrimary;
-  final VoidCallback onView;
-  final VoidCallback onDecline;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.bridge;
-    final o = order;
-    final next = nextDeliveryStatus(o.status);
-    final primaryLabel = switch (o.status) {
-      'received' => bridge.trOr(QueueKeys.accept),
-      'out_for_delivery' => bridge.trOr(QueueKeys.chargeOnline),
-      'ready' when o.channel == 'pickup' => bridge.trOr(QueueKeys.pickedUp),
-      _ => bridge.tr(key: 'delivery.action.$next'),
-    };
-    final isNew = o.status == 'received';
-    return Row(
-      spacing: Space.sm,
-      children: [
-        if (isNew)
-          MadarButton(
-            label: bridge.trOr(QueueKeys.decline),
-            variant: MadarButtonVariant.ghost,
-            size: MadarButtonSize.compact,
-            enabled: !busy,
-            onTap: onDecline,
+        if (o.status == 'out_for_delivery')
+          MadarMoneyBar(
+            label: bridge.trOr(QueueKeys.chargeOnline),
+            amountMinor: o.totalMinor,
+            currency: currency,
+            loading: busy,
+            onTap: () => widget.onPrimary(null),
           )
         else
           MadarButton(
-            label: bridge.trOr(QueueKeys.view),
-            variant: MadarButtonVariant.secondary,
-            size: MadarButtonSize.compact,
-            onTap: onView,
-          ),
-        Expanded(
-          child: MadarButton(
-            label: primaryLabel,
-            size: isNew ? MadarButtonSize.regular : MadarButtonSize.compact,
-            glyph: o.status == 'out_for_delivery'
-                ? MadarGlyph.banknote
-                : MadarGlyph.chevronForward,
+            label: onlinePrimaryLabel(bridge, o),
             loading: busy,
-            onTap: onPrimary,
+            onTap: () => widget.onPrimary(_readyIn),
           ),
-        ),
-        if (!isNew) _More(onView: onView, onCancel: onCancel),
-      ],
-    );
-  }
-}
-
-/// The ⋯ — View, and Cancel (with the restock toggle in its sheet).
-class _More extends ConsumerWidget {
-  const _More({required this.onView, required this.onCancel});
-
-  final VoidCallback onView;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.madarColors;
-    final bridge = ref.bridge;
-    return MenuAnchor(
-      style: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(colors.surface),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(Radii.control),
-            side: BorderSide(color: colors.borderLight),
-          ),
-        ),
-      ),
-      menuChildren: [
-        MenuItemButton(
-          onPressed: onView,
-          leadingIcon: MadarGlyphIcon(
-            MadarGlyph.list,
-            color: colors.textSecondary,
-          ),
-          child: Text(
-            bridge.tr(key: 'order.view_order'),
-            style: MadarType.body.copyWith(color: colors.textPrimary),
-          ),
-        ),
-        MenuItemButton(
-          onPressed: onCancel,
-          leadingIcon: MadarGlyphIcon(MadarGlyph.xCircle, color: colors.danger),
-          child: Text(
-            bridge.tr(key: 'delivery.cancel'),
-            style: MadarType.body.copyWith(color: colors.danger),
-          ),
+        MadarButton(
+          label: isNew
+              ? bridge.trOr(QueueKeys.decline)
+              : bridge.tr(key: 'delivery.cancel'),
+          variant: MadarButtonVariant.ghost,
+          enabled: !busy,
+          onTap: isNew ? widget.onDecline : widget.onCancel,
         ),
       ],
-      builder: (context, menu, _) => MadarGlyphTile(
-        glyph: MadarGlyph.more,
-        onTap: () => menu.isOpen ? menu.close() : menu.open(),
-      ),
     );
   }
 }

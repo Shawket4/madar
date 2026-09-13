@@ -217,7 +217,11 @@ class DeliveryDetailsSheet extends ConsumerWidget {
           rows: [
             (
               tr('order.subtotal'),
-              MadarFormat.money(o.subtotalMinor, currency: currency, locale: MadarFormat.localeOf(context)),
+              MadarFormat.money(
+                o.subtotalMinor,
+                currency: currency,
+                locale: MadarFormat.localeOf(context),
+              ),
             ),
             if (o.discountMinor > 0)
               (
@@ -231,7 +235,11 @@ class DeliveryDetailsSheet extends ConsumerWidget {
             if (o.deliveryFeeMinor > 0)
               (
                 tr('receipt.delivery_fee'),
-                MadarFormat.money(o.deliveryFeeMinor, currency: currency, locale: MadarFormat.localeOf(context)),
+                MadarFormat.money(
+                  o.deliveryFeeMinor,
+                  currency: currency,
+                  locale: MadarFormat.localeOf(context),
+                ),
               ),
           ],
           totalMinor: o.totalMinor,

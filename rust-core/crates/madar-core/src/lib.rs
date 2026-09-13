@@ -7553,7 +7553,7 @@ impl MadarCore {
             Ok(orders) => {
                 let views: Vec<_> = orders
                     .iter()
-                    .map(|o| delivery::order_view(o, &loc, base_prep))
+                    .map(|o| self.localize_payment_hint(delivery::order_view(o, &loc, base_prep)))
                     .collect();
                 cache_views(&self.store, &key, &views);
                 Ok(views)
@@ -7572,7 +7572,16 @@ impl MadarCore {
         let o = d::get_delivery_order(&self.api.config(), d::GetDeliveryOrderParams { id })
             .await
             .map_err(net::map_api_error)?;
-        Ok(delivery::order_view(&o, &loc, self.cached_prep_minutes()))
+        Ok(self.localize_payment_hint(delivery::order_view(&o, &loc, self.cached_prep_minutes())))
+    }
+
+    /// An online order's payment hint is a method CODE on the wire (`cash`,
+    /// `card_on_delivery`); the Queue shows it in the till's language.
+    fn localize_payment_hint(&self, mut v: delivery::DeliveryOrderView) -> delivery::DeliveryOrderView {
+        if let Some(code) = v.payment_hint.take() {
+            v.payment_hint = Some(self.payment_method_label(code));
+        }
+        v
     }
 
     /// Set a delivery order's status to an explicit wire value.
@@ -7592,7 +7601,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
-        Ok(delivery::order_view(&o, &loc, self.cached_prep_minutes()))
+        Ok(self.localize_payment_hint(delivery::order_view(&o, &loc, self.cached_prep_minutes())))
     }
 
     /// Advance one step in the lifecycle from `current` (received→confirmed→…→
@@ -7626,7 +7635,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
-        Ok(delivery::order_view(&o, &loc, self.cached_prep_minutes()))
+        Ok(self.localize_payment_hint(delivery::order_view(&o, &loc, self.cached_prep_minutes())))
     }
 
     /// Cancel a delivery order. `restore_inventory = false` means the food was
@@ -7651,7 +7660,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
-        Ok(delivery::order_view(&o, &loc, self.cached_prep_minutes()))
+        Ok(self.localize_payment_hint(delivery::order_view(&o, &loc, self.cached_prep_minutes())))
     }
 
     /// Finalize a delivery order into a real completed sale on the current open

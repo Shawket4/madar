@@ -16,6 +16,17 @@ const double kLineRowHeight = 36;
 /// split view can still be one column.
 const double kTwoColumnMinWidth = Responsive.wide;
 
+/// A Queue segment lays its list beside a detail pane once its content is
+/// this wide (a landscape iPad's page area is 1106).
+const double kQueueSplitMinWidth = 900;
+
+/// The Queue's detail pane: 440 where there is room, narrowing with the
+/// content (40% of it, never under 360) so the list keeps its columns. SPEC
+/// §3 names 560 for Orders; the Queue's list carries an action column, so its
+/// pane is narrower on purpose (see the deviation note there).
+double queuePaneWidth(double contentWidth) =>
+    (contentWidth * 0.4).clamp(360.0, 440.0);
+
 /// Online status → tone. New is teal (it wants a hand), cooking is amber,
 /// done is green, the terminal states are red; `confirmed` and `out` are
 /// neutral ink — steps, not alarms.

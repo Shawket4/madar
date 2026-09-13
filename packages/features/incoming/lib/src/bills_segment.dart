@@ -193,7 +193,10 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
     // Wide enough for the list AND a readable bill beside it: the bill opens
     // in place and the row keeps its one Charge. Narrower, a row opens the
     // Bill as before.
-    final split = !layout.isPhone && MediaQuery.sizeOf(context).width >= 1000;
+    final screen = MediaQuery.sizeOf(context).width;
+    final content =
+        screen - 2 * layout.gutter - (layout.isPhone ? 0 : Metrics.railWidth);
+    final split = !layout.isPhone && content >= kQueueSplitMinWidth;
     final selected = split
         ? bills.where((b) => b.id == _selectedId).firstOrNull ??
               bills.firstOrNull
@@ -226,7 +229,8 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
           label: t('order.waiter'),
           // A name is its own direction: isolated, a Latin name in an Arabic
           // meta line no longer drags the figures beside it out of order.
-          text: (b) => b.waiterName == null ? '' : '\u2068${b.waiterName}\u2069',
+          text: (b) =>
+              b.waiterName == null ? '' : '\u2068${b.waiterName}\u2069',
           flex: 2,
           priority: 2,
         ),
@@ -286,7 +290,10 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
     final list = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
-      children: [...banners, Flexible(child: table)],
+      children: [
+        ...banners,
+        Flexible(child: table),
+      ],
     );
 
     final Widget body;
@@ -297,7 +304,7 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
         children: [
           Expanded(child: list),
           SizedBox(
-            width: _paneWidth,
+            width: queuePaneWidth(content),
             child: selected == null
                 ? const SizedBox.shrink()
                 : MadarCard(
@@ -342,9 +349,6 @@ class _BillsSegmentState extends ConsumerState<BillsSegment> {
     );
   }
 }
-
-/// The detail pane's width beside the list (SPEC §3: 560 on an iPad split).
-const double _paneWidth = 440;
 
 /// Under the bill in the pane: Charge with the figure it takes, and the way
 /// into the full Bill (rounds, voids, moves).

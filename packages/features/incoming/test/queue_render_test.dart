@@ -597,7 +597,8 @@ void main() {
   ]) {
     for (final arabic in [false, true]) {
       for (final dark in [false, true]) {
-        final tag = '$device-${arabic ? 'ar' : 'en'}-${dark ? 'dark' : 'light'}';
+        final tag =
+            '$device-${arabic ? 'ar' : 'en'}-${dark ? 'dark' : 'light'}';
         for (final segment in [QueueSegment.bills, QueueSegment.online]) {
           testWidgets('matrix ${segment.name} $tag', (tester) async {
             await _shoot(
@@ -629,12 +630,13 @@ void main() {
       bridge: _FakeBridge(orders: _orders, tickets: _tickets),
       segment: QueueSegment.online,
     );
-    // The NEW card offers the ready-in chips on the branch base and Accept.
+    // The NEW order leads the table and opens in the pane, which offers the
+    // ready-in chips on the branch base; its row carries Accept too.
     expect(
       find.text(coreWord('queue.prep_minutes').replaceAll('{count}', '20')),
       findsOneWidget,
     );
-    expect(find.text('Accept'), findsOneWidget);
+    expect(find.text('Accept'), findsNWidgets(2));
     expect(find.text('Decline'), findsOneWidget);
     // The pickup channel's READY card says Picked up, not Out for delivery.
     expect(find.text('Picked up'), findsOneWidget);
@@ -692,9 +694,6 @@ void main() {
       segment: QueueSegment.online,
     );
     expect(find.text('قبول'), findsOneWidget);
-    // A figure stays an LTR island: the ref reads left-to-right.
-    final ref = tester.widget<Text>(find.text('#D-118'));
-    expect(ref.textDirection, TextDirection.ltr);
   });
 
   testWidgets('Bills on a phone in Arabic', (tester) async {

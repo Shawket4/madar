@@ -105,7 +105,14 @@ pub(crate) fn order_view(
         customer_phone: o.customer_phone.clone(),
         address: compose_address(o, locale),
         delivery_notes: o.delivery_notes.clone().flatten().filter(|s| !s.is_empty()),
-        payment_hint: None,
+        // The RAW code the customer picked; the caller words it in the till's
+        // language through the payment-method catalog (`localize_payment_hint`).
+        payment_hint: o
+            .payment_method_hint
+            .clone()
+            .flatten()
+            .or_else(|| o.payment_method.clone().flatten())
+            .filter(|s| !s.trim().is_empty()),
         subtotal_minor: o.subtotal as i64,
         discount_minor: o.discount_amount.unwrap_or(0) as i64,
         delivery_fee_minor: o.delivery_fee as i64,
@@ -392,7 +399,7 @@ mod tests {
         assert_eq!(v.discount_minor, 0); // discount_amount None → 0
         assert_eq!(v.item_count, 3);
         assert_eq!(v.created_at, ts().to_rfc3339());
-        assert_eq!(v.payment_hint, None); // always None in the projection
+        assert_eq!(v.payment_hint, None); // no hint on the wire, none on the card
         assert!(!v.is_terminal);
     }
 
