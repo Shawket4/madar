@@ -46,6 +46,9 @@ pub struct BundleWithComponents {
     pub description_translations: Option<serde_json::Value>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// Asset refs (WebP variants, signed); absent when the bundle has no asset group. Additive: `image_url` keeps its legacy value.
+    #[serde(rename = "image", skip_serializing_if = "Option::is_none")]
+    pub image: Option<Box<models::AssetGroupRef>>,
     #[serde(rename = "image_url", skip_serializing_if = "Option::is_none")]
     pub image_url: Option<String>,
     #[serde(rename = "name")]
@@ -102,6 +105,7 @@ impl BundleWithComponents {
             description: None,
             description_translations,
             id,
+            image: None,
             image_url: None,
             name,
             name_translations,

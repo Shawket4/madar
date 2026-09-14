@@ -9,6 +9,7 @@ Name | Type | Description | Notes
 **category_id** | Option<**uuid::Uuid**> |  | [optional]
 **description** | Option<**String**> |  | [optional]
 **id** | **uuid::Uuid** |  | 
+**image** | Option<[**models::AssetGroupRef**](AssetGroupRef.md)> | Asset refs (WebP variants, signed), same as `GET /menu-items/{id}`. | [optional]
 **image_url** | Option<**String**> |  | [optional]
 **is_active** | **bool** |  | 
 **modifier_groups** | [**Vec<models::ModifierGroupOut>**](ModifierGroupOut.md) |  | 

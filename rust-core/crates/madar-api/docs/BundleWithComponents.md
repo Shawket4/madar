@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **description** | Option<**String**> |  | [optional]
 **description_translations** | Option<**serde_json::Value**> |  | 
 **id** | **uuid::Uuid** |  | 
+**image** | Option<[**models::AssetGroupRef**](AssetGroupRef.md)> | Asset refs (WebP variants, signed); absent when the bundle has no asset group. Additive: `image_url` keeps its legacy value. | [optional]
 **image_url** | Option<**String**> |  | [optional]
 **name** | **String** |  | 
 **name_translations** | Option<**serde_json::Value**> |  | 

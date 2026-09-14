@@ -34,6 +34,14 @@ pub struct StudioAggregate {
     pub description: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// Asset refs (WebP variants, signed), same as `GET /menu-items/{id}`.
+    #[serde(
+        rename = "image",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub image: Option<Option<Box<models::AssetGroupRef>>>,
     #[serde(
         rename = "image_url",
         default,
@@ -84,6 +92,7 @@ impl StudioAggregate {
             category_id: None,
             description: None,
             id,
+            image: None,
             image_url: None,
             is_active,
             modifier_groups,
