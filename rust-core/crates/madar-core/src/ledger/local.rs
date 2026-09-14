@@ -150,6 +150,33 @@ fn void_fields(v: &mut Value, voided_at: &str, reason: &str, note: Option<&str>)
 /// uses the ticket id as the order's idempotency key, so the feed's row lands on
 /// this one.
 #[allow(clippy::too_many_arguments)]
+/// A settle row's bill from a cached ticket's server `bill` JSON (or nothing),
+/// with `total` as the drawer collected it. For paths that only hold the raw
+/// ticket — a migrated or mirrored queued settle; a live settle prices the bill
+/// through `bill_with_rewards` instead.
+pub(crate) fn bill_from_json(bill: Option<&Value>, total: i64) -> crate::tickets::TicketBillView {
+    let n = |k: &str| bill.and_then(|b| b.get(k)).and_then(Value::as_i64).unwrap_or(0);
+    let f = |k: &str| bill.and_then(|b| b.get(k)).and_then(Value::as_f64).unwrap_or(0.0);
+    let same = bill.and_then(|b| b.get("total")).and_then(Value::as_i64) == Some(total);
+    crate::tickets::TicketBillView {
+        subtotal_minor: if bill.is_some() { n("subtotal") } else { total },
+        // A different total (split legs that disagree, a discount picked at
+        // settle) cannot be broken down honestly; its parts stay at zero.
+        discount_minor: if same { n("discount_amount") } else { 0 },
+        service_charge_minor: if same { n("service_charge_amount") } else { 0 },
+        tax_minor: if same { n("tax_amount") } else { 0 },
+        total_minor: total,
+        tax_rate: f("tax_rate"),
+        service_charge_rate: f("service_charge_rate"),
+        tax_inclusive: bill.and_then(|b| b.get("tax_inclusive")).and_then(Value::as_bool).unwrap_or(false),
+        service_charge_taxable: bill
+            .and_then(|b| b.get("service_charge_taxable"))
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
+        service_charge_waived_minor: 0,
+    }
+}
+
 pub(crate) fn settle_json(
     ticket_id: &str,
     branch_id: &str,
@@ -157,12 +184,14 @@ pub(crate) fn settle_json(
     who: &Ringer<'_>,
     payment_method: &str,
     splits: &[(String, i64)],
-    total: i64,
+    bill: &crate::tickets::TicketBillView,
+    waived_by: Option<&str>,
     tip: i64,
     tip_method: Option<&str>,
     at: &str,
     methods: &[Method],
 ) -> Value {
+    let total = bill.total_minor;
     let legs: Vec<Value> = if splits.is_empty() {
         vec![json!({ "method": payment_method, "amount": total, "is_cash": is_cash_of(methods, payment_method) })]
     } else {
@@ -179,6 +208,19 @@ pub(crate) fn settle_json(
         "teller_name": who.teller_name,
         "status": "completed",
         "order_type": "dine_in",
+        // The bill as the drawer collected it — tax and service charge
+        // included — so the local Z has the same figures the server will book.
+        "subtotal": bill.subtotal_minor,
+        "discount_amount": bill.discount_minor,
+        "service_charge_amount": bill.service_charge_minor,
+        "tax_amount": bill.tax_minor,
+        "tax_inclusive": bill.tax_inclusive,
+        "tax_rate_applied": bill.tax_rate,
+        "service_charge_rate_applied": if waived_by.is_some() { 0.0 } else { bill.service_charge_rate },
+        "service_charge_taxable_applied": bill.service_charge_taxable,
+        "service_charge_waived_by": waived_by,
+        "service_charge_waived_at": waived_by.map(|_| at),
+        "service_charge_waived_amount": bill.service_charge_waived_minor,
         "total_amount": total,
         "tip_amount": tip,
         "tip_payment_method": tip_method,

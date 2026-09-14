@@ -93,6 +93,17 @@ pub struct ShiftSummary {
     /// Goods only, by method actually tendered — money IN. Tips are in `total_tips`; refunds are not netted from these buckets (they are money OUT, with their own tender — see `refunds_issued_*`).
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
     pub revenue_by_method: Option<serde_json::Value>,
+    #[serde(
+        rename = "service_charge_waived_amount",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_waived_amount: Option<i64>,
+    /// Table bills whose service charge was removed by someone holding `orders:waive_service`, and what those charges came to. Additive.
+    #[serde(
+        rename = "service_charge_waived_count",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_waived_count: Option<i64>,
     /// DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0).
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
@@ -117,7 +128,7 @@ pub struct ShiftSummary {
     /// What this shift's sales are worth after refunds: `gross_sales` less `refunded_amount`. Same definition as `total_revenue` on the branch sales report, so the two reconcile.
     #[serde(rename = "total_revenue")]
     pub total_revenue: i64,
-    /// Service charge added to this shift's dine-in bills. Inside `total_revenue` as the shop's income; see `analytics::schema` for why.
+    /// Service charge added to this shift's dine-in bills, less what refunds took back. Inside `total_revenue` as the shop's income; see `analytics::schema` for why.
     #[serde(
         rename = "total_service_charge",
         skip_serializing_if = "Option::is_none"
@@ -170,6 +181,8 @@ impl ShiftSummary {
             refunds_issued_cash: None,
             refunds_issued_count: None,
             revenue_by_method,
+            service_charge_waived_amount: None,
+            service_charge_waived_count: None,
             shift_id,
             status,
             teller_id,

@@ -294,9 +294,10 @@ impl MadarBridge {
         redemptions: Vec<crate::api::orders::CheckoutRedemption>,
         discount_type: Option<String>,
         discount_value: Option<f64>,
+        waive_service: bool,
     ) -> Result<Option<crate::api::tickets::TicketBillView>, MadarError> {
         self.inner
-            .bill_with_rewards(ticket_id, redemptions, discount_type, discount_value)
+            .bill_with_rewards(ticket_id, redemptions, discount_type, discount_value, waive_service)
             .map_err(MadarError::from)
     }
 

@@ -2770,19 +2770,28 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
                     .unwrap_or_default();
                 // What the bill came to: the split legs when tendered in parts, else
                 // the bill this device holds for the ticket.
-                let total = if splits.is_empty() {
-                    tx.query_row(
+                let cached: Option<serde_json::Value> = tx
+                    .query_row(
                         "SELECT data FROM sync_rows WHERE type='open_ticket' AND id=?1",
                         [&ticket],
                         |r| r.get::<_, String>(0),
                     )
                     .ok()
-                    .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
-                    .and_then(|v| v.get("bill").and_then(|b| b.get("total")).and_then(|t| t.as_i64()).or_else(|| v.get("subtotal").and_then(|t| t.as_i64())))
-                    .unwrap_or(0)
+                    .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok());
+                let total = if splits.is_empty() {
+                    request
+                        .get("total_amount")
+                        .and_then(|t| t.as_i64())
+                        .or_else(|| {
+                            cached.as_ref().and_then(|v| {
+                                v.get("bill").and_then(|b| b.get("total")).and_then(|t| t.as_i64()).or_else(|| v.get("subtotal").and_then(|t| t.as_i64()))
+                            })
+                        })
+                        .unwrap_or(0)
                 } else {
                     splits.iter().map(|(_, a)| a).sum()
                 };
+                let bill = ledger::local::bill_from_json(cached.as_ref().and_then(|v| v.get("bill")), total);
                 let till = str_of(&request, "till_id").unwrap_or_default();
                 let branch = tx
                     .query_row("SELECT branch_id FROM ledger_tills WHERE id=?1", [&till], |r| r.get::<_, String>(0))
@@ -2794,7 +2803,8 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
                     &who,
                     &str_of(&request, "payment_method").unwrap_or_default(),
                     &splits,
-                    total,
+                    &bill,
+                    None,
                     request.get("tip_amount").and_then(|x| x.as_i64()).unwrap_or(0),
                     str_of(&request, "tip_payment_method").as_deref(),
                     &event_at,
@@ -4531,8 +4541,10 @@ impl MadarCore {
             .unwrap_or_default())
     }
 
-    /// A bill re-priced with rewards on it, under the discount the settle will
-    /// carry (the cashier's pick, `"none"`, or — absent — the waiter's).
+    /// A bill re-priced with rewards on it (none is fine), under the discount
+    /// the settle will carry (the cashier's pick, `"none"`, or — absent — the
+    /// waiter's), and without its service charge when `waive_service`. This is
+    /// the figure the Charge sheet collects, splits and gives change from.
     /// `None` for a bill the server has not priced yet.
     pub fn bill_with_rewards(
         &self,
@@ -4540,6 +4552,7 @@ impl MadarCore {
         redemptions: Vec<checkout::CheckoutRedemption>,
         discount_type: Option<String>,
         discount_value: Option<f64>,
+        waive_service: bool,
     ) -> Result<Option<tickets::TicketBillView>, CoreError> {
         let Some((raw, view)) = self.cached_ticket(&ticket_id) else {
             return Ok(None);
@@ -4569,7 +4582,7 @@ impl MadarCore {
             bill.subtotal_minor - covered,
             dtype.as_deref(),
             dvalue,
-            self.service_charge_taxable(),
+            waive_service,
         )))
     }
 
@@ -7015,10 +7028,13 @@ impl MadarCore {
     /// The signed-in session's branch id, or a validation error.
     /// Whether the branch taxes its service charge — the one part of a bill's
     /// policy the wire does not freeze onto the bill itself.
+    /// The session's `service_charge_taxable`, the fallback for a bill from a
+    /// server that did not freeze it. Signed out it is `TaxPolicy::default()`'s
+    /// `true` — the same default the engine and the dashboard use.
     fn service_charge_taxable(&self) -> bool {
         self.current_session()
             .map(|s| s.service_charge_taxable)
-            .unwrap_or(false)
+            .unwrap_or_else(|| crate::tax::TaxPolicy::default().service_charge_taxable)
     }
 
     fn session_branch_id(&self) -> Result<String, CoreError> {
@@ -7400,7 +7416,17 @@ impl MadarCore {
         // drawer reconciled against a card line that never moved. Empty means
         // one method, which is nearly every bill.
         splits: Vec<checkout::CheckoutSplit>,
+        // Remove the service charge from this bill. Offered only to a PIN user
+        // whose effective permissions include `orders:waive_service`, and
+        // refused here for anyone else — the server refuses it again.
+        waive_service: bool,
     ) -> Result<Option<String>, CoreError> {
+        if waive_service && !self.has_permission("orders".into(), "waive_service".into()) {
+            return Err(CoreError::Validation {
+                field: "waive_service".into(),
+                detail: "removing the service charge needs the waive service charge permission".into(),
+            });
+        }
         let shift_uuid = uuid::Uuid::parse_str(&till_id).map_err(|_| CoreError::Validation {
             field: "till_id".into(),
             detail: "bad shift id".into(),
@@ -7493,13 +7519,57 @@ impl MadarCore {
         // (the server's idempotency key for it): the drawer holds the money the
         // moment the cashier takes it, offline too.
         let methods = ledger::views::payment_method_rows(&self.store);
-        let settle_total = self
-            .bill_with_rewards(ticket_id.clone(), loyalty_redemptions.clone(), discount_type_for_row.clone(), discount_value)
+        // The bill the drawer collects: rewards, then the discount, then the
+        // service charge (or none, waived), then tax — the Charge sheet's figure.
+        let priced_bill = self
+            .bill_with_rewards(
+                ticket_id.clone(),
+                loyalty_redemptions.clone(),
+                discount_type_for_row.clone(),
+                discount_value,
+                waive_service,
+            )
             .ok()
-            .flatten()
-            .map(|b| b.total_minor)
-            .or_else(|| self.cached_ticket(&ticket_id).map(|(_, v)| v.subtotal_minor))
-            .unwrap_or(0);
+            .flatten();
+        // The till's figure goes through the server's drift check, as a counter
+        // sale's does — only for a bill the server priced, and never with
+        // rewards (the server prices those itself and ignores the figure).
+        if let Some(b) = priced_bill.as_ref().filter(|_| loyalty_redemptions.is_empty()) {
+            request.total_amount = Some(Some(b.total_minor as i32));
+        }
+        if waive_service {
+            request.waive_service_charge = Some(true);
+        }
+        // A ticket fired offline has no server price yet. Its local row is
+        // priced under the session's policy as a dine-in bill — tax and service
+        // charge included — rather than at the bare subtotal, so the drawer and
+        // the local Z are right until the server's row replaces it.
+        let settle_bill = priced_bill.unwrap_or_else(|| {
+            let subtotal = self.cached_ticket(&ticket_id).map(|(_, v)| v.subtotal_minor).unwrap_or(0);
+            let policy = self.current_session().map(|s| s.tax_policy()).unwrap_or_default();
+            use rust_decimal::prelude::ToPrimitive;
+            let unpriced = tickets::TicketBillView {
+                subtotal_minor: subtotal,
+                discount_minor: 0,
+                service_charge_minor: 0,
+                tax_minor: 0,
+                total_minor: subtotal,
+                tax_rate: policy.tax_rate.to_f64().unwrap_or(0.0),
+                service_charge_rate: policy.service_charge_rate.to_f64().unwrap_or(0.0),
+                tax_inclusive: policy.tax_inclusive,
+                service_charge_taxable: policy.service_charge_taxable,
+                service_charge_waived_minor: 0,
+            };
+            let (dtype, dvalue) = match discount_type_for_row.as_deref() {
+                Some("none") => (None, None),
+                Some(_) => (discount_type_for_row.clone(), discount_value),
+                None => self
+                    .cached_ticket(&ticket_id)
+                    .map(|(raw, _)| tickets::waiter_discount(&raw))
+                    .unwrap_or((None, None)),
+            };
+            tickets::reprice_with(&unpriced, subtotal, dtype.as_deref(), dvalue, waive_service)
+        });
         let (settle_user, _) = self.outbox_meta();
         let teller_name = self.current_session().map(|s| s.display_name).unwrap_or_default();
         let settle_legs: Vec<(String, i64)> = request
@@ -7517,7 +7587,8 @@ impl MadarCore {
             &ledger::local::Ringer { teller_id: settle_user.as_deref().unwrap_or(""), teller_name: &teller_name },
             &request.payment_method,
             &settle_legs,
-            settle_total,
+            &settle_bill,
+            waive_service.then_some(settle_user.as_deref().unwrap_or("")),
             request.tip_amount.flatten().unwrap_or(0) as i64,
             request.tip_payment_method.clone().flatten().as_deref(),
             &self.corrected_now().to_rfc3339(),
@@ -9376,6 +9447,7 @@ mod lifecycle_tests {
                     units: 1,
                 }],
                 vec![],
+                false,
             )
             .await;
         assert!(settle.is_err());

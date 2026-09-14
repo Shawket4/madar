@@ -38,6 +38,17 @@ pub struct BranchSalesReport {
     /// Money collected FOR GOODS, bucketed by the method actually tendered (`order_payments`) — money IN. Tips are not in here — see `total_tips` — and refunds are not netted out: they are money OUT with a tender of their own, on `GET /shifts/{id}/refunds` and the refunds dataset.
     #[serde(rename = "revenue_by_method", deserialize_with = "Option::deserialize")]
     pub revenue_by_method: Option<serde_json::Value>,
+    #[serde(
+        rename = "service_charge_waived_amount",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_waived_amount: Option<i64>,
+    /// Table bills in range whose service charge was waived, and what those charges came to. Additive.
+    #[serde(
+        rename = "service_charge_waived_count",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_waived_count: Option<i64>,
     #[serde(rename = "subtotal")]
     pub subtotal: i64,
     #[serde(
@@ -65,7 +76,7 @@ pub struct BranchSalesReport {
     /// What the sales in range are worth after refunds: `gross_sales` less `refunded_amount`. A refund is attributed to the sale it was against, whenever it was issued — the same restatement a full refund makes by flipping the order's status out of the sold set.
     #[serde(rename = "total_revenue")]
     pub total_revenue: i64,
-    /// Service charge on the dine-in bills in range — inside `total_revenue` as the shop's income, not a pass-through.
+    /// Service charge on the dine-in bills in range, less what refunds took back — inside `total_revenue` as the shop's income, not a pass-through.
     #[serde(
         rename = "total_service_charge",
         skip_serializing_if = "Option::is_none"
@@ -103,6 +114,8 @@ impl BranchSalesReport {
             gross_sales: None,
             refunded_amount: None,
             revenue_by_method,
+            service_charge_waived_amount: None,
+            service_charge_waived_count: None,
             subtotal,
             to: None,
             top_items,

@@ -18,6 +18,7 @@ Name | Type | Description | Notes
 **tip_amount** | Option<**i32**> |  | [optional]
 **tip_payment_method** | Option<**String**> |  | [optional]
 **total_amount** | Option<**i32**> | What the till says the bill came to — the figure its drawer collected. Checked against the server's own total exactly as a counter checkout is (`create_order_inner`'s drift check); a disagreement is refused, not recorded. Absent on older builds, which then get no check. The figure to send is `OpenTicketView::bill.total`, which is priced by the same engine under the same policy — a till that shows that number cannot disagree with the books. | [optional]
+**waive_service_charge** | Option<**bool**> | Remove the service charge from this bill. Only someone whose effective permissions include `orders:waive_service` may send `true`; anyone else is refused, live or replayed. The order records who and when. Absent (every build before 0.7.2) means the charge stands. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

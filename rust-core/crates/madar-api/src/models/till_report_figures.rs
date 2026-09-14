@@ -56,8 +56,27 @@ pub struct TillReportFigures {
         skip_serializing_if = "Option::is_none"
     )]
     pub refunds_issued_count: Option<i64>,
+    #[serde(
+        rename = "refunds_issued_service_charge",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub refunds_issued_service_charge: Option<i64>,
+    /// The tax and service charge inside the refunds issued FROM this till's drawer (`refunds_issued_amount`'s split).
+    #[serde(rename = "refunds_issued_tax", skip_serializing_if = "Option::is_none")]
+    pub refunds_issued_tax: Option<i64>,
     #[serde(rename = "safe_drops")]
     pub safe_drops: i64,
+    #[serde(
+        rename = "service_charge_waived_amount",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_waived_amount: Option<i64>,
+    /// Table bills whose service charge was removed (`orders:waive_service`), and what those charges came to. Not part of any total.
+    #[serde(
+        rename = "service_charge_waived_count",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_waived_count: Option<i64>,
     /// `branches.standard_float`.
     #[serde(
         rename = "standard_float",
@@ -82,6 +101,15 @@ pub struct TillReportFigures {
     pub timezone: Option<Option<String>>,
     #[serde(rename = "total_payments")]
     pub total_payments: i64,
+    /// Service charge on this till's sales, less what their refunds took back.
+    #[serde(
+        rename = "total_service_charge",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub total_service_charge: Option<i64>,
+    /// Tax on this till's sales, less the tax their refunds took back (a partial refund takes back its pro-rata share; a voided or fully refunded sale is out altogether). Additive.
+    #[serde(rename = "total_tax", skip_serializing_if = "Option::is_none")]
+    pub total_tax: Option<i64>,
     #[serde(rename = "total_tips")]
     pub total_tips: i64,
     #[serde(rename = "voided_amount")]
@@ -123,11 +151,17 @@ impl TillReportFigures {
             refunds_issued_amount: None,
             refunds_issued_cash: None,
             refunds_issued_count: None,
+            refunds_issued_service_charge: None,
+            refunds_issued_tax: None,
             safe_drops,
+            service_charge_waived_amount: None,
+            service_charge_waived_count: None,
             standard_float: None,
             suggested_safe_drop: None,
             timezone: None,
             total_payments,
+            total_service_charge: None,
+            total_tax: None,
             total_tips,
             voided_amount,
         }

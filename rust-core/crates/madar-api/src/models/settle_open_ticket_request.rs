@@ -106,6 +106,12 @@ pub struct SettleOpenTicketRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub total_amount: Option<Option<i32>>,
+    /// Remove the service charge from this bill. Only someone whose effective permissions include `orders:waive_service` may send `true`; anyone else is refused, live or replayed. The order records who and when. Absent (every build before 0.7.2) means the charge stands.
+    #[serde(
+        rename = "waive_service_charge",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub waive_service_charge: Option<bool>,
 }
 
 impl SettleOpenTicketRequest {
@@ -125,6 +131,7 @@ impl SettleOpenTicketRequest {
             tip_amount: None,
             tip_payment_method: None,
             total_amount: None,
+            waive_service_charge: None,
         }
     }
 }

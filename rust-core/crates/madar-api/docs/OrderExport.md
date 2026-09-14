@@ -36,10 +36,18 @@ Name | Type | Description | Notes
 **price_expected_total** | Option<**i32**> | What the catalogue says this sale should have come to, when it differs. Beside `subtotal` it is the size of the drift, which is the question anyone looking at a flagged sale asks next. | [optional]
 **price_flagged** | Option<**bool**> | This sale was rung against a catalogue that has since moved: a line was charged at a price the menu no longer says, or the item was disabled at this branch. Both mean a till that was OFFLINE when something changed — a live sale is priced by the server and cannot deviate.  Recorded, never rejected: the money already changed hands. It is here so the POS and the dashboard can SHOW it, which is the whole point of flagging something. | [optional]
 **service_charge_amount** | Option<**i32**> | The service charge on this bill; `0` where the branch charges none. Its own field, and its own receipt line: a charge the customer did not choose is stated separately from the tax rather than folded into it. | [optional]
+**service_charge_rate_applied** | Option<**f64**> | The service charge rate the bill was priced under (a fraction); `0` on a takeaway, a delivery, or a bill whose charge was waived. Additive. | [optional]
+**service_charge_taxable_applied** | Option<**bool**> | Whether the service charge sat inside the tax base. Additive. | [optional]
+**service_charge_waived_amount** | Option<**i32**> | What the removed service charge came to, in minor units; `0` when nothing was waived. Not part of the total. Additive. | [optional]
+**service_charge_waived_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | When the service charge was removed. Additive. | [optional]
+**service_charge_waived_by** | Option<**uuid::Uuid**> | Who removed the service charge from this table's bill (a holder of `orders:waive_service`), or `null`. Additive. | [optional]
+**service_charge_waived_by_name** | Option<**String**> |  | [optional]
 **shift_id** | **uuid::Uuid** | DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0). | 
 **status** | **String** |  | 
 **subtotal** | **i32** |  | 
 **tax_amount** | **i32** |  | 
+**tax_inclusive** | Option<**bool**> | Whether this bill's prices included tax, as it was priced. A receipt says \"Prices include VAT\" when true. `null` on a read that does not resolve it. Additive. | [optional]
+**tax_rate_applied** | Option<**f64**> | The tax rate the bill was priced under (a fraction). `null` for orders from before rates were recorded. Additive. | [optional]
 **teller_id** | **uuid::Uuid** |  | 
 **teller_name** | **String** |  | 
 **till_id** | **uuid::Uuid** |  | 
