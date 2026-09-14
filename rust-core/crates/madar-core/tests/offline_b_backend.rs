@@ -254,28 +254,29 @@ async fn sell(core: &MadarCore, qty: usize, method_id: &str, tendered: i64) -> S
     r.local_order_id
 }
 
-/// Drain + pull until the queue is empty, within `max_secs`. The server paces a
-/// client (429) past its burst; the core waits that out by itself, so this
-/// only polls — slowly, so the polling is not what gets paced.
+/// Reconnected: let the core drain and confirm, within `max_secs`. One sync
+/// starts it; after that the core's own scheduler drives (an ack nudges the next
+/// pass, a 429 schedules its own resume) and the test only READS the local
+/// status — polling the network here would spend the very allowance the server
+/// paces the drain with.
 async fn settle(core: &MadarCore, max_secs: u64) {
     let deadline = Instant::now() + Duration::from_secs(max_secs);
+    let mut s = core.sync_now().await.expect("sync");
+    let mut last_kick = Instant::now();
     loop {
-        let s = core.sync_now().await.expect("sync");
         assert_eq!(s.dead_outbox, 0, "nothing dead-letters: {s:?}");
-        if s.pending_outbox == 0 {
-            // Pull until the feed confirms what the drain landed (a pull may be
-            // paced too).
-            for _ in 0..20 {
-                let s = core.sync_now().await.expect("sync");
-                if s.freshness.state == "fresh" {
-                    return;
-                }
-                tokio::time::sleep(Duration::from_millis(1_500)).await;
-            }
-            panic!("the feed never confirmed: {:?}", core.sync_status());
+        if s.pending_outbox == 0 && s.freshness.state == "fresh" {
+            return;
         }
-        assert!(Instant::now() < deadline, "the queue did not drain: {s:?}");
-        tokio::time::sleep(Duration::from_millis(1_000)).await;
+        assert!(Instant::now() < deadline, "did not settle: {s:?}");
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        // A settled queue whose confirming pull was paced gets one more pull,
+        // no more often than a teller's sync button would.
+        if s.pending_outbox == 0 && last_kick.elapsed() > Duration::from_secs(5) {
+            core.sync_now().await.expect("sync");
+            last_kick = Instant::now();
+        }
+        s = core.sync_status();
     }
 }
 
