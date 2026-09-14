@@ -350,6 +350,26 @@ pub struct LoyaltyProgrammeView {
     pub balance_label: String,
 }
 
+/// The programme as the synced settings row carries it (`loyalty`: enabled,
+/// mode, program_name, program_name_ar) or a legacy fill stored whole. `None`
+/// (no programme at the branch, nothing known yet) is the wire default:
+/// disabled.
+pub(crate) fn settings_from_value(v: Option<&serde_json::Value>) -> madar_api::models::LoyaltySettings {
+    let mut s = madar_api::models::LoyaltySettings::default();
+    let Some(v) = v.filter(|v| v.is_object()) else { return s };
+    if let Some(e) = v.get("enabled").and_then(serde_json::Value::as_bool) {
+        s.enabled = e;
+    }
+    if let Some(m) = v.get("mode").and_then(serde_json::Value::as_str) {
+        s.mode = m.to_string();
+    }
+    if let Some(n) = v.get("program_name").and_then(serde_json::Value::as_str) {
+        s.program_name = n.to_string();
+    }
+    s.program_name_ar = Some(v.get("program_name_ar").and_then(serde_json::Value::as_str).map(str::to_string));
+    s
+}
+
 pub fn programme_view(
     s: &madar_api::models::LoyaltySettings,
     locale: &str,

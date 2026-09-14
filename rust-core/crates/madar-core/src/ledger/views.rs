@@ -558,6 +558,22 @@ pub(crate) fn tills_to_check(store: &Store) -> CoreResult<Vec<String>> {
     })
 }
 
+/// The newest server seq any row of a till carries (the till, its sales, its
+/// drawer movements, its refunds).
+pub(crate) fn newest_seq(store: &Store, till_id: &str) -> CoreResult<i64> {
+    store.with_conn(|c| {
+        Ok(c.query_row(
+            "SELECT MAX(m) FROM (
+                SELECT COALESCE(MAX(srv_seq),0) m FROM ledger_tills WHERE id=?1
+                UNION ALL SELECT COALESCE(MAX(srv_seq),0) FROM ledger_orders WHERE till_id=?1
+                UNION ALL SELECT COALESCE(MAX(srv_seq),0) FROM ledger_cash WHERE till_id=?1
+                UNION ALL SELECT COALESCE(MAX(srv_seq),0) FROM ledger_refunds WHERE till_id=?1)",
+            [till_id],
+            |r| r.get(0),
+        )?)
+    })
+}
+
 /// The stored server report, when it may be served AS the report (design §7
 /// "authority selection"): the device has everything the report includes
 /// (`as_of_seq <= cursor`), the report includes everything the device holds of

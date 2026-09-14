@@ -114,18 +114,19 @@ impl MadarCore {
         till::suggested_opening_cash(&self.store)
     }
 
-    /// Is the signed-in person's till open on ANOTHER device? Server when online,
-    /// else live LAN peers; `None` when neither can tell or it is not.
+    /// Is the signed-in person's till open on ANOTHER device? The synced till
+    /// rows, then live LAN peers; `None` when neither says so.
     pub async fn check_till_elsewhere(&self) -> Result<Option<till::TillElsewhereView>, CoreError> {
         let sp = self.session_parts()?;
         let dev = self.lan_device_id();
-        let server = if sp.online {
-            self.server_prefill(&sp.branch_id, &sp.user_id).await
-        } else {
-            None
-        };
+        // The synced rows first (the server's open tills as of the last pull),
+        // then live LAN peers. No network: this is polled by the till screen.
+        let rows = till::branch_records(&self.store, &sp.branch_id);
+        if let Some(e) = till::elsewhere_from_rows(&rows, &sp.user_id, &dev) {
+            return Ok(Some(e));
+        }
         let (sighting, peers) = self.lan_person_sighting(&sp.user_id);
-        Ok(match till::decide_open(server.as_ref(), &dev, sighting.as_ref(), peers) {
+        Ok(match till::decide_open(None, &dev, sighting.as_ref(), peers) {
             till::OpenDecision::Blocked(e) => Some(e),
             _ => None,
         })
@@ -260,23 +261,28 @@ impl MadarCore {
         })
     }
 
-    /// Reconcile the person's till with `/tills/.../current` (online).
+    /// Reconcile the person's till with the synced till rows (no network: the
+    /// changefeed carries every open till at the branch, and this device's own
+    /// writes are already rows). Before the branch's first snapshot the rows
+    /// cannot say "no till", so the local state stands.
     pub async fn refresh_till(&self) -> Result<Option<TillView>, CoreError> {
         let sp = self.session_parts()?;
         if sp.role != "teller" {
             return Ok(None);
         }
-        let pf = self.fetch_prefill(&sp.branch_id).await?;
+        let local = till::current(&self.store)?;
+        if !crate::sync_pull::branch_snapshotted(&self.store, &sp.branch_id) {
+            return Ok(local);
+        }
+        let rows = till::branch_records(&self.store, &sp.branch_id);
         if self.store.pending_count().map(|n| n == 0).unwrap_or(false) {
-            let s = pf
-                .last_close_declared
-                .flatten()
-                .unwrap_or(pf.suggested_opening_cash) as i64;
+            let s = till::last_close_declared_rows(&rows, &sp.user_id)
+                .or_else(|| crate::sync_pull::standard_float(&self.store, &sp.branch_id))
+                .unwrap_or(0);
             if s > 0 {
                 till::cache_suggested_opening_cash(&self.store, s)?;
             }
         }
-        let local = till::current(&self.store)?;
         let pending = |op: &[&str]| {
             local
                 .as_ref()
@@ -291,16 +297,23 @@ impl MadarCore {
         };
         let open_pending = pending(&["open_till", "open_shift"]);
         let close_pending = pending(&["close_till", "close_shift"]);
-        match till::reconcile(&pf, &self.lan_device_id(), local.as_ref(), open_pending, close_pending) {
+        let decision =
+            till::reconcile_rows(&rows, &sp.user_id, &self.lan_device_id(), local.as_ref(), open_pending, close_pending);
+        match decision {
             till::TillReconcile::Adopt(t) => {
-                till::save(&self.store, &t)?;
-                self.lan_sync_open_tills();
+                let moved = local.as_ref().map(|l| l.id != t.id || !l.is_open).unwrap_or(true);
+                if moved {
+                    till::save(&self.store, &t)?;
+                    self.lan_sync_open_tills();
+                }
                 Ok(Some(till::view_from(&t)))
             }
             till::TillReconcile::KeepLocal => Ok(local),
             till::TillReconcile::Clear => {
-                till::clear(&self.store)?;
-                self.lan_sync_open_tills();
+                if local.is_some() {
+                    till::clear(&self.store)?;
+                    self.lan_sync_open_tills();
+                }
                 Ok(None)
             }
         }
@@ -544,34 +557,26 @@ impl MadarCore {
         Ok(())
     }
 
-    /// Tills open at the branch: server list ∪ LAN adverts ∪ this device.
+    /// Tills open at the branch: the synced rows ∪ LAN adverts ∪ this device.
     pub async fn branch_open_tills(&self) -> Result<Vec<till::BranchOpenTillView>, CoreError> {
         let sp = self.session_parts()?;
         let dev = self.lan_device_id();
         let mut out: Vec<till::BranchOpenTillView> = Vec::new();
-        if sp.online {
-            let config = self.api.config();
-            if let Ok(list) = crate::ledger_ops::within(tills_api::list_open_tills(
-                &config,
-                tills_api::ListOpenTillsParams {
-                    branch_id: sp.branch_id.clone(),
-                },
-            ))
-            .await
-            {
-                for t in list.iter().map(TillRecord::from_api) {
-                    out.push(till::BranchOpenTillView {
-                        is_this_device: t.device_id.as_deref() == Some(dev.as_str()),
-                        till_id: t.id,
-                        teller_id: t.teller_id,
-                        teller_name: t.teller_name,
-                        device_code: t.device_code,
-                        device_label: t.device_label,
-                        opened_at: t.opened_at,
-                        source: "server".into(),
-                    });
-                }
-            }
+        // The synced till rows: every till open at the branch as of the last pull.
+        let mut rows: Vec<TillRecord> =
+            till::branch_records(&self.store, &sp.branch_id).into_iter().filter(|t| t.status == "open").collect();
+        rows.retain(|t| t.branch_id.is_empty() || t.branch_id == sp.branch_id);
+        for t in rows {
+            out.push(till::BranchOpenTillView {
+                is_this_device: t.device_id.as_deref() == Some(dev.as_str()),
+                till_id: t.id,
+                teller_id: t.teller_id,
+                teller_name: t.teller_name,
+                device_code: t.device_code,
+                device_label: t.device_label,
+                opened_at: t.opened_at,
+                source: "server".into(),
+            });
         }
         let mut add = |till_id: String, teller_id: String, name: String, code: Option<String>, at: String, here: bool| {
             match out.iter_mut().find(|o| o.till_id == till_id) {

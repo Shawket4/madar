@@ -1229,39 +1229,118 @@ async fn a_till_not_held_here_is_filled_in_the_background() {
 }
 
 /// The reads that are online by nature (a search across tills, a points
-/// balance, a table's history, the delivery accepting switches, the till
-/// reconcile) wait no longer than the read timeout on a hanging link; the ones
-/// a device remembers (the loyalty programme, the kitchen stations, the
-/// routing mode) answer at once from what it knows.
+/// balance, a table's history) wait no longer than the read timeout on a
+/// hanging link. Every screen read — the loyalty programme, the kitchen
+/// stations, the routing mode, the delivery settings, the till reconcile, the
+/// open-elsewhere check — answers at once from the rows, link or no link.
 #[tokio::test]
 async fn online_reads_are_bounded_and_remembered_reads_answer_at_once() {
     let (base, hang) = hanging_server().await;
     let core = testkit::online_core(&base, "").await;
-    let programme = madar_api::models::LoyaltySettings::default();
-    core.store.kv_put(crate::K_LOYALTY_SETTINGS, &serde_json::json!([programme]).to_string()).unwrap();
-    core.store.kv_put("cache:kds_stations", "[]").unwrap();
-    core.store.kv_put(crate::kds::K_ROUTING_MODE, "kds").unwrap();
+    seed_rows(
+        &core,
+        &[(
+            "branch_settings",
+            serde_json::json!({"id": testkit::BRANCH, "kitchen_routing_effective": "kds", "kitchen_stations": [],
+                "delivery": {"in_mall_enabled": true, "in_mall_override": "closed", "prep_time_minutes": 25},
+                "loyalty": {"enabled": true, "mode": "visits", "program_name": "Club", "program_name_ar": null}}),
+        )],
+    );
+    core.store.kv_put(&format!("{}{}", crate::sync_pull::K_LAST_FULL, testkit::BRANCH), "2026-09-14T10:00:00Z").unwrap();
     hang.store(true, Ordering::SeqCst);
     core.set_online(true);
 
     let t0 = std::time::Instant::now();
-    assert!(core.loyalty_settings().await.is_ok());
-    assert!(core.kds_list_stations().await.is_ok());
+    let programme = core.loyalty_settings().await.unwrap();
+    assert!(programme.enabled && programme.mode == "visits");
+    assert!(core.kds_list_stations().await.unwrap().is_empty());
     assert_eq!(core.kitchen_routing_mode().await.unwrap().as_deref(), Some("kds"));
-    assert!(t0.elapsed() < Duration::from_millis(300), "remembered reads: {:?}", t0.elapsed());
+    let delivery = core.delivery_settings().await.unwrap();
+    assert!(delivery.in_mall_enabled && delivery.in_mall_override == "closed" && delivery.prep_time_minutes == 25);
+    assert!(core.refresh_till().await.is_ok(), "the reconcile reads the till rows");
+    assert!(core.check_till_elsewhere().await.unwrap().is_none());
+    assert!(core.branch_open_tills().await.is_ok());
+    assert!(t0.elapsed() < Duration::from_millis(300), "screen reads: {:?}", t0.elapsed());
 
     let t0 = std::time::Instant::now();
-    let (search, lookup, history, delivery, till, elsewhere) = tokio::join!(
+    let (search, lookup, history) = tokio::join!(
         core.search_orders(None, None, None, None, None, 1),
         core.loyalty_lookup(Some("card".into()), None),
         core.table_history("00000000-0000-0000-0000-0000000000a1".into()),
-        core.delivery_settings(),
-        core.refresh_till(),
-        core.check_till_elsewhere(),
     );
     let waited = t0.elapsed();
-    assert!(search.is_err() && lookup.is_err() && history.is_err() && delivery.is_err());
-    assert!(till.is_err(), "the reconcile says it could not reach the server");
-    assert!(elsewhere.is_ok(), "the open check falls back to what sign-in said");
+    assert!(search.is_err() && lookup.is_err() && history.is_err());
     assert!(waited < crate::ledger_ops::FETCH_TIMEOUT + Duration::from_secs(2), "{waited:?}");
+}
+
+/// A backend whose settings row lacks the branch reads (before
+/// `sync_feed_branch_reads`): each is filled ONCE from its legacy endpoint, in
+/// the background; every later read answers from the fill and asks nothing.
+/// Once the row carries the field, the row wins and nothing is fetched.
+#[tokio::test]
+async fn an_older_feed_fills_each_branch_read_once_and_never_polls() {
+    let stub = Stub::start(|r| {
+        let p = r.path.as_str();
+        if p.starts_with("/kitchen/routing-mode") {
+            Some(StubResponse::text(200, r#"{"mode":null,"effective":"both"}"#))
+        } else if p.starts_with("/kitchen/stations") {
+            Some(StubResponse::text(200, "[]"))
+        } else if p.starts_with("/delivery/settings") {
+            let mut s = serde_json::to_value(madar_api::models::BranchDeliverySettings::default()).unwrap();
+            s["prep_time_minutes"] = serde_json::json!(40);
+            s["outside_enabled"] = serde_json::json!(true);
+            Some(StubResponse::json(200, s))
+        } else if p.starts_with("/loyalty/settings") {
+            let mut s = serde_json::to_value(madar_api::models::LoyaltySettings::default()).unwrap();
+            s["enabled"] = serde_json::json!(true);
+            s["program_name"] = serde_json::json!("Legacy club");
+            Some(StubResponse::json(200, s))
+        } else {
+            None
+        }
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_rows(&core, &[("branch_settings", serde_json::json!({"id": testkit::BRANCH, "name": "Old"}))]);
+    core.set_online(true);
+
+    let legacy = ["/kitchen/routing-mode", "/kitchen/stations", "/delivery/settings", "/loyalty/settings"];
+    let asked = || legacy.iter().map(|p| stub.requests(p).len()).sum::<usize>();
+    let read_all = || async {
+        let _ = core.kitchen_routing_mode().await.unwrap();
+        let _ = core.kds_list_stations().await.unwrap();
+        let _ = core.delivery_settings().await.unwrap();
+        let _ = core.loyalty_settings().await.unwrap();
+    };
+    read_all().await;
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while core.kitchen_routing_mode().await.unwrap().is_none() || !core.loyalty_settings().await.unwrap().enabled {
+        assert!(std::time::Instant::now() < deadline, "the fills never landed");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    for _ in 0..20 {
+        read_all().await;
+    }
+    for p in legacy {
+        assert_eq!(stub.requests(p).len(), 1, "{p}: one fill, never a poll");
+    }
+    assert_eq!(core.kitchen_routing_mode().await.unwrap().as_deref(), Some("both"));
+    let d = core.delivery_settings().await.unwrap();
+    assert!(d.outside_enabled && d.prep_time_minutes == 40);
+    assert_eq!(core.loyalty_settings().await.unwrap().program_name, "Legacy club");
+
+    // The new backend's row carries the fields: the row answers, nothing is asked.
+    seed_rows(
+        &core,
+        &[("branch_settings", serde_json::json!({"id": testkit::BRANCH, "kitchen_routing_effective": "till",
+            "kitchen_stations": [], "delivery": null, "loyalty": null}))],
+    );
+    let before = asked();
+    read_all().await;
+    assert_eq!(core.kitchen_routing_mode().await.unwrap().as_deref(), Some("till"));
+    assert!(!core.loyalty_settings().await.unwrap().enabled, "no programme at the branch");
+    assert_eq!(core.delivery_settings().await.unwrap().prep_time_minutes, 20, "the server's defaults");
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(asked(), before);
 }

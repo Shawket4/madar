@@ -257,6 +257,54 @@ pub(crate) fn old_bill_hours(store: &Store, branch_id: &str) -> i64 {
         .unwrap_or(3)
 }
 
+/// The branch's synced `branch_settings` row (`None` before the first pull).
+pub(crate) fn branch_settings_row(store: &Store, branch_id: &str) -> Option<serde_json::Value> {
+    store
+        .with_conn(|c| {
+            use rusqlite::OptionalExtension;
+            Ok(c.query_row(
+                "SELECT data FROM sync_rows WHERE branch_id=?1 AND type='branch_settings' AND id=?1",
+                rusqlite::params![branch_id],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()?)
+        })
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+}
+
+/// A field of the branch's settings row, when the server sends it (an older
+/// backend's row lacks the newer fields: `None`, not a default).
+pub(crate) fn branch_setting(store: &Store, branch_id: &str, field: &str) -> Option<serde_json::Value> {
+    branch_settings_row(store, branch_id).and_then(|mut v| v.get_mut(field).map(serde_json::Value::take))
+}
+
+/// Set one field of the branch's settings row in place (a manager's write the
+/// next pull confirms). `false` when the device holds no row.
+pub(crate) fn patch_branch_setting(store: &Store, branch_id: &str, field: &str, value: &serde_json::Value) -> CoreResult<bool> {
+    let Some(mut row) = branch_settings_row(store, branch_id) else { return Ok(false) };
+    row[field] = value.clone();
+    store.with_conn(|c| {
+        c.execute(
+            "UPDATE sync_rows SET data=?2 WHERE branch_id=?1 AND type='branch_settings' AND id=?1",
+            rusqlite::params![branch_id, row.to_string()],
+        )?;
+        Ok(true)
+    })
+}
+
+/// Has this branch completed a full snapshot? Until it has, the rows cannot
+/// answer "there is none".
+pub(crate) fn branch_snapshotted(store: &Store, branch_id: &str) -> bool {
+    store.kv_get(&format!("{K_LAST_FULL}{branch_id}")).ok().flatten().is_some()
+}
+
+/// The branch's standard opening float from its settings row.
+pub(crate) fn standard_float(store: &Store, branch_id: &str) -> Option<i64> {
+    branch_setting(store, branch_id, "standard_float").and_then(|v| v.as_i64())
+}
+
 // ── wire ────────────────────────────────────────────────────────────────────
 //
 // The response is the generated `madar_api::models::PullResponse` (one shape for

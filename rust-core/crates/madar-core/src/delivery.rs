@@ -293,6 +293,26 @@ pub(crate) fn settings_view(s: &models::BranchDeliverySettings) -> DeliverySetti
     }
 }
 
+/// The settings as the synced branch row carries them (`delivery`), or a
+/// legacy fill of `/delivery/settings`. `None` = the branch has no delivery
+/// row: the server's defaults (channels off, overrides auto, 20 minutes).
+pub(crate) fn settings_view_from_value(v: Option<&serde_json::Value>) -> DeliverySettingsView {
+    let v = v.filter(|v| v.is_object());
+    let b = |k: &str| v.and_then(|v| v.get(k)).and_then(serde_json::Value::as_bool).unwrap_or(false);
+    let st = |k: &str| {
+        v.and_then(|v| v.get(k)).and_then(serde_json::Value::as_str).unwrap_or("auto").to_string()
+    };
+    let n = |k: &str, d: i64| v.and_then(|v| v.get(k)).and_then(serde_json::Value::as_i64).unwrap_or(d);
+    DeliverySettingsView {
+        in_mall_enabled: b("in_mall_enabled"),
+        in_mall_override: st("in_mall_override"),
+        in_mall_fee_minor: n("in_mall_fee", 0),
+        outside_enabled: b("outside_enabled"),
+        outside_override: st("outside_override"),
+        prep_time_minutes: n("prep_time_minutes", 20),
+    }
+}
+
 /// The forward status step after `current` (single-step advance). `None` at a
 /// terminal/last-workable state. NOTE: `out_for_delivery` is the LAST step the
 /// `/status` endpoint accepts — it only validates the line steps received→

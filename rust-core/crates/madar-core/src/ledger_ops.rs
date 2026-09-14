@@ -50,13 +50,16 @@ impl MadarCore {
     }
 
     /// Fill a till this device does not hold completely from the server — its
-    /// sales and its report — in the background, at most every
-    /// [`FILL_EVERY_MS`], abandoned after [`FILL_TIMEOUT`]. The screens re-read
-    /// on the table change it emits. A no-op offline or for a complete till.
+    /// sales and its report — ONCE, in the background, abandoned after
+    /// [`FILL_TIMEOUT`]. The screens re-read on the table change it emits. A
+    /// no-op offline, for a complete till, or for a till already filled this
+    /// session; a failed fill may be tried again after [`FILL_EVERY_MS`], and
+    /// only when a screen asks (never on a timer).
     pub(crate) fn fill_till_soon(&self, till_id: &str) {
         if views::till_complete(&self.store, till_id)
             || !self.online()
             || self.scheduler.manual.load(std::sync::atomic::Ordering::SeqCst)
+            || self.branch_fills.till_filled(till_id)
         {
             return;
         }
@@ -70,14 +73,17 @@ impl MadarCore {
         let (Some(me), Ok(handle)) = (self.self_arc(), tokio::runtime::Handle::try_current()) else { return };
         let till_id = till_id.to_string();
         handle.spawn(async move {
-            let _ = tokio::time::timeout(FILL_TIMEOUT, me.fill_till(&till_id)).await;
+            if let Ok(true) = tokio::time::timeout(FILL_TIMEOUT, me.fill_till(&till_id)).await {
+                me.branch_fills.mark_till_filled(&till_id);
+            }
         });
     }
 
     /// The fill itself: every page of the till's sales into rows, and the
-    /// server's report stored for it.
-    pub(crate) async fn fill_till(&self, till_id: &str) {
-        let Ok(branch) = self.session_branch_id() else { return };
+    /// server's report stored for it. `true` when both arrived.
+    pub(crate) async fn fill_till(&self, till_id: &str) -> bool {
+        let Ok(branch) = self.session_branch_id() else { return false };
+        let mut done = true;
         if let Some(list) = self.fetch_shift_order_models(&branch, till_id).await {
             let rows: Vec<serde_json::Value> = list
                 .iter()
@@ -90,15 +96,20 @@ impl MadarCore {
             if views::store_fetched_orders(&self.store, &rows).is_ok() {
                 self.store.emit_changes([changes::ORDERS]);
             }
+        } else {
+            done = false;
         }
-        if let Ok(report) =
-            tills_api::get_till_report(&self.api.config(), tills_api::GetTillReportParams { till_id: till_id.to_string() }).await
+        match tills_api::get_till_report(&self.api.config(), tills_api::GetTillReportParams { till_id: till_id.to_string() }).await
         {
-            crate::timefmt::remember_payload_tz(&self.store, &Some(report.timezone.clone()));
-            if views::put_till_report(&self.store, till_id, &report).is_ok() {
-                self.store.emit_changes([changes::TILLS]);
+            Ok(report) => {
+                crate::timefmt::remember_payload_tz(&self.store, &Some(report.timezone.clone()));
+                if views::put_till_report(&self.store, till_id, &report).is_ok() {
+                    self.store.emit_changes([changes::TILLS]);
+                }
             }
+            Err(_) => done = false,
         }
+        done
     }
 
     /// The current till's sales — queued, failed and synced — newest first.
@@ -362,13 +373,13 @@ impl MadarCore {
 
     /// Production money parity (OFFLINE_B_DESIGN §7): when the current till is
     /// held completely and nothing of it is on its way, the device's figures must
-    /// be the server's. At most once every [`PARITY_EVERY_MS`], online, after a
+    /// be the server's. At most once every [`PARITY_EVERY_MS`], online, only for a
+    /// till whose rows changed since its last check, after a
     /// pull; a difference is logged (diagnostics + Sentry, amounts only) and the
     /// server's report is stored for the till.
     /// Serve the server's report when it is the authority for this till
     /// (`views::server_authority`), logging every field where the device's own
-    /// figures differ; otherwise the local report, and ask for a fresh server
-    /// report in the background so the authority can be established.
+    /// figures differ; otherwise the local report. No network.
     pub(crate) fn with_server_authority(&self, till_id: &str, local: till::TillReportView) -> till::TillReportView {
         let label = |m: &str| self.payment_method_label(m.to_string());
         match views::server_authority(&self.store, till_id) {
@@ -384,38 +395,10 @@ impl MadarCore {
                 );
                 server
             }
-            _ => {
-                self.refresh_server_report_soon(till_id);
-                local
-            }
+            // The rows' own figures. The server's report arrives only with a
+            // fill (a till not held here) or the parity guard, never per read.
+            _ => local,
         }
-    }
-
-    /// Fetch and store the server's report for a till in the background (online,
-    /// at most every [`SERVER_REPORT_EVERY_MS`] per till); a new one re-reads the
-    /// till screens.
-    fn refresh_server_report_soon(&self, till_id: &str) {
-        if !self.online() || self.scheduler.manual.load(std::sync::atomic::Ordering::SeqCst) {
-            return;
-        }
-        let key = format!("{K_REPORT_ASKED}{till_id}");
-        let now = chrono::Utc::now().timestamp_millis();
-        let last = self.store.kv_get(&key).ok().flatten().and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
-        if now - last < SERVER_REPORT_EVERY_MS {
-            return;
-        }
-        let _ = self.store.kv_put(&key, &now.to_string());
-        let (Some(me), Ok(handle)) = (self.self_arc(), tokio::runtime::Handle::try_current()) else { return };
-        let till_id = till_id.to_string();
-        handle.spawn(async move {
-            if let Ok(report) =
-                tills_api::get_till_report(&me.api.config(), tills_api::GetTillReportParams { till_id: till_id.clone() }).await
-            {
-                if views::put_till_report(&me.store, &till_id, &report).is_ok() {
-                    me.store.emit_changes([changes::TILLS]);
-                }
-            }
-        });
     }
 
     pub(crate) async fn money_parity_check(&self) {
@@ -432,7 +415,16 @@ impl MadarCore {
         }
         let _ = self.store.kv_put(K_PARITY_AT, &now.to_string());
         for till_id in views::tills_to_check(&self.store).unwrap_or_default() {
+            // A till whose rows have not moved since its last check has nothing
+            // new to compare: an idle till asks the server nothing.
+            let newest = views::newest_seq(&self.store, &till_id).unwrap_or(0);
+            let key = format!("{K_PARITY_SEQ}{till_id}");
+            let checked = self.store.kv_get(&key).ok().flatten().and_then(|v| v.parse::<i64>().ok());
+            if checked == Some(newest) {
+                continue;
+            }
             self.parity_check_till(&till_id).await;
+            let _ = self.store.kv_put(&key, &newest.to_string());
         }
     }
 
@@ -474,8 +466,8 @@ impl MadarCore {
 }
 
 const K_PARITY_AT: &str = "ledger:parity_checked_at";
-const K_REPORT_ASKED: &str = "ledger:report_asked:";
-/// How often a till screen may ask the server for a fresh report.
-pub(crate) const SERVER_REPORT_EVERY_MS: i64 = 30_000;
-/// How often the production parity guard asks the server.
+/// The newest row seq of a till when the parity guard last compared it.
+const K_PARITY_SEQ: &str = "ledger:parity_seq:";
+/// How often the production parity guard may ask the server (and only for a
+/// till whose rows moved since it last did).
 pub(crate) const PARITY_EVERY_MS: i64 = 10 * 60 * 1000;

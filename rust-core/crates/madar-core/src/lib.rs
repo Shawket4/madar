@@ -92,6 +92,7 @@ pub(crate) mod scheduler;
 pub(crate) mod parity;
 mod ledger_ops;
 mod feed_reads;
+mod branch_reads;
 #[cfg(test)]
 mod testkit;
 #[cfg(test)]
@@ -307,6 +308,8 @@ pub struct MadarCore {
     sync_state: sync_pull::SyncStateCell,
     /// Nudge debounce + fallback poll (`scheduler.rs`).
     scheduler: scheduler::SchedulerState,
+    /// Legacy fills of branch settings fields an older feed lacks (`branch_reads`).
+    branch_fills: branch_reads::FillState,
     /// Weak self-handle so background work (the till-open sync) can own the core.
     me: std::sync::Weak<MadarCore>,
 }
@@ -419,6 +422,7 @@ impl MadarCore {
             active_scope: RwLock::new(active_scope),
             sync_state: std::sync::Mutex::new(sync_pull::SyncState::default()),
             scheduler: scheduler::SchedulerState::default(),
+            branch_fills: branch_reads::FillState::default(),
         });
         core.schedule_integrity_check();
         Ok(core)
@@ -1868,27 +1872,14 @@ fn cash_i32(v: i64, field: &str) -> Result<i32, CoreError> {
     })
 }
 
-// ── offline read cache (server lists mirrored to kv) ─────────────────────────
-
-/// Write-through cache for a server-fetched list, keyed in the kv store. Persists
-/// the projected views as JSON so the NEXT read returns the last-synced snapshot
-/// when offline (or when the live fetch fails) — the history screens (orders,
-/// shifts, cash, delivery) stay populated offline instead of collapsing to only
-/// the locally-queued rows. Free functions, not methods, because `#[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]`
-/// can't carry a generic across the FFI. Best-effort: a write failure skips the cache.
-/// kv key for the branch's last-known loyalty programme.
+/// kv key for a legacy fill of the branch's loyalty programme (`branch_reads`:
+/// only for a feed without `branch_settings.loyalty`).
 pub(crate) const K_LOYALTY_SETTINGS: &str = "cache:loyalty_settings";
 
 /// kv key for the branch's last-known base prep time, in minutes. Cached
 /// because every delivery card dates its promise from it, and the settings
 /// call that carries it is online-only.
 pub(crate) const K_DELIVERY_PREP_MINUTES: &str = "cache:delivery_prep_minutes";
-
-fn cache_views<T: serde::Serialize>(store: &store::Store, key: &str, views: &[T]) {
-    if let Ok(json) = serde_json::to_string(views) {
-        let _ = store.kv_put(key, &json);
-    }
-}
 
 /// Synthesize an offline-overlay `TicketView` for a still-queued fire so the waiter
 /// sees the ticket immediately, before it syncs. Status `"queued"`; the subtotal is
@@ -1927,17 +1918,6 @@ fn queued_ticket_view(
         lines: Vec::new(),
     }
 }
-
-/// Read a previously cached server list (empty when nothing's been synced yet).
-fn cached_views<T: serde::de::DeserializeOwned>(store: &store::Store, key: &str) -> Vec<T> {
-    store
-        .kv_get(key)
-        .ok()
-        .flatten()
-        .and_then(|s| serde_json::from_str::<Vec<T>>(&s).ok())
-        .unwrap_or_default()
-}
-
 
 // ── outbox backoff (mirrors offline_queue.dart constants) ────────────────────
 const K_MAX_RETRIES: i64 = 8;
@@ -5995,35 +5975,20 @@ impl MadarCore {
     /// which errs towards showing nothing rather than a control that fails.
     pub async fn loyalty_settings(&self) -> Result<loyalty::LoyaltyProgrammeView, CoreError> {
         use madar_api::apis::loyalty_api;
-        let branch_id = self.session_branch_id()?;
-        let cached = cached_views::<madar_api::models::LoyaltySettings>(&self.store, K_LOYALTY_SETTINGS).into_iter().next();
-        let online = self.current_session().map(|s| s.online).unwrap_or(false);
-        // The BRANCH scope: it reports what the branch runs on, inherited or
-        // its own, so an override reaches the till it applies to.
-        let fetch = |me: Arc<MadarCore>, branch_id: String| async move {
-            let config = me.api.config();
-            let s = ledger_ops::within(loyalty_api::get_loyalty_settings(
-                &config,
-                loyalty_api::GetLoyaltySettingsParams { branch_id: Some(branch_id) },
-            ))
-            .await?;
-            cache_views(&me.store, K_LOYALTY_SETTINGS, std::slice::from_ref(&s));
-            Ok::<_, CoreError>(s)
-        };
-        let settings = match (cached, online, self.self_arc()) {
-            // What this till knows answers now; the server's copy follows.
-            (Some(c), true, Some(me)) => {
-                if let Ok(h) = tokio::runtime::Handle::try_current() {
-                    h.spawn(async move {
-                        let _ = fetch(me, branch_id).await;
-                    });
-                }
-                c
-            }
-            (Some(c), _, _) => c,
-            (None, true, Some(me)) => fetch(me, branch_id).await.unwrap_or_default(),
-            (None, _, _) => Default::default(),
-        };
+        // The branch's EFFECTIVE programme rides its synced settings row.
+        let src = self.branch_field::<serde_json::Value>(branch_reads::F_LOYALTY)?;
+        if matches!(src, branch_reads::Source::Fill(_)) {
+            self.fill_branch_field_once(branch_reads::F_LOYALTY, |me, branch_id| async move {
+                let config = me.api.config();
+                let s = ledger_ops::within(loyalty_api::get_loyalty_settings(
+                    &config,
+                    loyalty_api::GetLoyaltySettingsParams { branch_id: Some(branch_id) },
+                ))
+                .await?;
+                Ok(serde_json::to_value(s)?)
+            });
+        }
+        let settings = loyalty::settings_from_value(src.value().as_ref());
         Ok(loyalty::programme_view(&settings, &self.current_locale()))
     }
 
@@ -7354,44 +7319,20 @@ impl MadarCore {
 // ── Kitchen Display System (station feed + bump) ─────────────────────────────
 #[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
 impl MadarCore {
-    /// The branch's kitchen stations (the KDS device-setup / chit-routing picker).
-    /// Write-through cached so the picker survives offline.
+    /// The branch's kitchen stations (the KDS device-setup / chit-routing picker),
+    /// from the synced settings row. No network.
     pub async fn kds_list_stations(&self) -> Result<Vec<kds::KdsStationView>, CoreError> {
         use madar_api::apis::kitchen_api as k;
-        let branch_id = self.session_branch_id()?;
-        let cached: Option<Vec<madar_api::models::KitchenStation>> =
-            self.store.kv_get("cache:kds_stations").ok().flatten().and_then(|raw| serde_json::from_str(&raw).ok());
-        let online = self.current_session().map(|s| s.online).unwrap_or(false);
-        let stations: Vec<madar_api::models::KitchenStation> = match (cached, online) {
-            // The picker opens on what this device knows; the server's list
-            // replaces it in the background for the next read.
-            (Some(list), true) => {
-                if let (Some(me), Ok(h)) = (self.self_arc(), tokio::runtime::Handle::try_current()) {
-                    h.spawn(async move {
-                        let config = me.api.config();
-                        if let Ok(list) = ledger_ops::within(k::list_stations(&config, k::ListStationsParams { branch_id })).await {
-                            cache_views(&me.store, "cache:kds_stations", &list);
-                        }
-                    });
-                }
-                list
-            }
-            (Some(list), false) => list,
-            // Nothing known yet: the server's list, or none (the picker shows
-            // no stations rather than an error, as it always has).
-            (None, true) => {
-                let config = self.api.config();
-                match ledger_ops::within(k::list_stations(&config, k::ListStationsParams { branch_id })).await {
-                    Ok(list) => {
-                        cache_views(&self.store, "cache:kds_stations", &list);
-                        list
-                    }
-                    Err(_) => Vec::new(),
-                }
-            }
-            (None, false) => Vec::new(),
-        };
-        Ok(stations.iter().map(kds::station_view).collect())
+        let src = self.branch_field::<Vec<madar_api::models::KitchenStation>>(branch_reads::F_STATIONS)?;
+        if matches!(src, branch_reads::Source::Fill(_)) {
+            self.fill_branch_field_once(branch_reads::F_STATIONS, |me, branch_id| async move {
+                let config = me.api.config();
+                let list = ledger_ops::within(k::list_stations(&config, k::ListStationsParams { branch_id })).await?;
+                Ok(serde_json::to_value(list)?)
+            });
+        }
+        // No stations known yet reads as none (the picker shows an empty list).
+        Ok(src.value().unwrap_or_default().iter().map(kds::station_view).collect())
     }
 
     /// Bump a kitchen line (mark it done at its station). OUTBOX-FIRST (Phase E §2):
@@ -7417,26 +7358,25 @@ impl MadarCore {
     /// comparing strings at the call site; the safe answer to `None` is
     /// different for each question.
     ///
-    /// Write-through cached and refreshed on every sync, because this decides
-    /// whether a till may show kitchen work at all: a shop that moves its
-    /// kitchen onto a screen must not leave tills bumping for another shift.
+    /// Read from the branch's synced settings row (the feed re-emits it when the
+    /// mode or a station changes), because this decides whether a till may show
+    /// kitchen work at all: a shop that moves its kitchen onto a screen must not
+    /// leave tills bumping for another shift. No network.
     pub async fn kitchen_routing_mode(&self) -> Result<Option<String>, CoreError> {
-        let branch_id = self.session_branch_id()?;
-        let known = self.store.kv_get(kds::K_ROUTING_MODE).ok().flatten();
-        if known.is_some() {
-            // The last effective mode answers now; the server's refreshes it.
-            if let (Some(me), Ok(h)) = (self.self_arc(), tokio::runtime::Handle::try_current()) {
-                h.spawn(async move {
-                    let _ = me.fetch_routing_mode(&branch_id).await;
-                });
-            }
-            return Ok(known);
+        let src = self.branch_field::<String>(branch_reads::F_ROUTING)?;
+        if matches!(src, branch_reads::Source::Fill(_)) {
+            self.fill_branch_field_once(branch_reads::F_ROUTING, |me, branch_id| async move {
+                me.fetch_routing_mode(&branch_id)
+                    .await
+                    .map(serde_json::Value::String)
+                    .ok_or_else(|| CoreError::Offline { detail: "routing mode unavailable".into() })
+            });
         }
-        Ok(self.fetch_routing_mode(&branch_id).await)
+        Ok(src.value())
     }
 
-    /// Ask the server for the effective routing mode and cache it. `None` when
-    /// offline or unauthorised — the caller falls back to the last known one.
+    /// Ask the server for the effective routing mode (the legacy fill for a feed
+    /// without it). `None` when offline or unauthorised.
     async fn fetch_routing_mode(&self, branch_id: &str) -> Option<String> {
         use madar_api::apis::kitchen_api as k;
         let config = self.api.config();
@@ -7451,7 +7391,6 @@ impl MadarCore {
         // `effective`, not `mode`: `mode` is null whenever the branch is on
         // auto, and auto is a real answer (kds-if-stations-else-till) that the
         // server has already resolved.
-        let _ = self.store.kv_put(kds::K_ROUTING_MODE, &resp.effective);
         Some(resp.effective)
     }
 
@@ -7486,7 +7425,7 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
-        let _ = self.store.kv_put(kds::K_ROUTING_MODE, &resp.effective);
+        self.patch_branch_field(branch_reads::F_ROUTING, &serde_json::Value::String(resp.effective.clone()));
         Ok(resp.effective)
     }
 
@@ -7645,15 +7584,19 @@ impl MadarCore {
         })
     }
 
-    /// The branch's delivery settings + accepting overrides.
+    /// The branch's delivery settings + accepting overrides, from the synced
+    /// settings row (the feed re-emits it on every change). No network.
     pub async fn delivery_settings(&self) -> Result<delivery::DeliverySettingsView, CoreError> {
         use madar_api::apis::delivery_api as d;
-        let branch = self.session_branch_id()?;
-        // The accepting overrides are live server state: online, under the
-        // read timeout.
-        let config = self.api.config();
-        let s = ledger_ops::within(d::get_branch_settings(&config, d::GetBranchSettingsParams { branch_id: branch })).await?;
-        let view = delivery::settings_view(&s);
+        let src = self.branch_field::<serde_json::Value>(branch_reads::F_DELIVERY)?;
+        if matches!(src, branch_reads::Source::Fill(_)) {
+            self.fill_branch_field_once(branch_reads::F_DELIVERY, |me, branch_id| async move {
+                let config = me.api.config();
+                let s = ledger_ops::within(d::get_branch_settings(&config, d::GetBranchSettingsParams { branch_id })).await?;
+                Ok(serde_json::to_value(s)?)
+            });
+        }
+        let view = delivery::settings_view_from_value(src.value().as_ref());
         let _ = self
             .store
             .kv_put(K_DELIVERY_PREP_MINUTES, &view.prep_time_minutes.to_string());
@@ -7694,6 +7637,9 @@ impl MadarCore {
         )
         .await
         .map_err(net::map_api_error)?;
+        if let Ok(v) = serde_json::to_value(&s) {
+            self.patch_branch_field(branch_reads::F_DELIVERY, &v);
+        }
         Ok(delivery::settings_view(&s))
     }
 }
@@ -7873,41 +7819,6 @@ mod tests {
         assert!(replay_backend_object("{}").is_some());
         let order = replay_backend_object(r#"{"id":"abc-123","total_amount":1500}"#).unwrap();
         assert_eq!(order.get("id").and_then(|v| v.as_str()), Some("abc-123"));
-    }
-
-    #[test]
-    fn cache_views_roundtrips_and_is_corruption_safe() {
-        #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
-        struct Row {
-            id: i64,
-            name: String,
-        }
-        let store = store::Store::open("").unwrap();
-        // Nothing cached yet → empty (the cold-start / never-synced case).
-        assert!(cached_views::<Row>(&store, "cache:t").is_empty());
-        // Write-through, then read back the exact snapshot.
-        let rows = vec![
-            Row {
-                id: 1,
-                name: "a".into(),
-            },
-            Row {
-                id: 2,
-                name: "b".into(),
-            },
-        ];
-        cache_views(&store, "cache:t", &rows);
-        assert_eq!(cached_views::<Row>(&store, "cache:t"), rows);
-        // A re-sync overwrites (the snapshot is the latest, not appended).
-        let fewer = vec![Row {
-            id: 9,
-            name: "z".into(),
-        }];
-        cache_views(&store, "cache:t", &fewer);
-        assert_eq!(cached_views::<Row>(&store, "cache:t"), fewer);
-        // A corrupt/foreign payload reads back as empty rather than erroring the read.
-        store.kv_put("cache:bad", "{not json").unwrap();
-        assert!(cached_views::<Row>(&store, "cache:bad").is_empty());
     }
 
     #[test]

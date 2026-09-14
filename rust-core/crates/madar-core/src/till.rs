@@ -886,38 +886,91 @@ pub(crate) enum TillReconcile {
     Clear,
 }
 
-/// Reconcile the signed-in person's local till with `/tills/.../current`. PURE.
+/// Every till row this device holds for `branch` (the changefeed's `till` rows
+/// and this device's own), any status.
+pub(crate) fn branch_records(store: &Store, branch: &str) -> Vec<TillRecord> {
+    store
+        .with_conn(|c| {
+            let mut st = c.prepare("SELECT raw FROM ledger_tills WHERE branch_id=?1 OR branch_id=''")?;
+            let rows: Vec<String> = st.query_map([branch], |r| r.get(0))?.collect::<Result<Vec<_>, _>>()?;
+            Ok(rows.iter().filter_map(|raw| serde_json::from_str::<TillRecord>(raw).ok()).collect())
+        })
+        .unwrap_or_default()
+}
+
+/// A row's opening instant, for ordering (unparseable sorts first).
+fn opened_instant(t: &TillRecord) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+    chrono::DateTime::parse_from_rfc3339(&t.opened_at).ok()
+}
+
+/// Does a till row name THIS device (or no device: a legacy till)?
+fn row_is_here(t: &TillRecord, this_device_id: &str) -> bool {
+    match t.device_id.as_deref().filter(|d| !d.is_empty()) {
+        None => true,
+        Some(d) => match (uuid::Uuid::parse_str(d), uuid::Uuid::parse_str(this_device_id)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => d == this_device_id,
+        },
+    }
+}
+
+/// The person's till open on ANOTHER device, from the rows. PURE.
+pub(crate) fn elsewhere_from_rows(rows: &[TillRecord], user_id: &str, this_device_id: &str) -> Option<TillElsewhereView> {
+    rows.iter()
+        .filter(|t| t.teller_id == user_id && t.status == "open" && !row_is_here(t, this_device_id))
+        .max_by_key(|t| opened_instant(t))
+        .map(|t| TillElsewhereView {
+            till_id: t.id.clone(),
+            device_code: t.device_code.clone(),
+            device_label: t.device_label.clone(),
+            opened_at: t.opened_at.clone(),
+            source: "server".into(),
+        })
+}
+
+/// Reconcile the signed-in person's local till with the synced till rows. PURE.
+/// The rows are the server's view as of the last pull plus this device's own
+/// writes:
 /// - "no open till here" is authoritative only once our own `open_till` has
 ///   reached the server (`open_pending` keeps the optimistic till);
 /// - "still open" is stale while our `close_till` is queued (`close_pending`);
-/// - a till the server reports open on ANOTHER device is never adopted here.
-pub(crate) fn reconcile(
-    prefill: &models::TillPreFill,
+/// - a till open on ANOTHER device is never adopted here.
+pub(crate) fn reconcile_rows(
+    rows: &[TillRecord],
+    user_id: &str,
     this_device_id: &str,
     local: Option<&TillView>,
     open_pending: bool,
     close_pending: bool,
 ) -> TillReconcile {
-    if let Some(api) = open_till_of(prefill) {
-        let t = TillRecord::from_api(api);
-        let here = t.device_id.is_none() || same_device(&api.device_id, this_device_id);
-        if here {
-            if close_pending && local.map(|l| l.id == t.id).unwrap_or(false) {
-                return TillReconcile::KeepLocal;
-            }
-            if open_pending && local.map(|l| l.is_open && l.id != t.id).unwrap_or(false) {
-                // Our own offline-opened till has not synced; the server's is an
-                // older one. Both are kept server-side (flagged); keep ours here.
-                return TillReconcile::KeepLocal;
-            }
-            return TillReconcile::Adopt(Box::new(t));
+    let here = rows
+        .iter()
+        .filter(|t| t.teller_id == user_id && t.status == "open" && row_is_here(t, this_device_id))
+        .max_by_key(|t| opened_instant(t));
+    if let Some(t) = here {
+        if close_pending && local.map(|l| l.id == t.id).unwrap_or(false) {
+            return TillReconcile::KeepLocal;
         }
+        if open_pending && local.map(|l| l.is_open && l.id != t.id).unwrap_or(false) {
+            return TillReconcile::KeepLocal;
+        }
+        return TillReconcile::Adopt(Box::new(t.clone()));
     }
     if open_pending || close_pending {
         TillReconcile::KeepLocal
     } else {
         TillReconcile::Clear
     }
+}
+
+/// The person's most recent declared close at the branch (the server's
+/// `last_close_declared`), from the rows. PURE.
+pub(crate) fn last_close_declared_rows(rows: &[TillRecord], user_id: &str) -> Option<i64> {
+    rows.iter()
+        .filter(|t| t.teller_id == user_id && matches!(t.status.as_str(), "closed" | "force_closed"))
+        .filter(|t| t.closing_cash_declared.is_some())
+        .max_by_key(|t| opened_instant(t))
+        .and_then(|t| t.closing_cash_declared)
 }
 
 // ── close: reconciliation + warnings (contract §4.8) ───────────────────────
@@ -1410,39 +1463,51 @@ mod tests {
 
     #[test]
     fn reconcile_adopts_only_a_till_on_this_device() {
-        let mut local_rec = rec("T1", "U1", "open");
-        local_rec.id = uid("T1").to_string();
-        let local = view_from(&local_rec);
-        let mut pf = models::TillPreFill {
-            open_till: Some(Some(api("T1", "U1", "open", DEV))),
-            ..Default::default()
-        };
-        assert!(matches!(
-            reconcile(&pf, DEV, Some(&local), false, false),
-            TillReconcile::Adopt(_)
-        ));
+        let u = "U1";
+        let local = view_from(&rec("T1", u, "open"));
+        let here = vec![rec("T1", u, "open")];
+        assert!(matches!(reconcile_rows(&here, u, DEV, Some(&local), false, false), TillReconcile::Adopt(_)));
         // Open on another device: never adopted here.
-        pf.open_till = Some(Some(api("T2", "U1", "open", OTHER_DEV)));
-        assert!(matches!(
-            reconcile(&pf, DEV, None, false, false),
-            TillReconcile::Clear
-        ));
-        // Our close is queued: the server's "still open" is stale.
-        pf.open_till = Some(Some(api("T1", "U1", "open", DEV)));
-        assert!(matches!(
-            reconcile(&pf, DEV, Some(&local), false, true),
-            TillReconcile::KeepLocal
-        ));
-        // None on the server but our open is queued: keep the optimistic till.
-        let none = models::TillPreFill::default();
-        assert!(matches!(
-            reconcile(&none, DEV, Some(&local), true, false),
-            TillReconcile::KeepLocal
-        ));
-        assert!(matches!(
-            reconcile(&none, DEV, Some(&local), false, false),
-            TillReconcile::Clear
-        ));
+        let mut there = rec("T2", u, "open");
+        there.device_id = Some(OTHER_DEV.into());
+        assert!(matches!(reconcile_rows(&[there], u, DEV, None, false, false), TillReconcile::Clear));
+        // Our close is queued: the rows' "still open" is stale.
+        assert!(matches!(reconcile_rows(&here, u, DEV, Some(&local), false, true), TillReconcile::KeepLocal));
+        // No open till in the rows but our open is queued: keep the optimistic till.
+        let closed = vec![rec("T1", u, "closed")];
+        assert!(matches!(reconcile_rows(&closed, u, DEV, Some(&local), true, false), TillReconcile::KeepLocal));
+        assert!(matches!(reconcile_rows(&closed, u, DEV, Some(&local), false, false), TillReconcile::Clear));
+        // Someone else's open till is not mine; a legacy till (no device) is.
+        assert!(matches!(reconcile_rows(&[rec("T3", "U2", "open")], u, DEV, None, false, false), TillReconcile::Clear));
+        let mut legacy = rec("T4", u, "open");
+        legacy.device_id = None;
+        assert!(matches!(reconcile_rows(&[legacy], u, DEV, None, false, false), TillReconcile::Adopt(_)));
+    }
+
+    #[test]
+    fn the_rows_say_where_a_persons_till_is_open_and_what_they_last_declared() {
+        let u = "U1";
+        let mut there = rec("T2", u, "open");
+        there.device_id = Some(OTHER_DEV.to_uppercase());
+        there.device_code = Some("D-2".into());
+        let rows = vec![rec("T1", u, "open"), there, rec("T3", "U2", "open")];
+        let e = elsewhere_from_rows(&rows, u, DEV).expect("open on the other device");
+        assert_eq!((e.till_id.as_str(), e.device_code.as_deref(), e.source.as_str()), ("T2", Some("D-2"), "server"));
+        assert!(elsewhere_from_rows(&rows[..1], u, DEV).is_none(), "this device's own till is not elsewhere");
+        assert!(elsewhere_from_rows(&rows, u, &OTHER_DEV.to_uppercase()).is_some(), "ids compare as UUIDs");
+
+        let mut old = rec("T5", u, "closed");
+        old.opened_at = "2026-09-11T09:00:00Z".into();
+        old.closing_cash_declared = Some(700);
+        let mut newer = rec("T6", u, "force_closed");
+        newer.opened_at = "2026-09-12T09:00:00+02:00".into();
+        newer.closing_cash_declared = Some(900);
+        let mut undeclared = rec("T7", u, "closed");
+        undeclared.opened_at = "2026-09-12T12:00:00Z".into();
+        let mut other = rec("T8", "U2", "closed");
+        other.closing_cash_declared = Some(5);
+        assert_eq!(last_close_declared_rows(&[old.clone(), newer, undeclared, other], u), Some(900));
+        assert_eq!(last_close_declared_rows(&[old], "U2"), None);
     }
 
     #[test]

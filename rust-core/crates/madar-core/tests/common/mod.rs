@@ -20,6 +20,38 @@ pub fn env(k: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Request counting: every request line any proxy forwards, by route.
+
+static REQUESTS: std::sync::Mutex<BTreeMap<String, usize>> = std::sync::Mutex::new(BTreeMap::new());
+
+/// `GET /tills/0b1e…/report?x=1 HTTP/1.1` → `GET /tills/:id/report`.
+pub fn route_of(line: &str) -> String {
+    let mut parts = line.split_whitespace();
+    let method = parts.next().unwrap_or("");
+    let path = parts.next().unwrap_or("").split('?').next().unwrap_or("");
+    let path: Vec<String> = path
+        .split('/')
+        .map(|seg| {
+            if uuid::Uuid::parse_str(seg).is_ok() || (!seg.is_empty() && seg.chars().all(|c| c.is_ascii_digit())) {
+                ":id".to_string()
+            } else {
+                seg.to_string()
+            }
+        })
+        .collect();
+    format!("{method} {}", path.join("/"))
+}
+
+fn count_request(line: &str) {
+    *REQUESTS.lock().unwrap().entry(route_of(line)).or_default() += 1;
+}
+
+/// The requests counted since the last call, by route; the counter restarts.
+pub fn take_requests() -> BTreeMap<String, usize> {
+    std::mem::take(&mut *REQUESTS.lock().unwrap())
+}
+
+// ---------------------------------------------------------------------------
 // A TCP proxy with a network cable.
 
 pub struct Proxy {
@@ -65,9 +97,10 @@ impl Proxy {
                                 Ok(0) | Err(_) => break,
                                 Ok(n) => n,
                             };
-                            if std::env::var("MADAR_OB_TRACE").is_ok() {
-                                for line in String::from_utf8_lossy(&buf[..n]).lines() {
-                                    if line.ends_with(" HTTP/1.1") {
+                            for line in String::from_utf8_lossy(&buf[..n]).lines() {
+                                if line.ends_with(" HTTP/1.1") {
+                                    count_request(line);
+                                    if std::env::var("MADAR_OB_TRACE").is_ok() {
                                         eprintln!("PROXY {line}");
                                     }
                                 }
