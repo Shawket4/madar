@@ -4738,7 +4738,16 @@ impl MadarCore {
         if let Some(b) = &branch_id {
             aq.push(("branch_id", b.clone()));
         }
-        let addons_json = self.api.get_text("/addon-items", &aq).await?;
+        // Once the changefeed sends addons they come from its rows
+        // (`project_pull_mirrors`); the GET stays for a server that does not.
+        let addons_from_feed = branch_id
+            .as_deref()
+            .is_some_and(|b| self.pull_feed_complete(b) && sync_pull::feed_has_type(&self.store, b, "addon_item"));
+        let addons_json = if addons_from_feed {
+            self.store.kv_get(menu::K_ADDONS)?.unwrap_or_else(|| "[]".into())
+        } else {
+            self.api.get_text("/addon-items", &aq).await?
+        };
 
         let categories = menu_api::list_categories(
             &self.api.config(),

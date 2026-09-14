@@ -174,6 +174,20 @@ pub(crate) type SyncStateCell = Mutex<SyncState>;
 pub(crate) const K_NEXT: &str = "sync:next:";
 pub(crate) const K_LAST_OK: &str = "sync:last_ok_at:";
 pub(crate) const K_LAST_FULL: &str = "sync:last_full_at:";
+/// The types the branch's last complete snapshot listed (a mirror built from a
+/// type the server does not send yet must not overwrite the legacy fetch).
+pub(crate) const K_TYPES: &str = "sync:types:";
+
+/// Did the branch's last complete snapshot list `ty`?
+pub(crate) fn feed_has_type(store: &Store, branch: &str, ty: &str) -> bool {
+    store
+        .kv_get(&format!("{K_TYPES}{branch}"))
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str::<Vec<String>>(&raw).ok())
+        .map(|t| t.iter().any(|x| x == ty))
+        .unwrap_or(false)
+}
 
 /// The allow-list for one availability owner from the synced
 /// `payment_availability` rows (`None` = no rows = unrestricted).
@@ -491,6 +505,7 @@ pub(crate) fn apply_page_with(
                     put_kv(tx, &format!("{K_NEXT}{branch}"), &next.to_string())?;
                 }
                 put_kv(tx, &format!("{K_LAST_FULL}{branch}"), &chrono::Utc::now().to_rfc3339())?;
+                put_kv(tx, &format!("{K_TYPES}{branch}"), &serde_json::to_string(&types)?)?;
                 if let Some(w) = window {
                     set_stream_window(tx, branch, &w)?;
                 }
@@ -758,6 +773,10 @@ impl MadarCore {
                 .as_ref()
                 .map(|v| (v.url.clone(), v.seq, v.bytes.max(0) as u64, v.sha256.clone()));
             let _ = self.sync_assets_after_pull(b).await;
+            // Once per branch: the past tills older than the snapshot window.
+            self.backfill_till_history(&branch).await;
+            // The production parity guard for the drawer (rate-limited).
+            self.money_parity_check().await;
             return Ok(applied);
         }
     }
@@ -810,6 +829,69 @@ impl MadarCore {
         }
         crate::cache_views(store, crate::K_OPEN_TICKETS_CACHE, &bills);
         let _ = store.kv_put(crate::K_OPEN_TICKETS_STALE, "");
+
+        // Addons, in the `/addon-items` shape the catalogue reads (a branch-
+        // disabled addon is not offered), once the server sends the type.
+        if feed_has_type(store, branch, "addon_item") {
+            let addons: Vec<serde_json::Value> = rows_of_type(store, branch, "addon_item")
+                .into_iter()
+                .filter(|a| a.get("is_available").and_then(|v| v.as_bool()) != Some(false))
+                .map(|mut a| {
+                    if let Some(m) = a.as_object_mut() {
+                        m.remove("is_available");
+                        m.remove("seq");
+                    }
+                    a
+                })
+                .collect();
+            if let Ok(raw) = serde_json::to_string(&addons) {
+                let _ = store.kv_put(crate::menu::K_ADDONS, &raw);
+                self.invalidate_catalog_cache();
+            }
+        }
+        // The branch's delivery prep minutes.
+        if let Some(prep) = rows_of_type(store, branch, "branch_settings")
+            .into_iter()
+            .find(|v| v.get("id").and_then(|x| x.as_str()) == Some(branch))
+            .and_then(|v| v.get("delivery_prep_minutes").and_then(|m| m.as_i64()))
+        {
+            let _ = store.kv_put(crate::K_DELIVERY_PREP_MINUTES, &prep.to_string());
+        }
+        self.adopt_feed_permissions(branch);
+    }
+
+    /// The signed-in person's effective grants from their synced teller row
+    /// (a grant or a revocation reaches the till with the feed, offline sign-ins
+    /// included). A row without `permissions` (an older server) changes nothing.
+    pub(crate) fn adopt_feed_permissions(&self, branch: &str) {
+        let Some(user) = self.current_session().map(|s| s.user_id) else { return };
+        let Some(granted) = rows_of_type(&self.store, branch, "teller")
+            .into_iter()
+            .find(|v| v.get("id").and_then(|x| x.as_str()) == Some(user.as_str()))
+            .and_then(|v| v.get("permissions").and_then(|p| p.as_array()).cloned())
+        else {
+            return;
+        };
+        let entries: Vec<crate::session::PermissionEntry> = granted
+            .iter()
+            .filter_map(|p| p.as_str())
+            .filter_map(|p| p.split_once(':'))
+            .map(|(r, a)| crate::session::PermissionEntry { resource: r.to_string(), action: a.to_string(), granted: true })
+            .collect();
+        let blob = {
+            let mut g = self.session.write().unwrap_or_else(|e| e.into_inner());
+            match g.as_mut() {
+                Some(s) if s.snapshot.user_id == user => {
+                    s.permissions = entries;
+                    s.snapshot.permissions_loaded = true;
+                    Some(s.to_blob())
+                }
+                _ => None,
+            }
+        };
+        if let Some(blob) = blob {
+            let _ = self.store.blob_put(crate::session::K_SESSION_BLOB, &blob);
+        }
     }
 
     /// One incremental pull; returns the number of changes applied.

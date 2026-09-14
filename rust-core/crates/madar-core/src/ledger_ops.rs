@@ -376,4 +376,58 @@ impl MadarCore {
         });
         let _ = self.store.kv_put(&flag, &chrono::Utc::now().to_rfc3339());
     }
+
+    /// Production money parity (OFFLINE_B_DESIGN §7): when the current till is
+    /// held completely and nothing of it is on its way, the device's figures must
+    /// be the server's. At most once every [`PARITY_EVERY_MS`], online, after a
+    /// pull; a difference is logged (diagnostics + Sentry, amounts only) and the
+    /// server's report is stored for the till.
+    pub(crate) async fn money_parity_check(&self) {
+        let now = chrono::Utc::now().timestamp_millis();
+        let last = self
+            .store
+            .kv_get(K_PARITY_AT)
+            .ok()
+            .flatten()
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(0);
+        if now - last < PARITY_EVERY_MS || !self.online() {
+            return;
+        }
+        let Ok(Some(t)) = till::current(&self.store) else { return };
+        let Ok(Some(f)) = views::figures(&self.store, &t.id) else { return };
+        if !f.complete || f.unsynced > 0 || f.unconfirmed > 0 {
+            return;
+        }
+        let _ = self.store.kv_put(K_PARITY_AT, &now.to_string());
+        let Ok(report) = tills_api::get_till_report(
+            &self.api.config(),
+            tills_api::GetTillReportParams { till_id: t.id.clone() },
+        )
+        .await
+        else {
+            return;
+        };
+        // The feed may have moved while the report was computed: re-read.
+        let Ok(Some(f)) = views::figures(&self.store, &t.id) else { return };
+        let mut server = std::collections::BTreeMap::new();
+        let mut local = std::collections::BTreeMap::new();
+        server.insert("expected_cash".to_string(), report.expected_cash);
+        local.insert("expected_cash".to_string(), f.expected_cash);
+        server.insert("total_payments".to_string(), report.total_payments);
+        local.insert("total_payments".to_string(), f.total_payments);
+        server.insert("voided".to_string(), report.voided_amount);
+        local.insert("voided".to_string(), f.voided_amount);
+        server.insert("refunds_cash".to_string(), report.refunds_issued_cash.unwrap_or(0));
+        local.insert("refunds_cash".to_string(), f.refunds_issued_cash);
+        let lines = readpath::diff_keyed("money", &server, &local);
+        if !lines.is_empty() {
+            let _ = views::put_till_report(&self.store, &t.id, &report);
+        }
+        self.report_divergence("money", lines);
+    }
 }
+
+const K_PARITY_AT: &str = "ledger:parity_checked_at";
+/// How often the production parity guard asks the server.
+pub(crate) const PARITY_EVERY_MS: i64 = 10 * 60 * 1000;

@@ -446,3 +446,77 @@ async fn the_boards_read_offline_from_the_synced_rows() {
     let notice = core.open_bills_notice().await.unwrap().expect("one bill open");
     assert_eq!((notice.open_bills_count, notice.open_bills_amount_minor), (2, 8_400), "the notice counts the rows");
 }
+
+/// The gaps the feed now carries reach the till: the person's grants, the
+/// branch-effective addons (a disabled one is not offered) and the prep minutes
+/// — and a server that does not send addons yet leaves the fetched list alone.
+#[tokio::test]
+async fn permissions_addons_and_prep_minutes_arrive_with_the_feed() {
+    let with_addons = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag = with_addons.clone();
+    let stub = Stub::start(move |r| {
+        if !r.path.starts_with("/sync/pull") {
+            return None;
+        }
+        let mut types: Vec<&str> = crate::sync_pull::REQUIRED_TYPES.to_vec();
+        let mut data = serde_json::Map::new();
+        for t in &types {
+            data.insert(t.to_string(), serde_json::json!([]));
+        }
+        data.insert("teller".into(), serde_json::json!([{"id": testkit::TELLER, "user_id": testkit::TELLER, "name": "Sara",
+            "role": "teller", "is_active": true, "permissions": ["orders:create", "tills:update"], "seq": 3}]));
+        data.insert("branch_settings".into(), serde_json::json!([{"id": testkit::BRANCH, "delivery_prep_minutes": 25, "seq": 4}]));
+        if flag.load(std::sync::atomic::Ordering::SeqCst) {
+            types.push("addon_item");
+            data.insert("addon_item".into(), serde_json::json!([
+                {"id": uid("oat"), "name": "Oat", "addon_type": "milk", "default_price": 1500, "is_active": true, "is_available": true, "ingredients": [], "seq": 5},
+                {"id": uid("soy"), "name": "Soy", "addon_type": "milk", "default_price": 1200, "is_active": true, "is_available": false, "ingredients": [], "seq": 6}]));
+        }
+        Some(StubResponse::json(200, serde_json::json!({"full": true, "next": 9, "has_more": false,
+            "server_time": "2026-09-14T10:00:00Z", "types": types, "data": data,
+            "ledger_window": {"from": "2026-09-12T10:00:00Z"}})))
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    core.store.kv_put(menu::K_ADDONS, r#"[{"id":"fetched"}]"#).unwrap();
+    assert!(core.has_permission("anything".into(), "at_all".into()), "an offline unlock is optimistic");
+    core.pull(true).await.unwrap();
+    assert!(core.has_permission("orders".into(), "create".into()));
+    assert!(!core.has_permission("orders".into(), "delete".into()), "the feed's grants replace the optimistic gate");
+    assert_eq!(core.store.kv_get(crate::K_DELIVERY_PREP_MINUTES).unwrap().as_deref(), Some("25"));
+    assert_eq!(core.store.kv_get(menu::K_ADDONS).unwrap().as_deref(), Some(r#"[{"id":"fetched"}]"#), "no addon type: untouched");
+
+    with_addons.store(true, std::sync::atomic::Ordering::SeqCst);
+    core.pull(true).await.unwrap();
+    let addons: Vec<serde_json::Value> = serde_json::from_str(&core.store.kv_get(menu::K_ADDONS).unwrap().unwrap()).unwrap();
+    assert_eq!(addons.len(), 1, "the branch-disabled addon is not offered");
+    assert_eq!(addons[0]["name"], "Oat");
+    assert!(addons[0].get("is_available").is_none() && addons[0].get("seq").is_none());
+}
+
+/// The production parity guard: a quiescent, complete till whose figures differ
+/// from the server's report is logged.
+#[tokio::test]
+async fn the_money_parity_guard_logs_a_difference() {
+    let stub = Stub::start(|r| {
+        if r.path.contains("/report") {
+            let mut rep = serde_json::to_value(madar_api::models::TillReportResponse::default()).unwrap();
+            rep["expected_cash"] = serde_json::json!(999_999);
+            return Some(StubResponse::json(200, rep));
+        }
+        None
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_methods(&core);
+    let till = core.open_till(1_000, None).await.unwrap().till.unwrap();
+    core.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET status='acked'", [])?)).unwrap();
+    core.store.with_conn(|c| Ok(c.execute("UPDATE ledger_tills SET acked=0", [])?)).unwrap();
+    core.set_online(true);
+    core.money_parity_check().await;
+    assert!(stub.requests(&format!("/tills/{}/report", till.id)).len() == 1);
+    assert!(core.recent_logs().iter().any(|l| l.message.contains("money") && l.message.contains("expected_cash")));
+    // Rate-limited: a second check right away does not ask again.
+    core.money_parity_check().await;
+    assert_eq!(stub.requests("/tills/").len(), 1);
+}
