@@ -57,9 +57,30 @@ fn allowed(route: &str) -> bool {
 /// not hold completely: its sales and its report; the past-till history backfill).
 /// Allowed once per exact request per session — a repeat is a poll.
 const FILL_ONCE: &[&str] = &["GET /orders", "GET /tills/:id/report", "GET /tills/branches/:id"];
+/// Against a backend older than `sync_feed_branch_reads` the branch settings its
+/// feed row lacks are filled the same way. Against a newer one they are not
+/// allowed at all.
+const LEGACY_SETTINGS_FILLS: &[&str] =
+    &["GET /kitchen/routing-mode", "GET /kitchen/stations", "GET /delivery/settings", "GET /loyalty/settings"];
+
+static LEGACY_FEED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Does the backend's feed lack the branch reads? (Its database has no
+/// `loyalty_settings` emitter.) Decides whether the legacy fills are allowed.
+async fn detect_feed(fx: &Fixture) {
+    let has: bool = fx
+        .db
+        .query_one("SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'sync_emit_loyalty_settings')", &[])
+        .await
+        .unwrap()
+        .get(0);
+    LEGACY_FEED.store(!has, std::sync::atomic::Ordering::SeqCst);
+    eprintln!("== backend feed: {}", if has { "carries the branch reads" } else { "older (branch reads filled once)" });
+}
 
 fn fill_route(route: &str) -> bool {
-    FILL_ONCE.iter().any(|p| route == *p)
+    FILL_ONCE.contains(&route)
+        || (LEGACY_FEED.load(std::sync::atomic::Ordering::SeqCst) && LEGACY_SETTINGS_FILLS.contains(&route))
 }
 
 /// Exact fill requests asked more than once.
@@ -161,6 +182,7 @@ async fn day_start(fx: &Fixture, proxy: &Proxy, tag: &str) -> (std::sync::Arc<Ma
 #[ignore]
 async fn walking_every_screen_reads_nothing_from_the_server() {
     let fx = fixture(1).await;
+    detect_feed(&fx).await;
     let proxy = Proxy::start(&fx.base).await;
     let (core, _db) = day_start(&fx, &proxy, "nb_walk").await;
     // Let the first snapshot's one-off follow-ups (history backfill, the
@@ -185,6 +207,7 @@ async fn walking_every_screen_reads_nothing_from_the_server() {
 async fn an_idle_online_till_only_syncs() {
     let idle: u64 = std::env::var("MADAR_NB_IDLE_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(120);
     let fx = fixture(1).await;
+    detect_feed(&fx).await;
     let proxy = Proxy::start(&fx.base).await;
     let (core, _db) = day_start(&fx, &proxy, "nb_idle").await;
     core.start_realtime(Box::new(Quiet), Box::new(Quiet)).await.expect("realtime");
@@ -219,6 +242,7 @@ async fn an_idle_online_till_only_syncs() {
 #[ignore]
 async fn an_offline_cold_start_reads_and_acts() {
     let fx = fixture(1).await;
+    detect_feed(&fx).await;
     let proxy = Proxy::start(&fx.base).await;
     let teller = fx.tellers[0].1.clone();
     let (core, db) = day_start(&fx, &proxy, "nb_cold").await;
