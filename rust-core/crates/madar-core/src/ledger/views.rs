@@ -6,7 +6,6 @@
 //! Sync state is read from the outbox, never stored on the row: a row a
 //! pending/inflight op holds is `queued`, a row a dead op holds is `failed`.
 
-use std::collections::HashMap;
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
