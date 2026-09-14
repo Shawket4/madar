@@ -665,7 +665,6 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       // its own frozen figures in [_startBill].
       serviceChargeRate: 0,
       taxRate: session?.taxRate ?? 0,
-      canWaiveService: bridge.canWaiveServiceCharge(),
     );
   }
 
@@ -819,6 +818,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         taxInclusive: billPolicy?.taxInclusive,
         serviceChargeRate: billPolicy?.serviceChargeRate,
         taxRate: billPolicy?.taxRate,
+        // Only a table's bill can have its service charge removed.
+        canWaiveService: billPolicy != null && bridge.canWaiveServiceCharge(),
         paymentMethods: methods,
         discounts: discounts,
         loyaltyProgramme: programme,

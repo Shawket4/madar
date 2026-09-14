@@ -114,6 +114,8 @@ class _Fake implements MadarBridge {
     final name = invocation.memberName;
     final a = invocation.namedArguments;
     if (name == #tr) return coreWord(a[#key] as String);
+    // The PIN user holds no `orders:waive_service` here.
+    if (name == #canWaiveServiceCharge) return false;
     if (name == #cartRewardLines || name == #ticketRewardLines) {
       return const <RewardLineInput>[];
     }
