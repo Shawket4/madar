@@ -4,7 +4,8 @@
 //!   acked outbox op NUDGES one changefeed pull: debounced, single-flight, and
 //!   always after a drain (the backlog lands before the feed churns rows that are
 //!   about to fold).
-//! * While the SSE stream is DOWN a fallback poll pulls on a backoff (5 s → 60 s).
+//! * While the SSE stream is DOWN a fallback poll pulls on a backoff (5 s → 60 s;
+//!   a pull that brought changes keeps 5 s, an empty one backs off).
 //!   This is the network half of the "realtime is the fast path, a gated poll is
 //!   the fallback" rule in madar/CLAUDE.md — it moved into the core; the screens'
 //!   `RealtimeGatedPoll` still re-reads locally on the same edge.
@@ -28,6 +29,15 @@ pub(crate) const POLL_MAX: Duration = Duration::from_secs(60);
 /// The next fallback-poll interval: doubles, capped.
 pub(crate) fn next_poll_interval(current: Duration) -> Duration {
     (current * 2).clamp(POLL_MIN, POLL_MAX)
+}
+
+/// The fallback poll's next interval after a pull that applied `applied` rows
+/// (`None` = it failed): changes keep the quick beat, nothing new backs off.
+pub(crate) fn after_poll(current: Duration, applied: Option<u32>) -> Duration {
+    match applied {
+        Some(n) if n > 0 => POLL_MIN,
+        _ => next_poll_interval(current),
+    }
 }
 
 /// Scheduler state kept on the core.
@@ -148,8 +158,10 @@ impl MadarCore {
                 }
                 core.scheduler.pulls_started.fetch_add(1, Ordering::Relaxed);
                 let _ = core.drain_outbox().await;
-                let ok = core.pull(false).await.is_ok();
-                interval = if ok { POLL_MIN } else { next_poll_interval(interval) };
+                // A pull that brought changes keeps the quick beat (the branch is
+                // busy); an empty one or a failure backs off toward POLL_MAX, so
+                // an idle device with its stream down asks once a minute.
+                interval = after_poll(interval, core.pull(false).await.ok());
             }
         });
     }
@@ -190,6 +202,17 @@ impl EventListener for SyncNudgeListener {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_idle_fallback_poll_backs_off_and_a_busy_one_keeps_the_beat() {
+        let mut d = POLL_MIN;
+        for _ in 0..10 {
+            d = after_poll(d, Some(0));
+        }
+        assert_eq!(d, POLL_MAX, "nothing new: once a minute");
+        assert_eq!(after_poll(d, Some(3)), POLL_MIN, "changes: the quick beat");
+        assert_eq!(after_poll(POLL_MIN, None), Duration::from_secs(10), "a failure backs off");
+    }
 
     #[test]
     fn fallback_poll_backs_off_to_a_ceiling() {

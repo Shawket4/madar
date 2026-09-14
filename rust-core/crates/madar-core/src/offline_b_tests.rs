@@ -1394,3 +1394,31 @@ async fn the_tax_policy_rides_the_feed_and_refreshes_ask_only_the_feed() {
         "refreshes asked the server for reads: {other:?}"
     );
 }
+
+/// A connectivity check while already online only drains (an ack nudges its own
+/// pull); the offline→online edge pulls once.
+#[tokio::test]
+async fn a_connectivity_check_pulls_only_on_reconnect() {
+    let stub = Stub::start(|r| {
+        if r.path.starts_with("/health") {
+            Some(StubResponse::text(200, "{}"))
+        } else {
+            r.path.starts_with("/sync/pull").then(|| {
+                StubResponse::text(200, r#"{"full":false,"next":5,"has_more":false,"server_time":"2026-09-14T10:00:00Z","changes":[]}"#)
+            })
+        }
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    core.store.kv_put(&format!("{}{}", crate::sync_pull::K_LAST_FULL, testkit::BRANCH), "2026-09-14T08:00:00Z").unwrap();
+    core.set_manual_scheduling(true);
+    core.set_online(false);
+    assert!(core.refresh_connectivity().await);
+    assert_eq!(stub.requests("/sync/pull").len(), 1, "the reconnect pulls");
+    // Online with a live stream (the poll would otherwise stand in for it).
+    core.realtime_connected.store(true, std::sync::atomic::Ordering::Relaxed);
+    for _ in 0..5 {
+        assert!(core.refresh_connectivity().await);
+    }
+    assert_eq!(stub.requests("/sync/pull").len(), 1, "checks while online only drain");
+}

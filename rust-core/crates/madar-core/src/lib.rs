@@ -5895,6 +5895,7 @@ impl MadarCore {
     }
 
     pub async fn refresh_connectivity(&self) -> bool {
+        let was_online = self.current_session().map(|s| s.online).unwrap_or(false);
         match self.api.ping().await {
             Ok(skew) => {
                 if let Some(s) = skew {
@@ -5916,8 +5917,14 @@ impl MadarCore {
                 // drains on this pass instead of waiting out the network window.
                 let _ = self.store.clear_network_backoff();
                 let _ = self.drain_outbox().await; // best-effort
-                // Reconnect / poll fallback: one incremental changefeed pull (§10.3 A7).
-                let _ = self.pull(false).await;
+                // Reconnect: one incremental changefeed pull (§10.3 A7). A check
+                // while already online only drains: an ack nudges its own pull,
+                // realtime nudges the rest, and the scheduler's fallback poll
+                // covers a dropped stream — so the host's drain timer and every
+                // screen that checks connectivity on entry ask nothing more.
+                if !was_online || (!self.realtime_live() && !self.scheduler.poll_running.load(std::sync::atomic::Ordering::SeqCst)) {
+                    let _ = self.pull(false).await;
+                }
                                                    // Lock the client permission gate to the REAL grants if a sign-in
                                                    // perms-blip left it optimistically open (audit #26) — now that
                                                    // connectivity is confirmed, re-fetch.
