@@ -14,7 +14,7 @@
 use rusqlite::{params, Connection};
 use serde_json::Value;
 
-use super::{is_protected, key_of, stored, write_row, Origin, T_CASH, T_ORDER, T_REFUND, T_TILL};
+use super::{is_protected, key_of, stored_meta, write_row, Origin, T_CASH, T_ORDER, T_REFUND, T_TILL};
 use crate::error::CoreResult;
 
 /// A row acknowledged by the server but not yet seen in the feed is kept for at
@@ -42,7 +42,7 @@ fn ts(v: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 /// Apply one upserted ledger row. Returns true when local data changed.
 pub(crate) fn upsert(conn: &Connection, ty: &str, v: &Value, seq: i64, ctx: &PageCtx) -> CoreResult<bool> {
     let Some(key) = key_of(ty, v) else { return Ok(false) };
-    let prev = stored(conn, ty, &key)?;
+    let prev = stored_meta(conn, ty, &key)?;
     if let Some(p) = &prev {
         if seq < p.srv_seq {
             return Ok(false);
@@ -93,7 +93,7 @@ pub(crate) fn deletable(conn: &Connection, ty: &str, key: &str, now_ms: i64) -> 
     if is_protected(conn, ty, key)? {
         return Ok(false);
     }
-    let Some(p) = stored(conn, ty, key)? else { return Ok(false) };
+    let Some(p) = stored_meta(conn, ty, key)? else { return Ok(false) };
     if p.origin == "local" && p.srv_seq == 0 && !p.acked {
         // A local row with no op and no ack: its op was discarded but the row
         // was not (should not happen); leave it to the discard path.

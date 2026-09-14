@@ -207,24 +207,14 @@ fn reconciliation_of(v: &Value, label: &dyn Fn(&str) -> String) -> Vec<till::Rec
 }
 
 fn order_number_range(store: &Store, till_id: &str) -> CoreResult<(Option<i64>, Option<i64>, Option<String>)> {
+    // Columns kept by `write_row`: parsing every sale's JSON here was most of a
+    // 34k-sale report. `MAX(device_code)` compares bytes, as the server's C collation.
     store.with_conn(|c| {
-        let mut st = c.prepare("SELECT raw FROM ledger_orders WHERE till_id=?1")?;
-        let rows: Vec<String> = st.query_map([till_id], |r| r.get(0))?.collect::<Result<Vec<_>, _>>()?;
-        let (mut lo, mut hi, mut code): (Option<i64>, Option<i64>, Option<String>) = (None, None, None);
-        for raw in rows {
-            let v: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
-            if let Some(n) = v.get("order_number").and_then(Value::as_i64) {
-                lo = Some(lo.map_or(n, |x| x.min(n)));
-                hi = Some(hi.map_or(n, |x| x.max(n)));
-            }
-            // `MAX(device_code)`
-            if let Some(dc) = s(&v, "device_code") {
-                if code.as_deref().map(|c| dc > c).unwrap_or(true) {
-                    code = Some(dc.to_string());
-                }
-            }
-        }
-        Ok((lo, hi, code))
+        Ok(c.query_row(
+            "SELECT MIN(order_number), MAX(order_number), MAX(device_code) FROM ledger_orders WHERE till_id=?1",
+            [till_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )?)
     })
 }
 

@@ -198,6 +198,9 @@ impl Store {
         } else {
             Connection::open(db_path)?
         };
+        // The apply path runs every snapshot row through a handful of cached
+        // statements; room for them beside everything else the core prepares.
+        conn.set_prepared_statement_cache_capacity(64);
         // Best-effort pragmas (in-memory ignores WAL).
         let _ = conn.pragma_update(None, "journal_mode", "WAL");
         let _ = conn.pragma_update(None, "synchronous", "NORMAL");

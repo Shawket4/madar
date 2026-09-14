@@ -76,13 +76,18 @@ pub(crate) fn is_ledger_type(ty: &str) -> bool {
 }
 
 /// A live outbox op (pending / inflight / dead) holds this row.
+/// `execute` through the connection's statement cache: a snapshot applies tens
+/// of thousands of rows through the same few statements.
+fn exec<P: rusqlite::Params>(conn: &Connection, sql: &str, params: P) -> rusqlite::Result<usize> {
+    conn.prepare_cached(sql)?.execute(params)
+}
+
 pub(crate) fn is_protected(conn: &Connection, ty: &str, key: &str) -> CoreResult<bool> {
     Ok(conn
-        .query_row(
+        .prepare_cached(
             "SELECT 1 FROM outbox WHERE entity_type=?1 AND entity_id=?2 AND status IN ('pending','inflight','dead') LIMIT 1",
-            params![ty, key],
-            |_| Ok(()),
-        )
+        )?
+        .query_row(params![ty, key], |_| Ok(()))
         .optional()?
         .is_some())
 }
@@ -101,11 +106,8 @@ pub(crate) fn stored(conn: &Connection, ty: &str, key: &str) -> CoreResult<Optio
     let (table, kcol) = table_of(ty).expect("ledger type");
     let acked = "acked";
     let row: Option<(String, Option<String>, i64, String, i64)> = conn
-        .query_row(
-            &format!("SELECT raw, srv_raw, srv_seq, origin, {acked} FROM {table} WHERE {kcol}=?1"),
-            [key],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
-        )
+        .prepare_cached(&format!("SELECT raw, srv_raw, srv_seq, origin, {acked} FROM {table} WHERE {kcol}=?1"))?
+        .query_row([key], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))
         .optional()?;
     Ok(row.map(|(raw, srv_raw, srv_seq, origin, acked)| Stored {
         raw: serde_json::from_str(&raw).unwrap_or(Value::Null),
@@ -114,6 +116,22 @@ pub(crate) fn stored(conn: &Connection, ty: &str, key: &str) -> CoreResult<Optio
         origin,
         acked: acked != 0,
     }))
+}
+
+/// A stored row's bookkeeping only (no JSON parsed): what the apply path checks.
+#[derive(Debug, Clone)]
+pub(crate) struct Meta {
+    pub srv_seq: i64,
+    pub origin: String,
+    pub acked: bool,
+}
+
+pub(crate) fn stored_meta(conn: &Connection, ty: &str, key: &str) -> CoreResult<Option<Meta>> {
+    let (table, kcol) = table_of(ty).expect("ledger type");
+    Ok(conn
+        .prepare_cached(&format!("SELECT srv_seq, origin, acked FROM {table} WHERE {kcol}=?1"))?
+        .query_row([key], |r| Ok(Meta { srv_seq: r.get(0)?, origin: r.get(1)?, acked: r.get::<_, i64>(2)? != 0 }))
+        .optional()?)
 }
 
 /// The key of the order row a server order id (or a client key) names.
@@ -152,7 +170,7 @@ pub(crate) fn write_row(
     origin: Origin,
     srv_raw: Option<&Value>,
 ) -> CoreResult<()> {
-    let prev = stored(conn, ty, key)?;
+    let prev = stored_meta(conn, ty, key)?;
     let srv_seq = match origin {
         Origin::Feed(seq) => seq,
         _ => prev.as_ref().map(|p| p.srv_seq).unwrap_or(0),
@@ -169,7 +187,7 @@ pub(crate) fn write_row(
     let now = now_ms();
     match ty {
         T_TILL => {
-            conn.execute(
+            exec(conn, 
                 "INSERT INTO ledger_tills(id, branch_id, teller_id, status, opening_cash, closing_cash_system, opened_at,
                                           closed_at, raw, srv_raw, srv_seq, origin, local_updated_at, acked)
                  VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)
@@ -198,11 +216,11 @@ pub(crate) fn write_row(
             )?;
         }
         T_ORDER => {
-            conn.execute(
+            exec(conn, 
                 "INSERT INTO ledger_orders(okey, server_id, order_ref, branch_id, till_id, status, payment_method,
                                            total_amount, tip_amount, tip_is_cash, tip_payment_method, created_at,
-                                           raw, srv_raw, srv_seq, origin, acked, local_updated_at)
-                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)
+                                           raw, srv_raw, srv_seq, origin, acked, local_updated_at, order_number, device_code)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)
                  ON CONFLICT(okey) DO UPDATE SET server_id=COALESCE(excluded.server_id, ledger_orders.server_id),
                    order_ref=excluded.order_ref, branch_id=excluded.branch_id, till_id=excluded.till_id,
                    status=excluded.status, payment_method=excluded.payment_method,
@@ -210,7 +228,8 @@ pub(crate) fn write_row(
                    tip_is_cash=excluded.tip_is_cash, tip_payment_method=excluded.tip_payment_method,
                    created_at=excluded.created_at, raw=excluded.raw, srv_raw=excluded.srv_raw,
                    srv_seq=excluded.srv_seq, origin=excluded.origin, acked=excluded.acked,
-                   local_updated_at=excluded.local_updated_at",
+                   local_updated_at=excluded.local_updated_at, order_number=excluded.order_number,
+                   device_code=excluded.device_code",
                 params![
                     key,
                     server_id_of(ty, key, v, origin),
@@ -229,13 +248,16 @@ pub(crate) fn write_row(
                     srv_seq,
                     origin_word,
                     acked as i64,
-                    now
+                    now,
+                    // Numbers only / text only, like the server's MIN/MAX over typed columns.
+                    v.get("order_number").filter(|n| n.is_i64() || n.is_u64()).and_then(Value::as_i64),
+                    s(v, "device_code")
                 ],
             )?;
-            conn.execute("DELETE FROM ledger_payments WHERE okey=?1", [key])?;
+            exec(conn, "DELETE FROM ledger_payments WHERE okey=?1", [key])?;
             if let Some(legs) = v.get("payment_legs").and_then(Value::as_array) {
                 for (n, leg) in legs.iter().enumerate() {
-                    conn.execute(
+                    exec(conn, 
                         "INSERT INTO ledger_payments(okey, idx, method, amount, is_cash) VALUES(?1,?2,?3,?4,?5)",
                         params![key, n as i64, s(leg, "method").unwrap_or(""), i(leg, "amount"), b(leg, "is_cash")],
                     )?;
@@ -243,7 +265,7 @@ pub(crate) fn write_row(
             }
         }
         T_CASH => {
-            conn.execute(
+            exec(conn, 
                 "INSERT INTO ledger_cash(ckey, server_id, till_id, amount, kind, corrects_id, created_at, raw, srv_raw,
                                          srv_seq, origin, acked, local_updated_at)
                  VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
@@ -270,7 +292,7 @@ pub(crate) fn write_row(
             )?;
         }
         T_REFUND => {
-            conn.execute(
+            exec(conn, 
                 "INSERT INTO ledger_refunds(rkey, server_id, order_id, till_id, amount, method, is_cash, issued_at, raw,
                                             srv_raw, srv_seq, origin, acked, local_updated_at)
                  VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)

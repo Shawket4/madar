@@ -510,3 +510,57 @@ fn a_tills_era_store_moves_its_feed_rows_caches_and_queue() {
     drop(store);
     let _ = std::fs::remove_file(&path);
 }
+
+/// The Z report's device order-number range: numbers only, the byte-wise
+/// greatest device code, sales with neither ignored (the server's MIN/MAX).
+#[test]
+fn the_order_number_range_reads_numbers_and_the_greatest_code() {
+    let store = Store::open("").unwrap();
+    let ctx = ctx_full("2020-01-01T00:00:00Z");
+    store
+        .with_tx(|tx| {
+            apply::upsert(tx, T_TILL, &json!({"id": "T", "branch_id": "B", "teller_id": "u", "status": "open",
+                "opened_at": "2026-09-14T08:00:00Z", "opening_cash": 0}), 1, &ctx)?;
+            for (n, (num, code)) in [(json!(12), json!("36B")), (json!(3), json!("36A")), (json!("7"), json!(null)),
+                                     (json!(null), json!("36b")), (json!(40), json!(5))].iter().enumerate() {
+                apply::upsert(tx, T_ORDER, &json!({"id": format!("o{n}"), "till_id": "T", "branch_id": "B", "status": "completed",
+                    "payment_method": "cash", "total_amount": 100, "created_at": "2026-09-14T09:00:00Z",
+                    "order_number": num, "device_code": code, "payment_legs": []}), 10 + n as i64, &ctx)?;
+            }
+            Ok(())
+        })
+        .unwrap();
+    let r = views::till_report(&store, "T", &|m: &str| m.to_string()).unwrap().expect("a complete till");
+    assert_eq!((r.order_number_first, r.order_number_last), (Some(3), Some(40)));
+    assert_eq!(r.device_code.as_deref(), Some("36b"), "lowercase sorts after uppercase, as in C collation");
+}
+
+/// Timing probe for a very large till (run with --release --ignored).
+#[test]
+#[ignore]
+fn probe_report_on_34k_sales() {
+    let store = Store::open("").unwrap();
+    let ctx = ctx_full("2020-01-01T00:00:00Z");
+    store
+        .with_tx(|tx| {
+            apply::upsert(tx, T_TILL, &json!({"id": "T", "branch_id": "B", "teller_id": "u", "status": "open",
+                "opened_at": "2026-09-14T08:00:00Z", "opening_cash": 0}), 1, &ctx)?;
+            for n in 0..34_000 {
+                let m = if n % 3 == 0 { "card" } else { "cash" };
+                apply::upsert(tx, T_ORDER, &json!({"id": format!("order-{n:08}-0000-0000-000000000000"), "till_id": "T", "branch_id": "B",
+                    "status": if n % 50 == 0 { "voided" } else { "completed" }, "payment_method": m, "total_amount": 1000 + n % 7,
+                    "tip_amount": n % 5, "created_at": "2026-09-14T09:00:00Z", "order_number": n, "device_code": "36B",
+                    "payment_legs": [{"method": m, "amount": 1000 + n % 7, "is_cash": m == "cash"}]}), 10 + n as i64, &ctx)?;
+            }
+            Ok(())
+        })
+        .unwrap();
+    for _ in 0..3 {
+        let t = std::time::Instant::now();
+        let f = store.with_conn(|c| report::compute(c, "T", &[])).unwrap().unwrap();
+        let compute = t.elapsed();
+        let t = std::time::Instant::now();
+        let r = views::till_report(&store, "T", &|m: &str| m.to_string()).unwrap().unwrap();
+        eprintln!("PROBE compute={compute:?} till_report={:?} total={} {}", t.elapsed(), f.total_payments, r.total_payments_minor);
+    }
+}

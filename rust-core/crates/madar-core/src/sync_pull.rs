@@ -358,11 +358,8 @@ pub(crate) fn protected_rows(store: &Store) -> Protected {
 fn row_seq(tx: &rusqlite::Connection, branch: &str, ty: &str, id: &str) -> CoreResult<Option<i64>> {
     use rusqlite::OptionalExtension;
     Ok(tx
-        .query_row(
-            "SELECT seq FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
-            rusqlite::params![branch, ty, id],
-            |r| r.get(0),
-        )
+        .prepare_cached("SELECT seq FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3")?
+        .query_row(rusqlite::params![branch, ty, id], |r| r.get(0))
         .optional()?)
 }
 
@@ -391,11 +388,11 @@ fn upsert_row(
         }
         return Ok(false);
     }
-    tx.execute(
+    tx.prepare_cached(
         "INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES(?1,?2,?3,?4,?5)
          ON CONFLICT(branch_id,type,id) DO UPDATE SET seq=excluded.seq, data=excluded.data",
-        rusqlite::params![ty, id, branch, seq, data.to_string()],
-    )?;
+    )?
+    .execute(rusqlite::params![ty, id, branch, seq, data.to_string()])?;
     Ok(true)
 }
 

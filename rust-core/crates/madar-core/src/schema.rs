@@ -127,6 +127,8 @@ fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
            tip_is_cash   INTEGER,                   -- NULL: COALESCE(tip method,'cash') like the server
            tip_payment_method TEXT,
            created_at    TEXT NOT NULL,
+           order_number  INTEGER,                   -- the Z report's device range (a JSON scan was most of a big report)
+           device_code   TEXT,
            raw           TEXT NOT NULL,             -- projection / command JSON
            srv_raw       TEXT,
            srv_seq       INTEGER NOT NULL DEFAULT 0,
