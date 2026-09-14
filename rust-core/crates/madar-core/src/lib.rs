@@ -91,6 +91,7 @@ pub mod changes;
 pub(crate) mod scheduler;
 pub mod readpath;
 mod ledger_ops;
+mod feed_reads;
 #[cfg(test)]
 mod testkit;
 #[cfg(test)]
@@ -3613,8 +3614,8 @@ impl MadarCore {
             .ok()
             .and_then(|ts| ts.into_iter().find(|t| t.id == table_id))
             .is_some_and(|t| t.status == "seated");
-        let bill =
-            cached_views::<madar_api::models::OpenTicketView>(&self.store, "cache:open_tickets")
+        let bill = self
+                .bill_source()
                 .iter()
                 .any(|v| {
                     v.status == "open"
@@ -3645,6 +3646,34 @@ impl MadarCore {
         }
         if changed {
             cache_views(&self.store, "cache:open_tickets", &list);
+        }
+        // The synced rows the bills are read from move with their parties too
+        // (the swap's own op is queued; the next pull confirms or corrects).
+        if let Ok(branch) = self.session_branch_id() {
+            let _ = self.store.with_tx_touch(|tx, touched| {
+                let rows: Vec<(String, String)> = {
+                    let mut st = tx.prepare("SELECT id, data FROM sync_rows WHERE branch_id=?1 AND type='open_ticket'")?;
+                    let v = st
+                        .query_map([&branch], |r| Ok((r.get(0)?, r.get(1)?)))?
+                        .collect::<Result<Vec<_>, _>>()?;
+                    v
+                };
+                for (id, data) in rows {
+                    let mut v: serde_json::Value = serde_json::from_str(&data).unwrap_or(serde_json::Value::Null);
+                    let now = match v.get("table_id").and_then(|t| t.as_str()) {
+                        Some(t) if t == table_a => table_b,
+                        Some(t) if t == table_b => table_a,
+                        _ => continue,
+                    };
+                    v["table_id"] = serde_json::json!(now);
+                    tx.execute(
+                        "UPDATE sync_rows SET data=?1 WHERE branch_id=?2 AND type='open_ticket' AND id=?3",
+                        rusqlite::params![v.to_string(), branch, id],
+                    )?;
+                }
+                touched.extend([changes::OPEN_TICKETS, changes::FLOOR]);
+                Ok(())
+            });
         }
     }
 
@@ -3998,7 +4027,7 @@ impl MadarCore {
     ) -> Option<(madar_api::models::OpenTicketView, tickets::TicketView)> {
         let line_voids = tickets::pending_line_voids(&self.store).unwrap_or_default();
         let sc_taxable = self.service_charge_taxable();
-        cached_views::<madar_api::models::OpenTicketView>(&self.store, "cache:open_tickets")
+        self.bill_source()
             .into_iter()
             .find(|v| v.id.to_string() == ticket_id)
             .map(|v| {
@@ -7014,7 +7043,7 @@ impl MadarCore {
             .filter(|s| !s.is_empty())
     }
 
-    pub async fn list_open_tickets(&self) -> Result<Vec<tickets::TicketView>, CoreError> {
+    pub(crate) async fn legacy_list_open_tickets(&self) -> Result<Vec<tickets::TicketView>, CoreError> {
         use madar_api::apis::open_tickets_api as ot;
         let branch_id = self.session_branch_id()?;
         let server: Vec<madar_api::models::OpenTicketView> = if self.pull_feed_complete(&branch_id) {
@@ -7114,7 +7143,7 @@ impl MadarCore {
 
     /// One open ticket by server id (the detail screen). Online; a queued (unsynced)
     /// ticket has no server id yet — read it from `list_open_tickets` instead.
-    pub async fn get_ticket(&self, ticket_id: String) -> Result<tickets::TicketView, CoreError> {
+    pub(crate) async fn legacy_get_ticket(&self, ticket_id: String) -> Result<tickets::TicketView, CoreError> {
         use madar_api::apis::open_tickets_api as ot;
         let v = ot::get_open_ticket(
             &self.api.config(),
@@ -7154,7 +7183,7 @@ impl MadarCore {
     /// to a `station_id` — tickets with pending work for it). Sorted oldest-first
     /// (rush to top), ready tickets last. Write-through cached per station so the
     /// board still shows the last snapshot after a reconnect.
-    pub async fn kds_list(
+    pub(crate) async fn legacy_kds_list(
         &self,
         station_id: Option<String>,
     ) -> Result<Vec<kds::KdsTicketView>, CoreError> {
@@ -7291,7 +7320,7 @@ impl MadarCore {
 impl MadarCore {
     /// The branch's delivery queue (newest first). `status` is a comma-separated
     /// wire filter (e.g. "received,confirmed"); `None` = all. Online-only.
-    pub async fn list_delivery_orders(
+    pub(crate) async fn legacy_list_delivery_orders(
         &self,
         status: Option<String>,
     ) -> Result<Vec<delivery::DeliveryOrderView>, CoreError> {
@@ -10352,7 +10381,7 @@ impl MadarCore {
     }
 
     /// Today's active bookings from the cache, earliest first.
-    pub fn list_arrivals(&self) -> Result<Vec<bookings::BookingView>, CoreError> {
+    pub(crate) fn legacy_list_arrivals(&self) -> Result<Vec<bookings::BookingView>, CoreError> {
         let mut list = bookings::load_arrivals(&self.store)?;
         list.sort_by(|a, b| a.starts_at.cmp(&b.starts_at));
         Ok(list)

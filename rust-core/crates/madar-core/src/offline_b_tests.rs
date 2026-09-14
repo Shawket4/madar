@@ -331,3 +331,118 @@ async fn shadow_mode_serves_legacy_and_logs_divergence() {
     }
     assert!(core.set_read_path_mode("nope".into(), crate::readpath::ReadPathMode::New).is_err());
 }
+
+// ── Phases 3–4: the floor-side boards from the synced rows ──────────────────
+
+fn seed_rows(core: &crate::MadarCore, rows: &[(&str, serde_json::Value)]) {
+    core.store
+        .with_conn(|c| {
+            for (ty, v) in rows {
+                c.execute(
+                    "INSERT OR REPLACE INTO sync_rows(type,id,branch_id,seq,data) VALUES(?1,?2,?3,1,?4)",
+                    rusqlite::params![ty, v["id"].as_str().unwrap(), testkit::BRANCH, v.to_string()],
+                )?;
+            }
+            Ok(())
+        })
+        .unwrap();
+    core.store
+        .kv_put(&format!("{}{}", crate::sync_pull::K_LAST_FULL, testkit::BRANCH), "2026-09-14T08:00:00Z")
+        .unwrap();
+}
+
+fn uid(label: &str) -> String {
+    uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, label.as_bytes()).to_string()
+}
+
+/// With the rows synced and NO network at all, every board reads — bills with
+/// this device's queued work applied, the kitchen per station, the delivery
+/// queue by status with the synced prep minutes, today's arrivals.
+#[tokio::test]
+async fn the_boards_read_offline_from_the_synced_rows() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    let now = chrono::Utc::now();
+    let mut bill = madar_api::models::OpenTicketView::default();
+    bill.id = uuid::Uuid::parse_str(&uid("bill-1")).unwrap();
+    bill.status = "open".into();
+    bill.subtotal = 4_200;
+    bill.opened_at = now.fixed_offset();
+    let mut settled_here = bill.clone();
+    settled_here.id = uuid::Uuid::parse_str(&uid("bill-2")).unwrap();
+
+    let station = uuid::Uuid::parse_str(&uid("grill")).unwrap();
+    let mut kt = madar_api::models::KitchenTicketView::default();
+    kt.id = uuid::Uuid::parse_str(&uid("kt-1")).unwrap();
+    kt.status = "open".into();
+    kt.created_at = now.fixed_offset();
+    let mut line = madar_api::models::KitchenTicketItemView::default();
+    line.id = uuid::Uuid::parse_str(&uid("kt-1-line")).unwrap();
+    line.station_id = Some(Some(station));
+    line.qty = 1;
+    kt.items = vec![line];
+    let mut closed_kt = kt.clone();
+    closed_kt.id = uuid::Uuid::parse_str(&uid("kt-2")).unwrap();
+    closed_kt.closed_at = Some(Some(now.fixed_offset()));
+
+    let delivery = |label: &str, status: &str| {
+        serde_json::json!({"id": uid(label), "branch_id": testkit::BRANCH, "status": status, "channel": "pickup",
+            "cart": {"lines": []}, "customer_name": "C", "customer_phone": "0100", "created_at": now.to_rfc3339(),
+            "delivery_fee": 0, "extra_prep_minutes": 0, "otp_verified": true, "subtotal": 1000, "total": 1000})
+    };
+    let booking = |label: &str, status: &str, starts: chrono::DateTime<chrono::Utc>| {
+        serde_json::json!({"id": uid(label), "branch_id": testkit::BRANCH, "status": status, "party_size": 2,
+            "starts_at": starts.to_rfc3339(), "ends_at": (starts + chrono::Duration::hours(1)).to_rfc3339(),
+            "held_from": (starts - chrono::Duration::minutes(15)).to_rfc3339(), "guest_name": "G", "guest_phone": "0101",
+            "created_at": now.to_rfc3339(), "updated_at": now.to_rfc3339(), "locale": "en", "needs_table": false,
+            "phone_verified": true, "source": "host", "table_ids": [], "table_labels": []})
+    };
+    core.store.kv_put(crate::checkout::KEY_BRANCH_TZ, "UTC").unwrap();
+    seed_rows(
+        &core,
+        &[
+            ("open_ticket", serde_json::to_value(&bill).unwrap()),
+            ("open_ticket", serde_json::to_value(&settled_here).unwrap()),
+            ("kitchen_ticket", serde_json::to_value(&kt).unwrap()),
+            ("kitchen_ticket", serde_json::to_value(&closed_kt).unwrap()),
+            ("delivery", delivery("d-new", "received")),
+            ("delivery", delivery("d-done", "delivered")),
+            ("booking", booking("b-today", "confirmed", now + chrono::Duration::minutes(5))),
+            ("booking", booking("b-no-show", "confirmed", now + chrono::Duration::minutes(10))),
+            ("booking", booking("b-tomorrow", "confirmed", now + chrono::Duration::days(2))),
+            ("branch_settings", serde_json::json!({"id": testkit::BRANCH, "delivery_prep_minutes": 35})),
+        ],
+    );
+    // This device settled one bill and marked one booking a no-show, both queued.
+    core.store
+        .enqueue(&store::NewOutboxOp {
+            id: format!("{}:settle", uid("bill-2")),
+            op_type: "settle_open_ticket".into(),
+            idempotency_key: "s".into(),
+            payload: serde_json::json!({"ticket_id": uid("bill-2"), "request": {}}).to_string(),
+            event_at: now.to_rfc3339(),
+            user_id: Some(testkit::TELLER.into()),
+            ..Default::default()
+        })
+        .unwrap();
+    core.no_show_booking(uid("b-no-show")).unwrap();
+
+    let bills = core.list_open_tickets().await.unwrap();
+    assert_eq!(bills.iter().map(|b| b.id.clone()).collect::<Vec<_>>(), vec![uid("bill-1")]);
+    assert_eq!(core.get_ticket(uid("bill-1")).await.unwrap().subtotal_minor, 4_200);
+
+    let all = core.kds_list(None).await.unwrap();
+    assert_eq!(all.len(), 1, "a closed kitchen ticket is off the board");
+    assert_eq!(core.kds_list(Some(station.to_string())).await.unwrap().len(), 1);
+    assert_eq!(core.kds_list(Some(uid("bar"))).await.unwrap().len(), 0, "nothing for another station");
+
+    let queue = core.list_delivery_orders(Some("received,confirmed".into())).await.unwrap();
+    assert_eq!(queue.len(), 1);
+    assert_eq!(core.list_delivery_orders(None).await.unwrap().len(), 2);
+    assert_eq!(core.prep_minutes(), 35, "prep minutes from the synced branch settings");
+
+    let arrivals = core.list_arrivals().unwrap();
+    assert_eq!(arrivals.iter().map(|b| b.id.clone()).collect::<Vec<_>>(), vec![uid("b-today")]);
+
+    let notice = core.open_bills_notice().await.unwrap().expect("one bill open");
+    assert_eq!((notice.open_bills_count, notice.open_bills_amount_minor), (2, 8_400), "the notice counts the rows");
+}

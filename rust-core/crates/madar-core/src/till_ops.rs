@@ -307,7 +307,11 @@ impl MadarCore {
     /// Bills left open at the branch (`None` when zero).
     pub async fn open_bills_notice(&self) -> Result<Option<till::OpenBillsNoticeView>, CoreError> {
         let sp = self.session_parts()?;
-        if sp.online {
+        // With the bills in the synced rows the notice is computed here, like the
+        // close preview's; the server is asked only before the first snapshot.
+        let from_rows = crate::readpath::mode(&self.store, "tickets") != crate::readpath::ReadPathMode::Legacy
+            && self.pull_feed_complete(&sp.branch_id);
+        if sp.online && !from_rows {
             if let Ok(w) = tills_api::get_open_bills_notice(
                 &self.api.config(),
                 tills_api::GetOpenBillsNoticeParams {
@@ -319,8 +323,8 @@ impl MadarCore {
                 return Ok(till::open_bills_notice_view(&w));
             }
         }
-        let bills: Vec<till::LocalBill> =
-            cached_views::<madar_api::models::OpenTicketView>(&self.store, "cache:open_tickets")
+        let bills: Vec<till::LocalBill> = self
+                .bill_source()
                 .into_iter()
                 .filter(|t| t.status == "open")
                 .map(|t| till::LocalBill {

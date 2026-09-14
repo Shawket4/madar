@@ -18,7 +18,7 @@ use serde_json::{json, Value};
 
 use super::apply::{self, PageCtx};
 use super::{local, report, T_CASH, T_ORDER, T_TILL};
-use crate::store::{enqueue_on, NewOutboxOp, OutboxItem, Store};
+use crate::store::{NewOutboxOp, OutboxItem, Store};
 
 const TILL: &str = "aaaaaaaa-0000-0000-0000-000000000001";
 const BRANCH: &str = "bbbbbbbb-0000-0000-0000-000000000001";

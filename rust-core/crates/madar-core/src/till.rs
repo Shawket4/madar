@@ -19,11 +19,6 @@ pub(crate) const ACTIVE_USER_KEY: &str = "till:active_user";
 /// till's declared closing (cash continuity).
 pub(crate) const SUGGESTED_OPEN_CASH_KEY: &str = "shift:suggested_open_cash";
 
-/// PRE-B kv key for one till record (`TillRecord` JSON); read once by the
-/// ledger backfill (store step 4) and never written since.
-pub(crate) fn record_key(till_id: &str) -> String {
-    format!("till:rec:{till_id}")
-}
 /// kv key: the till this device holds for `user_id` (contract §4.3).
 pub(crate) fn device_till_key(user_id: &str) -> String {
     format!("{DEVICE_TILL_PREFIX}{user_id}")
