@@ -1,7 +1,8 @@
-//! Read-path parity against the REAL backend: every screen read the core
-//! serves, computed by the local rows and by a REFERENCE, after realistic days
-//! (online, offline, reconnect, two devices, a drained backlog, voids, refunds,
-//! cash movements, a close, a past till, a device before its first snapshot).
+//! Read parity against the REAL backend: every screen read the core serves —
+//! computed from the local rows, the only read path — against the server's own
+//! figures, after realistic days (online, offline, reconnect, two devices, a
+//! drained backlog, voids, refunds, cash movements, a close, a past till, a
+//! device before its first snapshot).
 //!
 //! Ignored by `cargo test`. Run with the backend harness:
 //!
@@ -9,218 +10,214 @@
 //! MADAR_OB_TESTS=readpath_parity tool/offline_b_backend.sh
 //! ```
 //!
-//! The reference is the legacy read of the same core (flag flipped per read),
-//! so both see the same outbox and the same moment. Every difference is either
-//! a bug in the local read (fixed) or an explained legacy fault, listed in
-//! [`explained`] with the reason. Anything else fails the scenario.
+//! The reference is the server: its database for lists and counts (orders,
+//! refunds, drawer movements, tills, bills, kitchen tickets, deliveries,
+//! bookings) and its own Z report (read by a probe device that holds none of
+//! the till). Every difference fails the scenario. Until the local rows became
+//! the only read path this suite compared them with the legacy reads instead;
+//! the differences it found then are in `OFFLINE_B_DESIGN.md` (Implementation
+//! status, read-path parity).
 
 mod common;
 
-use std::collections::BTreeMap;
-use std::fmt::Debug;
-use std::time::Duration;
+use std::collections::{BTreeMap, BTreeSet};
+use std::time::{Duration, Instant};
 
 use common::*;
-use madar_core::readpath::{ReadPathMode, AREAS};
 use madar_core::MadarCore;
 
-/// Turn every quoted RFC 3339 instant in a Debug dump into epoch millis, so
-/// `+00:00` vs `Z` and sub-second spelling are not differences.
-fn norm(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut rest = s;
-    while let Some(i) = rest.find('"') {
-        out.push_str(&rest[..=i]);
-        rest = &rest[i + 1..];
-        let Some(j) = rest.find('"') else { break };
-        let inner = &rest[..j];
-        match chrono::DateTime::parse_from_rfc3339(inner) {
-            Ok(d) => out.push_str(&format!("@{}", d.timestamp_millis())),
-            Err(_) => out.push_str(inner),
-        }
-        out.push('"');
-        rest = &rest[j + 1..];
-    }
-    out.push_str(rest);
-    out
+const ACTIVE_DELIVERY: &str = "received,confirmed,preparing,ready,out_for_delivery";
+
+fn uid(s: &str) -> uuid::Uuid {
+    uuid::Uuid::parse_str(s).unwrap()
 }
 
-fn dump<T: Debug>(v: &T) -> Vec<String> {
-    norm(&format!("{v:#?}")).lines().map(|l| l.trim().to_string()).collect()
-}
-
-/// Line-level difference of two values: what only one side says.
-fn diff_value<T: Debug>(what: &str, reference: &T, local: &T) -> Vec<String> {
-    let (a, b) = (dump(reference), dump(local));
-    if a == b {
-        return Vec::new();
-    }
-    // Field lines only one side has (a multiset difference, so one changed
-    // field reads as one line, not as every line after it).
-    let count = |v: &[String]| {
-        let mut m: BTreeMap<String, i64> = BTreeMap::new();
-        for l in v {
-            *m.entry(l.clone()).or_default() += 1;
-        }
-        m
-    };
-    let (ca, cb) = (count(&a), count(&b));
-    let mut out = Vec::new();
-    for (l, n) in &ca {
-        if cb.get(l).copied().unwrap_or(0) < *n {
-            out.push(format!("{what}: legacy `{l}`"));
-        }
-    }
-    for (l, n) in &cb {
-        if ca.get(l).copied().unwrap_or(0) < *n {
-            out.push(format!("{what}: new `{l}`"));
-        }
-    }
-    if out.is_empty() {
-        out.push(format!("{what}: same fields in a different order"));
-    }
-    out.truncate(12);
-    out
-}
-
-fn diff_keyed<T: Debug>(what: &str, reference: &[T], local: &[T], key: impl Fn(&T) -> String) -> Vec<String> {
-    let a: BTreeMap<String, &T> = reference.iter().map(|x| (key(x), x)).collect();
-    let b: BTreeMap<String, &T> = local.iter().map(|x| (key(x), x)).collect();
-    let mut out = Vec::new();
-    for (k, x) in &a {
-        match b.get(k) {
-            None => out.push(format!("{what}: {k} only in legacy")),
-            Some(y) => out.extend(diff_value(&format!("{what}[{k}]"), x, y)),
-        }
-    }
-    for k in b.keys().filter(|k| !a.contains_key(*k)) {
-        out.push(format!("{what}: {k} only in new"));
-    }
-    // Same members in a different order is a difference too (screens list them).
-    if out.is_empty() {
-        let (ka, kb): (Vec<_>, Vec<_>) = (reference.iter().map(&key).collect(), local.iter().map(&key).collect());
-        if ka != kb {
-            out.push(format!("{what}: order legacy {ka:?} new {kb:?}"));
-        }
-    }
-    out
-}
-
-fn set_all(core: &MadarCore, mode: ReadPathMode) {
-    for a in AREAS {
-        core.set_read_path_mode(a.to_string(), mode).unwrap();
+fn check<T: PartialEq + std::fmt::Debug>(out: &mut Vec<String>, what: &str, device: T, server: T) {
+    if device != server {
+        out.push(format!("{what}: device {device:?} server {server:?}"));
     }
 }
 
-/// Read once with the legacy path and once with the local one.
-macro_rules! both {
-    ($core:expr, $call:expr) => {{
-        set_all($core, ReadPathMode::Legacy);
-        let l = $call.await;
-        set_all($core, ReadPathMode::New);
-        let n = $call.await;
-        (l, n)
-    }};
-}
-
-fn res<T: Debug>(what: &str, pair: (Result<T, madar_core::error::CoreError>, Result<T, madar_core::error::CoreError>), f: impl Fn(&T, &T) -> Vec<String>) -> Vec<String> {
-    match pair {
-        (Ok(l), Ok(n)) => f(&l, &n),
-        (Err(l), Err(n)) => {
-            if std::mem::discriminant(&l) == std::mem::discriminant(&n) {
-                Vec::new()
-            } else {
-                vec![format!("{what}: legacy error {l} new error {n}")]
-            }
-        }
-        (Ok(_), Err(e)) => vec![format!("{what}: new failed ({e}) where legacy served")],
-        (Err(e), Ok(_)) => vec![format!("{what}: legacy failed ({e}) where new served")],
-    }
-}
-
-/// Every shadowed read, legacy vs new, for the tills and sales named.
-async fn parity(core: &MadarCore, tills: &[String], orders: &[String], tickets: &[String]) -> Vec<String> {
+/// Every screen read of `core`, against the server, for the tills named.
+async fn server_parity(fx: &Fixture, core: &MadarCore, tills: &[(String, String)]) -> Vec<String> {
     let mut d = Vec::new();
-    let _ = core.refresh_arrivals().await;
-    d.extend(res("list_till_orders", both!(core, core.list_till_orders()), |l, n| {
-        diff_keyed("till orders", l, n, |o| o.order_ref.clone().unwrap_or(o.id.clone()))
-    }));
-    for t in tills {
-        d.extend(res("list_orders_for_till", both!(core, core.list_orders_for_till(t.clone())), |l, n| {
-            diff_keyed(&format!("orders for {t}"), l, n, |o| o.order_ref.clone().unwrap_or(o.id.clone()))
-        }));
-        d.extend(res("till_report_for", both!(core, core.till_report_for(t.clone())), |l, n| {
-            diff_value(&format!("report for {t}"), l, n)
-        }));
-        d.extend(res("list_till_refunds", both!(core, core.list_till_refunds(t.clone())), |l, n| {
-            diff_value(&format!("till refunds {t}"), l, n)
-        }));
+    let branch = uid(&fx.branch);
+    for (t, teller) in tills {
+        let till = uid(t);
+        // The sales.
+        let device: BTreeMap<String, (i64, String)> = core
+            .list_orders_for_till(t.clone())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|o| (o.order_ref.clone().unwrap_or(o.id.clone()), (o.total_minor, o.status)))
+            .collect();
+        let server: BTreeMap<String, (i64, String)> = fx
+            .db
+            .query("SELECT order_ref, total_amount, status::text FROM orders WHERE till_id = $1", &[&till])
+            .await
+            .unwrap()
+            .iter()
+            .map(|r| (r.get::<_, String>(0), (r.get::<_, i32>(1) as i64, r.get::<_, String>(2))))
+            .collect();
+        check(&mut d, &format!("orders of {t}"), device, server);
+        // The refunds from its drawer.
+        let refunds = core.list_till_refunds(t.clone()).await.unwrap();
+        let row = fx
+            .db
+            .query_one("SELECT COUNT(*), COALESCE(SUM(amount), 0)::bigint FROM order_refunds WHERE till_id = $1", &[&till])
+            .await
+            .unwrap();
+        check(&mut d, &format!("refunds of {t}"), (refunds.refund_count, refunds.refunded_minor), (row.get::<_, i64>(0), row.get::<_, i64>(1)));
+        // Its Z report, every figure, against the server's own report.
+        let device = figures(&core.till_report_for(t.clone()).await.unwrap());
+        let server = figures(&server_report(fx, teller, t).await);
+        check(&mut d, &format!("report of {t}"), device, server);
     }
-    d.extend(res("till_report", both!(core, core.till_report()), |l, n| diff_value("till report", l, n)));
-    d.extend(res("list_cash_movements", both!(core, core.list_cash_movements()), |l, n| {
-        diff_keyed("cash", l, n, |m| m.id.clone())
-    }));
-    d.extend(res("close_till_preview", both!(core, core.close_till_preview()), |l, n| diff_value("close preview", l, n)));
-    d.extend(res("list_tills", both!(core, core.list_tills()), |l, n| diff_keyed("tills", l, n, |t| t.id.clone())));
-    for o in orders {
-        d.extend(res("list_order_refunds", both!(core, core.list_order_refunds(o.clone())), |l, n| {
-            diff_value(&format!("order refunds {o}"), l, n)
-        }));
+    // The current till's drawer and close preview.
+    if let Ok(Some(cur)) = core.current_till() {
+        let till = uid(&cur.id);
+        let moves = core.list_cash_movements().await.unwrap();
+        let row = fx
+            .db
+            .query_one("SELECT COUNT(*), COALESCE(SUM(amount), 0)::bigint FROM till_cash_movements WHERE till_id = $1", &[&till])
+            .await
+            .unwrap();
+        check(
+            &mut d,
+            "cash movements",
+            (moves.len() as i64, moves.iter().map(|m| m.amount_minor).sum::<i64>()),
+            (row.get::<_, i64>(0), row.get::<_, i64>(1)),
+        );
+        if cur.is_open {
+            let preview = core.close_till_preview().await.unwrap();
+            let teller = tills.iter().find(|(t, _)| *t == cur.id).map(|(_, n)| n.clone()).expect("the current till is named");
+            let server = server_report(fx, &teller, &cur.id).await;
+            check(&mut d, "close preview expected cash", preview.expected_cash_minor, server.expected_cash_minor);
+            check(&mut d, "till report", figures(&core.till_report().await.unwrap()), figures(&server));
+        }
     }
-    d.extend(res("list_open_tickets", both!(core, core.list_open_tickets()), |l, n| {
-        diff_keyed("open tickets", l, n, |t| t.id.clone())
-    }));
-    // The bill detail as a screen opens it: by the id the list gave.
-    set_all(core, ReadPathMode::New);
-    let listed: Vec<String> = core.list_open_tickets().await.map(|v| v.into_iter().map(|t| t.id).collect()).unwrap_or_default();
-    for t in tickets.iter().chain(listed.iter().rev().take(6)) {
-        d.extend(res("get_ticket", both!(core, core.get_ticket(t.clone())), |l, n| diff_value(&format!("ticket {t}"), l, n)));
+    // The branch's tills of the last day, with their status.
+    let device: BTreeMap<String, String> = core.list_tills().await.unwrap().into_iter().map(|t| (t.id, t.status)).collect();
+    for r in fx
+        .db
+        .query("SELECT id, status::text FROM tills WHERE branch_id = $1 AND opened_at > now() - interval '1 day'", &[&branch])
+        .await
+        .unwrap()
+    {
+        let id = r.get::<_, uuid::Uuid>(0).to_string();
+        check(&mut d, &format!("till {id} in the list"), device.get(&id).cloned(), Some(r.get::<_, String>(1)));
     }
-    d.extend(res("kds_list", both!(core, core.kds_list(None)), |l, n| diff_keyed("kds", l, n, |t| t.id.clone())));
-    // The queue screen's own filter (incoming_provider.dart kActiveDeliveryStatuses).
-    let active = Some("received,confirmed,preparing,ready,out_for_delivery".to_string());
-    d.extend(res("list_delivery_orders", both!(core, core.list_delivery_orders(active.clone())), |l, n| {
-        diff_keyed("delivery(active)", l, n, |o| o.id.clone())
-    }));
-    d.extend(res("list_delivery_orders(all)", both!(core, core.list_delivery_orders(None)), |l, n| {
-        diff_keyed("delivery(all)", l, n, |o| o.id.clone())
-    }));
-    set_all(core, ReadPathMode::Legacy);
-    let la = core.list_arrivals();
-    set_all(core, ReadPathMode::New);
-    let na = core.list_arrivals();
-    d.extend(res("list_arrivals", (la, na), |l, n| diff_keyed("arrivals", l, n, |b| b.id.clone())));
+    // Open bills, and each bill's detail.
+    let bills = core.list_open_tickets().await.unwrap();
+    let server: BTreeMap<String, i64> = fx
+        .db
+        .query("SELECT id, subtotal FROM open_tickets WHERE branch_id = $1 AND status = 'open'", &[&branch])
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| (r.get::<_, uuid::Uuid>(0).to_string(), r.get::<_, i32>(1) as i64))
+        .collect();
+    check(&mut d, "open bills", bills.iter().map(|b| b.id.clone()).collect::<BTreeSet<_>>(), server.keys().cloned().collect());
+    for (id, subtotal) in &server {
+        match core.get_ticket(id.clone()).await {
+            Ok(v) => check(&mut d, &format!("bill {id} subtotal"), v.subtotal_minor, *subtotal),
+            Err(e) => d.push(format!("bill {id}: {e}")),
+        }
+    }
+    // The kitchen board.
+    let kds: BTreeSet<String> = core.kds_list(None).await.unwrap().into_iter().map(|t| t.id).collect();
+    let server: BTreeSet<String> = fx
+        .db
+        .query(
+            "SELECT id FROM kitchen_tickets WHERE branch_id = $1 AND closed_at IS NULL AND status::text <> 'voided'",
+            &[&branch],
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get::<_, uuid::Uuid>(0).to_string())
+        .collect();
+    check(&mut d, "kitchen board", kds, server);
+    // The delivery queue as the screen asks for it.
+    let queue: BTreeSet<String> =
+        core.list_delivery_orders(Some(ACTIVE_DELIVERY.into())).await.unwrap().into_iter().map(|o| o.id).collect();
+    let server: BTreeSet<String> = fx
+        .db
+        .query("SELECT id FROM delivery_orders WHERE branch_id = $1 AND status::text = ANY(string_to_array($2, ','))", &[&branch, &ACTIVE_DELIVERY])
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get::<_, uuid::Uuid>(0).to_string())
+        .collect();
+    check(&mut d, "delivery queue", queue, server);
+    // Today's arrivals, in the branch's own day.
+    let arrivals: BTreeSet<String> = core.list_arrivals().unwrap().into_iter().map(|b| b.id).collect();
+    let server: BTreeSet<String> = fx
+        .db
+        .query(
+            "WITH z AS (SELECT effective_timezone($1) AS tz),
+                  day AS (SELECT (date_trunc('day', now() AT TIME ZONE z.tz)) AT TIME ZONE z.tz AS from_, \
+                                 (date_trunc('day', now() AT TIME ZONE z.tz) + interval '1 day') AT TIME ZONE z.tz AS to_ FROM z)
+             SELECT b.id FROM bookings b, day
+              WHERE b.branch_id = $1 AND b.status::text IN ('confirmed', 'seated')
+                AND b.starts_at < day.to_ AND b.ends_at > day.from_",
+            &[&branch],
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get::<_, uuid::Uuid>(0).to_string())
+        .collect();
+    check(&mut d, "arrivals", arrivals, server);
     d
 }
 
-/// Differences with a known cause in the LEGACY read (the reference is wrong,
-/// the local read is right). Each entry: a pattern and why.
-fn explained(line: &str) -> Option<&'static str> {
-    if line.contains("printed_at:") {
-        return Some("the print time: each read stamps its own");
+/// Retry a parity pass while the device is still filling (a background fill
+/// or a confirming pull lands a moment after convergence): the LAST pass is
+/// the verdict, and every earlier difference is printed.
+async fn verdict(label: &str, fx: &Fixture, core: &MadarCore, tills: &[(String, String)]) -> Vec<String> {
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        let lines = server_parity(fx, core, tills).await;
+        if lines.is_empty() || Instant::now() > deadline {
+            for l in &lines {
+                eprintln!("PARITY {label} DIFF: {l}");
+            }
+            eprintln!("PARITY {label}: {} differences", lines.len());
+            return lines;
+        }
+        eprintln!("PARITY {label}: {} differences, reading again", lines.len());
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
-    if line.starts_with("delivery(all): ") && line.ends_with("only in legacy") {
-        return Some(
-            "an unfiltered list: legacy pages the server's last 200 of any age; the feed keeps terminal \
-             deliveries 48 h (sync_live_delivery). No screen reads it unfiltered",
-        );
-    }
-    None
 }
 
-fn verdict(label: &str, lines: Vec<String>) -> Vec<String> {
-    let mut unexplained = Vec::new();
-    for l in lines {
-        match explained(&l) {
-            Some(why) => eprintln!("PARITY {label} explained: {l}  -- {why}"),
-            None => {
-                eprintln!("PARITY {label} DIFF: {l}");
-                unexplained.push(l);
-            }
-        }
+/// Every screen read once, timed: (read, milliseconds, served).
+async fn read_latencies(core: &MadarCore, till: &str) -> Vec<(&'static str, f64, bool)> {
+    let mut out = Vec::new();
+    macro_rules! time {
+        ($name:expr, $e:expr) => {{
+            let t0 = Instant::now();
+            let ok = $e.is_ok();
+            out.push(($name, t0.elapsed().as_secs_f64() * 1e3, ok));
+        }};
     }
-    eprintln!("PARITY {label}: {} unexplained", unexplained.len());
-    unexplained
+    time!("list_till_orders", core.list_till_orders().await);
+    time!("list_orders_for_till", core.list_orders_for_till(till.to_string()).await);
+    time!("till_report", core.till_report().await);
+    time!("till_report_for", core.till_report_for(till.to_string()).await);
+    time!("list_cash_movements", core.list_cash_movements().await);
+    time!("close_till_preview", core.close_till_preview().await);
+    time!("list_tills", core.list_tills().await);
+    time!("list_till_refunds", core.list_till_refunds(till.to_string()).await);
+    time!("list_open_tickets", core.list_open_tickets().await);
+    time!("kds_list", core.kds_list(None).await);
+    time!("list_delivery_orders", core.list_delivery_orders(Some(ACTIVE_DELIVERY.into())).await);
+    time!("list_arrivals", core.list_arrivals());
+    time!("floor_layout", core.floor_layout());
+    time!("list_menu_items", core.list_menu_items());
+    time!("sync_status", Ok::<_, ()>(core.sync_status()));
+    out
 }
 
 async fn seed_delivery_and_booking(fx: &Fixture) {
@@ -286,24 +283,21 @@ async fn parity_one_device_online_offline_reconnect_close() {
     let till = core.open_till(10_000, Some("parity".into())).await.unwrap().till.unwrap().id;
     let cash = method(&core, true).unwrap();
     let card = method(&core, false);
-
     // Online day.
     sell(&core, 2, &cash, 1_000_000).await;
     if let Some(card) = &card {
         sell(&core, 1, card, 0).await;
     }
     core.record_cash_movement(2_000, "float".into(), Some("pay_in".into()), None).await.unwrap();
-    let t_open = fire(&core, 2).await;
+    fire(&core, 2).await;
     let t_void = fire(&core, 1).await;
     converge(&core).await;
     core.void_ticket(t_void.clone(), Some("customer_changed_mind".into())).await.unwrap();
     let synced: Vec<_> = core.list_till_orders().await.unwrap().into_iter().filter(|o| !o.queued).collect();
-    let refunded = synced[0].id.clone();
-    core.refund_order(refunded.clone(), synced[0].total_minor / 2, "cash".into(), "damaged".into(), None).await.unwrap();
+    core.refund_order(synced[0].id.clone(), synced[0].total_minor / 2, "cash".into(), "damaged".into(), None).await.unwrap();
     converge(&core).await;
-    let orders: Vec<String> = synced.iter().map(|o| o.id.clone()).collect();
-    let tickets = vec![t_open.clone(), t_void.clone()];
-    let mut bad = verdict("online", parity(&core, &[till.clone()], &orders, &tickets).await);
+    let named = vec![(till.clone(), teller.clone())];
+    let mut bad = verdict("online", &fx, &core, &named).await;
     // The comparison is not vacuous: every board has something on it.
     let bills = core.list_open_tickets().await.unwrap().len();
     let kds = core.kds_list(None).await.unwrap().len();
@@ -323,23 +317,26 @@ async fn parity_one_device_online_offline_reconnect_close() {
     core.void_order(v, "customer_changed_mind".into(), None, false).await.unwrap();
     core.refund_order(synced[1 % synced.len()].id.clone(), 100, "cash".into(), "damaged".into(), None).await.unwrap();
     core.record_cash_movement(-700, "change run".into(), Some("pay_out".into()), None).await.unwrap();
-    let t_off = fire(&core, 1).await;
-    // Offline differences are reported, not gated: the legacy read serves a
-    // cache that is stale by design while the local rows carry the queue.
-    let _ = verdict("offline (informational)", parity(&core, &[till.clone()], &orders, &tickets).await);
+    fire(&core, 1).await;
+    // Offline every read answers at once from the rows, with the queue in it.
+    let offline_orders = core.list_till_orders().await.unwrap();
+    assert!(offline_orders.iter().filter(|o| o.queued).count() >= 2, "the queued sales are listed offline");
+    for (read, ms, ok) in read_latencies(&core, &till).await {
+        eprintln!("PARITY offline read {read}: {ms:.1} ms ok={ok}");
+        assert!(ok, "{read} serves offline");
+        assert!(ms < 1_000.0, "{read} waited on the network offline ({ms} ms)");
+    }
 
     // Reconnect and drain.
     proxy.online();
     core.refresh_connectivity().await;
     converge(&core).await;
-    let orders: Vec<String> = core.list_till_orders().await.unwrap().into_iter().map(|o| o.id).collect();
-    let tickets = vec![t_open, t_void, t_off];
-    bad.extend(verdict("reconnected", parity(&core, &[till.clone()], &orders, &tickets).await));
+    bad.extend(verdict("reconnected", &fx, &core, &named).await);
 
     // Close, then the past till.
     close_with_count(&core).await;
     converge(&core).await;
-    bad.extend(verdict("closed", parity(&core, &[till.clone()], &orders, &tickets).await));
+    bad.extend(verdict("closed", &fx, &core, &named).await);
     let _ = std::fs::remove_file(&db);
     assert!(bad.is_empty(), "unexplained differences: {bad:#?}");
 }
@@ -362,19 +359,19 @@ async fn parity_two_devices_and_a_backlog() {
         sell(&b, 1, &cash, 1_000_000).await;
     }
     b.record_cash_movement(-500, "backlog pay-out".into(), Some("pay_out".into()), None).await.unwrap();
-    let t = fire(&a, 1).await;
+    fire(&a, 1).await;
     pb.online();
     b.refresh_connectivity().await;
     converge(&b).await;
     converge(&a).await;
     converge(&b).await;
-    let tills = vec![till_a.clone(), till_b.clone()];
-    let mut bad = verdict("device A", parity(&a, &tills, &[], &[t.clone()]).await);
-    bad.extend(verdict("device B", parity(&b, &tills, &[], &[t]).await));
+    let tills = vec![(till_a.clone(), ta.clone()), (till_b.clone(), tb.clone())];
+    let mut bad = verdict("device A", &fx, &a, &tills).await;
+    bad.extend(verdict("device B", &fx, &b, &tills).await);
     close_with_count(&b).await;
     converge(&b).await;
     converge(&a).await;
-    bad.extend(verdict("A after B closed", parity(&a, &tills, &[], &[]).await));
+    bad.extend(verdict("A after B closed", &fx, &a, &tills).await);
     let _ = std::fs::remove_file(&da);
     let _ = std::fs::remove_file(&dbp);
     assert!(bad.is_empty(), "unexplained differences: {bad:#?}");
@@ -395,15 +392,21 @@ async fn parity_fresh_device_past_till_before_and_after_first_snapshot() {
         .await
         .unwrap()
         .map(|r| r.get(0));
-    let past: Vec<String> = past.into_iter().map(|u| u.to_string()).collect();
+    let past: Vec<(String, String)> = past.into_iter().map(|u| (u.to_string(), teller.clone())).collect();
     let db = temp_db("fresh");
     let core = signed_in(&fx.base, &db, &teller, &fx.branch).await;
     core.refresh_connectivity().await;
     core.refresh_catalog().await.unwrap();
-    let mut bad = verdict("before first snapshot", parity(&core, &past, &[], &[]).await);
+    // Before the first snapshot every board answers at once with what exists
+    // (nothing yet), and the sync status says the branch is still coming.
+    let t0 = Instant::now();
+    assert!(core.list_open_tickets().await.is_ok() && core.kds_list(None).await.is_ok() && core.list_arrivals().is_ok());
+    assert!(core.list_delivery_orders(Some(ACTIVE_DELIVERY.into())).await.is_ok() && core.list_tills().await.is_ok());
+    eprintln!("PARITY before first snapshot: boards in {:.1} ms, freshness {:?}", t0.elapsed().as_secs_f64() * 1e3, core.sync_status().freshness.state);
+    assert!(t0.elapsed() < Duration::from_secs(1), "no board waits for the snapshot");
     core.sync_full().await.unwrap();
     converge(&core).await;
-    bad.extend(verdict("after first snapshot", parity(&core, &past, &[], &[]).await));
+    let bad = verdict("after first snapshot", &fx, &core, &past).await;
     let _ = std::fs::remove_file(&db);
     assert!(bad.is_empty(), "unexplained differences: {bad:#?}");
 }

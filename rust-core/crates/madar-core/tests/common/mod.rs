@@ -9,7 +9,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use madar_core::checkout::CheckoutInput;
-use madar_core::readpath::ReadPathMode;
 use madar_core::session::{LoginMode, LoginRequest};
 use madar_core::till::{ReconciliationInput, TillReportView};
 use madar_core::{MadarConfig, MadarCore};
@@ -206,11 +205,6 @@ pub async fn signed_in(base: &str, db_path: &str, teller: &str, branch: &str) ->
 
 pub async fn core_at(base: &str, db_path: &str, teller: &str, branch: &str) -> Arc<MadarCore> {
     let core = signed_in(base, db_path, teller, branch).await;
-    // These scenarios prove the local-first reads: every area on `new` (the
-    // product default is `shadow`).
-    for area in madar_core::readpath::AREAS {
-        core.set_read_path_mode(area.to_string(), ReadPathMode::New).unwrap();
-    }
     core.refresh_connectivity().await;
     core.refresh_catalog().await.expect("catalog");
     core.sync_full().await.expect("first snapshot");
@@ -315,19 +309,19 @@ pub fn figures(r: &TillReportView) -> BTreeMap<String, i64> {
     m
 }
 
-/// The server's report for a till: a fresh device on the legacy read path
-/// (which asks the server) — independent of anything the device under test holds.
+/// The server's report for a till: a fresh device that holds none of the
+/// till's rows, so its read serves the report its background fill fetched from
+/// the server (`from_server`) — independent of anything the device under test
+/// holds.
 pub async fn server_report(fx: &Fixture, teller: &str, till_id: &str) -> TillReportView {
     let probe = signed_in(&fx.base, "", teller, &fx.branch).await;
-    probe.set_read_path_mode("ledger".into(), ReadPathMode::Legacy).unwrap();
     // The probe shares the teller's pacing bucket with the device under test;
-    // a paced read falls back to a local figure, so ask again after a moment.
-    for attempt in 0..40 {
-        let r = probe.till_report_for(till_id.to_string()).await.expect("server report");
-        if r.from_server {
-            return r;
+    // a paced fill leaves nothing to serve yet, so ask again after a moment.
+    for attempt in 0..60 {
+        match probe.till_report_for(till_id.to_string()).await {
+            Ok(r) if r.from_server => return r,
+            other => eprintln!("server report attempt {attempt}: not from the server yet ({:?})", other.map(|r| r.from_server)),
         }
-        eprintln!("server report attempt {attempt}: not from the server yet");
         tokio::time::sleep(Duration::from_secs(3)).await;
     }
     panic!("the probe never read the server's report for {till_id}");

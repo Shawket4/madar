@@ -901,38 +901,6 @@ impl Store {
         Ok(n as u32)
     }
 
-    /// Drop cached `kv` rows whose key starts with `prefix` and whose last write
-    /// is older than `cutoff` (RFC3339, the format `kv_put` stamps). Returns how
-    /// many rows went.
-    ///
-    /// Prefix matching is `substr`, not `LIKE`: every cache prefix here contains
-    /// an underscore (`cache:till_orders:`), and `LIKE` would read that as a
-    /// single-character wildcard.
-    pub fn purge_cache_older_than(&self, prefix: &str, cutoff: &str) -> CoreResult<u32> {
-        let n = self.lock().execute(
-            "DELETE FROM kv WHERE substr(k, 1, length(?1)) = ?1 AND updated_at < ?2",
-            params![prefix, cutoff],
-        )?;
-        Ok(n as u32)
-    }
-
-    /// Keep only the `max_rows` most-recently-written cache rows under `prefix`.
-    ///
-    /// The companion to [`purge_cache_older_than`](Self::purge_cache_older_than):
-    /// an age window alone bounds how OLD cached history gets, not how MUCH of it
-    /// there is. A branch running hundreds of orders a day accumulates hundreds
-    /// of full order records a day, all of them inside the window, so the count
-    /// needs its own ceiling.
-    pub fn purge_cache_keep_newest(&self, prefix: &str, max_rows: u32) -> CoreResult<u32> {
-        let n = self.lock().execute(
-            "DELETE FROM kv WHERE substr(k, 1, length(?1)) = ?1 AND k NOT IN \
-             (SELECT k FROM kv WHERE substr(k, 1, length(?1)) = ?1 \
-              ORDER BY updated_at DESC LIMIT ?2)",
-            params![prefix, max_rows],
-        )?;
-        Ok(n as u32)
-    }
-
     /// Return free pages to the filesystem after a delete-heavy pass.
     ///
     /// Deleting rows only frees pages INSIDE the database file; the file itself
@@ -1656,35 +1624,6 @@ mod tests {
         assert!(s.list_active_of_types(&[]).unwrap().is_empty());
     }
 
-    #[test]
-    fn purge_cache_older_than_drops_only_stale_rows_under_the_prefix() {
-        let s = Store::open("").unwrap();
-        s.kv_put("cache:till_orders:old", "[]").unwrap();
-        s.kv_put("cache:till_orders:fresh", "[]").unwrap();
-        s.kv_put("cache:open_tickets", "[]").unwrap(); // live mirror, never swept
-        s.kv_put("current_shift", "{}").unwrap(); // not a cache at all
-
-        // Age one row past the window by rewriting its stamp directly.
-        s.lock()
-            .execute(
-                "UPDATE kv SET updated_at = '2020-01-01T00:00:00+00:00' WHERE k = ?1",
-                params!["cache:till_orders:old"],
-            )
-            .unwrap();
-
-        let cutoff = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
-        assert_eq!(
-            s.purge_cache_older_than("cache:till_orders:", &cutoff)
-                .unwrap(),
-            1,
-            "only the aged row goes"
-        );
-        assert!(s.kv_get("cache:till_orders:old").unwrap().is_none());
-        assert!(s.kv_get("cache:till_orders:fresh").unwrap().is_some());
-        assert!(s.kv_get("cache:open_tickets").unwrap().is_some());
-        assert!(s.kv_get("current_shift").unwrap().is_some());
-    }
-
     /// `LIKE` would read the `_` in `cache:till_orders:` as a wildcard and let
     /// the sweep reach keys it was never scoped to; the prefix match must be literal.
     #[test]
@@ -1700,60 +1639,6 @@ mod tests {
         // Safe to run again, and it leaves real data alone.
         s.reclaim_free_pages().unwrap();
         assert!(s.kv_get("cache:order:1").unwrap().is_some());
-    }
-
-    #[test]
-    fn purge_cache_keep_newest_bounds_volume_and_keeps_the_recent_ones() {
-        let s = Store::open("").unwrap();
-        for i in 0..10 {
-            s.kv_put(&format!("cache:order:{i}"), "{}").unwrap();
-            // Distinct stamps so "newest" is well defined.
-            s.lock()
-                .execute(
-                    "UPDATE kv SET updated_at = ?2 WHERE k = ?1",
-                    params![
-                        format!("cache:order:{i}"),
-                        format!("2026-09-0{i}T00:00:00+00:00")
-                    ],
-                )
-                .unwrap();
-        }
-        s.kv_put("cache:open_tickets", "[]").unwrap(); // other prefix, untouched
-
-        assert_eq!(s.purge_cache_keep_newest("cache:order:", 3).unwrap(), 7);
-        // The three newest stamps (7, 8, 9) survive; the older seven are gone.
-        for i in 0..7 {
-            assert!(
-                s.kv_get(&format!("cache:order:{i}")).unwrap().is_none(),
-                "{i}"
-            );
-        }
-        for i in 7..10 {
-            assert!(
-                s.kv_get(&format!("cache:order:{i}")).unwrap().is_some(),
-                "{i}"
-            );
-        }
-        assert!(s.kv_get("cache:open_tickets").unwrap().is_some());
-        // Already under the cap → nothing to do.
-        assert_eq!(s.purge_cache_keep_newest("cache:order:", 10).unwrap(), 0);
-    }
-
-    #[test]
-    fn purge_cache_older_than_treats_underscore_literally() {
-        let s = Store::open("").unwrap();
-        s.kv_put("cache:shiftXorders:decoy", "[]").unwrap();
-        s.lock()
-            .execute("UPDATE kv SET updated_at = '2020-01-01T00:00:00+00:00'", [])
-            .unwrap();
-        let cutoff = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
-        assert_eq!(
-            s.purge_cache_older_than("cache:till_orders:", &cutoff)
-                .unwrap(),
-            0,
-            "the underscore must not match an arbitrary character"
-        );
-        assert!(s.kv_get("cache:shiftXorders:decoy").unwrap().is_some());
     }
 
     #[test]

@@ -377,49 +377,6 @@ async fn a_paced_drain_never_dead_letters_and_resumes_by_itself() {
     assert!(sends.iter().all(|r| r.method == "POST"));
 }
 
-/// Every read-path mode serves; shadow logs the legacy/new difference.
-#[tokio::test]
-async fn shadow_mode_serves_legacy_and_logs_divergence() {
-    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
-    seed_methods(&core);
-    core.open_till(0, None).await.unwrap();
-    ring(&core, 400, CASH, 400).await;
-    for mode in [crate::readpath::ReadPathMode::Legacy, crate::readpath::ReadPathMode::Shadow, crate::readpath::ReadPathMode::New] {
-        core.set_read_path_mode("ledger".into(), mode).unwrap();
-        assert_eq!(core.list_till_orders().await.unwrap().len(), 1, "{mode:?}");
-        assert!(core.till_report().await.is_ok());
-    }
-    assert!(core.set_read_path_mode("nope".into(), crate::readpath::ReadPathMode::New).is_err());
-}
-
-/// With no flag stored, every area is `shadow`: the legacy read is what the
-/// screen gets, and where the rows disagree it is logged.
-#[tokio::test]
-async fn a_fresh_device_shadows_every_read() {
-    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
-    for area in crate::readpath::AREAS {
-        core.store.kv_delete(&format!("flags:local_first:{area}")).unwrap();
-        assert_eq!(core.read_path_mode(area.to_string()), crate::readpath::ReadPathMode::Shadow, "{area}");
-    }
-    seed_methods(&core);
-    let till = core.open_till(0, None).await.unwrap().till.unwrap();
-    ring(&core, 400, CASH, 400).await;
-    // A sale the feed brought that the pre-B read has never seen.
-    core.store
-        .with_tx(|tx| {
-            crate::ledger::write_row(tx, crate::ledger::T_ORDER, "fed-1", &serde_json::json!({
-                "id": "fed-1", "idempotency_key": "fed-1", "order_ref": "REF-fed-1", "branch_id": testkit::BRANCH,
-                "till_id": till.id, "status": "completed", "payment_method": "Cash", "total_amount": 900,
-                "created_at": "2026-09-14T09:00:00Z", "payment_legs": []}), crate::ledger::Origin::Feed(5), None)?;
-            Ok(())
-        })
-        .unwrap();
-    let served = core.list_till_orders().await.unwrap();
-    assert_eq!(served.len(), 1, "shadow serves the legacy list");
-    let logged = core.diag.lock().unwrap().iter().any(|d| d.message.contains("read-path divergence [ledger]") && d.message.contains("only in new"));
-    assert!(logged, "and logs where the rows disagree");
-}
-
 // ── Phases 3–4: the floor-side boards from the synced rows ──────────────────
 
 fn seed_rows(core: &crate::MadarCore, rows: &[(&str, serde_json::Value)]) {
@@ -665,8 +622,8 @@ async fn the_parity_guard_compares_every_field_and_closed_unreviewed_tills() {
     b.printed_at = "y".into();
     b.from_server = true;
     b.opened_at = "2026-09-14T10:00:00+02:00".into();
-    let keyed = |v: &crate::till::TillReportView| crate::readpath::report_keyed(v);
-    assert!(crate::readpath::diff_keyed("r", &keyed(&a), &keyed(&b)).is_empty(), "print time, side and offset spelling are not differences");
+    let keyed = |v: &crate::till::TillReportView| crate::parity::report_keyed(v);
+    assert!(crate::parity::diff_keyed("r", &keyed(&a), &keyed(&b)).is_empty(), "print time, side and offset spelling are not differences");
     for change in [
         |v: &mut crate::till::TillReportView| v.order_number_last = Some(9),
         |v: &mut crate::till::TillReportView| v.device_code = Some("36B".into()),
@@ -678,7 +635,7 @@ async fn the_parity_guard_compares_every_field_and_closed_unreviewed_tills() {
     ] {
         let mut c = a.clone();
         change(&mut c);
-        assert!(!crate::readpath::diff_keyed("r", &keyed(&a), &keyed(&c)).is_empty(), "{c:?}");
+        assert!(!crate::parity::diff_keyed("r", &keyed(&a), &keyed(&c)).is_empty(), "{c:?}");
     }
 
     let store = store::Store::open("").unwrap();
@@ -1145,4 +1102,114 @@ async fn refunds_list_in_the_servers_order() {
     let order: Vec<String> =
         crate::ledger::views::order_refunds(&core.store, "o-1").unwrap().unwrap().refunds.into_iter().map(|r| r.id).collect();
     assert_eq!(order, vec!["r-early", "r-late"]);
+}
+
+/// A link that refuses at once until `hang` is set, then accepts and never
+/// answers: a flaky link.
+async fn hanging_server() -> (String, std::sync::Arc<std::sync::atomic::AtomicBool>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let hang = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let h = hang.clone();
+    tokio::spawn(async move {
+        let mut held = Vec::new();
+        while let Ok((sock, _)) = listener.accept().await {
+            if h.load(Ordering::SeqCst) {
+                held.push(sock);
+            }
+        }
+    });
+    (base, hang)
+}
+
+/// No read waits on the network. Online against a link that hangs, every
+/// screen read of a till the device does not hold answers at once from the
+/// rows (the background fill is what waits); a sale or bill never seen here is
+/// refused after the short read timeout, never the client's 20 s.
+#[tokio::test]
+async fn reads_never_wait_on_a_hanging_link() {
+    let (base, hang) = hanging_server().await;
+    let core = testkit::online_core(&base, "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    ring(&core, 400, CASH, 400).await;
+    hang.store(true, Ordering::SeqCst);
+    core.set_online(true);
+    let past = "00000000-0000-0000-0000-00000000fa57".to_string();
+    let t0 = std::time::Instant::now();
+    assert_eq!(core.list_till_orders().await.unwrap().len(), 1);
+    assert!(core.till_report().await.is_ok());
+    assert!(core.list_cash_movements().await.is_ok());
+    assert!(core.close_till_preview().await.is_ok());
+    assert!(core.list_tills().await.is_ok());
+    assert!(core.list_orders_for_till(past.clone()).await.unwrap().is_empty());
+    assert!(core.list_till_refunds(past.clone()).await.unwrap().refunds.is_empty());
+    assert!(core.till_report_for(past.clone()).await.is_err(), "no row for the till at all yet");
+    assert!(core.list_open_tickets().await.is_ok());
+    assert!(core.kds_list(None).await.is_ok());
+    assert!(core.list_delivery_orders(None).await.is_ok());
+    assert!(core.list_arrivals().is_ok());
+    assert!(t0.elapsed() < Duration::from_millis(500), "the reads answered from the rows: {:?}", t0.elapsed());
+
+    let t0 = std::time::Instant::now();
+    assert!(core.order_detail("00000000-0000-0000-0000-00000000dead".into()).await.is_err());
+    assert!(core.get_ticket("00000000-0000-0000-0000-00000000beef".into()).await.is_err());
+    let waited = t0.elapsed();
+    assert!(waited < crate::ledger_ops::FETCH_TIMEOUT * 2 + Duration::from_secs(1), "{waited:?}");
+}
+
+/// A till this device does not hold is filled in the background: the read
+/// answers from the rows at once, the fill folds the server's sales and report
+/// in, and a table change tells the screen to read again — which then serves
+/// the server's report.
+#[tokio::test]
+async fn a_till_not_held_here_is_filled_in_the_background() {
+    const PAST: &str = "00000000-0000-0000-0000-00000000fa57";
+    let mut order = madar_api::models::Order::default();
+    order.id = uuid::Uuid::parse_str("00000000-0000-0000-0000-0000000000e1").unwrap();
+    order.branch_id = uuid::Uuid::parse_str(testkit::BRANCH).unwrap();
+    order.total_amount = 900;
+    order.status = "completed".into();
+    order.payment_method = "cash".into();
+    order.order_ref = Some(Some("REF-past-1".into()));
+    let mut page = madar_api::models::PaginatedOrders::default();
+    (page.data, page.page, page.per_page, page.total, page.total_pages) = (vec![order], 1, 200, 1, 1);
+    let page = serde_json::to_value(&page).unwrap();
+    let mut report = madar_api::models::TillReportResponse::default();
+    report.expected_cash = 1_900;
+    report.till.id = uuid::Uuid::parse_str(PAST).unwrap();
+    report.till.status = madar_api::models::TillStatus::Closed;
+    let report = serde_json::to_value(&report).unwrap();
+    let stub = Stub::start(move |r| {
+        if r.path.starts_with("/orders?") && r.path.contains(PAST) {
+            Some(StubResponse::json(200, page.clone()))
+        } else if r.path.starts_with(&format!("/tills/{PAST}/report")) {
+            Some(StubResponse::json(200, report.clone()))
+        } else {
+            None
+        }
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    core.set_online(true);
+    let mut changes = core.store.subscribe_changes();
+
+    assert!(core.list_orders_for_till(PAST.into()).await.unwrap().is_empty(), "nothing held yet, answered at once");
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while core.list_orders_for_till(PAST.into()).await.unwrap().is_empty() {
+        assert!(std::time::Instant::now() < deadline, "the fill never landed");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert!(changes.next(Duration::from_millis(50)).await.is_some(), "the screen is told to read again");
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        if let Ok(r) = core.till_report_for(PAST.into()).await {
+            assert!(r.from_server);
+            assert_eq!(r.expected_cash_minor, 1_900);
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "the report never landed");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(stub.requests("/orders").len(), 1, "one fill, not one per read");
 }

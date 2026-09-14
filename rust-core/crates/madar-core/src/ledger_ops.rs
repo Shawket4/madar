@@ -1,33 +1,69 @@
-//! The money screens' reads on `MadarCore`, routed by the `ledger` read-path
-//! flag (`readpath.rs`): `new` reads the ledger rows only; `shadow` serves the
-//! legacy read and logs where the rows disagree; `legacy` is the pre-B read.
+//! The money screens' reads on `MadarCore`: the ledger rows, and nothing else.
 //!
-//! The one network call left near a read is for data the device does not hold
-//! at all — a past till from before this device's first snapshot, a sale's lines
-//! never seen here. It fetches ONCE into rows, and the read is still local.
+//! No read here waits on the network. A read returns what this device holds at
+//! once; when the device does not hold a till completely (a past till from
+//! before its first snapshot, a till opened on another device that has not been
+//! pulled yet) the rows are filled IN THE BACKGROUND, under a short timeout, and
+//! a table change re-reads the screen. The one exception is a sale this device
+//! has never seen (its detail, its refunds): there is nothing local to show, so
+//! it is fetched online under [`FETCH_TIMEOUT`] or refused offline.
 
-use madar_api::apis::{orders_api, tills_api};
+use std::time::Duration;
+
+use madar_api::apis::{orders_api, refunds_api, tills_api};
 
 use crate::error::CoreError;
 use crate::ledger::views;
-use crate::readpath::{self, ReadPathMode};
-use crate::{changes, orders, till, MadarCore};
+use crate::{changes, net, orders, parity, till, MadarCore};
+
+/// The longest a read's own network call may take (a sale never seen here).
+pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_secs(6);
+/// The longest a background fill of a till may take before it is abandoned.
+pub(crate) const FILL_TIMEOUT: Duration = Duration::from_secs(15);
+/// How often one till may be filled in the background.
+pub(crate) const FILL_EVERY_MS: i64 = 30_000;
+const K_FILL_ASKED: &str = "ledger:fill_asked:";
 
 impl MadarCore {
-    fn ledger_mode(&self) -> ReadPathMode {
-        readpath::mode(&self.store, "ledger")
-    }
-
     fn online(&self) -> bool {
         self.current_session().map(|s| s.online).unwrap_or(false)
     }
 
-    /// Fill a till this device does not hold completely with the server's rows
-    /// (online only; a no-op for a complete till). The read stays local.
-    async fn ensure_till_rows(&self, till_id: &str) {
-        if views::till_complete(&self.store, till_id) || !self.online() {
+    fn held_current_till(&self) -> Result<till::TillView, CoreError> {
+        till::current(&self.store)?.ok_or_else(|| CoreError::Validation {
+            field: "till".into(),
+            detail: "no till".into(),
+        })
+    }
+
+    /// Fill a till this device does not hold completely from the server — its
+    /// sales and its report — in the background, at most every
+    /// [`FILL_EVERY_MS`], abandoned after [`FILL_TIMEOUT`]. The screens re-read
+    /// on the table change it emits. A no-op offline or for a complete till.
+    pub(crate) fn fill_till_soon(&self, till_id: &str) {
+        if views::till_complete(&self.store, till_id)
+            || !self.online()
+            || self.scheduler.manual.load(std::sync::atomic::Ordering::SeqCst)
+        {
             return;
         }
+        let key = format!("{K_FILL_ASKED}{till_id}");
+        let now = chrono::Utc::now().timestamp_millis();
+        let last = self.store.kv_get(&key).ok().flatten().and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+        if now - last < FILL_EVERY_MS {
+            return;
+        }
+        let _ = self.store.kv_put(&key, &now.to_string());
+        let (Some(me), Ok(handle)) = (self.self_arc(), tokio::runtime::Handle::try_current()) else { return };
+        let till_id = till_id.to_string();
+        handle.spawn(async move {
+            let _ = tokio::time::timeout(FILL_TIMEOUT, me.fill_till(&till_id)).await;
+        });
+    }
+
+    /// The fill itself: every page of the till's sales into rows, and the
+    /// server's report stored for it.
+    pub(crate) async fn fill_till(&self, till_id: &str) {
         let Ok(branch) = self.session_branch_id() else { return };
         if let Some(list) = self.fetch_shift_order_models(&branch, till_id).await {
             let rows: Vec<serde_json::Value> = list
@@ -38,192 +74,147 @@ impl MadarCore {
                     v
                 })
                 .collect();
-            let _ = views::store_fetched_orders(&self.store, &rows);
+            if views::store_fetched_orders(&self.store, &rows).is_ok() {
+                self.store.emit_changes([changes::ORDERS]);
+            }
+        }
+        if let Ok(report) =
+            tills_api::get_till_report(&self.api.config(), tills_api::GetTillReportParams { till_id: till_id.to_string() }).await
+        {
+            crate::timefmt::remember_payload_tz(&self.store, &Some(report.timezone.clone()));
+            if views::put_till_report(&self.store, till_id, &report).is_ok() {
+                self.store.emit_changes([changes::TILLS]);
+            }
         }
     }
 
     /// The current till's sales — queued, failed and synced — newest first.
     pub async fn list_till_orders(&self) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
-        let mode = self.ledger_mode();
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_list_till_orders().await;
-        }
         let t = till::current(&self.store)?.ok_or_else(|| CoreError::Validation {
             field: "shift".into(),
             detail: "no shift".into(),
         })?;
-        self.ensure_till_rows(&t.id).await;
-        let new = views::till_orders(&self.store, &t.id)?;
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_list_till_orders().await?;
-            self.report_divergence(
-                "ledger",
-                readpath::diff_keyed("till orders", &readpath::orders_keyed(&legacy), &readpath::orders_keyed(&new)),
-            );
-            return Ok(legacy);
-        }
-        Ok(new)
+        self.fill_till_soon(&t.id);
+        views::till_orders(&self.store, &t.id)
     }
 
     /// A past till's sales (the history expansion).
     pub async fn list_orders_for_till(&self, till_id: String) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
-        let mode = self.ledger_mode();
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_list_orders_for_till(till_id).await;
-        }
-        self.ensure_till_rows(&till_id).await;
-        let new = views::till_orders(&self.store, &till_id)?;
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_list_orders_for_till(till_id).await?;
-            self.report_divergence(
-                "ledger",
-                readpath::diff_keyed("till orders", &readpath::orders_keyed(&legacy), &readpath::orders_keyed(&new)),
-            );
-            return Ok(legacy);
-        }
-        Ok(new)
+        self.fill_till_soon(&till_id);
+        views::till_orders(&self.store, &till_id)
     }
 
     /// A sale's full record: stored locally (every sale this device rang, every
-    /// sale in the feed's window), else fetched once and stored.
+    /// sale in the feed's window, every sale opened here before), else fetched
+    /// online under [`FETCH_TIMEOUT`] and stored. Offline, a sale never seen here
+    /// has no record to show, and the error says so.
     pub(crate) async fn order_full_for(&self, order_id: &str) -> Result<madar_api::models::OrderFull, CoreError> {
-        if self.ledger_mode() != ReadPathMode::Legacy {
-            if let Some(full) = views::order_full(&self.store, order_id)? {
-                return Ok(full);
-            }
-            if self.online() {
-                if let Ok(o) = orders_api::get_order(
-                    &self.api.config(),
-                    orders_api::GetOrderParams { order_id: order_id.to_string() },
-                )
-                .await
-                {
-                    crate::timefmt::remember_tz(&self.store, o.timezone.as_deref().unwrap_or(""));
-                    if let Ok(v) = serde_json::to_value(&o) {
-                        let _ = self.store.with_conn(|c| crate::ledger::fold::put_order_detail(c, order_id, &v));
-                    }
-                    return Ok(o);
-                }
-            }
+        if let Some(full) = views::order_full(&self.store, order_id)? {
+            return Ok(full);
         }
-        self.get_order_or_cache(order_id).await
+        let not_here = || CoreError::Offline {
+            detail: "this sale is not on this device yet — open it once online".into(),
+        };
+        if !self.online() {
+            return Err(not_here());
+        }
+        let config = self.api.config();
+        let fetch = orders_api::get_order(&config, orders_api::GetOrderParams { order_id: order_id.to_string() });
+        match tokio::time::timeout(FETCH_TIMEOUT, fetch).await {
+            Ok(Ok(o)) => {
+                crate::timefmt::remember_tz(&self.store, o.timezone.as_deref().unwrap_or(""));
+                if let Ok(v) = serde_json::to_value(&o) {
+                    let _ = self.store.with_conn(|c| crate::ledger::fold::put_order_detail(c, order_id, &v));
+                }
+                Ok(o)
+            }
+            Ok(Err(e)) => Err(net::map_api_error(e)),
+            Err(_) => Err(not_here()),
+        }
+    }
+
+    /// The report a till's rows give, whether or not the device holds it all:
+    /// the server's when it is the authority, the stored server report for a
+    /// till not held completely, else what the rows add up to.
+    fn report_now(&self, till_id: &str) -> Result<Option<till::TillReportView>, CoreError> {
+        let label = |m: &str| self.payment_method_label(m.to_string());
+        if views::till_complete(&self.store, till_id) {
+            return Ok(views::till_report(&self.store, till_id, &label)?.map(|r| self.with_server_authority(till_id, r)));
+        }
+        self.fill_till_soon(till_id);
+        if let Some(report) = views::stored_till_report(&self.store, till_id) {
+            // The server's figures for a till not held here, plus what this
+            // device has not sent yet (the server's copy cannot hold it). They
+            // are the server's while online with nothing queued; otherwise they
+            // are the last ones it gave.
+            let queued_cash = crate::checkout::queued_cash_total_for(&self.store, till_id)?;
+            let queued = self.queued_movement_lines(till_id)?;
+            return Ok(Some(if self.online() && queued_cash == 0 && queued.is_empty() {
+                till::report_view(&report, 0, &label)
+            } else {
+                till::cached_report_view(&report, queued_cash, queued, &label)
+            }));
+        }
+        views::till_report_rows(&self.store, till_id, &label)
+    }
+
+    /// Drawer movements of a till still in the outbox, as report lines.
+    fn queued_movement_lines(&self, till_id: &str) -> Result<Vec<till::TillReportCashLine>, CoreError> {
+        let teller = self.current_session().map(|s| s.display_name).unwrap_or_default();
+        Ok(self
+            .store
+            .list_active_for_till(till_id)?
+            .into_iter()
+            .filter(|i| i.op_type == "cash_movement" && i.status != "dead")
+            .filter_map(|i| {
+                serde_json::from_str::<till::CashMovementCommand>(&i.payload).ok().map(|cmd| till::TillReportCashLine {
+                    amount_minor: cmd.request.amount as i64,
+                    note: cmd.request.note,
+                    moved_by_name: teller.clone(),
+                    created_at: i.event_at.clone(),
+                })
+            })
+            .collect())
     }
 
     /// The current till's Z report (drives the close count).
     pub async fn till_report(&self) -> Result<till::TillReportView, CoreError> {
-        let mode = self.ledger_mode();
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_till_report().await;
-        }
-        let t = till::current(&self.store)?.ok_or_else(|| CoreError::Validation {
+        let t = self.held_current_till()?;
+        self.report_now(&t.id)?.ok_or_else(|| CoreError::Validation {
             field: "till".into(),
-            detail: "no till".into(),
-        })?;
-        let label = |m: &str| self.payment_method_label(m.to_string());
-        let Some(new) = views::till_report(&self.store, &t.id, &label)? else {
-            // Not held completely yet (the first snapshot has not landed): the
-            // pre-B report, server figures plus the queue, is the best there is.
-            return self.legacy_till_report().await;
-        };
-        let new = self.with_server_authority(&t.id, new);
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_till_report().await?;
-            self.report_divergence(
-                "ledger",
-                readpath::diff_keyed("till report", &readpath::report_keyed(&legacy), &readpath::report_keyed(&new)),
-            );
-            return Ok(legacy);
-        }
-        Ok(new)
+            detail: "this till is not on this device yet".into(),
+        })
     }
 
     /// Any till's Z report (the history reprint).
     pub async fn till_report_for(&self, till_id: String) -> Result<till::TillReportView, CoreError> {
-        let mode = self.ledger_mode();
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_till_report_for(till_id).await;
-        }
-        let label = |m: &str| self.payment_method_label(m.to_string());
-        let new = match views::till_report(&self.store, &till_id, &label)? {
-            Some(v) => v,
-            None => {
-                // A till the device does not hold completely: the server's report,
-                // stored as a row for the next offline read.
-                let mut fresh = None;
-                if self.online() {
-                    if let Ok(report) = tills_api::get_till_report(
-                        &self.api.config(),
-                        tills_api::GetTillReportParams { till_id: till_id.clone() },
-                    )
-                    .await
-                    {
-                        crate::timefmt::remember_payload_tz(&self.store, &Some(report.timezone.clone()));
-                        let _ = views::put_till_report(&self.store, &till_id, &report);
-                        fresh = Some(report);
-                    }
-                }
-                match (fresh, views::stored_till_report(&self.store, &till_id)) {
-                    // Just read from the server: its figures, and it says so.
-                    (Some(report), _) => till::report_view(&report, 0, &label),
-                    (None, Some(report)) => till::cached_report_view(&report, 0, Vec::new(), &label),
-                    (None, None) => return self.legacy_till_report_for(till_id).await,
-                }
-            }
-        };
-        let new = if views::till_complete(&self.store, &till_id) { self.with_server_authority(&till_id, new) } else { new };
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_till_report_for(till_id).await?;
-            self.report_divergence(
-                "ledger",
-                readpath::diff_keyed("till report", &readpath::report_keyed(&legacy), &readpath::report_keyed(&new)),
-            );
-            return Ok(legacy);
-        }
-        Ok(new)
+        self.report_now(&till_id)?.ok_or_else(|| CoreError::Validation {
+            field: "till".into(),
+            detail: "this till is not on this device yet".into(),
+        })
     }
 
     /// The current till's drawer movements.
     pub async fn list_cash_movements(&self) -> Result<Vec<till::CashMovementView>, CoreError> {
-        let mode = self.ledger_mode();
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_list_cash_movements().await;
-        }
-        let t = till::current(&self.store)?.ok_or_else(|| CoreError::Validation {
-            field: "till".into(),
-            detail: "no till".into(),
-        })?;
-        if !views::till_complete(&self.store, &t.id) {
-            return self.legacy_list_cash_movements().await;
-        }
-        let new = views::cash_movements(&self.store, &t.id)?;
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_list_cash_movements().await?;
-            self.report_divergence(
-                "ledger",
-                readpath::diff_keyed("cash movements", &readpath::cash_keyed(&legacy), &readpath::cash_keyed(&new)),
-            );
-            return Ok(legacy);
-        }
-        Ok(new)
+        let t = self.held_current_till()?;
+        self.fill_till_soon(&t.id);
+        views::cash_movements(&self.store, &t.id)
     }
 
     /// What closing will check: every method used, the cash line carrying the
     /// drawer — computed from the rows, so it is the same figure offline.
     pub async fn close_till_preview(&self) -> Result<till::CloseTillPreviewView, CoreError> {
-        let mode = self.ledger_mode();
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_close_till_preview().await;
-        }
         let t = till::current(&self.store)?.filter(|t| t.is_open).ok_or_else(|| CoreError::Validation {
             field: "till".into(),
             detail: "no open till".into(),
         })?;
-        if !views::till_complete(&self.store, &t.id) {
-            return self.legacy_close_till_preview().await;
-        }
+        self.fill_till_soon(&t.id);
         let label = |m: &str| self.payment_method_label(m.to_string());
         let Some((expected, methods, confirmed)) = views::close_methods(&self.store, &t.id, &label)? else {
-            return self.legacy_close_till_preview().await;
+            return Err(CoreError::Validation {
+                field: "till".into(),
+                detail: "this till is not on this device yet".into(),
+            });
         };
         let lan_others = self
             .lan
@@ -240,8 +231,9 @@ impl MadarCore {
             notice.as_ref().map(|n| n.open_bills_amount_minor).unwrap_or(0),
             notice.as_ref().map(|n| n.seated_tables_count).unwrap_or(0),
         );
-        let authority = matches!(views::server_authority(&self.store, &t.id), Ok(Some(_)));
-        let new = till::CloseTillPreviewView {
+        let authority = views::till_complete(&self.store, &t.id)
+            && matches!(views::server_authority(&self.store, &t.id), Ok(Some(_)));
+        Ok(till::CloseTillPreviewView {
             till: t,
             expected_cash_minor: expected,
             methods,
@@ -249,88 +241,54 @@ impl MadarCore {
             // The figures are this device's; they are the server's only when the
             // stored server report is the authority for the till.
             from_server: confirmed && authority,
-        };
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_close_till_preview().await?;
-            let key = |p: &till::CloseTillPreviewView| {
-                let mut m: std::collections::BTreeMap<String, i64> =
-                    p.methods.iter().map(|x| (x.method.clone(), x.system_total_minor)).collect();
-                m.insert("expected_cash".into(), p.expected_cash_minor);
-                m
-            };
-            self.report_divergence("ledger", readpath::diff_keyed("close preview", &key(&legacy), &key(&new)));
-            return Ok(legacy);
-        }
-        Ok(new)
+        })
     }
 
     /// Past tills at the branch, newest first.
     pub async fn list_tills(&self) -> Result<Vec<till::TillSummaryView>, CoreError> {
-        let mode = self.ledger_mode();
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_list_tills().await;
-        }
         let branch = self.session_branch_id()?;
-        let mut new = views::tills(&self.store, &branch)?;
+        let mut list = views::tills(&self.store, &branch)?;
         // The feed's till rows leave the branch name out (the feed IS one
         // branch); every till listed here is this branch's.
         if let Some(name) = self.branch_name_local(&branch) {
-            for t in new.iter_mut().filter(|t| t.branch_name.is_none()) {
+            for t in list.iter_mut().filter(|t| t.branch_name.is_none()) {
                 t.branch_name = Some(name.clone());
             }
         }
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_list_tills().await?;
-            // The legacy list is the server's first page; compare what both hold.
-            let l = readpath::tills_keyed(&legacy);
-            let n: std::collections::BTreeMap<_, _> =
-                readpath::tills_keyed(&new).into_iter().filter(|(k, _)| l.contains_key(k)).collect();
-            self.report_divergence("ledger", readpath::diff_keyed("tills", &l, &n));
-            return Ok(legacy);
-        }
-        Ok(new)
+        Ok(list)
     }
 
-    /// What has been given back against one sale.
+    /// What has been given back against one sale. A sale held here is read from
+    /// the rows. A sale this device has never seen (a search result from
+    /// another till) is asked of the server under [`FETCH_TIMEOUT`], with this
+    /// device's queued refunds taken off; offline it cannot be answered.
     pub async fn list_order_refunds(&self, order_id: String) -> Result<orders::OrderRefundsView, CoreError> {
-        let mode = self.ledger_mode();
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_list_order_refunds(order_id).await;
+        if let Some(v) = views::order_refunds(&self.store, &order_id)? {
+            return Ok(v);
         }
-        let Some(new) = views::order_refunds(&self.store, &order_id)? else {
-            return self.legacy_list_order_refunds(order_id).await;
-        };
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_list_order_refunds(order_id).await?;
-            let key = |v: &orders::OrderRefundsView| {
-                [("refunded".to_string(), v.refunded_minor), ("remaining".to_string(), v.refundable_remaining_minor)]
-                    .into_iter()
-                    .collect::<std::collections::BTreeMap<_, _>>()
-            };
-            self.report_divergence("ledger", readpath::diff_keyed("order refunds", &key(&legacy), &key(&new)));
-            return Ok(legacy);
+        if !self.online() {
+            return Err(CoreError::Offline {
+                detail: "this sale is not on this device yet — its refunds need a connection".into(),
+            });
         }
-        Ok(new)
+        let config = self.api.config();
+        let fetch = refunds_api::list_order_refunds(
+            &config,
+            refunds_api::ListOrderRefundsParams { order_id: order_id.clone() },
+        );
+        match tokio::time::timeout(FETCH_TIMEOUT, fetch).await {
+            Ok(Ok(r)) => Ok(self.with_pending_refunds(orders::order_refunds_view(&r))),
+            Ok(Err(e)) => Err(net::map_api_error(e)),
+            Err(_) => Err(CoreError::Offline {
+                detail: "the server did not answer in time".into(),
+            }),
+        }
     }
 
     /// Every refund issued from a till's drawer.
     pub async fn list_till_refunds(&self, till_id: String) -> Result<orders::TillRefundsView, CoreError> {
-        let mode = self.ledger_mode();
-        if mode == ReadPathMode::Legacy || !views::till_complete(&self.store, &till_id) {
-            return self.legacy_list_till_refunds(till_id).await;
-        }
-        let new = views::till_refunds(&self.store, &till_id)?;
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_list_till_refunds(till_id).await?;
-            let key = |v: &orders::TillRefundsView| {
-                [("count".to_string(), v.refund_count), ("refunded".to_string(), v.refunded_minor)]
-                    .into_iter()
-                    .collect::<std::collections::BTreeMap<_, _>>()
-            };
-            self.report_divergence("ledger", readpath::diff_keyed("till refunds", &key(&legacy), &key(&new)));
-            return Ok(legacy);
-        }
-        Ok(new)
+        self.fill_till_soon(&till_id);
+        views::till_refunds(&self.store, &till_id)
     }
 
     /// The branch's name as this device holds it: the synced branch settings,
@@ -420,10 +378,10 @@ impl MadarCore {
                 let server = till::report_view(&report, 0, &label);
                 self.report_divergence(
                     "money",
-                    readpath::diff_keyed(
+                    parity::diff_keyed(
                         &format!("till {till_id} server vs local"),
-                        &readpath::report_keyed(&server),
-                        &readpath::report_keyed(&local),
+                        &parity::report_keyed(&server),
+                        &parity::report_keyed(&local),
                     ),
                 );
                 server
@@ -504,10 +462,10 @@ impl MadarCore {
         }
         let Ok(Some(local)) = views::till_report(&self.store, till_id, &label) else { return Vec::new() };
         let server = till::report_view(&report, 0, &label);
-        let lines = readpath::diff_keyed(
+        let lines = parity::diff_keyed(
             &format!("till {till_id} server vs local"),
-            &readpath::report_keyed(&server),
-            &readpath::report_keyed(&local),
+            &parity::report_keyed(&server),
+            &parity::report_keyed(&local),
         );
         self.report_divergence("money", lines.clone());
         if !lines.is_empty() {

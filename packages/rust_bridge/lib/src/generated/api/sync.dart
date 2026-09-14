@@ -153,11 +153,6 @@ class OutboxItemView {
           eventAt == other.eventAt;
 }
 
-/// Which read a board uses while offline plan B rolls out (`legacy` = the
-/// pre-B server list + cache, `shadow` = legacy served and compared, `new` =
-/// local rows only).
-enum ReadPathMode { legacy, shadow, new_ }
-
 /// How far a board's rows can be trusted.
 class SyncMeta {
   final FreshnessView freshness;

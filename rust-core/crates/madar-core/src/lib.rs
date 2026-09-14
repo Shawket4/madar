@@ -89,7 +89,7 @@ pub mod staff;
 pub mod store;
 pub mod changes;
 pub(crate) mod scheduler;
-pub mod readpath;
+pub(crate) mod parity;
 mod ledger_ops;
 mod feed_reads;
 #[cfg(test)]
@@ -202,10 +202,6 @@ struct CatalogSnapshot {
 
 /// kv key persisting the dashboard's active org/branch scope override.
 const K_DASHBOARD_SCOPE: &str = "dashboard:active_scope";
-/// Why the cached open-ticket list is not fresh; empty when it is.
-pub(crate) const K_OPEN_TICKETS_STALE: &str = "cache:open_tickets:stale";
-/// The cached open bills (`Vec<OpenTicketView>`).
-pub(crate) const K_OPEN_TICKETS_CACHE: &str = "cache:open_tickets";
 
 /// The dashboard's runtime-selected org/branch scope. A `None` field means
 /// "fall back to the session-derived value" (see `MadarCore::effective_scope`).
@@ -616,41 +612,6 @@ impl MadarCore {
         self.me.upgrade()
     }
 
-    /// Fetch a synced order's full record, CACHING it write-through so its detail +
-    /// reprint work OFFLINE. Online: fetch + `cache:order:{id}`. Offline / on error:
-    /// the cached `OrderFull` (populated here when the order was opened once online —
-    /// the list path can't, its element is the items-less `models::Order`). Errors
-    /// only for a synced order this device has never seen online. Non-exported
-    /// (returns a raw `OrderFull`, not a uniffi type) — the public methods project it.
-    async fn get_order_or_cache(
-        &self,
-        order_id: &str,
-    ) -> Result<madar_api::models::OrderFull, CoreError> {
-        use madar_api::apis::orders_api;
-        let key = format!("cache:order:{order_id}");
-        if self.current_session().map(|s| s.online).unwrap_or(false) {
-            if let Ok(o) = orders_api::get_order(
-                &self.api.config(),
-                orders_api::GetOrderParams {
-                    order_id: order_id.to_string(),
-                },
-            )
-            .await
-            {
-                timefmt::remember_tz(&self.store, o.timezone.as_deref().unwrap_or(""));
-                cache_views(&self.store, &key, std::slice::from_ref(&o));
-                return Ok(o);
-            }
-        }
-        cached_views::<madar_api::models::OrderFull>(&self.store, &key)
-            .into_iter()
-            .next()
-            .ok_or_else(|| CoreError::Offline {
-                detail: "order not cached yet — view it once online to enable offline reprint"
-                    .into(),
-            })
-    }
-
     /// Persist a session into the core's own store and install it as the
     /// live session. Durability is a local SQLite write now — no host vault,
     /// no cross-store ordering to get wrong.
@@ -687,8 +648,6 @@ impl MadarCore {
             })?;
         Ok((org, s.snapshot.branch_id.clone()))
     }
-
-
 
     /// Comma-separated shift ids the device has a queued `close_till` for — sent
     /// as the login acknowledgment so the server's open-shift login guard permits
@@ -1952,36 +1911,6 @@ fn cached_views<T: serde::de::DeserializeOwned>(store: &store::Store, key: &str)
         .unwrap_or_default()
 }
 
-// ── cached history retention ─────────────────────────────────────────────────
-/// How long a closed shift and its orders stay fully readable offline before
-/// they are swapped out. See [`MadarCore::prune_stale_caches`].
-pub(crate) const CACHE_RETENTION_DAYS: i64 = 30;
-
-/// The per-shift / per-order cache prefixes the retention sweep covers. These
-/// grow one row per shift or order forever; everything else under `cache:` is a
-/// fixed set of live mirrors replaced wholesale on each pull.
-pub(crate) const CACHE_HISTORY_PREFIXES: &[&str] = &[
-    "cache:till_report:", // the Z-report behind a past shift
-    "cache:till_orders:", // that shift's order list
-    "cache:cash:",         // its drawer movements
-    "cache:order:",        // individual orders kept for offline reprint
-];
-
-/// Ceilings on how MANY rows each history prefix may hold, applied after the age
-/// sweep. The window bounds how old cached history gets; it does not bound how
-/// much of it there is, and `cache:order:` grows by one full order record for
-/// every order anyone opens — hundreds a day in a busy branch, all of them well
-/// inside 30 days.
-///
-/// The shift-scoped caches get a smaller ceiling simply because they are
-/// one-per-shift: 400 is already far more shifts than 30 days can produce, so it
-/// only ever catches a clock that jumped.
-pub(crate) const CACHE_ROW_CAPS: &[(&str, u32)] = &[
-    ("cache:order:", 2_000),
-    ("cache:till_report:", 400),
-    ("cache:till_orders:", 400),
-    ("cache:cash:", 400),
-];
 
 // ── outbox backoff (mirrors offline_queue.dart constants) ────────────────────
 const K_MAX_RETRIES: i64 = 8;
@@ -2846,8 +2775,6 @@ impl MadarCore {
             .and_then(|x| x.as_str())
             .map(|s| s.to_string())
     }
-
-
 
     /// Publish a write event over the LAN (instant cross-device delivery): `data` is
     /// the display payload (e.g. a fire projection) and `replay_op` the mirror-relay
@@ -4030,7 +3957,6 @@ impl MadarCore {
         let before: Vec<(&str, Option<String>)> = [
             held::K_FLOOR_TABLES,
             held::K_HELD_MIRROR,
-            "cache:open_tickets",
         ]
         .into_iter()
         .map(|k| (k, self.store.kv_get(k).ok().flatten()))
@@ -4052,6 +3978,8 @@ impl MadarCore {
                     let _ = self.store.kv_put(k, v);
                 }
             }
+            // The bills go back to their tables too (a swap undoes itself).
+            self.swap_cached_ticket_tables(&table_a, &table_b);
             // Then the room as it really is, when the server can be reached;
             // the restore stands when it cannot.
             self.refresh_floor_and_held().await;
@@ -4108,30 +4036,10 @@ impl MadarCore {
         draft || seated || bill
     }
 
-    /// The bills follow their parties in the cached list, so the floor shows
+    /// The bills follow their parties in the synced rows, so the floor shows
     /// each bill on its new table before (or without) the next pull.
     fn swap_cached_ticket_tables(&self, table_a: &str, table_b: &str) {
-        let (Ok(a), Ok(b)) = (
-            uuid::Uuid::parse_str(table_a),
-            uuid::Uuid::parse_str(table_b),
-        ) else {
-            return;
-        };
-        let mut list: Vec<madar_api::models::OpenTicketView> =
-            cached_views(&self.store, "cache:open_tickets");
-        let mut changed = false;
-        for v in list.iter_mut() {
-            match v.table_id.flatten() {
-                Some(t) if t == a => v.table_id = Some(Some(b)),
-                Some(t) if t == b => v.table_id = Some(Some(a)),
-                _ => continue,
-            }
-            changed = true;
-        }
-        if changed {
-            cache_views(&self.store, "cache:open_tickets", &list);
-        }
-        // The synced rows the bills are read from move with their parties too
+        // The synced rows the bills are read from move with their parties
         // (the swap's own op is queued; the next pull confirms or corrects).
         if let Ok(branch) = self.session_branch_id() {
             let _ = self.store.with_tx_touch(|tx, touched| {
@@ -4721,8 +4629,6 @@ impl MadarCore {
         });
         Ok(())
     }
-
-
 
     /// Recent diagnostic warnings (newest first) — the Settings → Diagnostics
     /// feed. Captures sync dead-letters, cascade failures, and auth parks.
@@ -5538,7 +5444,6 @@ impl MadarCore {
                 }
                 _ => continue,
             };
-            let _ = bookings::set_status_local(&self.store, &id, status);
             let _ = held::set_booking_status_local(&self.store, &id, status);
         }
     }
@@ -5587,13 +5492,6 @@ impl MadarCore {
         self.org_logo_url()
             .and_then(|u| self.images.path_if_cached(&u))
     }
-
-
-
-
-
-
-
 
     /// Place the current cart as an order: price it (client-authoritative),
     /// queue an idempotent `create_order` command, clear the cart, and try to
@@ -5985,66 +5883,6 @@ impl MadarCore {
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    /// The current shift's orders — the still-queued sales (from the outbox,
-    /// shown first, always available offline) plus the server's synced orders
-    /// when online (best-effort). Errors if there's no current shift.
-    pub(crate) async fn legacy_list_till_orders(&self) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
-        let shift = till::current(&self.store)?.ok_or_else(|| CoreError::Validation {
-            field: "shift".into(),
-            detail: "no shift".into(),
-        })?;
-        let (branch_id, online) = {
-            let g = self.session.read().unwrap_or_else(|e| e.into_inner());
-            let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
-                detail: "not signed in".into(),
-            })?;
-            let b = s
-                .snapshot
-                .branch_id
-                .clone()
-                .ok_or_else(|| CoreError::Validation {
-                    field: "branch_id".into(),
-                    detail: "session has no branch".into(),
-                })?;
-            (b, s.snapshot.online)
-        };
-
-        // Always show the still-queued sales (offline-safe).
-        let all = orders::queued(&self.store, &shift.id)?;
-
-        // The shift's SYNCED orders: live when online (cached write-through), else
-        // the last-synced snapshot. So going offline keeps the orders already synced
-        // this shift visible — not just the ones rung during the outage.
-        let key = format!("cache:till_orders:{}", shift.id);
-        let mut server: Vec<orders::OrderSummaryView> = if online {
-            // Every page, not the first 200 (till_views).
-            match self
-                .fetch_shift_orders_all_pages(&branch_id, &shift.id)
-                .await
-            {
-                Some(views) => {
-                    cache_views(&self.store, &key, &views);
-                    views
-                }
-                None => cached_views(&self.store, &key),
-            }
-        } else {
-            cached_views(&self.store, &key)
-        };
-        // Overlay an optimistic "voided" status for orders with a queued void command
-        // (the void hasn't synced yet) — applies to fresh OR cached server rows.
-        let voiding = orders::pending_void_ids(&self.store)?;
-        for v in server.iter_mut() {
-            if voiding.contains(&v.id) {
-                v.status = "voided".into();
-            }
-        }
-        // Dedup: drop any queued order that has already synced (its client-minted
-        // order_ref now appears on a server row), else it double-shows + the stats
-        // pill double-counts during the inflight/lost-response window.
-        Ok(orders::merge_for_view(all, server))
-    }
-
     /// Fetch a synced order's full detail (lines + modifiers) — the expanded
     /// history row. Offline-durable for any order seen online (cached).
     pub async fn order_detail(
@@ -6347,61 +6185,6 @@ impl MadarCore {
         Ok(orders::order_to_receipt(&o, &self.current_locale()))
     }
 
-    /// A PAST shift's synced orders (history-screen expansion). Live when online
-    /// (cached write-through, same key as the current-shift list), else the last-
-    /// synced snapshot — so an expanded past shift keeps its orders offline.
-    pub(crate) async fn legacy_list_orders_for_till(
-        &self,
-        till_id: String,
-    ) -> Result<Vec<orders::OrderSummaryView>, CoreError> {
-        let (branch_id, online) = {
-            let g = self.session.read().unwrap_or_else(|e| e.into_inner());
-            let s = g.as_ref().ok_or_else(|| CoreError::Unauthenticated {
-                detail: "not signed in".into(),
-            })?;
-            let b = s
-                .snapshot
-                .branch_id
-                .clone()
-                .ok_or_else(|| CoreError::Validation {
-                    field: "branch_id".into(),
-                    detail: "session has no branch".into(),
-                })?;
-            (b, s.snapshot.online)
-        };
-        let key = format!("cache:till_orders:{till_id}");
-        // Queued (offline-rung) orders for THIS shift first — a shift opened AND
-        // sold on entirely offline has ALL its orders here, not on the server, so
-        // without this its history would be empty offline.
-        let all = orders::queued(&self.store, &till_id)?;
-        let mut server: Vec<orders::OrderSummaryView> = if online {
-            // Every page, not the first 200 (till_views).
-            match self
-                .fetch_shift_orders_all_pages(&branch_id, &till_id)
-                .await
-            {
-                Some(views) => {
-                    cache_views(&self.store, &key, &views);
-                    views
-                }
-                None => cached_views(&self.store, &key),
-            }
-        } else {
-            cached_views(&self.store, &key)
-        };
-        // Optimistic "voided" overlay for orders with a queued void (fresh OR cached).
-        let voiding = orders::pending_void_ids(&self.store)?;
-        for v in server.iter_mut() {
-            if voiding.contains(&v.id) {
-                v.status = "voided".into();
-            }
-        }
-        // Dedup: drop any queued order that has already synced (its client-minted
-        // order_ref now appears on a server row), else it double-shows + the stats
-        // pill double-counts during the inflight/lost-response window.
-        Ok(orders::merge_for_view(all, server))
-    }
-
     /// Search the branch's orders ACROSS shifts (history lookup) with optional
     /// filters (status / teller / payment method / from-to dates) + pagination
     /// (50/page, 1-based). Online-only — the shift-scoped list is the offline path,
@@ -6471,10 +6254,7 @@ impl MadarCore {
         // date); a teller filter excludes them (no echoed teller name yet). Dedup
         // by order_ref against the server page (an order that just synced is there).
         if page.max(1) == 1 && f_teller.is_none() {
-            let unsent = match readpath::mode(&self.store, "ledger") {
-                readpath::ReadPathMode::Legacy => orders::queued_all(&self.store)?,
-                _ => ledger::views::unsent_orders(&self.store)?,
-            };
+            let unsent = ledger::views::unsent_orders(&self.store)?;
             let q: Vec<orders::OrderSummaryView> = unsent
                 .into_iter()
                 .filter(|o| {
@@ -6497,96 +6277,6 @@ impl MadarCore {
             total,
             has_more,
         })
-    }
-
-    /// A PAST shift's Z-report (history-screen reprint). Live when online (cached
-    /// write-through), else the cached report; and for a shift opened+closed
-    /// entirely OFFLINE — which never had a server report — reconstructed from the
-    /// local opening cash + that shift's queued cash sales + movements.
-    pub(crate) async fn legacy_till_report_for(
-        &self,
-        till_id: String,
-    ) -> Result<till::TillReportView, CoreError> {
-        use madar_api::apis::tills_api;
-        let label = |m: &str| self.payment_method_label(m.to_string());
-        if self.current_session().map(|s| s.online).unwrap_or(false) {
-            if let Ok(report) = tills_api::get_till_report(
-                &self.api.config(),
-                tills_api::GetTillReportParams {
-                    till_id: till_id.clone(),
-                },
-            )
-            .await
-            {
-                timefmt::remember_payload_tz(&self.store, &Some(report.timezone.clone()));
-                till::cache_report(&self.store, &till_id, &report);
-                // A partially-synced past till may still hold queued cash not in
-                // the (cached) server report — add it, else expected_cash is
-                // understated and the drawer reads a false "over".
-                return Ok(till::report_view(
-                    &report,
-                    checkout::queued_cash_total_for(&self.store, &till_id)?,
-                    &label,
-                ));
-            }
-        }
-        // Offline / fetch failed: the last-synced report if we have one…
-        if let Some(report) = till::cached_report(&self.store, &till_id) {
-            return Ok(till::report_view(&report, 0, &label));
-        }
-        // …otherwise an offline-only shift: reconstruct the drawer from local state.
-        self.offline_report_for(&till_id)
-    }
-
-    /// Reconstruct a shift's Z-report from purely LOCAL state (opening cash + that
-    /// shift's queued cash sales + movements) — for a shift opened+closed offline
-    /// that the server has never seen. Mirrors the current-shift `till_report`
-    /// offline branch, scoped to an arbitrary shift id.
-    fn offline_report_for(&self, till_id: &str) -> Result<till::TillReportView, CoreError> {
-        // Resolve opening cash + teller + opened-at from the current shift if it
-        // matches, else from the reconstructed local-shift list (distinct types,
-        // so pull the three values out of each rather than unifying the objects).
-        let (opening, teller_name, opened_at) =
-            if let Some(s) = till::current(&self.store)?.filter(|s| s.id == till_id) {
-                (s.opening_cash_minor, Some(s.teller_name), s.opened_at)
-            } else if let Some(s) = till::local_tills(&self.store)
-                .into_iter()
-                .find(|s| s.id == till_id)
-            {
-                (s.opening_cash_minor, s.teller_name, s.opened_at)
-            } else {
-                (0, None, String::new())
-            };
-        let teller = teller_name.filter(|t| !t.is_empty()).unwrap_or_else(|| {
-            self.current_session()
-                .map(|s| s.display_name)
-                .unwrap_or_default()
-        });
-        let queued_cash = checkout::queued_cash_total_for(&self.store, till_id)?;
-        let movements: Vec<till::TillReportCashLine> = self
-            .store
-            .list_active_of_types(&["cash_movement"])?
-            .into_iter()
-            .filter(|i| i.till_id.as_deref() == Some(till_id))
-            .filter_map(|i| {
-                serde_json::from_str::<till::CashMovementCommand>(&i.payload)
-                    .ok()
-                    .map(|cmd| till::TillReportCashLine {
-                        amount_minor: cmd.request.amount as i64,
-                        note: cmd.request.note,
-                        moved_by_name: teller.clone(),
-                        created_at: i.event_at.clone(),
-                    })
-            })
-            .collect();
-        Ok(till::offline_report_view(
-            opening,
-            queued_cash,
-            movements,
-            teller,
-            opened_at,
-            chrono::Utc::now().to_rfc3339(),
-        ))
     }
 
     /// Void a synced order (mistake/refund). Queues an idempotent `void_order`
@@ -6666,45 +6356,6 @@ impl MadarCore {
         Ok(())
     }
 
-    /// What has already been given back against one sale, with the server's
-    /// own arithmetic for what is still refundable.
-    ///
-    /// Write-through cached per order, so a sale opened offline still shows
-    /// the refunds it carried the last time this till saw it. A stale figure
-    /// here cannot cause a wrong refund: the server checks the remainder again
-    /// and refuses anything over it. What it prevents is the teller typing a
-    /// second full refund into a sale that already had one, which no amount of
-    /// server-side refusal makes a pleasant thing to do in front of a customer.
-    pub(crate) async fn legacy_list_order_refunds(
-        &self,
-        order_id: String,
-    ) -> Result<orders::OrderRefundsView, CoreError> {
-        use madar_api::apis::refunds_api;
-        let key = format!("cache:refunds:order:{order_id}");
-        match refunds_api::list_order_refunds(
-            &self.api.config(),
-            refunds_api::ListOrderRefundsParams {
-                order_id: order_id.clone(),
-            },
-        )
-        .await
-        {
-            Ok(r) => {
-                let view = orders::order_refunds_view(&r);
-                // Cache the SERVER's answer, un-overlaid: the queued rows are
-                // read fresh from the outbox each time and drop out of it on
-                // their own once they land.
-                cache_views(&self.store, &key, std::slice::from_ref(&view));
-                Ok(self.with_pending_refunds(view))
-            }
-            Err(e) => cached_views::<orders::OrderRefundsView>(&self.store, &key)
-                .into_iter()
-                .next()
-                .map(|v| self.with_pending_refunds(v))
-                .ok_or_else(|| net::map_api_error(e)),
-        }
-    }
-
     /// Add the refunds still in the outbox for this order, and take them off
     /// the refundable remainder. The server will reach the same figure when
     /// they drain; until then the till must not offer money it has already
@@ -6722,38 +6373,6 @@ impl MadarCore {
         view.refundable_remaining_minor = (view.refundable_remaining_minor - queued_total).max(0);
         view.refunds.extend(pending);
         view
-    }
-
-    /// Every refund issued during a shift — the Z-report's line, and the
-    /// reason a counted drawer is lighter than the sales say.
-    ///
-    /// Cached like the per-order read, because the close screen is exactly
-    /// where a till is most likely to be offline: the network went, the
-    /// shift ends anyway, and the teller still has to count.
-    pub(crate) async fn legacy_list_till_refunds(
-        &self,
-        till_id: String,
-    ) -> Result<orders::TillRefundsView, CoreError> {
-        use madar_api::apis::refunds_api;
-        let key = format!("cache:refunds:shift:{till_id}");
-        match refunds_api::list_till_refunds(
-            &self.api.config(),
-            refunds_api::ListTillRefundsParams {
-                till_id: till_id.clone(),
-            },
-        )
-        .await
-        {
-            Ok(r) => {
-                let view = orders::till_refunds_view(&r);
-                cache_views(&self.store, &key, std::slice::from_ref(&view));
-                Ok(view)
-            }
-            Err(e) => cached_views::<orders::TillRefundsView>(&self.store, &key)
-                .into_iter()
-                .next()
-                .ok_or_else(|| net::map_api_error(e)),
-        }
     }
 
     /// Refund money already taken, against a synced order.
@@ -6875,31 +6494,12 @@ impl MadarCore {
     }
 
 
-    /// Evict cached shift history older than [`CACHE_RETENTION_DAYS`].
-    ///
-    /// A closed shift, its orders, its drawer movements and its Z-report stay
-    /// fully readable offline for the retention window and are then dropped, so
+    /// Sweep ledger history past its retention window (`ledger::retention`), so
     /// a till that runs for a year does not carry a year of history in its
-    /// SQLite file. Only per-shift and per-order history is swept — the live
-    /// mirrors (open tickets, KDS, floor, tills) are current state, not history,
-    /// and are replaced wholesale on every pull.
-    ///
-    /// Eviction is by LAST READ-THROUGH, not by the shift's own date: every
-    /// cache write re-stamps `updated_at`, so a shift someone actually opens
-    /// keeps its place and only genuinely untouched history ages out. Anything
-    /// dropped is re-fetchable while online.
+    /// SQLite file. Never a row an op still holds. Returns how many rows went.
     pub fn prune_stale_caches(&self) -> Result<u32, CoreError> {
-        let cutoff =
-            (chrono::Utc::now() - chrono::Duration::days(CACHE_RETENTION_DAYS)).to_rfc3339();
         let mut n = 0;
-        for prefix in CACHE_HISTORY_PREFIXES {
-            n += self.store.purge_cache_older_than(prefix, &cutoff)?;
-        }
-        // Then the count ceiling: the window bounds age, not volume.
-        for (prefix, cap) in CACHE_ROW_CAPS {
-            n += self.store.purge_cache_keep_newest(prefix, *cap)?;
-        }
-        // The ledger rows: the same window, and never a row an op still holds.
+        // The ledger rows past retention, never a row an op still holds.
         let now = chrono::Utc::now().timestamp_millis();
         n += self.store.with_tx_touch(|tx, touched| {
             let k = ledger::retention::sweep(tx, now)?;
@@ -7169,7 +6769,6 @@ impl MadarCore {
         );
         // The booked party sat down: reflect it locally before the server does.
         if let Some(bid) = booking_id.as_deref() {
-            let _ = bookings::set_status_local(&self.store, bid, "seated");
             let _ = held::set_booking_status_local(&self.store, bid, "seated");
         }
         let cmd = tickets::FireTicketCommand {
@@ -7604,135 +7203,6 @@ impl MadarCore {
         Ok(self.store.id_map_get("order", &settle_op_id)?)
     }
 
-    /// The branch's OPEN/READY open tickets (newest first). Server list (write-through
-    /// cached, so it survives offline) PLUS any still-queued local fires overlaid as
-    /// `status = "queued"` — offline-first visibility before the fire syncs.
-    /// Why the last [`Self::list_open_tickets`] served the cache instead of the
-    /// server (`offline: …`, `forbidden …`, a decode failure), or `None` when
-    /// it was fresh. The list itself stays usable offline; this says it is old.
-    pub fn open_tickets_stale_reason(&self) -> Option<String> {
-        self.store
-            .kv_get(K_OPEN_TICKETS_STALE)
-            .ok()
-            .flatten()
-            .filter(|s| !s.is_empty())
-    }
-
-    pub(crate) async fn legacy_list_open_tickets(&self) -> Result<Vec<tickets::TicketView>, CoreError> {
-        use madar_api::apis::open_tickets_api as ot;
-        let branch_id = self.session_branch_id()?;
-        let server: Vec<madar_api::models::OpenTicketView> = if self.pull_feed_complete(&branch_id) {
-            // The bills arrive through the changefeed (contract §10.3 A6): pull,
-            // which rebuilds the cached list, then read it. A failed pull leaves
-            // the cache and says why it is not fresh.
-            if let Err(e) = self.pull(false).await {
-                let _ = self.store.kv_put(K_OPEN_TICKETS_STALE, &e.to_string());
-            }
-            cached_views(&self.store, K_OPEN_TICKETS_CACHE)
-        } else {
-            match ot::list_open_tickets(
-            &self.api.config(),
-            // Live bills only. Without it an older server handed back every
-            // ticket the branch ever opened, capped at 500, and a still-open
-            // bill from last week fell off the end.
-            ot::ListOpenTicketsParams {
-                branch_id,
-                status: Some("open".into()),
-            },
-        )
-        .await
-        {
-            Ok(list) => {
-                if let Some(t) = list.first() {
-                    timefmt::remember_payload_tz(&self.store, &t.timezone);
-                }
-                cache_views(&self.store, "cache:open_tickets", &list);
-                let _ = self.store.kv_put(K_OPEN_TICKETS_STALE, "");
-                list
-            }
-            // The cache still shows the room, but it is marked: why the list
-            // is not fresh (offline / forbidden / a reply this build cannot
-            // read) is kept for the screen to say, not swallowed.
-            Err(e) => {
-                let why = net::map_api_error(e).to_string();
-                let _ = self.store.kv_put(K_OPEN_TICKETS_STALE, &why);
-                cached_views(&self.store, "cache:open_tickets")
-            }
-            }
-        };
-        // Line voids this device queued but has not sent: the waiter who took
-        // a plate off must see it come off, and the cashier must not collect
-        // for it, whichever of them is looking at the bill.
-        let line_voids = tickets::pending_line_voids(&self.store)?;
-        let sc_taxable = self.service_charge_taxable();
-        let mut out: Vec<tickets::TicketView> = server
-            .iter()
-            .filter(|v| v.status != "settled" && v.status != "voided")
-            .map(|v| tickets::to_view_with(v, false, &line_voids, sc_taxable))
-            .collect();
-        // Ticket ids the waiter has already settled or voided OFFLINE (still queued).
-        // Their not-yet-synced fire must NOT show as open — else a phantom ticket
-        // lingers (and a cashier could settle a ticket already voided).
-        let cleared: std::collections::HashSet<String> = self
-            .store
-            .pending()?
-            .iter()
-            .filter(|i| {
-                matches!(
-                    i.op_type.as_str(),
-                    "settle_open_ticket" | "void_ticket" | "void_open_ticket"
-                )
-            })
-            .filter_map(|i| {
-                serde_json::from_str::<serde_json::Value>(&i.payload)
-                    .ok()
-                    .and_then(|v| {
-                        v.get("ticket_id")
-                            .and_then(|t| t.as_str())
-                            .map(String::from)
-                    })
-            })
-            .collect();
-        // Overlay still-queued fires (a pending fire is never in the server list),
-        // unless that ticket was already settled/voided offline. The waiter is the
-        // current session (whoever is firing offline).
-        let waiter = self
-            .current_session()
-            .map(|s| s.display_name)
-            .filter(|s| !s.is_empty());
-        for item in self
-            .store
-            .pending()?
-            .iter()
-            .filter(|i| i.op_type == "open_ticket")
-        {
-            if let Ok(cmd) = serde_json::from_str::<tickets::FireTicketCommand>(&item.payload) {
-                if cleared.contains(&cmd.ticket_id) {
-                    continue;
-                }
-                out.push(queued_ticket_view(&cmd, &item.event_at, waiter.clone()));
-            }
-        }
-        Ok(out)
-    }
-
-    /// One open ticket by server id (the detail screen). Online; a queued (unsynced)
-    /// ticket has no server id yet — read it from `list_open_tickets` instead.
-    pub(crate) async fn legacy_get_ticket(&self, ticket_id: String) -> Result<tickets::TicketView, CoreError> {
-        use madar_api::apis::open_tickets_api as ot;
-        let v = ot::get_open_ticket(
-            &self.api.config(),
-            ot::GetOpenTicketParams { id: ticket_id },
-        )
-        .await
-        .map_err(net::map_api_error)?;
-        Ok(tickets::to_view_with(
-            &v,
-            false,
-            &tickets::pending_line_voids(&self.store)?,
-            self.service_charge_taxable(),
-        ))
-    }
 }
 
 // ── Kitchen Display System (station feed + bump) ─────────────────────────────
@@ -7752,53 +7222,6 @@ impl MadarCore {
                 Err(_) => cached_views(&self.store, "cache:kds_stations"),
             };
         Ok(stations.iter().map(kds::station_view).collect())
-    }
-
-    /// The KDS feed: outstanding kitchen tickets for the branch (optionally filtered
-    /// to a `station_id` — tickets with pending work for it). Sorted oldest-first
-    /// (rush to top), ready tickets last. Write-through cached per station so the
-    /// board still shows the last snapshot after a reconnect.
-    pub(crate) async fn legacy_kds_list(
-        &self,
-        station_id: Option<String>,
-    ) -> Result<Vec<kds::KdsTicketView>, CoreError> {
-        use madar_api::apis::kitchen_api as k;
-        let branch_id = self.session_branch_id()?;
-        let cache_key = match &station_id {
-            Some(s) => format!("cache:kds:{s}"),
-            None => "cache:kds:all".to_string(),
-        };
-        let feed: Vec<madar_api::models::KitchenTicketView> = match k::feed(
-            &self.api.config(),
-            k::FeedParams {
-                branch_id,
-                station_id,
-            },
-        )
-        .await
-        {
-            Ok(list) => {
-                cache_views(&self.store, &cache_key, &list);
-                list
-            }
-            Err(_) => cached_views(&self.store, &cache_key),
-        };
-        let mut out: Vec<kds::KdsTicketView> = feed.iter().map(kds::ticket_view).collect();
-        // Overlay LAN-projected fires not yet in the server feed (offline visibility);
-        // prune any whose derived id now appears in the feed (they synced → server wins).
-        let mut lan = lan_kds_read(&self.store);
-        let synced: std::collections::HashSet<String> = out.iter().map(|t| t.id.clone()).collect();
-        let before = lan.len();
-        lan.retain(|t| !synced.contains(&t.id));
-        if lan.len() != before {
-            lan_kds_write(&self.store, &lan);
-        }
-        kds::overlay_lan_tickets(&mut out, lan);
-        // Overlay still-pending (un-synced) bumps so the board shows the cook's
-        // latest tap instantly — even offline, before the bump drains to the server.
-        kds::overlay_pending_bumps(&mut out, &self.pending_bumps());
-        kds::sort_feed(&mut out);
-        Ok(out)
     }
 
     /// Bump a kitchen line (mark it done at its station). OUTBOX-FIRST (Phase E §2):
@@ -7893,43 +7316,6 @@ impl MadarCore {
 
 #[cfg_attr(feature = "uniffi-ffi", uniffi::export(async_runtime = "tokio"))]
 impl MadarCore {
-    /// The branch's delivery queue (newest first). `status` is a comma-separated
-    /// wire filter (e.g. "received,confirmed"); `None` = all. Online-only.
-    pub(crate) async fn legacy_list_delivery_orders(
-        &self,
-        status: Option<String>,
-    ) -> Result<Vec<delivery::DeliveryOrderView>, CoreError> {
-        use madar_api::apis::delivery_api as d;
-        let branch = self.session_branch_id()?;
-        let loc = self.current_locale();
-        // Live when online (cached write-through, keyed by the status filter), else
-        // the last-synced snapshot — the delivery board still shows offline.
-        let key = format!("cache:delivery:{}", status.as_deref().unwrap_or("all"));
-        let base_prep = self.cached_prep_minutes();
-        if !self.current_session().map(|s| s.online).unwrap_or(false) {
-            return Ok(cached_views(&self.store, &key));
-        }
-        match d::list_delivery_orders(
-            &self.api.config(),
-            d::ListDeliveryOrdersParams {
-                branch_id: branch,
-                status,
-                limit: Some(200),
-            },
-        )
-        .await
-        {
-            Ok(orders) => {
-                let views: Vec<_> = orders
-                    .iter()
-                    .map(|o| self.localize_payment_hint(delivery::order_view(o, &loc, base_prep)))
-                    .collect();
-                cache_views(&self.store, &key, &views);
-                Ok(views)
-            }
-            Err(_) => Ok(cached_views(&self.store, &key)),
-        }
-    }
 
     /// A single delivery order by id.
     pub async fn delivery_order_detail(
@@ -8820,35 +8206,6 @@ mod lifecycle_tests {
         id.to_string()
     }
 
-    fn enqueue_open_shift(core: &MadarCore, id: &str) {
-        core.store
-            .enqueue(&store::NewOutboxOp {
-                id: id.into(),
-                op_type: "open_till".into(),
-                idempotency_key: id.into(),
-                payload: "{}".into(),
-                event_at: "2026-06-20T12:00:00+00:00".into(),
-                till_id: Some(id.into()),
-                ..Default::default()
-            })
-            .unwrap();
-    }
-
-    fn enqueue_close_shift(core: &MadarCore, till_id: &str) {
-        let id = format!("{till_id}:close");
-        core.store
-            .enqueue(&store::NewOutboxOp {
-                id: id.clone(),
-                op_type: "close_till".into(),
-                idempotency_key: id,
-                payload: "{}".into(),
-                event_at: "2026-06-20T18:00:00+00:00".into(),
-                till_id: Some(till_id.into()),
-                ..Default::default()
-            })
-            .unwrap();
-    }
-
     /// A real signed-in core pinned OFFLINE (dead url), against a cached bundle —
     /// for driving the genuine open/close/checkout FFI paths with no network.
     /// Parking a cart used to queue a `park_held_order` op that no drain arm
@@ -9237,7 +8594,16 @@ mod lifecycle_tests {
             }))
             .unwrap();
         bill.ticket_ref = Some(Some("T-1".into()));
-        cache_views(&core.store, "cache:open_tickets", &[bill]);
+        let branch = core.session_branch_id().unwrap();
+        core.store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT OR REPLACE INTO sync_rows(type,id,branch_id,seq,data) VALUES('open_ticket',?1,?2,1,?3)",
+                    rusqlite::params![bill.id.to_string(), branch, serde_json::to_string(&bill)?],
+                )?;
+                Ok(())
+            })
+            .unwrap();
     }
 
     fn table(core: &MadarCore, id: &str) -> held::FloorTableStateView {
@@ -9265,8 +8631,7 @@ mod lifecycle_tests {
         assert_eq!(b.status, "seated");
         assert_eq!(b.seated_at.as_deref(), Some("2026-09-13T18:00:00+00:00"));
         assert_eq!(b.covers, Some(3));
-        let bills: Vec<madar_api::models::OpenTicketView> =
-            cached_views(&core.store, "cache:open_tickets");
+        let bills = core.bill_source();
         assert_eq!(
             bills[0]
                 .table_id
@@ -9447,8 +8812,7 @@ mod lifecycle_tests {
         assert_eq!(core.store.dead_count().unwrap(), 0, "no stuck row");
         assert_eq!(table(&core, TA).status, "seated", "the party never left A");
         assert_eq!(table(&core, TB).status, "free", "nor landed on B");
-        let bills: Vec<madar_api::models::OpenTicketView> =
-            cached_views(&core.store, "cache:open_tickets");
+        let bills = core.bill_source();
         assert_eq!(
             bills[0]
                 .table_id
@@ -9458,16 +8822,6 @@ mod lifecycle_tests {
             Some(TA),
             "the bill stays on A"
         );
-    }
-
-    /// A bill list served from the cache says so, and why.
-    #[tokio::test]
-    async fn a_cached_ticket_list_is_marked_stale() {
-        let core = draining_core("http://127.0.0.1:9".into()).await;
-        seed_party_on_a(&core, "free");
-        let list = core.list_open_tickets().await.unwrap();
-        assert_eq!(list.len(), 1, "the cache still shows the room");
-        assert!(core.open_tickets_stale_reason().is_some());
     }
 
     /// Clearing a table, seating a party and seating a booking reach the
@@ -9687,11 +9041,6 @@ mod lifecycle_tests {
         .unwrap();
         core
     }
-
-
-
-
-
 
     /// End-to-end offline: open a shift, sell nothing, then close it. The shift
     /// flips to closed locally (route → open-shift) and the close command queues
@@ -10104,7 +9453,7 @@ mod lifecycle_tests {
         assert_eq!(floor.sections.len(), 1);
         assert_eq!(floor.tables.len(), 1);
         assert_eq!(floor.tables[0].label, "T1");
-        let bills: Vec<madar_api::models::OpenTicketView> = cached_views(&core.store, K_OPEN_TICKETS_CACHE);
+        let bills = core.bill_source();
         assert_eq!(bills.len(), 1);
         assert_eq!(bills[0].subtotal, 4200);
         let methods = core.list_payment_methods().unwrap();
@@ -10931,39 +10280,12 @@ impl MadarCore {
         .map_err(net::map_api_error)
     }
 
+    /// Bring today's bookings up to date. They arrive through the changefeed
+    /// like every other board, so this asks for a pull soon and returns at once;
+    /// the arrivals list re-reads on the table change.
     pub async fn refresh_arrivals(&self) -> Result<(), CoreError> {
-        use madar_api::apis::bookings_api;
-        let Ok(branch_id) = self.session_branch_id() else {
-            return Ok(());
-        };
-        let date = self.service_date_today();
-        let rows = match bookings_api::list_bookings(
-            &self.api.config(),
-            bookings_api::ListBookingsParams {
-                branch_id,
-                date: Some(date),
-                from: None,
-                to: None,
-                active: Some(true),
-                status: None,
-            },
-        )
-        .await
-        {
-            Ok(rows) => rows,
-            Err(_) => return Ok(()),
-        };
-        let list: Vec<bookings::BookingView> = rows.into_iter().map(Into::into).collect();
-        bookings::save_arrivals(&self.store, &list)?;
-        self.reapply_pending_booking_ops();
+        self.nudge_sync();
         Ok(())
-    }
-
-    /// Today's active bookings from the cache, earliest first.
-    pub(crate) fn legacy_list_arrivals(&self) -> Result<Vec<bookings::BookingView>, CoreError> {
-        let mut list = bookings::load_arrivals(&self.store)?;
-        list.sort_by(|a, b| a.starts_at.cmp(&b.starts_at));
-        Ok(list)
     }
 
     /// The party arrived: mark the booking seated (optionally on another
@@ -10974,14 +10296,14 @@ impl MadarCore {
         booking_id: String,
         table_id: Option<String>,
     ) -> Result<(), CoreError> {
-        bookings::set_status_local(&self.store, &booking_id, "seated")?;
         held::set_booking_status_local(&self.store, &booking_id, "seated")?;
         // The booked party is AT the table now: the canvas reads it seated,
         // with the booking's count as its covers, before the server confirms.
         if let Some(t) = table_id.as_deref() {
             let now = self.corrected_now().to_rfc3339();
             held::set_table_state_local(&self.store, t, Some("seated"), None, false, Some(&now))?;
-            let party = bookings::load_arrivals(&self.store)
+            let party = self
+                .list_arrivals()
                 .ok()
                 .and_then(|l| l.into_iter().find(|b| b.id == booking_id))
                 .map(|b| b.party_size);
@@ -11008,7 +10330,6 @@ impl MadarCore {
 
     /// The party never came: release the table. Optimistic-local + queued.
     pub fn no_show_booking(&self, booking_id: String) -> Result<(), CoreError> {
-        bookings::set_status_local(&self.store, &booking_id, "no_show")?;
         held::set_booking_status_local(&self.store, &booking_id, "no_show")?;
         let cmd = bookings::NoShowBookingCommand {
             booking_id: booking_id.clone(),
@@ -11020,13 +10341,6 @@ impl MadarCore {
         )
     }
 
-    /// Today's calendar date (`YYYY-MM-DD`) in the branch zone, midnight →
-    /// midnight like the backend, so a 00:30 booking lists under its own date.
-    fn service_date_today(&self) -> String {
-        let tz = timefmt::branch_tz(&self.store);
-        let date = self.corrected_now().with_timezone(&tz).date_naive();
-        timefmt::iso_date(date)
-    }
 }
 
 // Non-exported helper: the signed-in branch id, required for reservations calls.

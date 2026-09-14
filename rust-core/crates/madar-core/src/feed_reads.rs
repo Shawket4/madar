@@ -1,18 +1,16 @@
 //! The floor-side boards read from the changefeed's rows (OFFLINE_B_DESIGN
 //! Phases 3–4): open bills, the kitchen feed, the delivery queue and today's
-//! arrivals. Each area has its own read-path flag (`tickets`, `kitchen`,
-//! `delivery`, `bookings`).
+//! arrivals.
 //!
-//! In `new` mode no read here touches the network: the rows are kept fresh by
-//! the scheduler (realtime nudges, the fallback poll), and every overlay of
-//! work this device has queued is applied on top, exactly as before. Until the
-//! branch's first complete snapshot has landed there are no rows to read, so a
-//! read falls back to the legacy path for that one bootstrap window.
+//! No read here waits on the network: the rows are kept fresh by the scheduler
+//! (realtime nudges, the fallback poll), and every overlay of work this device
+//! has queued is applied on top. Before the branch's first complete snapshot the
+//! boards show what rows exist (this device's own queued work, at least) and
+//! the sync status says the branch is still downloading (`freshness`).
 
 use serde_json::{json, Value};
 
 use crate::error::CoreError;
-use crate::readpath::{self, ReadPathMode};
 use crate::{bookings, delivery, kds, sync_pull, tickets, MadarCore};
 
 /// Open bills from the synced rows, oldest first.
@@ -40,25 +38,13 @@ fn delivery_model(v: &Value) -> Option<madar_api::models::DeliveryOrder> {
 }
 
 impl MadarCore {
-    fn feed_mode(&self, area: &str) -> Option<(ReadPathMode, String)> {
-        let branch = self.session_branch_id().ok()?;
-        let mode = readpath::mode(&self.store, area);
-        // Before the first complete snapshot there are no rows to read.
-        if mode != ReadPathMode::Legacy && !self.pull_feed_complete(&branch) {
-            return Some((ReadPathMode::Legacy, branch));
-        }
-        Some((mode, branch))
+    fn signed_in_branch(&self) -> Result<String, CoreError> {
+        self.session_branch_id().map_err(|_| CoreError::Unauthenticated { detail: "not signed in".into() })
     }
 
-    /// The open bills a read works from: the synced rows once the branch has a
-    /// complete snapshot (and the flag is not `legacy`), else the legacy cache.
+    /// The open bills a read works from: the synced rows.
     pub(crate) fn bill_source(&self) -> Vec<madar_api::models::OpenTicketView> {
-        match self.feed_mode("tickets") {
-            Some((ReadPathMode::Legacy, _)) | None => {
-                crate::cached_views(&self.store, crate::K_OPEN_TICKETS_CACHE)
-            }
-            Some((_, branch)) => open_ticket_rows(&self.store, &branch),
-        }
+        self.session_branch_id().map(|b| open_ticket_rows(&self.store, &b)).unwrap_or_default()
     }
 
     /// Apply this device's queued ticket work over a list of bills.
@@ -219,56 +205,44 @@ impl MadarCore {
     /// The branch's open bills (newest first) with this device's queued fires,
     /// line voids, settles and voids applied.
     pub async fn list_open_tickets(&self) -> Result<Vec<tickets::TicketView>, CoreError> {
-        let (mode, branch) = self.feed_mode("tickets").ok_or_else(|| CoreError::Unauthenticated {
-            detail: "not signed in".into(),
-        })?;
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_list_open_tickets().await;
-        }
-        let new = self.overlay_bills(&open_ticket_rows(&self.store, &branch))?;
-        let _ = self.store.kv_put(crate::K_OPEN_TICKETS_STALE, "");
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_list_open_tickets().await?;
-            self.report_divergence(
-                "tickets",
-                readpath::diff_keyed("open tickets", &readpath::tickets_keyed(&legacy), &readpath::tickets_keyed(&new)),
-            );
-            return Ok(legacy);
-        }
-        Ok(new)
+        let branch = self.signed_in_branch()?;
+        self.overlay_bills(&open_ticket_rows(&self.store, &branch))
     }
 
     /// One bill (the detail screen): the synced row, with this device's queued
     /// line voids applied; the server only for a bill not held here.
     pub async fn get_ticket(&self, ticket_id: String) -> Result<tickets::TicketView, CoreError> {
-        if let Some((mode, branch)) = self.feed_mode("tickets") {
-            if mode != ReadPathMode::Legacy {
-                if let Some(v) = sync_pull::rows_of_type(&self.store, &branch, "open_ticket")
-                    .into_iter()
-                    .filter_map(|v| serde_json::from_value::<madar_api::models::OpenTicketView>(v).ok())
-                    .find(|v| v.id.to_string() == ticket_id)
-                {
-                    return Ok(tickets::to_view_with(
-                        &v,
-                        false,
-                        &tickets::pending_line_voids(&self.store)?,
-                        self.service_charge_taxable(),
-                    ));
-                }
-            }
+        let branch = self.signed_in_branch()?;
+        if let Some(v) = sync_pull::rows_of_type(&self.store, &branch, "open_ticket")
+            .into_iter()
+            .filter_map(|v| serde_json::from_value::<madar_api::models::OpenTicketView>(v).ok())
+            .find(|v| v.id.to_string() == ticket_id)
+        {
+            return Ok(tickets::to_view_with(&v, false, &tickets::pending_line_voids(&self.store)?, self.service_charge_taxable()));
         }
-        self.legacy_get_ticket(ticket_id).await
+        // A bill still on its way (this device's or a LAN peer's queued fire).
+        if let Some(v) = self.list_open_tickets().await?.into_iter().find(|t| t.id == ticket_id) {
+            return Ok(v);
+        }
+        // A bill fired elsewhere a moment ago that the feed has not brought yet:
+        // asked of the server online, under the read timeout.
+        if !self.current_session().map(|s| s.online).unwrap_or(false) {
+            return Err(CoreError::Offline { detail: "this bill is not on this device yet".into() });
+        }
+        use madar_api::apis::open_tickets_api as ot;
+        let config = self.api.config();
+        let fetch = ot::get_open_ticket(&config, ot::GetOpenTicketParams { id: ticket_id });
+        match tokio::time::timeout(crate::ledger_ops::FETCH_TIMEOUT, fetch).await {
+            Ok(Ok(v)) => Ok(tickets::to_view_with(&v, false, &tickets::pending_line_voids(&self.store)?, self.service_charge_taxable())),
+            Ok(Err(e)) => Err(crate::net::map_api_error(e)),
+            Err(_) => Err(CoreError::Offline { detail: "the server did not answer in time".into() }),
+        }
     }
 
     /// The kitchen board: open kitchen tickets (for a station: those with work
     /// still on it), with LAN-relayed fires and queued bumps overlaid.
     pub async fn kds_list(&self, station_id: Option<String>) -> Result<Vec<kds::KdsTicketView>, CoreError> {
-        let (mode, branch) = self.feed_mode("kitchen").ok_or_else(|| CoreError::Unauthenticated {
-            detail: "not signed in".into(),
-        })?;
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_kds_list(station_id).await;
-        }
+        let branch = self.signed_in_branch()?;
         let station = station_id.as_deref().and_then(|s| uuid::Uuid::parse_str(s).ok());
         let mut rows: Vec<madar_api::models::KitchenTicketView> = sync_pull::rows_of_type(&self.store, &branch, "kitchen_ticket")
             .into_iter()
@@ -293,16 +267,6 @@ impl MadarCore {
         kds::overlay_lan_tickets(&mut out, lan);
         kds::overlay_pending_bumps(&mut out, &self.pending_bumps());
         kds::sort_feed(&mut out);
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_kds_list(station_id).await?;
-            let key = |v: &[kds::KdsTicketView]| {
-                v.iter()
-                    .map(|t| (t.id.clone(), (t.status.clone(), t.items.len() as i64)))
-                    .collect::<std::collections::BTreeMap<_, _>>()
-            };
-            self.report_divergence("kitchen", readpath::diff_keyed("kds", &key(&legacy), &key(&out)));
-            return Ok(legacy);
-        }
         Ok(out)
     }
 
@@ -322,12 +286,7 @@ impl MadarCore {
 
     /// The delivery queue (newest first), filtered by a comma-separated status list.
     pub async fn list_delivery_orders(&self, status: Option<String>) -> Result<Vec<delivery::DeliveryOrderView>, CoreError> {
-        let (mode, branch) = self.feed_mode("delivery").ok_or_else(|| CoreError::Unauthenticated {
-            detail: "not signed in".into(),
-        })?;
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_list_delivery_orders(status).await;
-        }
+        let branch = self.signed_in_branch()?;
         let wanted: Option<Vec<String>> = status
             .as_deref()
             .map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect());
@@ -343,29 +302,13 @@ impl MadarCore {
             .iter()
             .map(|o| self.localize_payment_hint(delivery::order_view(o, &loc, prep)))
             .collect();
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_list_delivery_orders(status).await?;
-            let key = |v: &[delivery::DeliveryOrderView]| {
-                v.iter().map(|d| (d.id.clone(), d.status.clone())).collect::<std::collections::BTreeMap<_, _>>()
-            };
-            // The legacy list is capped at 200 and reaches further back.
-            let l = key(&legacy);
-            let n: std::collections::BTreeMap<_, _> = key(&new).into_iter().filter(|(k, _)| l.contains_key(k)).collect();
-            self.report_divergence("delivery", readpath::diff_keyed("delivery", &l, &n));
-            return Ok(legacy);
-        }
         Ok(new)
     }
 
     /// Today's active bookings (earliest first), with this device's queued seat /
     /// no-show answers applied.
     pub fn list_arrivals(&self) -> Result<Vec<bookings::BookingView>, CoreError> {
-        let Some((mode, branch)) = self.feed_mode("bookings") else {
-            return self.legacy_list_arrivals();
-        };
-        if mode == ReadPathMode::Legacy {
-            return self.legacy_list_arrivals();
-        }
+        let branch = self.signed_in_branch()?;
         let tz = crate::timefmt::branch_tz(&self.store);
         let today = chrono::Utc::now().with_timezone(&tz).date_naive();
         let (from, to) = crate::timefmt::local_day_bounds(tz, today);
@@ -385,6 +328,14 @@ impl MadarCore {
                     Ok(c) => (c.booking_id, "no_show"),
                     Err(_) => continue,
                 },
+                // A bill fired for the booking seats the party.
+                "open_ticket" => match serde_json::from_str::<tickets::FireTicketCommand>(&item.payload)
+                    .ok()
+                    .and_then(|c| c.request.booking_id.flatten())
+                {
+                    Some(b) => (b.to_string(), "seated"),
+                    None => continue,
+                },
                 _ => continue,
             };
             if let Some(b) = list.iter_mut().find(|b| b.id == id) {
@@ -393,14 +344,6 @@ impl MadarCore {
         }
         list.retain(|b| matches!(b.status.as_str(), "confirmed" | "seated"));
         list.sort_by(|a, b| a.starts_at.cmp(&b.starts_at));
-        if mode == ReadPathMode::Shadow {
-            let legacy = self.legacy_list_arrivals()?;
-            let key = |v: &[bookings::BookingView]| {
-                v.iter().map(|b| (b.id.clone(), b.status.clone())).collect::<std::collections::BTreeMap<_, _>>()
-            };
-            self.report_divergence("bookings", readpath::diff_keyed("arrivals", &key(&legacy), &key(&list)));
-            return Ok(legacy);
-        }
         Ok(list)
     }
 }

@@ -1002,18 +1002,6 @@ impl MadarCore {
             }
         }
 
-        let mut bills: Vec<madar_api::models::OpenTicketView> = rows_of_type(store, branch, "open_ticket")
-            .into_iter()
-            .filter_map(|v| serde_json::from_value(v).ok())
-            .filter(|t: &madar_api::models::OpenTicketView| t.status == "open")
-            .collect();
-        bills.sort_by_key(|t| t.opened_at);
-        if let Some(t) = bills.first() {
-            crate::timefmt::remember_payload_tz(store, &t.timezone);
-        }
-        crate::cache_views(store, crate::K_OPEN_TICKETS_CACHE, &bills);
-        let _ = store.kv_put(crate::K_OPEN_TICKETS_STALE, "");
-
         // The "wants to move inside" waitlist, from the feed at its cursor.
         let transfers: Vec<crate::held::TransferWire> = rows_of_type(store, branch, "table_transfer")
             .into_iter()

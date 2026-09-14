@@ -225,6 +225,13 @@ pub(crate) fn till_report(store: &Store, till_id: &str, label: &dyn Fn(&str) -> 
     if !till_complete(store, till_id) {
         return Ok(None);
     }
+    till_report_rows(store, till_id, label)
+}
+
+/// What a till's rows on this device add up to, held completely or not
+/// (`None` when the device has no row for the till at all). For a till not
+/// held completely this is what is known so far, never the server's figure.
+pub(crate) fn till_report_rows(store: &Store, till_id: &str, label: &dyn Fn(&str) -> String) -> CoreResult<Option<TillReportView>> {
     let Some(f) = figures(store, till_id)? else { return Ok(None) };
     let t = &f.till;
     let (first, last, range_code) = order_number_range(store, till_id)?;
@@ -598,6 +605,6 @@ pub(crate) fn stored_till_report(store: &Store, till_id: &str) -> Option<madar_a
         .with_conn(|c| Ok(c.query_row("SELECT raw FROM till_reports WHERE till_id=?1", [till_id], |r| r.get(0)).optional()?))
         .ok()
         .flatten();
-    raw.and_then(|r| serde_json::from_str(&r).ok()).or_else(|| till::cached_report(store, till_id))
+    raw.and_then(|r| serde_json::from_str(&r).ok())
 }
 

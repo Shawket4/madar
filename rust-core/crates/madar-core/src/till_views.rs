@@ -213,23 +213,6 @@ impl MadarCore {
 }
 
 impl MadarCore {
-    /// Every page of a shift's synced orders. The list endpoint caps a page
-    /// (200), so a busy shift used to show — and count — only its first 200
-    /// sales. `None` when any page fails, so the caller falls back to the
-    /// cached snapshot rather than caching a partial list as the whole shift.
-    pub(crate) async fn fetch_shift_orders_all_pages(
-        &self,
-        branch_id: &str,
-        till_id: &str,
-    ) -> Option<Vec<crate::orders::OrderSummaryView>> {
-        Some(
-            self.fetch_shift_order_models(branch_id, till_id)
-                .await?
-                .iter()
-                .map(crate::orders::from_server)
-                .collect(),
-        )
-    }
 
     /// [`Self::fetch_shift_orders_all_pages`] as the server's models (the ledger
     /// stores them as rows for a till the device does not hold completely).

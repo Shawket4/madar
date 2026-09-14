@@ -4,8 +4,6 @@
 //! before it syncs, and the whole list degrades to just the queued ones offline.
 //! Projection is pure (store/outbox in, view DTOs out) so it's unit-testable.
 
-use std::collections::HashSet;
-
 use madar_api::models;
 use serde::{Deserialize, Serialize};
 
@@ -27,18 +25,6 @@ pub(crate) struct VoidOrderCommand {
 pub(crate) struct RefundOrderCommand {
     #[serde(deserialize_with = "crate::till::de_legacy_till_request")]
     pub request: models::CreateRefundRequest,
-}
-
-/// Server order ids that have a queued/failed void command — used to overlay an
-/// optimistic "voided" status on the synced orders before the void syncs.
-pub(crate) fn pending_void_ids(store: &Store) -> CoreResult<HashSet<String>> {
-    let mut ids = HashSet::new();
-    for item in store.list_active_of_types(&["void_order"])? {
-        if let Ok(cmd) = serde_json::from_str::<VoidOrderCommand>(&item.payload) {
-            ids.insert(cmd.order_id);
-        }
-    }
-    Ok(ids)
 }
 
 /// Refunds for one order still waiting in the outbox, newest last.
@@ -279,16 +265,6 @@ pub(crate) fn order_refunds_view(r: &models::OrderRefunds) -> OrderRefundsView {
         refunded_minor: r.refunded_amount,
         refunded_cash_minor: r.refunded_cash,
         refundable_remaining_minor: r.refundable_remaining,
-        refunds: r.refunds.iter().map(refund_view).collect(),
-    }
-}
-
-pub(crate) fn till_refunds_view(r: &models::TillRefunds) -> TillRefundsView {
-    TillRefundsView {
-        till_id: r.till_id.to_string(),
-        refund_count: r.refund_count,
-        refunded_minor: r.refunded_amount,
-        refunded_cash_minor: r.refunded_cash,
         refunds: r.refunds.iter().map(refund_view).collect(),
     }
 }
@@ -596,120 +572,6 @@ pub(crate) fn from_server(o: &models::Order) -> OrderSummaryView {
     }
 }
 
-/// The shift's still-queued orders, newest first — parsed from the outbox's
-/// `create_order` commands for `till_id`. A dead command shows as `failed`.
-pub(crate) fn queued(store: &Store, till_id: &str) -> CoreResult<Vec<OrderSummaryView>> {
-    let mut out = Vec::new();
-    for item in store.list_active_of_types(&["create_order"])? {
-        let cmd: crate::checkout::CheckoutCommand = match serde_json::from_str(&item.payload) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-        let r = &cmd.request;
-        if r.till_id.to_string() != till_id {
-            continue;
-        }
-        out.push(OrderSummaryView {
-            id: item.id.clone(),
-            order_number: None,
-            subtotal_minor: flat_i32(&r.subtotal),
-            tax_minor: flat_i32(&r.tax_amount),
-            total_minor: flat_i32(&r.total_amount),
-            payment_label: r.payment_method.clone(),
-            status: if item.status == "dead" {
-                "failed".into()
-            } else {
-                "queued".into()
-            },
-            created_at: flat(&r.created_at)
-                .map(|d| d.to_rfc3339())
-                .unwrap_or_default(),
-            queued: true,
-            // Queued orders are the current teller's; the server hasn't echoed a
-            // name/number yet. They're rung in the default dine-in flow (delivery
-            // has its own path), so the type filter treats them as such.
-            teller_name: None,
-            // A queued `create_order` is a COUNTER sale by construction: a
-            // dine-in bill settles through `settle_ticket`, which is a
-            // different op, and the request carries no ticket for the server
-            // to find. It records those as `takeaway` — so saying `dine_in`
-            // here made every offline sale change its own type the moment it
-            // synced, and the type filter disagree with itself in between.
-            order_type: "takeaway".into(),
-            // Nothing to flag: it has not reached the server, so nothing has
-            // compared it to the menu. The server decides when it lands.
-            price_flagged: false,
-            customer_name: flat(&r.customer_name).filter(|s| !s.is_empty()),
-            // order_ref is CLIENT-minted (mint_order_ref, SENT on the request), so
-            // it's known the moment the order is queued — NOT something we wait for
-            // the server to echo. Carrying it here is what lets `merge_for_view`
-            // dedup this row against its synced server twin (same ref) during the
-            // lost-response window; without it the order double-shows + double-counts.
-            order_ref: flat(&r.order_ref).filter(|s| !s.is_empty()),
-            display_number: queued_display_number(&cmd),
-        });
-    }
-    // Outbox is oldest-first; show the latest-rung sale on top.
-    out.reverse();
-    Ok(out)
-}
-
-/// A queued sale's number: the device stamp it was rung with (legacy queued
-/// sales carry none and are numbered by the server when they land).
-fn queued_display_number(cmd: &crate::checkout::CheckoutCommand) -> String {
-    cmd.device
-        .as_ref()
-        .map(|d| crate::checkout::display_number(&d.device_code, d.order_number))
-        .unwrap_or_default()
-}
-
-/// Every still-queued offline order ACROSS shifts (newest first) — the search /
-/// history path, where without this an offline order is silently absent from
-/// results. Mirrors `queued` but unscoped to a shift.
-pub(crate) fn queued_all(store: &Store) -> CoreResult<Vec<OrderSummaryView>> {
-    let mut out = Vec::new();
-    for item in store.list_active_of_types(&["create_order"])? {
-        let cmd: crate::checkout::CheckoutCommand = match serde_json::from_str(&item.payload) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-        let r = &cmd.request;
-        out.push(OrderSummaryView {
-            id: item.id.clone(),
-            order_number: None,
-            subtotal_minor: flat_i32(&r.subtotal),
-            tax_minor: flat_i32(&r.tax_amount),
-            total_minor: flat_i32(&r.total_amount),
-            payment_label: r.payment_method.clone(),
-            status: if item.status == "dead" {
-                "failed".into()
-            } else {
-                "queued".into()
-            },
-            created_at: flat(&r.created_at)
-                .map(|d| d.to_rfc3339())
-                .unwrap_or_default(),
-            queued: true,
-            teller_name: None,
-            // A queued `create_order` is a COUNTER sale by construction: a
-            // dine-in bill settles through `settle_ticket`, which is a
-            // different op, and the request carries no ticket for the server
-            // to find. It records those as `takeaway` — so saying `dine_in`
-            // here made every offline sale change its own type the moment it
-            // synced, and the type filter disagree with itself in between.
-            order_type: "takeaway".into(),
-            // Nothing to flag: it has not reached the server, so nothing has
-            // compared it to the menu. The server decides when it lands.
-            price_flagged: false,
-            customer_name: flat(&r.customer_name).filter(|s| !s.is_empty()),
-            order_ref: flat(&r.order_ref).filter(|s| !s.is_empty()),
-            display_number: queued_display_number(&cmd),
-        });
-    }
-    out.reverse();
-    Ok(out)
-}
-
 /// Merge still-queued offline orders with the synced server rows for the history
 /// view. Drops any queued order whose client-minted `order_ref` ALREADY appears on
 /// a server row — the inflight / lost-response window where the local outbox copy
@@ -733,20 +595,10 @@ pub fn merge_for_view(
     out
 }
 
-fn flat<T: Clone>(o: &Option<Option<T>>) -> Option<T> {
-    o.clone().flatten()
-}
-fn flat_i32(o: &Option<Option<i32>>) -> i64 {
-    flat(o).unwrap_or(0) as i64
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::checkout::CheckoutCommand;
 
-    const SHIFT: &str = "00000000-0000-0000-0000-0000000000c0";
-    const OTHER: &str = "00000000-0000-0000-0000-0000000000c9";
 
     fn summary(total: i64, status: &str) -> OrderSummaryView {
         OrderSummaryView {
@@ -853,100 +705,6 @@ mod tests {
             3,
             "nothing on the server → keep all"
         );
-    }
-
-    fn queue_order(store: &Store, id: &str, shift: &str, total: i32) {
-        let mut req = models::CreateOrderRequest::new(
-            uuid::Uuid::parse_str("00000000-0000-0000-0000-0000000000b0").unwrap(),
-            vec![],
-            "Cash".into(),
-            uuid::Uuid::parse_str(shift).unwrap(),
-        );
-        req.subtotal = Some(Some((total as f64 / 1.14).round() as i32));
-        req.tax_amount = Some(Some(total - (total as f64 / 1.14).round() as i32));
-        req.total_amount = Some(Some(total));
-        let cmd = CheckoutCommand { request: req, device: None };
-        store
-            .enqueue(&crate::store::NewOutboxOp {
-                id: id.into(),
-                op_type: "create_order".into(),
-                idempotency_key: id.into(),
-                payload: serde_json::to_string(&cmd).unwrap(),
-                event_at: "2026-06-20T12:00:00+00:00".into(),
-                ..Default::default()
-            })
-            .unwrap();
-    }
-
-    #[test]
-    fn queued_lists_this_shifts_orders_newest_first() {
-        let store = Store::open("").unwrap();
-        queue_order(&store, "o1", SHIFT, 1000);
-        queue_order(&store, "o2", SHIFT, 2280);
-        queue_order(&store, "x1", OTHER, 999); // a different shift → excluded
-
-        let q = queued(&store, SHIFT).unwrap();
-        assert_eq!(q.len(), 2);
-        assert_eq!(q[0].id, "o2"); // newest first
-        assert_eq!(q[0].total_minor, 2280);
-        assert!(q[0].queued);
-        assert_eq!(q[0].order_number, None);
-        assert_eq!(q[0].payment_label, "Cash");
-        assert_eq!(q[0].status, "queued");
-    }
-
-    #[test]
-    fn a_queued_sale_is_a_takeaway_before_and_after_it_syncs() {
-        let store = Store::open("").unwrap();
-        queue_order(&store, "o1", SHIFT, 1000);
-        // The server records a counter sale as `takeaway` — a dine-in bill
-        // settles through a different op entirely. Saying `dine_in` here made
-        // the row change type on sync and the Dine-in filter show a sale that
-        // would leave it an hour later.
-        assert_eq!(queued(&store, SHIFT).unwrap()[0].order_type, "takeaway");
-        assert_eq!(queued_all(&store).unwrap()[0].order_type, "takeaway");
-    }
-
-    #[test]
-    fn queued_marks_dead_commands_failed() {
-        let store = Store::open("").unwrap();
-        queue_order(&store, "o1", SHIFT, 1000);
-        // Find its seq and kill it.
-        let seq = store.list_active().unwrap()[0].seq;
-        store.mark_dead(seq, "rejected").unwrap();
-        let q = queued(&store, SHIFT).unwrap();
-        assert_eq!(q[0].status, "failed");
-    }
-
-    #[test]
-    fn empty_when_no_queued_orders() {
-        let store = Store::open("").unwrap();
-        assert!(queued(&store, SHIFT).unwrap().is_empty());
-    }
-
-    #[test]
-    fn pending_void_ids_collects_queued_voids() {
-        let store = Store::open("").unwrap();
-        assert!(pending_void_ids(&store).unwrap().is_empty());
-
-        let cmd = VoidOrderCommand {
-            order_id: "srv-order-1".into(),
-            request: models::VoidOrderRequest::new("mistake".into()),
-        };
-        store
-            .enqueue(&crate::store::NewOutboxOp {
-                id: "srv-order-1:void".into(),
-                op_type: "void_order".into(),
-                idempotency_key: "srv-order-1:void".into(),
-                payload: serde_json::to_string(&cmd).unwrap(),
-                event_at: "2026-06-20T12:00:00+00:00".into(),
-                ..Default::default()
-            })
-            .unwrap();
-
-        let ids = pending_void_ids(&store).unwrap();
-        assert!(ids.contains("srv-order-1"));
-        assert_eq!(ids.len(), 1);
     }
 
     #[test]
@@ -1451,104 +1209,6 @@ mod tests {
     }
 
     // ---- queued additional coverage ------------------------------------
-
-    #[test]
-    fn queued_ignores_non_create_order_ops() {
-        let store = Store::open("").unwrap();
-        let cmd = VoidOrderCommand {
-            order_id: "srv-1".into(),
-            request: models::VoidOrderRequest::new("oops".into()),
-        };
-        store
-            .enqueue(&crate::store::NewOutboxOp {
-                id: "v1".into(),
-                op_type: "void_order".into(),
-                idempotency_key: "v1".into(),
-                payload: serde_json::to_string(&cmd).unwrap(),
-                event_at: "2026-06-20T12:00:00+00:00".into(),
-                ..Default::default()
-            })
-            .unwrap();
-        assert!(queued(&store, SHIFT).unwrap().is_empty());
-    }
-
-    #[test]
-    fn queued_skips_malformed_create_order_payload() {
-        let store = Store::open("").unwrap();
-        store
-            .enqueue(&crate::store::NewOutboxOp {
-                id: "bad".into(),
-                op_type: "create_order".into(),
-                idempotency_key: "bad".into(),
-                payload: "{not json".into(),
-                event_at: "2026-06-20T12:00:00+00:00".into(),
-                ..Default::default()
-            })
-            .unwrap();
-        queue_order(&store, "good", SHIFT, 1000);
-        let q = queued(&store, SHIFT).unwrap();
-        assert_eq!(q.len(), 1);
-        assert_eq!(q[0].id, "good");
-    }
-
-    #[test]
-    fn queued_single_order_money_split() {
-        let store = Store::open("").unwrap();
-        queue_order(&store, "o1", SHIFT, 1140);
-        let q = queued(&store, SHIFT).unwrap();
-        assert_eq!(q.len(), 1);
-        assert_eq!(q[0].total_minor, 1140);
-        assert_eq!(q[0].subtotal_minor + q[0].tax_minor, 1140);
-    }
-
-    #[test]
-    fn queued_created_at_is_rfc3339_from_request() {
-        let store = Store::open("").unwrap();
-        let mut req = models::CreateOrderRequest::new(uid(60), vec![], "Cash".into(), uid(61));
-        req.till_id = uuid::Uuid::parse_str(SHIFT).unwrap();
-        req.created_at = Some(Some(ts()));
-        let cmd = CheckoutCommand { request: req, device: None };
-        store
-            .enqueue(&crate::store::NewOutboxOp {
-                id: "o1".into(),
-                op_type: "create_order".into(),
-                idempotency_key: "o1".into(),
-                payload: serde_json::to_string(&cmd).unwrap(),
-                event_at: "2026-06-20T12:00:00+00:00".into(),
-                ..Default::default()
-            })
-            .unwrap();
-        let q = queued(&store, SHIFT).unwrap();
-        assert_eq!(q[0].created_at, ts().to_rfc3339());
-    }
-
-    #[test]
-    fn queued_created_at_empty_when_request_has_none() {
-        let store = Store::open("").unwrap();
-        // queue_order leaves created_at unset → empty string fallback.
-        queue_order(&store, "o1", SHIFT, 1000);
-        let q = queued(&store, SHIFT).unwrap();
-        assert_eq!(q[0].created_at, "");
-    }
-
-    #[test]
-    fn pending_void_ids_skips_malformed_and_other_ops() {
-        let store = Store::open("").unwrap();
-        // malformed void payload
-        store
-            .enqueue(&crate::store::NewOutboxOp {
-                id: "vbad".into(),
-                op_type: "void_order".into(),
-                idempotency_key: "vbad".into(),
-                payload: "garbage".into(),
-                event_at: "2026-06-20T12:00:00+00:00".into(),
-                ..Default::default()
-            })
-            .unwrap();
-        // a create_order op is ignored entirely
-        queue_order(&store, "co1", SHIFT, 1000);
-        assert!(pending_void_ids(&store).unwrap().is_empty());
-    }
 
     // Property-based: till_stats must equal an independent re-statement (sum the
     // non-voided totals, count the non-voided orders) for ANY mix — pins the sum
