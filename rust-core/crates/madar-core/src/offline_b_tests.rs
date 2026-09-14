@@ -122,6 +122,10 @@ fn freshness_follows_the_stream_row() {
     let forbidden = crate::error::CoreError::Server { status: 403, code: "FORBIDDEN".into(), detail: String::new() };
     record_pull_outcome(&s, b, Err(&forbidden), now + 3_000);
     assert_eq!(freshness(&s, b, false, now + 3_000).reason.as_deref(), Some("forbidden"));
+    let paced = crate::error::CoreError::Server { status: 429, code: "Too Many Requests".into(), detail: String::new() };
+    record_pull_outcome(&s, b, Err(&paced), now + 4_000);
+    let f = freshness(&s, b, false, now + 4_000);
+    assert_eq!((f.reason.as_deref(), f.banner), (Some("throttled"), None), "pacing shows no banner");
 }
 
 /// Realtime events nudge exactly one debounced pull; a dropped stream starts
@@ -315,6 +319,59 @@ async fn acked_sales_fold_and_survive_the_next_snapshot() {
     let orders = core.list_till_orders().await.unwrap();
     assert_eq!(orders.len(), 1, "the snapshot could not remove a freshly acked sale");
     assert_eq!(core.till_report().await.unwrap().expected_cash_minor, 1_000 + sale.total_minor);
+}
+
+/// A 429 from the replay route paces the drain: the op stays queued with its
+/// retry budget intact, the pass stops, and the core resumes by itself once the
+/// pause is over (the 1000-sale integration run dead-lettered every op past the
+/// limiter's burst before this).
+#[tokio::test]
+async fn a_paced_drain_never_dead_letters_and_resumes_by_itself() {
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::Arc;
+    let refused = Arc::new(AtomicUsize::new(0));
+    let r2 = refused.clone();
+    let stub = Stub::start(move |r| {
+        if r.path.starts_with("/sync/replay") {
+            let body = r.json();
+            // The first three sends are paced.
+            if r2.fetch_add(1, Ordering::SeqCst) < 3 {
+                return Some(StubResponse::json(429, serde_json::json!({"error": "Too many requests just now."})));
+            }
+            return Some(match body["op"].as_str().unwrap_or("") {
+                "open_till" => StubResponse::json(201, serde_json::json!({
+                    "id": body["request"]["id"], "branch_id": testkit::BRANCH, "teller_id": testkit::TELLER,
+                    "teller_name": "Sara", "status": "open", "opening_cash": body["request"]["opening_cash"],
+                    "opened_at": body["request"]["opened_at"], "opening_cash_was_edited": false,
+                    "verification": "unverified", "opened_while_another_open": false, "disagreement_count": 0})),
+                _ => StubResponse::json(200, serde_json::json!({"id": uuid::Uuid::new_v4()})),
+            });
+        }
+        if r.path.starts_with("/sync/pull") {
+            return Some(StubResponse::text(200, r#"{"full":true,"next":5,"has_more":false,"server_time":"2026-09-14T10:00:00Z","types":[],"data":{}}"#));
+        }
+        None
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_methods(&core);
+    core.set_online(true);
+    core.open_till(1_000, None).await.unwrap();
+    core.drain_outbox().await.unwrap();
+    let s = core.sync_status();
+    assert_eq!((s.pending_outbox, s.dead_outbox), (1, 0), "paced, not rejected: {s:?}");
+    let attempts: i64 = core.store.with_conn(|c| Ok(c.query_row("SELECT attempts FROM outbox", [], |r| r.get(0))?)).unwrap();
+    assert_eq!(attempts, 0, "pacing burns no retry budget");
+    assert!(core.current_session().unwrap().online, "a paced server is reachable, not offline");
+    // Nobody calls sync: the core's own resume nudges drain it.
+    for _ in 0..60 {
+        if core.sync_status().pending_outbox == 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    let s = core.sync_status();
+    assert_eq!((s.pending_outbox, s.dead_outbox), (0, 0), "{s:?}");
 }
 
 /// Every read-path mode serves; shadow logs the legacy/new difference.
@@ -576,4 +633,18 @@ async fn watch_tables_delivers_coalesced_batches() {
     let batches = got.lock().unwrap().clone();
     assert!(!batches.is_empty());
     assert!(batches.iter().flatten().any(|t| t == changes::TILLS));
+}
+
+/// A void or refund reason the server would 400 without a note never queues
+/// note-less: an unknown host key keeps its wording, a bare `other` is refused
+/// at the till (found by the backend integration run: both dead-lettered).
+#[test]
+fn an_other_reason_always_reaches_the_server_with_a_note() {
+    use crate::note_for_reason;
+    assert_eq!(note_for_reason("customer_changed_mind", true, None).unwrap().as_deref(), Some("customer_changed_mind"));
+    assert_eq!(note_for_reason("damaged", true, Some("  ".into())).unwrap().as_deref(), Some("damaged"));
+    assert_eq!(note_for_reason("other", true, Some("spilt".into())).unwrap().as_deref(), Some("spilt"));
+    assert!(note_for_reason("other", true, None).is_err());
+    assert!(note_for_reason("", true, None).is_err());
+    assert_eq!(note_for_reason("wrong_order", false, None).unwrap(), None);
 }

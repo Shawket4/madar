@@ -65,6 +65,21 @@ impl MadarCore {
         });
     }
 
+    /// [`Self::nudge_sync`] once `delay` has passed (a paced drain resumes).
+    pub(crate) fn nudge_sync_after(&self, delay: Duration) {
+        let (Some(me), Ok(handle)) = (self.self_arc(), tokio::runtime::Handle::try_current()) else {
+            return;
+        };
+        let weak: Weak<MadarCore> = Arc::downgrade(&me);
+        drop(me);
+        handle.spawn(async move {
+            tokio::time::sleep(delay).await;
+            if let Some(core) = weak.upgrade() {
+                core.nudge_sync();
+            }
+        });
+    }
+
     /// Start the fallback poll if it is not running. It exits by itself once
     /// the session ends; while the SSE stream is connected it only sleeps.
     pub(crate) fn ensure_fallback_poll(&self) {

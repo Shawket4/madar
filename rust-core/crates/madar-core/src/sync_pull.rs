@@ -40,7 +40,7 @@ pub struct FreshnessView {
     /// `fresh` | `stale` | `bootstrapping`.
     pub state: String,
     /// When stale / bootstrapping: `offline` | `auth_expired` | `server_error` |
-    /// `forbidden` | `decode` | `never_synced`.
+    /// `forbidden` | `decode` | `throttled` | `never_synced`.
     pub reason: Option<String>,
     /// Seconds since the last completed pull (`None` = never).
     pub age_secs: Option<u64>,
@@ -68,6 +68,7 @@ pub(crate) fn error_kind(e: &CoreError) -> &'static str {
         CoreError::Forbidden { .. } => "forbidden",
         CoreError::Server { status: 401, .. } => "auth",
         CoreError::Server { status: 403, .. } => "forbidden",
+        CoreError::Server { status: 429, .. } => "throttled",
         CoreError::Internal { detail } if detail.starts_with("decode:") => "decode",
         e if crate::net::is_connectivity_failure(e) => "offline",
         _ => "server",
@@ -132,6 +133,8 @@ pub(crate) fn freshness(store: &Store, branch: &str, realtime_live: bool, now_ms
             "forbidden" => "forbidden",
             "decode" => "decode",
             "offline" => "offline",
+            // Paced by the server (429): the next pass resumes in seconds, no banner.
+            "throttled" => "throttled",
             _ => "server_error",
         }
         .to_string()

@@ -995,6 +995,18 @@ impl MadarCore {
                         .mark_retry_no_count(item.seq, now_ms() + K_NETWORK_RETRY_MS)?;
                     return Ok(());
                 }
+                // Paced by the server: wait a moment, uncounted, and stop the pass
+                // (every op after this one would be refused the same way).
+                SendOutcome::Throttled(err) => {
+                    self.store
+                        .mark_retry_no_count(item.seq, now_ms() + K_THROTTLE_RETRY_MS)?;
+                    self.push_diag("warn", format!("sync paced by the server: {err}"));
+                    self.nudge_sync_after(std::time::Duration::from_millis(K_THROTTLE_RETRY_MS as u64));
+                    if acked_any {
+                        self.store.emit_changes([changes::OUTBOX]);
+                    }
+                    return Ok(());
+                }
                 // Server error (5xx) / undecodable 2xx → counted exponential
                 // backoff; dead-letter after the retry budget is exhausted.
                 SendOutcome::Retry(err) => {
@@ -1703,6 +1715,11 @@ enum SendOutcome {
     Offline,
     /// Retryable server/transport error — counted exponential backoff.
     Retry(String),
+    /// 429: the server is pacing this client. Nothing is wrong with the op, so
+    /// it never burns retry budget (a long offline backlog replays past the
+    /// limiter's burst — found by the 1000-sale integration run, where every op
+    /// past the burst dead-lettered); the pass stops and resumes shortly.
+    Throttled(String),
 }
 
 /// Idempotency profile of an endpoint, deciding how 409/404 are read.
@@ -1747,6 +1764,7 @@ fn classify_send(err: CoreError, idem: Idem) -> SendOutcome {
             (404, Idem::VoidIdem) => {
                 SendOutcome::Dead(format!("order not found on server — {detail}"))
             }
+            (429, _) => SendOutcome::Throttled(detail),
             _ => SendOutcome::Dead(detail),
         },
     }
@@ -1765,6 +1783,26 @@ fn map_void_reason(reason: &str) -> madar_api::models::VoidReason {
         "quality" | "quality_issue" => R::QualityIssue,
         _ => R::Other,
     }
+}
+
+/// The note a void or refund carries to the server. The backend refuses reason
+/// `other` without a note (400, so a queued op would dead-letter and the money
+/// would stay wrong). A host key the vocabulary does not know maps to `other`
+/// and keeps its own wording as the note when the teller wrote none; a literal
+/// `other` with no note is refused here, while the teller is still at the till.
+pub(crate) fn note_for_reason(raw: &str, mapped_is_other: bool, note: Option<String>) -> Result<Option<String>, CoreError> {
+    let note = note.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
+    if !mapped_is_other || note.is_some() {
+        return Ok(note);
+    }
+    let raw = raw.trim();
+    if raw.is_empty() || raw == "other" {
+        return Err(CoreError::Validation {
+            field: "note".into(),
+            detail: "say why: a note is required when the reason is other".into(),
+        });
+    }
+    Ok(Some(raw.to_string()))
 }
 
 /// Host key to the drawer's movement vocabulary.
@@ -1923,6 +1961,9 @@ const K_MAX_RETRIES: i64 = 8;
 const K_BASE_BACKOFF_MS: i64 = 2_000; // 2s
 const K_MAX_BACKOFF_MS: i64 = 300_000; // 5min
 const K_NETWORK_RETRY_MS: i64 = 15_000; // fixed reschedule for connectivity blips
+/// How long a 429 holds the queue before the next pass (the server's bucket
+/// refills a request every ~0.3 s, so a couple of seconds sends a few more).
+const K_THROTTLE_RETRY_MS: i64 = 2_000;
                                         // Consecutive UNCONFIRMED failed /health probes before we drop the online banner.
                                         // A real outbox send failure flips offline immediately; this only gates the
                                         // empty-backlog case so a lone resume/rotation blip can't flap the banner.
@@ -6092,8 +6133,9 @@ impl MadarCore {
         // Translate the host reason key to the backend's accepted vocabulary — an
         // unmapped value (e.g. the old "mistake"/"customer"/"quality") would 400 and
         // dead-letter the void, leaving the refunded order counted as revenue.
-        let mut request =
-            madar_api::models::VoidOrderRequest::new(map_void_reason(&reason).to_string());
+        let mapped = map_void_reason(&reason);
+        let note = note_for_reason(&reason, mapped == madar_api::models::VoidReason::Other, note)?;
+        let mut request = madar_api::models::VoidOrderRequest::new(mapped.to_string());
         request.note = Some(note);
         request.restore_inventory = Some(Some(restore_inventory));
         request.voided_at = Some(Some(voided_at));
@@ -6297,6 +6339,7 @@ impl MadarCore {
             order_uuid,
             map_refund_reason(&reason),
         );
+        let note = note_for_reason(&reason, request.reason == madar_api::models::RefundReason::Other, note)?;
         request.note = Some(note);
         request.issued_at = Some(Some(issued_at));
         request.client_ref = Some(Some(client_ref));
@@ -7749,6 +7792,10 @@ mod tests {
         // 404: idempotent gone → ack; but a VOID 404 (order never landed) → dead.
         assert!(ack(&classify_send(srv(404), Idem::Yes)));
         assert!(dead(&classify_send(srv(404), Idem::VoidIdem)));
+        // 429: paced, never dead, whatever the endpoint.
+        for idem in [Idem::No, Idem::Yes, Idem::VoidIdem] {
+            assert!(matches!(classify_send(srv(429), idem), SendOutcome::Throttled(_)));
+        }
     }
 
     fn srv(status: u16) -> CoreError {
