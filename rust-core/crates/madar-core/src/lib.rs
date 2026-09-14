@@ -1199,6 +1199,21 @@ impl MadarCore {
                     Ok(c) => c,
                     Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
                 };
+                // A void queued against a sale that was itself still queued names the
+                // sale by its client key; once that sale's create has acked, its row
+                // knows the server id — which is what the server looks the void up by.
+                // (Before the ledger this dead-lettered with "order not found".)
+                if let Ok(Some(sid)) = self.store.with_conn(|c| {
+                    use rusqlite::OptionalExtension;
+                    Ok(c.query_row(
+                        "SELECT server_id FROM ledger_orders WHERE okey=?1 AND server_id IS NOT NULL AND server_id<>okey",
+                        [&cmd.order_id],
+                        |r| r.get::<_, String>(0),
+                    )
+                    .optional()?)
+                }) {
+                    cmd.order_id = sid;
+                }
                 rebase_dopt(&mut cmd.request.voided_at, delta);
                 (
                     serde_json::json!({ "op": "void_order", "teller_id": teller_id, "order_id": cmd.order_id, "request": cmd.request }),
@@ -6283,6 +6298,15 @@ impl MadarCore {
         for (prefix, cap) in CACHE_ROW_CAPS {
             n += self.store.purge_cache_keep_newest(prefix, *cap)?;
         }
+        // The ledger rows: the same window, and never a row an op still holds.
+        let now = chrono::Utc::now().timestamp_millis();
+        n += self.store.with_tx_touch(|tx, touched| {
+            let k = ledger::retention::sweep(tx, now)?;
+            if k > 0 {
+                touched.extend([changes::TILLS, changes::ORDERS, changes::CASH_MOVEMENTS, changes::REFUNDS]);
+            }
+            Ok(k)
+        })?;
         // Deleting rows only frees pages inside the file; hand them back to the
         // device, or the retention window buys space nobody can use.
         if n > 0 {

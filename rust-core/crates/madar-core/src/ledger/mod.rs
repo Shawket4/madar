@@ -333,3 +333,5 @@ pub(crate) fn delete_row(conn: &Connection, ty: &str, key: &str) -> CoreResult<u
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod prop_tests;
