@@ -123,6 +123,30 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
   here, search across tills, a points balance) go through `ledger_ops::within`
   (5 s) and fail offline with a clear error. Never add a blob cache or a
   server-then-cache read; add the type to the feed.
+- **The network rule: reads never touch the network.** Every screen read and
+  every periodic refresh (a tick, a pulse, a table change, a timer) answers from
+  local rows. The network is used ONLY for:
+  - `POST /sync/pull` — on a realtime `sync.changed`, a reconnect (the
+    offline→online edge of `refresh_connectivity`), a till open, a manual sync,
+    an ack, and the realtime-down fallback poll (5 s while pulls bring changes,
+    backing off to 60 s when they don't);
+  - `POST /sync/replay` (the outbox drain), the realtime SSE stream, `/health`;
+  - asset bundle / file downloads; sign-in, token refresh, the offline-auth bundle;
+  - server-only actions a PERSON triggers, never on a timer: search across tills,
+    a loyalty lookup, a table's history, a sale or delivery never seen here, the
+    delivery accepting toggle, the routing-mode write, a force close, the manual
+    catalogue refresh;
+  - one-off background FILLS of what the feed cannot give yet (a past till not
+    held here, the past-till history backfill, a branch-settings field an older
+    backend omits) — once per session, never repeated on a beat.
+  Branch settings the till reads (routing mode, stations, delivery settings, the
+  loyalty programme, the tax policy) ride `branch_settings`
+  (`branch_reads.rs`; MadarRust `20260917090000_sync_feed_branch_reads.sql`).
+  A new read that seems to need the network means a missing feed type: add it
+  to the changefeed. `tests/network_budget.rs` (`MADAR_OB_TESTS=network_budget`)
+  counts every request against the real backend, and
+  `apps/madar/test/network_budget_test.dart` pins that no tick calls a
+  network-capable bridge method.
 - Real-backend scenarios: `tool/offline_b_backend.sh` (see its header);
   `MADAR_OB_TESTS=readpath_parity` checks every screen read against the server.
 
