@@ -3,14 +3,12 @@
 //! the device offline mid-session — the same core, the same store, no second
 //! "dead-url" core standing in for the network going away.
 //!
-//! Ignored by default. Run against a THROWAWAY copy of a local DB (never the dev DB):
+//! Ignored by `cargo test` (it needs a backend and a database). Run it with ONE
+//! command, which builds the backend, copies a local database, starts the server,
+//! runs these scenarios, and tears everything down:
 //!
 //! ```sh
-//! createdb -p 5432 -T madar_dash_tills madar_ob_it
-//! DATABASE_URL=postgres://localhost:5432/madar_ob_it JWT_SECRET=it BIND_ADDR=127.0.0.1:8093 madar-rust &
-//! MADAR_OB_BASE=http://127.0.0.1:8093 MADAR_OB_DB=postgres://localhost:5432/madar_ob_it \
-//! MADAR_OB_BRANCH=<an active branch with a menu and a cash method> \
-//!   cargo test -p madar-core --test offline_b_backend -- --ignored --nocapture --test-threads=1
+//! tool/offline_b_backend.sh            # from the madar repo root
 //! ```
 //!
 //! What it proves:
@@ -225,6 +223,11 @@ async fn signed_in(base: &str, db_path: &str, teller: &str, branch: &str) -> Arc
 
 async fn core_at(base: &str, db_path: &str, teller: &str, branch: &str) -> Arc<MadarCore> {
     let core = signed_in(base, db_path, teller, branch).await;
+    // These scenarios prove the local-first reads: every area on `new` (the
+    // product default is `shadow`).
+    for area in madar_core::readpath::AREAS {
+        core.set_read_path_mode(area.to_string(), ReadPathMode::New).unwrap();
+    }
     core.refresh_connectivity().await;
     core.refresh_catalog().await.expect("catalog");
     core.sync_full().await.expect("first snapshot");
