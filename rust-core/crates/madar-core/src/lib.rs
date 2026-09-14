@@ -4458,7 +4458,7 @@ impl MadarCore {
     pub fn cart_totals(&self, table_id: Option<String>) -> Result<cart::CartTotals, CoreError> {
         let policy = self
             .current_session()
-            .map(|s| s.tax_policy())
+            .map(|s| s.counter_policy())
             .unwrap_or_default();
         cart::totals(&self.store, table_id.as_deref(), &policy)
     }
@@ -4472,7 +4472,7 @@ impl MadarCore {
     ) -> Result<cart::CartTotals, CoreError> {
         let policy = self
             .current_session()
-            .map(|s| s.tax_policy())
+            .map(|s| s.counter_policy())
             .unwrap_or_default();
         let lines = cart::lines(&self.store, table_id.as_deref())?;
         let rewards = loyalty::reward_lines_from_cart(&lines);
@@ -5620,7 +5620,7 @@ impl MadarCore {
                 })?;
             (
                 branch,
-                s.snapshot.tax_policy(),
+                s.snapshot.counter_policy(),
                 s.snapshot.display_name.clone(),
             )
         };
@@ -9592,13 +9592,18 @@ mod lifecycle_tests {
         cart::set_cart_payload(&core.store, None, &line).unwrap();
         let out = core.cart_totals(None).unwrap();
         assert_eq!(out.subtotal_minor, 10000);
-        assert_eq!(out.service_charge_minor, 1200, "12% of the bill");
-        // Inclusive: the 112.00 the customer pays already contains the tax.
-        assert_eq!(out.total_minor, 11200, "the menu price is what they pay");
-        assert!(
-            out.tax_minor > 0 && out.tax_minor < 1400,
-            "tax is carved OUT of the gross, not added: got {}",
-            out.tax_minor
+        // A counter cart is a takeaway: the service charge is dine-in only, so
+        // the branch's 12% does not reach it — the server prices it at zero
+        // and used to refuse the till's figure with the charge on.
+        assert_eq!(out.service_charge_minor, 0, "no service charge on a counter sale");
+        // Inclusive: the 100.00 the customer pays already contains the tax.
+        assert_eq!(out.total_minor, 10000, "the menu price is what they pay");
+        assert_eq!(out.tax_minor, 1228, "tax is carved OUT of the gross, not added");
+        let with_rewards = core.cart_totals_with_rewards(None, vec![]).unwrap();
+        assert_eq!(
+            (with_rewards.service_charge_minor, with_rewards.total_minor),
+            (0, 10000),
+            "the rewards path prices the same counter sale"
         );
     }
 

@@ -129,6 +129,17 @@ impl SessionSnapshot {
             service_charge_taxable: self.service_charge_taxable,
         }
     }
+
+    /// The policy a COUNTER sale is priced under: a cart rung straight
+    /// through the till (counter, takeaway, a parked cart) is a takeaway, and
+    /// the service charge is dine-in only. The rule is the shared engine's
+    /// (`TaxPolicy::for_sale`), pinned against the server by `tax_vectors.json`
+    /// — pricing a counter cart with the branch's charge on it is the sale the
+    /// server refused with "This till priced the order at …".
+    pub(crate) fn counter_policy(&self) -> crate::tax::TaxPolicy {
+        self.tax_policy()
+            .for_sale(crate::tax::SaleChannel::Takeaway, false)
+    }
 }
 
 // ── internal state (held by MadarCore) ─────────────────────────────────────
