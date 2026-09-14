@@ -231,12 +231,8 @@ impl MadarCore {
         }
         use madar_api::apis::open_tickets_api as ot;
         let config = self.api.config();
-        let fetch = ot::get_open_ticket(&config, ot::GetOpenTicketParams { id: ticket_id });
-        match tokio::time::timeout(crate::ledger_ops::FETCH_TIMEOUT, fetch).await {
-            Ok(Ok(v)) => Ok(tickets::to_view_with(&v, false, &tickets::pending_line_voids(&self.store)?, self.service_charge_taxable())),
-            Ok(Err(e)) => Err(crate::net::map_api_error(e)),
-            Err(_) => Err(CoreError::Offline { detail: "the server did not answer in time".into() }),
-        }
+        let v = crate::ledger_ops::within(ot::get_open_ticket(&config, ot::GetOpenTicketParams { id: ticket_id })).await?;
+        Ok(tickets::to_view_with(&v, false, &tickets::pending_line_voids(&self.store)?, self.service_charge_taxable()))
     }
 
     /// The kitchen board: open kitchen tickets (for a station: those with work

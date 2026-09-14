@@ -5123,12 +5123,8 @@ impl MadarCore {
     pub async fn list_branches(&self) -> Result<Vec<session::BranchView>, CoreError> {
         use madar_api::apis::branches_api;
         let (org_id, _) = self.org_branch()?;
-        let branches = branches_api::list_branches(
-            &self.api.config(),
-            branches_api::ListBranchesParams { org_id },
-        )
-        .await
-        .map_err(net::map_api_error)?;
+        let config = self.api.config();
+        let branches = ledger_ops::within(branches_api::list_branches(&config, branches_api::ListBranchesParams { org_id })).await?;
         Ok(branches
             .into_iter()
             .filter(|b| b.is_active)
@@ -5911,26 +5907,33 @@ impl MadarCore {
     pub async fn loyalty_settings(&self) -> Result<loyalty::LoyaltyProgrammeView, CoreError> {
         use madar_api::apis::loyalty_api;
         let branch_id = self.session_branch_id()?;
+        let cached = cached_views::<madar_api::models::LoyaltySettings>(&self.store, K_LOYALTY_SETTINGS).into_iter().next();
+        let online = self.current_session().map(|s| s.online).unwrap_or(false);
         // The BRANCH scope: it reports what the branch runs on, inherited or
         // its own, so an override reaches the till it applies to.
-        let settings = match loyalty_api::get_loyalty_settings(
-            &self.api.config(),
-            loyalty_api::GetLoyaltySettingsParams {
-                branch_id: Some(branch_id),
-            },
-        )
-        .await
-        {
-            Ok(s) => {
-                cache_views(&self.store, K_LOYALTY_SETTINGS, std::slice::from_ref(&s));
-                s
+        let fetch = |me: Arc<MadarCore>, branch_id: String| async move {
+            let config = me.api.config();
+            let s = ledger_ops::within(loyalty_api::get_loyalty_settings(
+                &config,
+                loyalty_api::GetLoyaltySettingsParams { branch_id: Some(branch_id) },
+            ))
+            .await?;
+            cache_views(&me.store, K_LOYALTY_SETTINGS, std::slice::from_ref(&s));
+            Ok::<_, CoreError>(s)
+        };
+        let settings = match (cached, online, self.self_arc()) {
+            // What this till knows answers now; the server's copy follows.
+            (Some(c), true, Some(me)) => {
+                if let Ok(h) = tokio::runtime::Handle::try_current() {
+                    h.spawn(async move {
+                        let _ = fetch(me, branch_id).await;
+                    });
+                }
+                c
             }
-            Err(_) => {
-                cached_views::<madar_api::models::LoyaltySettings>(&self.store, K_LOYALTY_SETTINGS)
-                    .into_iter()
-                    .next()
-                    .unwrap_or_default()
-            }
+            (Some(c), _, _) => c,
+            (None, true, Some(me)) => fetch(me, branch_id).await.unwrap_or_default(),
+            (None, _, _) => Default::default(),
         };
         Ok(loyalty::programme_view(&settings, &self.current_locale()))
     }
@@ -5974,14 +5977,10 @@ impl MadarCore {
                 detail: "scan a card or type a phone number".into(),
             });
         }
-        let result = loyalty_api::loyalty_lookup(
-            &self.api.config(),
-            loyalty_api::LoyaltyLookupParams {
-                lookup_request: request,
-            },
-        )
-        .await
-        .map_err(net::map_api_error)?;
+        let config = self.api.config();
+        let result =
+            ledger_ops::within(loyalty_api::loyalty_lookup(&config, loyalty_api::LoyaltyLookupParams { lookup_request: request }))
+                .await?;
         Ok(loyalty::scan_view(&result, &self.current_locale()))
     }
 
@@ -6008,14 +6007,10 @@ impl MadarCore {
         let member = uuid::Uuid::parse_str(&customer_id).map_err(|_| bad("customer_id"))?;
         let mut request = madar_api::models::LookupRequest::new(branch_uuid);
         request.customer_id = Some(Some(member));
-        let result = loyalty_api::loyalty_lookup(
-            &self.api.config(),
-            loyalty_api::LoyaltyLookupParams {
-                lookup_request: request,
-            },
-        )
-        .await
-        .map_err(net::map_api_error)?;
+        let config = self.api.config();
+        let result =
+            ledger_ops::within(loyalty_api::loyalty_lookup(&config, loyalty_api::LoyaltyLookupParams { lookup_request: request }))
+                .await?;
         Ok(loyalty::scan_view(&result, &self.current_locale()))
     }
 
@@ -6240,9 +6235,13 @@ impl MadarCore {
             channel: None,
             include_items: Some(false),
         };
-        let resp = orders_api::list_orders(&self.api.config(), params)
-            .await
-            .map_err(net::map_api_error)?;
+        // Online by nature (every till in the branch, any age): refused offline
+        // at once, and never waits past the read timeout.
+        if !self.current_session().map(|s| s.online).unwrap_or(false) {
+            return Err(CoreError::Offline { detail: "searching every till needs a connection".into() });
+        }
+        let config = self.api.config();
+        let resp = ledger_ops::within(orders_api::list_orders(&config, params)).await?;
         if let Some(o) = resp.data.first() {
             timefmt::remember_payload_tz(&self.store, &o.timezone);
         }
@@ -7213,14 +7212,32 @@ impl MadarCore {
     pub async fn kds_list_stations(&self) -> Result<Vec<kds::KdsStationView>, CoreError> {
         use madar_api::apis::kitchen_api as k;
         let branch_id = self.session_branch_id()?;
-        let stations: Vec<madar_api::models::KitchenStation> =
-            match k::list_stations(&self.api.config(), k::ListStationsParams { branch_id }).await {
-                Ok(list) => {
-                    cache_views(&self.store, "cache:kds_stations", &list);
-                    list
+        let cached: Option<Vec<madar_api::models::KitchenStation>> =
+            self.store.kv_get("cache:kds_stations").ok().flatten().and_then(|raw| serde_json::from_str(&raw).ok());
+        let online = self.current_session().map(|s| s.online).unwrap_or(false);
+        let stations: Vec<madar_api::models::KitchenStation> = match (cached, online) {
+            // The picker opens on what this device knows; the server's list
+            // replaces it in the background for the next read.
+            (Some(list), true) => {
+                if let (Some(me), Ok(h)) = (self.self_arc(), tokio::runtime::Handle::try_current()) {
+                    h.spawn(async move {
+                        let config = me.api.config();
+                        if let Ok(list) = ledger_ops::within(k::list_stations(&config, k::ListStationsParams { branch_id })).await {
+                            cache_views(&me.store, "cache:kds_stations", &list);
+                        }
+                    });
                 }
-                Err(_) => cached_views(&self.store, "cache:kds_stations"),
-            };
+                list
+            }
+            (Some(list), false) => list,
+            (None, true) => {
+                let config = self.api.config();
+                let list = ledger_ops::within(k::list_stations(&config, k::ListStationsParams { branch_id })).await?;
+                cache_views(&self.store, "cache:kds_stations", &list);
+                list
+            }
+            (None, false) => Vec::new(),
+        };
         Ok(stations.iter().map(kds::station_view).collect())
     }
 
@@ -7252,22 +7269,30 @@ impl MadarCore {
     /// kitchen onto a screen must not leave tills bumping for another shift.
     pub async fn kitchen_routing_mode(&self) -> Result<Option<String>, CoreError> {
         let branch_id = self.session_branch_id()?;
-        Ok(self
-            .fetch_routing_mode(&branch_id)
-            .await
-            .or_else(|| self.store.kv_get(kds::K_ROUTING_MODE).ok().flatten()))
+        let known = self.store.kv_get(kds::K_ROUTING_MODE).ok().flatten();
+        if known.is_some() {
+            // The last effective mode answers now; the server's refreshes it.
+            if let (Some(me), Ok(h)) = (self.self_arc(), tokio::runtime::Handle::try_current()) {
+                h.spawn(async move {
+                    let _ = me.fetch_routing_mode(&branch_id).await;
+                });
+            }
+            return Ok(known);
+        }
+        Ok(self.fetch_routing_mode(&branch_id).await)
     }
 
     /// Ask the server for the effective routing mode and cache it. `None` when
     /// offline or unauthorised — the caller falls back to the last known one.
     async fn fetch_routing_mode(&self, branch_id: &str) -> Option<String> {
         use madar_api::apis::kitchen_api as k;
-        let resp = k::get_routing_mode(
-            &self.api.config(),
+        let config = self.api.config();
+        let resp = ledger_ops::within(k::get_routing_mode(
+            &config,
             k::GetRoutingModeParams {
                 branch_id: branch_id.to_string(),
             },
-        )
+        ))
         .await
         .ok()?;
         // `effective`, not `mode`: `mode` is null whenever the branch is on
@@ -7323,10 +7348,13 @@ impl MadarCore {
         id: String,
     ) -> Result<delivery::DeliveryOrderView, CoreError> {
         use madar_api::apis::delivery_api as d;
+        // The queue's rows hold every live delivery: read there first.
+        if let Some(v) = self.list_delivery_orders(None).await?.into_iter().find(|o| o.id == id) {
+            return Ok(v);
+        }
         let loc = self.current_locale();
-        let o = d::get_delivery_order(&self.api.config(), d::GetDeliveryOrderParams { id })
-            .await
-            .map_err(net::map_api_error)?;
+        let config = self.api.config();
+        let o = ledger_ops::within(d::get_delivery_order(&config, d::GetDeliveryOrderParams { id })).await?;
         Ok(self.localize_payment_hint(delivery::order_view(&o, &loc, self.cached_prep_minutes())))
     }
 
@@ -7468,12 +7496,10 @@ impl MadarCore {
     pub async fn delivery_settings(&self) -> Result<delivery::DeliverySettingsView, CoreError> {
         use madar_api::apis::delivery_api as d;
         let branch = self.session_branch_id()?;
-        let s = d::get_branch_settings(
-            &self.api.config(),
-            d::GetBranchSettingsParams { branch_id: branch },
-        )
-        .await
-        .map_err(net::map_api_error)?;
+        // The accepting overrides are live server state: online, under the
+        // read timeout.
+        let config = self.api.config();
+        let s = ledger_ops::within(d::get_branch_settings(&config, d::GetBranchSettingsParams { branch_id: branch })).await?;
         let view = delivery::settings_view(&s);
         let _ = self
             .store
@@ -10265,19 +10291,19 @@ impl MadarCore {
         table_id: String,
     ) -> Result<madar_api::models::TableHistory, CoreError> {
         use madar_api::apis::floor_api;
-        floor_api::table_history(
-            &self.api.config(),
+        let config = self.api.config();
+        // The real reason: offline, not allowed, no such table, or a reply
+        // this build cannot read. Calling all of them "offline" sent a
+        // manager to check the wifi over a permissions problem.
+        ledger_ops::within(floor_api::table_history(
+            &config,
             floor_api::TableHistoryParams {
                 id: table_id,
                 from: None,
                 to: None,
             },
-        )
+        ))
         .await
-        // The real reason: offline, not allowed, no such table, or a reply
-        // this build cannot read. Calling all of them "offline" sent a
-        // manager to check the wifi over a permissions problem.
-        .map_err(net::map_api_error)
     }
 
     /// Bring today's bookings up to date. They arrive through the changefeed

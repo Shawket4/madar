@@ -16,8 +16,21 @@ use crate::error::CoreError;
 use crate::ledger::views;
 use crate::{changes, net, orders, parity, till, MadarCore};
 
-/// The longest a read's own network call may take (a sale never seen here).
-pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_secs(6);
+/// The longest a screen read's own network call may take: a sale never seen
+/// here, and the reads that are online by nature (a points balance, a search
+/// across tills). The HTTP client's own limit is 20 s; no screen waits that.
+pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// A screen read's network call under [`FETCH_TIMEOUT`]: the server's answer,
+/// its error, or `Offline` when it did not answer in time.
+pub(crate) async fn within<T, E>(
+    call: impl std::future::Future<Output = Result<T, madar_api::apis::Error<E>>>,
+) -> Result<T, CoreError> {
+    match tokio::time::timeout(FETCH_TIMEOUT, call).await {
+        Ok(r) => r.map_err(net::map_api_error),
+        Err(_) => Err(CoreError::Offline { detail: "the server did not answer in time".into() }),
+    }
+}
 /// The longest a background fill of a till may take before it is abandoned.
 pub(crate) const FILL_TIMEOUT: Duration = Duration::from_secs(15);
 /// How often one till may be filled in the background.
@@ -119,18 +132,12 @@ impl MadarCore {
             return Err(not_here());
         }
         let config = self.api.config();
-        let fetch = orders_api::get_order(&config, orders_api::GetOrderParams { order_id: order_id.to_string() });
-        match tokio::time::timeout(FETCH_TIMEOUT, fetch).await {
-            Ok(Ok(o)) => {
-                crate::timefmt::remember_tz(&self.store, o.timezone.as_deref().unwrap_or(""));
-                if let Ok(v) = serde_json::to_value(&o) {
-                    let _ = self.store.with_conn(|c| crate::ledger::fold::put_order_detail(c, order_id, &v));
-                }
-                Ok(o)
-            }
-            Ok(Err(e)) => Err(net::map_api_error(e)),
-            Err(_) => Err(not_here()),
+        let o = within(orders_api::get_order(&config, orders_api::GetOrderParams { order_id: order_id.to_string() })).await?;
+        crate::timefmt::remember_tz(&self.store, o.timezone.as_deref().unwrap_or(""));
+        if let Ok(v) = serde_json::to_value(&o) {
+            let _ = self.store.with_conn(|c| crate::ledger::fold::put_order_detail(c, order_id, &v));
         }
+        Ok(o)
     }
 
     /// The report a till's rows give, whether or not the device holds it all:
@@ -272,17 +279,8 @@ impl MadarCore {
             });
         }
         let config = self.api.config();
-        let fetch = refunds_api::list_order_refunds(
-            &config,
-            refunds_api::ListOrderRefundsParams { order_id: order_id.clone() },
-        );
-        match tokio::time::timeout(FETCH_TIMEOUT, fetch).await {
-            Ok(Ok(r)) => Ok(self.with_pending_refunds(orders::order_refunds_view(&r))),
-            Ok(Err(e)) => Err(net::map_api_error(e)),
-            Err(_) => Err(CoreError::Offline {
-                detail: "the server did not answer in time".into(),
-            }),
-        }
+        let r = within(refunds_api::list_order_refunds(&config, refunds_api::ListOrderRefundsParams { order_id })).await?;
+        Ok(self.with_pending_refunds(orders::order_refunds_view(&r)))
     }
 
     /// Every refund issued from a till's drawer.

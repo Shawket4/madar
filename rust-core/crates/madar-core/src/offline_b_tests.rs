@@ -1213,3 +1213,41 @@ async fn a_till_not_held_here_is_filled_in_the_background() {
     }
     assert_eq!(stub.requests("/orders").len(), 1, "one fill, not one per read");
 }
+
+/// The reads that are online by nature (a search across tills, a points
+/// balance, a table's history, the delivery accepting switches, the till
+/// reconcile) wait no longer than the read timeout on a hanging link; the ones
+/// a device remembers (the loyalty programme, the kitchen stations, the
+/// routing mode) answer at once from what it knows.
+#[tokio::test]
+async fn online_reads_are_bounded_and_remembered_reads_answer_at_once() {
+    let (base, hang) = hanging_server().await;
+    let core = testkit::online_core(&base, "").await;
+    let programme = madar_api::models::LoyaltySettings::default();
+    core.store.kv_put(crate::K_LOYALTY_SETTINGS, &serde_json::json!([programme]).to_string()).unwrap();
+    core.store.kv_put("cache:kds_stations", "[]").unwrap();
+    core.store.kv_put(crate::kds::K_ROUTING_MODE, "kds").unwrap();
+    hang.store(true, Ordering::SeqCst);
+    core.set_online(true);
+
+    let t0 = std::time::Instant::now();
+    assert!(core.loyalty_settings().await.is_ok());
+    assert!(core.kds_list_stations().await.is_ok());
+    assert_eq!(core.kitchen_routing_mode().await.unwrap().as_deref(), Some("kds"));
+    assert!(t0.elapsed() < Duration::from_millis(300), "remembered reads: {:?}", t0.elapsed());
+
+    let t0 = std::time::Instant::now();
+    let (search, lookup, history, delivery, till, elsewhere) = tokio::join!(
+        core.search_orders(None, None, None, None, None, 1),
+        core.loyalty_lookup(Some("card".into()), None),
+        core.table_history("00000000-0000-0000-0000-0000000000a1".into()),
+        core.delivery_settings(),
+        core.refresh_till(),
+        core.check_till_elsewhere(),
+    );
+    let waited = t0.elapsed();
+    assert!(search.is_err() && lookup.is_err() && history.is_err() && delivery.is_err());
+    assert!(till.is_err(), "the reconcile says it could not reach the server");
+    assert!(elsewhere.is_ok(), "the open check falls back to what sign-in said");
+    assert!(waited < crate::ledger_ops::FETCH_TIMEOUT + Duration::from_secs(2), "{waited:?}");
+}

@@ -71,16 +71,18 @@ impl MadarCore {
         }
     }
 
+    /// `/tills/.../current` under the read timeout: the till screen and the
+    /// open button wait on it, and a hanging link must not hold them.
     async fn fetch_prefill(&self, branch: &str) -> Result<models::TillPreFill, CoreError> {
-        tills_api::get_current_till(
-            &self.api.config(),
+        let config = self.api.config();
+        crate::ledger_ops::within(tills_api::get_current_till(
+            &config,
             tills_api::GetCurrentTillParams {
                 branch_id: branch.to_string(),
                 teller_id: None,
             },
-        )
+        ))
         .await
-        .map_err(net::map_api_error)
     }
 
     /// The live server check: `/tills/.../current`, else — when that call fails
@@ -548,12 +550,13 @@ impl MadarCore {
         let dev = self.lan_device_id();
         let mut out: Vec<till::BranchOpenTillView> = Vec::new();
         if sp.online {
-            if let Ok(list) = tills_api::list_open_tills(
-                &self.api.config(),
+            let config = self.api.config();
+            if let Ok(list) = crate::ledger_ops::within(tills_api::list_open_tills(
+                &config,
                 tills_api::ListOpenTillsParams {
                     branch_id: sp.branch_id.clone(),
                 },
-            )
+            ))
             .await
             {
                 for t in list.iter().map(TillRecord::from_api) {
