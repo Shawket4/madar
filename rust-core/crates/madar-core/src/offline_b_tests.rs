@@ -1344,3 +1344,53 @@ async fn an_older_feed_fills_each_branch_read_once_and_never_polls() {
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(asked(), before);
 }
+
+/// A rate changed in the dashboard reaches the till with the feed's settings
+/// row, and neither a floor refresh nor a manual sync then asks anything but
+/// the changefeed.
+#[tokio::test]
+async fn the_tax_policy_rides_the_feed_and_refreshes_ask_only_the_feed() {
+    let stub = Stub::start(|r| {
+        (r.path.starts_with("/sync/pull") || r.path.starts_with("/sync/replay")).then(|| {
+            StubResponse::text(200, r#"{"full":false,"next":5,"has_more":false,"server_time":"2026-09-14T10:00:00Z","changes":[]}"#)
+        })
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_rows(
+        &core,
+        &[(
+            "branch_settings",
+            serde_json::json!({"id": testkit::BRANCH, "tax_policy": {"tax_rate": 0.05, "tax_inclusive": true,
+                "service_charge_rate": 0.12, "service_charge_taxable": false}, "org_require_table_for_orders": true}),
+        )],
+    );
+    core.set_online(true);
+    core.project_pull_mirrors(testkit::BRANCH);
+    let s = core.session.read().unwrap().as_ref().unwrap().snapshot.clone();
+    assert_eq!((s.tax_rate, s.tax_inclusive, s.service_charge_rate, s.service_charge_taxable), (0.05, true, 0.12, false));
+    assert!(s.require_table_for_orders);
+
+    let reads = || -> Vec<String> {
+        stub.seen
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|r| !r.path.starts_with("/sync/") && !r.path.starts_with("/health") && !r.path.starts_with("/auth/"))
+            .map(|r| r.path.clone())
+            .collect()
+    };
+    for _ in 0..3 {
+        core.refresh_floor().await.unwrap();
+        core.refresh_arrivals().await.unwrap();
+        let _ = core.sync_now().await.unwrap();
+    }
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let other = reads();
+    // The one read allowed: the once-per-branch backfill of the past tills
+    // older than the snapshot window (flagged, never repeated).
+    assert!(
+        other.len() <= 1 && other.iter().all(|p| p.starts_with(&format!("/tills/branches/{}", testkit::BRANCH))),
+        "refreshes asked the server for reads: {other:?}"
+    );
+}

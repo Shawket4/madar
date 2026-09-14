@@ -36,6 +36,10 @@ impl FillState {
     pub(crate) fn till_filled(&self, till_id: &str) -> bool {
         self.tills.lock().unwrap_or_else(|e| e.into_inner()).contains(till_id)
     }
+    /// `true` the first time `key` is asked for this session.
+    pub(crate) fn first_attempt(&self, key: &str) -> bool {
+        self.tills.lock().unwrap_or_else(|e| e.into_inner()).insert(format!("attempt:{key}"))
+    }
     pub(crate) fn mark_till_filled(&self, till_id: &str) {
         self.tills.lock().unwrap_or_else(|e| e.into_inner()).insert(till_id.to_string());
     }

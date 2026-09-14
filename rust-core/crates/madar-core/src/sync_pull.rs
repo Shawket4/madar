@@ -1086,6 +1086,25 @@ impl MadarCore {
             let _ = store.kv_put(crate::K_DELIVERY_PREP_MINUTES, &prep.to_string());
         }
         self.adopt_feed_permissions(branch);
+        self.adopt_feed_tax_policy(branch);
+    }
+
+    /// The branch's effective tax policy from its synced settings row (a rate
+    /// changed in the dashboard reaches the till with the feed). A row without
+    /// `tax_policy` (an older server) changes nothing.
+    pub(crate) fn adopt_feed_tax_policy(&self, branch: &str) {
+        let Some(row) = branch_settings_row(&self.store, branch) else { return };
+        let Some(p) = row.get("tax_policy").filter(|p| p.is_object()) else { return };
+        let (Some(rate), Some(incl), Some(sc), Some(sct)) = (
+            p.get("tax_rate").and_then(serde_json::Value::as_f64),
+            p.get("tax_inclusive").and_then(serde_json::Value::as_bool),
+            p.get("service_charge_rate").and_then(serde_json::Value::as_f64),
+            p.get("service_charge_taxable").and_then(serde_json::Value::as_bool),
+        ) else {
+            return;
+        };
+        let table = row.get("org_require_table_for_orders").and_then(serde_json::Value::as_bool).unwrap_or(false);
+        self.adopt_tax_policy(rate, incl, sc, sct, table);
     }
 
     /// The signed-in person's effective grants from their synced teller row

@@ -5479,10 +5479,14 @@ impl MadarCore {
     /// another till seated a party). Best-effort: offline leaves the mirrors
     /// untouched and the canvas keeps rendering what it has.
     pub async fn refresh_floor(&self) -> Result<(), CoreError> {
-        self.refresh_floor_and_held().await;
-        // The arrivals list rides along: a `booking.*` event triggers the
-        // same floor refresh the host already does.
-        let _ = self.refresh_arrivals().await;
+        // Once the branch holds a full snapshot the floor, the waitlist and the
+        // arrivals are rows the feed keeps current (realtime nudges a pull; the
+        // core's fallback poll covers a dropped stream): a screen opening asks
+        // the server nothing. Before it, the first snapshot is what is missing.
+        let branch = self.session_branch_id()?;
+        if !self.pull_feed_complete(&branch) {
+            self.nudge_sync();
+        }
         Ok(())
     }
 
@@ -5716,18 +5720,22 @@ impl MadarCore {
         self.unpark_if_token_accepted().await;
         // Adopt any new tax policy BEFORE pricing anything else: a till that
         // has been running since before a rate change would otherwise keep
-        // building bills the server will refuse.
-        self.refresh_tax_policy().await;
-        // Same reasoning, one screen over: a shop that switched its kitchen
-        // onto a KDS must not leave this till showing a Kitchen segment.
-        let _ = self.kitchen_routing_mode().await;
+        // building bills the server will refuse. The feed carries it
+        // (`branch_settings.tax_policy`, adopted with every pull); only a feed
+        // without it asks `/auth/me`, and only on this explicit sync.
+        let branch = self.session_branch_id().unwrap_or_default();
+        if crate::sync_pull::branch_setting(&self.store, &branch, "tax_policy").is_none() {
+            self.refresh_tax_policy().await;
+        }
         // An explicit sync clears the offline (no-count) backoff so a backlog built
         // during an outage flushes NOW, not after the ~15s network-retry window.
         let _ = self.store.clear_network_backoff();
         let drained = self.drain_outbox().await;
-        // Pull AFTER push so the floor/held mirrors reflect what just acked
-        // (and pick up other tills' parks/moves). Best-effort.
-        self.refresh_floor_and_held().await;
+        // Before the branch's first full snapshot the floor still comes from its
+        // own endpoints; after it, the pull that follows this push carries it.
+        if !self.pull_feed_complete(&branch) {
+            self.refresh_floor_and_held().await;
+        }
         drained
     }
 
@@ -5758,26 +5766,42 @@ impl MadarCore {
         let Ok(me) = auth_api::me(&self.api.config()).await else {
             return;
         };
+        let p = &me.tax_policy;
+        self.adopt_tax_policy(
+            p.tax_rate,
+            p.tax_inclusive,
+            p.service_charge_rate,
+            p.service_charge_taxable,
+            me.require_table_for_orders.unwrap_or(false),
+        );
+    }
 
+    /// Adopt a tax policy (and the require-table switch) the shop changed since
+    /// sign-in: the session, its blob, and the offline cache.
+    pub(crate) fn adopt_tax_policy(
+        &self,
+        tax_rate: f64,
+        tax_inclusive: bool,
+        service_charge_rate: f64,
+        service_charge_taxable: bool,
+        requires_table: bool,
+    ) {
         let blob = {
             let mut g = self.session.write().unwrap_or_else(|e| e.into_inner());
             match g.as_mut() {
                 Some(s) => {
-                    let p = &me.tax_policy;
-                    let requires_table = me.require_table_for_orders.unwrap_or(false);
-                    let changed = s.snapshot.tax_rate != p.tax_rate
-                        || s.snapshot.tax_inclusive != p.tax_inclusive
-                        || s.snapshot.service_charge_rate != p.service_charge_rate
-                        || s.snapshot.service_charge_taxable != p.service_charge_taxable
+                    let changed = s.snapshot.tax_rate != tax_rate
+                        || s.snapshot.tax_inclusive != tax_inclusive
+                        || s.snapshot.service_charge_rate != service_charge_rate
+                        || s.snapshot.service_charge_taxable != service_charge_taxable
                         || s.snapshot.require_table_for_orders != requires_table;
                     if !changed {
                         None
                     } else {
-                        // Adopting a policy the shop changed since sign-in.
-                        s.snapshot.tax_rate = p.tax_rate;
-                        s.snapshot.tax_inclusive = p.tax_inclusive;
-                        s.snapshot.service_charge_rate = p.service_charge_rate;
-                        s.snapshot.service_charge_taxable = p.service_charge_taxable;
+                        s.snapshot.tax_rate = tax_rate;
+                        s.snapshot.tax_inclusive = tax_inclusive;
+                        s.snapshot.service_charge_rate = service_charge_rate;
+                        s.snapshot.service_charge_taxable = service_charge_taxable;
                         // Switching this on changes the till's HOME SCREEN, so
                         // it has to arrive the same way a rate does — on sync,
                         // not on the next sign-in.
@@ -5788,7 +5812,6 @@ impl MadarCore {
                 None => None,
             }
         };
-
         if let Some((blob, snapshot)) = blob {
             let _ = self.store.blob_put(session::K_SESSION_BLOB, &blob);
             // And the offline cache, so the next unlock without a network
@@ -10432,8 +10455,7 @@ impl MadarCore {
     /// like every other board, so this asks for a pull soon and returns at once;
     /// the arrivals list re-reads on the table change.
     pub async fn refresh_arrivals(&self) -> Result<(), CoreError> {
-        self.nudge_sync();
-        Ok(())
+        self.refresh_floor().await
     }
 
     /// The party arrived: mark the booking seated (optionally on another

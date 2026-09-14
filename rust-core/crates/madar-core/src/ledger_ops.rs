@@ -337,6 +337,11 @@ impl MadarCore {
         if self.store.kv_get(&flag).ok().flatten().is_some() {
             return;
         }
+        // One attempt per session: a failed backfill waits for the next launch
+        // rather than riding every pull.
+        if !self.branch_fills.first_attempt(&flag) {
+            return;
+        }
         let Ok(page) = tills_api::list_tills(
             &self.api.config(),
             tills_api::ListTillsParams {
