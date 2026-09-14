@@ -272,7 +272,34 @@ async fn an_offline_cold_start_reads_and_acts() {
     let counts = take_requests();
     report("offline cold start (refused connections)", &counts);
 
-    // Back online: everything drains and nothing dead-letters.
+    // The offline cold start asked nothing of the network (the cable was out:
+    // anything it tried is a refused connection, and screens must not wait on it).
+    let bad = forbidden(&counts);
+    assert!(bad.is_empty(), "the offline screens tried the server: {bad:?}");
+
+    // Back online: the teller signs in again (an offline unlock holds no token),
+    // everything drains and nothing dead-letters.
     proxy.online();
+    let deadline = Instant::now() + Duration::from_secs(120);
+    loop {
+        match core
+            .sign_in(madar_core::session::LoginRequest {
+                mode: madar_core::session::LoginMode::Pin,
+                name: Some(teller.clone()),
+                pin: Some("1234".into()),
+                branch_id: Some(fx.branch.clone()),
+                email: None,
+                password: None,
+                org_id: None,
+            })
+            .await
+        {
+            Ok(s) if s.online => break,
+            other => {
+                assert!(Instant::now() < deadline, "online sign-in: {other:?}");
+                tokio::time::sleep(Duration::from_secs(3)).await;
+            }
+        }
+    }
     settle(&core, 180).await;
 }
