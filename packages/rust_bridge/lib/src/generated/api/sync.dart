@@ -4,7 +4,12 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'delivery.dart';
+import 'kds.dart';
+import 'orders.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'tickets.dart';
+import 'till.dart';
 
 class AssetSyncView {
   final int needed;
@@ -153,6 +158,35 @@ class OutboxItemView {
 /// local rows only).
 enum ReadPathMode { legacy, shadow, new_ }
 
+/// How far a board's rows can be trusted.
+class SyncMeta {
+  final FreshnessView freshness;
+
+  /// This device's changes to the board still queued or sending.
+  final int pending;
+
+  /// This device's changes to the board the server refused.
+  final int failed;
+
+  const SyncMeta({
+    required this.freshness,
+    required this.pending,
+    required this.failed,
+  });
+
+  @override
+  int get hashCode => freshness.hashCode ^ pending.hashCode ^ failed.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SyncMeta &&
+          runtimeType == other.runtimeType &&
+          freshness == other.freshness &&
+          pending == other.pending &&
+          failed == other.failed;
+}
+
 /// Sync health (§10.3).
 class SyncStatusView {
   /// `idle` | `draining` | `pulling` | `applying` | `done` | `offline` | `error`.
@@ -224,6 +258,96 @@ class SyncStatusView {
           authPaused == other.authPaused &&
           blocked == other.blocked &&
           freshness == other.freshness;
+}
+
+class SyncedDeliveries {
+  final List<DeliveryOrderView> data;
+  final SyncMeta meta;
+
+  const SyncedDeliveries({required this.data, required this.meta});
+
+  @override
+  int get hashCode => data.hashCode ^ meta.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SyncedDeliveries &&
+          runtimeType == other.runtimeType &&
+          data == other.data &&
+          meta == other.meta;
+}
+
+class SyncedKitchen {
+  final List<KdsTicketView> data;
+  final SyncMeta meta;
+
+  const SyncedKitchen({required this.data, required this.meta});
+
+  @override
+  int get hashCode => data.hashCode ^ meta.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SyncedKitchen &&
+          runtimeType == other.runtimeType &&
+          data == other.data &&
+          meta == other.meta;
+}
+
+class SyncedOrders {
+  final List<OrderSummaryView> data;
+  final SyncMeta meta;
+
+  const SyncedOrders({required this.data, required this.meta});
+
+  @override
+  int get hashCode => data.hashCode ^ meta.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SyncedOrders &&
+          runtimeType == other.runtimeType &&
+          data == other.data &&
+          meta == other.meta;
+}
+
+class SyncedTickets {
+  final List<TicketView> data;
+  final SyncMeta meta;
+
+  const SyncedTickets({required this.data, required this.meta});
+
+  @override
+  int get hashCode => data.hashCode ^ meta.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SyncedTickets &&
+          runtimeType == other.runtimeType &&
+          data == other.data &&
+          meta == other.meta;
+}
+
+class SyncedTillReport {
+  final TillReportView data;
+  final SyncMeta meta;
+
+  const SyncedTillReport({required this.data, required this.meta});
+
+  @override
+  int get hashCode => data.hashCode ^ meta.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SyncedTillReport &&
+          runtimeType == other.runtimeType &&
+          data == other.data &&
+          meta == other.meta;
 }
 
 /// The Open-till screen's sync strip (decision 15).

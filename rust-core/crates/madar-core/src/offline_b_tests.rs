@@ -1082,3 +1082,28 @@ async fn a_peers_rounds_and_line_voids_overlay_the_bill() {
     let b = core.list_open_tickets().await.unwrap().into_iter().find(|t| t.id == ticket).unwrap();
     assert_eq!(b.lines.len(), 2, "the listed round is not overlaid again");
 }
+
+/// A board read carries its trust: the stream's freshness and this device's
+/// own queued / failed changes to THAT board (a queued movement is not a bill's).
+#[tokio::test]
+async fn board_reads_carry_their_freshness_and_own_queue() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    seed_rows(&core, &[]);
+    core.open_till(0, None).await.unwrap();
+    ring(&core, 400, CASH, 400).await;
+    core.record_cash_movement(100, "float".into(), Some("pay_in".into()), None).await.unwrap();
+    core.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET status='dead' WHERE op_type='cash_movement'", [])?)).unwrap();
+
+    let bills = core.list_open_tickets_synced().await.unwrap();
+    assert!(bills.data.is_empty());
+    assert_eq!((bills.meta.pending, bills.meta.failed), (0, 0), "nothing of this device's touches the bills");
+    assert_eq!(bills.meta.freshness, core.sync_status().freshness);
+
+    let report = core.till_report_synced().await.unwrap();
+    assert_eq!(report.meta.failed, 1, "the refused movement");
+    assert_eq!(report.meta.pending, 2, "the open and the sale still queued");
+    let orders = core.list_till_orders_synced().await.unwrap();
+    assert_eq!(orders.data.len(), 1);
+    assert_eq!((orders.meta.pending, orders.meta.failed), (1, 0));
+}

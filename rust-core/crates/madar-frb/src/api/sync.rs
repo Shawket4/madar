@@ -284,3 +284,74 @@ impl MadarBridge {
         self.inner.version()
     }
 }
+
+// ── Board reads with their trust (OFFLINE_B_DESIGN §6 `Synced<T>`) ─────────
+
+pub use madar_core::synced::SyncMeta;
+
+/// How far a board's rows can be trusted.
+#[frb(mirror(SyncMeta))]
+pub struct _SyncMeta {
+    pub freshness: FreshnessView,
+    /// This device's changes to the board still queued or sending.
+    pub pending: u32,
+    /// This device's changes to the board the server refused.
+    pub failed: u32,
+}
+
+pub struct SyncedTickets {
+    pub data: Vec<crate::api::tickets::TicketView>,
+    pub meta: SyncMeta,
+}
+
+pub struct SyncedOrders {
+    pub data: Vec<crate::api::orders::OrderSummaryView>,
+    pub meta: SyncMeta,
+}
+
+pub struct SyncedTillReport {
+    pub data: crate::api::till::TillReportView,
+    pub meta: SyncMeta,
+}
+
+pub struct SyncedKitchen {
+    pub data: Vec<crate::api::kds::KdsTicketView>,
+    pub meta: SyncMeta,
+}
+
+pub struct SyncedDeliveries {
+    pub data: Vec<crate::api::delivery::DeliveryOrderView>,
+    pub meta: SyncMeta,
+}
+
+impl MadarBridge {
+    /// The open bills with their freshness and this device's queue for them.
+    pub async fn list_open_tickets_synced(&self) -> Result<SyncedTickets, MadarError> {
+        let s = self.inner.list_open_tickets_synced().await.map_err(MadarError::from)?;
+        Ok(SyncedTickets { data: s.data, meta: s.meta })
+    }
+
+    /// The current till's sales with their freshness and queue.
+    pub async fn list_till_orders_synced(&self) -> Result<SyncedOrders, MadarError> {
+        let s = self.inner.list_till_orders_synced().await.map_err(MadarError::from)?;
+        Ok(SyncedOrders { data: s.data, meta: s.meta })
+    }
+
+    /// The current till's Z report with its freshness and queue.
+    pub async fn till_report_synced(&self) -> Result<SyncedTillReport, MadarError> {
+        let s = self.inner.till_report_synced().await.map_err(MadarError::from)?;
+        Ok(SyncedTillReport { data: s.data, meta: s.meta })
+    }
+
+    /// The kitchen board with its freshness and queue.
+    pub async fn kds_list_synced(&self, station_id: Option<String>) -> Result<SyncedKitchen, MadarError> {
+        let s = self.inner.kds_list_synced(station_id).await.map_err(MadarError::from)?;
+        Ok(SyncedKitchen { data: s.data, meta: s.meta })
+    }
+
+    /// The delivery queue with its freshness and queue.
+    pub async fn list_delivery_orders_synced(&self, status: Option<String>) -> Result<SyncedDeliveries, MadarError> {
+        let s = self.inner.list_delivery_orders_synced(status).await.map_err(MadarError::from)?;
+        Ok(SyncedDeliveries { data: s.data, meta: s.meta })
+    }
+}

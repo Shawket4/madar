@@ -449,6 +449,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The branch's kitchen stations (the KDS device-setup / chit-routing picker).
   Future<List<KdsStationView>> kdsListStations();
 
+  /// The kitchen board with its freshness and queue.
+  Future<SyncedKitchen> kdsListSynced({String? stationId});
+
   /// Un-bump a kitchen line (undo a mistaken bump). Same outbox-first path.
   Future<void> kdsUnbump({required String itemId});
 
@@ -494,6 +497,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// wire filter (e.g. "received,confirmed"); `None` = all. Online-only.
   Future<List<DeliveryOrderView>> listDeliveryOrders({String? status});
 
+  /// The delivery queue with its freshness and queue.
+  Future<SyncedDeliveries> listDeliveryOrdersSynced({String? status});
+
   Future<List<DiscountView>> listDiscounts();
 
   /// The branch's parked drafts (every till's), newest first. Drafts being
@@ -518,6 +524,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// `status = "queued"` — offline-first visibility before the fire syncs.
   Future<List<TicketView>> listOpenTickets();
 
+  /// The open bills with their freshness and this device's queue for them.
+  Future<SyncedTickets> listOpenTicketsSynced();
+
   /// What has already been given back against one sale, and what may still
   /// be. Cached per order, with any refund still in the outbox overlaid, so
   /// a teller offline cannot hand the same money over twice.
@@ -536,6 +545,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The current shift's orders — still-queued sales (offline-safe) plus
   /// the server's synced orders when online (best-effort).
   Future<List<OrderSummaryView>> listTillOrders();
+
+  /// The current till's sales with their freshness and queue.
+  Future<SyncedOrders> listTillOrdersSynced();
 
   /// Every refund issued during a shift — the Z-report's line, and why the
   /// counted drawer is lighter than the sales say.
@@ -1018,6 +1030,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   Future<TillReportView> tillReport();
 
   Future<TillReportView> tillReportFor({required String tillId});
+
+  /// The current till's Z report with its freshness and queue.
+  Future<SyncedTillReport> tillReportSynced();
 
   Future<TillStatsView> tillStats({required List<OrderSummaryView> orders});
 

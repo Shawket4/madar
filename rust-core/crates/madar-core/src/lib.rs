@@ -98,6 +98,7 @@ mod testkit;
 mod offline_b_tests;
 pub(crate) mod schema;
 pub(crate) mod integrity;
+pub mod synced;
 /// Waiter open tickets — fire-now-pay-later dine-in tickets via the outbox.
 pub mod tickets;
 /// Drawer and Orders decisions the screens used to make (labels, refund

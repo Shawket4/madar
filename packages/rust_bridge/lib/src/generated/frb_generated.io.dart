@@ -731,7 +731,25 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
 
   @protected
+  SyncMeta dco_decode_sync_meta(dynamic raw);
+
+  @protected
   SyncStatusView dco_decode_sync_status_view(dynamic raw);
+
+  @protected
+  SyncedDeliveries dco_decode_synced_deliveries(dynamic raw);
+
+  @protected
+  SyncedKitchen dco_decode_synced_kitchen(dynamic raw);
+
+  @protected
+  SyncedOrders dco_decode_synced_orders(dynamic raw);
+
+  @protected
+  SyncedTickets dco_decode_synced_tickets(dynamic raw);
+
+  @protected
+  SyncedTillReport dco_decode_synced_till_report(dynamic raw);
 
   @protected
   TableHistoryView dco_decode_table_history_view(dynamic raw);
@@ -1692,7 +1710,25 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
 
   @protected
+  SyncMeta sse_decode_sync_meta(SseDeserializer deserializer);
+
+  @protected
   SyncStatusView sse_decode_sync_status_view(SseDeserializer deserializer);
+
+  @protected
+  SyncedDeliveries sse_decode_synced_deliveries(SseDeserializer deserializer);
+
+  @protected
+  SyncedKitchen sse_decode_synced_kitchen(SseDeserializer deserializer);
+
+  @protected
+  SyncedOrders sse_decode_synced_orders(SseDeserializer deserializer);
+
+  @protected
+  SyncedTickets sse_decode_synced_tickets(SseDeserializer deserializer);
+
+  @protected
+  SyncedTillReport sse_decode_synced_till_report(SseDeserializer deserializer);
 
   @protected
   TableHistoryView sse_decode_table_history_view(SseDeserializer deserializer);
@@ -2920,8 +2956,32 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_sync_meta(SyncMeta self, SseSerializer serializer);
+
+  @protected
   void sse_encode_sync_status_view(
     SyncStatusView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_synced_deliveries(
+    SyncedDeliveries self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_synced_kitchen(SyncedKitchen self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_synced_orders(SyncedOrders self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_synced_tickets(SyncedTickets self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_synced_till_report(
+    SyncedTillReport self,
     SseSerializer serializer,
   );
 
