@@ -144,6 +144,12 @@ pub(crate) async fn offline_core(base: &str, db_path: &str) -> Arc<MadarCore> {
         app_version: None,
     })
     .unwrap();
+    // The scenario tests exercise the local-first reads, so they run with every
+    // area on `new` (the product default is `shadow`; see readpath.rs and
+    // `a_fresh_device_shadows_every_read`).
+    for area in crate::readpath::AREAS {
+        crate::readpath::set_mode(&core.store, area, crate::readpath::ReadPathMode::New).unwrap();
+    }
     let salt = SaltString::encode_b64(b"madar-test-salt").unwrap();
     let phc = Argon2::default().hash_password(b"1234", &salt).unwrap().to_string();
     core.store

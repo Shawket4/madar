@@ -466,6 +466,7 @@ docs/SizeOut.md
 docs/SizeOverrideOut.md
 docs/SkuCost.md
 docs/SlotAvailability.md
+docs/SnapshotCursor.md
 docs/Sort.md
 docs/StaffApi.md
 docs/StaffDocument.md
@@ -1056,6 +1057,7 @@ src/models/size_out.rs
 src/models/size_override_out.rs
 src/models/sku_cost.rs
 src/models/slot_availability.rs
+src/models/snapshot_cursor.rs
 src/models/sort.rs
 src/models/staff_document.rs
 src/models/staff_request.rs

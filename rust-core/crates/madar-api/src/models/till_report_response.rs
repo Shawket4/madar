@@ -73,6 +73,9 @@ pub struct TillReportResponse {
     pub total_tips: i64,
     #[serde(rename = "voided_amount")]
     pub voided_amount: i64,
+    /// The branch changefeed horizon read BEFORE the figures (OFFLINE_B_DESIGN §7): every change with `seq <= as_of_seq` is in this report. A device whose cursor has reached it, with nothing of the till still on its way, can take these figures as the authority. `0` when no horizon was available (then it is never newer than any cursor). Additive.
+    #[serde(rename = "as_of_seq", skip_serializing_if = "Option::is_none")]
+    pub as_of_seq: Option<i64>,
     #[serde(
         rename = "old_bills_at_close",
         default,
@@ -139,6 +142,7 @@ impl TillReportResponse {
             total_payments,
             total_tips,
             voided_amount,
+            as_of_seq: None,
             old_bills_at_close: None,
             open_bills_at_close: None,
             order_number_range: Box::new(order_number_range),

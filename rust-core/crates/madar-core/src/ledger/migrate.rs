@@ -189,7 +189,9 @@ fn history_caches(tx: &Connection, device_branch: &str) -> CoreResult<()> {
             let branch = branch_of_till(tx, &till)?;
             for o in list_of(&raw) {
                 let Some(id) = s(&o, "id") else { continue };
-                if super::order_key_for(tx, id)?.is_some() {
+                let probe = json!({"id": id, "order_ref": o.get("order_ref")});
+                let k = super::resolve_key(tx, T_ORDER, &probe, id)?;
+                if stored(tx, T_ORDER, &k)?.is_some() {
                     continue;
                 }
                 let row = json!({
@@ -211,11 +213,12 @@ fn history_caches(tx: &Connection, device_branch: &str) -> CoreResult<()> {
         let till = k.trim_start_matches("cache:cash:").to_string();
         for m in list_of(&raw) {
             let Some(id) = s(&m, "id") else { continue };
-            if stored(tx, T_CASH, id)?.is_some() {
+            let probe = json!({"id": id, "client_ref": m.get("client_ref")});
+            if stored(tx, T_CASH, &super::resolve_key(tx, T_CASH, &probe, id)?)?.is_some() {
                 continue;
             }
             let row = json!({
-                "id": id, "client_ref": id, "till_id": till, "amount": m.get("amount_minor"),
+                "id": id, "client_ref": m.get("client_ref"), "till_id": till, "amount": m.get("amount_minor"),
                 "kind": m.get("kind"), "note": m.get("note"), "moved_by_name": m.get("moved_by_name"),
                 "created_at": m.get("created_at"),
             });
@@ -231,8 +234,9 @@ fn history_caches(tx: &Connection, device_branch: &str) -> CoreResult<()> {
             "INSERT INTO order_details(order_id, raw, fetched_at) VALUES(?1, ?2, ?3) ON CONFLICT(order_id) DO NOTHING",
             params![id, full.to_string(), super::now_ms()],
         )?;
-        if super::order_key_for(tx, &id)?.is_none() {
-            write_row(tx, T_ORDER, &id, &full, Origin::Fetch, None)?;
+        let k = super::resolve_key(tx, T_ORDER, &full, &id)?;
+        if stored(tx, T_ORDER, &k)?.is_none() {
+            write_row(tx, T_ORDER, &k, &full, Origin::Fetch, None)?;
         }
     }
 
@@ -255,12 +259,15 @@ fn history_caches(tx: &Connection, device_branch: &str) -> CoreResult<()> {
         for view in list_of(&raw) {
             for r in view.get("refunds").and_then(Value::as_array).cloned().unwrap_or_default() {
                 let Some(id) = s(&r, "id") else { continue };
-                if r.get("queued").and_then(Value::as_bool) == Some(true) || stored(tx, T_REFUND, id)?.is_some() {
+                let probe = json!({"id": id, "client_ref": r.get("client_ref")});
+                if r.get("queued").and_then(Value::as_bool) == Some(true)
+                    || stored(tx, T_REFUND, &super::resolve_key(tx, T_REFUND, &probe, id)?)?.is_some()
+                {
                     continue;
                 }
                 let Some(till) = till_hint.clone() else { continue };
                 let row = json!({
-                    "id": id, "order_id": r.get("order_id"), "till_id": till, "amount": r.get("amount_minor"),
+                    "id": id, "client_ref": r.get("client_ref"), "order_id": r.get("order_id"), "till_id": till, "amount": r.get("amount_minor"),
                     "method": r.get("method"), "is_cash": r.get("is_cash"), "reason": r.get("reason"),
                     "note": r.get("note"), "issued_at": r.get("issued_at"), "issued_by_name": r.get("issued_by_name"),
                     "lines": r.get("lines").cloned().unwrap_or(json!([])).as_array().map(|ls| ls.iter().map(|l| json!({

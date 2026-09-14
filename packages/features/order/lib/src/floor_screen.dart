@@ -58,8 +58,7 @@ class FloorScreen extends ConsumerStatefulWidget {
   ConsumerState<FloorScreen> createState() => _FloorScreenState();
 }
 
-class _FloorScreenState extends ConsumerState<FloorScreen>
-    with RealtimeGatedPoll<FloorScreen> {
+class _FloorScreenState extends ConsumerState<FloorScreen> {
   String? _sectionId;
 
   /// Null until the first build picks the device's default: list on a phone,
@@ -552,10 +551,6 @@ class _FloorScreenState extends ConsumerState<FloorScreen>
       ..listen(ticketTickProvider, (_, _) {
         unawaited(_notifier.loadOpenTickets());
       });
-    realtimeGatedPoll(
-      interval: const Duration(seconds: 20),
-      onPoll: () => unawaited(_notifier.syncFloor()),
-    );
 
     final layout = MadarLayout.of(context);
     _view ??= layout.pick(phone: FloorView.list, tablet: FloorView.plan);

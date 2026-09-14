@@ -131,8 +131,7 @@ class OrderScreen extends ConsumerStatefulWidget {
   ConsumerState<OrderScreen> createState() => _OrderScreenState();
 }
 
-class _OrderScreenState extends ConsumerState<OrderScreen>
-    with RealtimeGatedPoll<OrderScreen> {
+class _OrderScreenState extends ConsumerState<OrderScreen> {
   final _search = TextEditingController();
   bool _searching = false;
 
@@ -362,10 +361,6 @@ class _OrderScreenState extends ConsumerState<OrderScreen>
       ..listen(localeProvider.select((s) => s.locale), (_, _) {
         unawaited(_notifier.loadCatalog());
       });
-    realtimeGatedPoll(
-      interval: const Duration(seconds: 20),
-      onPoll: () => unawaited(_notifier.loadOpenTickets()),
-    );
 
     final layout = MadarLayout.of(context);
     final order = ref.watch(orderProvider);

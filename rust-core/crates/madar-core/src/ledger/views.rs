@@ -501,11 +501,18 @@ pub(crate) fn store_fetched_orders(store: &Store, rows: &[Value]) -> CoreResult<
     store.with_tx_touch(|tx, touched| {
         for v in rows {
             let Some(key) = super::key_of(T_ORDER, v) else { continue };
+            // The sale this list row IS — rung here and acked, fed, or fetched
+            // before — under whatever key it lives (§7).
+            let key = super::resolve_key(tx, T_ORDER, v, &key)?;
             if super::is_protected(tx, T_ORDER, &key)? {
                 continue;
             }
-            if super::stored(tx, T_ORDER, &key)?.map(|p| p.srv_seq > 0).unwrap_or(false) {
-                continue; // the feed's version is newer than any list read
+            if let Some(p) = super::stored_meta(tx, T_ORDER, &key)? {
+                // The feed's version, a row rung here or an ack's answer all know
+                // more than a list read (a list row has no cash flag on its legs).
+                if p.srv_seq > 0 || p.origin == "local" || p.acked {
+                    continue;
+                }
             }
             super::write_row(tx, T_ORDER, &key, v, super::Origin::Fetch, None)?;
         }

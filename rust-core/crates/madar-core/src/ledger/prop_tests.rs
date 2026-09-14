@@ -41,6 +41,12 @@ enum Step {
     Pull { duplicate: bool, stale_replay: bool },
     /// A crash in the middle of a local write (the transaction rolls back).
     CrashedSell(i64),
+    /// A list read of the till (`GET /orders?till_id`): every server sale, with
+    /// or without its client key on the wire (an older server sends none).
+    HistoryFetch(bool),
+    /// A pre-B store's `cache:order:*` records migrated into rows (step 4),
+    /// with or without the client key.
+    Migrate(bool),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -48,6 +54,8 @@ enum Outcome {
     Ack,
     LostResponse,
     Offline,
+    /// Applied and answered, but with no body to fold (the row keeps no server id).
+    AckNoBody,
     /// The server refused it (dead-lettered); the teller later gives up on it.
     Dead,
 }
@@ -57,7 +65,9 @@ fn step() -> impl Strategy<Value = Step> {
         4 => (1i64..50, any::<bool>()).prop_map(|(a, c)| Step::Sell(a * 100, c)),
         1 => (0usize..6).prop_map(Step::Void),
         1 => (-20i64..20).prop_filter("non-zero", |a| *a != 0).prop_map(|a| Step::Cash(a * 50)),
-        5 => prop_oneof![4 => Just(Outcome::Ack), 2 => Just(Outcome::LostResponse), 2 => Just(Outcome::Offline), 1 => Just(Outcome::Dead)].prop_map(Step::Send),
+        5 => prop_oneof![4 => Just(Outcome::Ack), 2 => Just(Outcome::AckNoBody), 2 => Just(Outcome::LostResponse), 2 => Just(Outcome::Offline), 1 => Just(Outcome::Dead)].prop_map(Step::Send),
+        1 => any::<bool>().prop_map(Step::HistoryFetch),
+        1 => any::<bool>().prop_map(Step::Migrate),
         1 => (1i64..30, any::<bool>()).prop_map(|(a, c)| Step::Remote(a * 100, c)),
         2 => (any::<bool>(), any::<bool>()).prop_map(|(d, s)| Step::Pull { duplicate: d, stale_replay: s }),
         1 => (1i64..10).prop_map(|a| Step::CrashedSell(a * 100)),
@@ -173,7 +183,7 @@ fn ctx() -> PageCtx {
 }
 
 fn sale_row(key: &str, amount: i64, cash: bool) -> Value {
-    json!({"id": key, "idempotency_key": key, "branch_id": BRANCH, "till_id": TILL, "status": "completed",
+    json!({"id": key, "idempotency_key": key, "order_ref": format!("REF-{key}"), "branch_id": BRANCH, "till_id": TILL, "status": "completed",
            "payment_method": if cash { "Cash" } else { "Card" }, "total_amount": amount, "tip_amount": 0,
            "created_at": "2026-09-14T09:00:00Z",
            "payment_legs": [{"method": if cash { "Cash" } else { "Card" }, "amount": amount, "is_cash": cash}]})
@@ -280,6 +290,16 @@ impl Device {
                 // The response never arrived: the op goes back to pending.
                 self.store.mark_retry_no_count(item.seq, 0).unwrap();
             }
+            Outcome::AckNoBody => {
+                server.apply(&item);
+                self.store
+                    .with_tx(|tx| {
+                        crate::store::mark_acked_on(tx, item.seq, None)?;
+                        super::fold::fold(tx, &item, None, &[])?;
+                        Ok(())
+                    })
+                    .unwrap();
+            }
             Outcome::Ack => {
                 let body = server.apply(&item);
                 self.store
@@ -321,6 +341,46 @@ impl Device {
 
     fn drawer(&self) -> i64 {
         self.store.with_conn(|c| report::compute(c, TILL, &[])).unwrap().unwrap().expected_cash
+    }
+
+    /// The server's sales as a list read returns them.
+    fn listed(server: &Server, with_key: bool) -> Vec<Value> {
+        server
+            .orders
+            .values()
+            .map(|o| {
+                let mut v = o.clone();
+                if !with_key {
+                    v.as_object_mut().unwrap().remove("idempotency_key");
+                }
+                v
+            })
+            .collect()
+    }
+
+    fn history_fetch(&self, server: &Server, with_key: bool) {
+        super::views::store_fetched_orders(&self.store, &Self::listed(server, with_key)).unwrap();
+    }
+
+    fn migrate(&self, server: &Server, with_key: bool) {
+        for v in Self::listed(server, with_key) {
+            self.store.kv_put(&format!("cache:order:{}", v["id"].as_str().unwrap()), &json!([v]).to_string()).unwrap();
+        }
+        self.store.with_tx(|tx| super::migrate::backfill(tx)).unwrap();
+    }
+
+    /// Exactly one row per sale: no two rows share a sale's order_ref, and none lacks it.
+    fn duplicate_sales(&self) -> i64 {
+        self.store
+            .with_conn(|c| {
+                Ok(c.query_row(
+                    "SELECT (SELECT COUNT(*) FROM (SELECT order_ref FROM ledger_orders GROUP BY order_ref HAVING COUNT(*) > 1))
+                          + (SELECT COUNT(*) FROM ledger_orders WHERE order_ref IS NULL)",
+                    [],
+                    |r| r.get(0),
+                )?)
+            })
+            .unwrap()
     }
 
     /// The device's independent statement: every sale row not voided + every movement row.
@@ -396,12 +456,17 @@ proptest! {
                     let key = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, format!("remote:{remote_n}").as_bytes()).to_string();
                     let id = format!("srv-{key}");
                     server.orders.insert(id.clone(), sale_row(&key, a, c));
+                    // A remote sale's client key is not its server id.
                     server.orders.get_mut(&id).unwrap()["id"] = json!(id);
                     server.emit(T_ORDER, &id);
                 }
                 Step::Pull { duplicate, stale_replay } => device.pull(&server, duplicate, stale_replay),
+                Step::HistoryFetch(k) => device.history_fetch(&server, k),
+                Step::Migrate(k) => device.migrate(&server, k),
             }
-            // At EVERY step: the drawer is the independent statement over the rows.
+            // At EVERY step: one row per sale, and the drawer is the independent
+            // statement over those rows (so no sale is counted twice).
+            prop_assert_eq!(device.duplicate_sales(), 0, "one row per sale after {:?}", s);
             prop_assert_eq!(device.drawer(), device.statement());
         }
         // Quiescence: the teller gives up on every dead op (the row it created

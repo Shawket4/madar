@@ -16,6 +16,14 @@ use serde::{Deserialize, Serialize};
 pub struct PaymentLeg {
     #[serde(rename = "amount")]
     pub amount: i32,
+    /// The leg's stored cash flag (`order_payments.is_cash`), the one the drawer counts by. Additive; `null` for a leg recorded before the flag existed.
+    #[serde(
+        rename = "is_cash",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub is_cash: Option<Option<bool>>,
     #[serde(rename = "method")]
     pub method: String,
 }
@@ -23,6 +31,10 @@ pub struct PaymentLeg {
 impl PaymentLeg {
     /// One tender against an order (`order_payments`). A split sale has several.
     pub fn new(amount: i32, method: String) -> PaymentLeg {
-        PaymentLeg { amount, method }
+        PaymentLeg {
+            amount,
+            is_cash: None,
+            method,
+        }
     }
 }

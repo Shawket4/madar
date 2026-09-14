@@ -57,6 +57,14 @@ pub struct PullResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub since: Option<Option<i64>>,
+    /// A paged full snapshot with more pages: send it back as `snapshot_cursor`. State types, checksums and the asset bundle come on the FIRST page only; `types` on each page lists what that page covers.
+    #[serde(
+        rename = "snapshot_cursor",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub snapshot_cursor: Option<Option<Box<models::SnapshotCursor>>>,
     #[serde(rename = "types", skip_serializing_if = "Option::is_none")]
     pub types: Option<Vec<String>>,
 }
@@ -76,6 +84,7 @@ impl PullResponse {
             resync_required: None,
             server_time,
             since: None,
+            snapshot_cursor: None,
             types: None,
         }
     }

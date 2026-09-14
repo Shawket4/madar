@@ -15,6 +15,7 @@ Name | Type | Description | Notes
 **resync_required** | Option<**bool**> |  | [optional]
 **server_time** | **String** |  | 
 **since** | Option<**i64**> |  | [optional]
+**snapshot_cursor** | Option<[**models::SnapshotCursor**](SnapshotCursor.md)> | A paged full snapshot with more pages: send it back as `snapshot_cursor`. State types, checksums and the asset bundle come on the FIRST page only; `types` on each page lists what that page covers. | [optional]
 **types** | Option<**Vec<String>**> |  | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

@@ -854,6 +854,8 @@ pub mod sku_cost;
 pub use self::sku_cost::SkuCost;
 pub mod slot_availability;
 pub use self::slot_availability::SlotAvailability;
+pub mod snapshot_cursor;
+pub use self::snapshot_cursor::SnapshotCursor;
 pub mod sort;
 pub use self::sort::Sort;
 pub mod staff_document;

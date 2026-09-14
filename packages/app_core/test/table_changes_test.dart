@@ -8,20 +8,26 @@ void main() {
   });
 
   test('bookings move the arrivals and the floor', () {
-    expect(ticksForTables(['bookings']), [bookingTickProvider, floorTickProvider]);
+    expect(ticksForTables(['bookings']), [
+      bookingTickProvider,
+      floorTickProvider,
+    ]);
   });
 
   test('a lagging subscriber re-reads every board', () {
-    expect(ticksForTables(['*']), containsAll([
-      drawerTickProvider,
-      ticketTickProvider,
-      kitchenTickProvider,
-      deliveryTickProvider,
-      bookingTickProvider,
-      floorTickProvider,
-      catalogTickProvider,
-      syncTickProvider,
-    ]));
+    expect(
+      ticksForTables(['*']),
+      containsAll([
+        drawerTickProvider,
+        ticketTickProvider,
+        kitchenTickProvider,
+        deliveryTickProvider,
+        bookingTickProvider,
+        floorTickProvider,
+        catalogTickProvider,
+        syncTickProvider,
+      ]),
+    );
   });
 
   test('an unknown table bumps nothing', () {

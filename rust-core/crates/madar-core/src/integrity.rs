@@ -3,11 +3,16 @@
 //! Everything in the store except the outbox (and held drafts) is re-derivable
 //! from the server. So a damaged file is handled by protecting the outbox first:
 //!
-//! * a while after boot, a bounded `PRAGMA quick_check` runs off the caller's
-//!   thread;
+//! * a while after boot, a bounded `PRAGMA quick_check` runs on its OWN read-only
+//!   connection to the file (WAL lets it read beside the store's writer), so no
+//!   bridge call waits on the store mutex while it scans;
 //! * on failure the live outbox rows are exported, as JSON, to a file next to the
-//!   database (`<db>.outbox-<ms>.json`), the failure goes to Sentry and the
-//!   diagnostics ring, and `store:integrity` in kv records it;
+//!   database (`<db>.outbox-<ms>.json` — the app-private directory the database
+//!   lives in, owner-only, like the database itself),
+//!   the failure goes to Sentry and the diagnostics ring, and `store:integrity`
+//!   in kv records it;
+//! * the export is deleted once a drain leaves no live op (everything it held
+//!   has reached the server);
 //! * the file is NOT renamed, recreated or re-bootstrapped automatically. That
 //!   step can lose the very queue it is meant to save if the export itself was
 //!   partial, so it stays an explicit support action (decision log, "Implementation
@@ -69,9 +74,71 @@ pub(crate) enum Outcome {
     Damaged { problems: Vec<String>, exported: Option<String> },
 }
 
-/// Run the check on `store` (file at `db_path`), exporting the outbox on damage.
+/// A read-only connection to the store's file (never the store's own).
+fn reader(db_path: &str) -> CoreResult<Connection> {
+    use rusqlite::OpenFlags;
+    let c = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)?;
+    c.busy_timeout(std::time::Duration::from_secs(5))?;
+    Ok(c)
+}
+
+/// Write `bytes` beside the database, owner read/write only (the app sandbox
+/// directory the database lives in carries the platform's data protection).
+fn write_protected(path: &str, db_path: &str, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        // Never anything for group or others: the export holds the same sales
+        // the database does.
+        let _ = db_path;
+        let mode = 0o600;
+        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(mode).open(path)?;
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = db_path;
+        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
+        f.write_all(bytes)?;
+        f.sync_all()
+    }
+}
+
+/// The outbox exports beside `db_path`.
+pub(crate) fn exports(db_path: &str) -> Vec<std::path::PathBuf> {
+    let p = std::path::Path::new(db_path);
+    let (Some(dir), Some(name)) = (p.parent(), p.file_name().and_then(|n| n.to_str())) else { return Vec::new() };
+    let prefix = format!("{name}.outbox-");
+    std::fs::read_dir(if dir.as_os_str().is_empty() { std::path::Path::new(".") } else { dir })
+        .map(|rd| {
+            rd.filter_map(Result::ok)
+                .map(|e| e.path())
+                .filter(|f| f.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with(&prefix) && n.ends_with(".json")))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Delete the exports once nothing they held is still waiting (called after a
+/// drain). Returns how many went.
+pub(crate) fn remove_exports_if_drained(store: &Store, db_path: &str) -> usize {
+    if db_path.is_empty() {
+        return 0;
+    }
+    let live = store.pending_count().unwrap_or(1) + store.dead_count().unwrap_or(1);
+    if live > 0 {
+        return 0;
+    }
+    exports(db_path).into_iter().filter(|f| std::fs::remove_file(f).is_ok()).count()
+}
+
+/// Run the check on the file at `db_path` (a separate read-only connection),
+/// exporting the outbox on damage. `store` only records the outcome.
 pub(crate) fn run(store: &Store, db_path: &str, now_ms: i64) -> Outcome {
-    let problems = match store.with_conn(|c| quick_check(c, 8)) {
+    let problems = match reader(db_path).and_then(|c| quick_check(&c, 8)) {
         Ok(p) if p.is_empty() => {
             let _ = store.kv_put(K_INTEGRITY, &format!("ok {now_ms}"));
             return Outcome::Healthy;
@@ -81,10 +148,13 @@ pub(crate) fn run(store: &Store, db_path: &str, now_ms: i64) -> Outcome {
         Err(e) => vec![format!("quick_check failed to run: {e}")],
     };
     let mut problems = problems;
-    let exported = match store.with_conn(live_outbox_json) {
+    // The live store first (its view includes what is not checkpointed yet),
+    // else whatever the read-only connection can still read.
+    let rows = store.with_conn(live_outbox_json).or_else(|_| reader(db_path).and_then(|c| live_outbox_json(&c)));
+    let exported = match rows {
         Ok(rows) => {
             let path = format!("{db_path}.outbox-{now_ms}.json");
-            match std::fs::write(&path, serde_json::to_vec_pretty(&rows).unwrap_or_default()) {
+            match write_protected(&path, db_path, &serde_json::to_vec_pretty(&rows).unwrap_or_default()) {
                 Ok(()) => Some(path),
                 Err(e) => {
                     problems.push(format!("outbox export failed to write: {e}"));
@@ -150,6 +220,44 @@ mod tests {
                 })
                 .unwrap();
         }
+    }
+
+    /// The scan never takes the store's mutex: a bridge call on the store runs
+    /// while the check reads the file.
+    #[test]
+    fn the_check_reads_its_own_connection_not_the_store_mutex() {
+        let path = temp_path("concurrent");
+        let store = Store::open(&path).unwrap();
+        queue(&store, 50);
+        // Hold the store's mutex for the whole check: it must still finish.
+        let outcome = store
+            .with_conn(|_held| {
+                let p2 = path.clone();
+                let h = std::thread::spawn(move || reader(&p2).and_then(|c| quick_check(&c, 8)));
+                Ok(h.join().unwrap())
+            })
+            .unwrap();
+        assert_eq!(outcome.unwrap(), Vec::<String>::new());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_export_is_owner_only_and_goes_once_the_queue_has_drained() {
+        use std::os::unix::fs::PermissionsExt;
+        let path = temp_path("export");
+        let store = Store::open(&path).unwrap();
+        queue(&store, 2);
+        let file = format!("{path}.outbox-1.json");
+        write_protected(&file, &path, b"[]").unwrap();
+        let mode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode & 0o077, 0, "no group/other access: {mode:o}");
+        assert_eq!(exports(&path), vec![std::path::PathBuf::from(&file)]);
+        assert_eq!(remove_exports_if_drained(&store, &path), 0, "ops still waiting: kept");
+        store.with_conn(|c| Ok(c.execute("UPDATE outbox SET status='acked'", [])?)).unwrap();
+        assert_eq!(remove_exports_if_drained(&store, &path), 1);
+        assert!(!std::path::Path::new(&file).exists());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

@@ -175,7 +175,10 @@ class RealtimeArmer {
   RealtimeSession? _realtime;
   StreamSubscription<RealtimeMessage>? _events;
   StreamSubscription<AlertCommand>? _alerts;
-  StreamSubscription<List<String>>? _tables;
+  late final TableChangeWatcher _tables = TableChangeWatcher(
+    subscribe: _core.bridge.watchTables,
+    apply: (tables) => applyTableChanges(_ref, tables),
+  );
 
   /// The `realtimeArmerProvider` hook — `ShellNotifier.refresh` calls it
   /// after every state-moving bridge call; the subscription is
@@ -186,10 +189,9 @@ class RealtimeArmer {
     // The core's table-change stream drives every board re-read: a pull that
     // landed, a sale rung here, a peer's mirrored op, a realtime event. One
     // subscription for the app's life; it outlives sign-outs.
-    _tables ??= _core.bridge.watchTables().listen(
-      (tables) => applyTableChanges(_ref, tables),
-      onError: (Object _) => _tables = null,
-    );
+    // Resubscribes with backoff if the stream drops, and keeps the boards
+    // re-reading while it is down (see TableChangeWatcher).
+    _tables.start();
     if (_core.bridge.currentSession() == null) {
       _realtime = null;
       return;
@@ -221,7 +223,7 @@ class RealtimeArmer {
   }
 
   void dispose() {
-    unawaited(_tables?.cancel());
+    _tables.dispose();
     unawaited(_events?.cancel());
     unawaited(_alerts?.cancel());
   }

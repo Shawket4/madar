@@ -22,6 +22,14 @@ pub struct PullRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub device_id: Option<Option<uuid::Uuid>>,
+    /// Opt-in paging of a FULL snapshot's ledger rows (tills, orders, cash, refunds), 100..10000 rows a page. Absent = the whole snapshot in one response (what every older client gets).
+    #[serde(
+        rename = "ledger_page_size",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ledger_page_size: Option<Option<i64>>,
     /// Page size for incremental pulls, 1..5000 (default 2000).
     #[serde(
         rename = "limit",
@@ -30,6 +38,14 @@ pub struct PullRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub limit: Option<Option<i64>>,
+    /// The `snapshot_cursor` of the previous page of a paged full snapshot.
+    #[serde(
+        rename = "snapshot_cursor",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub snapshot_cursor: Option<Option<Box<models::SnapshotCursor>>>,
     /// Full-fetch ONLY these types (checksum self-heal). Invalid with `since`.
     #[serde(
         rename = "types",
@@ -45,7 +61,9 @@ impl PullRequest {
         PullRequest {
             branch_id,
             device_id: None,
+            ledger_page_size: None,
             limit: None,
+            snapshot_cursor: None,
             types: None,
         }
     }

@@ -392,6 +392,34 @@ async fn shadow_mode_serves_legacy_and_logs_divergence() {
     assert!(core.set_read_path_mode("nope".into(), crate::readpath::ReadPathMode::New).is_err());
 }
 
+/// With no flag stored, every area is `shadow`: the legacy read is what the
+/// screen gets, and where the rows disagree it is logged.
+#[tokio::test]
+async fn a_fresh_device_shadows_every_read() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    for area in crate::readpath::AREAS {
+        core.store.kv_delete(&format!("flags:local_first:{area}")).unwrap();
+        assert_eq!(core.read_path_mode(area.to_string()), crate::readpath::ReadPathMode::Shadow, "{area}");
+    }
+    seed_methods(&core);
+    let till = core.open_till(0, None).await.unwrap().till.unwrap();
+    ring(&core, 400, CASH, 400).await;
+    // A sale the feed brought that the pre-B read has never seen.
+    core.store
+        .with_tx(|tx| {
+            crate::ledger::write_row(tx, crate::ledger::T_ORDER, "fed-1", &serde_json::json!({
+                "id": "fed-1", "idempotency_key": "fed-1", "order_ref": "REF-fed-1", "branch_id": testkit::BRANCH,
+                "till_id": till.id, "status": "completed", "payment_method": "Cash", "total_amount": 900,
+                "created_at": "2026-09-14T09:00:00Z", "payment_legs": []}), crate::ledger::Origin::Feed(5), None)?;
+            Ok(())
+        })
+        .unwrap();
+    let served = core.list_till_orders().await.unwrap();
+    assert_eq!(served.len(), 1, "shadow serves the legacy list");
+    let logged = core.diag.lock().unwrap().iter().any(|d| d.message.contains("read-path divergence [ledger]") && d.message.contains("only in new"));
+    assert!(logged, "and logs where the rows disagree");
+}
+
 // ── Phases 3–4: the floor-side boards from the synced rows ──────────────────
 
 fn seed_rows(core: &crate::MadarCore, rows: &[(&str, serde_json::Value)]) {

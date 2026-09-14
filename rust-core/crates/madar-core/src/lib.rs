@@ -1037,6 +1037,8 @@ impl MadarCore {
         // other devices did meanwhile).
         if acked_any {
             self.nudge_sync();
+            // A corruption-time export of the queue is done with once it drained.
+            integrity::remove_exports_if_drained(&self.store, &self.config.db_path);
         }
         Ok(())
     }

@@ -4,7 +4,14 @@
 //! * `legacy` — the pre-B read (server list + cache blob + outbox overlay);
 //! * `shadow` — serve the legacy read, compute the local read too, and log every
 //!   divergence (Settings → Diagnostics, and Sentry with no customer data);
-//! * `new`    — the local read only (the default once the parity tests pass).
+//! * `new`    — the local read only.
+//!
+//! **Default: `shadow`** (design §9: a pilot soaks in shadow until it shows zero
+//! unexplained diffs). To flip a device or an area to `new`:
+//! * from the host: `setReadPathMode(area: 'ledger', mode: ReadPathMode.new_)`
+//!   (FRB, `madar-frb/src/api/sync.rs`), once per area in [`AREAS`];
+//! * or in the store: `kv['flags:local_first:<area>'] = 'new'`.
+//! Setting `legacy` rolls an area back; absent means shadow.
 
 use std::collections::BTreeMap;
 
@@ -28,8 +35,8 @@ fn key(area: &str) -> String {
 pub(crate) fn mode(store: &Store, area: &str) -> ReadPathMode {
     match store.kv_get(&key(area)).ok().flatten().as_deref() {
         Some("legacy") => ReadPathMode::Legacy,
-        Some("shadow") => ReadPathMode::Shadow,
-        _ => ReadPathMode::New,
+        Some("new") => ReadPathMode::New,
+        _ => ReadPathMode::Shadow,
     }
 }
 
@@ -144,9 +151,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn modes_default_to_new_and_round_trip() {
+    fn modes_default_to_shadow_and_round_trip() {
         let s = Store::open("").unwrap();
+        for area in AREAS {
+            assert_eq!(mode(&s, area), ReadPathMode::Shadow, "{area}");
+        }
+        set_mode(&s, "ledger", ReadPathMode::New).unwrap();
         assert_eq!(mode(&s, "ledger"), ReadPathMode::New);
+        s.kv_put("flags:local_first:ledger", "garbage").unwrap();
+        assert_eq!(mode(&s, "ledger"), ReadPathMode::Shadow, "an unknown word is the safe default");
         set_mode(&s, "ledger", ReadPathMode::Shadow).unwrap();
         assert_eq!(mode(&s, "ledger"), ReadPathMode::Shadow);
         set_mode(&s, "ledger", ReadPathMode::Legacy).unwrap();

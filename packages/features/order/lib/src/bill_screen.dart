@@ -61,8 +61,7 @@ class BillScreen extends ConsumerStatefulWidget {
   ConsumerState<BillScreen> createState() => _BillScreenState();
 }
 
-class _BillScreenState extends ConsumerState<BillScreen>
-    with RealtimeGatedPoll<BillScreen> {
+class _BillScreenState extends ConsumerState<BillScreen> {
   /// "42m" moves by the clock, not by an event.
   Timer? _clock;
 
@@ -300,10 +299,6 @@ class _BillScreenState extends ConsumerState<BillScreen>
         );
         if (Navigator.of(context).canPop()) Navigator.of(context).pop();
       });
-    realtimeGatedPoll(
-      interval: const Duration(seconds: 15),
-      onPoll: () => unawaited(_notifier.loadOpenTickets()),
-    );
 
     final state = ref.watch(orderProvider);
     final layout = MadarLayout.of(context);

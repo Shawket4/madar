@@ -60,6 +60,9 @@ pub struct OrderExport {
     pub display_number: Option<String>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// The client-minted key the sale was created with (a till's sale, or the ticket id of a settled bill). An offline POS identifies its own row by it when a list read brings the sale back (OFFLINE_B_DESIGN §7). Additive.
+    #[serde(rename = "idempotency_key", skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<uuid::Uuid>,
     /// The loyalty member this sale redeemed for (or was scanned for).
     #[serde(
         rename = "loyalty_customer_id",
@@ -74,6 +77,9 @@ pub struct OrderExport {
     pub loyalty_member_name: Option<String>,
     #[serde(rename = "notes", skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    /// The open ticket this sale settled, if any. Additive.
+    #[serde(rename = "open_ticket_id", skip_serializing_if = "Option::is_none")]
+    pub open_ticket_id: Option<uuid::Uuid>,
     #[serde(rename = "order_number")]
     pub order_number: i32,
     /// Human-readable, org-unique reference (e.g. \"DT-260614-0042\"). Additive alongside the per-shift order_number. Optional only during the rollout window before the historical backfill runs; never null afterwards.
@@ -192,9 +198,11 @@ impl OrderExport {
             discount_value,
             display_number: None,
             id,
+            idempotency_key: None,
             loyalty_customer_id: None,
             loyalty_member_name: None,
             notes: None,
+            open_ticket_id: None,
             order_number,
             order_ref: None,
             order_type,

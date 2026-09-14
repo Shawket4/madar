@@ -33,8 +33,7 @@ class BillsScreen extends ConsumerStatefulWidget {
   ConsumerState<BillsScreen> createState() => _BillsScreenState();
 }
 
-class _BillsScreenState extends ConsumerState<BillsScreen>
-    with RealtimeGatedPoll<BillsScreen> {
+class _BillsScreenState extends ConsumerState<BillsScreen> {
   Timer? _clock;
 
   OrderNotifier get _notifier => ref.read(orderProvider.notifier);
@@ -119,10 +118,6 @@ class _BillsScreenState extends ConsumerState<BillsScreen>
     ref.listen(ticketTickProvider, (_, _) {
       unawaited(_notifier.loadOpenTickets());
     });
-    realtimeGatedPoll(
-      interval: const Duration(seconds: 15),
-      onPoll: () => unawaited(_notifier.loadOpenTickets()),
-    );
 
     final state = ref.watch(orderProvider);
     final me = state.displayName.trim();

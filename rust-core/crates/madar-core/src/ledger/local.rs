@@ -122,7 +122,7 @@ pub(crate) fn modify(conn: &Connection, ty: &str, key: &str, f: impl FnOnce(&mut
         (None, _) => None,
     };
     let origin = if prev.origin == "local" { Origin::Local } else { Origin::Fetch };
-    write_row(conn, ty, key, &raw, origin, srv.as_ref())?;
+    let key = write_row(conn, ty, key, &raw, origin, srv.as_ref())?;
     // write_row(Fetch) would not touch acked/seq; restore the exact ack flag.
     let (table, kcol) = super::table_of(ty).unwrap();
     conn.execute(

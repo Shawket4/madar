@@ -23,9 +23,11 @@ Name | Type | Description | Notes
 **discount_value** | **i64** | LEGACY SPELLING — an integer, 0-100 for a percentage. See `discounts::wire`: every shipped till was generated against `integer`, and a double here fails to deserialise the whole ORDER, not just this field. Read [`Order::discount_rate`] for the stored number. | 
 **display_number** | Option<**String**> | What receipts and lists show: `<device_code>-<order_number>` (`36B-12`) for a device-numbered sale, else `order_number` as text. | [optional]
 **id** | **uuid::Uuid** |  | 
+**idempotency_key** | Option<**uuid::Uuid**> | The client-minted key the sale was created with (a till's sale, or the ticket id of a settled bill). An offline POS identifies its own row by it when a list read brings the sale back (OFFLINE_B_DESIGN §7). Additive. | [optional]
 **loyalty_customer_id** | Option<**uuid::Uuid**> | The loyalty member this sale redeemed for (or was scanned for). | [optional]
 **loyalty_member_name** | Option<**String**> | That member's name, for the order detail. `None` once forgotten. | [optional]
 **notes** | Option<**String**> |  | [optional]
+**open_ticket_id** | Option<**uuid::Uuid**> | The open ticket this sale settled, if any. Additive. | [optional]
 **order_number** | **i32** |  | 
 **order_ref** | Option<**String**> | Human-readable, org-unique reference (e.g. \"DT-260614-0042\"). Additive alongside the per-shift order_number. Optional only during the rollout window before the historical backfill runs; never null afterwards. | [optional]
 **order_type** | **String** | What kind of sale: \"dine_in\" (settled from a waiter's ticket — the only kind that carries a service charge), \"takeaway\" (rung straight through the till) or \"delivery\" (a finalized delivery order). Till sales before 2026-09 say \"dine_in\" because \"takeaway\" could not be expressed. | 

@@ -123,7 +123,7 @@ fn open_till(store: &Store, opening: i64) {
 }
 
 fn cash_sale(key: &str, total: i64) -> Value {
-    json!({"id": key, "idempotency_key": key, "branch_id": BRANCH, "till_id": TILL, "status": "completed",
+    json!({"id": key, "idempotency_key": key, "order_ref": format!("REF-{key}"), "branch_id": BRANCH, "till_id": TILL, "status": "completed",
            "payment_method": "Cash", "total_amount": total, "tip_amount": 0, "created_at": "2026-09-14T09:00:00Z",
            "payment_legs": [{"method": "Cash", "amount": total, "is_cash": true}]})
 }
@@ -563,4 +563,169 @@ fn probe_report_on_34k_sales() {
         let r = views::till_report(&store, "T", &|m: &str| m.to_string()).unwrap().unwrap();
         eprintln!("PROBE compute={compute:?} till_report={:?} total={} {}", t.elapsed(), f.total_payments, r.total_payments_minor);
     }
+}
+
+
+// ── Audit HIGH 1 + 2: one identity whatever order the writers arrive in ────
+
+fn feed_full(store: &Store, rows: &[(&str, Value, i64)]) -> crate::error::CoreResult<()> {
+    let ctx = ctx_full("2020-01-01T00:00:00Z");
+    store.with_tx(|tx| {
+        for (ty, row, seq) in rows {
+            apply::upsert(tx, ty, row, *seq, &ctx)?;
+        }
+        Ok(())
+    })
+}
+
+fn server_order(id: &str, key: Option<&str>, total: i64) -> Value {
+    let mut v = json!({"id": id, "order_ref": format!("REF-{}", key.unwrap_or(id)), "branch_id": BRANCH, "till_id": TILL,
+        "status": "completed", "payment_method": "Cash", "total_amount": total, "tip_amount": 0,
+        "created_at": "2026-09-14T09:00:00Z", "payment_legs": [{"method": "Cash", "amount": total, "is_cash": true}]});
+    if let Some(k) = key {
+        v["idempotency_key"] = json!(k);
+    }
+    v
+}
+
+/// Probe 1: a history fetch (and a pre-B cache) stored the sale under its SERVER
+/// id; the feed then sends it under its client key. It used to insert a second
+/// row, fail UNIQUE(server_id), roll the page back and stick sync forever.
+#[test]
+fn a_row_stored_by_server_id_is_rekeyed_when_the_feed_brings_its_client_key() {
+    let store = Store::open("").unwrap();
+    open_till(&store, 0);
+    // A list read of an incomplete till: no client key on the wire.
+    let listed = server_order("srv-1", None, 700);
+    let mut listed = listed;
+    listed["order_ref"] = json!("REF-k1");
+    views::store_fetched_orders(&store, &[listed]).unwrap();
+    // A pre-B OrderFull cache of another sale, migrated under its server id.
+    store.kv_put("cache:order:srv-2", &json!([server_order("srv-2", None, 300)]).to_string()).unwrap();
+    store.with_tx(|tx| migrate::backfill(tx)).unwrap();
+    assert_eq!(order_rows(&store), 2);
+
+    feed_full(&store, &[(T_ORDER, server_order("srv-1", Some("k1"), 700), 50), (T_ORDER, {
+        let mut v = server_order("srv-2", Some("k2"), 300);
+        v["order_ref"] = json!("REF-srv-2");
+        v
+    }, 51)])
+    .expect("the page applies: no UNIQUE(server_id) failure");
+    assert_eq!(order_rows(&store), 2, "re-keyed, not duplicated");
+    let keys: Vec<(String, Option<String>, i64)> = store
+        .with_conn(|c| {
+            let mut st = c.prepare("SELECT okey, server_id, srv_seq FROM ledger_orders ORDER BY okey")?;
+            let v = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<Vec<_>, _>>()?;
+            Ok(v)
+        })
+        .unwrap();
+    assert_eq!(keys, vec![("k1".into(), Some("srv-1".into()), 50), ("k2".into(), Some("srv-2".into()), 51)]);
+    assert_eq!(expected(&store), 1_000);
+    // And the next page (and a repeat of it) still applies.
+    feed_full(&store, &[(T_ORDER, server_order("srv-1", Some("k1"), 700), 60)]).unwrap();
+    feed_full(&store, &[(T_ORDER, server_order("srv-1", Some("k1"), 700), 60)]).unwrap();
+    assert_eq!(order_rows(&store), 2);
+}
+
+/// A void queued against a sale this device held under its server id follows
+/// the row when it is re-keyed.
+#[test]
+fn a_rekey_carries_the_live_ops_that_hold_the_row() {
+    let store = Store::open("").unwrap();
+    open_till(&store, 0);
+    views::store_fetched_orders(&store, &[server_order("srv-9", None, 500)]).unwrap();
+    store
+        .with_tx(|tx| {
+            local::commit_void(
+                tx,
+                &NewOutboxOp {
+                    id: "srv-9:void".into(),
+                    op_type: "void_order".into(),
+                    idempotency_key: "srv-9:void".into(),
+                    payload: "{}".into(),
+                    event_at: "2026-09-14T09:30:00Z".into(),
+                    till_id: Some(TILL.into()),
+                    entity_type: Some(T_ORDER.into()),
+                    entity_id: Some("srv-9".into()),
+                    ..Default::default()
+                },
+                "2026-09-14T09:30:00Z",
+                "other",
+                Some("x"),
+            )
+            .map(|_| ())
+        })
+        .unwrap();
+    let mut fed = server_order("srv-9", Some("k9"), 500);
+    fed["order_ref"] = json!("REF-srv-9");
+    feed_full(&store, &[(T_ORDER, fed, 70)]).unwrap();
+    assert_eq!(order_rows(&store), 1);
+    let (entity, status): (String, String) = store
+        .with_conn(|c| {
+            Ok(c.query_row(
+                "SELECT x.entity_id, o.status FROM outbox x JOIN ledger_orders o ON o.okey = x.entity_id WHERE x.id='srv-9:void'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?)
+        })
+        .unwrap();
+    assert_eq!((entity.as_str(), status.as_str()), ("k9", "voided"), "the queued void still holds (and shows on) the row");
+}
+
+/// Probe 2: an ack with no body leaves the row without a server id; a list read
+/// of the till then brought the same sale as a second row and the drawer read
+/// 1400 for a 700 sale. Matched by client key (the list now carries it) and, for
+/// a server that does not send it, by order_ref.
+#[test]
+fn an_ack_without_a_body_and_a_list_read_count_the_sale_once() {
+    for with_key in [true, false] {
+        let store = Store::open("").unwrap();
+        open_till(&store, 0);
+        sell(&store, "k1", 700);
+        ack(&store, "k1", None);
+        assert_eq!(expected(&store), 700);
+        let mut listed = server_order("srv-1", with_key.then_some("k1"), 700);
+        // The sale's own reference, minted at the till (the one a list row
+        // shares with the row rung here even when no client key is sent).
+        listed["order_ref"] = json!("REF-k1");
+        views::store_fetched_orders(&store, &[listed]).unwrap();
+        assert_eq!(order_rows(&store), 1, "with_key={with_key}");
+        let f = store.with_conn(|c| report::compute(c, TILL, &[])).unwrap().unwrap();
+        assert_eq!((f.system_cash, f.expected_cash), (700, 700), "with_key={with_key}");
+        // The feed then confirms it under its client key: still one row.
+        feed_full(&store, &[(T_ORDER, server_order("srv-1", Some("k1"), 700), 80)]).unwrap();
+        assert_eq!(order_rows(&store), 1);
+        assert_eq!(expected(&store), 700);
+    }
+}
+
+/// Movements and refunds: a server-id row meets its client_ref.
+#[test]
+fn movements_and_refunds_rekey_on_client_ref() {
+    let store = Store::open("").unwrap();
+    open_till(&store, 1_000);
+    store
+        .with_tx(|tx| {
+            write_row(tx, T_CASH, "srv-c", &json!({"id": "srv-c", "till_id": TILL, "amount": 250, "kind": "pay_in",
+                "created_at": "2026-09-14T09:00:00Z"}), Origin::Fetch, None)?;
+            write_row(tx, T_REFUND, "srv-r", &json!({"id": "srv-r", "order_id": "o", "till_id": TILL, "amount": 100,
+                "method": "Cash", "is_cash": true, "issued_at": "2026-09-14T09:00:00Z"}), Origin::Fetch, None)?;
+            Ok(())
+        })
+        .unwrap();
+    feed_full(
+        &store,
+        &[
+            (T_CASH, json!({"id": "srv-c", "client_ref": "c1", "till_id": TILL, "amount": 250, "kind": "pay_in",
+                "created_at": "2026-09-14T09:00:00Z"}), 90),
+            (T_REFUND, json!({"id": "srv-r", "client_ref": "r1", "order_id": "o", "till_id": TILL, "amount": 100,
+                "method": "Cash", "is_cash": true, "issued_at": "2026-09-14T09:00:00Z"}), 91),
+        ],
+    )
+    .unwrap();
+    let n = |q: &str| -> i64 { store.with_conn(|c| Ok(c.query_row(q, [], |r| r.get(0))?)).unwrap() };
+    assert_eq!(n("SELECT COUNT(*) FROM ledger_cash WHERE ckey='c1' AND server_id='srv-c'"), 1);
+    assert_eq!(n("SELECT COUNT(*) FROM ledger_cash"), 1);
+    assert_eq!(n("SELECT COUNT(*) FROM ledger_refunds WHERE rkey='r1' AND server_id='srv-r'"), 1);
+    assert_eq!(expected(&store), 1_000 + 250 - 100);
 }

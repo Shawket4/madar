@@ -42,6 +42,8 @@ fn ts(v: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 /// Apply one upserted ledger row. Returns true when local data changed.
 pub(crate) fn upsert(conn: &Connection, ty: &str, v: &Value, seq: i64, ctx: &PageCtx) -> CoreResult<bool> {
     let Some(key) = key_of(ty, v) else { return Ok(false) };
+    // The row it IS, under whatever key it was first stored (§7).
+    let key = super::resolve_key(conn, ty, v, &key)?;
     let prev = stored_meta(conn, ty, &key)?;
     if let Some(p) = &prev {
         if seq < p.srv_seq {

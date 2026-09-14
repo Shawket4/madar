@@ -145,6 +145,141 @@ pub(crate) fn order_key_for(conn: &Connection, id_or_key: &str) -> CoreResult<Op
         .optional()?)
 }
 
+/// The one identity rule (OFFLINE_B_DESIGN §7), for EVERY writer: a wire row is
+/// the stored row whose key is its client key (order `idempotency_key`, movement
+/// and refund `client_ref`), else whose `server_id` is its `id`, else (orders)
+/// whose `order_ref` is its `order_ref` or whose key is its `open_ticket_id`
+/// (a settled bill's row is keyed by its ticket). A row first stored under its
+/// server id (a history fetch, a pre-B cache, an ack with no body) is RE-KEYED
+/// to the client key when that key becomes known, and rows that turn out to be
+/// the same sale are merged — never a second row, and never a UNIQUE
+/// `server_id` failure that rolls back a whole feed page.
+///
+/// Returns the key the row now lives under (`proposed` when nothing matches).
+pub(crate) fn resolve_key(conn: &Connection, ty: &str, v: &Value, proposed: &str) -> CoreResult<String> {
+    if ty == T_TILL {
+        return Ok(proposed.to_string());
+    }
+    let Some((table, kcol)) = table_of(ty) else { return Ok(proposed.to_string()) };
+    let client = match ty {
+        T_ORDER => s(v, "idempotency_key"),
+        _ => s(v, "client_ref"),
+    }
+    .map(str::to_string);
+    let sid = s(v, "id").map(str::to_string);
+    let mut found: Vec<String> = Vec::new();
+    let mut add = |k: String, found: &mut Vec<String>| {
+        if !found.contains(&k) {
+            found.push(k);
+        }
+    };
+    let by_key = format!("SELECT {kcol} FROM {table} WHERE {kcol}=?1");
+    let mut probe_keys: Vec<&str> = vec![proposed];
+    if let Some(c) = client.as_deref() {
+        probe_keys.push(c);
+    }
+    if let Some(id) = sid.as_deref() {
+        probe_keys.push(id);
+    }
+    let ticket = if ty == T_ORDER { s(v, "open_ticket_id") } else { None };
+    if let Some(t) = ticket {
+        probe_keys.push(t);
+    }
+    for k in probe_keys {
+        if let Some(hit) = conn.prepare_cached(&by_key)?.query_row([k], |r| r.get::<_, String>(0)).optional()? {
+            add(hit, &mut found);
+        }
+    }
+    if let Some(id) = sid.as_deref() {
+        let q = format!("SELECT {kcol} FROM {table} WHERE server_id=?1");
+        if let Some(hit) = conn.prepare_cached(&q)?.query_row([id], |r| r.get::<_, String>(0)).optional()? {
+            add(hit, &mut found);
+        }
+    }
+    if ty == T_ORDER {
+        if let Some(r) = s(v, "order_ref") {
+            let hits: Vec<String> = conn
+                .prepare_cached("SELECT okey FROM ledger_orders WHERE order_ref=?1")?
+                .query_map([r], |row| row.get(0))?
+                .collect::<Result<_, _>>()?;
+            for h in hits {
+                add(h, &mut found);
+            }
+        }
+    }
+    // The key it should live under: its client key when known; else the key it
+    // already has (a client-keyed row before a server-keyed one).
+    let canonical = client
+        .clone()
+        .or_else(|| found.iter().find(|k| k.as_str() == proposed).cloned())
+        .or_else(|| found.iter().find(|k| Some(k.as_str()) != sid.as_deref()).cloned())
+        .or_else(|| found.first().cloned())
+        .unwrap_or_else(|| proposed.to_string());
+    let others: Vec<String> = found.iter().filter(|k| **k != canonical).cloned().collect();
+    if others.is_empty() {
+        return Ok(canonical);
+    }
+    // Merge: every other row folds into the canonical one.
+    let meta = |k: &str| -> CoreResult<(i64, i64, Option<String>)> {
+        Ok(conn.query_row(
+            &format!("SELECT srv_seq, acked, server_id FROM {table} WHERE {kcol}=?1"),
+            [k],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )?)
+    };
+    let mut max_seq = 0i64;
+    let mut any_acked = 0i64;
+    let mut server_id: Option<String> = None;
+    for k in &found {
+        let (seq, acked, sid_col) = meta(k)?;
+        max_seq = max_seq.max(seq);
+        any_acked = any_acked.max(acked);
+        if server_id.is_none() {
+            server_id = sid_col;
+        }
+    }
+    let canonical_exists = found.contains(&canonical);
+    let mut to_delete = others.clone();
+    if !canonical_exists {
+        // Rename the most server-confirmed of them; the rest are deleted.
+        let mut best = to_delete[0].clone();
+        let mut best_seq = -1;
+        for k in &to_delete {
+            let (seq, _, _) = meta(k)?;
+            if seq > best_seq {
+                best_seq = seq;
+                best = k.clone();
+            }
+        }
+        to_delete.retain(|k| *k != best);
+        for k in &to_delete {
+            conn.execute(&format!("DELETE FROM {table} WHERE {kcol}=?1"), [k])?;
+        }
+        conn.execute(&format!("UPDATE {table} SET {kcol}=?1 WHERE {kcol}=?2"), params![canonical, best])?;
+        conn.execute(
+            "UPDATE outbox SET entity_id=?1 WHERE entity_type=?2 AND entity_id=?3",
+            params![canonical, ty, best],
+        )?;
+    } else {
+        for k in &to_delete {
+            conn.execute(&format!("DELETE FROM {table} WHERE {kcol}=?1"), [k])?;
+        }
+    }
+    for k in &to_delete {
+        conn.execute(
+            "UPDATE outbox SET entity_id=?1 WHERE entity_type=?2 AND entity_id=?3",
+            params![canonical, ty, k],
+        )?;
+    }
+    conn.execute(
+        &format!(
+            "UPDATE {table} SET srv_seq=MAX(srv_seq, ?1), acked=MAX(acked, ?2), server_id=COALESCE(server_id, ?3) WHERE {kcol}=?4"
+        ),
+        params![max_seq, any_acked, server_id, canonical],
+    )?;
+    Ok(canonical)
+}
+
 /// Where a row came from, for [`write_row`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Origin {
@@ -169,7 +304,9 @@ pub(crate) fn write_row(
     v: &Value,
     origin: Origin,
     srv_raw: Option<&Value>,
-) -> CoreResult<()> {
+) -> CoreResult<String> {
+    let key_owned = resolve_key(conn, ty, v, key)?;
+    let key = key_owned.as_str();
     let prev = stored_meta(conn, ty, key)?;
     let srv_seq = match origin {
         Origin::Feed(seq) => seq,
@@ -321,7 +458,7 @@ pub(crate) fn write_row(
         }
         _ => {}
     }
-    Ok(())
+    Ok(key_owned)
 }
 
 /// The server id a written row carries: a server-origin row's own `id` (a local

@@ -910,6 +910,7 @@ Class | Method | HTTP request | Description
  - [SizeOverrideOut](docs/SizeOverrideOut.md)
  - [SkuCost](docs/SkuCost.md)
  - [SlotAvailability](docs/SlotAvailability.md)
+ - [SnapshotCursor](docs/SnapshotCursor.md)
  - [Sort](docs/Sort.md)
  - [StaffDocument](docs/StaffDocument.md)
  - [StaffRequest](docs/StaffRequest.md)
