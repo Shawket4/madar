@@ -1107,3 +1107,42 @@ async fn board_reads_carry_their_freshness_and_own_queue() {
     assert_eq!(orders.data.len(), 1);
     assert_eq!((orders.meta.pending, orders.meta.failed), (1, 0));
 }
+
+/// Parity finding: the feed's till rows carry no branch name (the feed is one
+/// branch), so the history list named no branch where the server's list did.
+#[tokio::test]
+async fn the_till_list_names_the_branch_from_the_synced_settings() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    let till = core.open_till(0, None).await.unwrap().till.unwrap();
+    seed_rows(&core, &[("branch_settings", serde_json::json!({"id": testkit::BRANCH, "name": "Centrada"}))]);
+    let tills = core.list_tills().await.unwrap();
+    let row = tills.iter().find(|t| t.id == till.id).expect("the open till is listed");
+    assert_eq!(row.branch_name.as_deref(), Some("Centrada"));
+}
+
+/// Parity finding: a till's refunds list newest first and one sale's oldest
+/// first, as the server lists them.
+#[tokio::test]
+async fn refunds_list_in_the_servers_order() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    core.store
+        .with_tx(|tx| {
+            crate::ledger::write_row(tx, crate::ledger::T_ORDER, "o-1", &serde_json::json!({
+                "id": "o-1", "idempotency_key": "o-1", "order_ref": "REF-o-1", "branch_id": testkit::BRANCH,
+                "till_id": "t-1", "status": "completed", "payment_method": "Cash", "total_amount": 5000,
+                "created_at": "2026-09-14T09:00:00Z", "payment_legs": []}), crate::ledger::Origin::Feed(1), None)?;
+            for (id, at) in [("r-early", "2026-09-14T10:00:00+00:00"), ("r-late", "2026-09-14T11:00:00Z")] {
+                crate::ledger::write_row(tx, crate::ledger::T_REFUND, id, &serde_json::json!({
+                    "id": id, "order_id": "o-1", "till_id": "t-1", "amount": 100, "method": "Cash",
+                    "is_cash": true, "issued_at": at}), crate::ledger::Origin::Feed(2), None)?;
+            }
+            Ok(())
+        })
+        .unwrap();
+    let till: Vec<String> = crate::ledger::views::till_refunds(&core.store, "t-1").unwrap().refunds.into_iter().map(|r| r.id).collect();
+    assert_eq!(till, vec!["r-late", "r-early"]);
+    let order: Vec<String> =
+        crate::ledger::views::order_refunds(&core.store, "o-1").unwrap().unwrap().refunds.into_iter().map(|r| r.id).collect();
+    assert_eq!(order, vec!["r-early", "r-late"]);
+}

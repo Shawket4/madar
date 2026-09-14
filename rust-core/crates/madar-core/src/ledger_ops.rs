@@ -149,6 +149,7 @@ impl MadarCore {
             None => {
                 // A till the device does not hold completely: the server's report,
                 // stored as a row for the next offline read.
+                let mut fresh = None;
                 if self.online() {
                     if let Ok(report) = tills_api::get_till_report(
                         &self.api.config(),
@@ -158,11 +159,14 @@ impl MadarCore {
                     {
                         crate::timefmt::remember_payload_tz(&self.store, &Some(report.timezone.clone()));
                         let _ = views::put_till_report(&self.store, &till_id, &report);
+                        fresh = Some(report);
                     }
                 }
-                match views::stored_till_report(&self.store, &till_id) {
-                    Some(report) => till::cached_report_view(&report, 0, Vec::new(), &label),
-                    None => return self.legacy_till_report_for(till_id).await,
+                match (fresh, views::stored_till_report(&self.store, &till_id)) {
+                    // Just read from the server: its figures, and it says so.
+                    (Some(report), _) => till::report_view(&report, 0, &label),
+                    (None, Some(report)) => till::cached_report_view(&report, 0, Vec::new(), &label),
+                    (None, None) => return self.legacy_till_report_for(till_id).await,
                 }
             }
         };
@@ -267,7 +271,14 @@ impl MadarCore {
             return self.legacy_list_tills().await;
         }
         let branch = self.session_branch_id()?;
-        let new = views::tills(&self.store, &branch)?;
+        let mut new = views::tills(&self.store, &branch)?;
+        // The feed's till rows leave the branch name out (the feed IS one
+        // branch); every till listed here is this branch's.
+        if let Some(name) = self.branch_name_local(&branch) {
+            for t in new.iter_mut().filter(|t| t.branch_name.is_none()) {
+                t.branch_name = Some(name.clone());
+            }
+        }
         if mode == ReadPathMode::Shadow {
             let legacy = self.legacy_list_tills().await?;
             // The legacy list is the server's first page; compare what both hold.
@@ -320,6 +331,17 @@ impl MadarCore {
             return Ok(legacy);
         }
         Ok(new)
+    }
+
+    /// The branch's name as this device holds it: the synced branch settings,
+    /// else the name the device was bound with.
+    pub(crate) fn branch_name_local(&self, branch: &str) -> Option<String> {
+        crate::sync_pull::rows_of_type(&self.store, branch, "branch_settings")
+            .into_iter()
+            .find(|v| v.get("id").and_then(serde_json::Value::as_str) == Some(branch))
+            .and_then(|v| v.get("name").and_then(serde_json::Value::as_str).map(str::to_string))
+            .or_else(|| crate::device::load(&self.store).branch_name)
+            .filter(|n| !n.trim().is_empty())
     }
 
     /// The open-bills notice from the synced rows only (no network).

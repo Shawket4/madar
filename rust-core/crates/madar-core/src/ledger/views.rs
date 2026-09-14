@@ -387,9 +387,15 @@ fn refunds_where(conn: &Connection, clause: &str, arg: &str) -> CoreResult<Vec<R
 }
 
 /// Everything given back from a till's drawer.
+fn issued_instant(r: &RefundView) -> i64 {
+    chrono::DateTime::parse_from_rfc3339(&r.issued_at).map(|d| d.timestamp_micros()).unwrap_or(i64::MIN)
+}
+
 pub(crate) fn till_refunds(store: &Store, till_id: &str) -> CoreResult<TillRefundsView> {
     store.with_conn(|c| {
-        let refunds = refunds_where(c, "till_id=?1", till_id)?;
+        let mut refunds = refunds_where(c, "till_id=?1", till_id)?;
+        // Newest first, as the server lists a till's refunds.
+        refunds.sort_by_key(|r| std::cmp::Reverse(issued_instant(r)));
         Ok(TillRefundsView {
             till_id: till_id.to_string(),
             refund_count: refunds.len() as i64,
@@ -418,6 +424,8 @@ pub(crate) fn order_refunds(store: &Store, order_id: &str) -> CoreResult<Option<
         if server != okey {
             refunds.extend(refunds_where(c, "order_id=?1", &okey)?);
         }
+        // Oldest first, as the server lists one sale's refunds.
+        refunds.sort_by_key(issued_instant);
         let refunded: i64 = refunds.iter().map(|r| r.amount_minor).sum();
         let total = i(&v, "total_amount");
         Ok(Some(OrderRefundsView {

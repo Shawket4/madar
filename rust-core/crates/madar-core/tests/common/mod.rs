@@ -200,7 +200,7 @@ pub async fn signed_in(base: &str, db_path: &str, teller: &str, branch: &str) ->
             other => break other.expect("sign in"),
         }
     };
-    assert!(s.online, "the first sign-in reaches the backend");
+    assert!(s.online, "the first sign-in reaches the backend: {s:?}");
     core
 }
 

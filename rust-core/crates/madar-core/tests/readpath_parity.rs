@@ -55,14 +55,29 @@ fn diff_value<T: Debug>(what: &str, reference: &T, local: &T) -> Vec<String> {
     if a == b {
         return Vec::new();
     }
+    // Field lines only one side has (a multiset difference, so one changed
+    // field reads as one line, not as every line after it).
+    let count = |v: &[String]| {
+        let mut m: BTreeMap<String, i64> = BTreeMap::new();
+        for l in v {
+            *m.entry(l.clone()).or_default() += 1;
+        }
+        m
+    };
+    let (ca, cb) = (count(&a), count(&b));
     let mut out = Vec::new();
-    for (i, (x, y)) in a.iter().zip(b.iter()).enumerate() {
-        if x != y {
-            out.push(format!("{what}: line {i}: legacy `{x}` new `{y}`"));
+    for (l, n) in &ca {
+        if cb.get(l).copied().unwrap_or(0) < *n {
+            out.push(format!("{what}: legacy `{l}`"));
         }
     }
-    if a.len() != b.len() {
-        out.push(format!("{what}: legacy {} lines, new {} lines", a.len(), b.len()));
+    for (l, n) in &cb {
+        if ca.get(l).copied().unwrap_or(0) < *n {
+            out.push(format!("{what}: new `{l}`"));
+        }
+    }
+    if out.is_empty() {
+        out.push(format!("{what}: same fields in a different order"));
     }
     out.truncate(12);
     out
@@ -155,12 +170,20 @@ async fn parity(core: &MadarCore, tills: &[String], orders: &[String], tickets: 
     d.extend(res("list_open_tickets", both!(core, core.list_open_tickets()), |l, n| {
         diff_keyed("open tickets", l, n, |t| t.id.clone())
     }));
-    for t in tickets {
+    // The bill detail as a screen opens it: by the id the list gave.
+    set_all(core, ReadPathMode::New);
+    let listed: Vec<String> = core.list_open_tickets().await.map(|v| v.into_iter().map(|t| t.id).collect()).unwrap_or_default();
+    for t in tickets.iter().chain(listed.iter().rev().take(6)) {
         d.extend(res("get_ticket", both!(core, core.get_ticket(t.clone())), |l, n| diff_value(&format!("ticket {t}"), l, n)));
     }
     d.extend(res("kds_list", both!(core, core.kds_list(None)), |l, n| diff_keyed("kds", l, n, |t| t.id.clone())));
-    d.extend(res("list_delivery_orders", both!(core, core.list_delivery_orders(None)), |l, n| {
-        diff_keyed("delivery", l, n, |o| o.id.clone())
+    // The queue screen's own filter (incoming_provider.dart kActiveDeliveryStatuses).
+    let active = Some("received,confirmed,preparing,ready,out_for_delivery".to_string());
+    d.extend(res("list_delivery_orders", both!(core, core.list_delivery_orders(active.clone())), |l, n| {
+        diff_keyed("delivery(active)", l, n, |o| o.id.clone())
+    }));
+    d.extend(res("list_delivery_orders(all)", both!(core, core.list_delivery_orders(None)), |l, n| {
+        diff_keyed("delivery(all)", l, n, |o| o.id.clone())
     }));
     set_all(core, ReadPathMode::Legacy);
     let la = core.list_arrivals();
@@ -173,7 +196,15 @@ async fn parity(core: &MadarCore, tills: &[String], orders: &[String], tickets: 
 /// Differences with a known cause in the LEGACY read (the reference is wrong,
 /// the local read is right). Each entry: a pattern and why.
 fn explained(line: &str) -> Option<&'static str> {
-    let _ = line;
+    if line.contains("printed_at:") {
+        return Some("the print time: each read stamps its own");
+    }
+    if line.starts_with("delivery(all): ") && line.ends_with("only in legacy") {
+        return Some(
+            "an unfiltered list: legacy pages the server's last 200 of any age; the feed keeps terminal \
+             deliveries 48 h (sync_live_delivery). No screen reads it unfiltered",
+        );
+    }
     None
 }
 
@@ -273,6 +304,17 @@ async fn parity_one_device_online_offline_reconnect_close() {
     let orders: Vec<String> = synced.iter().map(|o| o.id.clone()).collect();
     let tickets = vec![t_open.clone(), t_void.clone()];
     let mut bad = verdict("online", parity(&core, &[till.clone()], &orders, &tickets).await);
+    // The comparison is not vacuous: every board has something on it.
+    let bills = core.list_open_tickets().await.unwrap().len();
+    let kds = core.kds_list(None).await.unwrap().len();
+    let deliveries = core.list_delivery_orders(Some("received".into())).await.unwrap().len();
+    let arrivals = core.list_arrivals().unwrap().len();
+    let refunds = core.list_till_refunds(till.clone()).await.unwrap().refund_count;
+    eprintln!("PARITY coverage: bills {bills} kds {kds} deliveries {deliveries} arrivals {arrivals} refunds {refunds}");
+    let newest = core.list_open_tickets().await.unwrap().last().map(|t| t.id.clone()).unwrap();
+    let detail = core.get_ticket(newest).await;
+    assert!(detail.is_ok(), "the bill detail read serves: {detail:?}");
+    assert!(bills >= 1 && kds >= 1 && deliveries >= 1 && arrivals >= 1 && refunds >= 1, "every board is covered");
 
     // Offline: sales, a void, a refund, a pay-out, a fire.
     offline(&core, &proxy).await;
@@ -358,10 +400,10 @@ async fn parity_fresh_device_past_till_before_and_after_first_snapshot() {
     let core = signed_in(&fx.base, &db, &teller, &fx.branch).await;
     core.refresh_connectivity().await;
     core.refresh_catalog().await.unwrap();
-    let _ = verdict("before first snapshot (informational)", parity(&core, &past, &[], &[]).await);
+    let mut bad = verdict("before first snapshot", parity(&core, &past, &[], &[]).await);
     core.sync_full().await.unwrap();
     converge(&core).await;
-    let bad = verdict("after first snapshot", parity(&core, &past, &[], &[]).await);
+    bad.extend(verdict("after first snapshot", parity(&core, &past, &[], &[]).await));
     let _ = std::fs::remove_file(&db);
     assert!(bad.is_empty(), "unexplained differences: {bad:#?}");
 }
