@@ -172,7 +172,7 @@ pub(crate) fn resolve_key(conn: &Connection, ty: &str, v: &Value, proposed: &str
     .map(str::to_string);
     let sid = s(v, "id").map(str::to_string);
     let mut found: Vec<String> = Vec::new();
-    let mut add = |k: String, found: &mut Vec<String>| {
+    let add = |k: String, found: &mut Vec<String>| {
         if !found.contains(&k) {
             found.push(k);
         }

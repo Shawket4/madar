@@ -432,6 +432,7 @@ impl MadarCore {
             Ok(())
         })?;
         let _ = self.drain_outbox().await;
+        self.lan_mirror_publish(&client_ref.to_string()).await;
         Ok(till::CashMovementView {
             id: client_ref.to_string(),
             kind: till_views::movement_kind(kind.as_deref(), amount_minor),

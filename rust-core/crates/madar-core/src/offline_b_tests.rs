@@ -968,3 +968,117 @@ async fn the_transfers_waitlist_rides_the_feed_cursor() {
     core.refresh_floor_and_held().await;
     assert!(stub.requests("/floor/transfers").is_empty(), "no wall-clock transfers pull once the feed carries them");
 }
+
+/// LAN multi-till: what a peer rang offline — a sale, its void, a movement, a
+/// refund — arrives here as the exact replay envelope its drain would send, and
+/// becomes the rows it stands for on the peer's till, held by the backup op.
+#[tokio::test]
+async fn a_peers_money_ops_become_held_rows_here() {
+    let a = testkit::offline_core("http://127.0.0.1:1", "").await;
+    let b = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&a);
+    seed_methods(&b);
+    let till = a.open_till(2_000, None).await.unwrap().till.unwrap();
+    let sale = ring(&a, 1_000, CASH, 2_000).await;
+    a.record_cash_movement(-300, "change run".into(), Some("pay_out".into()), None).await.unwrap();
+    let relay = |from: &crate::MadarCore, to: &crate::MadarCore, op_type: &str| {
+        for item in from.store.pending().unwrap().into_iter().filter(|i| i.op_type == op_type) {
+            let (env, _) = from.replay_envelope(&item).map_err(|_| "envelope").unwrap();
+            crate::mirror_replay_op(&to.store, &env.to_string());
+        }
+    };
+    relay(&a, &b, "create_order");
+    relay(&a, &b, "cash_movement");
+    let one = |core: &crate::MadarCore, q: &str| -> i64 { core.store.with_conn(|c| Ok(c.query_row(q, [], |r| r.get(0))?)).unwrap() };
+    assert_eq!(one(&b, &format!("SELECT total_amount FROM ledger_orders WHERE okey='{}' AND till_id='{}'", sale.local_order_id, till.id)), sale.total_minor);
+    assert_eq!(one(&b, &format!("SELECT COUNT(*) FROM ledger_payments WHERE okey='{}' AND is_cash=1", sale.local_order_id)), 1);
+    assert_eq!(one(&b, &format!("SELECT amount FROM ledger_cash WHERE till_id='{}'", till.id)), -300);
+    assert!(b.store.with_conn(|c| crate::ledger::is_protected(c, crate::ledger::T_ORDER, &sale.local_order_id)).unwrap(),
+        "held by the backup until it lands");
+    // A second copy of the same envelope changes nothing.
+    relay(&a, &b, "create_order");
+    assert_eq!(one(&b, "SELECT COUNT(*) FROM ledger_orders"), 1);
+    assert_eq!(one(&b, "SELECT COUNT(*) FROM outbox WHERE op_type='lan_mirror'"), 2);
+
+    // The peer voids the sale and refunds another synced one: both follow.
+    a.void_order(sale.local_order_id.clone(), "wrong_order".into(), None, false).await.unwrap();
+    relay(&a, &b, "void_order");
+    assert_eq!(one(&b, &format!("SELECT status = 'voided' FROM ledger_orders WHERE okey='{}'", sale.local_order_id)), 1);
+    let refund = serde_json::json!({"op": "refund_order", "teller_id": testkit::TELLER, "request": {
+        "client_ref": uid("refund-1"), "order_id": uid("synced-sale"), "till_id": till.id, "amount": 250, "method": "Cash",
+        "reason": "wrong_order", "issued_at": "2026-09-14T11:00:00Z"}});
+    crate::mirror_replay_op(&b.store, &refund.to_string());
+    assert_eq!(one(&b, &format!("SELECT amount FROM ledger_refunds WHERE rkey='{}' AND is_cash=1", uid("refund-1"))), 250);
+
+    // A dead backup that the teller discards takes its row with it.
+    b.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET status='dead' WHERE op_type='lan_mirror' AND entity_type='cash_movement'", [])?)).unwrap();
+    let dead = b.store.list_active().unwrap().into_iter().find(|i| i.status == "dead").unwrap();
+    b.discard_outbox_item(dead.id.clone()).unwrap();
+    assert_eq!(one(&b, "SELECT COUNT(*) FROM ledger_cash"), 0);
+}
+
+/// A peer's queued round and line void show on the bill here, re-priced, and a
+/// round the server already lists is not added twice; this device's own queued
+/// round shows too.
+#[tokio::test]
+async fn a_peers_rounds_and_line_voids_overlay_the_bill() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    let item = uid("latte");
+    core.store
+        .kv_put(crate::menu::K_MENU_ITEMS, &serde_json::json!([{"id": item, "org_id": testkit::ORG, "name": "Latte", "base_price": 500,
+            "is_active": true, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"}]).to_string())
+        .unwrap();
+    let ticket = uid("bill");
+    let line = uid("line-1");
+    let bill = serde_json::json!({"id": ticket, "branch_id": testkit::BRANCH, "status": "open", "subtotal": 800, "opened_at": "2026-09-13T09:00:00Z",
+        "opened_by": testkit::TELLER, "items": [{"id": line, "line": {"name": "Tea", "qty": 1}, "line_total": 800, "round_number": 1,
+        "round_fired_at": "2026-09-13T09:00:00Z", "voided": false}],
+        "bill": {"subtotal": 800, "discount_amount": 0, "service_charge_amount": 0, "tax_amount": 0, "total": 800, "tax_rate": 0.0,
+                 "service_charge_rate": 0.0, "tax_inclusive": false}});
+    seed_rows(&core, &[("open_ticket", bill)]);
+    let round = serde_json::json!({"op": "add_ticket_round", "teller_id": testkit::TELLER, "ticket_id": ticket,
+        "request": {"idempotency_key": uid("round-2"), "items": [{"menu_item_id": item, "quantity": 2, "unit_price": 500}]}});
+    crate::mirror_replay_op(&core.store, &round.to_string());
+    let bills = core.list_open_tickets().await.unwrap();
+    let b = bills.iter().find(|t| t.id == ticket).unwrap();
+    assert_eq!(b.lines.len(), 2);
+    let added = b.lines.iter().find(|l| l.round_number == 2).expect("the peer's round");
+    assert_eq!((added.name.as_str(), added.qty, added.line_total_minor), ("Latte", 2, 1_000));
+    assert_eq!(b.subtotal_minor, 1_800);
+    assert_eq!(b.bill.as_ref().unwrap().total_minor, 1_800, "re-priced through the bill engine");
+    assert!(b.queued_offline);
+
+    let void_line = serde_json::json!({"op": "void_ticket_line", "teller_id": testkit::TELLER, "ticket_id": ticket, "item_id": line, "request": {}});
+    crate::mirror_replay_op(&core.store, &void_line.to_string());
+    let b = core.list_open_tickets().await.unwrap().into_iter().find(|t| t.id == ticket).unwrap();
+    assert!(b.lines.iter().find(|l| l.id == line).unwrap().voided, "the peer's line void shows");
+    assert_eq!(b.subtotal_minor, 1_000);
+
+    // This device's own queued round shows the same way.
+    let own = crate::tickets::AddRoundCommand {
+        ticket_id: ticket.clone(),
+        round_id: uid("round-3"),
+        request: crate::tickets::build_round_request(
+            vec![madar_api::models::OrderItemInput { menu_item_id: Some(Some(uuid::Uuid::parse_str(&item).unwrap())), unit_price: Some(Some(500)), ..madar_api::models::OrderItemInput::new(1) }],
+            uuid::Uuid::parse_str(&uid("round-3")).unwrap(),
+        ),
+    };
+    core.store
+        .enqueue(&store::NewOutboxOp { id: uid("round-3"), op_type: "ticket_add_round".into(), idempotency_key: uid("round-3"),
+            payload: serde_json::to_string(&own).unwrap(), event_at: chrono::Utc::now().to_rfc3339(), ..Default::default() })
+        .unwrap();
+    let b = core.list_open_tickets().await.unwrap().into_iter().find(|t| t.id == ticket).unwrap();
+    assert_eq!(b.lines.len(), 3);
+    assert_eq!(b.subtotal_minor, 1_500);
+    core.store.with_conn(|c| Ok(c.execute("DELETE FROM outbox WHERE op_type='ticket_add_round'", [])?)).unwrap();
+
+    // The feed then lists the round (a round fired after it was queued): not twice.
+    let fed = serde_json::json!({"id": ticket, "branch_id": testkit::BRANCH, "status": "open", "subtotal": 1_800, "opened_at": "2026-09-13T09:00:00Z",
+        "opened_by": testkit::TELLER, "items": [
+            {"id": line, "line": {"name": "Tea", "qty": 1}, "line_total": 800, "round_number": 1, "round_fired_at": "2026-09-13T09:00:00Z", "voided": false},
+            {"id": uid("line-2"), "line": {"name": "Latte", "qty": 2}, "line_total": 1_000, "round_number": 2,
+             "round_fired_at": chrono::Utc::now().to_rfc3339(), "voided": false}]});
+    seed_rows(&core, &[("open_ticket", fed)]);
+    let b = core.list_open_tickets().await.unwrap().into_iter().find(|t| t.id == ticket).unwrap();
+    assert_eq!(b.lines.len(), 2, "the listed round is not overlaid again");
+}

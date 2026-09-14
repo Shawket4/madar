@@ -87,7 +87,7 @@ pub fn tables_for_op(op_type: &str) -> Vec<&'static str> {
         "swap_tables" | "create_table_transfer" | "cancel_table_transfer" | "fulfill_table_transfer"
         | "clear_table" | "hold_table" | "release_table" => &[FLOOR][..],
         // A LAN peer's op mirrored here: its bills and kitchen work overlay the boards.
-        "lan_mirror" => &[OPEN_TICKETS, KITCHEN, FLOOR][..],
+        "lan_mirror" => &[OPEN_TICKETS, KITCHEN, FLOOR, ORDERS, TILLS, CASH_MOVEMENTS, REFUNDS][..],
         _ => &[][..],
     });
     t

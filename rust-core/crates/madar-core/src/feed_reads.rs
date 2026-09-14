@@ -63,14 +63,25 @@ impl MadarCore {
 
     /// Apply this device's queued ticket work over a list of bills.
     fn overlay_bills(&self, server: &[madar_api::models::OpenTicketView]) -> Result<Vec<tickets::TicketView>, CoreError> {
-        let line_voids = tickets::pending_line_voids(&self.store)?;
+        let pending = self.store.pending()?;
+        let mut line_voids = tickets::pending_line_voids(&self.store)?;
+        // A peer's queued line voids take the plate off here too.
+        for env in pending
+            .iter()
+            .filter(|i| i.op_type == "lan_mirror")
+            .filter_map(|i| serde_json::from_str::<Value>(&i.payload).ok())
+            .filter(|e| e.get("op").and_then(Value::as_str) == Some("void_ticket_line"))
+        {
+            if let Some(item) = env.get("item_id").and_then(Value::as_str) {
+                line_voids.insert(item.to_string());
+            }
+        }
         let sc_taxable = self.service_charge_taxable();
         let mut out: Vec<tickets::TicketView> = server
             .iter()
             .filter(|v| v.status != "settled" && v.status != "voided")
             .map(|v| tickets::to_view_with(v, false, &line_voids, sc_taxable))
             .collect();
-        let pending = self.store.pending()?;
         // A LAN peer's ticket work this device mirrors for durability (`lan_mirror`
         // rows carry the peer's replay envelope): a bill a waiter fired on another
         // tablet shows here while the cloud is out of reach, and a peer's settle or
@@ -122,7 +133,87 @@ impl MadarCore {
             let cmd = tickets::FireTicketCommand { ticket_id, request };
             out.push(crate::queued_ticket_view(&cmd, &item.event_at, None));
         }
+        self.overlay_rounds(server, &pending, &mut out, sc_taxable);
         Ok(out)
+    }
+
+    /// Rounds still on their way — this device's own queued rounds and a peer's
+    /// mirrored ones — on the bill they belong to: their lines (named from the
+    /// catalogue, as the server will), the bill re-priced through the same engine
+    /// as a line void. A round the server already shows (it has a round fired at
+    /// or after this one was queued) is not added twice.
+    fn overlay_rounds(
+        &self,
+        server: &[madar_api::models::OpenTicketView],
+        pending: &[crate::store::OutboxItem],
+        out: &mut [tickets::TicketView],
+        sc_taxable: bool,
+    ) {
+        let mut rounds: Vec<(String, String, madar_api::models::AddRoundRequest, String)> = Vec::new();
+        for item in pending {
+            let round = match item.op_type.as_str() {
+                "ticket_add_round" => serde_json::from_str::<tickets::AddRoundCommand>(&item.payload)
+                    .ok()
+                    .map(|c| (c.ticket_id, c.round_id, c.request)),
+                "lan_mirror" => serde_json::from_str::<Value>(&item.payload)
+                    .ok()
+                    .filter(|e| e.get("op").and_then(Value::as_str) == Some("add_ticket_round"))
+                    .and_then(|e| {
+                        let ticket = e.get("ticket_id")?.as_str()?.to_string();
+                        let req: madar_api::models::AddRoundRequest = serde_json::from_value(e.get("request")?.clone()).ok()?;
+                        let id = req.idempotency_key.flatten()?.to_string();
+                        Some((ticket, id, req))
+                    }),
+                _ => None,
+            };
+            if let Some((ticket, id, req)) = round {
+                if !rounds.iter().any(|r| r.1 == id) {
+                    rounds.push((ticket, id, req, item.event_at.clone()));
+                }
+            }
+        }
+        if rounds.is_empty() {
+            return;
+        }
+        let names: std::collections::HashMap<String, String> =
+            self.list_menu_items().unwrap_or_default().into_iter().map(|m| (m.id, m.name)).collect();
+        let instant = |t: &str| chrono::DateTime::parse_from_rfc3339(t).ok();
+        for (ticket, _, req, at) in rounds {
+            let Some(bill) = out.iter_mut().find(|t| t.id == ticket) else { continue };
+            let queued_at = instant(&at);
+            let server_has_it = bill
+                .lines
+                .iter()
+                .any(|l| matches!((instant(&l.round_fired_at), queued_at), (Some(f), Some(q)) if f >= q));
+            if server_has_it {
+                continue;
+            }
+            let round_number = bill.lines.iter().map(|l| l.round_number).max().unwrap_or(0) + 1;
+            let mut added = 0i64;
+            for it in &req.items {
+                let menu_item_id = it.menu_item_id.flatten().map(|u| u.to_string());
+                let line_total = it.unit_price.flatten().unwrap_or(0) as i64 * it.quantity as i64;
+                added += line_total;
+                bill.lines.push(tickets::TicketLineView {
+                    id: String::new(),
+                    name: menu_item_id.as_ref().and_then(|m| names.get(m).cloned()).unwrap_or_else(|| "Item".into()),
+                    menu_item_id,
+                    qty: it.quantity,
+                    size_label: it.size_label.clone().flatten(),
+                    modifiers: Vec::new(),
+                    line_total_minor: line_total,
+                    voided: false,
+                    round_number,
+                    round_fired_at: at.clone(),
+                });
+            }
+            bill.subtotal_minor += added;
+            if let (Some(b), Some(v)) = (bill.bill.as_ref(), server.iter().find(|v| v.id.to_string() == ticket)) {
+                let (dt, dv) = tickets::waiter_discount(v);
+                bill.bill = Some(tickets::reprice_with(b, bill.subtotal_minor, dt.as_deref(), dv, sc_taxable));
+            }
+            bill.queued_offline = true;
+        }
     }
 
     /// The branch's open bills (newest first) with this device's queued fires,

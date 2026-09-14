@@ -1127,14 +1127,11 @@ impl MadarCore {
             .collect()
     }
 
-    /// Send one op; `body` receives the backend's JSON answer when there was one
-    /// (the entity the op created or changed — folded into the ledger on ack).
-    async fn send_outbox_item_body(
-        &self,
-        item: &store::OutboxItem,
-        body_out: &mut Option<serde_json::Value>,
-        seq_out: &mut Option<i64>,
-    ) -> SendOutcome {
+    /// The `/sync/replay` envelope for a queued op (timestamps re-based to the
+    /// current server skew) and how its 409/404 read — shared by the drain and
+    /// by the LAN mirror publish, so a peer backs up EXACTLY what would be sent.
+    fn replay_envelope(&self, item: &store::OutboxItem) -> Result<(serde_json::Value, Idem), SendOutcome> {
+
         let delta = self.rebase_delta_ms(item);
 
         // Every queued op flushes through ONE endpoint — `POST /sync/replay` —
@@ -1144,7 +1141,7 @@ impl MadarCore {
         let teller_id = match item.user_id.clone() {
             Some(t) => t,
             // A legacy/un-attributed op can't be replayed safely — surface it.
-            None => return SendOutcome::Dead("queued op has no teller attribution".into()),
+            None => return Err(SendOutcome::Dead("queued op has no teller attribution".into())),
         };
 
         // Deserialize the stored command, re-base its timestamp to the fresh
@@ -1152,11 +1149,11 @@ impl MadarCore {
         // `idem` is how a 409/404 is read for this op (unchanged from the live
         // per-resource path). The envelope's `request` is the GENERATED type, so
         // the wire shape is identical to the live endpoint's body.
-        let (envelope, idem): (serde_json::Value, Idem) = match item.op_type.as_str() {
+        Ok(match item.op_type.as_str() {
             "open_till" | "open_shift" => {
                 let mut cmd = match self.translate_open_till(item) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 rebase_dopt(&mut cmd.request.opened_at, delta);
                 (
@@ -1169,7 +1166,7 @@ impl MadarCore {
             "close_till" | "close_shift" => {
                 let mut cmd: till::CloseTillCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 rebase_dopt(&mut cmd.request.closed_at, delta);
                 // A close queued before the rework carries no reconciliation: send
@@ -1187,7 +1184,7 @@ impl MadarCore {
             "create_order" => {
                 let mut cmd: checkout::CheckoutCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 // Re-base created_at for clock skew — but NEVER across the business
                 // day baked into order_ref at ring-up. If the skew shift would change
@@ -1222,7 +1219,7 @@ impl MadarCore {
             "void_order" => {
                 let mut cmd: orders::VoidOrderCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 // A void queued against a sale that was itself still queued names the
                 // sale by its client key; once that sale's create has acked, its row
@@ -1248,7 +1245,7 @@ impl MadarCore {
             "award_loyalty_points" => {
                 let mut cmd: loyalty::AwardCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 // Rebase the press onto server time, exactly as queued orders
                 // and voids are. Without this a till whose clock is an hour fast
@@ -1263,7 +1260,7 @@ impl MadarCore {
             "refund_order" => {
                 let cmd: orders::RefundOrderCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "refund_order", "teller_id": teller_id, "request": cmd.request }),
@@ -1274,7 +1271,7 @@ impl MadarCore {
                 let mut cmd: till::CashMovementCommand = match serde_json::from_str(&item.payload)
                 {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 rebase_dopt(&mut cmd.request.created_at, delta);
                 let device_id = cmd.device_id.clone().unwrap_or_else(|| self.lan_device_id());
@@ -1292,7 +1289,7 @@ impl MadarCore {
             "open_ticket" => {
                 let cmd: tickets::FireTicketCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     // `origin_device_id`: the echo names this device, so it skips its
@@ -1304,7 +1301,7 @@ impl MadarCore {
             "ticket_add_round" => {
                 let cmd: tickets::AddRoundCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "add_ticket_round", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "request": cmd.request, "origin_device_id": self.lan_device_id() }),
@@ -1319,7 +1316,7 @@ impl MadarCore {
             "settle_open_ticket" => {
                 let cmd: tickets::SettleTicketCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "settle_open_ticket", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "request": cmd.request }),
@@ -1334,7 +1331,7 @@ impl MadarCore {
             "void_ticket" => {
                 let cmd: tickets::VoidTicketCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "void_open_ticket", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "request": cmd.request }),
@@ -1349,7 +1346,7 @@ impl MadarCore {
                 let cmd: tickets::VoidTicketLineCommand = match serde_json::from_str(&item.payload)
                 {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "void_ticket_line", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "item_id": cmd.item_id, "request": cmd.request }),
@@ -1362,7 +1359,7 @@ impl MadarCore {
             "bump_kitchen" | "unbump_kitchen" => {
                 let cmd: kds::BumpCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 let op = if item.op_type == "bump_kitchen" {
                     "bump_kitchen_item"
@@ -1383,7 +1380,7 @@ impl MadarCore {
             "swap_tables" => {
                 let cmd: held::SwapCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 // Not idempotent-on-409: a refused move (TABLE_DIRTY, TABLE_HELD)
                 // is something a person asked for and must be TOLD failed —
@@ -1396,7 +1393,7 @@ impl MadarCore {
             "create_table_transfer" => {
                 let cmd: held::CreateTransferCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "create_table_transfer", "teller_id": teller_id, "request": cmd.request }),
@@ -1406,7 +1403,7 @@ impl MadarCore {
             "cancel_table_transfer" => {
                 let cmd: held::TransferOpCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "cancel_table_transfer", "teller_id": teller_id, "transfer_id": cmd.transfer_id }),
@@ -1416,7 +1413,7 @@ impl MadarCore {
             "fulfill_table_transfer" => {
                 let cmd: held::TransferOpCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "fulfill_table_transfer", "teller_id": teller_id, "transfer_id": cmd.transfer_id, "request": cmd.request }),
@@ -1426,7 +1423,7 @@ impl MadarCore {
             "clear_table" => {
                 let cmd: held::TableStateCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "clear_table", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
@@ -1441,7 +1438,7 @@ impl MadarCore {
             "hold_table" => {
                 let cmd: held::TableStateCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "hold_table", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
@@ -1451,7 +1448,7 @@ impl MadarCore {
             "release_table" => {
                 let cmd: held::TableStateCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "release_table", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
@@ -1461,7 +1458,7 @@ impl MadarCore {
             "seat_booking" => {
                 let cmd: bookings::SeatBookingCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "seat_booking", "teller_id": teller_id, "booking_id": cmd.booking_id, "request": cmd.request }),
@@ -1472,7 +1469,7 @@ impl MadarCore {
                 let cmd: bookings::NoShowBookingCommand = match serde_json::from_str(&item.payload)
                 {
                     Ok(c) => c,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
                     serde_json::json!({ "op": "no_show_booking", "teller_id": teller_id, "booking_id": cmd.booking_id }),
@@ -1485,11 +1482,26 @@ impl MadarCore {
             "lan_mirror" => {
                 let envelope: serde_json::Value = match serde_json::from_str(&item.payload) {
                     Ok(v) => v,
-                    Err(e) => return SendOutcome::Dead(format!("payload: {e}")),
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (envelope, Idem::Yes)
             }
-            other => return SendOutcome::Dead(format!("unknown op_type {other}")),
+            other => return Err(SendOutcome::Dead(format!("unknown op_type {other}"))),
+        })
+    }
+
+    /// Send one op; `body_out` receives the backend's JSON answer when there was
+    /// one (the entity the op created or changed — folded into the ledger on ack)
+    /// and `seq_out` the feed horizon that includes it.
+    async fn send_outbox_item_body(
+        &self,
+        item: &store::OutboxItem,
+        body_out: &mut Option<serde_json::Value>,
+        seq_out: &mut Option<i64>,
+    ) -> SendOutcome {
+        let (envelope, idem) = match self.replay_envelope(item) {
+            Ok(e) => e,
+            Err(outcome) => return outcome,
         };
 
         match self.api.post_json_seq("/sync/replay", &envelope).await {
@@ -2505,23 +2517,162 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
     // op kind + its primary idempotency handle.
     let handle = env
         .get("request")
-        .and_then(|r| r.get("idempotency_key"))
+        .and_then(|r| r.get("idempotency_key").or_else(|| r.get("client_ref")))
         .and_then(|v| v.as_str())
         .or_else(|| env.get("item_id").and_then(|v| v.as_str()))
+        .or_else(|| env.get("order_id").and_then(|v| v.as_str()))
         .or_else(|| env.get("ticket_id").and_then(|v| v.as_str()))
         .unwrap_or(op);
-    let _ = store.enqueue(&store::NewOutboxOp {
+    let mut backup = store::NewOutboxOp {
         id: format!("lanmirror:{op}:{handle}"),
         op_type: "lan_mirror".into(),
         idempotency_key: format!("{op}:{handle}"),
         payload: envelope_json.to_string(),
-        event_at,
+        event_at: event_at.clone(),
         depends_on_seq: None,
-        user_id: teller_id,
+        user_id: teller_id.clone(),
         clock_offset_ms: None,
         till_id: None,
         ..Default::default()
+    };
+    // A peer's MONEY op also becomes the row it stands for on this device (the
+    // peer's till shows the sale, void, refund, movement or settled bill at once),
+    // held by the backup op exactly like this device's own queued work: the feed
+    // cannot overwrite it until the backup lands, and a discarded backup takes
+    // its row with it.
+    let methods = ledger::views::payment_method_rows(store);
+    let name_of = |uid: &Option<String>| -> String {
+        uid.as_deref()
+            .and_then(|u| {
+                store.kv_get(session::BUNDLE_KEY).ok().flatten().and_then(|raw| {
+                    serde_json::from_str::<serde_json::Value>(&raw).ok()?.get("tellers")?.as_array()?.iter().find_map(|t| {
+                        (t.get("user_id")?.as_str()? == u).then(|| t.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string())
+                    })
+                })
+            })
+            .unwrap_or_default()
+    };
+    let teller_name = name_of(&teller_id);
+    let who = ledger::local::Ringer { teller_id: teller_id.as_deref().unwrap_or(""), teller_name: &teller_name };
+    let request = env.get("request").cloned().unwrap_or(serde_json::Value::Null);
+    let str_of = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_str()).map(str::to_string);
+    let _ = store.with_tx_touch(|tx, touched| {
+        match op {
+            "create_order" => {
+                let Ok(cmd) = serde_json::from_value::<checkout::CheckoutCommand>(serde_json::json!({ "request": request })) else {
+                    return enqueue_plain(tx, &backup);
+                };
+                let Some(key) = cmd.request.idempotency_key.flatten().map(|u| u.to_string()) else {
+                    return enqueue_plain(tx, &backup);
+                };
+                let mut row = ledger::local::order_json(&cmd, &key, &who, &methods);
+                // The peer's own device numbering travels on the envelope.
+                for k in ["device_code", "order_number", "verification"] {
+                    if let Some(v) = request.get(k).filter(|v| !v.is_null()) {
+                        row[k] = v.clone();
+                    }
+                }
+                backup.entity_type = Some(ledger::T_ORDER.into());
+                backup.entity_id = Some(key);
+                backup.till_id = str_of(&request, "till_id");
+                ledger::local::commit_order(tx, &backup, &row)?;
+            }
+            "void_order" => {
+                let target = str_of(&env, "order_id").unwrap_or_default();
+                match ledger::order_key_for(tx, &target)? {
+                    Some(key) => {
+                        backup.entity_type = Some(ledger::T_ORDER.into());
+                        backup.entity_id = Some(key);
+                        let at = str_of(&request, "voided_at").unwrap_or(event_at.clone());
+                        let reason = str_of(&request, "reason").unwrap_or_else(|| "other".into());
+                        ledger::local::commit_void(tx, &backup, &at, &reason, str_of(&request, "note").as_deref())?;
+                    }
+                    None => enqueue_plain(tx, &backup)?,
+                }
+            }
+            "refund_order" => {
+                let Some(key) = str_of(&request, "client_ref") else { return enqueue_plain(tx, &backup) };
+                let method = str_of(&request, "method").unwrap_or_default();
+                let row = serde_json::json!({
+                    "id": key, "client_ref": key, "order_id": str_of(&request, "order_id"),
+                    "till_id": str_of(&request, "till_id"), "amount": request.get("amount").cloned().unwrap_or(serde_json::json!(0)),
+                    "method": method, "is_cash": ledger::local::is_cash_of(&methods, &method),
+                    "reason": str_of(&request, "reason"), "note": str_of(&request, "note"), "issued_by_name": teller_name,
+                    "issued_at": str_of(&request, "issued_at").unwrap_or(event_at.clone()), "lines": [],
+                });
+                backup.entity_type = Some(ledger::T_REFUND.into());
+                backup.entity_id = Some(key);
+                backup.till_id = str_of(&request, "till_id");
+                ledger::local::commit_refund(tx, &backup, &row)?;
+            }
+            "cash_movement" => {
+                let Some(key) = str_of(&request, "client_ref") else { return enqueue_plain(tx, &backup) };
+                let amount = request.get("amount").and_then(|a| a.as_i64()).unwrap_or(0);
+                let row = serde_json::json!({
+                    "id": key, "client_ref": key, "till_id": str_of(&env, "till_id"), "amount": amount,
+                    "kind": str_of(&request, "kind").unwrap_or_else(|| if amount < 0 { "pay_out".into() } else { "pay_in".into() }),
+                    "corrects_id": str_of(&request, "corrects_id"), "note": str_of(&request, "note"),
+                    "moved_by_name": teller_name, "created_at": str_of(&request, "created_at").unwrap_or(event_at.clone()),
+                    "device_id": str_of(&env, "device_id"),
+                });
+                backup.entity_type = Some(ledger::T_CASH.into());
+                backup.entity_id = Some(key);
+                backup.till_id = str_of(&env, "till_id");
+                ledger::local::commit_cash(tx, &backup, &row)?;
+            }
+            "settle_open_ticket" => {
+                let Some(ticket) = str_of(&env, "ticket_id") else { return enqueue_plain(tx, &backup) };
+                let splits: Vec<(String, i64)> = request
+                    .get("payment_splits")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.iter().map(|l| (str_of(l, "method").unwrap_or_default(), l.get("amount").and_then(|x| x.as_i64()).unwrap_or(0))).collect())
+                    .unwrap_or_default();
+                // What the bill came to: the split legs when tendered in parts, else
+                // the bill this device holds for the ticket.
+                let total = if splits.is_empty() {
+                    tx.query_row(
+                        "SELECT data FROM sync_rows WHERE type='open_ticket' AND id=?1",
+                        [&ticket],
+                        |r| r.get::<_, String>(0),
+                    )
+                    .ok()
+                    .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+                    .and_then(|v| v.get("bill").and_then(|b| b.get("total")).and_then(|t| t.as_i64()).or_else(|| v.get("subtotal").and_then(|t| t.as_i64())))
+                    .unwrap_or(0)
+                } else {
+                    splits.iter().map(|(_, a)| a).sum()
+                };
+                let till = str_of(&request, "till_id").unwrap_or_default();
+                let branch = tx
+                    .query_row("SELECT branch_id FROM ledger_tills WHERE id=?1", [&till], |r| r.get::<_, String>(0))
+                    .unwrap_or_default();
+                let row = ledger::local::settle_json(
+                    &ticket,
+                    &branch,
+                    &till,
+                    &who,
+                    &str_of(&request, "payment_method").unwrap_or_default(),
+                    &splits,
+                    total,
+                    request.get("tip_amount").and_then(|x| x.as_i64()).unwrap_or(0),
+                    str_of(&request, "tip_payment_method").as_deref(),
+                    &event_at,
+                    &methods,
+                );
+                backup.entity_type = Some(ledger::T_ORDER.into());
+                backup.entity_id = Some(ticket);
+                backup.till_id = Some(till);
+                ledger::local::commit_order(tx, &backup, &row)?;
+            }
+            _ => enqueue_plain(tx, &backup)?,
+        }
+        touched.extend(changes::tables_for_op("lan_mirror"));
+        Ok(())
     });
+}
+
+fn enqueue_plain(tx: &rusqlite::Connection, op: &store::NewOutboxOp) -> Result<(), CoreError> {
+    store::enqueue_on(tx, op).map(|_| ())
 }
 
 /// Split a manual hub address (`host` or `host:port`) → (`host`, `port`), defaulting
@@ -2560,6 +2711,32 @@ impl MadarCore {
     /// Publish a write event over the LAN (instant cross-device delivery): `data` is
     /// the display payload (e.g. a fire projection) and `replay_op` the mirror-relay
     /// envelope. No-op when the relay isn't up.
+    /// Hand a still-queued money or bill op to LAN peers as a mirror backup
+    /// (the exact `/sync/replay` envelope the drain would send): a peer tablet
+    /// shows the sale, void, refund, movement, settle or line void at once and
+    /// can land it with the cloud if this device never gets online again. An op
+    /// that already acked needs no backup (peers get it from the feed).
+    pub(crate) async fn lan_mirror_publish(&self, op_id: &str) {
+        if self.lan.lock().unwrap_or_else(|e| e.into_inner()).is_none() {
+            return;
+        }
+        let Ok(active) = self.store.pending() else { return };
+        let Some(item) = active.into_iter().find(|i| i.id == op_id) else { return };
+        let event = match item.op_type.as_str() {
+            "create_order" => "order.created",
+            "void_order" => "order.voided",
+            "refund_order" => "order.refunded",
+            "cash_movement" => "till.cash_movement",
+            "settle_open_ticket" => "ticket.settled",
+            "void_ticket" => "ticket.voided",
+            "void_ticket_line" => "ticket.line_voided",
+            _ => return,
+        };
+        let Ok((envelope, _)) = self.replay_envelope(&item) else { return };
+        let topic = if event.starts_with("ticket.") { "tickets" } else { "orders" };
+        self.lan_publish(topic, event, "{}".into(), Some(envelope.to_string())).await;
+    }
+
     async fn lan_publish(
         &self,
         topic: &str,
@@ -5291,6 +5468,7 @@ impl MadarCore {
 
         // If the order is no longer pending, the drain sent it.
         let order_id = prepared.order_id.to_string();
+        self.lan_mirror_publish(&order_id).await;
         let still_pending = self.store.pending()?.iter().any(|i| i.id == order_id);
         let mut receipt = prepared.receipt;
         receipt.queued_offline = still_pending;
@@ -6209,6 +6387,7 @@ impl MadarCore {
             Ok(())
         })?;
         let _ = self.drain_outbox().await;
+        self.lan_mirror_publish(&format!("{order_id}:void")).await;
         Ok(())
     }
 
@@ -6416,6 +6595,7 @@ impl MadarCore {
             Ok(())
         })?;
         let _ = self.drain_outbox().await;
+        self.lan_mirror_publish(&format!("{order_id}:refund:{client_ref}")).await;
         Ok(())
     }
 
@@ -6875,6 +7055,7 @@ impl MadarCore {
             ..Default::default()
         })?;
         let _ = self.drain_outbox().await;
+        self.lan_mirror_publish(&op_id).await;
         Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
     }
 
@@ -6930,6 +7111,7 @@ impl MadarCore {
             ..Default::default()
         })?;
         let _ = self.drain_outbox().await;
+        self.lan_mirror_publish(&op_id).await;
         Ok(self.store.pending()?.iter().any(|i| i.id == op_id))
     }
 
@@ -7128,6 +7310,7 @@ impl MadarCore {
             Ok(())
         })?;
         let _ = self.drain_outbox().await;
+        self.lan_mirror_publish(&op_id).await;
         // The paid order the settle produced, when it acked — that is what a
         // receipt prints from. `None` means the settle is still queued: there
         // is no order yet, and inventing one would print a receipt for a sale
