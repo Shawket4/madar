@@ -68,6 +68,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required List<CheckoutRedemption> redemptions,
     String? discountType,
     double? discountValue,
+    required bool waiveService,
   });
 
   Future<List<BranchOpenTillView>> branchOpenTills();
@@ -75,6 +76,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The branch's IANA timezone name (cached at login, or the Cairo fallback) —
   /// for any host that needs the raw zone (e.g. a platform date picker).
   String branchTimezone();
+
+  /// May the signed-in PIN user remove the service charge from a table's
+  /// bill? Their effective `orders:waive_service` grant — never the role.
+  bool canWaiveServiceCharge();
 
   /// Withdraw a waiting transfer wish.
   Future<void> cancelTransfer({required String id});
@@ -933,6 +938,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? loyaltyCustomerId,
     required List<CheckoutRedemption> loyaltyRedemptions,
     required List<CheckoutSplit> splits,
+    required bool waiveService,
   });
 
   /// One-call sign-in: online first, offline PIN unlock fallback.
