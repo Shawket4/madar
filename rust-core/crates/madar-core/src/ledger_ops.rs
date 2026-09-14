@@ -50,32 +50,43 @@ impl MadarCore {
     }
 
     /// Fill a till this device does not hold completely from the server — its
-    /// sales and its report — ONCE, in the background, abandoned after
+    /// sales and its report — in the background, abandoned after
     /// [`FILL_TIMEOUT`]. The screens re-read on the table change it emits. A
-    /// no-op offline, for a complete till, or for a till already filled this
-    /// session; a failed fill may be tried again after [`FILL_EVERY_MS`], and
-    /// only when a screen asks (never on a timer).
+    /// no-op offline and for a complete till. A filled till is filled again only
+    /// once the FEED has moved it since (a refund or a drawer movement against it
+    /// arrived): an unchanged till is never asked twice. A failed fill may be
+    /// tried again after [`FILL_EVERY_MS`], and only when a screen asks.
     pub(crate) fn fill_till_soon(&self, till_id: &str) {
+        let newest = views::newest_seq(&self.store, till_id).unwrap_or(0);
         if views::till_complete(&self.store, till_id)
             || !self.online()
             || self.scheduler.manual.load(std::sync::atomic::Ordering::SeqCst)
-            || self.branch_fills.till_filled(till_id)
+            || self.branch_fills.till_filled(till_id, newest)
         {
             return;
         }
         let key = format!("{K_FILL_ASKED}{till_id}");
         let now = chrono::Utc::now().timestamp_millis();
         let last = self.store.kv_get(&key).ok().flatten().and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
-        if now - last < FILL_EVERY_MS {
+        // The gate spaces RETRIES of a fill that failed; a till the feed moved
+        // since its last good fill is filled again at once.
+        if now - last < FILL_EVERY_MS && !self.branch_fills.till_ever_filled(till_id) {
+            return;
+        }
+        let (Some(me), Ok(handle)) = (self.self_arc(), tokio::runtime::Handle::try_current()) else { return };
+        if !self.branch_fills.begin_fill(till_id) {
             return;
         }
         let _ = self.store.kv_put(&key, &now.to_string());
-        let (Some(me), Ok(handle)) = (self.self_arc(), tokio::runtime::Handle::try_current()) else { return };
         let till_id = till_id.to_string();
         handle.spawn(async move {
+            // What the feed holds for the till as the fill starts: a move that
+            // lands while it runs is newer, and asks for one more fill.
+            let at = views::newest_seq(&me.store, &till_id).unwrap_or(0);
             if let Ok(true) = tokio::time::timeout(FILL_TIMEOUT, me.fill_till(&till_id)).await {
-                me.branch_fills.mark_till_filled(&till_id);
+                me.branch_fills.mark_till_filled(&till_id, at);
             }
+            me.branch_fills.end_fill(&till_id);
         });
     }
 

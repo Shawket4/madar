@@ -28,20 +28,38 @@ pub(crate) const F_LOYALTY: (&str, &str) = ("loyalty", crate::K_LOYALTY_SETTINGS
 #[derive(Default)]
 pub(crate) struct FillState {
     asked: Mutex<HashSet<&'static str>>,
-    /// Tills filled from the server this session (`ledger_ops::fill_till_soon`).
-    tills: Mutex<HashSet<String>>,
+    /// Tills filled from the server this session (`ledger_ops::fill_till_soon`),
+    /// with the newest feed seq the device held for the till at that fill.
+    tills: Mutex<std::collections::HashMap<String, i64>>,
+    /// One-off attempts made this session.
+    attempts: Mutex<HashSet<String>>,
+    /// Tills with a fill running now.
+    filling: Mutex<HashSet<String>>,
 }
 
 impl FillState {
-    pub(crate) fn till_filled(&self, till_id: &str) -> bool {
-        self.tills.lock().unwrap_or_else(|e| e.into_inner()).contains(till_id)
+    /// Has this till been filled since the feed last moved it? (`newest` = the
+    /// newest feed seq the device now holds for the till.)
+    pub(crate) fn till_filled(&self, till_id: &str, newest: i64) -> bool {
+        self.tills.lock().unwrap_or_else(|e| e.into_inner()).get(till_id).is_some_and(|at| newest <= *at)
+    }
+    /// Start a till fill; `false` when one is already running.
+    pub(crate) fn begin_fill(&self, till_id: &str) -> bool {
+        self.filling.lock().unwrap_or_else(|e| e.into_inner()).insert(till_id.to_string())
+    }
+    pub(crate) fn end_fill(&self, till_id: &str) {
+        self.filling.lock().unwrap_or_else(|e| e.into_inner()).remove(till_id);
+    }
+    /// Was this till filled successfully before (whatever the feed did since)?
+    pub(crate) fn till_ever_filled(&self, till_id: &str) -> bool {
+        self.tills.lock().unwrap_or_else(|e| e.into_inner()).contains_key(till_id)
     }
     /// `true` the first time `key` is asked for this session.
     pub(crate) fn first_attempt(&self, key: &str) -> bool {
-        self.tills.lock().unwrap_or_else(|e| e.into_inner()).insert(format!("attempt:{key}"))
+        self.attempts.lock().unwrap_or_else(|e| e.into_inner()).insert(key.to_string())
     }
-    pub(crate) fn mark_till_filled(&self, till_id: &str) {
-        self.tills.lock().unwrap_or_else(|e| e.into_inner()).insert(till_id.to_string());
+    pub(crate) fn mark_till_filled(&self, till_id: &str, newest: i64) {
+        self.tills.lock().unwrap_or_else(|e| e.into_inner()).insert(till_id.to_string(), newest);
     }
 }
 

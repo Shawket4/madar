@@ -271,6 +271,23 @@ async fn booked(fx: &Fixture, ticket: &str) -> Booked {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// The server's report for a till: a fresh device that holds none of the
+/// till, so its read serves the report its background fill fetched from the
+/// server (`from_server`). A fresh probe per call: a device's fill of a till it
+/// does not hold is refreshed by the feed, and a probe never pulls.
+async fn server_report(fx: &Fixture, who: &str, till: &str) -> madar_core::till::TillReportView {
+    let probe = signed_in(&fx.base, "", who, &fx.branch).await;
+    let deadline = Instant::now() + Duration::from_secs(120);
+    loop {
+        match probe.till_report_for(till.to_string()).await {
+            Ok(r) if r.from_server => return r,
+            other => eprintln!("server report: not from the server yet ({:?})", other.map(|r| r.from_server)),
+        }
+        assert!(Instant::now() < deadline, "no server report for {till}");
+        tokio::time::sleep(Duration::from_secs(3)).await;
+    }
+}
+
 async fn settle_bill(
     core: &MadarCore,
     ticket: &str,
@@ -362,19 +379,9 @@ async fn a_table_bill_with_a_discount_settles_at_the_due_and_a_partial_refund_mo
     );
 
     // A partial refund: a fifth of the bill, in cash.
-    let probe_report = |core: Arc<MadarCore>, till: String| async move {
-        let deadline = Instant::now() + Duration::from_secs(120);
-        loop {
-            let r = core.till_report_for(till.clone()).await.expect("report");
-            if r.from_server {
-                return r;
-            }
-            assert!(Instant::now() < deadline, "no server report");
-            tokio::time::sleep(Duration::from_secs(3)).await;
-        }
-    };
-    let probe = signed_in(&fx.base, "", &teller, &fx.branch).await;
-    let srv_before = probe_report(probe.clone(), till.clone()).await;
+    // The server's own report, read by a device that holds none of the till
+    // (a fresh probe per read, waiting for its background fill).
+    let srv_before = server_report(&fx, &teller, &till).await;
     assert_eq!(
         (srv_before.total_tax_minor, srv_before.total_service_charge_minor),
         (b.tax, b.service),
@@ -387,7 +394,7 @@ async fn a_table_bill_with_a_discount_settles_at_the_due_and_a_partial_refund_mo
     settle(&core, 120).await;
     let (tax_back, sc_back) = madar_core::tax::refund_split(b.total, b.tax, b.service, 0, amount);
     assert!(tax_back > 0 && sc_back > 0);
-    let srv_after = probe_report(probe.clone(), till.clone()).await;
+    let srv_after = server_report(&fx, &teller, &till).await;
     assert_eq!(
         (srv_after.total_tax_minor, srv_after.total_service_charge_minor),
         (b.tax - tax_back, b.service - sc_back),

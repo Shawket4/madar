@@ -1473,3 +1473,80 @@ async fn a_bill_fired_and_settled_offline_replays_under_the_servers_id() {
     assert_eq!(core.sync_status().dead_outbox, 0, "nothing dead-letters");
     assert_eq!(core.sync_status().pending_outbox, 0);
 }
+
+/// A till not held here is filled once; reading it again asks nothing until
+/// the FEED moves the till (a refund or drawer movement against it arrives),
+/// and then it is filled exactly once more.
+#[tokio::test]
+async fn a_filled_till_is_filled_again_only_when_the_feed_moves_it() {
+    const PAST: &str = "00000000-0000-0000-0000-00000000fa58";
+    let till = madar_api::models::Till {
+        id: uuid::Uuid::parse_str(PAST).unwrap(),
+        status: madar_api::models::TillStatus::Closed,
+        ..Default::default()
+    };
+    let report = serde_json::to_value(madar_api::models::TillReportResponse {
+        expected_cash: 1_000,
+        till: Box::new(till),
+        ..Default::default()
+    })
+    .unwrap();
+    let empty = serde_json::to_value(madar_api::models::PaginatedOrders { page: 1, per_page: 200, ..Default::default() }).unwrap();
+    let stub = Stub::start(move |r| {
+        if r.path.starts_with("/orders?") {
+            Some(StubResponse::json(200, empty.clone()))
+        } else if r.path.starts_with(&format!("/tills/{PAST}/report")) {
+            Some(StubResponse::json(200, report.clone()))
+        } else {
+            None
+        }
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    core.set_online(true);
+    let reports = |stub: &Stub| stub.requests(&format!("/tills/{PAST}/report")).len();
+    async fn read_until(core: &crate::MadarCore, stub: &Stub, n: usize) {
+        const PAST: &str = "00000000-0000-0000-0000-00000000fa58";
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while stub.requests(&format!("/tills/{PAST}/report")).len() < n {
+            let _ = core.till_report_for(PAST.into()).await;
+            assert!(
+                std::time::Instant::now() < deadline,
+                "fill {n} never happened: {:?}",
+                stub.seen.lock().unwrap().iter().map(|r| r.path.clone()).collect::<Vec<_>>()
+            );
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    }
+    read_until(&core, &stub, 1).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    for _ in 0..20 {
+        let _ = core.till_report_for(PAST.into()).await;
+        let _ = core.list_orders_for_till(PAST.into()).await;
+        let _ = core.list_till_refunds(PAST.into()).await;
+    }
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(reports(&stub), 1, "an unchanged till is never asked twice");
+
+    // The feed brings a refund against the till: its rows moved.
+    core.store
+        .with_tx(|tx| {
+            crate::ledger::write_row(
+                tx,
+                crate::ledger::T_REFUND,
+                "rf-1",
+                &serde_json::json!({"id": "00000000-0000-0000-0000-0000000000f9", "till_id": PAST, "order_id": "o", "amount": 100}),
+                crate::ledger::Origin::Feed(77),
+                None,
+            )?;
+            Ok(())
+        })
+        .unwrap();
+    read_until(&core, &stub, 2).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    for _ in 0..20 {
+        let _ = core.till_report_for(PAST.into()).await;
+    }
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(reports(&stub), 2, "one more fill for the move, then quiet again");
+}
