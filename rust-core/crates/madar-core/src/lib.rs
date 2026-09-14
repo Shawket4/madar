@@ -520,6 +520,19 @@ impl MadarCore {
             .unwrap_or(false)
     }
 
+    /// Whether the signed-in user may remove the service charge from a table's
+    /// bill: `orders:waive_service` in their EFFECTIVE permissions (role
+    /// default or per-user override, as the server resolved them) — never the
+    /// role's name, and never assumed while the grants are not loaded.
+    pub fn can_waive_service_charge(&self) -> bool {
+        self.session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|s| s.has_granted_permission("orders", "waive_service"))
+            .unwrap_or(false)
+    }
+
     /// Offline unlock: verify a typed PIN against the cached org bundle
     /// (argon2id). No network, no token; identity is the real server `user_id`.
     pub fn unlock_offline(
@@ -3219,6 +3232,9 @@ impl MadarCore {
                 discount: tr("order.discount"),
                 service_charge: tr("order.service_charge"),
                 tax: tr("order.tax"),
+                vat_included: tr("receipt.vat_included"),
+                prices_include_vat: tr("receipt.prices_include_vat"),
+                service_waived: tr("receipt.service_waived"),
                 delivery_fee: tr("receipt.delivery_fee"),
                 total: tr("order.total"),
                 tip: tr("order.tip"),
@@ -3302,6 +3318,9 @@ impl MadarCore {
             refunds: tr("till.refunds"),
             refunds_cash: tr("till.refunds_cash"),
             cash_in_refunded: tr("till.cash_in_refunded"),
+            total_tax: tr("till.total_tax"),
+            total_service: tr("till.total_service"),
+            service_waived: tr("till.service_waived"),
             transactions: tr("till.transactions"),
             end_of_report: tr("till.end_of_report"),
             cash_moves: tr("till.cash_moves"),
@@ -7421,7 +7440,7 @@ impl MadarCore {
         // refused here for anyone else — the server refuses it again.
         waive_service: bool,
     ) -> Result<Option<String>, CoreError> {
-        if waive_service && !self.has_permission("orders".into(), "waive_service".into()) {
+        if waive_service && !self.can_waive_service_charge() {
             return Err(CoreError::Validation {
                 field: "waive_service".into(),
                 detail: "removing the service charge needs the waive service charge permission".into(),

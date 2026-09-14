@@ -439,6 +439,61 @@ fn line_view(it: &models::OpenTicketItemView) -> TicketLineView {
 
 #[cfg(test)]
 mod tests {
+    fn server_bill(taxable: Option<bool>) -> super::TicketBillView {
+        // 2 × 1000, no discount, 10% service, 14% on top of both.
+        super::bill_view_with(
+            &madar_api::models::TicketBill {
+                service_charge_taxable: taxable,
+                subtotal: 2000,
+                discount_amount: 0,
+                service_charge_amount: 200,
+                tax_amount: 308,
+                total: 2508,
+                tax_rate: 0.14,
+                service_charge_rate: 0.10,
+                tax_inclusive: false,
+            },
+            false,
+        )
+    }
+
+    /// A discount picked at the till on a TABLE's bill moves the figure the
+    /// drawer collects — the same figure the server settles
+    /// (MadarRust `the_bill_the_till_sees_is_the_bill_the_books_record`:
+    /// 2000 − 10% = 1800; +10% = 180; 14% of 1980 = 277; 2257).
+    #[test]
+    fn a_discount_on_a_bill_reprices_it_like_the_settle() {
+        let b = server_bill(Some(true));
+        let got = super::reprice_with(&b, 2000, Some("percentage"), Some(0.10), false);
+        assert_eq!(
+            (got.discount_minor, got.service_charge_minor, got.tax_minor, got.total_minor),
+            (200, 180, 277, 2257)
+        );
+        let fixed = super::reprice_with(&b, 2000, Some("fixed"), Some(500.0), false);
+        assert_eq!((fixed.discount_minor, fixed.service_charge_minor, fixed.total_minor), (500, 150, 1881));
+        let none = super::reprice_with(&b, 2000, None, None, false);
+        assert_eq!(none.total_minor, b.total_minor, "clearing it restores the bill");
+    }
+
+    /// The waiver prices a table's bill with no service charge and says what it
+    /// took off; the frozen `service_charge_taxable` — not the session's — is
+    /// what the re-price uses.
+    #[test]
+    fn a_waived_bill_drops_its_service_charge_and_keeps_its_frozen_tax_base() {
+        let b = server_bill(Some(true));
+        let waived = super::reprice_with(&b, 2000, None, None, true);
+        assert_eq!(
+            (waived.service_charge_minor, waived.tax_minor, waived.total_minor, waived.service_charge_waived_minor),
+            (0, 280, 2280, 200)
+        );
+        // Frozen as untaxed, with a session that says taxed (`bill_view_with`'s
+        // fallback is false above, so pass Some(false) explicitly here).
+        let untaxed = super::reprice_with(&server_bill(Some(false)), 2000, None, None, false);
+        assert_eq!((untaxed.service_charge_minor, untaxed.tax_minor, untaxed.total_minor), (200, 280, 2480));
+        // An older server's bill falls back to the session's flag.
+        assert!(!server_bill(None).service_charge_taxable);
+    }
+
     /// A SEAT is a fire with no items — and the difference has to survive the
     /// request builder, because the server decides which act it is by looking
     /// at exactly that.

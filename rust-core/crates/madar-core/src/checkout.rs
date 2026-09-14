@@ -192,6 +192,13 @@ pub struct ReceiptView {
     /// own line on the receipt: a charge the customer did not choose is stated
     /// separately from the tax, not folded into it.
     pub service_charge_minor: i64,
+    /// Whether the prices already contained the tax: the receipt then says
+    /// "Prices include VAT" and the tax line reads as included, not added.
+    pub tax_inclusive: bool,
+    /// A service charge someone removed from this table's bill (`0` when
+    /// none), and who. Printed as its own note; not part of the total.
+    pub service_charge_waived_minor: i64,
+    pub service_charge_waived_by_name: Option<String>,
     /// Delivery fee (0 for dine-in). Adds a line and forces a subtotal row.
     pub delivery_fee_minor: i64,
     pub total_minor: i64,
@@ -718,6 +725,9 @@ pub(crate) fn prepare(
         discount_minor: priced.discount_minor,
         tax_minor: priced.tax_minor,
         service_charge_minor: priced.service_charge_minor,
+        tax_inclusive: policy.tax_inclusive,
+        service_charge_waived_minor: 0,
+        service_charge_waived_by_name: None,
         delivery_fee_minor: 0,
         total_minor: priced.total_minor,
         tip_minor,

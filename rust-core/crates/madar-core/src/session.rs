@@ -173,6 +173,18 @@ impl SessionState {
             .any(|p| p.resource == resource && p.action == action && p.granted)
     }
 
+    /// Like [`Self::has_permission`], but never optimistic: `false` until the
+    /// grants are actually loaded. For acts the server would refuse on replay
+    /// after the money is taken — removing a service charge — offering them on
+    /// a guess would dead-letter a paid bill.
+    pub fn has_granted_permission(&self, resource: &str, action: &str) -> bool {
+        self.snapshot.permissions_loaded
+            && self
+                .permissions
+                .iter()
+                .any(|p| p.resource == resource && p.action == action && p.granted)
+    }
+
     /// Serialize for the host's secure vault.
     pub fn to_blob(&self) -> Vec<u8> {
         serde_json::to_vec(self).unwrap_or_default()
@@ -860,6 +872,24 @@ mod tests {
         // Anything is granted while permissions_loaded == false.
         assert!(s.has_permission("orders", "void"));
         assert!(s.has_permission("anything", "at_all"));
+    }
+
+    #[test]
+    fn a_granted_permission_is_never_assumed() {
+        let unloaded = state_with(vec![], false, false);
+        assert!(!unloaded.has_granted_permission("orders", "waive_service"));
+        let granted = state_with(
+            vec![PermissionEntry { resource: "orders".into(), action: "waive_service".into(), granted: true }],
+            true,
+            true,
+        );
+        assert!(granted.has_granted_permission("orders", "waive_service"));
+        let revoked = state_with(
+            vec![PermissionEntry { resource: "orders".into(), action: "waive_service".into(), granted: false }],
+            true,
+            true,
+        );
+        assert!(!revoked.has_granted_permission("orders", "waive_service"));
     }
 
     #[test]

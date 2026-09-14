@@ -30,7 +30,7 @@ fn till_report_matches_the_backend_vectors() {
     let raw = include_str!("../../tests/fixtures/till_report_vectors.json");
     let doc: Value = serde_json::from_str(raw).unwrap();
     let scenarios = doc["scenarios"].as_array().unwrap();
-    assert!(scenarios.len() >= 7);
+    assert!(scenarios.len() >= 8);
     for sc in scenarios {
         let name = sc["name"].as_str().unwrap();
         let store = Store::open("").unwrap();
@@ -70,6 +70,12 @@ fn till_report_matches_the_backend_vectors() {
                 ("refunds_issued_amount", got.refunds_issued_amount),
                 ("refunds_issued_cash", got.refunds_issued_cash),
                 ("cash_in_refunded_sales", got.cash_in_refunded_sales),
+                ("total_tax", got.total_tax),
+                ("total_service_charge", got.total_service_charge),
+                ("refunds_issued_tax", got.refunds_issued_tax),
+                ("refunds_issued_service_charge", got.refunds_issued_service_charge),
+                ("service_charge_waived_count", got.service_charge_waived_count),
+                ("service_charge_waived_amount", got.service_charge_waived_amount),
             ] {
                 assert_eq!(v, want[field].as_i64().unwrap(), "{ctxs}: {field}");
             }
@@ -767,4 +773,37 @@ fn an_acks_feed_horizon_decides_when_an_unseen_row_is_gone() {
     store.with_conn(|c| Ok(c.execute("UPDATE ledger_orders SET local_updated_at = ?1", [now_ms()])?)).unwrap();
     store.with_tx(|tx| apply::sweep_absent(tx, BRANCH, T_ORDER, &Default::default(), &page(50))).unwrap();
     assert_eq!(order_rows(&store), 0, "the snapshot includes the op and does not list the row");
+}
+
+/// A partial refund queued on this device (no server split yet) takes its
+/// pro-rata tax and service charge off the till's figures, split by the shared
+/// engine exactly as the server's trigger will; a synced refund's own split is
+/// used as delivered.
+#[test]
+fn a_queued_partial_refund_takes_its_share_of_tax_and_service_off_the_z() {
+    let store = Store::open("").unwrap();
+    open_till(&store, 0);
+    store
+        .with_tx(|tx| {
+            let mut sale = cash_sale("srv-t", 12540);
+            let m = sale.as_object_mut().unwrap();
+            m.insert("subtotal".into(), json!(10000));
+            m.insert("service_charge_amount".into(), json!(1000));
+            m.insert("tax_amount".into(), json!(1540));
+            m.insert("order_type".into(), json!("dine_in"));
+            write_row(tx, T_ORDER, "srv-t", &sale, Origin::Fetch, None)?;
+            // Synced, with the server's split.
+            write_row(tx, T_REFUND, "srv-r1", &json!({"id": "srv-r1", "order_id": "srv-t", "till_id": TILL, "amount": 2508,
+                "method": "Cash", "is_cash": true, "issued_at": "2026-09-14T10:00:00Z",
+                "tax_amount": 308, "service_charge_amount": 200}), Origin::Fetch, None)?;
+            // Queued here: no split on the row.
+            write_row(tx, T_REFUND, "r-local", &json!({"id": "r-local", "order_id": "srv-t", "till_id": TILL, "amount": 1001,
+                "method": "Cash", "is_cash": true, "issued_at": "2026-09-14T10:30:00Z"}), Origin::Local, None)?;
+            Ok(())
+        })
+        .unwrap();
+    let f = store.with_conn(|c| report::compute(c, TILL, &[])).unwrap().unwrap();
+    // The server's vector for the same bill: 1540 − 431, 1000 − 280.
+    assert_eq!((f.total_tax, f.total_service_charge), (1109, 720));
+    assert_eq!((f.refunds_issued_tax, f.refunds_issued_service_charge), (431, 280));
 }

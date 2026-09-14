@@ -655,7 +655,7 @@ async fn the_parity_guard_compares_every_field_and_closed_unreviewed_tills() {
         expected_cash_minor: 0, opening_cash_minor: 0, opening_cash_was_edited: false, opening_cash_original_minor: None,
         opening_cash_edit_reason: None, closing_cash_declared_minor: None, total_payments_minor: 0, net_payments_minor: 0,
         voided_amount_minor: 0, refunds_issued_minor: 0, refunds_issued_cash_minor: 0, refunds_issued_count: 0,
-        cash_in_refunded_sales_minor: 0, cash_movements_net_minor: 0, cash_in_minor: 0, cash_out_minor: 0,
+        cash_in_refunded_sales_minor: 0, total_tax_minor: 0, total_service_charge_minor: 0, service_charge_waived_count: 0, service_charge_waived_minor: 0, cash_movements_net_minor: 0, cash_in_minor: 0, cash_out_minor: 0,
         payment_lines: vec![], cash_movements: vec![], from_server: false, device_code: None, order_number_first: None,
         order_number_last: None, reconciliation: vec![], old_bills_count: None, open_bills_count: None,
         opened_while_another_open: false, verification: "server".into(),

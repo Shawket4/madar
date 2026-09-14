@@ -444,6 +444,26 @@ pub(crate) fn order_to_receipt(
         discount_minor: o.discount_amount as i64,
         tax_minor: o.tax_amount as i64,
         service_charge_minor: o.service_charge_amount.unwrap_or(0) as i64,
+        // The bill's own flag; an order from before it was recorded reads it
+        // from its figures, as the till's views do.
+        tax_inclusive: o.tax_inclusive.unwrap_or_else(|| {
+            crate::till_views::sale_tax_inclusive(
+                o.subtotal as i64,
+                o.discount_amount as i64,
+                o.service_charge_amount.unwrap_or(0) as i64,
+                o.delivery_fee as i64,
+                o.tax_amount as i64,
+                o.total_amount as i64,
+            )
+        }),
+        service_charge_waived_minor: o
+            .service_charge_waived_by
+            .map(|_| o.service_charge_waived_amount.unwrap_or(0) as i64)
+            .unwrap_or(0),
+        service_charge_waived_by_name: o
+            .service_charge_waived_by
+            .and(o.service_charge_waived_by_name.clone())
+            .filter(|s| !s.is_empty()),
         delivery_fee_minor: o.delivery_fee as i64,
         total_minor: o.total_amount as i64,
         tip_minor: o.tip_amount.unwrap_or(0) as i64,

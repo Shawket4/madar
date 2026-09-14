@@ -86,6 +86,12 @@ pub struct _TillReportView {
     pub refunds_issued_cash_minor: i64,
     pub refunds_issued_count: i64,
     pub cash_in_refunded_sales_minor: i64,
+    /// Tax / service charge on this till's sales, net of their refunds.
+    pub total_tax_minor: i64,
+    pub total_service_charge_minor: i64,
+    /// Table bills whose service charge was waived, and what it came to.
+    pub service_charge_waived_count: i64,
+    pub service_charge_waived_minor: i64,
     pub cash_movements_net_minor: i64,
     pub cash_in_minor: i64,
     pub cash_out_minor: i64,

@@ -514,6 +514,13 @@ pub struct TillReportView {
     /// was undone — but the notes DID go into the drawer, so expected cash
     /// counts them. Without this line the report does not add up.
     pub cash_in_refunded_sales_minor: i64,
+    /// Tax and service charge on this till's sales, net of what their refunds
+    /// took back — a partial refund takes back its share (Z report).
+    pub total_tax_minor: i64,
+    pub total_service_charge_minor: i64,
+    /// Table bills whose service charge was waived, and what it came to.
+    pub service_charge_waived_count: i64,
+    pub service_charge_waived_minor: i64,
     pub cash_movements_net_minor: i64,
     /// Pay-in / pay-out drawer totals (separate, not just the net) — Z-report depth.
     pub cash_in_minor: i64,
@@ -581,6 +588,10 @@ pub(crate) fn report_view(
         refunds_issued_cash_minor: report.refunds_issued_cash.unwrap_or(0),
         refunds_issued_count: report.refunds_issued_count.unwrap_or(0),
         cash_in_refunded_sales_minor: report.cash_in_refunded_sales.unwrap_or(0),
+        total_tax_minor: report.total_tax.unwrap_or(0),
+        total_service_charge_minor: report.total_service_charge.unwrap_or(0),
+        service_charge_waived_count: report.service_charge_waived_count.unwrap_or(0),
+        service_charge_waived_minor: report.service_charge_waived_amount.unwrap_or(0),
         cash_movements_net_minor: report.cash_movements_net,
         cash_in_minor: report.cash_movements_in,
         cash_out_minor: report.cash_movements_out,
@@ -662,6 +673,10 @@ pub(crate) fn offline_report_view(
         refunds_issued_cash_minor: 0,
         refunds_issued_count: 0,
         cash_in_refunded_sales_minor: 0,
+        total_tax_minor: 0,
+        total_service_charge_minor: 0,
+        service_charge_waived_count: 0,
+        service_charge_waived_minor: 0,
         cash_movements_net_minor: cash_in - cash_out,
         cash_in_minor: cash_in,
         cash_out_minor: cash_out,
