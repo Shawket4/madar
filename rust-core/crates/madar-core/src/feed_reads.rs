@@ -71,6 +71,15 @@ impl MadarCore {
             .map(|v| tickets::to_view_with(v, false, &line_voids, sc_taxable))
             .collect();
         let pending = self.store.pending()?;
+        // A LAN peer's ticket work this device mirrors for durability (`lan_mirror`
+        // rows carry the peer's replay envelope): a bill a waiter fired on another
+        // tablet shows here while the cloud is out of reach, and a peer's settle or
+        // void clears it, exactly like this device's own queued work.
+        let mirrored: Vec<Value> = pending
+            .iter()
+            .filter(|i| i.op_type == "lan_mirror")
+            .filter_map(|i| serde_json::from_str::<Value>(&i.payload).ok())
+            .collect();
         let cleared: std::collections::HashSet<String> = pending
             .iter()
             .filter(|i| matches!(i.op_type.as_str(), "settle_open_ticket" | "void_ticket" | "void_open_ticket"))
@@ -79,6 +88,12 @@ impl MadarCore {
                     .ok()
                     .and_then(|v| v.get("ticket_id").and_then(|t| t.as_str()).map(String::from))
             })
+            .chain(
+                mirrored
+                    .iter()
+                    .filter(|e| matches!(e.get("op").and_then(Value::as_str), Some("settle_open_ticket" | "void_open_ticket")))
+                    .filter_map(|e| e.get("ticket_id").and_then(Value::as_str).map(String::from)),
+            )
             .collect();
         // Bills settled or voided on this device and still queued are gone here.
         out.retain(|t| !cleared.contains(&t.id));
@@ -90,6 +105,22 @@ impl MadarCore {
                 }
                 out.push(crate::queued_ticket_view(&cmd, &item.event_at, waiter.clone()));
             }
+        }
+        for (item, env) in pending
+            .iter()
+            .filter(|i| i.op_type == "lan_mirror")
+            .filter_map(|i| serde_json::from_str::<Value>(&i.payload).ok().map(|e| (i, e)))
+            .filter(|(_, e)| e.get("op").and_then(Value::as_str) == Some("fire_open_ticket"))
+        {
+            let Ok(request) = serde_json::from_value::<madar_api::models::CreateOpenTicketRequest>(env["request"].clone()) else {
+                continue;
+            };
+            let Some(ticket_id) = request.idempotency_key.flatten().map(|u| u.to_string()) else { continue };
+            if cleared.contains(&ticket_id) || out.iter().any(|t| t.id == ticket_id) {
+                continue;
+            }
+            let cmd = tickets::FireTicketCommand { ticket_id, request };
+            out.push(crate::queued_ticket_view(&cmd, &item.event_at, None));
         }
         Ok(out)
     }

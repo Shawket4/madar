@@ -520,3 +520,27 @@ async fn the_money_parity_guard_logs_a_difference() {
     core.money_parity_check().await;
     assert_eq!(stub.requests("/tills/").len(), 1);
 }
+
+/// LAN: a waiter's fire mirrored from a peer tablet shows on this device's
+/// bills while the cloud is unreachable; the peer's settle clears it; the
+/// mirror's arrival notifies the boards.
+#[tokio::test]
+async fn a_peers_mirrored_fire_and_settle_overlay_the_bills() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_rows(&core, &[]);
+    let mut sub = core.store.subscribe_changes();
+    let ticket = uid("peer-ticket");
+    let mut req = madar_api::models::CreateOpenTicketRequest::default();
+    req.branch_id = uuid::Uuid::parse_str(testkit::BRANCH).unwrap();
+    req.idempotency_key = Some(Some(uuid::Uuid::parse_str(&ticket).unwrap()));
+    let fire = serde_json::json!({"op": "fire_open_ticket", "teller_id": testkit::TELLER, "request": req});
+    crate::mirror_replay_op(&core.store, &fire.to_string());
+    let got = sub.next(Duration::from_millis(5)).await.unwrap();
+    assert!(got.contains(&changes::OPEN_TICKETS.to_string()));
+    let bills = core.list_open_tickets().await.unwrap();
+    assert_eq!(bills.len(), 1);
+    assert_eq!((bills[0].id.as_str(), bills[0].status.as_str()), (ticket.as_str(), "queued"));
+    let settle = serde_json::json!({"op": "settle_open_ticket", "teller_id": testkit::TELLER, "ticket_id": ticket, "request": {}});
+    crate::mirror_replay_op(&core.store, &settle.to_string());
+    assert!(core.list_open_tickets().await.unwrap().is_empty(), "the peer settled it");
+}
