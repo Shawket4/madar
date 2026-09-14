@@ -236,6 +236,59 @@ pub(crate) fn build_fire_projection(
     })
 }
 
+/// The KDS projection of a fire or round from its replay envelope (catch-up of an
+/// op rung while no relay ran): the SAME derived ids as the live projection, line
+/// names from the catalogue.
+pub(crate) fn projection_from_envelope(
+    envelope: &serde_json::Value,
+    names: &std::collections::HashMap<String, String>,
+    created_at: &str,
+) -> Option<KdsTicketView> {
+    let req = envelope.get("request")?;
+    let round_idem = req
+        .get("round_idempotency_key")
+        .or_else(|| req.get("idempotency_key"))
+        .and_then(|v| v.as_str())?;
+    let kt = derive_kitchen_ticket_id(round_idem)?;
+    let items = req
+        .get("items")
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .enumerate()
+                .map(|(i, it)| {
+                    let menu = it.get("menu_item_id").and_then(|m| m.as_str()).unwrap_or("");
+                    KdsLineView {
+                        id: derive_kitchen_item_id(&kt, i),
+                        name: names.get(menu).cloned().unwrap_or_else(|| "Item".into()),
+                        qty: it.get("quantity").and_then(|q| q.as_i64()).unwrap_or(1) as i32,
+                        size_label: it.get("size_label").and_then(|x| x.as_str()).map(str::to_string),
+                        modifiers: Vec::new(),
+                        notes: it.get("notes").and_then(|x| x.as_str()).map(str::to_string),
+                        station_id: None,
+                        station_name: None,
+                        bumped: false,
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if items.is_empty() {
+        return None;
+    }
+    let is_round = envelope.get("op").and_then(|o| o.as_str()) == Some("add_ticket_round");
+    Some(KdsTicketView {
+        id: kt,
+        kitchen_ref: None,
+        table_label: None,
+        round_number: if is_round { 0 } else { 1 },
+        source_type: "open_ticket".into(),
+        status: "firing".into(),
+        created_at: created_at.to_string(),
+        items,
+    })
+}
+
 /// Overlay LAN-received (un-synced) kitchen tickets onto the server feed: include a
 /// projected ticket only when the server feed doesn't already have it (dedup by id —
 /// the derived id == the eventual server id), and never a voided one. The host then

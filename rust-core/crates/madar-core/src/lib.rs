@@ -99,6 +99,7 @@ mod offline_b_tests;
 pub(crate) mod schema;
 pub(crate) mod integrity;
 pub mod synced;
+pub(crate) mod lan_sync;
 /// Waiter open tickets — fire-now-pay-later dine-in tickets via the outbox.
 pub mod tickets;
 /// Drawer and Orders decisions the screens used to make (labels, refund
@@ -2400,49 +2401,116 @@ impl realtime::CloudRelay for LanCloudRelay {
 /// replay op — MIRROR that op into the outbox so the write reaches the cloud even if
 /// the originating device dies first. Shares the core's ONE `Store` (`Arc`, the SAME
 /// connection — single-writer invariant preserved, no second WAL writer to contend),
-/// plus a clone of the shared listener slot.
-struct LanBridge {
+/// plus a clone of the shared listener slot. Catch-up (`lan_sync.rs`) runs through
+/// here too.
+pub(crate) struct LanBridge {
     listener: Arc<Mutex<Option<Arc<dyn realtime::EventListener>>>>,
     store: Arc<store::Store>,
+    branch_id: String,
+    core: std::sync::Weak<MadarCore>,
 }
 
-impl lan::LanInbound for LanBridge {
-    fn on_lan_message(&self, msg: &lan::LanMessage) {
-        // 1. Merge into the LAN-KDS overlay so an offline fire/bump shows on THIS
-        //    device's board (the host refresh below reads the cached feed + overlay).
-        match msg.event_type.as_str() {
+impl LanBridge {
+    /// Run a newly accepted LAN event's effects, once: the kitchen overlay, the
+    /// listener (board refresh + alert), the mirror backup.
+    fn effects(&self, e: &lan_sync::LogEntry) {
+        match e.event_type.as_str() {
             "kitchen.fired" => {
-                if let Ok(t) = serde_json::from_str::<kds::KdsTicketView>(&msg.data) {
+                if let Ok(t) = serde_json::from_str::<kds::KdsTicketView>(&e.data) {
+                    let lines: Vec<String> = t.items.iter().map(|l| l.id.clone()).collect();
                     lan_kds_merge_ticket(&self.store, t);
+                    // A tap on one of its lines that arrived before the fire.
+                    for line in lines {
+                        let tap: Option<String> = self
+                            .store
+                            .with_conn(|c| {
+                                use rusqlite::OptionalExtension;
+                                Ok(c.query_row(
+                                    "SELECT event_type FROM lan_log WHERE key=?1",
+                                    [format!("{}{line}", lan_sync::LINE_KEY)],
+                                    |r| r.get(0),
+                                )
+                                .optional()?)
+                            })
+                            .ok()
+                            .flatten();
+                        if let Some(ev) = tap {
+                            lan_kds_apply_bump(&self.store, &line, ev == "kitchen.item_bumped");
+                        }
+                    }
                 }
             }
             "kitchen.item_bumped" | "kitchen.item_unbumped" => {
-                if let Some(id) = serde_json::from_str::<serde_json::Value>(&msg.data)
+                if let Some(id) = serde_json::from_str::<serde_json::Value>(&e.data)
                     .ok()
                     .and_then(|v| v.get("item_id").and_then(|x| x.as_str()).map(String::from))
                 {
-                    lan_kds_apply_bump(&self.store, &id, msg.event_type == "kitchen.item_bumped");
+                    lan_kds_apply_bump(&self.store, &id, e.event_type == "kitchen.item_bumped");
                 }
             }
             _ => {}
         }
-        // 2. Forward to the unified listener (host refreshes the relevant board).
-        if let Some(l) = self
-            .listener
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
-        {
-            l.on_event(realtime::RealtimeEvent {
-                event_type: msg.event_type.clone(),
-                data: msg.data.clone(),
-            });
+        if let Some(l) = self.listener.lock().unwrap_or_else(|e| e.into_inner()).clone() {
+            l.on_event(realtime::RealtimeEvent { event_type: e.event_type.clone(), data: e.data.clone() });
         }
-        // 3. Mirror-relay: enqueue the carried replay op as our own durable backup,
-        //    idempotency-keyed so the cloud dedups it against the originator's copy.
-        if let Some(op) = &msg.replay_op {
+        if let Some(op) = &e.replay_op {
             mirror_replay_op(&self.store, op);
         }
+    }
+}
+
+impl lan::LanInbound for LanBridge {
+    fn on_lan_message(&self, msg: &lan::LanMessage) {
+        let entry = lan_sync::LogEntry {
+            key: lan_sync::event_key(&msg.msg_id, msg.replay_op.as_deref()),
+            topic: msg.topic.clone(),
+            event_type: msg.event_type.clone(),
+            data: msg.data.clone(),
+            replay_op: msg.replay_op.clone(),
+            origin: msg.sender_id.clone(),
+            sent_at_ms: msg.sent_at_ms,
+        };
+        // Persistent dedup: an event this device already processed (live, by
+        // catch-up, or before a restart) is not processed again.
+        let now = chrono::Utc::now().timestamp_millis();
+        let fresh = self.store.with_conn(|c| lan_sync::log_insert(c, &self.branch_id, &entry, now)).unwrap_or(false);
+        if fresh {
+            self.effects(&entry);
+        }
+    }
+
+    fn lan_digest(&self) -> Option<serde_json::Value> {
+        if let Some(core) = self.core.upgrade() {
+            core.lan_log_own_queue();
+        }
+        let now = chrono::Utc::now().timestamp_millis();
+        let _ = self.store.with_conn(|c| lan_sync::prune(c, now));
+        self.store
+            .with_conn(|c| lan_sync::digest(c, &self.branch_id))
+            .ok()
+            .and_then(|d| serde_json::to_value(d).ok())
+    }
+
+    fn lan_sync(&self, body: &serde_json::Value) -> Vec<serde_json::Value> {
+        let Ok(body) = serde_json::from_value::<lan_sync::SyncBody>(body.clone()) else {
+            return Vec::new();
+        };
+        if matches!(body, lan_sync::SyncBody::Digest { .. }) {
+            if let Some(core) = self.core.upgrade() {
+                core.lan_log_own_queue();
+            }
+        }
+        let now = chrono::Utc::now().timestamp_millis();
+        let Ok(out) = lan_sync::handle(&self.store, &self.branch_id, &body, now) else {
+            return Vec::new();
+        };
+        // Fires and rounds before the taps on their lines.
+        let mut accepted = out.accepted;
+        accepted.sort_by_key(|e| if e.key.starts_with(lan_sync::LINE_KEY) { 1 } else { 0 });
+        for e in &accepted {
+            self.effects(e);
+        }
+        out.replies.into_iter().filter_map(|r| serde_json::to_value(r).ok()).collect()
     }
 }
 
@@ -2745,10 +2813,80 @@ impl MadarCore {
         data: String,
         replay_op: Option<String>,
     ) {
+        let at = self.corrected_now().timestamp_millis();
+        let msg_id = uuid::Uuid::new_v4().to_string();
+        // Logged whether or not the relay runs: a peer that joins later (or this
+        // device's relay starting later) is offered it by catch-up.
+        if let Ok(branch) = self.session_branch_id() {
+            let entry = lan_sync::LogEntry {
+                key: lan_sync::event_key(&msg_id, replay_op.as_deref()),
+                topic: topic.to_string(),
+                event_type: event_type.to_string(),
+                data: data.clone(),
+                replay_op: replay_op.clone(),
+                origin: self.lan_device_id(),
+                sent_at_ms: at,
+            };
+            let now = chrono::Utc::now().timestamp_millis();
+            let _ = self.store.with_conn(|c| lan_sync::log_insert(c, &branch, &entry, now));
+        }
         let relay = self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone();
         if let Some(relay) = relay {
-            let at = self.corrected_now().timestamp_millis();
-            relay.publish(topic, event_type, data, replay_op, at).await;
+            relay.publish_with_id(msg_id, topic, event_type, data, replay_op, at).await;
+        }
+    }
+
+    /// Put this device's still-queued LAN-relevant ops into the event log (ops
+    /// rung while no relay ran, or before this build), so catch-up offers them.
+    /// Idempotent: an op already logged (with its live projection) is kept.
+    pub(crate) fn lan_log_own_queue(&self) {
+        let Ok(branch) = self.session_branch_id() else { return };
+        let Ok(items) = self.store.pending() else { return };
+        let names: std::collections::HashMap<String, String> =
+            self.list_menu_items().unwrap_or_default().into_iter().map(|m| (m.id, m.name)).collect();
+        let now = chrono::Utc::now().timestamp_millis();
+        let origin = self.lan_device_id();
+        for item in items {
+            let (topic, event_type) = match item.op_type.as_str() {
+                "open_ticket" => ("kitchen", "kitchen.fired"),
+                "ticket_add_round" => ("kitchen", "kitchen.fired"),
+                "bump_kitchen" => ("kitchen", "kitchen.item_bumped"),
+                "unbump_kitchen" => ("kitchen", "kitchen.item_unbumped"),
+                "settle_open_ticket" => ("tickets", "ticket.settled"),
+                "void_ticket" => ("tickets", "ticket.voided"),
+                "void_ticket_line" => ("tickets", "ticket.line_voided"),
+                "create_order" => ("orders", "order.created"),
+                "void_order" => ("orders", "order.voided"),
+                "refund_order" => ("orders", "order.refunded"),
+                "cash_movement" => ("orders", "till.cash_movement"),
+                _ => continue,
+            };
+            let Ok((envelope, _)) = self.replay_envelope(&item) else { continue };
+            let Some(key) = lan_sync::op_key(&envelope) else { continue };
+            let exists = self.store.with_conn(|c| lan_sync::log_has(c, &key)).unwrap_or(true);
+            if exists {
+                continue;
+            }
+            let sent_at = chrono::DateTime::parse_from_rfc3339(&item.event_at).map(|d| d.timestamp_millis()).unwrap_or(now);
+            let data = match item.op_type.as_str() {
+                "open_ticket" | "ticket_add_round" => kds::projection_from_envelope(&envelope, &names, &item.event_at)
+                    .and_then(|p| serde_json::to_string(&p).ok())
+                    .unwrap_or_else(|| "{}".into()),
+                "bump_kitchen" | "unbump_kitchen" => {
+                    serde_json::json!({ "item_id": envelope.get("item_id") }).to_string()
+                }
+                _ => "{}".into(),
+            };
+            let entry = lan_sync::LogEntry {
+                key,
+                topic: topic.into(),
+                event_type: event_type.into(),
+                data,
+                replay_op: Some(envelope.to_string()),
+                origin: origin.clone(),
+                sent_at_ms: sent_at,
+            };
+            let _ = self.store.with_conn(|c| lan_sync::log_insert(c, &branch, &entry, now));
         }
     }
 }
@@ -2799,6 +2937,8 @@ impl MadarCore {
         let bridge = Arc::new(LanBridge {
             listener: self.unified_listener.clone(),
             store: self.store.clone(), // the SAME store instance, shared via Arc
+            branch_id: branch_id.clone(),
+            core: self.me.clone(),
         });
         let relay = Arc::new(lan::LanRelay::new(cfg, bridge));
         relay.start().await?;
@@ -2814,6 +2954,46 @@ impl MadarCore {
 
 #[cfg_attr(feature = "uniffi-ffi", uniffi::exportNone)]
 impl MadarCore {
+    /// Start the LAN relay on an in-process network (the simulation harness and
+    /// the catch-up tests): the same relay, bridge and catch-up code as
+    /// [`Self::lan_start`], with `transport` carrying the lines.
+    #[doc(hidden)]
+    pub fn lan_start_virtual(&self, transport: Arc<dyn lan::LanTransport>) -> Result<Arc<lan::LanRelay>, CoreError> {
+        let session = self.current_session().ok_or_else(|| CoreError::Unauthenticated { detail: "sign in first".into() })?;
+        let branch_id = session.branch_id.clone().ok_or_else(|| CoreError::Validation {
+            field: "branch".into(),
+            detail: "no branch bound".into(),
+        })?;
+        let secret = self.lan_secret_hex().ok_or_else(|| CoreError::Validation {
+            field: "lan_secret".into(),
+            detail: "no LAN secret".into(),
+        })?;
+        let cfg = lan::LanConfig {
+            device_id: self.lan_device_id(),
+            branch_id: branch_id.clone(),
+            role: session.role.clone(),
+            station_id: None,
+            key: lan::branch_key(&secret, &branch_id),
+            tcp_port: 0,
+            beacon_port: 0,
+        };
+        let bridge = Arc::new(LanBridge {
+            listener: self.unified_listener.clone(),
+            store: self.store.clone(),
+            branch_id,
+            core: self.me.clone(),
+        });
+        let relay = Arc::new(lan::LanRelay::new_virtual(cfg, bridge, transport));
+        *self.lan.lock().unwrap_or_else(|e| e.into_inner()) = Some(relay.clone());
+        Ok(relay)
+    }
+
+    /// The running relay, if any.
+    #[doc(hidden)]
+    pub fn lan_relay(&self) -> Option<Arc<lan::LanRelay>> {
+        self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
     /// Stop + tear down the LAN relay (idempotent). Call on logout / branch switch.
     pub fn lan_stop(&self) {
         if let Some(relay) = self.lan.lock().unwrap_or_else(|e| e.into_inner()).take() {

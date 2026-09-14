@@ -330,7 +330,44 @@ const BEACON_EVERY: Duration = Duration::from_millis(3_000);
 /// (robustness #4 — the fire reaches the cloud even if the originator dies first).
 pub trait LanInbound: Send + Sync {
     fn on_lan_message(&self, msg: &LanMessage);
+    /// This device's catch-up digest (`lan_sync::SyncBody::Digest`), if any.
+    fn lan_digest(&self) -> Option<serde_json::Value> {
+        None
+    }
+    /// Handle one catch-up message from a peer; the replies go back to it.
+    fn lan_sync(&self, _body: &serde_json::Value) -> Vec<serde_json::Value> {
+        Vec::new()
+    }
 }
+
+/// A catch-up frame: point-to-point between two devices of a branch (never
+/// gossiped). Signed like every other frame.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct SyncEnvelope {
+    pub branch_id: String,
+    pub from: String,
+    /// The addressee (`None`: any device of the branch — a broadcast digest).
+    #[serde(default)]
+    pub to: Option<String>,
+    pub sent_at_ms: i64,
+    pub body: serde_json::Value,
+}
+
+/// How a relay moves lines: real sockets, or an in-process network (the
+/// simulation harness drives it and decides delivery, loss, delay and order).
+pub trait LanTransport: Send + Sync {
+    /// Deliver `line` to the device at `host` (a device id in a simulation).
+    fn send(&self, host: &str, port: u16, line: String);
+}
+
+/// Catch-up digest cadence (and on every newly discovered peer).
+pub const SYNC_EVERY: Duration = Duration::from_millis(10_000);
+/// A catch-up frame older than this is dropped (a replayed capture).
+pub const SYNC_MAX_AGE_MS: i64 = 10 * 60 * 1000;
+/// Most reply lines read back from one catch-up exchange.
+const MAX_REPLY_LINES: usize = 256;
+/// Nested exchanges one digest may trigger (HAVE → WANT → OFFER, ROWS pages).
+const MAX_EXCHANGE_DEPTH: usize = 64;
 
 /// Bounded recent-id set for at-least-once dedup across LAN + gossip + cloud.
 struct SeenSet {
@@ -410,6 +447,24 @@ struct RelayShared {
     /// when discovery is filtered. Unlike registry peers these never TTL-expire; we
     /// always push to them (and receive from them via our own signed server).
     manual: Mutex<Vec<(String, u16)>>,
+    /// `None`: real sockets. `Some`: an in-process network.
+    transport: Option<Arc<dyn LanTransport>>,
+    /// Frames accepted / refused (diagnostics and the adversarial tests).
+    stats: Mutex<RelayStats>,
+}
+
+/// What the relay did with inbound frames.
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
+pub struct RelayStats {
+    pub accepted: u64,
+    pub malformed: u64,
+    pub bad_signature: u64,
+    pub foreign_branch: u64,
+    pub duplicate: u64,
+    pub hops_exhausted: u64,
+    pub stale: u64,
+    pub oversized: u64,
+    pub sync_frames: u64,
 }
 
 /// A running LAN relay: an embedded TCP server (accepts signed pushes → forwards +
@@ -423,6 +478,17 @@ pub struct LanRelay {
 
 impl LanRelay {
     pub fn new(cfg: LanConfig, inbound: Arc<dyn LanInbound>) -> Self {
+        Self::with_transport(cfg, inbound, None)
+    }
+
+    /// A relay on an in-process network: nothing binds, nothing is spawned; the
+    /// owner delivers inbound lines ([`Self::deliver_line`]) and calls
+    /// [`Self::heartbeat`].
+    pub fn new_virtual(cfg: LanConfig, inbound: Arc<dyn LanInbound>, transport: Arc<dyn LanTransport>) -> Self {
+        Self::with_transport(cfg, inbound, Some(transport))
+    }
+
+    fn with_transport(cfg: LanConfig, inbound: Arc<dyn LanInbound>, transport: Option<Arc<dyn LanTransport>>) -> Self {
         let bound = cfg.tcp_port;
         Self {
             shared: Arc::new(RelayShared {
@@ -434,10 +500,35 @@ impl LanRelay {
                 device_code: Mutex::new(None),
                 bound_tcp_port: Mutex::new(bound),
                 manual: Mutex::new(Vec::new()),
+                transport,
+                stats: Mutex::new(RelayStats::default()),
             }),
             handles: Mutex::new(Vec::new()),
             mdns: Mutex::new(None),
         }
+    }
+
+    /// Inbound frame statistics.
+    pub fn stats(&self) -> RelayStats {
+        self.shared.stats.lock().unwrap().clone()
+    }
+
+    /// Deliver one inbound line (`VERB payload`) as if it arrived on the socket;
+    /// returns the reply lines (a real socket writes them back to the caller; the
+    /// in-process network routes them itself, see [`Self::heartbeat`]).
+    pub async fn deliver_line(&self, line: &str) -> Vec<String> {
+        dispatch_line(&self.shared, line).await
+    }
+
+    /// Send this device's catch-up digest to every peer (the timer does this on
+    /// sockets; a simulation calls it).
+    pub async fn heartbeat(&self) {
+        send_digest(&self.shared, None).await;
+    }
+
+    /// Send the digest to one peer (a newly discovered one).
+    pub async fn heartbeat_to(&self, device_id: &str) {
+        send_digest(&self.shared, Some(device_id.to_string())).await;
     }
 
     /// The actually-bound TCP relay port (meaningful after [`start`](Self::start)).
@@ -485,8 +576,16 @@ impl LanRelay {
 
     /// Inject a discovered peer (TTL-tracked) — the iOS-Bonjour bridge feeds peers
     /// resolved via Network.framework in here; the host re-injects on each refresh.
+    /// A peer not seen before gets this device's catch-up digest at once.
     pub fn add_peer(&self, peer: Peer) {
-        self.shared.registry.lock().unwrap().upsert(peer);
+        let id = peer.device_id.clone();
+        let fresh = upsert_peer(&self.shared, peer);
+        if fresh && self.shared.transport.is_none() {
+            let shared = self.shared.clone();
+            if let Ok(h) = tokio::runtime::Handle::try_current() {
+                h.spawn(async move { send_digest(&shared, Some(id)).await });
+            }
+        }
     }
 
     /// Register a manual hub peer (`host`, `port`) — the always-works fallback. Never
@@ -589,6 +688,16 @@ impl LanRelay {
             loop {
                 tokio::time::sleep(Duration::from_millis(4_000)).await;
                 prune_shared.registry.lock().unwrap().prune(now_ms());
+            }
+        }));
+
+        // 5. Catch-up digests (anti-entropy): every peer hears what this device
+        //    holds, so whatever it missed is exchanged.
+        let sync_shared = self.shared.clone();
+        self.spawn(tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(SYNC_EVERY).await;
+                send_digest(&sync_shared, None).await;
             }
         }));
 
@@ -758,11 +867,112 @@ async fn fanout(shared: &Arc<RelayShared>, line: String) {
         }
     }
     for (host, port) in targets {
+        if let Some(t) = &shared.transport {
+            t.send(&host, port, line.clone());
+            continue;
+        }
         let line = line.clone();
         tokio::spawn(async move {
             send_frame(&host, port, &line).await;
         });
     }
+}
+
+/// Registry upsert; `true` when the device was not known (or had expired).
+fn upsert_peer(shared: &Arc<RelayShared>, peer: Peer) -> bool {
+    let mut reg = shared.registry.lock().unwrap();
+    let known = reg.live_for_branch(&peer.branch_id, now_ms()).iter().any(|p| p.device_id == peer.device_id);
+    reg.upsert(peer);
+    !known
+}
+
+/// Where a device id is reachable, if known.
+fn address_of(shared: &Arc<RelayShared>, device_id: &str) -> Option<(String, u16)> {
+    shared
+        .registry
+        .lock()
+        .unwrap()
+        .live_for_branch(&shared.cfg.branch_id, now_ms())
+        .into_iter()
+        .find(|p| p.device_id == device_id)
+        .map(|p| (p.host.clone(), p.port))
+}
+
+fn sync_line(shared: &Arc<RelayShared>, to: Option<String>, body: serde_json::Value) -> Option<String> {
+    let env = SyncEnvelope {
+        branch_id: shared.cfg.branch_id.clone(),
+        from: shared.cfg.device_id.clone(),
+        to,
+        sent_at_ms: now_ms(),
+        body,
+    };
+    let frame = sign_str(&shared.cfg.key, serde_json::to_string(&env).ok()?);
+    serde_json::to_string(&frame).ok().map(|j| format!("SYNC {j}"))
+}
+
+/// Send the digest to one peer or to all (manual hubs included).
+async fn send_digest(shared: &Arc<RelayShared>, to: Option<String>) {
+    let Some(body) = shared.inbound.lan_digest() else { return };
+    let Some(line) = sync_line(shared, to.clone(), body) else { return };
+    let targets: Vec<(String, u16)> = match &to {
+        Some(id) => address_of(shared, id).into_iter().collect(),
+        None => {
+            let mut t = shared.registry.lock().unwrap().relay_targets(&shared.cfg.branch_id, &shared.cfg.device_id, now_ms());
+            for (h, p) in shared.manual.lock().unwrap().iter() {
+                if !t.iter().any(|(th, tp)| th == h && tp == p) {
+                    t.push((h.clone(), *p));
+                }
+            }
+            t
+        }
+    };
+    for (host, port) in targets {
+        if let Some(tr) = &shared.transport {
+            tr.send(&host, port, line.clone());
+            continue;
+        }
+        let shared = shared.clone();
+        let line = line.clone();
+        tokio::spawn(async move { sync_exchange(&shared, &host, port, line, 0).await });
+    }
+}
+
+/// One catch-up exchange over a socket: write the frame, read the peer's reply
+/// frames back on the same connection, handle them, and carry the resulting
+/// frames to the same peer — bounded in depth and lines.
+fn sync_exchange<'a>(
+    shared: &'a Arc<RelayShared>,
+    host: &'a str,
+    port: u16,
+    line: String,
+    depth: usize,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
+    Box::pin(async move {
+        if depth > MAX_EXCHANGE_DEPTH {
+            return;
+        }
+        let attempt = async {
+            let mut stream = TcpStream::connect((host, port)).await.ok()?;
+            stream.write_all(line.as_bytes()).await.ok()?;
+            stream.write_all(b"\n").await.ok()?;
+            stream.flush().await.ok()?;
+            let mut replies = Vec::new();
+            while replies.len() < MAX_REPLY_LINES {
+                match read_line(&mut stream).await {
+                    Some(l) if l != "ok" => replies.push(l),
+                    Some(_) => {}
+                    None => break,
+                }
+            }
+            Some(replies)
+        };
+        let Ok(Some(replies)) = tokio::time::timeout(Duration::from_millis(5_000), attempt).await else { return };
+        for reply in replies {
+            for next in dispatch_line(shared, &reply).await {
+                sync_exchange(shared, host, port, next, depth + 1).await;
+            }
+        }
+    })
 }
 
 /// One outbound push: connect, write `line\n`, done. Bounded by a short timeout so a
@@ -778,29 +988,91 @@ async fn send_frame(host: &str, port: u16, line: &str) {
     let _ = tokio::time::timeout(Duration::from_millis(1_500), attempt).await;
 }
 
-/// Handle one inbound relay connection: read one `VERB payload` line and dispatch.
+/// Handle one inbound relay connection: read one `VERB payload` line and dispatch;
+/// a catch-up frame's replies are written back on the same connection.
 async fn handle_conn(shared: Arc<RelayShared>, mut stream: TcpStream) {
     let Some(line) = read_line(&mut stream).await else {
+        shared.stats.lock().unwrap().oversized += 1;
         return;
     };
-    let (verb, payload) = line.split_once(' ').unwrap_or((line.as_str(), ""));
-    match verb {
-        "MSG" => {
-            handle_msg(&shared, payload).await;
-            let _ = stream.write_all(b"ok\n").await;
-        }
-        "PING" => {
-            let _ = stream.write_all(b"pong\n").await;
-        }
-        _ => {
-            let _ = stream.write_all(b"err\n").await;
+    if line.starts_with("PING") {
+        let _ = stream.write_all(b"pong\n").await;
+        return;
+    }
+    let replies = dispatch_line(&shared, &line).await;
+    for r in replies {
+        if stream.write_all(r.as_bytes()).await.is_err() || stream.write_all(b"\n").await.is_err() {
+            return;
         }
     }
+    let _ = stream.write_all(b"ok\n").await;
+}
+
+/// One inbound line, whatever carried it. Returns reply lines for the sender.
+async fn dispatch_line(shared: &Arc<RelayShared>, line: &str) -> Vec<String> {
+    if line.len() > MAX_FRAME {
+        shared.stats.lock().unwrap().oversized += 1;
+        return Vec::new();
+    }
+    let (verb, payload) = line.split_once(' ').unwrap_or((line, ""));
+    match verb {
+        "MSG" => {
+            handle_msg(shared, payload).await;
+            Vec::new()
+        }
+        "SYNC" => handle_sync(shared, payload),
+        _ => {
+            shared.stats.lock().unwrap().malformed += 1;
+            Vec::new()
+        }
+    }
+}
+
+/// Verify and handle a catch-up frame; replies are addressed back to its sender.
+fn handle_sync(shared: &Arc<RelayShared>, payload: &str) -> Vec<String> {
+    let Ok(frame) = serde_json::from_str::<SignedFrame>(payload) else {
+        shared.stats.lock().unwrap().malformed += 1;
+        return Vec::new();
+    };
+    let Some(body) = verify_str(&shared.cfg.key, &frame) else {
+        shared.stats.lock().unwrap().bad_signature += 1;
+        return Vec::new();
+    };
+    let Ok(env) = serde_json::from_str::<SyncEnvelope>(body) else {
+        shared.stats.lock().unwrap().malformed += 1;
+        return Vec::new();
+    };
+    if env.branch_id != shared.cfg.branch_id {
+        shared.stats.lock().unwrap().foreign_branch += 1;
+        return Vec::new();
+    }
+    if env.from == shared.cfg.device_id || env.to.as_ref().is_some_and(|t| t != &shared.cfg.device_id) {
+        return Vec::new();
+    }
+    if (now_ms() - env.sent_at_ms).abs() > SYNC_MAX_AGE_MS {
+        shared.stats.lock().unwrap().stale += 1;
+        return Vec::new();
+    }
+    {
+        let mut st = shared.stats.lock().unwrap();
+        st.sync_frames += 1;
+    }
+    let replies = shared.inbound.lan_sync(&env.body);
+    let lines: Vec<String> = replies.into_iter().filter_map(|b| sync_line(shared, Some(env.from.clone()), b)).collect();
+    // On an in-process network the replies travel as messages to the sender.
+    if let Some(t) = &shared.transport {
+        for l in &lines {
+            t.send(&env.from, 0, l.clone());
+        }
+        return Vec::new();
+    }
+    lines
 }
 
 /// Verify, branch-gate, dedup, forward to the host, then gossip one hop further.
 async fn handle_msg(shared: &Arc<RelayShared>, payload: &str) {
     let Ok(frame) = serde_json::from_str::<SignedFrame>(payload) else {
+        shared.stats.lock().unwrap().malformed += 1;
         // Something on this LAN is speaking our protocol badly. Either a version
         // skew between devices (real bug, real lost kitchen events) or a probe.
         // The payload itself is NEVER attached — it can contain order contents.
@@ -811,6 +1083,7 @@ async fn handle_msg(shared: &Arc<RelayShared>, payload: &str) {
         return;
     };
     let Some(msg) = verify_frame(&shared.cfg.key, &frame) else {
+        shared.stats.lock().unwrap().bad_signature += 1;
         // HMAC mismatch: a device holding a STALE branch key (its bundle wasn't
         // refreshed — its events are being dropped branch-wide and it has no way
         // to find out), or an unprovisioned device pushing at us. Worth seeing.
@@ -821,13 +1094,23 @@ async fn handle_msg(shared: &Arc<RelayShared>, payload: &str) {
         return;
     };
     // Branch isolation + ignore our own gossip echo.
-    if msg.branch_id != shared.cfg.branch_id || msg.sender_id == shared.cfg.device_id {
+    if msg.branch_id != shared.cfg.branch_id {
+        shared.stats.lock().unwrap().foreign_branch += 1;
+        return;
+    }
+    if msg.sender_id == shared.cfg.device_id {
+        return;
+    }
+    if msg.hop > MAX_HOPS {
+        shared.stats.lock().unwrap().hops_exhausted += 1;
         return;
     }
     let is_new = shared.seen.lock().unwrap().insert(&msg.msg_id);
     if !is_new {
+        shared.stats.lock().unwrap().duplicate += 1;
         return;
     }
+    shared.stats.lock().unwrap().accepted += 1;
     shared.inbound.on_lan_message(&msg);
     // Mesh gossip: re-relay one hop so it reaches peers we can't directly see.
     if let Some(relayed) = msg.relayed() {
@@ -934,8 +1217,8 @@ async fn beacon_recv_loop(shared: Arc<RelayShared>, sock: Arc<UdpSocket>) {
         if beacon.branch_id != shared.cfg.branch_id || beacon.device_id == shared.cfg.device_id {
             continue;
         }
-        shared.registry.lock().unwrap().upsert(Peer {
-            device_id: beacon.device_id,
+        let newly = upsert_peer(&shared, Peer {
+            device_id: beacon.device_id.clone(),
             branch_id: beacon.branch_id,
             role: beacon.role,
             host: src.ip().to_string(),
@@ -946,6 +1229,11 @@ async fn beacon_recv_loop(shared: Arc<RelayShared>, sock: Arc<UdpSocket>) {
             open_tills: beacon.open_tills,
             last_seen_ms: now_ms(),
         });
+        if newly {
+            let s = shared.clone();
+            let id = beacon.device_id;
+            tokio::spawn(async move { send_digest(&s, Some(id)).await });
+        }
     }
 }
 

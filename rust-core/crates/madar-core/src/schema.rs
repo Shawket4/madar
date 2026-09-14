@@ -80,7 +80,38 @@ fn step1_sync_streams(tx: &Transaction<'_>) -> CoreResult<()> {
            last_err      TEXT,
            last_err_kind TEXT,                      -- offline|auth|server|decode|forbidden
            window_from   TEXT                       -- ledger window of the last full snapshot
-         );",
+         );
+         -- A row a LAN peer provided (OFFLINE_B_DESIGN §LAN catch-up): stored with
+         -- seq 0 (every cloud write wins) and the seq the peer claimed here.
+         ALTER TABLE sync_rows ADD COLUMN peer_seq INTEGER;
+         -- Deletes the feed applied, by seq, so a peer that still holds the row
+         -- can be told (bounded by age).
+         CREATE TABLE IF NOT EXISTS sync_tombstones (
+           branch_id   TEXT NOT NULL,
+           type        TEXT NOT NULL,
+           id          TEXT NOT NULL,
+           seq         INTEGER NOT NULL,
+           peer        INTEGER NOT NULL DEFAULT 0,
+           recorded_at INTEGER NOT NULL,
+           PRIMARY KEY (branch_id, type, id)
+         );
+         -- Every LAN event this device published or accepted, by identity (the op
+         -- key of a write, else the message id): persistent dedup across restarts
+         -- and what catch-up re-offers to a peer that lacks it.
+         CREATE TABLE IF NOT EXISTS lan_log (
+           key          TEXT PRIMARY KEY,
+           branch_id    TEXT NOT NULL,
+           topic        TEXT NOT NULL,
+           event_type   TEXT NOT NULL,
+           data         TEXT NOT NULL,
+           replay_op    TEXT,
+           origin       TEXT NOT NULL,
+           sent_at_ms   INTEGER NOT NULL,
+           received_at_ms INTEGER NOT NULL,
+           hash         INTEGER NOT NULL,            -- 63-bit digest of the key (gossip bucket)
+           ver          INTEGER NOT NULL DEFAULT 0   -- a line toggle's tap time (latest wins); 0 otherwise
+         );
+         CREATE INDEX IF NOT EXISTS lan_log_branch ON lan_log(branch_id, received_at_ms);",
     )?;
     Ok(())
 }
@@ -110,6 +141,7 @@ fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
            origin        TEXT NOT NULL,             -- server|local
            acked         INTEGER NOT NULL DEFAULT 0, -- an op for it acked, the feed has not confirmed it yet
            ack_seq       INTEGER,                   -- the replay answer's X-Madar-Sync-Seq: the feed shows the op by here
+           peer_seq      INTEGER,                   -- origin 'peer': the feed seq a LAN peer claimed (unconfirmed)
            complete      INTEGER NOT NULL DEFAULT 0, -- every ledger row of this till is local
            local_updated_at INTEGER NOT NULL
          );
@@ -136,6 +168,7 @@ fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
            origin        TEXT NOT NULL,
            acked         INTEGER NOT NULL DEFAULT 0, -- a local op for it acked, the feed has not confirmed it yet
            ack_seq       INTEGER,
+           peer_seq      INTEGER,
            local_updated_at INTEGER NOT NULL
          );
          CREATE INDEX IF NOT EXISTS ledger_orders_till ON ledger_orders(till_id, created_at DESC);
@@ -165,6 +198,7 @@ fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
            origin        TEXT NOT NULL,
            acked         INTEGER NOT NULL DEFAULT 0,
            ack_seq       INTEGER,
+           peer_seq      INTEGER,
            local_updated_at INTEGER NOT NULL
          );
          CREATE INDEX IF NOT EXISTS ledger_cash_till ON ledger_cash(till_id, created_at);
@@ -184,6 +218,7 @@ fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
            origin        TEXT NOT NULL,
            acked         INTEGER NOT NULL DEFAULT 0,
            ack_seq       INTEGER,
+           peer_seq      INTEGER,
            local_updated_at INTEGER NOT NULL
          );
          CREATE INDEX IF NOT EXISTS ledger_refunds_till ON ledger_refunds(till_id);

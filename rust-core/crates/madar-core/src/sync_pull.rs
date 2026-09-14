@@ -276,15 +276,15 @@ fn server_checksums(resp: &PullResponse) -> Checksums {
         .collect()
 }
 
-/// Every type the POS syncs (§10.1). The pull asks for everything and applies
-/// what comes, so only the tests enumerate it.
-#[cfg(test)]
-pub(crate) const ALL_TYPES: &[&str] = &[
+/// Every type the POS syncs (§10.1): what a LAN peer may hand over too.
+pub(crate) const SYNCED_TYPES: &[&str] = &[
     "category", "menu_item", "bundle", "ingredient", "payment_method", "payment_availability",
     "discount", "branch_settings", "device", "teller", "floor_section", "floor_table",
     "table_occupancy", "table_transfer", "open_ticket", "kitchen_ticket", "delivery", "booking",
     "till", "cash_movement", "order", "refund", "addon_item",
 ];
+#[cfg(test)]
+pub(crate) const ALL_TYPES: &[&str] = SYNCED_TYPES;
 /// The types a snapshot must list to count as COMPLETE (and move the cursor):
 /// the contract's original set. A type added later (`addon_item`) is applied
 /// when a server sends it, but a server that predates it still completes.
@@ -394,7 +394,7 @@ fn upsert_row(
     }
     tx.prepare_cached(
         "INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES(?1,?2,?3,?4,?5)
-         ON CONFLICT(branch_id,type,id) DO UPDATE SET seq=excluded.seq, data=excluded.data",
+         ON CONFLICT(branch_id,type,id) DO UPDATE SET seq=excluded.seq, data=excluded.data, peer_seq=NULL",
     )?
     .execute(rusqlite::params![ty, id, branch, seq, data.to_string()])?;
     Ok(true)
@@ -570,6 +570,11 @@ pub(crate) fn apply_page_with(
                         "DELETE FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
                         rusqlite::params![branch, ty, id],
                     )?;
+                    // Gone as of this snapshot's horizon: a LAN peer still holding
+                    // it at an older seq is told.
+                    if let Some(h) = next {
+                        crate::lan_sync::record_tombstone(tx, branch, ty, &id, h)?;
+                    }
                     n += 1;
                 }
                 touched.push(crate::changes::table_for_sync_type(ty));
@@ -606,6 +611,7 @@ pub(crate) fn apply_page_with(
                 let id = c.id.to_string();
                 if crate::ledger::is_ledger_type(&c.r#type) {
                     let changed = if c.op == "delete" || c.data.is_null() {
+                        crate::lan_sync::record_tombstone(tx, branch, &c.r#type, &id, c.seq)?;
                         crate::ledger::apply::delete(tx, &c.r#type, &id, &ctx)?
                     } else {
                         crate::ledger::apply::upsert(tx, &c.r#type, &c.data, c.seq, &ctx)?
@@ -619,6 +625,7 @@ pub(crate) fn apply_page_with(
                 }
                 let prot = is_prot(&c.r#type, &id);
                 if c.op == "delete" || c.data.is_null() {
+                    crate::lan_sync::record_tombstone(tx, branch, &c.r#type, &id, c.seq)?;
                     if !prot {
                         let k = tx.execute(
                             "DELETE FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
@@ -932,6 +939,17 @@ impl MadarCore {
             }
             self.store
                 .kv_put(&format!("{K_LAST_OK}{branch}"), &chrono::Utc::now().to_rfc3339())?;
+            // Cloud wins: a LAN peer's row the feed should have confirmed by now
+            // and did not is not the server's.
+            let cursor = self.store.kv_get(&format!("{K_NEXT}{branch}"))?.and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+            let purged = self.store.with_tx_touch(|tx, touched| {
+                let k = crate::lan_sync::purge_unconfirmed(tx, &branch, cursor)?;
+                if k > 0 {
+                    touched.push(crate::changes::ALL);
+                }
+                Ok(k)
+            })?;
+            applied += purged;
             self.project_pull_mirrors(&branch);
             self.sync_state.lock().unwrap_or_else(|e| e.into_inner()).stale_reason = stale;
             // §11.7: after rows land, fetch the files they reference (non-fatal).

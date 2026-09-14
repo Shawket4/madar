@@ -126,14 +126,22 @@ pub(crate) struct Meta {
     pub acked: bool,
     /// The feed horizon that includes the acked op (`X-Madar-Sync-Seq`).
     pub ack_seq: Option<i64>,
+    /// origin `peer`: the seq the LAN peer claimed.
+    pub peer_seq: Option<i64>,
 }
 
 pub(crate) fn stored_meta(conn: &Connection, ty: &str, key: &str) -> CoreResult<Option<Meta>> {
     let (table, kcol) = table_of(ty).expect("ledger type");
     Ok(conn
-        .prepare_cached(&format!("SELECT srv_seq, origin, acked, ack_seq FROM {table} WHERE {kcol}=?1"))?
+        .prepare_cached(&format!("SELECT srv_seq, origin, acked, ack_seq, peer_seq FROM {table} WHERE {kcol}=?1"))?
         .query_row([key], |r| {
-            Ok(Meta { srv_seq: r.get(0)?, origin: r.get(1)?, acked: r.get::<_, i64>(2)? != 0, ack_seq: r.get(3)? })
+            Ok(Meta {
+                srv_seq: r.get(0)?,
+                origin: r.get(1)?,
+                acked: r.get::<_, i64>(2)? != 0,
+                ack_seq: r.get(3)?,
+                peer_seq: r.get(4)?,
+            })
         })
         .optional()?)
 }
@@ -296,6 +304,10 @@ pub(crate) enum Origin {
     Ack,
     /// This device, before the server has answered.
     Local,
+    /// A LAN peer's copy of a feed row at the seq it claimed (OFFLINE_B_DESIGN
+    /// "LAN catch-up"): unconfirmed — srv_seq stays 0 so every cloud write wins,
+    /// and a pull past that seq that did not confirm it removes it.
+    Peer(i64),
 }
 
 /// Write `v` as row `key` of `ty`, replacing what is there. The caller has
@@ -314,13 +326,18 @@ pub(crate) fn write_row(
     let prev = stored_meta(conn, ty, key)?;
     let srv_seq = match origin {
         Origin::Feed(seq) => seq,
+        Origin::Peer(_) => 0,
         _ => prev.as_ref().map(|p| p.srv_seq).unwrap_or(0),
     };
-    let origin_word = if origin == Origin::Local { "local" } else { "server" };
+    let origin_word = match origin {
+        Origin::Local => "local",
+        Origin::Peer(_) => "peer",
+        _ => "server",
+    };
     // Acked = "the server has this, the feed has not confirmed it yet".
     let acked = match origin {
         Origin::Ack => true,
-        Origin::Feed(_) => false,
+        Origin::Feed(_) | Origin::Peer(_) => false,
         _ => prev.as_ref().map(|p| p.acked).unwrap_or(false),
     };
     let raw = v.to_string();
@@ -462,9 +479,20 @@ pub(crate) fn write_row(
         }
         _ => {}
     }
-    if matches!(origin, Origin::Feed(_)) {
-        let (table, kcol) = table_of(ty).expect("ledger type");
-        exec(conn, &format!("UPDATE {table} SET ack_seq=NULL WHERE {kcol}=?1 AND ack_seq IS NOT NULL"), [key])?;
+    match origin {
+        Origin::Feed(_) => {
+            let (table, kcol) = table_of(ty).expect("ledger type");
+            exec(
+                conn,
+                &format!("UPDATE {table} SET ack_seq=NULL, peer_seq=NULL WHERE {kcol}=?1 AND (ack_seq IS NOT NULL OR peer_seq IS NOT NULL)"),
+                [key],
+            )?;
+        }
+        Origin::Peer(seq) => {
+            let (table, kcol) = table_of(ty).expect("ledger type");
+            exec(conn, &format!("UPDATE {table} SET peer_seq=?1 WHERE {kcol}=?2"), params![seq, key])?;
+        }
+        _ => {}
     }
     Ok(key_owned)
 }

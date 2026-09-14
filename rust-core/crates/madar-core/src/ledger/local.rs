@@ -121,7 +121,11 @@ pub(crate) fn modify(conn: &Connection, ty: &str, key: &str, f: impl FnOnce(&mut
         (None, "server") => Some(prev.raw.clone()),
         (None, _) => None,
     };
-    let origin = if prev.origin == "local" { Origin::Local } else { Origin::Fetch };
+    let origin = match prev.origin.as_str() {
+        "local" => Origin::Local,
+        "peer" => Origin::Peer(super::stored_meta(conn, ty, key)?.and_then(|m| m.peer_seq).unwrap_or(0)),
+        _ => Origin::Fetch,
+    };
     let key = write_row(conn, ty, key, &raw, origin, srv.as_ref())?;
     // write_row(Fetch) would not touch acked/seq; restore the exact ack flag.
     let (table, kcol) = super::table_of(ty).unwrap();
