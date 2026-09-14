@@ -52,7 +52,7 @@ fn golden_responses_parse_into_old_models() {
     let dir = std::env::var("GOLDEN_DIR").expect("GOLDEN_DIR not set");
     let manifest: Value =
         serde_json::from_str(&std::fs::read_to_string(format!("{dir}/manifest.json")).unwrap()).unwrap();
-    let release = if cfg!(feature = "v051") {
+    let release = if cfg!(any(feature = "v050", feature = "v051")) {
         "v0.5.1"
     } else if cfg!(feature = "v061") {
         "v0.6.1"

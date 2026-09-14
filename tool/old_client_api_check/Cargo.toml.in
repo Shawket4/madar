@@ -11,6 +11,7 @@ publish = false
 
 [features]
 # Exactly one: which POS release's generated models are being checked.
+v050 = []
 v051 = []
 v060 = []
 v061 = []
