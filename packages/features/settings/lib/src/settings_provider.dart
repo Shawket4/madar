@@ -363,6 +363,8 @@ class SettingsNotifier extends Notifier<SettingsState> {
       isDelivery: false,
       queuedOffline: false,
       createdAt: DateTime.now().toUtc().toIso8601String(),
+      serviceChargeWaivedMinor: 0,
+      taxInclusive: false,
     );
   }
 

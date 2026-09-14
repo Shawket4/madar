@@ -124,6 +124,11 @@ pub struct _ReceiptView {
     pub discount_minor: i64,
     pub tax_minor: i64,
     pub service_charge_minor: i64,
+    /// Prices already contained the tax: "Prices include VAT", tax as included.
+    pub tax_inclusive: bool,
+    /// A service charge removed from this table's bill, and by whom.
+    pub service_charge_waived_minor: i64,
+    pub service_charge_waived_by_name: Option<String>,
     /// Delivery fee (0 for dine-in).
     pub delivery_fee_minor: i64,
     pub total_minor: i64,

@@ -486,6 +486,14 @@ class TillReportView {
   final PlatformInt64 refundsIssuedCashMinor;
   final PlatformInt64 refundsIssuedCount;
   final PlatformInt64 cashInRefundedSalesMinor;
+
+  /// Tax / service charge on this till's sales, net of their refunds.
+  final PlatformInt64 totalTaxMinor;
+  final PlatformInt64 totalServiceChargeMinor;
+
+  /// Table bills whose service charge was waived, and what it came to.
+  final PlatformInt64 serviceChargeWaivedCount;
+  final PlatformInt64 serviceChargeWaivedMinor;
   final PlatformInt64 cashMovementsNetMinor;
   final PlatformInt64 cashInMinor;
   final PlatformInt64 cashOutMinor;
@@ -520,6 +528,10 @@ class TillReportView {
     required this.refundsIssuedCashMinor,
     required this.refundsIssuedCount,
     required this.cashInRefundedSalesMinor,
+    required this.totalTaxMinor,
+    required this.totalServiceChargeMinor,
+    required this.serviceChargeWaivedCount,
+    required this.serviceChargeWaivedMinor,
     required this.cashMovementsNetMinor,
     required this.cashInMinor,
     required this.cashOutMinor,
@@ -556,6 +568,10 @@ class TillReportView {
       refundsIssuedCashMinor.hashCode ^
       refundsIssuedCount.hashCode ^
       cashInRefundedSalesMinor.hashCode ^
+      totalTaxMinor.hashCode ^
+      totalServiceChargeMinor.hashCode ^
+      serviceChargeWaivedCount.hashCode ^
+      serviceChargeWaivedMinor.hashCode ^
       cashMovementsNetMinor.hashCode ^
       cashInMinor.hashCode ^
       cashOutMinor.hashCode ^
@@ -594,6 +610,10 @@ class TillReportView {
           refundsIssuedCashMinor == other.refundsIssuedCashMinor &&
           refundsIssuedCount == other.refundsIssuedCount &&
           cashInRefundedSalesMinor == other.cashInRefundedSalesMinor &&
+          totalTaxMinor == other.totalTaxMinor &&
+          totalServiceChargeMinor == other.totalServiceChargeMinor &&
+          serviceChargeWaivedCount == other.serviceChargeWaivedCount &&
+          serviceChargeWaivedMinor == other.serviceChargeWaivedMinor &&
           cashMovementsNetMinor == other.cashMovementsNetMinor &&
           cashInMinor == other.cashInMinor &&
           cashOutMinor == other.cashOutMinor &&

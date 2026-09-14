@@ -23,6 +23,12 @@ class TicketBillView {
   final double serviceChargeRate;
   final bool taxInclusive;
 
+  /// Whether the service charge is taxed, frozen on the bill.
+  final bool serviceChargeTaxable;
+
+  /// The service charge a waiver removed (re-priced bills only).
+  final PlatformInt64 serviceChargeWaivedMinor;
+
   const TicketBillView({
     required this.subtotalMinor,
     required this.discountMinor,
@@ -32,6 +38,8 @@ class TicketBillView {
     required this.taxRate,
     required this.serviceChargeRate,
     required this.taxInclusive,
+    required this.serviceChargeTaxable,
+    required this.serviceChargeWaivedMinor,
   });
 
   @override
@@ -43,7 +51,9 @@ class TicketBillView {
       totalMinor.hashCode ^
       taxRate.hashCode ^
       serviceChargeRate.hashCode ^
-      taxInclusive.hashCode;
+      taxInclusive.hashCode ^
+      serviceChargeTaxable.hashCode ^
+      serviceChargeWaivedMinor.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -57,7 +67,9 @@ class TicketBillView {
           totalMinor == other.totalMinor &&
           taxRate == other.taxRate &&
           serviceChargeRate == other.serviceChargeRate &&
-          taxInclusive == other.taxInclusive;
+          taxInclusive == other.taxInclusive &&
+          serviceChargeTaxable == other.serviceChargeTaxable &&
+          serviceChargeWaivedMinor == other.serviceChargeWaivedMinor;
 }
 
 /// The slim "sent to kitchen" confirmation after a fire/round — deliberately NOT

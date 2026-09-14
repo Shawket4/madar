@@ -19,11 +19,17 @@ Name | Type | Description | Notes
 **refunds_issued_amount** | Option<**i64**> |  | [optional]
 **refunds_issued_cash** | Option<**i64**> |  | [optional]
 **refunds_issued_count** | Option<**i64**> |  | [optional]
+**refunds_issued_service_charge** | Option<**i64**> |  | [optional]
+**refunds_issued_tax** | Option<**i64**> | The tax and service charge inside the refunds issued FROM this till's drawer (`refunds_issued_amount`'s split). | [optional]
 **safe_drops** | **i64** |  | 
+**service_charge_waived_amount** | Option<**i64**> |  | [optional]
+**service_charge_waived_count** | Option<**i64**> | Table bills whose service charge was removed (`orders:waive_service`), and what those charges came to. Not part of any total. | [optional]
 **standard_float** | Option<**i64**> | `branches.standard_float`. | [optional]
 **suggested_safe_drop** | Option<**i64**> |  | [optional]
 **timezone** | Option<**String**> |  | [optional]
 **total_payments** | **i64** |  | 
+**total_service_charge** | Option<**i64**> | Service charge on this till's sales, less what their refunds took back. | [optional]
+**total_tax** | Option<**i64**> | Tax on this till's sales, less the tax their refunds took back (a partial refund takes back its pro-rata share; a voided or fully refunded sale is out altogether). Additive. | [optional]
 **total_tips** | **i64** |  | 
 **voided_amount** | **i64** |  | 
 **shift** | [**models::Shift**](Shift.md) |  | 

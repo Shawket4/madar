@@ -421,6 +421,38 @@ class _Report extends ConsumerWidget {
             empty: MadarEmptyContent(title: t('till.report_no_sales')),
           ),
         ),
+        // Tax and service charge on the sales, net of what refunds took back
+        // (a partial refund takes back its share), and the waived charges.
+        if (r.totalTaxMinor != 0 ||
+            r.totalServiceChargeMinor != 0 ||
+            r.serviceChargeWaivedCount > 0)
+          section(
+            t('order.tax'),
+            Column(
+              children: [
+                MadarSummaryLine(
+                  label: t('till.total_tax'),
+                  minor: r.totalTaxMinor,
+                  currency: currency,
+                ),
+                if (r.totalServiceChargeMinor != 0)
+                  MadarSummaryLine(
+                    label: t('till.total_service'),
+                    minor: r.totalServiceChargeMinor,
+                    currency: currency,
+                  ),
+                if (r.serviceChargeWaivedCount > 0)
+                  MadarSummaryLine(
+                    label:
+                        '${t('till.service_waived')} '
+                        '(${r.serviceChargeWaivedCount})',
+                    minor: r.serviceChargeWaivedMinor,
+                    currency: currency,
+                    muted: true,
+                  ),
+              ],
+            ),
+          ),
         if (r.reconciliation.isNotEmpty)
           section(
             t('till.z_reconciliation'),

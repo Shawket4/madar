@@ -44,6 +44,10 @@ TillReportView _report(int expected) => TillReportView(
   reconciliation: const [],
   verification: 'server',
   openedWhileAnotherOpen: false,
+  serviceChargeWaivedCount: 0,
+  serviceChargeWaivedMinor: 0,
+  totalServiceChargeMinor: 0,
+  totalTaxMinor: 0,
 );
 
 const _offline = MadarError.offline(detail: 'offline');

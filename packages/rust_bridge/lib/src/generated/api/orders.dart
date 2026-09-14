@@ -580,6 +580,13 @@ class ReceiptView {
   final PlatformInt64 taxMinor;
   final PlatformInt64 serviceChargeMinor;
 
+  /// Prices already contained the tax: "Prices include VAT", tax as included.
+  final bool taxInclusive;
+
+  /// A service charge removed from this table's bill, and by whom.
+  final PlatformInt64 serviceChargeWaivedMinor;
+  final String? serviceChargeWaivedByName;
+
   /// Delivery fee (0 for dine-in).
   final PlatformInt64 deliveryFeeMinor;
   final PlatformInt64 totalMinor;
@@ -628,6 +635,9 @@ class ReceiptView {
     required this.discountMinor,
     required this.taxMinor,
     required this.serviceChargeMinor,
+    required this.taxInclusive,
+    required this.serviceChargeWaivedMinor,
+    this.serviceChargeWaivedByName,
     required this.deliveryFeeMinor,
     required this.totalMinor,
     required this.tipMinor,
@@ -663,6 +673,9 @@ class ReceiptView {
       discountMinor.hashCode ^
       taxMinor.hashCode ^
       serviceChargeMinor.hashCode ^
+      taxInclusive.hashCode ^
+      serviceChargeWaivedMinor.hashCode ^
+      serviceChargeWaivedByName.hashCode ^
       deliveryFeeMinor.hashCode ^
       totalMinor.hashCode ^
       tipMinor.hashCode ^
@@ -700,6 +713,9 @@ class ReceiptView {
           discountMinor == other.discountMinor &&
           taxMinor == other.taxMinor &&
           serviceChargeMinor == other.serviceChargeMinor &&
+          taxInclusive == other.taxInclusive &&
+          serviceChargeWaivedMinor == other.serviceChargeWaivedMinor &&
+          serviceChargeWaivedByName == other.serviceChargeWaivedByName &&
           deliveryFeeMinor == other.deliveryFeeMinor &&
           totalMinor == other.totalMinor &&
           tipMinor == other.tipMinor &&

@@ -109,6 +109,41 @@ pub struct OrderExport {
         skip_serializing_if = "Option::is_none"
     )]
     pub service_charge_amount: Option<i32>,
+    /// The service charge rate the bill was priced under (a fraction); `0` on a takeaway, a delivery, or a bill whose charge was waived. Additive.
+    #[serde(
+        rename = "service_charge_rate_applied",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_rate_applied: Option<f64>,
+    /// Whether the service charge sat inside the tax base. Additive.
+    #[serde(
+        rename = "service_charge_taxable_applied",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_taxable_applied: Option<bool>,
+    /// What the removed service charge came to, in minor units; `0` when nothing was waived. Not part of the total. Additive.
+    #[serde(
+        rename = "service_charge_waived_amount",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_waived_amount: Option<i32>,
+    /// When the service charge was removed. Additive.
+    #[serde(
+        rename = "service_charge_waived_at",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_waived_at: Option<chrono::DateTime<chrono::FixedOffset>>,
+    /// Who removed the service charge from this table's bill (a holder of `orders:waive_service`), or `null`. Additive.
+    #[serde(
+        rename = "service_charge_waived_by",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_waived_by: Option<uuid::Uuid>,
+    #[serde(
+        rename = "service_charge_waived_by_name",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_waived_by_name: Option<String>,
     /// DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0).
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
@@ -118,6 +153,12 @@ pub struct OrderExport {
     pub subtotal: i32,
     #[serde(rename = "tax_amount")]
     pub tax_amount: i32,
+    /// Whether this bill's prices included tax, as it was priced. A receipt says \"Prices include VAT\" when true. `null` on a read that does not resolve it. Additive.
+    #[serde(rename = "tax_inclusive", skip_serializing_if = "Option::is_none")]
+    pub tax_inclusive: Option<bool>,
+    /// The tax rate the bill was priced under (a fraction). `null` for orders from before rates were recorded. Additive.
+    #[serde(rename = "tax_rate_applied", skip_serializing_if = "Option::is_none")]
+    pub tax_rate_applied: Option<f64>,
     #[serde(rename = "teller_id")]
     pub teller_id: uuid::Uuid,
     #[serde(rename = "teller_name")]
@@ -211,10 +252,18 @@ impl OrderExport {
             price_expected_total: None,
             price_flagged: None,
             service_charge_amount: None,
+            service_charge_rate_applied: None,
+            service_charge_taxable_applied: None,
+            service_charge_waived_amount: None,
+            service_charge_waived_at: None,
+            service_charge_waived_by: None,
+            service_charge_waived_by_name: None,
             shift_id,
             status,
             subtotal,
             tax_amount,
+            tax_inclusive: None,
+            tax_rate_applied: None,
             teller_id,
             teller_name,
             till_id,

@@ -214,6 +214,10 @@ TillReportView _report({required bool fromServer}) => TillReportView(
   reconciliation: const [],
   verification: 'server',
   openedWhileAnotherOpen: false,
+  serviceChargeWaivedCount: 0,
+  serviceChargeWaivedMinor: 0,
+  totalServiceChargeMinor: 0,
+  totalTaxMinor: 0,
 );
 
 const _movements = <CashMovementView>[

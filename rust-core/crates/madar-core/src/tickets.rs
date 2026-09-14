@@ -139,6 +139,20 @@ pub struct TicketBillView {
     pub tax_rate: f64,
     pub service_charge_rate: f64,
     pub tax_inclusive: bool,
+    /// Whether the service charge sits inside the tax base, as the server
+    /// froze it on the bill (a bill from an older server: the session's
+    /// setting). Re-pricing reads it from here, never from today's settings.
+    #[serde(default = "default_true")]
+    pub service_charge_taxable: bool,
+    /// The service charge a waiver took off this bill, when it was re-priced
+    /// with one (`0` otherwise). Not part of the total; the sheet and the
+    /// receipt name it.
+    #[serde(default)]
+    pub service_charge_waived_minor: i64,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// One bill line (display projection of the frozen `StoredTicketLine`).
@@ -231,9 +245,9 @@ pub(crate) fn to_view(v: &models::OpenTicketView, queued_offline: bool) -> Ticke
 /// the line and prices the bill with it — and the cashier who settles from
 /// that figure would collect for a plate that was sent back.
 ///
-/// `service_charge_taxable` is the one part of the policy the bill does not
-/// carry, so it comes from the session. It is the same branch setting the
-/// server read, and it only matters at all when a service charge exists.
+/// `service_charge_taxable` is frozen on the bill by servers from 1.4.1 on;
+/// for a bill from an older server it falls back to the session's setting,
+/// which is the branch setting that server read.
 pub(crate) fn to_view_with(
     v: &models::OpenTicketView,
     queued_offline: bool,
@@ -249,11 +263,14 @@ pub(crate) fn to_view_with(
         }
     }
     let subtotal = (v.subtotal as i64 - removed).max(0);
-    let bill = v.bill.as_deref().map(bill_view);
+    let bill = v
+        .bill
+        .as_deref()
+        .map(|b| bill_view_with(b, service_charge_taxable));
     let bill = match (&bill, removed) {
         // Nothing queued against this bill: the server's figures stand.
         (_, 0) | (None, _) => bill,
-        (Some(b), _) => Some(reprice(b, subtotal, v, service_charge_taxable)),
+        (Some(b), _) => Some(reprice(b, subtotal, v)),
     };
     TicketView {
         id: v.id.to_string(),
@@ -282,18 +299,13 @@ pub(crate) fn to_view_with(
 /// held byte-identical by the shared conformance vectors. A percentage
 /// discount shrinks with the bill and a fixed one does not, which is why the
 /// discount is recomputed from its type rather than scaled.
-fn reprice(
-    b: &TicketBillView,
-    subtotal: i64,
-    v: &models::OpenTicketView,
-    service_charge_taxable: bool,
-) -> TicketBillView {
+fn reprice(b: &TicketBillView, subtotal: i64, v: &models::OpenTicketView) -> TicketBillView {
     reprice_with(
         b,
         subtotal,
         flat(&v.discount_type).as_deref(),
         flat(&v.discount_value),
-        service_charge_taxable,
+        false,
     )
 }
 
@@ -303,13 +315,14 @@ pub(crate) fn waiter_discount(v: &models::OpenTicketView) -> (Option<String>, Op
 }
 
 /// [`reprice`] under an explicit discount — a settle's cashier override, or the
-/// waiter's. Rewards first, then this discount, as the server settles it.
+/// waiter's. Rewards first, then this discount, then the service charge on the
+/// remainder (none when `waive_service`), then tax — as the server settles it.
 pub(crate) fn reprice_with(
     b: &TicketBillView,
     subtotal: i64,
     discount_type: Option<&str>,
     discount_value: Option<f64>,
-    service_charge_taxable: bool,
+    waive_service: bool,
 ) -> TicketBillView {
     use std::str::FromStr;
     let dec = |f: f64| rust_decimal::Decimal::from_str(&f.to_string()).unwrap_or_default();
@@ -319,7 +332,7 @@ pub(crate) fn reprice_with(
         tax_rate: dec(b.tax_rate),
         tax_inclusive: b.tax_inclusive,
         service_charge_rate: dec(b.service_charge_rate),
-        service_charge_taxable,
+        service_charge_taxable: b.service_charge_taxable,
     };
     let discount = match (discount_type, discount_value) {
         (Some("percentage"), Some(val)) => crate::tax::Discount::Percentage(dec(val)),
@@ -327,7 +340,15 @@ pub(crate) fn reprice_with(
         _ => crate::tax::Discount::None,
     };
     let discount = crate::tax::discount_amount(subtotal, discount);
-    let out = crate::tax::compute(subtotal, discount, &policy);
+    // A table's bill is dine-in: the shared engine's channel rule keeps its
+    // service charge unless someone holding `orders:waive_service` removed it.
+    let channel = crate::tax::SaleChannel::DineIn;
+    let out = crate::tax::compute(subtotal, discount, &policy.for_sale(channel, waive_service));
+    let waived = if waive_service {
+        crate::tax::compute(subtotal, discount, &policy.for_sale(channel, false)).service_charge
+    } else {
+        0
+    };
     TicketBillView {
         subtotal_minor: out.subtotal,
         discount_minor: out.discount,
@@ -337,6 +358,8 @@ pub(crate) fn reprice_with(
         tax_rate: b.tax_rate,
         service_charge_rate: b.service_charge_rate,
         tax_inclusive: b.tax_inclusive,
+        service_charge_taxable: b.service_charge_taxable,
+        service_charge_waived_minor: waived,
     }
 }
 
@@ -356,8 +379,17 @@ pub(crate) fn pending_line_voids(
 /// Project the server's priced bill. Every figure is taken, never derived — a
 /// total this side recomputed from its parts would disagree with the books the
 /// moment a rounding rule differed.
+#[cfg(test)]
 fn bill_view(b: &models::TicketBill) -> TicketBillView {
+    bill_view_with(b, true)
+}
+
+/// A server bill as the FFI view; `fallback_taxable` stands in for a bill from
+/// a server that did not freeze `service_charge_taxable` on it.
+fn bill_view_with(b: &models::TicketBill, fallback_taxable: bool) -> TicketBillView {
     TicketBillView {
+        service_charge_taxable: b.service_charge_taxable.unwrap_or(fallback_taxable),
+        service_charge_waived_minor: 0,
         subtotal_minor: b.subtotal as i64,
         discount_minor: b.discount_amount as i64,
         service_charge_minor: b.service_charge_amount as i64,
@@ -407,6 +439,61 @@ fn line_view(it: &models::OpenTicketItemView) -> TicketLineView {
 
 #[cfg(test)]
 mod tests {
+    fn server_bill(taxable: Option<bool>) -> super::TicketBillView {
+        // 2 × 1000, no discount, 10% service, 14% on top of both.
+        super::bill_view_with(
+            &madar_api::models::TicketBill {
+                service_charge_taxable: taxable,
+                subtotal: 2000,
+                discount_amount: 0,
+                service_charge_amount: 200,
+                tax_amount: 308,
+                total: 2508,
+                tax_rate: 0.14,
+                service_charge_rate: 0.10,
+                tax_inclusive: false,
+            },
+            false,
+        )
+    }
+
+    /// A discount picked at the till on a TABLE's bill moves the figure the
+    /// drawer collects — the same figure the server settles
+    /// (MadarRust `the_bill_the_till_sees_is_the_bill_the_books_record`:
+    /// 2000 − 10% = 1800; +10% = 180; 14% of 1980 = 277; 2257).
+    #[test]
+    fn a_discount_on_a_bill_reprices_it_like_the_settle() {
+        let b = server_bill(Some(true));
+        let got = super::reprice_with(&b, 2000, Some("percentage"), Some(0.10), false);
+        assert_eq!(
+            (got.discount_minor, got.service_charge_minor, got.tax_minor, got.total_minor),
+            (200, 180, 277, 2257)
+        );
+        let fixed = super::reprice_with(&b, 2000, Some("fixed"), Some(500.0), false);
+        assert_eq!((fixed.discount_minor, fixed.service_charge_minor, fixed.total_minor), (500, 150, 1881));
+        let none = super::reprice_with(&b, 2000, None, None, false);
+        assert_eq!(none.total_minor, b.total_minor, "clearing it restores the bill");
+    }
+
+    /// The waiver prices a table's bill with no service charge and says what it
+    /// took off; the frozen `service_charge_taxable` — not the session's — is
+    /// what the re-price uses.
+    #[test]
+    fn a_waived_bill_drops_its_service_charge_and_keeps_its_frozen_tax_base() {
+        let b = server_bill(Some(true));
+        let waived = super::reprice_with(&b, 2000, None, None, true);
+        assert_eq!(
+            (waived.service_charge_minor, waived.tax_minor, waived.total_minor, waived.service_charge_waived_minor),
+            (0, 280, 2280, 200)
+        );
+        // Frozen as untaxed, with a session that says taxed (`bill_view_with`'s
+        // fallback is false above, so pass Some(false) explicitly here).
+        let untaxed = super::reprice_with(&server_bill(Some(false)), 2000, None, None, false);
+        assert_eq!((untaxed.service_charge_minor, untaxed.tax_minor, untaxed.total_minor), (200, 280, 2480));
+        // An older server's bill falls back to the session's flag.
+        assert!(!server_bill(None).service_charge_taxable);
+    }
+
     /// A SEAT is a fire with no items — and the difference has to survive the
     /// request builder, because the server decides which act it is by looking
     /// at exactly that.
@@ -527,6 +614,7 @@ mod tests {
     #[test]
     fn the_bill_is_the_servers_price_not_the_subtotal() {
         let bill = models::TicketBill {
+            service_charge_taxable: None,
             subtotal: 17500,
             discount_amount: 0,
             service_charge_amount: 2100,
@@ -554,6 +642,7 @@ mod tests {
     #[test]
     fn an_inclusive_bill_collects_the_menu_price() {
         let bill = models::TicketBill {
+            service_charge_taxable: None,
             subtotal: 11400,
             discount_amount: 0,
             service_charge_amount: 0,
@@ -582,6 +671,7 @@ mod tests {
             ticket_ref: Some(Some("T-1".into())),
             status: "open".into(),
             bill: Some(Box::new(models::TicketBill {
+                service_charge_taxable: None,
                 subtotal,
                 discount_amount: 0,
                 service_charge_amount: 0,
@@ -696,6 +786,7 @@ mod tests {
         v.items[0].voided = true;
         v.subtotal = 3000;
         v.bill = Some(Box::new(models::TicketBill {
+            service_charge_taxable: None,
             subtotal: 3000,
             discount_amount: 0,
             service_charge_amount: 0,

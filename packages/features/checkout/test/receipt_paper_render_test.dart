@@ -72,6 +72,9 @@ ReceiptView _r({
   int tendered = 20000,
   int change = 4500,
   String display = '',
+  bool inclusive = false,
+  int waived = 0,
+  String? waivedBy,
 }) => ReceiptView(
   payments: payments,
   localOrderId: '8f2a4c1e-x',
@@ -94,6 +97,9 @@ ReceiptView _r({
   queuedOffline: false,
   createdAt: '2026-09-10T19:45:00Z',
   displayNumber: display,
+  serviceChargeWaivedMinor: waived,
+  serviceChargeWaivedByName: waivedBy,
+  taxInclusive: inclusive,
 );
 
 final _cases = <String, ReceiptView>{
@@ -118,6 +124,18 @@ final _cases = <String, ReceiptView>{
     tip: 1000,
     tendered: 0,
     change: 0,
+  ),
+  // An inclusive shop's table bill whose service charge a manager removed:
+  // VAT stated as included, the note, and who took the charge off.
+  'inclusive-waived': _r(
+    discount: 1550,
+    tax: 1712,
+    total: 13950,
+    tendered: 15000,
+    change: 1050,
+    inclusive: true,
+    waived: 1395,
+    waivedBy: 'Mona',
   ),
   'void': _r(voided: true),
   // Two devices shared a code offline: the server's ~suffix stays on.
@@ -201,6 +219,16 @@ void main() {
                 expect(find.text(w(k)), findsOneWidget, reason: k);
               }
               expect(change, findsNothing);
+            case 'inclusive-waived':
+              expect(find.text(w('receipt.vat_included')), findsOneWidget);
+              expect(find.text(w('order.tax')), findsNothing);
+              expect(
+                find.text(w('receipt.prices_include_vat')),
+                findsOneWidget,
+              );
+              expect(find.text(w('receipt.service_waived')), findsOneWidget);
+              expect(find.text('Mona'), findsOneWidget);
+              expect(find.text(w('order.service_charge')), findsNothing);
             case 'void':
               expect(find.textContaining(w('receipt.voided')), findsOneWidget);
             case 'device':

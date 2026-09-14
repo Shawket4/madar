@@ -155,7 +155,15 @@ fn create_order_request(s: &Sale) -> models::CreateOrderRequest {
     if s.discount {
         r.discount_id = Some(Some(u(DISCOUNT)));
         r.discount_type = Some(Some("percentage".into()));
-        r.discount_value = Some(Some(10.0));
+        // v0.5.0's client typed the discount value as an integer percent.
+        #[cfg(feature = "v050")]
+        {
+            r.discount_value = Some(Some(10));
+        }
+        #[cfg(not(feature = "v050"))]
+        {
+            r.discount_value = Some(Some(10.0));
+        }
         r.discount_amount = Some(Some(discount));
     }
     r.order_ref = Some(Some("CAI1-260913-36B-0012".into()));
@@ -195,7 +203,7 @@ fn settle_request(method: &str, cash: bool, tip: Option<(i32, &str)>, splits: Ve
 fn void_request() -> models::VoidOrderRequest {
     #[cfg(any(feature = "v060", feature = "v061"))]
     let mut r = models::VoidOrderRequest::new(models::VoidReason::WrongOrder.to_string());
-    #[cfg(feature = "v051")]
+    #[cfg(any(feature = "v050", feature = "v051"))]
     let mut r = models::VoidOrderRequest::new("wrong_order".to_string());
     r.note = Some(None);
     r.restore_inventory = Some(Some(true));
@@ -219,7 +227,7 @@ fn cases() -> Vec<(&'static str, Value)> {
         ("close_shift", json!({ "op": "close_shift", "teller_id": t, "shift_id": shift, "request": close_shift_request(None) })),
         ("close_shift_with_note", json!({ "op": "close_shift", "teller_id": t, "shift_id": shift, "request": close_shift_request(Some("50 short".into())) })),
     ];
-    #[cfg(feature = "v051")]
+    #[cfg(any(feature = "v050", feature = "v051"))]
     {
         out.push(("cash_movement_in", json!({ "op": "cash_movement", "teller_id": t, "shift_id": shift, "request": cash_movement_request(5_000, "float top-up", None, false) })));
         out.push(("cash_movement_out", json!({ "op": "cash_movement", "teller_id": t, "shift_id": shift, "request": cash_movement_request(-2_000, "milk", None, false) })));

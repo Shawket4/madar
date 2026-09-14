@@ -354,12 +354,14 @@ fn outbox_ops(tx: &Connection, device_branch: &str, methods: &[Method], names: &
                             .into_iter()
                             .find(|v| s(v, "id") == Some(t))
                             .map(|v| {
-                                v.get("bill")
+                                let total = v
+                                    .get("bill")
                                     .and_then(|b| b.get("total"))
                                     .and_then(Value::as_i64)
-                                    .unwrap_or_else(|| super::i(&v, "subtotal"))
+                                    .unwrap_or_else(|| super::i(&v, "subtotal"));
+                                super::local::bill_from_json(v.get("bill"), total)
                             })
-                            .unwrap_or(0);
+                            .unwrap_or_else(|| super::local::bill_from_json(None, 0));
                         let req = &payload["request"];
                         let legs: Vec<(String, i64)> = req
                             .get("payment_splits")
@@ -373,7 +375,8 @@ fn outbox_ops(tx: &Connection, device_branch: &str, methods: &[Method], names: &
                             &super::local::Ringer { teller_id: op.user_id.as_deref().unwrap_or(""), teller_name: &name_of(&op.user_id) },
                             s(req, "payment_method").unwrap_or(""),
                             &legs,
-                            bill_total,
+                            &bill_total,
+                            None,
                             super::i(req, "tip_amount"),
                             s(req, "tip_payment_method"),
                             &op.event_at,

@@ -95,6 +95,11 @@ pub struct ReceiptLabels {
     pub discount: String,
     pub service_charge: String,
     pub tax: String,
+    /// The tax line's label when prices include it — it is inside the total,
+    /// so the lines still add up.
+    pub vat_included: String,
+    pub prices_include_vat: String,
+    pub service_waived: String,
     pub delivery_fee: String,
     pub total: String,
     pub tip: String,
@@ -270,9 +275,14 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
             w,
         )));
     }
+    // The tax line is printed whenever the bill carries tax — in BOTH modes:
+    // an inclusive shop's receipt states the VAT inside its prices — and says
+    // "included" when it is, so the lines add up either way: exclusive,
+    // subtotal − discount + service + tax is the total; inclusive, the tax is
+    // already inside subtotal − discount + service. A tax-free bill has none.
     if receipt.tax_minor > 0 {
         out.push(Line::plain(row(
-            &lab.tax,
+            if receipt.tax_inclusive { &lab.vat_included } else { &lab.tax },
             &money(receipt.tax_minor, cur),
             w,
         )));
@@ -289,6 +299,20 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
         &money(receipt.total_minor, cur),
         w,
     )));
+    if receipt.tax_inclusive {
+        out.push(Line::plain(lab.prices_include_vat.clone()));
+    }
+    if receipt.service_charge_waived_minor > 0 {
+        out.push(Line::plain(row(
+            &lab.service_waived,
+            &money(-receipt.service_charge_waived_minor, cur),
+            w,
+        )));
+        // Who removed it, on its own line so a long name is never cut.
+        if let Some(name) = receipt.service_charge_waived_by_name.as_deref() {
+            out.push(Line::plain(format!("  {name}")));
+        }
+    }
     out.push(Line::plain(divider(w)));
 
     // ── footer ──────────────────────────────────────────────────────────────
@@ -365,6 +389,9 @@ pub struct TillReportLabels {
     pub refunds: String,
     pub refunds_cash: String,
     pub cash_in_refunded: String,
+    pub total_tax: String,
+    pub total_service: String,
+    pub service_waived: String,
     pub transactions: String,
     pub end_of_report: String,
     pub cash_moves: String,
@@ -500,6 +527,26 @@ pub fn layout_till_report(
             &money(report.cash_in_refunded_sales_minor, cur),
             w,
         )));
+    }
+    // Tax and service charge on the till's sales, net of what their refunds
+    // took back; and the service charges someone waived.
+    if report.total_tax_minor != 0 || report.total_service_charge_minor != 0 || report.service_charge_waived_count > 0 {
+        out.push(Line::plain(divider(w)));
+        out.push(Line::plain(row(&labels.total_tax, &money(report.total_tax_minor, cur), w)));
+        if report.total_service_charge_minor != 0 {
+            out.push(Line::plain(row(
+                &labels.total_service,
+                &money(report.total_service_charge_minor, cur),
+                w,
+            )));
+        }
+        if report.service_charge_waived_count > 0 {
+            out.push(Line::plain(row(
+                &format!("{} ({})", labels.service_waived, report.service_charge_waived_count),
+                &money(report.service_charge_waived_minor, cur),
+                w,
+            )));
+        }
     }
     out
 }
@@ -778,6 +825,10 @@ mod tests {
             refunds_issued_cash_minor: 0,
             refunds_issued_count: 0,
             cash_in_refunded_sales_minor: 0,
+            total_tax_minor: 0,
+            total_service_charge_minor: 0,
+            service_charge_waived_count: 0,
+            service_charge_waived_minor: 0,
             cash_movements_net_minor: 1000,
             cash_in_minor: 3000,
             cash_out_minor: 2000,
@@ -890,6 +941,10 @@ mod tests {
             refunds_issued_cash_minor: 0,
             refunds_issued_count: 0,
             cash_in_refunded_sales_minor: 0,
+            total_tax_minor: 0,
+            total_service_charge_minor: 0,
+            service_charge_waived_count: 0,
+            service_charge_waived_minor: 0,
             cash_movements_net_minor: 0,
             cash_in_minor: 0,
             cash_out_minor: 0,
@@ -930,6 +985,9 @@ mod tests {
                 discount: "Discount".into(),
                 service_charge: "Service".into(),
                 tax: "Tax".into(),
+                vat_included: "VAT (included)".into(),
+                prices_include_vat: "Prices include VAT".into(),
+                service_waived: "Service charge removed".into(),
                 delivery_fee: "Delivery Fee".into(),
                 total: "Total".into(),
                 tip: "Tip".into(),
@@ -973,6 +1031,9 @@ mod tests {
             discount_minor: 0,
             tax_minor: 1750,
             service_charge_minor: 0,
+            tax_inclusive: false,
+            service_charge_waived_minor: 0,
+            service_charge_waived_by_name: None,
             delivery_fee_minor: 0,
             total_minor: 14250,
             tip_minor: 0,
@@ -1446,6 +1507,63 @@ mod tests {
         assert!(!lines.iter().any(|l| l.text.starts_with("Discount")));
     }
 
+    /// A table's bill on paper: the service charge, the VAT stated as included
+    /// in an inclusive shop, the "Prices include VAT" note and a waiver — and
+    /// the lines that are ADDED sum to the total in both modes.
+    #[test]
+    fn layout_states_service_vat_and_the_inclusive_note_and_adds_up() {
+        let amount = |lines: &[Line], label: &str| -> Option<i64> {
+            let l = lines.iter().find(|l| l.text.starts_with(label))?;
+            let n: String = l.text.chars().filter(|c| c.is_ascii_digit() || *c == '-').collect();
+            n.parse().ok()
+        };
+        // Exclusive: 2000 − 200 + 180 + 277 = 2257.
+        let mut r = cash_receipt();
+        r.subtotal_minor = 2000;
+        r.discount_minor = 200;
+        r.service_charge_minor = 180;
+        r.tax_minor = 277;
+        r.total_minor = 2257;
+        let lines = layout(&r, &ctx());
+        let (sub, disc, svc, tax, total) = (
+            amount(&lines, "Subtotal").unwrap(),
+            amount(&lines, "Discount").unwrap(),
+            amount(&lines, "Service").unwrap(),
+            amount(&lines, "Tax").unwrap(),
+            amount(&lines, "Total").unwrap(),
+        );
+        assert_eq!(sub + disc + svc + tax, total, "{lines:?}");
+        assert!(!lines.iter().any(|l| l.text.contains("Prices include VAT")));
+
+        // Inclusive: the VAT is inside; 2000 − 200 + 180 = 1980, VAT 243 in it.
+        r.tax_inclusive = true;
+        r.tax_minor = 243;
+        r.total_minor = 1980;
+        r.service_charge_waived_minor = 0;
+        let lines = layout(&r, &ctx());
+        assert!(lines.iter().any(|l| l.text.starts_with("VAT (included)") && l.text.ends_with("2.43 EGP")));
+        assert!(lines.iter().any(|l| l.text == "Prices include VAT"));
+        assert_eq!(
+            amount(&lines, "Subtotal").unwrap() + amount(&lines, "Discount").unwrap() + amount(&lines, "Service").unwrap(),
+            amount(&lines, "Total").unwrap()
+        );
+
+        // Waived: no service line, a note saying who removed what.
+        r.service_charge_minor = 0;
+        r.total_minor = 1800;
+        r.tax_minor = 221;
+        r.service_charge_waived_minor = 180;
+        r.service_charge_waived_by_name = Some("Mona".into());
+        let lines = layout(&r, &ctx());
+        assert!(!lines
+            .iter()
+            .any(|l| l.text.starts_with("Service") && !l.text.starts_with("Service charge removed")));
+        assert!(lines
+            .iter()
+            .any(|l| l.text.starts_with("Service charge removed") && l.text.ends_with("-1.80 EGP")), "{lines:?}");
+        assert!(lines.iter().any(|l| l.text.trim() == "Mona"), "who removed it");
+    }
+
     #[test]
     fn layout_omits_tax_row_when_zero() {
         let mut r = cash_receipt();
@@ -1722,6 +1840,9 @@ mod tests {
             refunds: "Refunds".into(),
             refunds_cash: "Refunds in cash".into(),
             cash_in_refunded: "Cash on refunded sales".into(),
+            total_tax: "Tax (net of refunds)".into(),
+            total_service: "Service charge (net of refunds)".into(),
+            service_waived: "Service charge waived".into(),
             transactions: "Transactions".into(),
             end_of_report: "End of Report".into(),
             cash_moves: "Cash moves".into(),
@@ -1751,6 +1872,10 @@ mod tests {
             refunds_issued_cash_minor: 0,
             refunds_issued_count: 0,
             cash_in_refunded_sales_minor: 0,
+            total_tax_minor: 0,
+            total_service_charge_minor: 0,
+            service_charge_waived_count: 0,
+            service_charge_waived_minor: 0,
             cash_movements_net_minor: 0,
             cash_in_minor: 0,
             cash_out_minor: 0,

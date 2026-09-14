@@ -42,9 +42,18 @@ pub struct RefundIssued {
     /// One of the [`RefundReason`] spellings.
     #[serde(rename = "reason")]
     pub reason: String,
+    /// How much of `amount` was service charge, the same way. Additive.
+    #[serde(
+        rename = "service_charge_amount",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_amount: Option<i32>,
     /// DEPRECATED: same value as `till_id`.
     #[serde(rename = "shift_id")]
     pub shift_id: uuid::Uuid,
+    /// How much of `amount` was tax, taken back pro rata of the order's own tax (filled by the database, cumulatively across the order's refunds, so a full refund takes back exactly the order's tax). Additive.
+    #[serde(rename = "tax_amount", skip_serializing_if = "Option::is_none")]
+    pub tax_amount: Option<i32>,
     /// The shift the refund was ISSUED in — the drawer the money left. Not necessarily the till the order was sold in.
     #[serde(rename = "till_id")]
     pub till_id: uuid::Uuid,
@@ -102,7 +111,9 @@ impl RefundIssued {
             note: None,
             order_id,
             reason,
+            service_charge_amount: None,
             shift_id,
+            tax_amount: None,
             till_id,
             lines,
             refund_count,

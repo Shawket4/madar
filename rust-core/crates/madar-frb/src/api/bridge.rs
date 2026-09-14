@@ -109,6 +109,13 @@ impl MadarBridge {
         self.inner.has_permission(resource, action)
     }
 
+    /// May the signed-in PIN user remove the service charge from a table's
+    /// bill? Their effective `orders:waive_service` grant — never the role.
+    #[frb(sync)]
+    pub fn can_waive_service_charge(&self) -> bool {
+        self.inner.can_waive_service_charge()
+    }
+
     pub fn logout(&self, wipe_outbox: bool) -> Result<(), MadarError> {
         self.inner.logout(wipe_outbox).map_err(MadarError::from)
     }

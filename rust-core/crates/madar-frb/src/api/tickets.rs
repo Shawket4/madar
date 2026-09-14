@@ -61,6 +61,10 @@ pub struct _TicketBillView {
     pub tax_rate: f64,
     pub service_charge_rate: f64,
     pub tax_inclusive: bool,
+    /// Whether the service charge is taxed, frozen on the bill.
+    pub service_charge_taxable: bool,
+    /// The service charge a waiver removed (re-priced bills only).
+    pub service_charge_waived_minor: i64,
 }
 
 /// One bill line (display projection of the frozen `StoredTicketLine`).
@@ -179,6 +183,9 @@ impl MadarBridge {
         // cashier tapped — and the drawer reconciled against a card line that
         // never moved.
         splits: Vec<madar_core::checkout::CheckoutSplit>,
+        // Remove the service charge from this table's bill. Offer it only when
+        // `has_permission("orders", "waive_service")` — never by role name.
+        waive_service: bool,
     ) -> Result<Option<String>, MadarError> {
         self.inner
             .settle_ticket(
@@ -194,6 +201,7 @@ impl MadarBridge {
                 loyalty_customer_id,
                 loyalty_redemptions,
                 splits,
+                waive_service,
             )
             .await
             .map_err(MadarError::from)

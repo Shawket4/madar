@@ -133,7 +133,7 @@ impl MadarCore {
             let cmd = tickets::FireTicketCommand { ticket_id, request };
             out.push(crate::queued_ticket_view(&cmd, &item.event_at, None));
         }
-        self.overlay_rounds(server, &pending, &mut out, sc_taxable);
+        self.overlay_rounds(server, &pending, &mut out);
         Ok(out)
     }
 
@@ -147,7 +147,6 @@ impl MadarCore {
         server: &[madar_api::models::OpenTicketView],
         pending: &[crate::store::OutboxItem],
         out: &mut [tickets::TicketView],
-        sc_taxable: bool,
     ) {
         let mut rounds: Vec<(String, String, madar_api::models::AddRoundRequest, String)> = Vec::new();
         for item in pending {
@@ -210,7 +209,7 @@ impl MadarCore {
             bill.subtotal_minor += added;
             if let (Some(b), Some(v)) = (bill.bill.as_ref(), server.iter().find(|v| v.id.to_string() == ticket)) {
                 let (dt, dv) = tickets::waiter_discount(v);
-                bill.bill = Some(tickets::reprice_with(b, bill.subtotal_minor, dt.as_deref(), dv, sc_taxable));
+                bill.bill = Some(tickets::reprice_with(b, bill.subtotal_minor, dt.as_deref(), dv, false));
             }
             bill.queued_offline = true;
         }

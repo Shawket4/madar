@@ -22,6 +22,8 @@ Name | Type | Description | Notes
 **refunds_issued_cash** | Option<**i64**> |  | [optional]
 **refunds_issued_count** | Option<**i64**> | Refunds ISSUED IN THIS SHIFT — keyed on `order_refunds.shift_id`, the drawer the money left, which need not be the shift that made the sale. This is the Z-report's money-out line: `refunds_issued_cash` is what the drawer is short by relative to its cash sales. | [optional]
 **revenue_by_method** | Option<**serde_json::Value**> | Goods only, by method actually tendered — money IN. Tips are in `total_tips`; refunds are not netted from these buckets (they are money OUT, with their own tender — see `refunds_issued_*`). | 
+**service_charge_waived_amount** | Option<**i64**> |  | [optional]
+**service_charge_waived_count** | Option<**i64**> | Table bills whose service charge was removed by someone holding `orders:waive_service`, and what those charges came to. Additive. | [optional]
 **shift_id** | **uuid::Uuid** | DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0). | 
 **status** | **String** |  | 
 **teller_id** | **uuid::Uuid** |  | 
@@ -31,7 +33,7 @@ Name | Type | Description | Notes
 **total_discount** | **i64** |  | 
 **total_orders** | **i64** |  | 
 **total_revenue** | **i64** | What this shift's sales are worth after refunds: `gross_sales` less `refunded_amount`. Same definition as `total_revenue` on the branch sales report, so the two reconcile. | 
-**total_service_charge** | Option<**i64**> | Service charge added to this shift's dine-in bills. Inside `total_revenue` as the shop's income; see `analytics::schema` for why. | [optional]
+**total_service_charge** | Option<**i64**> | Service charge added to this shift's dine-in bills, less what refunds took back. Inside `total_revenue` as the shop's income; see `analytics::schema` for why. | [optional]
 **total_tax** | **i64** |  | 
 **total_tips** | Option<**i64**> | Tips, standalone — matches `total_tips` on `GET /shifts/{id}/report`. | [optional]
 **voided_orders** | **i64** |  | 

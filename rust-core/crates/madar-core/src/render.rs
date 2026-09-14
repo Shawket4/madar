@@ -415,9 +415,24 @@ impl Renderer {
                 Weight::NORMAL,
             );
         }
-        if r.tax_minor > 0 {
-            self.row(&lab.tax, &m(r.tax_minor), SZ_BODY, Weight::NORMAL);
+        // Before the tax, in the order the money is added: the service charge
+        // (its own line, as on the paper and the screen) — the raster receipt
+        // used to leave it out, so a table's printed lines did not add up.
+        if r.service_charge_minor > 0 {
+            self.row(
+                &lab.service_charge,
+                &m(r.service_charge_minor),
+                SZ_BODY,
+                Weight::NORMAL,
+            );
         }
+        // Always stated, and "included" when it is inside the prices.
+        self.row(
+            if r.tax_inclusive { &lab.vat_included } else { &lab.tax },
+            &m(r.tax_minor),
+            SZ_BODY,
+            Weight::NORMAL,
+        );
         if r.delivery_fee_minor > 0 {
             self.row(
                 &lab.delivery_fee,
@@ -432,6 +447,20 @@ impl Renderer {
             SZ_TOTAL,
             Weight::BOLD,
         );
+        if r.tax_inclusive {
+            self.indented(&lab.prices_include_vat, SZ_SMALL, 0);
+        }
+        if r.service_charge_waived_minor > 0 {
+            self.row(
+                &lab.service_waived,
+                &format!("−{}", m(r.service_charge_waived_minor)),
+                SZ_SMALL,
+                Weight::NORMAL,
+            );
+            if let Some(name) = r.service_charge_waived_by_name.as_deref() {
+                self.indented(name, SZ_SMALL, 0);
+            }
+        }
         if r.tip_minor > 0 {
             self.row(&lab.tip, &m(r.tip_minor), SZ_BODY, Weight::NORMAL);
         }
@@ -886,6 +915,9 @@ mod tests {
                 discount: "Discount".into(),
                 service_charge: "Service".into(),
                 tax: "Tax".into(),
+                vat_included: "VAT (included)".into(),
+                prices_include_vat: "Prices include VAT".into(),
+                service_waived: "Service charge removed".into(),
                 delivery_fee: "Delivery".into(),
                 total: "Total".into(),
                 tip: "Tip".into(),
@@ -928,6 +960,9 @@ mod tests {
             discount_minor: 0,
             tax_minor: 0,
             service_charge_minor: 0,
+            tax_inclusive: false,
+            service_charge_waived_minor: 0,
+            service_charge_waived_by_name: None,
             delivery_fee_minor: 0,
             total_minor: 12500,
             tip_minor: 0,
@@ -993,6 +1028,25 @@ mod tests {
         );
     }
 
+    /// The printed receipt carries the service charge line (it used to be
+    /// missing, so a table's printed lines did not add up), the inclusive note
+    /// and a waiver: each is a row of its own on the paper.
+    #[test]
+    fn prints_the_service_charge_the_inclusive_note_and_a_waiver() {
+        let base = receipt();
+        let rows = |r: &ReceiptView| render_receipt(r, &ctx(), None, PRINT_WIDTH).rows;
+        let mut with_service = base.clone();
+        with_service.service_charge_minor = 180;
+        assert!(rows(&with_service) > rows(&base), "a service charge adds a line");
+        let mut inclusive = with_service.clone();
+        inclusive.tax_inclusive = true;
+        assert!(rows(&inclusive) > rows(&with_service), "\"Prices include VAT\" adds a line");
+        let mut waived = base.clone();
+        waived.service_charge_waived_minor = 180;
+        waived.service_charge_waived_by_name = Some("Mona".into());
+        assert!(rows(&waived) > rows(&base), "a waiver is stated");
+    }
+
     #[test]
     fn render_is_deterministic() {
         let (a, b) = (
@@ -1038,6 +1092,9 @@ mod tests {
             refunds: "Refunds".into(),
             refunds_cash: "Refunds in cash".into(),
             cash_in_refunded: "Cash on refunded sales".into(),
+            total_tax: "Tax (net of refunds)".into(),
+            total_service: "Service charge (net of refunds)".into(),
+            service_waived: "Service charge waived".into(),
             transactions: "Transactions".into(),
             end_of_report: "End of Report".into(),
             cash_moves: "Cash moves".into(),
@@ -1067,6 +1124,10 @@ mod tests {
             refunds_issued_cash_minor: 0,
             refunds_issued_count: 0,
             cash_in_refunded_sales_minor: 0,
+            total_tax_minor: 0,
+            total_service_charge_minor: 0,
+            service_charge_waived_count: 0,
+            service_charge_waived_minor: 0,
             cash_movements_net_minor: -2000,
             cash_in_minor: 0,
             cash_out_minor: 2000,

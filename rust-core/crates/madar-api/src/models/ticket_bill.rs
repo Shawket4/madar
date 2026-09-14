@@ -21,6 +21,12 @@ pub struct TicketBill {
     pub service_charge_amount: i32,
     #[serde(rename = "service_charge_rate")]
     pub service_charge_rate: f64,
+    /// Whether the service charge sits inside the tax base. Frozen on the bill with the rates, so a till re-pricing the bill (a discount, a reward, a voided line) prices it the way the settle will. Additive: a bill from an older server decodes as `true`, `TaxPolicy::default()`'s value.
+    #[serde(
+        rename = "service_charge_taxable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub service_charge_taxable: Option<bool>,
     /// Live lines as charged, before discount. Gross when tax-inclusive.
     #[serde(rename = "subtotal")]
     pub subtotal: i32,
@@ -53,6 +59,7 @@ impl TicketBill {
             discount_amount,
             service_charge_amount,
             service_charge_rate,
+            service_charge_taxable: None,
             subtotal,
             tax_amount,
             tax_inclusive,

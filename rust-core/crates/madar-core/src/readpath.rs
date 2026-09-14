@@ -129,6 +129,9 @@ pub(crate) fn report_keyed(r: &crate::till::TillReportView) -> BTreeMap<String, 
     put("refunds_cash", r.refunds_issued_cash_minor.to_string());
     put("refunds_count", r.refunds_issued_count.to_string());
     put("cash_in_refunded_sales", r.cash_in_refunded_sales_minor.to_string());
+    put("total_tax", r.total_tax_minor.to_string());
+    put("total_service_charge", r.total_service_charge_minor.to_string());
+    put("service_charge_waived", format!("{}/{}", r.service_charge_waived_count, r.service_charge_waived_minor));
     put("cash_movements_net", r.cash_movements_net_minor.to_string());
     put("cash_in", r.cash_in_minor.to_string());
     put("cash_out", r.cash_out_minor.to_string());

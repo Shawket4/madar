@@ -536,6 +536,7 @@ fn settle_ticket(
                 None,       // loyalty member — rewards are redeemed at the Flutter till
                 Vec::new(), // loyalty redemptions
                 Vec::new(), // one method, no split legs
+                false,      // service charge stands — the waiver is the Flutter till's
             )
             .await;
         match result {

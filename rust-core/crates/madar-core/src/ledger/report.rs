@@ -101,6 +101,16 @@ pub(crate) struct TillFigures {
     pub refunds_issued_amount: i64,
     pub refunds_issued_cash: i64,
     pub cash_in_refunded_sales: i64,
+    /// Tax / service charge on this till's sold sales, less what their refunds
+    /// took back (`report_figures`' `total_tax` / `total_service_charge`).
+    pub total_tax: i64,
+    pub total_service_charge: i64,
+    /// The tax and service charge inside the refunds issued from this drawer.
+    pub refunds_issued_tax: i64,
+    pub refunds_issued_service_charge: i64,
+    /// Table bills whose service charge was waived, and what it came to.
+    pub service_charge_waived_count: i64,
+    pub service_charge_waived_amount: i64,
     pub close_methods: Vec<MethodTotal>,
     /// Rows of this till a live outbox op still holds (queued / sending / failed).
     pub unsynced: u32,
@@ -118,6 +128,12 @@ struct Leg {
 
 struct Sale {
     key: String,
+    /// The server's id, once it has one — what a refund names.
+    server_id: Option<String>,
+    tax: i64,
+    service_charge: i64,
+    waived: bool,
+    waived_amount: i64,
     status: String,
     payment_method: String,
     total: i64,
@@ -147,8 +163,8 @@ impl Sale {
     }
 }
 
-/// `okey, status, payment_method, total, tip, tip_method, tip_is_cash, srv_seq, acked, live_create`.
-type SaleRow = (String, String, String, i64, i64, Option<String>, Option<i64>, i64, i64, i64);
+/// `okey, status, payment_method, total, tip, tip_method, tip_is_cash, srv_seq, acked, live_create, server_id, raw`.
+type SaleRow = (String, String, String, i64, i64, Option<String>, Option<i64>, i64, i64, i64, Option<String>, String);
 /// `ckey, server_id, amount, kind, corrects_id, created_at, raw`.
 type MovementRow = (String, Option<String>, i64, String, Option<String>, String, String);
 
@@ -158,12 +174,16 @@ fn sales(conn: &Connection, till_id: &str) -> CoreResult<Vec<Sale>> {
             "SELECT o.okey, o.status, o.payment_method, o.total_amount, o.tip_amount, o.tip_payment_method, o.tip_is_cash,
                     o.srv_seq, o.acked,
                     EXISTS(SELECT 1 FROM outbox x WHERE x.entity_type='order' AND x.entity_id=o.okey
-                             AND x.op_type='create_order' AND x.status IN ('pending','inflight','dead'))
+                             AND x.op_type='create_order' AND x.status IN ('pending','inflight','dead')),
+                    o.server_id, o.raw
                FROM ledger_orders o WHERE o.till_id=?1 ORDER BY o.okey",
         )?;
         let v = st
             .query_map([till_id], |r| {
-                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?, r.get(8)?, r.get(9)?))
+                Ok((
+                    r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?, r.get(8)?,
+                    r.get(9)?, r.get(10)?, r.get(11)?,
+                ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         v
@@ -185,7 +205,14 @@ fn sales(conn: &Connection, till_id: &str) -> CoreResult<Vec<Sale>> {
     }
     Ok(rows
         .into_iter()
-        .map(|(key, status, payment_method, total, tip, tip_method, tip_is_cash, srv_seq, acked, live_create)| Sale {
+        .map(|(key, status, payment_method, total, tip, tip_method, tip_is_cash, srv_seq, acked, live_create, server_id, raw)| {
+            let v: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
+            Sale {
+            server_id,
+            tax: i(&v, "tax_amount"),
+            service_charge: i(&v, "service_charge_amount"),
+            waived: s(&v, "service_charge_waived_by").is_some(),
+            waived_amount: i(&v, "service_charge_waived_amount"),
             unsent: live_create != 0 && srv_seq == 0 && acked == 0,
             legs: legs.remove(&key).unwrap_or_default(),
             key,
@@ -195,7 +222,7 @@ fn sales(conn: &Connection, till_id: &str) -> CoreResult<Vec<Sale>> {
             tip,
             tip_method,
             tip_is_cash: tip_is_cash.map(|x| x != 0),
-        })
+        }})
         .collect())
 }
 
@@ -250,14 +277,53 @@ struct RefundRow {
     amount: i64,
     method: String,
     is_cash: bool,
+    /// The tax and service charge this refund took back.
+    tax: i64,
+    service_charge: i64,
 }
 
 fn refunds(conn: &Connection, till_id: &str) -> CoreResult<Vec<RefundRow>> {
-    let mut st = conn.prepare("SELECT amount, method, is_cash FROM ledger_refunds WHERE till_id=?1")?;
-    let v = st
-        .query_map([till_id], |r| Ok(RefundRow { amount: r.get(0)?, method: r.get(1)?, is_cash: r.get::<_, i64>(2)? != 0 }))?
+    let mut st = conn.prepare("SELECT rkey, amount, method, is_cash, order_id FROM ledger_refunds WHERE till_id=?1")?;
+    let rows = st
+        .query_map([till_id], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)? != 0, r.get::<_, String>(4)?))
+        })?
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(v)
+    let mut out = Vec::with_capacity(rows.len());
+    for (rkey, amount, method, is_cash, order_id) in rows {
+        let (tax, service_charge) = refund_splits(conn, &order_id)?.remove(&rkey).unwrap_or((0, 0));
+        out.push(RefundRow { amount, method, is_cash, tax, service_charge });
+    }
+    Ok(out)
+}
+
+/// The tax and service charge each refund of `order_id` took back, by refund
+/// key. A refund the server has seen carries its split (the database fills
+/// it); one still queued on this device is split here with the shared engine's
+/// `refund_split`, over the refunds before it in issue order — the same
+/// cumulative arithmetic, so the two agree to the piastre.
+fn refund_splits(conn: &Connection, order_id: &str) -> CoreResult<HashMap<String, (i64, i64)>> {
+    let order: Option<String> = conn
+        .query_row("SELECT raw FROM ledger_orders WHERE server_id=?1 OR okey=?1 LIMIT 1", [order_id], |r| r.get(0))
+        .optional()?;
+    let order: Value = order.and_then(|r| serde_json::from_str(&r).ok()).unwrap_or(Value::Null);
+    let (total, tax, sc) = (i(&order, "total_amount"), i(&order, "tax_amount"), i(&order, "service_charge_amount"));
+    let mut st = conn.prepare("SELECT rkey, amount, raw FROM ledger_refunds WHERE order_id=?1 ORDER BY issued_at, rkey")?;
+    let rows = st
+        .query_map([order_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut before = 0;
+    let mut out = HashMap::new();
+    for (rkey, amount, raw) in rows {
+        let v: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
+        let split = match (v.get("tax_amount").and_then(Value::as_i64), v.get("service_charge_amount").and_then(Value::as_i64)) {
+            (Some(t), Some(c)) => (t, c),
+            _ => crate::tax::refund_split(total, tax, sc, before, amount),
+        };
+        before += amount;
+        out.insert(rkey, split);
+    }
+    Ok(out)
 }
 
 /// The report for `till_id`, or `None` when the device holds no such till.
@@ -300,6 +366,24 @@ pub(crate) fn compute(conn: &Connection, till_id: &str, methods: &[Method]) -> C
     let voided_amount: i64 = sales.iter().filter(|o| o.status == "voided").map(|o| o.total).sum();
     let bucket_total = |b: &str| -> i64 { moves.iter().filter(|m| m.bucket() == b).map(|m| m.amount).sum() };
     let cash_in_refunded_sales: i64 = sales.iter().filter(|o| o.status == "refunded").map(Sale::cash_in).sum();
+    // Tax and service charge on the sold sales, net of what their refunds took
+    // back (wherever those refunds were issued).
+    let (mut total_tax, mut total_service_charge) = (0i64, 0i64);
+    for o in sales.iter().filter(|o| o.sold()) {
+        let mut taken = (0i64, 0i64);
+        for id in o.server_id.iter().chain(std::iter::once(&o.key)) {
+            for (t, c) in refund_splits(conn, id)?.into_values() {
+                taken.0 += t;
+                taken.1 += c;
+            }
+            if taken != (0, 0) {
+                break;
+            }
+        }
+        total_tax += o.tax - taken.0;
+        total_service_charge += o.service_charge - taken.1;
+    }
+    let waived: Vec<&Sale> = sales.iter().filter(|o| o.sold() && o.waived).collect();
 
     // expected_cash: a closed till keeps the drawer figure frozen at close. The
     // server recomputes that snapshot only when a queued sale lands on the closed
@@ -349,6 +433,12 @@ pub(crate) fn compute(conn: &Connection, till_id: &str, methods: &[Method]) -> C
         refunds_issued_amount: refunds.iter().map(|r| r.amount).sum(),
         refunds_issued_cash: refunds_cash,
         cash_in_refunded_sales,
+        total_tax,
+        total_service_charge,
+        refunds_issued_tax: refunds.iter().map(|r| r.tax).sum(),
+        refunds_issued_service_charge: refunds.iter().map(|r| r.service_charge).sum(),
+        service_charge_waived_count: waived.len() as i64,
+        service_charge_waived_amount: sales.iter().filter(|o| o.sold()).map(|o| o.waived_amount).sum(),
         payment_summary,
         close_methods,
         unsynced: unsynced as u32,
