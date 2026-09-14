@@ -677,6 +677,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// (from the core device config). Errors if no printer is bound.
   Future<void> printToDevice({required List<int> bytes});
 
+  /// One /health probe only: a reachable server flips online at once, with no
+  /// drain or pull. False when unreachable (not yet counted as offline).
+  Future<bool> probeConnectivity();
+
   /// The read-path mode of an area (`ledger`, `tickets`, `kitchen`, `delivery`, `bookings`).
   ReadPathMode readPathMode({required String area});
 

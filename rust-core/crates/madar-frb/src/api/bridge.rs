@@ -150,6 +150,12 @@ impl MadarBridge {
         self.inner.pending_outbox_count().map_err(MadarError::from)
     }
 
+    /// One /health probe only: a reachable server flips online at once, with no
+    /// drain or pull. False when unreachable (not yet counted as offline).
+    pub async fn probe_connectivity(&self) -> bool {
+        self.inner.probe_connectivity().await
+    }
+
     /// Ping /health; updates the online flag. True when reachable.
     pub async fn refresh_connectivity(&self) -> bool {
         self.inner.refresh_connectivity().await

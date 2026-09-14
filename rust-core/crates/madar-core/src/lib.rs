@@ -5886,6 +5886,28 @@ impl MadarCore {
         }
     }
 
+    /// The FAST half of a connectivity check: one `/health` probe and nothing
+    /// else. A reachable server flips `online` at once (and un-gates the
+    /// backlog) so the pill can say so immediately; the drain and the pull that
+    /// follow a reconnect are [`refresh_connectivity`]'s job and can take
+    /// minutes on a big backlog. A failed probe changes nothing here — one
+    /// blip is not proof of offline; `refresh_connectivity` confirms that.
+    pub async fn probe_connectivity(&self) -> bool {
+        match self.api.ping().await {
+            Ok(skew) => {
+                if let Some(s) = skew {
+                    self.clock_skew_secs
+                        .store(s, std::sync::atomic::Ordering::Relaxed);
+                    let _ = self.store.kv_put("clock_skew_secs", &s.to_string());
+                }
+                self.set_online(true);
+                let _ = self.store.clear_network_backoff();
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
     pub async fn refresh_connectivity(&self) -> bool {
         match self.api.ping().await {
             Ok(skew) => {

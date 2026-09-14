@@ -16,10 +16,14 @@ import 'package:rust_bridge/rust_bridge.dart';
 ///   3. a FAILED transport request (a provider caught `Offline`/`Transient`
 ///      and called [refresh]) — debounced so a burst becomes one probe.
 ///
-/// The ONLY timer is a drain probe that runs *solely while the outbox has
-/// queued/failed work* — it catches a SILENT recovery (the server returns with
-/// the link never dropping, so no OS event fires) and drains. An idle fleet
-/// makes zero polling traffic.
+/// The ONLY timer runs while the outbox has queued/failed work (a drain every
+/// minute) or while the device is OFFLINE (a re-check every 20s, queue or no
+/// queue). Both catch a SILENT recovery — the server returns with the link
+/// never dropping, so no OS event fires. An online, idle fleet makes zero
+/// polling traffic.
+///
+/// A reconnect shows at once: the fast `/health` probe flips the pill before
+/// the drain and pull that follow, which can take minutes on a big backlog.
 ///
 /// Each refresh bumps [onPulse] so connectivity-showing screens re-read; an
 /// offline→online transition calls [onReconnect] so the app re-arms realtime +
@@ -39,6 +43,13 @@ class ConnectivityService with WidgetsBindingObserver {
   /// Drain-probe cadence — active ONLY while the outbox has pending/failed
   /// rows; cancelled the moment it drains.
   static const _drainPeriod = Duration(seconds: 60);
+
+  /// Recovery re-check while offline — one `/health` per offline device.
+  static const _offlinePeriod = Duration(seconds: 20);
+
+  /// A check already running — a second trigger joins it instead of racing
+  /// it (two interleaved checks could each read the other's half-set state).
+  bool _probing = false;
 
   /// Coalesce a burst of failed requests into a single `/health` probe.
   static const _debounce = Duration(seconds: 3);
@@ -88,26 +99,68 @@ class ConnectivityService with WidgetsBindingObserver {
     }
     _lastProbe = now;
 
+    if (_probing) return;
+    _probing = true;
+    try {
+      await _check();
+    } finally {
+      _probing = false;
+    }
+  }
+
+  Future<void> _check() async {
     final wasOnline = _online;
-    var pending = 0;
-    var failed = 0;
+    // 1. The fast probe. A reachable server flips the pill to online NOW —
+    //    the drain and pull that follow a reconnect can take minutes on a
+    //    big backlog, and the pill used to wait for all of it.
+    var reachable = false;
+    try {
+      reachable = await core.bridge.probeConnectivity();
+    } on Object {
+      reachable = false;
+    }
+    if (_stopped) return;
+    if (reachable) {
+      _online = true;
+      onPulse();
+      if (!wasOnline) onReconnect();
+    }
+    // 2. The full check: drains the backlog and pulls on a good link, and
+    //    CONFIRMS offline (two unconfirmed failures) on a bad one.
     try {
       _online = await core.bridge.refreshConnectivity();
-      final status = core.bridge.syncStatus();
-      pending = status.pendingOutbox;
-      failed = status.deadOutbox;
     } on Object {
       _online = false;
     }
     if (_stopped) return;
     onPulse();
-    // Offline→online: re-arm realtime/LAN (the removed heartbeat's other job).
-    if (!wasOnline && _online) onReconnect();
-    // Keep a timer alive ONLY while there's queued work to drain; each probe
-    // reschedules the next until the outbox empties, then stops entirely.
+    if (!wasOnline && _online && !reachable) onReconnect();
+    _schedule();
+  }
+
+  /// The one timer. While there is queued work it drains every minute; while
+  /// OFFLINE it re-checks every [_offlinePeriod] even with nothing queued —
+  /// otherwise a server that comes back without the OS reporting a network
+  /// change (Wi-Fi never dropped) leaves the pill reading offline until the
+  /// app is resumed. Online with an empty queue: no timer, no traffic.
+  void _schedule() {
     _drainTimer?.cancel();
-    if (pending > 0 || failed > 0) {
-      _drainTimer = Timer(_drainPeriod, () => unawaited(_probe(force: true)));
+    var pending = 0;
+    var failed = 0;
+    try {
+      final status = core.bridge.syncStatus();
+      pending = status.pendingOutbox;
+      failed = status.deadOutbox;
+    } on Object {
+      // Leave the counts at zero; the offline branch still re-checks.
+    }
+    final next = !_online
+        ? _offlinePeriod
+        : (pending > 0 || failed > 0)
+        ? _drainPeriod
+        : null;
+    if (next != null) {
+      _drainTimer = Timer(next, () => unawaited(_probe(force: true)));
     }
   }
 }

@@ -334,14 +334,11 @@ class _HealthCard extends ConsumerWidget {
                   : null,
               loading: pushing,
               onTap: () => unawaited(ref.read(syncProvider.notifier).syncNow()),
-              // A manager's long press downloads everything again, after a
-              // confirm that says unsent sales stay.
-              onLongPress:
-                  isManagerRole(
-                    ref.watch(shellProvider.select((s) => s.session?.role)),
-                  )
-                  ? () => unawaited(confirmFullSync(context, ref))
-                  : null,
+              // A long press downloads everything again, after a confirm that
+              // says unsent sales stay. Not gated on a role: nobody signs in to
+              // the POS with a manager role (managers only set the device up),
+              // so a role gate left the long press dead for everyone.
+              onLongPress: () => unawaited(confirmFullSync(context, ref)),
             ),
           ),
         ],

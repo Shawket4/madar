@@ -687,7 +687,12 @@ void main() {
     expect(bridge.fullSyncs, 1);
   });
 
-  testWidgets('a teller long-pressing Sync downloads nothing', (tester) async {
+  // Nobody signs in to the POS with a manager role (managers only set the
+  // device up), so the full download must reach a teller too — the old role
+  // gate left the long press dead for everyone. The confirm still guards it.
+  testWidgets('a teller long-pressing Sync is asked, then downloads', (
+    tester,
+  ) async {
     final bridge = _FakeBridge();
     await _shoot(
       tester,
@@ -698,9 +703,14 @@ void main() {
       name: 'sync-teller-longpress',
     );
     await tester.longPress(find.widgetWithText(MadarButton, _en['sync.push']!));
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text(_en['sync.full_confirm_title']!), findsNothing);
+    expect(find.text(_en['sync.full_confirm_title']!), findsOneWidget);
     expect(bridge.fullSyncs, 0);
+    await tester.tap(find.text(_en['sync.push']!).last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(bridge.fullSyncs, 1);
   });
 
   testWidgets('discarding a refused action asks first', (tester) async {
