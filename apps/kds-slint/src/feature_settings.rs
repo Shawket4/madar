@@ -313,6 +313,9 @@ fn test_receipt(teller_name: Option<String>) -> ReceiptView {
         queued_offline: false,
         created_at: chrono::Utc::now().to_rfc3339(),
         service_charge_minor: 0,
+        tax_inclusive: false,
+        service_charge_waived_minor: 0,
+        service_charge_waived_by_name: None,
         payments: Vec::new(),
         loyalty_notice: None,
     }
