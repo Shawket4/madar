@@ -188,6 +188,27 @@ pub struct Store {
     /// The file was written by a newer build: the connection is `query_only`
     /// (every write fails), and the sync applier does not run.
     future_schema: bool,
+    /// Injected SQLite faults (the simulation harness and fault tests).
+    faults: Mutex<FaultState>,
+}
+
+/// A real SQLite failure to inject.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FaultKind {
+    /// The statement running ~`steps` VM step batches in is interrupted
+    /// (`SQLITE_INTERRUPT`): a crash in the middle of a statement or transaction.
+    Interrupt { steps: u32 },
+    /// The database may not grow any more (`SQLITE_FULL`): disk full.
+    DiskFull,
+}
+
+#[derive(Default)]
+struct FaultState {
+    /// Store accesses left before the fault arms.
+    countdown: Option<u32>,
+    kind: Option<FaultKind>,
+    armed: bool,
+    fired: bool,
 }
 
 impl Store {
@@ -231,6 +252,7 @@ impl Store {
                 conn: Mutex::new(conn),
                 changes: crate::changes::TableChanges::new(),
                 future_schema: true,
+                faults: Mutex::new(FaultState::default()),
             });
         }
         conn.execute_batch(SCHEMA)?;
@@ -254,7 +276,38 @@ impl Store {
             conn: Mutex::new(conn),
             changes: crate::changes::TableChanges::new(),
             future_schema: migrated.future_schema,
+            faults: Mutex::new(FaultState::default()),
         })
+    }
+
+    /// Arm a real SQLite fault after `after` more store accesses (0: the next
+    /// one). It stays in force until [`Self::clear_faults`].
+    pub fn inject_fault(&self, after: u32, kind: FaultKind) {
+        let mut f = self.faults.lock().unwrap_or_else(|e| e.into_inner());
+        *f = FaultState { countdown: Some(after), kind: Some(kind), armed: false, fired: false };
+    }
+
+    /// Remove an injected fault (and undo its effect on the connection).
+    pub fn clear_faults(&self) {
+        let mut f = self.faults.lock().unwrap_or_else(|e| e.into_inner());
+        let was = f.kind.filter(|_| f.armed);
+        *f = FaultState::default();
+        drop(f);
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        match was {
+            Some(FaultKind::Interrupt { .. }) => {
+                let _ = conn.progress_handler(0, None::<fn() -> bool>);
+            }
+            Some(FaultKind::DiskFull) => {
+                let _ = conn.pragma_update(None, "max_page_count", 1_073_741_823i64);
+            }
+            None => {}
+        }
+    }
+
+    /// Whether an injected fault has armed.
+    pub fn fault_armed(&self) -> bool {
+        self.faults.lock().unwrap_or_else(|e| e.into_inner()).armed
     }
 
     /// The store was written by a newer build than this one.
@@ -275,7 +328,34 @@ impl Store {
     fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
         // Poisoning only happens if a holder panicked mid-write; recover the
         // guard rather than cascading the panic across the FFI.
-        self.conn.lock().unwrap_or_else(|e| e.into_inner())
+        let guard = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        self.maybe_arm_fault(&guard);
+        guard
+    }
+
+    fn maybe_arm_fault(&self, conn: &Connection) {
+        let mut f = self.faults.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(n) = f.countdown else { return };
+        if f.armed {
+            return;
+        }
+        if n > 0 {
+            f.countdown = Some(n - 1);
+            return;
+        }
+        f.armed = true;
+        f.fired = true;
+        match f.kind {
+            Some(FaultKind::Interrupt { steps }) => {
+                let calls = std::sync::atomic::AtomicU32::new(0);
+                let _ = conn.progress_handler(64, Some(move || calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= steps));
+            }
+            Some(FaultKind::DiskFull) => {
+                let pages: i64 = conn.pragma_query_value(None, "page_count", |r| r.get(0)).unwrap_or(1);
+                let _ = conn.pragma_update(None, "max_page_count", pages);
+            }
+            None => {}
+        }
     }
 
     // ── read-through mirror ─────────────────────────────────────

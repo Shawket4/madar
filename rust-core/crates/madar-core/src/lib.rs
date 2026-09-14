@@ -2323,12 +2323,43 @@ impl MadarCore {
                 detail: "no branch bound".into(),
             })?;
         let topics = realtime::topics_for_role(&session.role);
+        let alerting = self.install_unified_listener(Arc::from(listener), Arc::from(player), &session.role);
+        let client = self.api.realtime_client();
+        // Cloud-only events (online orders, bookings) get re-published on the LAN
+        // by every device that heard them, under one deterministic id, so a
+        // peer with no internet still hears each once. See `LanCloudRelay`.
+        let relay: Arc<dyn realtime::CloudRelay> = Arc::new(LanCloudRelay {
+            lan: self.lan.clone(),
+            branch_id: branch_id.clone(),
+            store: self.store.clone(),
+            device_id: self.lan_device_id(),
+        });
+        let handle = realtime::spawn_supervisor(client, branch_id, topics, alerting, Some(relay));
+        let mut slot = self.realtime.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(old) = slot.take() {
+            old.stop();
+        }
+        *slot = Some(handle);
+        Ok(())
+    }
+}
+
+impl MadarCore {
+    /// Build and install the ONE listener chain every realtime event goes through
+    /// (cloud SSE, LAN relay, catch-up): the pull nudge, then the alert policy,
+    /// then the host.
+    pub(crate) fn install_unified_listener(
+        &self,
+        host: Arc<dyn realtime::EventListener>,
+        player: Arc<dyn realtime::RealtimePlayer>,
+        role: &str,
+    ) -> Arc<dyn realtime::EventListener> {
         // The alerting wrapper is the unified listener → the LAN bridge alerts too.
         let alerting: Arc<dyn realtime::EventListener> = Arc::new(realtime::AlertingListener::new(
-            Arc::from(listener),
-            Arc::from(player),
+            host,
+            player,
             self.locale.clone(),
-            session.role.clone(),
+            role.to_string(),
             self.branch_timezone(),
             self.alert_memory.clone(),
             self.lan_device_id(),
@@ -2340,25 +2371,44 @@ impl MadarCore {
             core: self.me.clone(),
             connected: self.realtime_connected.clone(),
         });
-        *self
-            .unified_listener
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = Some(alerting.clone());
-        let client = self.api.realtime_client();
-        // Cloud-only events (online orders, bookings) get re-published on the LAN
-        // by every device that heard them, under one deterministic id, so a
-        // peer with no internet still hears each once. See `LanCloudRelay`.
-        let relay: Arc<dyn realtime::CloudRelay> = Arc::new(LanCloudRelay {
-            lan: self.lan.clone(),
-            branch_id: branch_id.clone(),
-        });
-        let handle = realtime::spawn_supervisor(client, branch_id, topics, alerting, Some(relay));
-        let mut slot = self.realtime.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(old) = slot.take() {
-            old.stop();
+        *self.unified_listener.lock().unwrap_or_else(|e| e.into_inner()) = Some(alerting.clone());
+        alerting
+    }
+
+    /// Simulation hook: install the listener chain without opening a stream.
+    #[doc(hidden)]
+    pub fn sim_install_listener(&self, host: Arc<dyn realtime::EventListener>, player: Arc<dyn realtime::RealtimePlayer>) {
+        let role = self.current_session().map(|s| s.role).unwrap_or_default();
+        self.install_unified_listener(host, player, &role);
+    }
+
+    /// Simulation hook: one SSE frame as the stream supervisor dispatches it
+    /// (the listener chain, and the LAN re-publish of a cloud-only event).
+    #[doc(hidden)]
+    pub async fn sim_sse_frame(&self, event_id: &str, event: realtime::RealtimeEvent) {
+        let listener = self.unified_listener.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        if let Some(l) = listener {
+            l.on_event(event.clone());
         }
-        *slot = Some(handle);
-        Ok(())
+        if realtime::is_cloud_only(&event.event_type) {
+            if let Ok(branch) = self.session_branch_id() {
+                let at = chrono::Utc::now().timestamp_millis();
+                let msg_id = format!("cloud:{branch}:{event_id}");
+                log_cloud_relay(&self.store, &branch, &self.lan_device_id(), &msg_id, &event, at);
+                if let Some(relay) = self.lan_relay() {
+                    relay.publish_with_id(msg_id, &lan_topic_of(&event.event_type), &event.event_type, event.data, None, at).await;
+                }
+            }
+        }
+    }
+
+    /// Simulation hook: the SSE connection edge.
+    #[doc(hidden)]
+    pub fn sim_sse_connection(&self, connected: bool) {
+        let listener = self.unified_listener.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        if let Some(l) = listener {
+            l.on_connection_changed(connected);
+        }
     }
 }
 
@@ -2372,22 +2422,44 @@ impl MadarCore {
 struct LanCloudRelay {
     lan: Arc<Mutex<Option<Arc<lan::LanRelay>>>>,
     branch_id: String,
+    store: Arc<store::Store>,
+    device_id: String,
+}
+
+/// The LAN topic of a cloud event type.
+fn lan_topic_of(event_type: &str) -> String {
+    event_type
+        .split('.')
+        .next()
+        .map(|t| if t == "booking" { "bookings" } else { t })
+        .unwrap_or("orders")
+        .to_string()
+}
+
+/// Log a cloud event this device re-publishes on the LAN (catch-up offers it to
+/// a peer that joins later).
+fn log_cloud_relay(store: &store::Store, branch: &str, device_id: &str, msg_id: &str, event: &realtime::RealtimeEvent, at: i64) {
+    let entry = lan_sync::LogEntry {
+        key: msg_id.to_string(),
+        topic: lan_topic_of(&event.event_type),
+        event_type: event.event_type.clone(),
+        data: event.data.clone(),
+        replay_op: None,
+        origin: device_id.to_string(),
+        sent_at_ms: at,
+    };
+    let _ = store.with_conn(|c| lan_sync::log_insert(c, branch, &entry, at));
 }
 
 impl realtime::CloudRelay for LanCloudRelay {
     fn relay(&self, event_id: &str, event: &realtime::RealtimeEvent) {
+        let msg_id = format!("cloud:{}:{}", self.branch_id, event_id);
+        let at = chrono::Utc::now().timestamp_millis();
+        log_cloud_relay(&self.store, &self.branch_id, &self.device_id, &msg_id, event, at);
         let relay = self.lan.lock().unwrap_or_else(|e| e.into_inner()).clone();
         let Some(relay) = relay else { return };
-        let msg_id = format!("cloud:{}:{}", self.branch_id, event_id);
-        let topic = event
-            .event_type
-            .split('.')
-            .next()
-            .map(|t| if t == "booking" { "bookings" } else { t })
-            .unwrap_or("orders")
-            .to_string();
+        let topic = lan_topic_of(&event.event_type);
         let event = event.clone();
-        let at = chrono::Utc::now().timestamp_millis();
         tokio::spawn(async move {
             relay
                 .publish_with_id(msg_id, &topic, &event.event_type, event.data, None, at)

@@ -41,6 +41,33 @@ pub(crate) struct SchedulerState {
     pub pulls_started: AtomicU64,
     /// This core's pull single-flight.
     pub pull_flight: crate::sync_pull::PullFlight,
+    /// Manual scheduling (the simulation harness): nothing is spawned; nudges and
+    /// poll requests are only counted, and the harness runs them when it decides.
+    pub manual: AtomicBool,
+    /// Nudges asked for since the harness last took them.
+    pub nudges_wanted: AtomicU64,
+    /// The fallback poll was asked to run.
+    pub poll_wanted: AtomicBool,
+}
+
+impl MadarCore {
+    /// Switch this core to manual scheduling (see [`SchedulerState::manual`]).
+    #[doc(hidden)]
+    pub fn set_manual_scheduling(&self, on: bool) {
+        self.scheduler.manual.store(on, Ordering::SeqCst);
+    }
+
+    /// Take the nudges asked for since the last call (manual scheduling).
+    #[doc(hidden)]
+    pub fn take_nudges(&self) -> u64 {
+        self.scheduler.nudges_wanted.swap(0, Ordering::SeqCst)
+    }
+
+    /// Whether the fallback poll was asked for (manual scheduling), clearing it.
+    #[doc(hidden)]
+    pub fn take_poll_wanted(&self) -> bool {
+        self.scheduler.poll_wanted.swap(false, Ordering::SeqCst)
+    }
 }
 
 impl MadarCore {
@@ -49,6 +76,10 @@ impl MadarCore {
     /// tokio runtime or a session.
     pub(crate) fn nudge_sync(&self) {
         if self.current_session().is_none() {
+            return;
+        }
+        if self.scheduler.manual.load(Ordering::SeqCst) {
+            self.scheduler.nudges_wanted.fetch_add(1, Ordering::SeqCst);
             return;
         }
         if self.scheduler.nudge_pending.swap(true, Ordering::SeqCst) {
@@ -69,6 +100,10 @@ impl MadarCore {
 
     /// [`Self::nudge_sync`] once `delay` has passed (a paced drain resumes).
     pub(crate) fn nudge_sync_after(&self, delay: Duration) {
+        if self.scheduler.manual.load(Ordering::SeqCst) {
+            self.scheduler.nudges_wanted.fetch_add(1, Ordering::SeqCst);
+            return;
+        }
         let (Some(me), Ok(handle)) = (self.self_arc(), tokio::runtime::Handle::try_current()) else {
             return;
         };
@@ -85,6 +120,10 @@ impl MadarCore {
     /// Start the fallback poll if it is not running. It exits by itself once
     /// the session ends; while the SSE stream is connected it only sleeps.
     pub(crate) fn ensure_fallback_poll(&self) {
+        if self.scheduler.manual.load(Ordering::SeqCst) {
+            self.scheduler.poll_wanted.store(true, Ordering::SeqCst);
+            return;
+        }
         if self.scheduler.poll_running.swap(true, Ordering::SeqCst) {
             return;
         }

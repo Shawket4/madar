@@ -939,6 +939,9 @@ impl MadarCore {
                 .filter(|sp| sp.online)
                 .and_then(|sp| uuid::Uuid::parse_str(&sp.branch_id).ok()),
         );
+        if self.scheduler.manual.load(std::sync::atomic::Ordering::SeqCst) {
+            return;
+        }
         if let (Ok(handle), (Some(id), Some(branch_id)), Some(me)) =
             (tokio::runtime::Handle::try_current(), ids, self.self_arc())
         {
@@ -967,6 +970,11 @@ impl MadarCore {
                 started_at: Some(chrono::Utc::now().to_rfc3339()),
                 ..Default::default()
             };
+        }
+        if self.scheduler.manual.load(std::sync::atomic::Ordering::SeqCst) {
+            // Manual scheduling: the harness decides when the drain and pull run.
+            self.scheduler.nudges_wanted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            return;
         }
         if let Some(me) = self.self_arc() {
             if let Ok(h) = tokio::runtime::Handle::try_current() {

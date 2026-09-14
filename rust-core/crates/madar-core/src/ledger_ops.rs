@@ -417,7 +417,7 @@ impl MadarCore {
     /// at most every [`SERVER_REPORT_EVERY_MS`] per till); a new one re-reads the
     /// till screens.
     fn refresh_server_report_soon(&self, till_id: &str) {
-        if !self.online() {
+        if !self.online() || self.scheduler.manual.load(std::sync::atomic::Ordering::SeqCst) {
             return;
         }
         let key = format!("{K_REPORT_ASKED}{till_id}");
