@@ -42,8 +42,18 @@ pub fn route_of(line: &str) -> String {
     format!("{method} {}", path.join("/"))
 }
 
+static RAW_REQUESTS: std::sync::Mutex<BTreeMap<String, usize>> = std::sync::Mutex::new(BTreeMap::new());
+
 fn count_request(line: &str) {
     *REQUESTS.lock().unwrap().entry(route_of(line)).or_default() += 1;
+    let mut parts = line.split_whitespace();
+    let raw = format!("{} {}", parts.next().unwrap_or(""), parts.next().unwrap_or(""));
+    *RAW_REQUESTS.lock().unwrap().entry(raw).or_default() += 1;
+}
+
+/// The exact requests (method, path and query) counted since the last call.
+pub fn take_raw_requests() -> BTreeMap<String, usize> {
+    std::mem::take(&mut *RAW_REQUESTS.lock().unwrap())
 }
 
 /// The requests counted since the last call, by route; the counter restarts.

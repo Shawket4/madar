@@ -53,15 +53,39 @@ fn allowed(route: &str) -> bool {
     ALLOWED.iter().any(|p| route.starts_with(p))
 }
 
+/// Background FILLS of what the feed cannot give (a past till this device does
+/// not hold completely: its sales and its report; the past-till history backfill).
+/// Allowed once per exact request per session — a repeat is a poll.
+const FILL_ONCE: &[&str] = &["GET /orders", "GET /tills/:id/report", "GET /tills/branches/:id"];
+
+fn fill_route(route: &str) -> bool {
+    FILL_ONCE.iter().any(|p| route == *p)
+}
+
+/// Exact fill requests asked more than once.
+fn repeated_fills(raw: &BTreeMap<String, usize>) -> Vec<String> {
+    raw.iter()
+        .filter(|(r, n)| **n > 1 && fill_route(&route_of(&format!("{r} HTTP/1.1"))))
+        .map(|(r, n)| format!("{n} × {r}"))
+        .collect()
+}
+
 fn report(label: &str, counts: &BTreeMap<String, usize>) {
     eprintln!("== requests: {label}");
     for (route, n) in counts {
-        eprintln!("   {n:>6}  {route}{}", if allowed(route) { "" } else { "   <-- NOT ALLOWED" });
+        let tag = if allowed(route) {
+            ""
+        } else if fill_route(route) {
+            "   (one-off fill)"
+        } else {
+            "   <-- NOT ALLOWED"
+        };
+        eprintln!("   {n:>6}  {route}{tag}");
     }
 }
 
 fn forbidden(counts: &BTreeMap<String, usize>) -> Vec<String> {
-    counts.iter().filter(|(r, _)| !allowed(r)).map(|(r, n)| format!("{n} × {r}")).collect()
+    counts.iter().filter(|(r, _)| !allowed(r) && !fill_route(r)).map(|(r, n)| format!("{n} × {r}")).collect()
 }
 
 struct Quiet;
@@ -143,6 +167,7 @@ async fn walking_every_screen_reads_nothing_from_the_server() {
     // asset bundle) finish before counting.
     tokio::time::sleep(Duration::from_secs(5)).await;
     take_requests();
+    take_raw_requests();
     walk_screens(&core).await;
     tokio::time::sleep(Duration::from_secs(3)).await;
     walk_screens(&core).await;
@@ -151,6 +176,8 @@ async fn walking_every_screen_reads_nothing_from_the_server() {
     report("walking every screen twice", &counts);
     let bad = forbidden(&counts);
     assert!(bad.is_empty(), "screen reads reached the server: {bad:?}");
+    let again = repeated_fills(&take_raw_requests());
+    assert!(again.is_empty(), "a background fill repeated: {again:?}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -163,6 +190,7 @@ async fn an_idle_online_till_only_syncs() {
     core.start_realtime(Box::new(Quiet), Box::new(Quiet)).await.expect("realtime");
     tokio::time::sleep(Duration::from_secs(5)).await;
     take_requests();
+    take_raw_requests();
     let end = Instant::now() + Duration::from_secs(idle);
     while Instant::now() < end {
         // The table watcher's fallback beat: every board re-reads.
@@ -170,9 +198,17 @@ async fn an_idle_online_till_only_syncs() {
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
     let counts = take_requests();
+    let raw = take_raw_requests();
     report(&format!("idle online for {idle} s"), &counts);
     let bad = forbidden(&counts);
     assert!(bad.is_empty(), "an idle till reached the server beyond sync: {bad:?}");
+    let again = repeated_fills(&raw);
+    assert!(again.is_empty(), "a background fill repeated: {again:?}");
+    // The history walk opens three past tills: at most one sales fill and one
+    // report fill each, over the whole idle period.
+    for fill in ["GET /orders", "GET /tills/:id/report"] {
+        assert!(counts.get(fill).copied().unwrap_or(0) <= 3, "{fill}: {counts:?}");
+    }
     // A live stream with nothing changing: no fallback poll. Allow the stream's
     // own reconnect nudges, one a minute at most.
     let pulls = counts.get("POST /sync/pull").copied().unwrap_or(0);
