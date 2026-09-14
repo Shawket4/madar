@@ -80,11 +80,15 @@ async fn fixture() -> Fixture {
 /// `orders:waive_service` (None = the role default).
 async fn user(fx: &Fixture, role: &str, waive: Option<bool>) -> (uuid::Uuid, String) {
     let id = uuid::Uuid::new_v4();
-    let name = format!("PR-{}", &id.simple().to_string()[..8]);
+    // A manager signs in at the till with email and password (PIN sign-in is
+    // for tellers, waiters and the KDS); the name says which.
+    let prefix = if role == "branch_manager" { "PRM" } else { "PR" };
+    let name = format!("{prefix}-{}", &id.simple().to_string()[..8]);
     fx.db
         .execute(
-            "INSERT INTO users (id, org_id, name, role, pin_hash)
-             VALUES ($1, $2, $3, $4::text::public.user_role, crypt('1234', gen_salt('bf', 4)))",
+            "INSERT INTO users (id, org_id, name, role, pin_hash, email, password_hash)
+             VALUES ($1, $2, $3, $4::text::public.user_role, crypt('1234', gen_salt('bf', 4)),
+                     lower($3) || '@pricing.test', crypt('secret-1234', gen_salt('bf', 4)))",
             &[&id, &fx.org, &name, &role],
         )
         .await
@@ -123,14 +127,15 @@ async fn signed_in(base: &str, db_path: &str, who: &str, branch: &str) -> Arc<Ma
     .expect("core");
     let deadline = Instant::now() + Duration::from_secs(120);
     let s = loop {
+        let manager = who.starts_with("PRM-");
         match core
             .sign_in(LoginRequest {
-                mode: LoginMode::Pin,
-                name: Some(who.to_string()),
-                pin: Some("1234".into()),
+                mode: if manager { LoginMode::Email } else { LoginMode::Pin },
+                name: (!manager).then(|| who.to_string()),
+                pin: (!manager).then(|| "1234".into()),
                 branch_id: Some(branch.to_string()),
-                email: None,
-                password: None,
+                email: manager.then(|| format!("{}@pricing.test", who.to_lowercase())),
+                password: manager.then(|| "secret-1234".into()),
                 org_id: None,
             })
             .await
@@ -200,11 +205,21 @@ async fn settle(core: &MadarCore, max_secs: u64) {
 }
 
 /// Open a till, fire a two-item bill, and wait for the server to price it.
-async fn priced_bill(core: &MadarCore) -> (String, String) {
+async fn priced_bill(fx: &Fixture, core: &MadarCore) -> (String, String) {
     let till = core.open_till(0, Some("pricing e2e".into())).await.expect("open").till.expect("till").id;
     add_items(core, 2);
     let fired = core.fire_ticket(None, None, None, Some(2), None).await.expect("fire");
     settle(core, 120).await;
+    // The fire's id is the client's idempotency key; the server's ticket id is
+    // what every later call names.
+    let key = uuid::Uuid::parse_str(&fired.ticket_id).unwrap();
+    let server_id: uuid::Uuid = fx
+        .db
+        .query_one("SELECT id FROM open_tickets WHERE idempotency_key = $1 OR id = $1", &[&key])
+        .await
+        .expect("the fire landed")
+        .get(0);
+    let server_id = server_id.to_string();
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
         let bill = core
@@ -212,10 +227,10 @@ async fn priced_bill(core: &MadarCore) -> (String, String) {
             .await
             .expect("tickets")
             .into_iter()
-            .find(|t| t.id == fired.ticket_id)
+            .find(|t| t.id == server_id)
             .and_then(|t| t.bill);
         if bill.is_some() {
-            return (till, fired.ticket_id);
+            return (till, server_id);
         }
         assert!(Instant::now() < deadline, "the server never priced the bill");
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -287,6 +302,26 @@ async fn settle_bill(
     .await
 }
 
+/// A bare HTTP/1.1 POST to the local backend: `(status, body)`.
+async fn http_post(base: &str, path: &str, token: Option<&str>, body: &serde_json::Value) -> (u16, String) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let host = base.trim_start_matches("http://");
+    let mut stream = tokio::net::TcpStream::connect(host).await.expect("connect");
+    let payload = body.to_string();
+    let auth = token.map(|t| format!("Authorization: Bearer {t}\r\n")).unwrap_or_default();
+    let req = format!(
+        "POST {path} HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\n{auth}Content-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+        payload.len()
+    );
+    stream.write_all(req.as_bytes()).await.unwrap();
+    let mut raw = Vec::new();
+    stream.read_to_end(&mut raw).await.unwrap();
+    let text = String::from_utf8_lossy(&raw).to_string();
+    let status = text.split(' ').nth(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let body = text.split_once("\r\n\r\n").map(|(_, b)| b.to_string()).unwrap_or_default();
+    (status, body)
+}
+
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -297,7 +332,7 @@ async fn a_table_bill_with_a_discount_settles_at_the_due_and_a_partial_refund_mo
     let core = core_for(&fx, &teller).await;
     let cash = method(&core, true).expect("a cash method");
     let card = method(&core, false).expect("a card method");
-    let (till, ticket) = priced_bill(&core).await;
+    let (till, ticket) = priced_bill(&fx, &core).await;
 
     let before = core.bill_with_rewards(ticket.clone(), vec![], None, None, false).unwrap().expect("bill");
     let due = core
@@ -429,27 +464,24 @@ async fn removing_the_service_charge_follows_the_effective_permission() {
         let core = core_for(&fx, who).await;
         assert!(!core.can_waive_service_charge(), "{who} may not remove the service charge");
         let cash = method(&core, true).expect("cash");
-        let (till, ticket) = priced_bill(&core).await;
+        let (till, ticket) = priced_bill(&fx, &core).await;
         let err = settle_bill(&core, &ticket, &till, &cash, None, vec![], true).await;
         assert!(err.is_err(), "the core refuses {who}'s waiver");
 
-        let mut cfg = madar_api::apis::configuration::Configuration::new();
-        cfg.base_path = fx.base.clone();
-        let login = madar_api::apis::auth_api::login(
-            &cfg,
-            madar_api::apis::auth_api::LoginParams {
-                login_request: {
-                    let mut l = madar_api::models::LoginRequest::new();
-                    l.name = Some(Some(who.to_string()));
-                    l.pin = Some(Some("1234".into()));
-                    l.branch_id = Some(Some(uuid::Uuid::parse_str(&fx.branch).unwrap()));
-                    l
-                },
+        // Straight to the server, as an old or tampered till would.
+        let (status, body) = http_post(
+            &fx.base,
+            "/auth/login",
+            None,
+            &if who.starts_with("PRM-") {
+                serde_json::json!({ "email": format!("{}@pricing.test", who.to_lowercase()), "password": "secret-1234", "branch_id": fx.branch })
+            } else {
+                serde_json::json!({ "name": who, "pin": "1234", "branch_id": fx.branch })
             },
         )
-        .await
-        .expect("login");
-        cfg.bearer_access_token = Some(login.token);
+        .await;
+        assert_eq!(status, 200, "{who} login: {body}");
+        let token = serde_json::from_str::<serde_json::Value>(&body).unwrap()["token"].as_str().unwrap().to_string();
         let cash_name: String = fx
             .db
             .query_one(
@@ -459,20 +491,15 @@ async fn removing_the_service_charge_follows_the_effective_permission() {
             .await
             .unwrap()
             .get(0);
-        let mut req = madar_api::models::SettleOpenTicketRequest::new(cash_name, uuid::Uuid::parse_str(&till).unwrap());
-        req.waive_service_charge = Some(true);
-        let direct = madar_api::apis::open_tickets_api::settle_open_ticket(
-            &cfg,
-            madar_api::apis::open_tickets_api::SettleOpenTicketParams { id: ticket.clone(), settle_open_ticket_request: req },
+        let (status, body) = http_post(
+            &fx.base,
+            &format!("/open-tickets/{ticket}/settle"),
+            Some(&token),
+            &serde_json::json!({ "till_id": till, "payment_method": cash_name, "waive_service_charge": true }),
         )
         .await;
-        match direct {
-            Err(madar_api::apis::Error::ResponseError(r)) => {
-                assert_eq!(r.status.as_u16(), 403, "{who}: {}", r.content);
-                assert!(r.content.contains("Waive service charge"), "{who}: {}", r.content);
-            }
-            other => panic!("{who}: the server must refuse the waiver, got {other:?}"),
-        }
+        assert_eq!(status, 403, "{who}: the server must refuse the waiver: {body}");
+        assert!(body.contains("Waive service charge"), "{who}: {body}");
     }
 
     // Honoured: a teller granted it per user, a manager on the role default.
@@ -480,7 +507,7 @@ async fn removing_the_service_charge_follows_the_effective_permission() {
         let core = core_for(&fx, who).await;
         assert!(core.can_waive_service_charge(), "{who} may remove the service charge");
         let cash = method(&core, true).expect("cash");
-        let (till, ticket) = priced_bill(&core).await;
+        let (till, ticket) = priced_bill(&fx, &core).await;
         let full = core.bill_with_rewards(ticket.clone(), vec![], None, None, false).unwrap().unwrap();
         let waived = core.bill_with_rewards(ticket.clone(), vec![], None, None, true).unwrap().unwrap();
         assert!(full.service_charge_minor > 0);
