@@ -21,7 +21,8 @@
 #   MADAR_OB_BRANCH       branch id to use (default: picked)
 #   MADAR_OB_PERF_BRANCH  branch for --perf (default: the branch with the most sales on an open till)
 #   MADAR_OB_BUILD_DATABASE_URL  migrated DB for the backend build (default :5433/madar)
-#   CARGO_TARGET_DIR      shared by both builds when set
+#   MADAR_OB_BACKEND_TARGET_DIR  the backend's cargo target dir (default $MADAR_RUST/target)
+#   CARGO_TARGET_DIR      this repo's cargo target dir, as usual
 # Exit status is the tests' status.
 set -euo pipefail
 
@@ -53,9 +54,11 @@ trap cleanup EXIT INT TERM
 echo "==> building the backend ($MADAR_RUST)"
 # The backend's compile-time query checks need a migrated database (its CLAUDE.md:
 # the throwaway :5433 cluster).
-( cd "$MADAR_RUST" && DATABASE_URL="${MADAR_OB_BUILD_DATABASE_URL:-postgres://$(whoami)@localhost:5433/madar}" \
+BACKEND_TARGET="${MADAR_OB_BACKEND_TARGET_DIR:-$MADAR_RUST/target}"
+( cd "$MADAR_RUST" && CARGO_TARGET_DIR="$BACKEND_TARGET" \
+    DATABASE_URL="${MADAR_OB_BUILD_DATABASE_URL:-postgres://$(whoami)@localhost:5433/madar}" \
     cargo build --release --bin madar-rust )
-BIN="${CARGO_TARGET_DIR:-$MADAR_RUST/target}/release/madar-rust"
+BIN="$BACKEND_TARGET/release/madar-rust"
 
 echo "==> copying $SOURCE_DB -> $COPY"
 createdb "${PG_ARGS[@]}" -T "$SOURCE_DB" "$COPY"
