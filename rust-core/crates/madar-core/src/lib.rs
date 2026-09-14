@@ -97,6 +97,7 @@ mod testkit;
 #[cfg(test)]
 mod offline_b_tests;
 pub(crate) mod schema;
+pub(crate) mod integrity;
 /// Waiter open tickets — fire-now-pay-later dine-in tickets via the outbox.
 pub mod tickets;
 /// Drawer and Orders decisions the screens used to make (labels, refund
@@ -394,7 +395,7 @@ impl MadarCore {
             .ok()
             .flatten()
             .and_then(|s| serde_json::from_str::<ActiveScopeView>(&s).ok());
-        Ok(Arc::new_cyclic(|me| Self {
+        let core = Arc::new_cyclic(|me| Self {
             me: me.clone(),
             config,
             store,
@@ -420,7 +421,9 @@ impl MadarCore {
             active_scope: RwLock::new(active_scope),
             sync_state: std::sync::Mutex::new(sync_pull::SyncState::default()),
             scheduler: scheduler::SchedulerState::default(),
-        }))
+        });
+        core.schedule_integrity_check();
+        Ok(core)
     }
 
     /// Construct from the baked-in `.env` defaults (in-memory store until the

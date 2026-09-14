@@ -410,6 +410,48 @@ fn put_kv(tx: &rusqlite::Connection, k: &str, v: &str) -> CoreResult<()> {
 
 /// Apply one response page in ONE transaction, cursor included (A1–A4).
 /// `move_cursor=false` for a self-heal refetch. Returns changes applied.
+/// A snapshot's rows by type, as raw slices of the response body.
+pub(crate) type RawRows<'a> = std::collections::HashMap<String, Vec<&'a serde_json::value::RawValue>>;
+
+/// Decode a pull body: everything but `data` into the generated response, and
+/// `data`'s rows left raw (parsed one at a time as they are applied).
+pub(crate) fn decode_pull(body: &str) -> CoreResult<(PullResponse, Option<RawRows<'_>>)> {
+    use serde_json::value::RawValue;
+    let decode = |e: serde_json::Error| CoreError::Internal { detail: format!("decode: {e}") };
+    let mut top: std::collections::HashMap<&str, &RawValue> = serde_json::from_str(body).map_err(decode)?;
+    let raw: Option<RawRows<'_>> = match top.remove("data") {
+        Some(d) if d.get() != "null" => Some(serde_json::from_str(d.get()).map_err(decode)?),
+        _ => None,
+    };
+    let rest = serde_json::to_string(&top).map_err(decode)?;
+    let resp: PullResponse = serde_json::from_str(&rest).map_err(decode)?;
+    Ok((resp, raw))
+}
+
+/// Run `f` over each snapshot row of `ty`, from the raw rows when given, else
+/// from the response's own `data` (tests build responses in memory).
+fn each_row(
+    resp: &PullResponse,
+    raw: Option<&RawRows<'_>>,
+    ty: &str,
+    f: &mut dyn FnMut(&serde_json::Value) -> CoreResult<()>,
+) -> CoreResult<()> {
+    if let Some(raw) = raw {
+        for r in raw.get(ty).map(Vec::as_slice).unwrap_or_default() {
+            let v: serde_json::Value =
+                serde_json::from_str(r.get()).map_err(|e| CoreError::Internal { detail: format!("decode: {e}") })?;
+            f(&v)?;
+        }
+        return Ok(());
+    }
+    if let Some(rows) = resp.data.as_ref().and_then(|d| d.get(ty)).and_then(|v| v.as_array()) {
+        for v in rows {
+            f(v)?;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn apply_page(
     store: &Store,
     branch: &str,
@@ -417,7 +459,7 @@ pub(crate) fn apply_page(
     protected: &Protected,
     move_cursor: bool,
 ) -> CoreResult<u32> {
-    apply_page_with(store, branch, resp, protected, move_cursor, &mut |_| Ok(()))
+    apply_page_with(store, branch, resp, None, protected, move_cursor, &mut |_| Ok(()))
 }
 
 /// `hook` runs after each row write (tests inject a crash).
@@ -425,6 +467,7 @@ pub(crate) fn apply_page_with(
     store: &Store,
     branch: &str,
     resp: &PullResponse,
+    raw: Option<&RawRows<'_>>,
     protected: &Protected,
     move_cursor: bool,
     hook: &mut dyn FnMut(u32) -> CoreResult<()>,
@@ -457,16 +500,9 @@ pub(crate) fn apply_page_with(
             let mut ordered: Vec<&String> = types.iter().collect();
             ordered.sort_by_key(|t| if t.as_str() == crate::ledger::T_TILL { 0 } else { 1 });
             for ty in ordered {
-                let rows: Vec<serde_json::Value> = resp
-                    .data
-                    .as_ref()
-                    .and_then(|d| d.get(ty))
-                    .and_then(|v| v.as_array())
-                    .cloned()
-                    .unwrap_or_default();
                 if crate::ledger::is_ledger_type(ty) {
                     let mut present = std::collections::HashSet::new();
-                    for r in &rows {
+                    each_row(resp, raw, ty, &mut |r| {
                         let seq = r.get("seq").and_then(|v| v.as_i64()).unwrap_or(0);
                         if let Some(key) = crate::ledger::key_of(ty, r) {
                             present.insert(key);
@@ -474,25 +510,25 @@ pub(crate) fn apply_page_with(
                         if crate::ledger::apply::upsert(tx, ty, r, seq, &ctx)? {
                             n += 1;
                         }
-                        hook(n)?;
-                    }
+                        hook(n)
+                    })?;
                     n += crate::ledger::apply::sweep_absent(tx, branch, ty, &present, &ctx)?;
                     touched.push(crate::changes::table_for_sync_type(ty));
                     continue;
                 }
                 let mut present = std::collections::HashSet::new();
-                for r in &rows {
+                each_row(resp, raw, ty, &mut |r| {
                     let id = r.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
                     if id.is_empty() {
-                        continue;
+                        return Ok(());
                     }
                     let seq = r.get("seq").and_then(|v| v.as_i64()).unwrap_or(0);
                     if upsert_row(tx, branch, ty, &id, seq, r, is_prot(ty, &id))? {
                         n += 1;
                     }
                     present.insert(id);
-                    hook(n)?;
-                }
+                    hook(n)
+                })?;
                 // delete server-origin rows absent from the snapshot (non-protected)
                 let mut stmt = tx.prepare("SELECT id FROM sync_rows WHERE branch_id=?1 AND type=?2")?;
                 let existing: Vec<String> = stmt
@@ -671,12 +707,20 @@ impl MadarCore {
         self.sync_state.lock().unwrap_or_else(|e| e.into_inner()).phase = phase.into();
     }
 
+    /// POST /sync/pull and return the raw body (decoded by [`decode_pull`]).
+    ///
+    /// Not the generated client's `pull`: that decodes a full snapshot into one
+    /// `serde_json::Value` tree — ~15x the body in memory, over a gigabyte for a
+    /// branch with 34k sales in its window. The body is kept as text and the rows
+    /// stay raw slices of it until each is applied (measured, "Implementation
+    /// status"). Same request, headers and error mapping as the generated call.
     async fn post_pull(
         &self,
         since: Option<i64>,
         branch: &str,
         types: Option<Vec<String>>,
-    ) -> Result<PullResponse, CoreError> {
+    ) -> Result<String, CoreError> {
+        use madar_api::apis::{Error as ApiError, ResponseContent};
         let branch_id = uuid::Uuid::parse_str(branch).map_err(|_| CoreError::Validation {
             field: "branch_id".into(),
             detail: "session branch is not a UUID".into(),
@@ -684,15 +728,37 @@ impl MadarCore {
         let mut request = madar_api::models::PullRequest::new(branch_id);
         request.device_id = uuid::Uuid::parse_str(&self.lan_device_id()).ok().map(Some);
         request.types = types.map(Some);
-        madar_api::apis::sync_api::pull(
-            &self.api.config(),
-            madar_api::apis::sync_api::PullParams {
-                pull_request: request,
-                since,
-            },
-        )
-        .await
-        .map_err(crate::net::map_api_error)
+        let config = self.api.config();
+        let mut rb = config
+            .client
+            .request(reqwest::Method::POST, format!("{}/sync/pull", config.base_path));
+        if let Some(since) = since {
+            rb = rb.query(&[("since", since.to_string())]);
+        }
+        if let Some(ua) = &config.user_agent {
+            rb = rb.header(reqwest::header::USER_AGENT, ua.clone());
+        }
+        if let Some(token) = &config.bearer_access_token {
+            rb = rb.bearer_auth(token);
+        }
+        let resp = rb
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| crate::net::map_api_error::<()>(ApiError::Reqwest(e)))?;
+        let status = resp.status();
+        let content = resp
+            .text()
+            .await
+            .map_err(|e| crate::net::map_api_error::<()>(ApiError::Reqwest(e)))?;
+        if status.is_client_error() || status.is_server_error() {
+            return Err(crate::net::map_api_error::<()>(ApiError::ResponseError(ResponseContent {
+                status,
+                content,
+                entity: None,
+            })));
+        }
+        Ok(content)
     }
 
     /// One pull (single-flight). `full` = snapshot; otherwise from `sync:next`.
@@ -739,7 +805,8 @@ impl MadarCore {
         let mut bundle: Option<madar_api::models::AssetBundleRef> = None;
         loop {
             self.set_phase("pulling");
-            let resp = self.post_pull(since, &branch, None).await?;
+            let body = self.post_pull(since, &branch, None).await?;
+            let (resp, raw) = decode_pull(&body)?;
             if resp.resync_required.unwrap_or(false) {
                 if since.is_none() {
                     // A full pull never asks for a resync; refuse to loop on one.
@@ -752,7 +819,9 @@ impl MadarCore {
             }
             self.set_phase("applying");
             let protected = protected_rows(&self.store);
-            applied += apply_page(&self.store, &branch, &resp, &protected, true)?;
+            applied += apply_page_with(&self.store, &branch, &resp, raw.as_ref(), &protected, true, &mut |_| Ok(()))?;
+            drop(raw);
+            drop(body);
             if resp.full {
                 if let Some(b) = resp.asset_bundle.clone().flatten() {
                     bundle = Some(*b);
@@ -768,9 +837,10 @@ impl MadarCore {
             let mismatched = mismatched_types(&server, &local);
             let mut stale = None;
             if !mismatched.is_empty() {
-                let fix = self.post_pull(None, &branch, Some(mismatched.clone())).await?;
+                let fix_body = self.post_pull(None, &branch, Some(mismatched.clone())).await?;
+                let (fix, fix_raw) = decode_pull(&fix_body)?;
                 let protected = protected_rows(&self.store);
-                applied += apply_page(&self.store, &branch, &fix, &protected, false)?;
+                applied += apply_page_with(&self.store, &branch, &fix, fix_raw.as_ref(), &protected, false, &mut |_| Ok(()))?;
                 let local = local_checksums(&self.store, &branch, &mismatched);
                 if !mismatched_types(&server_checksums(&fix), &local).is_empty() {
                     stale = Some("checksum_mismatch".to_string());
@@ -1029,7 +1099,7 @@ mod tests {
         apply_page(&store, B, &incr(5, vec![change(5, "menu_item", "a", "upsert", 1)]), &Protected::new(), true).unwrap();
         let page = incr(9, vec![change(7, "menu_item", "a", "upsert", 2), change(9, "menu_item", "b", "upsert", 3)]);
         // crash after the first row write
-        let err = apply_page_with(&store, B, &page, &Protected::new(), true, &mut |n| {
+        let err = apply_page_with(&store, B, &page, None, &Protected::new(), true, &mut |n| {
             if n >= 1 {
                 Err(CoreError::Internal { detail: "killed".into() })
             } else {
@@ -1042,6 +1112,65 @@ mod tests {
         assert!(row(&store, "menu_item", "b").is_none());
         apply_page(&store, B, &page, &Protected::new(), true).unwrap();
         assert_eq!(cursor(&store).as_deref(), Some("9"));
+    }
+
+    /// The lean decode (rows kept raw until applied) lands exactly what the
+    /// in-memory response does: every table, the cursor, the window.
+    #[test]
+    fn a_raw_body_applies_exactly_like_the_decoded_response() {
+        let till = serde_json::json!({"id": "t1", "branch_id": B, "teller_id": "u", "status": "open",
+            "opened_at": "2026-09-14T08:00:00Z", "opening_cash": 1000});
+        let order = serde_json::json!({"id": "o1", "idempotency_key": uid("k1"), "till_id": uid("t1"), "branch_id": B,
+            "status": "completed", "payment_method": "cash", "total_amount": 700, "created_at": "2026-09-14T09:00:00Z",
+            "payment_legs": [{"method": "cash", "amount": 700, "is_cash": true}], "items": [{"item_name": "Latte \"hot\" \u{e9} \\ tab\t"}]});
+        let mut page = full(ALL_TYPES, vec![("till", till), ("order", order), ("discount", serde_json::json!({"id": "d1", "v": 1}))], 42);
+        page.ledger_window = Some(Some(Box::new(madar_api::models::LedgerWindow::new("2026-09-12T00:00:00Z".into()))));
+        let body = serde_json::to_string(&page).unwrap();
+
+        let a = Store::open("").unwrap();
+        apply_page(&a, B, &page, &Protected::new(), true).unwrap();
+        let b = Store::open("").unwrap();
+        let (resp, raw) = decode_pull(&body).unwrap();
+        assert!(resp.data.is_none(), "rows are not decoded up front");
+        assert_eq!(raw.as_ref().unwrap()["order"].len(), 1);
+        apply_page_with(&b, B, &resp, raw.as_ref(), &Protected::new(), true, &mut |_| Ok(())).unwrap();
+
+        let dump = |s: &Store| -> Vec<String> {
+            s.with_conn(|c| {
+                let mut out = Vec::new();
+                for (table, order_by) in [("sync_rows", "type, id"), ("ledger_tills", "id"), ("ledger_orders", "okey"), ("ledger_payments", "okey, idx")] {
+                    let mut st = c.prepare(&format!("SELECT * FROM {table} ORDER BY {order_by}"))?;
+                    let cols = st.column_count();
+                    let rows = st.query_map([], |r| {
+                        let mut line = Vec::new();
+                        for i in 0..cols {
+                            let v: rusqlite::types::Value = r.get(i)?;
+                            line.push(format!("{v:?}"));
+                        }
+                        Ok(line.join("|"))
+                    })?;
+                    for row in rows {
+                        let row = row?;
+                        // Local write stamps differ between the two runs.
+                        out.push(format!("{table}:{}", row.split('|').filter(|x| !x.starts_with("Integer(17")).collect::<Vec<_>>().join("|")));
+                    }
+                }
+                Ok(out)
+            })
+            .map(|mut out| {
+                for k in [K_NEXT, K_TYPES] {
+                    out.push(format!("{k}={:?}", s.kv_get(&format!("{k}{B}")).ok().flatten()));
+                }
+                out
+            })
+            .unwrap()
+        };
+        let (da, db) = (dump(&a), dump(&b));
+        assert!(da.iter().any(|l| l.starts_with("ledger_orders:")), "the order landed: {da:?}");
+        assert_eq!(da, db);
+        let window = |s: &Store| s.with_conn(|c| stream_window(c, B)).unwrap();
+        assert!(window(&a).is_some());
+        assert_eq!(window(&a), window(&b));
     }
 
     #[test]
