@@ -918,3 +918,53 @@ fn a_store_from_a_newer_build_opens_read_only() {
     drop(s);
     let _ = std::fs::remove_file(&path);
 }
+
+/// The transfers waitlist comes from the feed once the branch holds a snapshot:
+/// rebuilt from the `table_transfer` rows (waiting only), a transfer this device
+/// queued keeps its local state, the cursor is the feed's seq, and the old
+/// wall-clock `GET /floor/transfers?since=` pull is not made.
+#[tokio::test]
+async fn the_transfers_waitlist_rides_the_feed_cursor() {
+    let stub = Stub::start(|r| {
+        if r.path.starts_with("/sync/pull") {
+            return Some(StubResponse::text(503, r#"{"error":"not in this test"}"#));
+        }
+        None
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    let transfer = |label: &str, status: &str| {
+        serde_json::json!({"id": uid(label), "branch_id": testkit::BRANCH, "occupant_kind": "held_order", "occupant_id": uid(&format!("o-{label}")),
+            "status": status, "created_at": "2026-09-14T10:00:00Z", "updated_at": "2026-09-14T10:00:00Z"})
+    };
+    seed_rows(&core, &[("table_transfer", transfer("waiting", "waiting")), ("table_transfer", transfer("done", "fulfilled"))]);
+    core.store.kv_put(&format!("{}{}", crate::sync_pull::K_NEXT, testkit::BRANCH), "321").unwrap();
+    // A transfer this device created and has not drained yet.
+    let local = crate::held::TransferWire {
+        id: uid("mine"), branch_id: testkit::BRANCH.into(), occupant_kind: "held_order".into(), occupant_id: uid("o-mine"),
+        occupant_label: None, from_table_id: None, target_section_id: None, target_table_id: None, note: None,
+        status: "waiting".into(), created_at: "2026-09-14T09:00:00Z".into(), updated_at: String::new(),
+    };
+    core.store.kv_put(crate::held::K_TRANSFERS, &serde_json::to_string(&vec![local]).unwrap()).unwrap();
+    core.store
+        .enqueue(&store::NewOutboxOp {
+            id: "tr-op".into(),
+            op_type: "create_table_transfer".into(),
+            idempotency_key: "tr-op".into(),
+            payload: serde_json::json!({"transfer_id": uid("mine"), "request": {}}).to_string(),
+            event_at: "2026-09-14T09:00:00Z".into(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    core.project_pull_mirrors(testkit::BRANCH);
+    let mut ids: Vec<String> = crate::held::load_transfers(&core.store).unwrap().into_iter().map(|t| t.id).collect();
+    ids.sort();
+    let mut want = vec![uid("mine"), uid("waiting")];
+    want.sort();
+    assert_eq!(ids, want, "waiting feed rows plus the queued local one; the fulfilled one is not waiting");
+    assert_eq!(core.store.kv_get(crate::held::K_TRANSFERS_CURSOR).unwrap().as_deref(), Some("seq:321"));
+
+    core.refresh_floor_and_held().await;
+    assert!(stub.requests("/floor/transfers").is_empty(), "no wall-clock transfers pull once the feed carries them");
+}

@@ -996,6 +996,14 @@ impl MadarCore {
         crate::cache_views(store, crate::K_OPEN_TICKETS_CACHE, &bills);
         let _ = store.kv_put(crate::K_OPEN_TICKETS_STALE, "");
 
+        // The "wants to move inside" waitlist, from the feed at its cursor.
+        let transfers: Vec<crate::held::TransferWire> = rows_of_type(store, branch, "table_transfer")
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect();
+        let next = store.kv_get(&format!("{K_NEXT}{branch}")).ok().flatten().and_then(|v| v.parse().ok());
+        let _ = crate::held::transfers_from_feed(store, transfers, &self.pending_held_ids(), next);
+
         // Addons, in the `/addon-items` shape the catalogue reads (a branch-
         // disabled addon is not offered), once the server sends the type.
         if feed_has_type(store, branch, "addon_item") {

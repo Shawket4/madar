@@ -1225,6 +1225,32 @@ pub(crate) fn merge_transfers(
     Ok(())
 }
 
+/// Rebuild the transfers mirror from the changefeed's `table_transfer` rows
+/// (OFFLINE_B_DESIGN §9 Phase 4: the transfers cursor moves to the feed). The
+/// feed is the complete set of live transfers as of its cursor, so this is a
+/// full rebuild; ids a queued local op still holds keep their local state. The
+/// cursor becomes `seq:<next>` — the feed's own, never a server wall clock.
+pub(crate) fn transfers_from_feed(
+    store: &Store,
+    rows: Vec<TransferWire>,
+    protect: &[String],
+    next_seq: Option<i64>,
+) -> CoreResult<()> {
+    let mut next: Vec<TransferWire> = load_transfers(store)?.into_iter().filter(|t| protect.contains(&t.id)).collect();
+    for t in rows {
+        if protect.contains(&t.id) || t.status != "waiting" {
+            continue;
+        }
+        next.push(t);
+    }
+    next.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+    save_transfers(store, &next)?;
+    store.kv_put(K_TRANSFERS_CURSOR, &format!("{FEED_CURSOR_PREFIX}{}", next_seq.unwrap_or(0)))
+}
+
+/// A transfers cursor that is the changefeed's seq, not a `since` wall clock.
+pub(crate) const FEED_CURSOR_PREFIX: &str = "seq:";
+
 // ── Legacy migration ─────────────────────────────────────────────────────────
 
 /// Lift pre-existing device-local drafts into the held mirror (once). Returns

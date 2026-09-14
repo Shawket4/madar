@@ -4998,8 +4998,20 @@ impl MadarCore {
         // server list alone, so a transfer this device created but has not yet
         // drained (the server has never heard of it) would be dropped outright
         // and disappear from the waitlist while its op sits in the outbox.
+        // Once the branch holds a full changefeed snapshot the waitlist comes
+        // from the feed (`project_pull_mirrors`), cursored by seq: no
+        // wall-clock `since` pull at all.
+        if self.pull_feed_complete(&branch) {
+            return;
+        }
         let protect = self.pending_held_ids();
-        let tcursor = self.store.kv_get(held::K_TRANSFERS_CURSOR).ok().flatten();
+        // A feed cursor (`seq:…`) is not a `since` time: start the list over.
+        let tcursor = self
+            .store
+            .kv_get(held::K_TRANSFERS_CURSOR)
+            .ok()
+            .flatten()
+            .filter(|c| !c.starts_with(held::FEED_CURSOR_PREFIX));
         let mut tq: Vec<(&str, String)> = vec![("branch_id", branch)];
         if let Some(c) = &tcursor {
             tq.push(("since", c.clone()));
