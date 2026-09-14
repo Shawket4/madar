@@ -796,3 +796,89 @@ async fn a_close_never_predates_its_open() {
     let opened = chrono::DateTime::parse_from_rfc3339(&till.opened_at).unwrap();
     assert!(closed >= opened, "closed {closed} before opened {opened}");
 }
+
+/// A paged full snapshot: page one brings state and the first ledger rows, the
+/// device asks for page two with the cursor, and only when the LAST page is in
+/// does it sweep ledger rows the snapshot never listed and move the cursor. A
+/// failure between pages leaves the store as it was (nothing swept, cursor
+/// unmoved) and the next pull starts the snapshot again.
+#[tokio::test]
+async fn a_paged_snapshot_sweeps_and_moves_the_cursor_only_after_its_last_page() {
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::Arc;
+    let fail_page_two = Arc::new(AtomicUsize::new(1));
+    let fail = fail_page_two.clone();
+    let till = uid("paged-till");
+    let (t1, t2) = (till.clone(), till.clone());
+    let order = move |label: &str, seq: i64| {
+        serde_json::json!({"id": uid(label), "idempotency_key": uid(&format!("k-{label}")), "order_ref": format!("REF-{label}"),
+            "branch_id": testkit::BRANCH, "till_id": t1, "status": "completed", "payment_method": "cash", "total_amount": 100,
+            "created_at": chrono::Utc::now().to_rfc3339(), "payment_legs": [], "seq": seq})
+    };
+    let o2 = order.clone();
+    let window = (chrono::Utc::now() - chrono::Duration::hours(48)).to_rfc3339();
+    let stub = Stub::start(move |r| {
+        if !r.path.starts_with("/sync/pull") {
+            return None;
+        }
+        let body = r.json();
+        assert!(!r.path.contains("since="), "a full pull");
+        assert_eq!(body["ledger_page_size"], serde_json::json!(crate::sync_pull::LEDGER_PAGE_SIZE));
+        let window = window.clone();
+        let cursor = serde_json::json!({"horizon": 90, "window_from": window, "started_at": "2026-09-14T10:00:00Z", "after_seq": 60});
+        let mut types: Vec<&str> = crate::sync_pull::REQUIRED_TYPES.iter().copied().filter(|t| !crate::ledger::is_ledger_type(t)).collect();
+        if body["snapshot_cursor"].is_null() {
+            let mut data = serde_json::Map::new();
+            for t in &types {
+                data.insert(t.to_string(), serde_json::json!([]));
+            }
+            data.insert("till".into(), serde_json::json!([{"id": t2, "branch_id": testkit::BRANCH, "teller_id": "u", "status": "open",
+                "opening_cash": 0, "opened_at": chrono::Utc::now().to_rfc3339(), "seq": 10}]));
+            data.insert("order".into(), serde_json::json!([order("a", 60)]));
+            for t in ["cash_movement", "refund"] {
+                data.insert(t.into(), serde_json::json!([]));
+            }
+            types.extend(["till", "order", "cash_movement", "refund"]);
+            return Some(StubResponse::json(200, serde_json::json!({"full": true, "next": 90, "has_more": true, "server_time": "2026-09-14T10:00:00Z",
+                "types": types, "data": data, "checksums": {}, "ledger_window": {"from": window}, "asset_bundle": null, "snapshot_cursor": cursor})));
+        }
+        assert_eq!(body["snapshot_cursor"], cursor, "page two names page one's cursor");
+        if fail.load(Ordering::SeqCst) > 0 {
+            fail.fetch_sub(1, Ordering::SeqCst);
+            return Some(StubResponse::text(503, r#"{"error":"busy"}"#));
+        }
+        Some(StubResponse::json(200, serde_json::json!({"full": true, "next": 90, "has_more": false, "server_time": "2026-09-14T10:00:00Z",
+            "types": ["till", "order", "cash_movement", "refund"], "data": {"till": [], "order": [o2("b", 70)], "cash_movement": [], "refund": []},
+            "ledger_window": {"from": window}})))
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    // A sale the device held from before that the snapshot no longer lists.
+    core.store
+        .with_tx(|tx| {
+            crate::ledger::write_row(tx, crate::ledger::T_ORDER, "stale", &serde_json::json!({"id": "stale", "idempotency_key": "stale",
+                "order_ref": "REF-stale", "branch_id": testkit::BRANCH, "till_id": till, "status": "completed", "payment_method": "cash",
+                "total_amount": 100, "created_at": chrono::Utc::now().to_rfc3339(), "payment_legs": []}), crate::ledger::Origin::Feed(3), None)?;
+            Ok(())
+        })
+        .unwrap();
+    let keys = |core: &crate::MadarCore| -> Vec<String> {
+        core.store
+            .with_conn(|c| {
+                let mut st = c.prepare("SELECT order_ref FROM ledger_orders ORDER BY order_ref")?;
+                let v = st.query_map([], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
+                Ok(v)
+            })
+            .unwrap()
+    };
+    let cursor = |core: &crate::MadarCore| core.store.kv_get(&format!("{}{}", crate::sync_pull::K_NEXT, testkit::BRANCH)).unwrap();
+
+    assert!(core.pull(true).await.is_err(), "page two failed");
+    assert_eq!(keys(&core), vec!["REF-a".to_string(), "REF-stale".into()], "page one applied, nothing swept yet");
+    assert_eq!(cursor(&core), None, "the cursor waits for the whole snapshot");
+
+    core.pull(true).await.expect("the snapshot, both pages");
+    assert_eq!(keys(&core), vec!["REF-a".to_string(), "REF-b".into()], "swept against every page, once");
+    assert_eq!(cursor(&core).as_deref(), Some("90"));
+    assert_eq!(stub.requests("/sync/pull").len(), 4);
+}

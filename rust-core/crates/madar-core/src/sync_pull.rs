@@ -456,8 +456,21 @@ pub(crate) fn apply_page(
     protected: &Protected,
     move_cursor: bool,
 ) -> CoreResult<u32> {
-    apply_page_with(store, branch, resp, None, protected, move_cursor, &mut |_| Ok(()))
+    apply_page_with(store, branch, resp, None, protected, move_cursor, None, &mut |_| Ok(()))
 }
+
+/// What a PAGED full snapshot has delivered so far (backend `snapshot_cursor`):
+/// the ledger keys seen on every page (the absent-row sweep runs once, after the
+/// last page) and every type the pages covered (the cursor moves only when the
+/// whole snapshot is in).
+#[derive(Default, Debug)]
+pub(crate) struct SnapshotPaging {
+    pub present: std::collections::HashMap<String, std::collections::HashSet<String>>,
+    pub types: std::collections::BTreeSet<String>,
+}
+
+/// Ledger rows per page of a full snapshot (a ~34k-sale window is 7 pages).
+pub(crate) const LEDGER_PAGE_SIZE: i64 = 5_000;
 
 /// `hook` runs after each row write (tests inject a crash).
 pub(crate) fn apply_page_with(
@@ -467,6 +480,7 @@ pub(crate) fn apply_page_with(
     raw: Option<&RawRows<'_>>,
     protected: &Protected,
     move_cursor: bool,
+    mut paging: Option<&mut SnapshotPaging>,
     hook: &mut dyn FnMut(u32) -> CoreResult<()>,
 ) -> CoreResult<u32> {
     if store.future_schema() {
@@ -500,6 +514,7 @@ pub(crate) fn apply_page_with(
             for ty in ordered {
                 if crate::ledger::is_ledger_type(ty) {
                     let mut present = std::collections::HashSet::new();
+                    let paged = paging.is_some();
                     each_row(resp, raw, ty, &mut |r| {
                         let seq = r.get("seq").and_then(|v| v.as_i64()).unwrap_or(0);
                         if let Some(key) = crate::ledger::key_of(ty, r) {
@@ -510,7 +525,17 @@ pub(crate) fn apply_page_with(
                         }
                         hook(n)
                     })?;
-                    n += crate::ledger::apply::sweep_absent(tx, branch, ty, &present, &ctx)?;
+                    if paged {
+                        let acc = paging.as_deref_mut().expect("paged");
+                        acc.present.entry(ty.clone()).or_default().extend(present);
+                        if !resp.has_more {
+                            // The whole snapshot is in: sweep against every page.
+                            let all = acc.present.get(ty.as_str()).cloned().unwrap_or_default();
+                            n += crate::ledger::apply::sweep_absent(tx, branch, ty, &all, &ctx)?;
+                        }
+                    } else {
+                        n += crate::ledger::apply::sweep_absent(tx, branch, ty, &present, &ctx)?;
+                    }
                     touched.push(crate::changes::table_for_sync_type(ty));
                     continue;
                 }
@@ -545,13 +570,21 @@ pub(crate) fn apply_page_with(
                 }
                 touched.push(crate::changes::table_for_sync_type(ty));
             }
-            let all = REQUIRED_TYPES.iter().all(|t| types.iter().any(|x| x == t));
-            if move_cursor && all {
+            let covered: Vec<String> = match paging.as_deref_mut() {
+                Some(acc) => {
+                    acc.types.extend(types.iter().cloned());
+                    acc.types.iter().cloned().collect()
+                }
+                None => types.clone(),
+            };
+            let all = REQUIRED_TYPES.iter().all(|t| covered.iter().any(|x| x == t));
+            let last_page = paging.is_none() || !resp.has_more;
+            if move_cursor && all && last_page {
                 if let Some(next) = next {
                     put_kv(tx, &format!("{K_NEXT}{branch}"), &next.to_string())?;
                 }
                 put_kv(tx, &format!("{K_LAST_FULL}{branch}"), &chrono::Utc::now().to_rfc3339())?;
-                put_kv(tx, &format!("{K_TYPES}{branch}"), &serde_json::to_string(&types)?)?;
+                put_kv(tx, &format!("{K_TYPES}{branch}"), &serde_json::to_string(&covered)?)?;
                 if let Some(w) = window {
                     set_stream_window(tx, branch, &w)?;
                 }
@@ -726,6 +759,7 @@ impl MadarCore {
         since: Option<i64>,
         branch: &str,
         types: Option<Vec<String>>,
+        page: Option<Option<madar_api::models::SnapshotCursor>>,
     ) -> Result<String, CoreError> {
         use madar_api::apis::{Error as ApiError, ResponseContent};
         let branch_id = uuid::Uuid::parse_str(branch).map_err(|_| CoreError::Validation {
@@ -735,6 +769,12 @@ impl MadarCore {
         let mut request = madar_api::models::PullRequest::new(branch_id);
         request.device_id = uuid::Uuid::parse_str(&self.lan_device_id()).ok().map(Some);
         request.types = types.map(Some);
+        // A full snapshot of everything asks for paged ledger rows (an older
+        // server ignores the fields and answers in one response).
+        if let Some(cursor) = page {
+            request.ledger_page_size = Some(Some(LEDGER_PAGE_SIZE));
+            request.snapshot_cursor = cursor.map(|c| Some(Box::new(c)));
+        }
         let config = self.api.config();
         let mut rb = config
             .client
@@ -810,9 +850,13 @@ impl MadarCore {
         };
         let mut applied = 0u32;
         let mut bundle: Option<madar_api::models::AssetBundleRef> = None;
+        let mut paging: Option<SnapshotPaging> = None;
+        let mut page_cursor: Option<madar_api::models::SnapshotCursor> = None;
+        let mut first_checksums: Option<Checksums> = None;
         loop {
             self.set_phase("pulling");
-            let body = self.post_pull(since, &branch, None).await?;
+            let page = since.is_none().then(|| page_cursor.clone());
+            let body = self.post_pull(since, &branch, None, page).await?;
             let (resp, raw) = decode_pull(&body)?;
             if resp.resync_required.unwrap_or(false) {
                 if since.is_none() {
@@ -822,32 +866,61 @@ impl MadarCore {
                     });
                 }
                 since = None;
+                paging = None;
+                page_cursor = None;
                 continue;
             }
             self.set_phase("applying");
             let protected = protected_rows(&self.store);
-            applied += apply_page_with(&self.store, &branch, &resp, raw.as_ref(), &protected, true, &mut |_| Ok(()))?;
+            let next_cursor = resp.snapshot_cursor.clone().flatten().map(|c| *c);
+            if resp.full && (next_cursor.is_some() || paging.is_some()) && paging.is_none() {
+                paging = Some(SnapshotPaging::default());
+            }
+            applied += apply_page_with(
+                &self.store,
+                &branch,
+                &resp,
+                raw.as_ref(),
+                &protected,
+                true,
+                paging.as_mut(),
+                &mut |_| Ok(()),
+            )?;
             drop(raw);
             drop(body);
             if resp.full {
                 if let Some(b) = resp.asset_bundle.clone().flatten() {
                     bundle = Some(*b);
                 }
+                if first_checksums.is_none() {
+                    first_checksums = Some(server_checksums(&resp));
+                }
             }
             if resp.has_more {
-                since = resp.next.flatten();
+                if resp.full {
+                    // The next page of the same snapshot.
+                    match next_cursor {
+                        Some(c) => page_cursor = Some(c),
+                        None => {
+                            return Err(CoreError::Internal { detail: "sync pull: a full page has more but no cursor".into() });
+                        }
+                    }
+                } else {
+                    since = resp.next.flatten();
+                }
                 continue;
             }
-            let server = server_checksums(&resp);
+            // A paged snapshot states its checksums on its first page.
+            let server = if resp.full { first_checksums.clone().unwrap_or_else(|| server_checksums(&resp)) } else { server_checksums(&resp) };
             let types: Vec<String> = server.keys().cloned().collect();
             let local = local_checksums(&self.store, &branch, &types);
             let mismatched = mismatched_types(&server, &local);
             let mut stale = None;
             if !mismatched.is_empty() {
-                let fix_body = self.post_pull(None, &branch, Some(mismatched.clone())).await?;
+                let fix_body = self.post_pull(None, &branch, Some(mismatched.clone()), None).await?;
                 let (fix, fix_raw) = decode_pull(&fix_body)?;
                 let protected = protected_rows(&self.store);
-                applied += apply_page_with(&self.store, &branch, &fix, fix_raw.as_ref(), &protected, false, &mut |_| Ok(()))?;
+                applied += apply_page_with(&self.store, &branch, &fix, fix_raw.as_ref(), &protected, false, None, &mut |_| Ok(()))?;
                 let local = local_checksums(&self.store, &branch, &mismatched);
                 if !mismatched_types(&server_checksums(&fix), &local).is_empty() {
                     stale = Some("checksum_mismatch".to_string());
@@ -1106,7 +1179,7 @@ mod tests {
         apply_page(&store, B, &incr(5, vec![change(5, "menu_item", "a", "upsert", 1)]), &Protected::new(), true).unwrap();
         let page = incr(9, vec![change(7, "menu_item", "a", "upsert", 2), change(9, "menu_item", "b", "upsert", 3)]);
         // crash after the first row write
-        let err = apply_page_with(&store, B, &page, None, &Protected::new(), true, &mut |n| {
+        let err = apply_page_with(&store, B, &page, None, &Protected::new(), true, None, &mut |n| {
             if n >= 1 {
                 Err(CoreError::Internal { detail: "killed".into() })
             } else {
@@ -1140,7 +1213,7 @@ mod tests {
         let (resp, raw) = decode_pull(&body).unwrap();
         assert!(resp.data.is_none(), "rows are not decoded up front");
         assert_eq!(raw.as_ref().unwrap()["order"].len(), 1);
-        apply_page_with(&b, B, &resp, raw.as_ref(), &Protected::new(), true, &mut |_| Ok(())).unwrap();
+        apply_page_with(&b, B, &resp, raw.as_ref(), &Protected::new(), true, None, &mut |_| Ok(())).unwrap();
 
         let dump = |s: &Store| -> Vec<String> {
             s.with_conn(|c| {
