@@ -21,9 +21,8 @@ String orderTypeLabel(MadarBridge bridge, String orderType) =>
 /// The number a sale is read by, as the core words it: `36B-12` for a
 /// device-numbered sale (`36B-12~AB12` when two devices shared a code), else
 /// the server's number; null while it has none.
-String? saleNumberText(OrderSummaryView o) => o.displayNumber.isNotEmpty
-    ? o.displayNumber
-    : o.orderNumber?.toString();
+String? saleNumberText(OrderSummaryView o) =>
+    o.displayNumber.isNotEmpty ? o.displayNumber : o.orderNumber?.toString();
 
 /// "#36B-12", or the word for a sale that has no number yet.
 String saleNumber(MadarBridge bridge, OrderSummaryView o) =>

@@ -16,8 +16,10 @@ extension CheckedTr on MadarBridge {
   String trChecked(String key) {
     final v = tr(key: key);
     if (kDebugMode && v == key && _reported.add(key)) {
-      debugPrint('[i18n] MISSING KEY "$key" — add it to '
-          'rust-core/crates/madar-core/src/i18n.rs in BOTH en and ar');
+      debugPrint(
+        '[i18n] MISSING KEY "$key" — add it to '
+        'rust-core/crates/madar-core/src/i18n.rs in BOTH en and ar',
+      );
     }
     return v;
   }
