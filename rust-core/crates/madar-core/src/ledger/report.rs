@@ -318,11 +318,14 @@ pub(crate) fn compute(conn: &Connection, till_id: &str, methods: &[Method]) -> C
         params![till_id],
         |r| r.get(0),
     )?;
+    // Acked rows the feed has not shown — while the cursor is still below the
+    // horizon their ack named (or no horizon was named).
+    let cursor = super::cursor_of(conn, till.get("branch_id").and_then(Value::as_str).unwrap_or(""))?;
     let unconfirmed: i64 = conn.query_row(
-        "SELECT (SELECT COUNT(*) FROM ledger_orders WHERE till_id=?1 AND acked=1 AND srv_seq=0)
-              + (SELECT COUNT(*) FROM ledger_cash WHERE till_id=?1 AND acked=1 AND srv_seq=0)
-              + (SELECT COUNT(*) FROM ledger_refunds WHERE till_id=?1 AND acked=1 AND srv_seq=0)",
-        params![till_id],
+        "SELECT (SELECT COUNT(*) FROM ledger_orders WHERE till_id=?1 AND acked=1 AND srv_seq=0 AND (ack_seq IS NULL OR ack_seq > ?2))
+              + (SELECT COUNT(*) FROM ledger_cash WHERE till_id=?1 AND acked=1 AND srv_seq=0 AND (ack_seq IS NULL OR ack_seq > ?2))
+              + (SELECT COUNT(*) FROM ledger_refunds WHERE till_id=?1 AND acked=1 AND srv_seq=0 AND (ack_seq IS NULL OR ack_seq > ?2))",
+        params![till_id, cursor],
         |r| r.get(0),
     )?;
 

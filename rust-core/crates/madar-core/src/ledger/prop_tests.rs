@@ -179,7 +179,7 @@ struct Device {
 }
 
 fn ctx() -> PageCtx {
-    PageCtx { full: false, window_from: None, stream_window_from: None, now_ms: super::now_ms() }
+    PageCtx { full: false, window_from: None, stream_window_from: None, now_ms: super::now_ms(), horizon: None }
 }
 
 fn sale_row(key: &str, amount: i64, cash: bool) -> Value {

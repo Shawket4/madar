@@ -39,6 +39,8 @@ pub(crate) struct SchedulerState {
     pub poll_running: AtomicBool,
     /// Pulls started by the scheduler (tests read it).
     pub pulls_started: AtomicU64,
+    /// This core's pull single-flight.
+    pub pull_flight: crate::sync_pull::PullFlight,
 }
 
 impl MadarCore {

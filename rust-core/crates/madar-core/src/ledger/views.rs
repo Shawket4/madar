@@ -281,9 +281,9 @@ pub(crate) fn till_report(store: &Store, till_id: &str, label: &dyn Fn(&str) -> 
                 created_at: m.created_at.clone(),
             })
             .collect(),
-        // The figures ARE the server's once nothing of this till is still on its
-        // way and every acknowledged row has been confirmed by the feed.
-        from_server: f.unsynced == 0 && f.unconfirmed == 0,
+        // Computed HERE, from the rows: never the server's figures. A report the
+        // server produced is served by the caller instead (`server_authority`).
+        from_server: false,
         device_code: s(t, "device_code").map(str::to_string).or(range_code),
         order_number_first: first,
         order_number_last: last,
@@ -519,6 +519,57 @@ pub(crate) fn store_fetched_orders(store: &Store, rows: &[Value]) -> CoreResult<
         touched.push(crate::changes::ORDERS);
         Ok(())
     })
+}
+
+/// The tills the parity guard compares: every open till held here, and every
+/// closed till of the last two days whose reconciliation is not clean (awaiting
+/// review or disagreed) — newest first, at most 20.
+pub(crate) fn tills_to_check(store: &Store) -> CoreResult<Vec<String>> {
+    let since = (chrono::Utc::now() - chrono::Duration::hours(48)).to_rfc3339();
+    store.with_conn(|c| {
+        let mut st = c.prepare(
+            "SELECT id FROM ledger_tills
+              WHERE complete=1 AND (status='open'
+                 OR (datetime(COALESCE(closed_at, opened_at)) >= datetime(?1)
+                     AND COALESCE(json_extract(raw, '$.reconciliation_status'), 'unreviewed') <> 'clean'))
+              ORDER BY COALESCE(closed_at, opened_at) DESC LIMIT 20",
+        )?;
+        let v = st.query_map([since], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
+        Ok(v)
+    })
+}
+
+/// The stored server report, when it may be served AS the report (design §7
+/// "authority selection"): the device has everything the report includes
+/// (`as_of_seq <= cursor`), the report includes everything the device holds of
+/// this till (no row of it newer than `as_of_seq`), and nothing of the till is
+/// still on its way or unconfirmed. Then the two can only differ by a bug in one
+/// of them — and the server is the authority.
+pub(crate) fn server_authority(store: &Store, till_id: &str) -> CoreResult<Option<madar_api::models::TillReportResponse>> {
+    let Some(report) = stored_till_report(store, till_id) else { return Ok(None) };
+    let as_of = report.as_of_seq.unwrap_or(0);
+    if as_of <= 0 {
+        return Ok(None);
+    }
+    let Some(f) = figures(store, till_id)? else { return Ok(None) };
+    if f.unsynced > 0 || f.unconfirmed > 0 {
+        return Ok(None);
+    }
+    let branch = s(&f.till, "branch_id").unwrap_or("").to_string();
+    let (cursor, newest) = store.with_conn(|c| {
+        let cursor = super::cursor_of(c, &branch)?;
+        let newest: i64 = c.query_row(
+            "SELECT MAX(m) FROM (
+                SELECT COALESCE(MAX(srv_seq),0) m FROM ledger_tills WHERE id=?1
+                UNION ALL SELECT COALESCE(MAX(srv_seq),0) FROM ledger_orders WHERE till_id=?1
+                UNION ALL SELECT COALESCE(MAX(srv_seq),0) FROM ledger_cash WHERE till_id=?1
+                UNION ALL SELECT COALESCE(MAX(srv_seq),0) FROM ledger_refunds WHERE till_id=?1)",
+            [till_id],
+            |r| r.get(0),
+        )?;
+        Ok((cursor, newest))
+    })?;
+    Ok((as_of <= cursor && newest <= as_of).then_some(report))
 }
 
 /// The server's Z report for a till the device does not hold completely.

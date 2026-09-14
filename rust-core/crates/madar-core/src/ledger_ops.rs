@@ -125,6 +125,7 @@ impl MadarCore {
             // pre-B report, server figures plus the queue, is the best there is.
             return self.legacy_till_report().await;
         };
+        let new = self.with_server_authority(&t.id, new);
         if mode == ReadPathMode::Shadow {
             let legacy = self.legacy_till_report().await?;
             self.report_divergence(
@@ -165,6 +166,7 @@ impl MadarCore {
                 }
             }
         };
+        let new = if views::till_complete(&self.store, &till_id) { self.with_server_authority(&till_id, new) } else { new };
         if mode == ReadPathMode::Shadow {
             let legacy = self.legacy_till_report_for(till_id).await?;
             self.report_divergence(
@@ -234,12 +236,15 @@ impl MadarCore {
             notice.as_ref().map(|n| n.open_bills_amount_minor).unwrap_or(0),
             notice.as_ref().map(|n| n.seated_tables_count).unwrap_or(0),
         );
+        let authority = matches!(views::server_authority(&self.store, &t.id), Ok(Some(_)));
         let new = till::CloseTillPreviewView {
             till: t,
             expected_cash_minor: expected,
             methods,
             last_till_warning: warning,
-            from_server: confirmed,
+            // The figures are this device's; they are the server's only when the
+            // stored server report is the authority for the till.
+            from_server: confirmed && authority,
         };
         if mode == ReadPathMode::Shadow {
             let legacy = self.legacy_close_till_preview().await?;
@@ -382,6 +387,59 @@ impl MadarCore {
     /// be the server's. At most once every [`PARITY_EVERY_MS`], online, after a
     /// pull; a difference is logged (diagnostics + Sentry, amounts only) and the
     /// server's report is stored for the till.
+    /// Serve the server's report when it is the authority for this till
+    /// (`views::server_authority`), logging every field where the device's own
+    /// figures differ; otherwise the local report, and ask for a fresh server
+    /// report in the background so the authority can be established.
+    pub(crate) fn with_server_authority(&self, till_id: &str, local: till::TillReportView) -> till::TillReportView {
+        let label = |m: &str| self.payment_method_label(m.to_string());
+        match views::server_authority(&self.store, till_id) {
+            Ok(Some(report)) => {
+                let server = till::report_view(&report, 0, &label);
+                self.report_divergence(
+                    "money",
+                    readpath::diff_keyed(
+                        &format!("till {till_id} server vs local"),
+                        &readpath::report_keyed(&server),
+                        &readpath::report_keyed(&local),
+                    ),
+                );
+                server
+            }
+            _ => {
+                self.refresh_server_report_soon(till_id);
+                local
+            }
+        }
+    }
+
+    /// Fetch and store the server's report for a till in the background (online,
+    /// at most every [`SERVER_REPORT_EVERY_MS`] per till); a new one re-reads the
+    /// till screens.
+    fn refresh_server_report_soon(&self, till_id: &str) {
+        if !self.online() {
+            return;
+        }
+        let key = format!("{K_REPORT_ASKED}{till_id}");
+        let now = chrono::Utc::now().timestamp_millis();
+        let last = self.store.kv_get(&key).ok().flatten().and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+        if now - last < SERVER_REPORT_EVERY_MS {
+            return;
+        }
+        let _ = self.store.kv_put(&key, &now.to_string());
+        let (Some(me), Ok(handle)) = (self.self_arc(), tokio::runtime::Handle::try_current()) else { return };
+        let till_id = till_id.to_string();
+        handle.spawn(async move {
+            if let Ok(report) =
+                tills_api::get_till_report(&me.api.config(), tills_api::GetTillReportParams { till_id: till_id.clone() }).await
+            {
+                if views::put_till_report(&me.store, &till_id, &report).is_ok() {
+                    me.store.emit_changes([changes::TILLS]);
+                }
+            }
+        });
+    }
+
     pub(crate) async fn money_parity_check(&self) {
         let now = chrono::Utc::now().timestamp_millis();
         let last = self
@@ -394,40 +452,52 @@ impl MadarCore {
         if now - last < PARITY_EVERY_MS || !self.online() {
             return;
         }
-        let Ok(Some(t)) = till::current(&self.store) else { return };
-        let Ok(Some(f)) = views::figures(&self.store, &t.id) else { return };
-        if !f.complete || f.unsynced > 0 || f.unconfirmed > 0 {
-            return;
-        }
         let _ = self.store.kv_put(K_PARITY_AT, &now.to_string());
-        let Ok(report) = tills_api::get_till_report(
-            &self.api.config(),
-            tills_api::GetTillReportParams { till_id: t.id.clone() },
-        )
-        .await
-        else {
-            return;
-        };
-        // The feed may have moved while the report was computed: re-read.
-        let Ok(Some(f)) = views::figures(&self.store, &t.id) else { return };
-        let mut server = std::collections::BTreeMap::new();
-        let mut local = std::collections::BTreeMap::new();
-        server.insert("expected_cash".to_string(), report.expected_cash);
-        local.insert("expected_cash".to_string(), f.expected_cash);
-        server.insert("total_payments".to_string(), report.total_payments);
-        local.insert("total_payments".to_string(), f.total_payments);
-        server.insert("voided".to_string(), report.voided_amount);
-        local.insert("voided".to_string(), f.voided_amount);
-        server.insert("refunds_cash".to_string(), report.refunds_issued_cash.unwrap_or(0));
-        local.insert("refunds_cash".to_string(), f.refunds_issued_cash);
-        let lines = readpath::diff_keyed("money", &server, &local);
-        if !lines.is_empty() {
-            let _ = views::put_till_report(&self.store, &t.id, &report);
+        for till_id in views::tills_to_check(&self.store).unwrap_or_default() {
+            self.parity_check_till(&till_id).await;
         }
-        self.report_divergence("money", lines);
+    }
+
+    /// Compare one till's report field by field with the server's, storing the
+    /// server's (so `with_server_authority` serves it whenever it is the
+    /// authority). Returns the divergence lines (tests read them).
+    pub(crate) async fn parity_check_till(&self, till_id: &str) -> Vec<String> {
+        let label = |m: &str| self.payment_method_label(m.to_string());
+        let ready = |store: &crate::store::Store| {
+            views::figures(store, till_id).ok().flatten().is_some_and(|f| f.complete && f.unsynced == 0 && f.unconfirmed == 0)
+        };
+        if !ready(&self.store) {
+            return Vec::new();
+        }
+        let Ok(report) =
+            tills_api::get_till_report(&self.api.config(), tills_api::GetTillReportParams { till_id: till_id.to_string() }).await
+        else {
+            return Vec::new();
+        };
+        let _ = views::put_till_report(&self.store, till_id, &report);
+        // The feed may have moved while the report was computed: compare only
+        // when the report is the authority for what the device now holds.
+        if !matches!(views::server_authority(&self.store, till_id), Ok(Some(_))) {
+            return Vec::new();
+        }
+        let Ok(Some(local)) = views::till_report(&self.store, till_id, &label) else { return Vec::new() };
+        let server = till::report_view(&report, 0, &label);
+        let lines = readpath::diff_keyed(
+            &format!("till {till_id} server vs local"),
+            &readpath::report_keyed(&server),
+            &readpath::report_keyed(&local),
+        );
+        self.report_divergence("money", lines.clone());
+        if !lines.is_empty() {
+            self.store.emit_changes([changes::TILLS]);
+        }
+        lines
     }
 }
 
 const K_PARITY_AT: &str = "ledger:parity_checked_at";
+const K_REPORT_ASKED: &str = "ledger:report_asked:";
+/// How often a till screen may ask the server for a fresh report.
+pub(crate) const SERVER_REPORT_EVERY_MS: i64 = 30_000;
 /// How often the production parity guard asks the server.
 pub(crate) const PARITY_EVERY_MS: i64 = 10 * 60 * 1000;

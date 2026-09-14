@@ -109,6 +109,7 @@ fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
            srv_seq       INTEGER NOT NULL DEFAULT 0,
            origin        TEXT NOT NULL,             -- server|local
            acked         INTEGER NOT NULL DEFAULT 0, -- an op for it acked, the feed has not confirmed it yet
+           ack_seq       INTEGER,                   -- the replay answer's X-Madar-Sync-Seq: the feed shows the op by here
            complete      INTEGER NOT NULL DEFAULT 0, -- every ledger row of this till is local
            local_updated_at INTEGER NOT NULL
          );
@@ -134,6 +135,7 @@ fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
            srv_seq       INTEGER NOT NULL DEFAULT 0,
            origin        TEXT NOT NULL,
            acked         INTEGER NOT NULL DEFAULT 0, -- a local op for it acked, the feed has not confirmed it yet
+           ack_seq       INTEGER,
            local_updated_at INTEGER NOT NULL
          );
          CREATE INDEX IF NOT EXISTS ledger_orders_till ON ledger_orders(till_id, created_at DESC);
@@ -162,6 +164,7 @@ fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
            srv_seq       INTEGER NOT NULL DEFAULT 0,
            origin        TEXT NOT NULL,
            acked         INTEGER NOT NULL DEFAULT 0,
+           ack_seq       INTEGER,
            local_updated_at INTEGER NOT NULL
          );
          CREATE INDEX IF NOT EXISTS ledger_cash_till ON ledger_cash(till_id, created_at);
@@ -180,6 +183,7 @@ fn step2_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
            srv_seq       INTEGER NOT NULL DEFAULT 0,
            origin        TEXT NOT NULL,
            acked         INTEGER NOT NULL DEFAULT 0,
+           ack_seq       INTEGER,
            local_updated_at INTEGER NOT NULL
          );
          CREATE INDEX IF NOT EXISTS ledger_refunds_till ON ledger_refunds(till_id);

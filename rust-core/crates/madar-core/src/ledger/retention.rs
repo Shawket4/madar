@@ -33,11 +33,11 @@ fn till_is_held(conn: &Connection, till_id: &str, now_ms: i64) -> CoreResult<boo
             OR (entity_type='order' AND entity_id IN (SELECT okey FROM ledger_orders WHERE till_id=?1))
             OR (entity_type='cash_movement' AND entity_id IN (SELECT ckey FROM ledger_cash WHERE till_id=?1))
             OR (entity_type='refund' AND entity_id IN (SELECT rkey FROM ledger_refunds WHERE till_id=?1))))
-         + (SELECT COUNT(*) FROM ledger_orders WHERE till_id=?1 AND acked=1 AND srv_seq=0 AND local_updated_at>=?2)
-         + (SELECT COUNT(*) FROM ledger_cash WHERE till_id=?1 AND acked=1 AND srv_seq=0 AND local_updated_at>=?2)
-         + (SELECT COUNT(*) FROM ledger_refunds WHERE till_id=?1 AND acked=1 AND srv_seq=0 AND local_updated_at>=?2)
-         + (SELECT COUNT(*) FROM ledger_tills WHERE id=?1 AND acked=1 AND srv_seq=0 AND local_updated_at>=?2)",
-        params![till_id, grace_from],
+         + (SELECT COUNT(*) FROM ledger_orders WHERE till_id=?1 AND acked=1 AND srv_seq=0 AND (local_updated_at>=?2 OR ack_seq > ?3))
+         + (SELECT COUNT(*) FROM ledger_cash WHERE till_id=?1 AND acked=1 AND srv_seq=0 AND (local_updated_at>=?2 OR ack_seq > ?3))
+         + (SELECT COUNT(*) FROM ledger_refunds WHERE till_id=?1 AND acked=1 AND srv_seq=0 AND (local_updated_at>=?2 OR ack_seq > ?3))
+         + (SELECT COUNT(*) FROM ledger_tills WHERE id=?1 AND acked=1 AND srv_seq=0 AND (local_updated_at>=?2 OR ack_seq > ?3))",
+        params![till_id, grace_from, crate::ledger::cursor_of(conn, &conn.query_row("SELECT COALESCE((SELECT branch_id FROM ledger_tills WHERE id=?1), '')", [till_id], |r| r.get::<_, String>(0))?)?],
         |r| r.get(0),
     )?;
     Ok(held > 0)
@@ -104,7 +104,7 @@ pub(crate) fn sweep(conn: &Connection, now_ms: i64) -> CoreResult<u32> {
             v
         };
         for (key, ts) in rows {
-            if is_older(&ts, &cutoff_t) && super::apply::deletable(conn, ty, &key, now_ms)? {
+            if is_older(&ts, &cutoff_t) && super::apply::deletable(conn, ty, &key, now_ms, None)? {
                 n += super::delete_row(conn, ty, &key)?;
             }
         }

@@ -227,6 +227,12 @@ impl ApiClient {
     /// whose tagged-enum envelope wraps the GENERATED request types — the business
     /// payloads stay generated; only the thin transport wrapper is hand-built.
     pub async fn post_json<B: serde::Serialize>(&self, path: &str, body: &B) -> CoreResult<String> {
+        self.post_json_seq(path, body).await.map(|(text, _)| text)
+    }
+
+    /// [`Self::post_json`], also returning the `X-Madar-Sync-Seq` answer header
+    /// (the feed horizon that includes a replayed op).
+    pub async fn post_json_seq<B: serde::Serialize>(&self, path: &str, body: &B) -> CoreResult<(String, Option<i64>)> {
         let url = format!("{}{}", self.base_url, path);
         let mut rb = self.http.request(reqwest::Method::POST, &url).json(body);
         if let Some(token) = self
@@ -240,9 +246,15 @@ impl ApiClient {
         let resp = rb.send().await.map_err(|e| classify_reqwest(&e))?;
         self.observe_clock(&resp);
         let status = resp.status();
+        let seq = resp
+            .headers()
+            .get("x-madar-sync-seq")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<i64>().ok())
+            .filter(|s| *s > 0);
         let text = resp.text().await.map_err(|e| classify_reqwest(&e))?;
         if status.is_success() {
-            Ok(text)
+            Ok((text, seq))
         } else {
             Err(status_to_error(status.as_u16(), &text))
         }

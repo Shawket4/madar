@@ -11,11 +11,12 @@ fn ctx_full(window_from: &str) -> PageCtx {
         window_from: chrono::DateTime::parse_from_rfc3339(window_from).ok().map(|d| d.with_timezone(&chrono::Utc)),
         stream_window_from: None,
         now_ms: now_ms(),
+        horizon: None,
     }
 }
 
 fn ctx_incr() -> PageCtx {
-    PageCtx { full: false, window_from: None, stream_window_from: None, now_ms: now_ms() }
+    PageCtx { full: false, window_from: None, stream_window_from: None, now_ms: now_ms(), horizon: None }
 }
 
 fn methods_of(rows: &[Value]) -> Vec<Method> {
@@ -728,4 +729,42 @@ fn movements_and_refunds_rekey_on_client_ref() {
     assert_eq!(n("SELECT COUNT(*) FROM ledger_cash"), 1);
     assert_eq!(n("SELECT COUNT(*) FROM ledger_refunds WHERE rkey='r1' AND server_id='srv-r'"), 1);
     assert_eq!(expected(&store), 1_000 + 250 - 100);
+}
+
+/// With the replay answer's feed horizon on the ack, the snapshot decides by
+/// seq: a page below the horizon cannot remove the row (however long ago the
+/// ack was), a page at or past it that still lacks the row can (however recent).
+/// And the report counts the row unconfirmed only while the cursor is below it.
+#[test]
+fn an_acks_feed_horizon_decides_when_an_unseen_row_is_gone() {
+    let store = Store::open("").unwrap();
+    open_till(&store, 0);
+    ack(&store, TILL, None);
+    store.with_tx(|tx| tx.execute("UPDATE ledger_tills SET srv_seq=5, acked=0", []).map_err(Into::into)).unwrap();
+    sell(&store, "sale-h", 700);
+    ack(&store, "sale-h", Some(cash_sale("srv-h", 700).as_object().cloned().map(|mut m| {
+        m.insert("idempotency_key".into(), json!("sale-h"));
+        Value::Object(m)
+    }).unwrap()));
+    store.with_tx(|tx| set_ack_seq(tx, T_ORDER, "sale-h", 50)).unwrap();
+    let f = |cursor: &str| {
+        store.kv_put(&format!("{}{BRANCH}", crate::sync_pull::K_NEXT), cursor).unwrap();
+        store.with_conn(|c| report::compute(c, TILL, &[])).unwrap().unwrap()
+    };
+    assert_eq!(f("40").unconfirmed, 1, "the feed has not reached the op yet");
+    assert_eq!(f("50").unconfirmed, 0, "past the op's horizon it is not waiting for confirmation");
+
+    let page = |horizon| {
+        let mut c = ctx_full("2026-09-13T00:00:00Z");
+        c.horizon = Some(horizon);
+        c
+    };
+    // Old ack, but the page is below the horizon: kept.
+    store.with_conn(|c| Ok(c.execute("UPDATE ledger_orders SET local_updated_at = local_updated_at - 3600000", [])?)).unwrap();
+    store.with_tx(|tx| apply::sweep_absent(tx, BRANCH, T_ORDER, &Default::default(), &page(49))).unwrap();
+    assert_eq!(order_rows(&store), 1, "a page below the op's horizon says nothing about it");
+    // Fresh ack, page past the horizon, row absent: gone.
+    store.with_conn(|c| Ok(c.execute("UPDATE ledger_orders SET local_updated_at = ?1", [now_ms()])?)).unwrap();
+    store.with_tx(|tx| apply::sweep_absent(tx, BRANCH, T_ORDER, &Default::default(), &page(50))).unwrap();
+    assert_eq!(order_rows(&store), 0, "the snapshot includes the op and does not list the row");
 }

@@ -99,17 +99,61 @@ pub(crate) fn tills_keyed(rows: &[crate::till::TillSummaryView]) -> BTreeMap<Str
     rows.iter().map(|t| (t.id.clone(), (t.status.clone(), t.opening_cash_minor))).collect()
 }
 
-/// The money comparables of a Z report.
-pub(crate) fn report_keyed(r: &crate::till::TillReportView) -> BTreeMap<String, i64> {
+/// EVERY field of a Z report, keyed (timestamps compared as instants). Only
+/// `printed_at` (the print time) and `from_server` (which side it came from)
+/// are left out — they differ by definition.
+pub(crate) fn report_keyed(r: &crate::till::TillReportView) -> BTreeMap<String, String> {
+    fn instant(t: &str) -> String {
+        chrono::DateTime::parse_from_rfc3339(t)
+            .map(|d| d.timestamp_millis().to_string())
+            .unwrap_or_else(|_| t.to_string())
+    }
     let mut m = BTreeMap::new();
-    m.insert("expected_cash".into(), r.expected_cash_minor);
-    m.insert("total_payments".into(), r.total_payments_minor);
-    m.insert("voided".into(), r.voided_amount_minor);
-    m.insert("refunds".into(), r.refunds_issued_minor);
-    m.insert("cash_in".into(), r.cash_in_minor);
-    m.insert("cash_out".into(), r.cash_out_minor);
+    let mut put = |k: &str, v: String| {
+        m.insert(k.to_string(), v);
+    };
+    put("teller_name", r.teller_name.clone());
+    put("opened_at", instant(&r.opened_at));
+    put("closed_at", r.closed_at.as_deref().map(instant).unwrap_or_default());
+    put("is_open", r.is_open.to_string());
+    put("expected_cash", r.expected_cash_minor.to_string());
+    put("opening_cash", r.opening_cash_minor.to_string());
+    put("opening_cash_was_edited", r.opening_cash_was_edited.to_string());
+    put("opening_cash_original", format!("{:?}", r.opening_cash_original_minor));
+    put("opening_cash_edit_reason", format!("{:?}", r.opening_cash_edit_reason));
+    put("closing_cash_declared", format!("{:?}", r.closing_cash_declared_minor));
+    put("total_payments", r.total_payments_minor.to_string());
+    put("net_payments", r.net_payments_minor.to_string());
+    put("voided", r.voided_amount_minor.to_string());
+    put("refunds", r.refunds_issued_minor.to_string());
+    put("refunds_cash", r.refunds_issued_cash_minor.to_string());
+    put("refunds_count", r.refunds_issued_count.to_string());
+    put("cash_in_refunded_sales", r.cash_in_refunded_sales_minor.to_string());
+    put("cash_movements_net", r.cash_movements_net_minor.to_string());
+    put("cash_in", r.cash_in_minor.to_string());
+    put("cash_out", r.cash_out_minor.to_string());
+    put("device_code", format!("{:?}", r.device_code));
+    put("order_number_first", format!("{:?}", r.order_number_first));
+    put("order_number_last", format!("{:?}", r.order_number_last));
+    put("old_bills_count", format!("{:?}", r.old_bills_count));
+    put("open_bills_count", format!("{:?}", r.open_bills_count));
+    put("opened_while_another_open", r.opened_while_another_open.to_string());
+    put("verification", r.verification.clone());
     for p in &r.payment_lines {
-        m.insert(format!("method:{}", p.method), p.total_minor);
+        put(&format!("method:{}", p.method), format!("{} x{} cash={}", p.total_minor, p.order_count, p.is_cash));
+    }
+    let mut moves: Vec<String> = r
+        .cash_movements
+        .iter()
+        .map(|c| format!("{}|{}|{}|{}", instant(&c.created_at), c.amount_minor, c.note, c.moved_by_name))
+        .collect();
+    moves.sort();
+    put("cash_movements", moves.join(";"));
+    for l in &r.reconciliation {
+        put(
+            &format!("reconciliation:{}", l.method),
+            format!("{}|{}|{}|{:?}|{:?}|{}", l.is_cash, l.system_total_minor, l.status, l.declared_amount_minor, l.note, l.changed_after_close),
+        );
     }
     m
 }

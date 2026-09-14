@@ -124,13 +124,17 @@ pub(crate) struct Meta {
     pub srv_seq: i64,
     pub origin: String,
     pub acked: bool,
+    /// The feed horizon that includes the acked op (`X-Madar-Sync-Seq`).
+    pub ack_seq: Option<i64>,
 }
 
 pub(crate) fn stored_meta(conn: &Connection, ty: &str, key: &str) -> CoreResult<Option<Meta>> {
     let (table, kcol) = table_of(ty).expect("ledger type");
     Ok(conn
-        .prepare_cached(&format!("SELECT srv_seq, origin, acked FROM {table} WHERE {kcol}=?1"))?
-        .query_row([key], |r| Ok(Meta { srv_seq: r.get(0)?, origin: r.get(1)?, acked: r.get::<_, i64>(2)? != 0 }))
+        .prepare_cached(&format!("SELECT srv_seq, origin, acked, ack_seq FROM {table} WHERE {kcol}=?1"))?
+        .query_row([key], |r| {
+            Ok(Meta { srv_seq: r.get(0)?, origin: r.get(1)?, acked: r.get::<_, i64>(2)? != 0, ack_seq: r.get(3)? })
+        })
         .optional()?)
 }
 
@@ -458,6 +462,10 @@ pub(crate) fn write_row(
         }
         _ => {}
     }
+    if matches!(origin, Origin::Feed(_)) {
+        let (table, kcol) = table_of(ty).expect("ledger type");
+        exec(conn, &format!("UPDATE {table} SET ack_seq=NULL WHERE {kcol}=?1 AND ack_seq IS NOT NULL"), [key])?;
+    }
     Ok(key_owned)
 }
 
@@ -472,6 +480,26 @@ fn server_id_of(_ty: &str, key: &str, v: &Value, origin: Origin) -> Option<Strin
     // differs from its key: both are real server ids.
     let _ = key;
     Some(id.to_string())
+}
+
+/// Record the feed horizon a replay answer named for the row an op acked. A
+/// feed row arriving later clears the ack (and this with it) the usual way.
+pub(crate) fn set_ack_seq(conn: &Connection, ty: &str, key: &str, seq: i64) -> CoreResult<()> {
+    let Some((table, kcol)) = table_of(ty) else { return Ok(()) };
+    conn.execute(
+        &format!("UPDATE {table} SET ack_seq=MAX(COALESCE(ack_seq, 0), ?1) WHERE {kcol}=?2 AND acked=1 AND srv_seq=0"),
+        params![seq, key],
+    )?;
+    Ok(())
+}
+
+/// The branch cursor (`sync:next:<branch>`), 0 when never pulled.
+pub(crate) fn cursor_of(conn: &Connection, branch: &str) -> CoreResult<i64> {
+    Ok(conn
+        .query_row("SELECT v FROM kv WHERE k=?1", [format!("{}{branch}", crate::sync_pull::K_NEXT)], |r| r.get::<_, String>(0))
+        .optional()?
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0))
 }
 
 /// Remember `data` as the server's version of a PROTECTED row, advancing its seq.

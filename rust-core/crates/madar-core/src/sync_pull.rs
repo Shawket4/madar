@@ -492,6 +492,7 @@ pub(crate) fn apply_page_with(
                 window_from: window,
                 stream_window_from,
                 now_ms,
+                horizon: next,
             };
             // Tills first: a movement or refund is swept by its till's state.
             let mut ordered: Vec<&String> = types.iter().collect();
@@ -562,6 +563,7 @@ pub(crate) fn apply_page_with(
                 window_from: None,
                 stream_window_from,
                 now_ms,
+                horizon: next,
             };
             for c in resp.changes.as_deref().unwrap_or_default() {
                 let id = c.id.to_string();
@@ -678,24 +680,32 @@ pub(crate) fn rows_of_type(store: &Store, branch: &str, ty: &str) -> Vec<serde_j
 
 // ── single-flight ───────────────────────────────────────────────────────────
 
-/// One pull at a time across the process; a caller arriving while one runs
-/// waits and then reuses its result instead of pulling again (coalescing).
-static PULL_LOCK: tokio::sync::Mutex<u64> = tokio::sync::Mutex::const_new(0);
-static PULL_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// One pull at a time PER CORE; a caller arriving while one runs waits and then
+/// takes that pull's result instead of pulling again (coalescing). Per core, not
+/// per process: two cores in one process (tests, a device-switch) never answer
+/// each other's pulls, and a coalesced caller sees the failure it waited on
+/// rather than a made-up success (which reset the offline evidence).
+#[derive(Default)]
+pub(crate) struct PullFlight {
+    done: tokio::sync::Mutex<(u64, Option<Result<u32, CoreError>>)>,
+    started: std::sync::atomic::AtomicU64,
+}
 
-pub(crate) async fn single_flight<F, Fut>(f: F) -> Result<u32, CoreError>
+pub(crate) async fn single_flight<F, Fut>(flight: &PullFlight, f: F) -> Result<u32, CoreError>
 where
     F: FnOnce() -> Fut,
     Fut: std::future::Future<Output = Result<u32, CoreError>>,
 {
     use std::sync::atomic::Ordering;
-    let seen = PULL_GEN.load(Ordering::SeqCst);
-    let mut done = PULL_LOCK.lock().await;
-    if *done > seen {
-        return Ok(0); // a pull finished while we waited: coalesced
+    let seen = flight.started.load(Ordering::SeqCst);
+    let mut done = flight.done.lock().await;
+    if done.0 > seen {
+        // A pull finished while we waited: its outcome is ours.
+        return done.1.clone().unwrap_or(Ok(0));
     }
     let res = f().await;
-    *done = PULL_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    done.0 = flight.started.fetch_add(1, Ordering::SeqCst) + 1;
+    done.1 = Some(res.clone());
     res
 }
 
@@ -760,7 +770,7 @@ impl MadarCore {
 
     /// One pull (single-flight). `full` = snapshot; otherwise from `sync:next`.
     pub(crate) async fn pull(&self, full: bool) -> Result<u32, CoreError> {
-        let res = single_flight(|| self.pull_inner(full)).await;
+        let res = single_flight(&self.scheduler.pull_flight, || self.pull_inner(full)).await;
         if let Some(branch) = self.sync_branch() {
             record_pull_outcome(&self.store, &branch, res.as_ref().map(|_| ()), chrono::Utc::now().timestamp_millis());
         }
@@ -1262,17 +1272,53 @@ mod tests {
     #[tokio::test]
     async fn pull_single_flight_coalesces() {
         let calls = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
-        let mk = |c: std::sync::Arc<std::sync::atomic::AtomicU32>| async move {
-            single_flight(|| async move {
+        let flight = std::sync::Arc::new(PullFlight::default());
+        let mk = |c: std::sync::Arc<std::sync::atomic::AtomicU32>| {
+            let flight = flight.clone();
+            async move {
+            single_flight(&flight, || async move {
                 c.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                 Ok(1)
             })
             .await
+            }
         };
         let (a, b, c) = tokio::join!(mk(calls.clone()), mk(calls.clone()), mk(calls.clone()));
         assert!(a.is_ok() && b.is_ok() && c.is_ok());
         assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    /// A caller that waited on a FAILED pull gets the failure, and another
+    /// core's flight is not this one's.
+    #[tokio::test]
+    async fn a_coalesced_pull_shares_the_real_outcome_and_flights_are_per_core() {
+        let flight = std::sync::Arc::new(PullFlight::default());
+        let other = PullFlight::default();
+        let slow_fail = |f: std::sync::Arc<PullFlight>| async move {
+            single_flight(&f, || async {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                Err(CoreError::Offline { detail: "down".into() })
+            })
+            .await
+        };
+        let (a, b) = tokio::join!(slow_fail(flight.clone()), slow_fail(flight.clone()));
+        assert!(matches!(a, Err(CoreError::Offline { .. })));
+        assert!(matches!(b, Err(CoreError::Offline { .. })), "the waiter saw the failure, not Ok(0)");
+        // Another core pulls for itself even while this one is busy.
+        let busy = flight.clone();
+        let hold = tokio::spawn(async move {
+            single_flight(&busy, || async {
+                tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+                Ok(1)
+            })
+            .await
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        let started = std::time::Instant::now();
+        assert_eq!(single_flight(&other, || async { Ok(7) }).await.unwrap(), 7);
+        assert!(started.elapsed() < std::time::Duration::from_millis(60));
+        assert_eq!(hold.await.unwrap().unwrap(), 1);
     }
 
     /// The three bodies exactly as `MadarRust/src/sync/pull/mod.rs` serializes them

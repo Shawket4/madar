@@ -33,6 +33,9 @@ pub(crate) struct PageCtx {
     /// in an incremental page is complete only if it opened inside it.
     pub stream_window_from: Option<chrono::DateTime<chrono::Utc>>,
     pub now_ms: i64,
+    /// The page's feed horizon (`next`): every change at or below it is in
+    /// what the device now holds. `None` when unknown (tests, backfills).
+    pub horizon: Option<i64>,
 }
 
 fn ts(v: &str) -> Option<chrono::DateTime<chrono::Utc>> {
@@ -90,8 +93,11 @@ fn mark_till_complete(conn: &Connection, id: &str, v: &Value, first_seen: bool, 
 }
 
 /// May a delete remove row `key`? Never a protected row, a row still local, or
-/// a freshly acknowledged row the feed has not shown yet.
-pub(crate) fn deletable(conn: &Connection, ty: &str, key: &str, now_ms: i64) -> CoreResult<bool> {
+/// an acknowledged row the feed has not shown yet. When the ack named its feed
+/// horizon (`X-Madar-Sync-Seq`) that is decided by seq — a page whose horizon
+/// has reached it and still lacks the row means the row is gone; otherwise by a
+/// grace period after the ack.
+pub(crate) fn deletable(conn: &Connection, ty: &str, key: &str, now_ms: i64, horizon: Option<i64>) -> CoreResult<bool> {
     if is_protected(conn, ty, key)? {
         return Ok(false);
     }
@@ -102,6 +108,9 @@ pub(crate) fn deletable(conn: &Connection, ty: &str, key: &str, now_ms: i64) -> 
         return Ok(false);
     }
     if p.acked && p.srv_seq == 0 {
+        if let (Some(ack), Some(h)) = (p.ack_seq, horizon) {
+            return Ok(h >= ack);
+        }
         let (table, kcol) = super::table_of(ty).unwrap();
         let updated: i64 = conn.query_row(
             &format!("SELECT local_updated_at FROM {table} WHERE {kcol}=?1"),
@@ -118,7 +127,7 @@ pub(crate) fn deletable(conn: &Connection, ty: &str, key: &str, now_ms: i64) -> 
 /// A tombstone for a ledger entity (server id).
 pub(crate) fn delete(conn: &Connection, ty: &str, server_id: &str, ctx: &PageCtx) -> CoreResult<bool> {
     let Some(key) = key_for_server_id(conn, ty, server_id)? else { return Ok(false) };
-    if !deletable(conn, ty, &key, ctx.now_ms)? {
+    if !deletable(conn, ty, &key, ctx.now_ms, ctx.horizon)? {
         return Ok(false);
     }
     Ok(super::delete_row(conn, ty, &key)? > 0)
@@ -198,7 +207,7 @@ pub(crate) fn sweep_absent(
         if !(inside || of_open_till) {
             continue;
         }
-        if deletable(conn, ty, &key, ctx.now_ms)? {
+        if deletable(conn, ty, &key, ctx.now_ms, ctx.horizon)? {
             n += super::delete_row(conn, ty, &key)?;
         }
     }

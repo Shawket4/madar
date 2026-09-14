@@ -938,7 +938,8 @@ impl MadarCore {
             self.sends_attempted
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let mut body = None;
-            let outcome = self.send_outbox_item_body(&item, &mut body).await;
+            let mut sync_seq = None;
+            let outcome = self.send_outbox_item_body(&item, &mut body, &mut sync_seq).await;
             // A REAL outbox send is the authority for the online banner: a clean ack
             // proves we're online; a transport failure proves we're offline. (A
             // 4xx/5xx/401 reached the server — those are handled by the arms below
@@ -959,6 +960,17 @@ impl MadarCore {
                     self.store.with_tx_touch(|tx, touched| {
                         store::mark_acked_on(tx, item.seq, server_id.as_deref())?;
                         touched.extend(ledger::fold::fold(tx, &item, body.as_ref(), &methods)?);
+                        // The horizon that includes this op: the feed decides by
+                        // seq, not by time, when the row may be treated as gone.
+                        if let (Some(seq), Some(ty)) = (sync_seq, item.entity_type.as_deref()) {
+                            let key: Option<String> = tx
+                                .query_row("SELECT entity_id FROM outbox WHERE seq=?1", [item.seq], |r| r.get(0))
+                                .ok()
+                                .flatten();
+                            if let Some(key) = key {
+                                ledger::set_ack_seq(tx, ty, &key, seq)?;
+                            }
+                        }
                         Ok(())
                     })?;
                     acked_any = true;
@@ -1121,6 +1133,7 @@ impl MadarCore {
         &self,
         item: &store::OutboxItem,
         body_out: &mut Option<serde_json::Value>,
+        seq_out: &mut Option<i64>,
     ) -> SendOutcome {
         let delta = self.rebase_delta_ms(item);
 
@@ -1479,8 +1492,9 @@ impl MadarCore {
             other => return SendOutcome::Dead(format!("unknown op_type {other}")),
         };
 
-        match self.api.post_json("/sync/replay", &envelope).await {
-            Ok(body) => {
+        match self.api.post_json_seq("/sync/replay", &envelope).await {
+            Ok((body, sync_seq)) => {
+                *seq_out = sync_seq;
                 // Bump/unbump reply 204 No Content. An EMPTY body is the real
                 // backend's ack; a NON-empty 200 for these is a captive-portal stub
                 // → keep queued. (Checked before the JSON-object guard below, which

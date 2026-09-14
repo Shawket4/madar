@@ -592,10 +592,18 @@ async fn permissions_addons_and_prep_minutes_arrive_with_the_feed() {
 /// from the server's report is logged.
 #[tokio::test]
 async fn the_money_parity_guard_logs_a_difference() {
-    let stub = Stub::start(|r| {
+    let till_id = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let tid = till_id.clone();
+    let stub = Stub::start(move |r| {
         if r.path.contains("/report") {
+            let id = tid.lock().unwrap().clone();
             let mut rep = serde_json::to_value(madar_api::models::TillReportResponse::default()).unwrap();
+            rep["till"]["id"] = serde_json::json!(id);
+            rep["till"]["branch_id"] = serde_json::json!(testkit::BRANCH);
+            rep["till"]["status"] = serde_json::json!("open");
+            rep["till"]["opening_cash"] = serde_json::json!(1_000);
             rep["expected_cash"] = serde_json::json!(999_999);
+            rep["as_of_seq"] = serde_json::json!(40);
             return Some(StubResponse::json(200, rep));
         }
         None
@@ -604,15 +612,96 @@ async fn the_money_parity_guard_logs_a_difference() {
     let core = testkit::online_core(&stub.base, "").await;
     seed_methods(&core);
     let till = core.open_till(1_000, None).await.unwrap().till.unwrap();
+    *till_id.lock().unwrap() = till.id.clone();
     core.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET status='acked'", [])?)).unwrap();
     core.store.with_conn(|c| Ok(c.execute("UPDATE ledger_tills SET acked=0", [])?)).unwrap();
+    // The device has pulled up to the report's horizon.
+    core.store.kv_put(&format!("{}{}", crate::sync_pull::K_NEXT, testkit::BRANCH), "40").unwrap();
     core.set_online(true);
+
+    // Before any server report: the report is the device's own, and says so.
+    let local = core.till_report().await.unwrap();
+    assert!(!local.from_server, "computed here, not the server's");
+    assert_eq!(local.expected_cash_minor, 1_000);
+
     core.money_parity_check().await;
-    assert!(stub.requests(&format!("/tills/{}/report", till.id)).len() == 1);
+    assert!(stub.requests(&format!("/tills/{}/report", till.id)).len() >= 1);
     assert!(core.recent_logs().iter().any(|l| l.message.contains("money") && l.message.contains("expected_cash")));
+    // The mismatch switches the till's report to the server's.
+    let served = core.till_report().await.unwrap();
+    assert!(served.from_server);
+    assert_eq!(served.expected_cash_minor, 999_999, "the server is the authority");
     // Rate-limited: a second check right away does not ask again.
+    let asked = stub.requests("/tills/").len();
     core.money_parity_check().await;
-    assert_eq!(stub.requests("/tills/").len(), 1);
+    assert_eq!(stub.requests("/tills/").len(), asked);
+    // A sale rung here since: the device holds more than the report → local again.
+    let sale = ring(&core, 500, CASH, 1_000).await;
+    let after = core.till_report().await.unwrap();
+    assert!(!after.from_server);
+    assert_eq!(after.expected_cash_minor, 1_000 + sale.total_minor);
+}
+
+/// Every field of the report is compared (not just the money totals), and a
+/// closed till awaiting reconciliation is checked too.
+#[tokio::test]
+async fn the_parity_guard_compares_every_field_and_closed_unreviewed_tills() {
+    let mk = |v: &mut crate::till::TillReportView| {
+        v.teller_name = "Sara".into();
+        v.opened_at = "2026-09-14T08:00:00Z".into();
+    };
+    let mut a = crate::till::TillReportView {
+        teller_name: String::new(), opened_at: String::new(), closed_at: None, printed_at: "x".into(), is_open: true,
+        expected_cash_minor: 0, opening_cash_minor: 0, opening_cash_was_edited: false, opening_cash_original_minor: None,
+        opening_cash_edit_reason: None, closing_cash_declared_minor: None, total_payments_minor: 0, net_payments_minor: 0,
+        voided_amount_minor: 0, refunds_issued_minor: 0, refunds_issued_cash_minor: 0, refunds_issued_count: 0,
+        cash_in_refunded_sales_minor: 0, cash_movements_net_minor: 0, cash_in_minor: 0, cash_out_minor: 0,
+        payment_lines: vec![], cash_movements: vec![], from_server: false, device_code: None, order_number_first: None,
+        order_number_last: None, reconciliation: vec![], old_bills_count: None, open_bills_count: None,
+        opened_while_another_open: false, verification: "server".into(),
+    };
+    mk(&mut a);
+    let mut b = a.clone();
+    b.printed_at = "y".into();
+    b.from_server = true;
+    b.opened_at = "2026-09-14T10:00:00+02:00".into();
+    let keyed = |v: &crate::till::TillReportView| crate::readpath::report_keyed(v);
+    assert!(crate::readpath::diff_keyed("r", &keyed(&a), &keyed(&b)).is_empty(), "print time, side and offset spelling are not differences");
+    for change in [
+        |v: &mut crate::till::TillReportView| v.order_number_last = Some(9),
+        |v: &mut crate::till::TillReportView| v.device_code = Some("36B".into()),
+        |v: &mut crate::till::TillReportView| v.opening_cash_edit_reason = Some("r".into()),
+        |v: &mut crate::till::TillReportView| v.open_bills_count = Some(2),
+        |v: &mut crate::till::TillReportView| v.verification = "lan".into(),
+        |v: &mut crate::till::TillReportView| v.cash_movements.push(crate::till::TillReportCashLine { amount_minor: 5, note: "n".into(), moved_by_name: "m".into(), created_at: "2026-09-14T09:00:00Z".into() }),
+        |v: &mut crate::till::TillReportView| v.reconciliation.push(crate::till::ReconciliationLineView { method: "card".into(), label: "Card".into(), is_cash: false, system_total_minor: 1, status: "disagreed".into(), declared_amount_minor: Some(0), note: None, changed_after_close: false }),
+    ] {
+        let mut c = a.clone();
+        change(&mut c);
+        assert!(!crate::readpath::diff_keyed("r", &keyed(&a), &keyed(&c)).is_empty(), "{c:?}");
+    }
+
+    let store = store::Store::open("").unwrap();
+    store
+        .with_tx(|tx| {
+            for (id, status, recon, closed) in [
+                ("open", "open", None, None),
+                ("closed-unreviewed", "closed", Some("unreviewed"), Some(chrono::Utc::now().to_rfc3339())),
+                ("closed-disagreed", "closed", Some("disagreed"), Some(chrono::Utc::now().to_rfc3339())),
+                ("closed-clean", "closed", Some("clean"), Some(chrono::Utc::now().to_rfc3339())),
+                ("closed-old", "closed", Some("unreviewed"), Some((chrono::Utc::now() - chrono::Duration::days(5)).to_rfc3339())),
+            ] {
+                crate::ledger::write_row(tx, crate::ledger::T_TILL, id, &serde_json::json!({"id": id, "branch_id": "B", "status": status,
+                    "opened_at": (chrono::Utc::now() - chrono::Duration::days(6)).to_rfc3339(), "closed_at": closed,
+                    "reconciliation_status": recon}), crate::ledger::Origin::Feed(1), None)?;
+            }
+            tx.execute("UPDATE ledger_tills SET complete=1", [])?;
+            Ok(())
+        })
+        .unwrap();
+    let mut got = crate::ledger::views::tills_to_check(&store).unwrap();
+    got.sort();
+    assert_eq!(got, vec!["closed-disagreed".to_string(), "closed-unreviewed".into(), "open".into()]);
 }
 
 /// LAN: a waiter's fire mirrored from a peer tablet shows on this device's
