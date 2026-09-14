@@ -544,3 +544,36 @@ async fn a_peers_mirrored_fire_and_settle_overlay_the_bills() {
     crate::mirror_replay_op(&core.store, &settle.to_string());
     assert!(core.list_open_tickets().await.unwrap().is_empty(), "the peer settled it");
 }
+
+/// Discarding a dead sale removes its row with the op, in one transaction.
+#[tokio::test]
+async fn discarding_a_dead_sale_takes_its_row_with_it() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    let r = ring(&core, 900, CASH, 900).await;
+    assert_eq!(core.till_report().await.unwrap().expected_cash_minor, r.total_minor);
+    core.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET status='dead' WHERE op_type='create_order'", [])?)).unwrap();
+    assert_eq!(core.list_till_orders().await.unwrap()[0].status, "failed");
+    assert!(core.discard_outbox_item(r.local_order_id.clone()).unwrap());
+    assert!(core.list_till_orders().await.unwrap().is_empty());
+    assert_eq!(core.till_report().await.unwrap().expected_cash_minor, 0);
+}
+
+#[tokio::test]
+async fn watch_tables_delivers_coalesced_batches() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    let got = std::sync::Arc::new(std::sync::Mutex::new(Vec::<Vec<String>>::new()));
+    let sink = got.clone();
+    core.watch_tables(20, move |b| {
+        sink.lock().unwrap().push(b);
+        true
+    })
+    .unwrap();
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(80)).await;
+    let batches = got.lock().unwrap().clone();
+    assert!(!batches.is_empty());
+    assert!(batches.iter().flatten().any(|t| t == changes::TILLS));
+}

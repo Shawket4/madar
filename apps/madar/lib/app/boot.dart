@@ -175,6 +175,7 @@ class RealtimeArmer {
   RealtimeSession? _realtime;
   StreamSubscription<RealtimeMessage>? _events;
   StreamSubscription<AlertCommand>? _alerts;
+  StreamSubscription<List<String>>? _tables;
 
   /// The `realtimeArmerProvider` hook — `ShellNotifier.refresh` calls it
   /// after every state-moving bridge call; the subscription is
@@ -182,6 +183,13 @@ class RealtimeArmer {
   void call() => unawaited(_ensure());
 
   Future<void> _ensure() async {
+    // The core's table-change stream drives every board re-read: a pull that
+    // landed, a sale rung here, a peer's mirrored op, a realtime event. One
+    // subscription for the app's life; it outlives sign-outs.
+    _tables ??= _core.bridge.watchTables().listen(
+      (tables) => applyTableChanges(_ref, tables),
+      onError: (Object _) => _tables = null,
+    );
     if (_core.bridge.currentSession() == null) {
       _realtime = null;
       return;
@@ -203,67 +211,17 @@ class RealtimeArmer {
 
   void _onEvent(RealtimeMessage message) {
     switch (message) {
-      case RealtimeMessage_Event(:final eventType):
-        if (eventType.startsWith('kitchen.')) {
-          _ref.read(kitchenTickProvider.notifier).bump();
-        }
-        if (eventType.startsWith('ticket.')) {
-          _ref.read(ticketTickProvider.notifier).bump();
-        }
-        if (eventType.startsWith('delivery.') ||
-            eventType.startsWith('order.')) {
-          _ref.read(deliveryTickProvider.notifier).bump();
-        }
-        // A settled/voided bill or an order changes what the drawer should
-        // hold. The backend publishes no till/cash event, so these are the
-        // closest cross-device signal for the Till's expected cash.
-        if (eventType.startsWith('order.') || eventType.startsWith('ticket.')) {
-          _ref.read(drawerTickProvider.notifier).bump();
-        }
-        // A till opened, closed, was force-closed or flagged anywhere at the
-        // branch: the Till's branch list and the drawer figures re-read.
-        if (eventType.startsWith('till.')) {
-          _ref.read(drawerTickProvider.notifier).bump();
-        }
-        // The core's sync moved (the strip after opening a till), or what
-        // this teller may charge with changed.
-        if (eventType.startsWith('sync.')) {
-          _ref.read(syncTickProvider.notifier).bump();
-        }
-        if (eventType.startsWith('payment_methods.')) {
-          _ref.read(catalogTickProvider.notifier).bump();
-        }
-        // The floor moved: a manager re-arranged the room in the dashboard
-        // (`floor.layout_changed`), a table changed state, or another till
-        // parked/seated a party. The order surface re-pulls the mirrors.
-        if (eventType.startsWith('floor.') ||
-            eventType.startsWith('table.') ||
-            eventType.startsWith('transfer.')) {
-          _ref.read(floorTickProvider.notifier).bump();
-        }
-        // A booking changed: the canvas (reserved tables) and the arrivals
-        // list both re-pull. Rides the same connection as everything else.
-        if (eventType.startsWith('booking.')) {
-          _ref.read(floorTickProvider.notifier).bump();
-          _ref.read(bookingTickProvider.notifier).bump();
-        }
-        // The server could not replay our gap (buffer evicted / restart):
-        // every board re-seeds, exactly as it does on reconnect.
-        if (eventType == 'resync') {
-          _ref.read(kitchenTickProvider.notifier).bump();
-          _ref.read(ticketTickProvider.notifier).bump();
-          _ref.read(deliveryTickProvider.notifier).bump();
-          _ref.read(floorTickProvider.notifier).bump();
-          _ref.read(bookingTickProvider.notifier).bump();
-          _ref.read(drawerTickProvider.notifier).bump();
-          _ref.read(syncTickProvider.notifier).bump();
-        }
+      // Board re-reads ride the core's table-change stream: the core turns
+      // every event (and the pull it nudges) into the tables it moves.
+      case RealtimeMessage_Event():
+        break;
       case RealtimeMessage_ConnectionChanged(:final connected):
         _ref.read(realtimeConnectedProvider.notifier).update(connected);
     }
   }
 
   void dispose() {
+    unawaited(_tables?.cancel());
     unawaited(_events?.cancel());
     unawaited(_alerts?.cancel());
   }

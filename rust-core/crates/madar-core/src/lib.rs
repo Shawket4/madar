@@ -4195,7 +4195,47 @@ impl MadarCore {
     /// Discard a single DEAD command (the teller gives up on it). Returns true
     /// if a dead command with that id was removed.
     pub fn discard_outbox_item(&self, id: String) -> Result<bool, CoreError> {
-        self.store.discard_dead(&id)
+        // The op and the row it held go together: a rejected sale that never
+        // reached the server leaves the till, a rejected void puts the sale back
+        // as the server has it (offline plan B §5 "Dead letters").
+        self.store.with_tx_touch(|tx, touched| {
+            use rusqlite::OptionalExtension;
+            let op: Option<(String, Option<String>, Option<String>)> = tx
+                .query_row(
+                    "SELECT op_type, entity_type, entity_id FROM outbox WHERE id=?1 AND status='dead'",
+                    [&id],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .optional()?;
+            let Some((op_type, ty, key)) = op else { return Ok(false) };
+            tx.execute("DELETE FROM outbox WHERE id=?1 AND status='dead'", [&id])?;
+            if let (Some(ty), Some(key)) = (ty, key) {
+                if ledger::is_ledger_type(&ty) {
+                    ledger::local::discard(tx, &ty, &key)?;
+                }
+            }
+            touched.extend(changes::tables_for_op(&op_type));
+            Ok(true)
+        })
+    }
+
+    /// Subscribe to logical-table change batches (coalesced over `window_ms`),
+    /// delivered to `on_batch` from a background task until it returns false.
+    /// The FRB `watch_tables` stream is built on this.
+    pub fn watch_tables(&self, window_ms: u64, on_batch: impl Fn(Vec<String>) -> bool + Send + 'static) -> Result<(), CoreError> {
+        let mut sub = self.store.subscribe_changes();
+        let handle = tokio::runtime::Handle::try_current().map_err(|_| CoreError::Internal {
+            detail: "watch_tables needs the async runtime".into(),
+        })?;
+        handle.spawn(async move {
+            let window = std::time::Duration::from_millis(window_ms);
+            while let Some(batch) = sub.next(window).await {
+                if !on_batch(batch) {
+                    break;
+                }
+            }
+        });
+        Ok(())
     }
 
 

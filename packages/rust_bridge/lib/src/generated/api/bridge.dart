@@ -665,6 +665,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// (from the core device config). Errors if no printer is bound.
   Future<void> printToDevice({required List<int> bytes});
 
+  /// The read-path mode of an area (`ledger`, `tickets`, `kitchen`, `delivery`, `bookings`).
+  ReadPathMode readPathMode({required String area});
+
   /// Recent diagnostic warnings (newest first) — the Settings → Diagnostics
   /// feed. Captures sync dead-letters, cascade failures, and auth parks.
   Future<List<DiagLogView>> recentLogs();
@@ -895,6 +898,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
 
   void setLocale({required String locale});
 
+  /// Switch an area's read path (the diagnostics toggle).
+  void setReadPathMode({required String area, required ReadPathMode mode});
+
   /// SETTLE an open ticket into a paid order in the cashier's shift (a till
   /// action). Offline-first: the order is materialized server-side at replay,
   /// deduped on the ticket id. Returns true when still queued (offline). The
@@ -1078,4 +1084,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String itemId,
     String? reason,
   });
+
+  /// Local table changes, as batches of logical table names (`orders`, `tills`,
+  /// `open_tickets`, …, or `*` = re-read everything), coalesced over 50 ms.
+  /// A board re-reads when a table it shows changes; the core decides what
+  /// changed, Dart only listens.
+  Stream<List<String>> watchTables();
 }

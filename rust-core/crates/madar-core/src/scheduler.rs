@@ -110,6 +110,7 @@ pub(crate) struct SyncNudgeListener {
 impl EventListener for SyncNudgeListener {
     fn on_event(&self, event: RealtimeEvent) {
         if let Some(core) = self.core.upgrade() {
+            core.store.emit_changes(crate::changes::tables_for_event(&event.event_type));
             core.nudge_sync();
         }
         self.inner.on_event(event);

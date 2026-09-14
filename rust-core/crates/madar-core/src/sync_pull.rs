@@ -44,6 +44,18 @@ pub struct FreshnessView {
     pub reason: Option<String>,
     /// Seconds since the last completed pull (`None` = never).
     pub age_secs: Option<u64>,
+    /// The i18n key of the banner to show, when this state needs one (the
+    /// offline pill and the re-login banner already cover `offline` and
+    /// `auth_expired`).
+    pub banner: Option<String>,
+}
+
+fn banner_for(state: &str, reason: Option<&str>) -> Option<String> {
+    match (state, reason) {
+        ("bootstrapping", _) => Some("sync.freshness_never_synced".into()),
+        ("stale", Some("forbidden" | "decode" | "server_error")) => Some("sync.freshness_stale".into()),
+        _ => None,
+    }
 }
 
 /// A pull older than this is stale even with no error since (§6).
@@ -124,25 +136,20 @@ pub(crate) fn freshness(store: &Store, branch: &str, realtime_live: bool, now_ms
         }
         .to_string()
     };
-    if !complete {
-        return FreshnessView {
-            state: "bootstrapping".into(),
-            reason: Some(err_kind.as_deref().map(reason_of).unwrap_or_else(|| "never_synced".into())),
-            age_secs,
-        };
-    }
-    if let Some(k) = err_kind.as_deref() {
-        return FreshnessView { state: "stale".into(), reason: Some(reason_of(k)), age_secs };
-    }
-    let recent = last_ok.map(|t| now_ms - t <= FRESH_FOR_MS).unwrap_or(false);
-    if recent || (realtime_live && last_ok.is_some()) {
-        FreshnessView { state: "fresh".into(), reason: None, age_secs }
+    let (state, reason) = if !complete {
+        ("bootstrapping", Some(err_kind.as_deref().map(reason_of).unwrap_or_else(|| "never_synced".into())))
+    } else if let Some(k) = err_kind.as_deref() {
+        ("stale", Some(reason_of(k)))
+    } else if last_ok.map(|t| now_ms - t <= FRESH_FOR_MS).unwrap_or(false) || (realtime_live && last_ok.is_some()) {
+        ("fresh", None)
     } else {
-        FreshnessView {
-            state: "stale".into(),
-            reason: Some(if last_ok.is_some() { "offline" } else { "never_synced" }.into()),
-            age_secs,
-        }
+        ("stale", Some(if last_ok.is_some() { "offline" } else { "never_synced" }.to_string()))
+    };
+    FreshnessView {
+        banner: banner_for(state, reason.as_deref()),
+        state: state.into(),
+        reason,
+        age_secs,
     }
 }
 

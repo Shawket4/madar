@@ -139,6 +139,22 @@ class NoticeBanner extends StatelessWidget {
   }
 }
 
+/// The replicated store's freshness, when it needs saying: nothing synced to
+/// the device yet, or the latest could not be downloaded. The core chooses the
+/// message (`SyncStatusView.freshness.banner`); this only draws it. Offline and
+/// a lapsed sign-in have their own chrome and never reach here.
+class FreshnessBanner extends StatelessWidget {
+  /// Creates the freshness banner with the core's localized [text].
+  const FreshnessBanner({required this.text, super.key});
+
+  /// Localized message (from `bridge.tr` on the core's banner key).
+  final String text;
+
+  @override
+  Widget build(BuildContext context) =>
+      NoticeBanner(text: text, icon: 'arrow.triangle.2.circlepath');
+}
+
 /// The trailing call-to-action pill inside a tappable [NoticeBanner] —
 /// accent-filled with a [MadarColors.textOnAccent] label and a forward
 /// chevron (auto-mirrored in RTL by [MadarIcon]).

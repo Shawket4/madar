@@ -93,6 +93,45 @@ pub fn tables_for_op(op_type: &str) -> Vec<&'static str> {
     t
 }
 
+/// The logical tables a realtime event announces a change to. The board
+/// re-reads at once (a board still on its legacy read fetches then); the pull
+/// the same event nudges brings the rows and announces them again.
+pub fn tables_for_event(event_type: &str) -> Vec<&'static str> {
+    if event_type == "resync" {
+        return vec![ALL];
+    }
+    let mut t = Vec::new();
+    let has = |p: &str| event_type.starts_with(p);
+    if has("kitchen.") {
+        t.push(KITCHEN);
+    }
+    if has("ticket.") {
+        t.extend([OPEN_TICKETS, TILLS]);
+    }
+    if has("delivery.") {
+        t.push(DELIVERY);
+    }
+    if has("order.") {
+        t.extend([DELIVERY, ORDERS, TILLS]);
+    }
+    if has("till.") {
+        t.push(TILLS);
+    }
+    if has("sync.") {
+        t.push(SYNC);
+    }
+    if has("payment_methods.") {
+        t.extend([PAYMENT_METHODS, CATALOG]);
+    }
+    if has("floor.") || has("table.") || has("transfer.") {
+        t.push(FLOOR);
+    }
+    if has("booking.") {
+        t.extend([FLOOR, BOOKINGS]);
+    }
+    t
+}
+
 /// The broadcast half kept by the [`crate::store::Store`].
 #[derive(Clone)]
 pub struct TableChanges {
@@ -203,6 +242,16 @@ mod tests {
         for ty in crate::sync_pull::ALL_TYPES {
             assert!(TABLES.contains(&table_for_sync_type(ty)), "{ty}");
         }
+    }
+
+    #[test]
+    fn realtime_events_name_the_boards_they_move() {
+        assert_eq!(tables_for_event("resync"), vec![ALL]);
+        assert!(tables_for_event("ticket.fired").contains(&OPEN_TICKETS));
+        assert!(tables_for_event("order.created").contains(&TILLS));
+        assert!(tables_for_event("booking.arriving").contains(&BOOKINGS));
+        assert!(tables_for_event("payment_methods.availability_changed").contains(&PAYMENT_METHODS));
+        assert!(tables_for_event("unknown.thing").is_empty());
     }
 
     #[test]

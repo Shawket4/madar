@@ -79,10 +79,19 @@ class FreshnessView {
   final String? reason;
   final BigInt? ageSecs;
 
-  const FreshnessView({required this.state, this.reason, this.ageSecs});
+  /// i18n key of the banner this state needs, if any.
+  final String? banner;
+
+  const FreshnessView({
+    required this.state,
+    this.reason,
+    this.ageSecs,
+    this.banner,
+  });
 
   @override
-  int get hashCode => state.hashCode ^ reason.hashCode ^ ageSecs.hashCode;
+  int get hashCode =>
+      state.hashCode ^ reason.hashCode ^ ageSecs.hashCode ^ banner.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -91,7 +100,8 @@ class FreshnessView {
           runtimeType == other.runtimeType &&
           state == other.state &&
           reason == other.reason &&
-          ageSecs == other.ageSecs;
+          ageSecs == other.ageSecs &&
+          banner == other.banner;
 }
 
 /// A queued/failed outbox command, projected for the sync center.
@@ -137,6 +147,11 @@ class OutboxItemView {
           lastError == other.lastError &&
           eventAt == other.eventAt;
 }
+
+/// Which read a board uses while offline plan B rolls out (`legacy` = the
+/// pre-B server list + cache, `shadow` = legacy served and compared, `new` =
+/// local rows only).
+enum ReadPathMode { legacy, shadow, new_ }
 
 /// Sync health (§10.3).
 class SyncStatusView {

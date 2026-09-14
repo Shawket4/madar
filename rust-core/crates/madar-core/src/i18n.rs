@@ -541,6 +541,8 @@ fn en(key: &str) -> Option<&'static str> {
         // order-screen chrome (action bar + banners)
         "chrome.online" => "Online",
         "chrome.clock_skew" => "Device clock is off — please fix it",
+        "sync.freshness_never_synced" => "Nothing synced to this device yet — connect to download the branch",
+        "sync.freshness_stale" => "Showing the last synced data — the latest could not be downloaded",
         "chrome.offline" => "Offline",
         "chrome.offline_banner" => "Working offline — changes sync when you reconnect",
         "chrome.auth_paused" => "Sync paused — sign in again to resume",
@@ -1603,6 +1605,8 @@ fn ar(key: &str) -> Option<&'static str> {
         // order-screen chrome (action bar + banners)
         "chrome.online" => "متصل",
         "chrome.clock_skew" => "ساعة الجهاز غير مضبوطة — يرجى تصحيحها",
+        "sync.freshness_never_synced" => "لم تُزامَن أي بيانات على هذا الجهاز بعد — اتصل لتنزيل بيانات الفرع",
+        "sync.freshness_stale" => "تُعرض آخر بيانات تمت مزامنتها — تعذّر تنزيل الأحدث",
         "chrome.offline" => "غير متصل",
         "chrome.offline_banner" => "تعمل دون اتصال — ستتم المزامنة عند عودة الاتصال",
         "chrome.auth_paused" => "توقفت المزامنة — سجّل الدخول لاستئنافها",

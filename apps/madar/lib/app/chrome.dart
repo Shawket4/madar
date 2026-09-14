@@ -117,6 +117,7 @@ class OutboxSnapshot {
     this.online = true,
     this.authPaused = false,
     this.clockSkewMinutes = 0,
+    this.freshnessBanner,
   });
 
   final OutboxState state;
@@ -126,6 +127,9 @@ class OutboxSnapshot {
   final bool online;
   final bool authPaused;
   final int clockSkewMinutes;
+
+  /// The core's banner key for the local data's freshness, when it needs one.
+  final String? freshnessBanner;
 }
 
 /// Reads the outbox for the pill. Every signal that can move it triggers a
@@ -140,6 +144,8 @@ class OutboxNotifier extends Notifier<OutboxSnapshot> {
       ..listen(deliveryTickProvider, (_, _) => unawaited(refresh()))
       ..listen(kitchenTickProvider, (_, _) => unawaited(refresh()))
       ..listen(floorTickProvider, (_, _) => unawaited(refresh()))
+      ..listen(syncTickProvider, (_, _) => unawaited(refresh()))
+      ..listen(drawerTickProvider, (_, _) => unawaited(refresh()))
       ..listen(shellProvider, (_, _) => unawaited(refresh()));
     return const OutboxSnapshot();
   }
@@ -176,6 +182,7 @@ class OutboxNotifier extends Notifier<OutboxSnapshot> {
       online: status.online,
       authPaused: status.authPaused,
       clockSkewMinutes: bridge.clockSkewMinutes(),
+      freshnessBanner: status.freshness.banner,
     );
   }
 }
@@ -767,6 +774,8 @@ class _RoleShellState extends ConsumerState<RoleShell> {
           text: bridge.tr(key: 'chrome.clock_skew'),
           icon: 'clock',
         ),
+      if (outbox.freshnessBanner case final key?)
+        FreshnessBanner(text: bridge.tr(key: key)),
     ];
 
     // The top bar took the status-bar inset and, on a phone, the tab bar

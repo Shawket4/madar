@@ -9,6 +9,9 @@ use crate::api::error::MadarError;
 pub use madar_core::timefmt::TimeStyle;
 pub use madar_core::assets::AssetSyncView;
 pub use madar_core::sync_pull::{FreshnessView, SyncStatusView, TillOpenSyncView};
+pub use madar_core::readpath::ReadPathMode;
+
+use crate::frb_generated::StreamSink;
 pub use madar_core::{DiagLogView, OutboxItemView};
 
 /// A queued/failed outbox command, projected for the sync center.
@@ -45,6 +48,16 @@ pub struct _SyncStatusView {
     pub freshness: FreshnessView,
 }
 
+/// Which read a board uses while offline plan B rolls out (`legacy` = the
+/// pre-B server list + cache, `shadow` = legacy served and compared, `new` =
+/// local rows only).
+#[frb(mirror(ReadPathMode))]
+pub enum _ReadPathMode {
+    Legacy,
+    Shadow,
+    New,
+}
+
 /// Freshness of the replicated store (OFFLINE_B_DESIGN §6).
 #[frb(mirror(FreshnessView))]
 pub struct _FreshnessView {
@@ -53,6 +66,8 @@ pub struct _FreshnessView {
     /// `offline` | `auth_expired` | `server_error` | `forbidden` | `decode` | `never_synced`.
     pub reason: Option<String>,
     pub age_secs: Option<u64>,
+    /// i18n key of the banner this state needs, if any.
+    pub banner: Option<String>,
 }
 
 #[frb(mirror(AssetSyncView))]
@@ -112,6 +127,28 @@ impl MadarBridge {
     /// if a dead command with that id was removed.
     pub fn discard_outbox_item(&self, id: String) -> Result<bool, MadarError> {
         self.inner.discard_outbox_item(id).map_err(MadarError::from)
+    }
+
+    /// Local table changes, as batches of logical table names (`orders`, `tills`,
+    /// `open_tickets`, …, or `*` = re-read everything), coalesced over 50 ms.
+    /// A board re-reads when a table it shows changes; the core decides what
+    /// changed, Dart only listens.
+    pub async fn watch_tables(&self, sink: StreamSink<Vec<String>>) -> Result<(), MadarError> {
+        self.inner
+            .watch_tables(50, move |batch| sink.add(batch).is_ok())
+            .map_err(MadarError::from)
+    }
+
+    /// The read-path mode of an area (`ledger`, `tickets`, `kitchen`, `delivery`, `bookings`).
+    #[frb(sync)]
+    pub fn read_path_mode(&self, area: String) -> ReadPathMode {
+        self.inner.read_path_mode(area)
+    }
+
+    /// Switch an area's read path (the diagnostics toggle).
+    #[frb(sync)]
+    pub fn set_read_path_mode(&self, area: String, mode: ReadPathMode) -> Result<(), MadarError> {
+        self.inner.set_read_path_mode(area, mode).map_err(MadarError::from)
     }
 
     /// Sync health (one cheap local read; always succeeds offline).

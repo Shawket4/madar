@@ -67,6 +67,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  RustStreamSink<List<String>> dco_decode_StreamSink_list_String_Sse(
+    dynamic raw,
+  );
+
+  @protected
   RustStreamSink<RealtimeMessage> dco_decode_StreamSink_realtime_message_Sse(
     dynamic raw,
   );
@@ -669,6 +674,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PrinterBrand dco_decode_printer_brand(dynamic raw);
 
   @protected
+  ReadPathMode dco_decode_read_path_mode(dynamic raw);
+
+  @protected
   RealtimeMessage dco_decode_realtime_message(dynamic raw);
 
   @protected
@@ -820,6 +828,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   RustStreamSink<AlertCommand> sse_decode_StreamSink_alert_command_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<List<String>> sse_decode_StreamSink_list_String_Sse(
     SseDeserializer deserializer,
   );
 
@@ -1612,6 +1625,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PrinterBrand sse_decode_printer_brand(SseDeserializer deserializer);
 
   @protected
+  ReadPathMode sse_decode_read_path_mode(SseDeserializer deserializer);
+
+  @protected
   RealtimeMessage sse_decode_realtime_message(SseDeserializer deserializer);
 
   @protected
@@ -1790,6 +1806,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_StreamSink_alert_command_Sse(
     RustStreamSink<AlertCommand> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_list_String_Sse(
+    RustStreamSink<List<String>> self,
     SseSerializer serializer,
   );
 
@@ -2794,6 +2816,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_printer_brand(PrinterBrand self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_read_path_mode(ReadPathMode self, SseSerializer serializer);
 
   @protected
   void sse_encode_realtime_message(
