@@ -11,12 +11,13 @@ abstract final class MadarHeaderMetrics {
   /// matter what else the header carries.
   static const double titleRow = Metrics.headerHeight;
 
-  /// The leading slot: a 44 back tile (or page glyph) and the gap after it.
+  /// The leading slot: a 44 back tile and the gap after it.
   static const double leadingSlot = Metrics.glyphTile;
   static const double leadingGap = Space.md;
 
   /// Where the title starts, measured from the header's leading edge, when
-  /// the slot is reserved: 44 + 12 = 56.
+  /// a back tile is shown: 44 + 12 = 56. With no back tile the title starts
+  /// at the leading edge — a page title carries no icon.
   static const double titleInset = leadingSlot + leadingGap;
 
   /// Gap from the title row to the subtitle line.
@@ -29,31 +30,17 @@ abstract final class MadarHeaderMetrics {
   static const double actionGap = Space.sm;
 }
 
-/// What the header's leading slot does when there is no back tile.
-enum MadarHeaderLeading {
-  /// Legacy: the slot exists only while a back tile is in it, so a tab
-  /// page's title sits 56px further toward the start than a pushed page's.
-  /// Kept for screens not yet on the spec. Deprecated in the spec.
-  collapse,
-
-  /// The spec: the slot is always there. A pushed page shows its back tile,
-  /// a tab page its [MadarHeader.glyph] (or nothing), and the title's x is
-  /// identical on every page at a size class.
-  reserve,
-}
-
 /// THE in-page header — system v2, spec geometry.
 ///
 /// ```text
 /// ┌ leading slot 44 ┐12┌ title (h1 28/700, centred in a 48 row) ─┐ actions ┐
-/// │  ‹  or  glyph   │  │ subtitle (13/500) — BELOW, never shifts │  44 44   │
+/// │  ‹ (if pushed)  │  │ subtitle (13/500) — BELOW, never shifts │  44 44   │
 /// └─────────────────┘  └─────────────────────────────────────────┘          ┘
 ///                       below slot (full width, 12 under)
 /// ```
 ///
 /// * The title's rect depends on nothing but the header's width: not on the
-///   subtitle (which grows the header downward), not on a back tile (the slot
-///   is reserved under [MadarHeaderLeading.reserve]), not on actions (they
+///   subtitle (which grows the header downward), not on actions (they
 ///   centre on the title row).
 /// * Sits under the chrome's top bar, so it pads no status-bar inset unless
 ///   [safeTop] is set (a full-screen route with no shell above it).
@@ -71,8 +58,6 @@ class MadarHeader extends StatelessWidget {
     this.tinted = false,
     this.safeTop = false,
     this.backLabel,
-    this.glyph,
-    this.leading = MadarHeaderLeading.collapse,
   });
 
   /// Screen title — [MadarType.h1], single line, ellipsised.
@@ -102,13 +87,6 @@ class MadarHeader extends StatelessWidget {
   /// What the back tile does, for a screen reader.
   final String? backLabel;
 
-  /// A tab page's own glyph, shown quietly in the leading slot when there is
-  /// no back tile (under [MadarHeaderLeading.reserve]).
-  final MadarGlyph? glyph;
-
-  /// Whether the leading slot is always reserved. See [MadarHeaderLeading].
-  final MadarHeaderLeading leading;
-
   /// The key on the title [Text] — what geometry tests measure.
   static const titleKey = ValueKey<String>('madar.header.title');
 
@@ -116,29 +94,14 @@ class MadarHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.madarColors;
     final topInset = safeTop ? MediaQuery.viewPaddingOf(context).top : 0.0;
-    final reserve = leading == MadarHeaderLeading.reserve;
     final slot = onBack != null
         ? MadarGlyphTile(
             glyph: MadarGlyph.chevronBack,
             onTap: onBack!,
             semanticLabel: backLabel,
           )
-        : (reserve && glyph != null)
-        ? ExcludeSemantics(
-            child: Container(
-              width: MadarHeaderMetrics.leadingSlot,
-              height: MadarHeaderMetrics.leadingSlot,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(Radii.sm),
-                border: Border.all(color: colors.borderLight),
-              ),
-              child: MadarGlyphIcon(glyph!, color: colors.textSecondary),
-            ),
-          )
         : null;
-    final showSlot = slot != null || reserve;
+    final showSlot = slot != null;
 
     return Padding(
       padding: EdgeInsetsDirectional.only(top: topInset),

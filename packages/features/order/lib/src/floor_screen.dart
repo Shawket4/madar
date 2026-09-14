@@ -697,7 +697,6 @@ class _FloorScreenState extends ConsumerState<FloorScreen> {
       safeTop: false,
       title: _w('floor.title'),
       width: MadarContentWidth.full,
-      glyph: MadarGlyph.grid,
       bodyInset: false,
       actions: headerActions,
       below: headerBelow,

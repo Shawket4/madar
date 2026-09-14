@@ -122,7 +122,6 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
       title: t('history.title'),
       subtitle: _scopeLine(ref, bridge),
       width: MadarContentWidth.full,
-      glyph: MadarGlyph.receipt,
       below: layout.isTablet
           ? Row(
               spacing: Space.md,

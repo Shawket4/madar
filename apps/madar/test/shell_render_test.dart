@@ -1739,9 +1739,9 @@ void pageShellMain() {
         );
         await tester.pumpWidget(const SizedBox());
       }
-      // Pages on the spec grid (SPEC §2): the leading slot is reserved on
-      // tab and pushed pages alike, so EVERY title sits at gutter + 56 and at
-      // one height — Till to Past tills to Orders, the title does not move.
+      // Pages on the spec grid (SPEC §2): every header at one height; a tab
+      // page's title on the gutter (no page-title icon), a pushed page's
+      // after its back tile.
       final gutter = size == _phone ? 16.0 : 24.0;
       final spec = {
         for (final n in _specPages)
@@ -1754,8 +1754,8 @@ void pageShellMain() {
         expect(g.top, closeTo(till.top, 0.5), reason: '$msg: header top');
         expect(
           g.left,
-          closeTo(gutter + MadarHeaderMetrics.titleInset, 0.5),
-          reason: '$msg: title x is gutter + slot',
+          closeTo(gutter + (g.back ? MadarHeaderMetrics.titleInset : 0), 0.5),
+          reason: '$msg: title x is gutter (+ back tile)',
         );
       }
       // Pages not yet migrated (other screens' owners move them) are held

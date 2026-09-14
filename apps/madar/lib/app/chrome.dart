@@ -808,9 +808,6 @@ class _RoleShellState extends ConsumerState<RoleShell> {
                             navigatorKey: _stacks[tab]!,
                             active: tab == current,
                             onStackChanged: _onStackChanged,
-                            // The rail's glyph, in the leading slot of the
-                            // tab root's header (SPEC §2).
-                            glyph: tab.glyph,
                             child: _bodies[tab]!,
                           ),
                   ),

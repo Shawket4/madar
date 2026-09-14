@@ -422,7 +422,6 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         child: MadarPageScaffold(
           safeTop: widget.pushed,
           width: MadarContentWidth.full,
-          glyph: _tableId == null ? MadarGlyph.bag : MadarGlyph.table,
           bodyInset: false,
           title: header.title,
           subtitle: header.subtitle,

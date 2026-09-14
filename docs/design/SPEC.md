@@ -37,33 +37,21 @@ starts `Space.lg` (16) under the header block; sections are `Space.xl` (24) apar
                      below slot — 12 under the title block, full content width
 ```
 
-**Decision: the leading slot is always reserved on the spec grid, on tab pages and pushed
-pages alike.** A pushed page puts its back tile there; a tab page puts its tab's glyph there
-(a quiet, non-interactive tile — the same glyph as the rail, from `MadarTabStack.glyph` or
-`MadarPageScaffold.glyph`). So the title's x is `gutter + 56` on every page at a size class,
-in both languages.
-
-Why this and not the alternatives:
-- *Collapsing the slot on tab pages* (the old behaviour) moves the title 56–100px every time
-  a teller goes from Till to Past shifts — the owner's first complaint.
-- *Back button above the title* (iOS large-title style) fixes x but moves y, and costs a
-  44px band on every page of an 834-tall landscape iPad.
-- *Hanging the back tile into the gutter* needs a 68px gutter beside an 88px rail.
-- The reserved slot costs 56px of title width and nothing vertically, gives every page an
-  identity mark at the same spot, and makes "back" a thing that appears *in place* rather
-  than shoving the title aside.
+**Decision: a page title carries no icon.** A pushed page shows its back tile in the 44px
+leading slot (title at `gutter + 56`); a tab page has no slot and its title sits on the
+gutter, aligned with the content under it. An empty reserved slot was tried and read as a
+misaligned title.
 
 Invariants (pinned by `components_test.dart` at all four size classes, LTR and RTL):
-- The title rect is identical with and without subtitle, back tile, glyph, actions, and for
-  every content width.
+- The title's y is identical with and without subtitle, back tile, actions, and for every
+  content width; its x moves only by the back tile.
 - Subtitle grows the header downward. `below` grows it further. Nothing re-centres.
 - Actions are 44 tiles or compact (44) controls, centred on the 48 title row, 8 apart. A
   taller control (a 52 search field) belongs in `below` — the row would grow and the title
   would move.
 - One title line, ellipsised. Titles are the screen name, never data (not the till's name).
 
-`MadarHeader(leading: MadarHeaderLeading.collapse)` is the legacy behaviour and the default
-only for screens not yet migrated; `MadarPageScaffold(width: …)` opts into the spec.
+`MadarPageScaffold(width: …)` opts into the spec grid.
 
 ## 3. Content widths and alignment
 
@@ -267,20 +255,20 @@ one tap), close shift (a full screen with a count and a Close button).
 
 | Screen | Width | Header | Body components |
 |---|---|---|---|
-| Sell | full | tab glyph · title (table name when targeted) | catalog grid + cart column (existing) |
-| Floor | full, `bodyInset:false` | tab glyph · section segments in `below` | floor canvas; list mode `.bill` rows |
-| Orders | full split | tab glyph · subtitle scope · search + scope segments in `below` | `MadarDataTable` (#, Time, Type, Payment, Total, Status) + 560 sale detail pane; phone: collapsed rows → pushed detail |
+| Sell | full | title (table name when targeted) | catalog grid + cart column (existing) |
+| Floor | full, `bodyInset:false` | section segments in `below` | floor canvas; list mode `.bill` rows |
+| Orders | full split | subtitle scope · search + scope segments in `below` | `MadarDataTable` (#, Time, Type, Payment, Total, Status) + 560 sale detail pane; phone: collapsed rows → pushed detail |
 | Sale detail (sheet/pane) | form | `MadarHeader` (collapse) | ledger rows for lines/payments, Void / Refund as visible buttons |
-| Queue | full | tab glyph · segments in `below` | `.bill` rows |
-| Bills | reading | tab glyph | `.bill` rows, section header only when grouped |
-| Till | full | tab glyph · subtitle open-since | `MadarStatCard` row, `.nav` links, `.ledger` recent movements |
+| Queue | full | segments in `below` | `.bill` rows |
+| Bills | reading | — | `.bill` rows, section header only when grouped |
+| Till | full | subtitle open-since | `MadarStatCard` row, `.nav` links, `.ledger` recent movements |
 | Close shift | full (pushed) | back · subtitle | ledger arithmetic card, count form, post-close Z print |
 | Cash in/out | form (pushed) | back | segmented in/out, amount field, reason picks, `.ledger` list |
 | Past shifts | reading (pushed) | back · branch subtitle · date action | `MadarDataTable` (Teller, Opened, Length, Declared, Δ, Status; print action; expand → nested orders table) |
 | Z / X report sheet | sheet | `MadarHeader` | stat cards + `MadarDataTable(framed:false)` for methods and movements |
-| Open shift (embedded) | form | tab glyph · no brand panel | amount field + primary button |
+| Open shift (embedded) | form | no brand panel | amount field + primary button |
 | Settings | reading (pushed) | back | profile card, `.pick` rows (language, printer, till), `.nav` rows |
-| Me | reading | tab glyph | profile card, `.bill` my bills, `.nav` version / diagnostics / legal |
+| Me | reading | — | profile card, `.bill` my bills, `.nav` version / diagnostics / legal |
 | Sync | reading (pushed) | back · status subtitle | `.ledger`-style op rows with pill + retry action |
 | Table history sheet | sheet | `MadarHeader` | `MadarDataTable(framed:false, scrollable:false)` |
 | Sign-in / setup / station picker | form, no shell | none (split auth layout) | fields, `.pick` rows; skeleton while stations load |

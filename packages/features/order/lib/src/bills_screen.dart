@@ -180,7 +180,6 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
       safeTop: false,
       title: orderWord(bridge, 'bills.title'),
       width: MadarContentWidth.reading,
-      glyph: MadarGlyph.receipt,
       actions: [
         if (!state.hasFloor)
           MadarButton(

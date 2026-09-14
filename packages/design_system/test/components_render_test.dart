@@ -190,7 +190,6 @@ Widget _ordersPage(_L l, {required MadarTableState<_Order> state}) {
             '${l.thisShift} · ${MadarFormat.ltr('42')} ${l.s('sales', 'مبيعات')} · '
             '${Money.format(623000, currency: 'EGP', locale: l.locale)}',
         width: MadarContentWidth.full,
-        glyph: MadarGlyph.receipt,
         actions: [MadarHeaderAction(glyph: MadarGlyph.refresh, onTap: () {})],
         below: Row(
           spacing: Space.md,

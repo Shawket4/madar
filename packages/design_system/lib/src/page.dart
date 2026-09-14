@@ -20,10 +20,8 @@
 /// must is unreadable under the clock.
 library;
 
-import 'package:design_system/src/glyphs.dart';
 import 'package:design_system/src/header.dart';
 import 'package:design_system/src/responsive.dart';
-import 'package:design_system/src/tab_stack.dart';
 import 'package:design_system/src/tokens/colors.dart';
 import 'package:design_system/src/tokens/dimens.dart';
 import 'package:flutter/material.dart';
@@ -42,13 +40,12 @@ class MadarPageScaffold extends StatelessWidget {
     this.automaticBack = true,
     this.drawer,
     this.width,
-    this.glyph,
     this.bodyInset = true,
     super.key,
   });
 
   /// Puts the page on the SPEC GRID (docs/design/SPEC.md §1–3): the header
-  /// reserves its leading slot so the title's x is the same on every page,
+  /// starts the title on the gutter (after the back tile on a pushed page),
   /// header and body share the gutter and are capped at this width on the
   /// leading edge, and the body starts [Space.lg] under the header.
   ///
@@ -56,11 +53,6 @@ class MadarPageScaffold extends StatelessWidget {
   /// collapses on tab pages). New and migrated screens pass a width; the
   /// null path is deprecated and goes when the last screen moves.
   final MadarContentWidth? width;
-
-  /// A tab page's glyph for the header's leading slot. Defaults to the tab
-  /// stack's own ([MadarTabStack.glyph]). Ignored on a pushed page, which
-  /// shows its back tile there. Spec grid only.
-  final MadarGlyph? glyph;
 
   /// Spec grid only: pad the body with the gutter and cap it at [width].
   /// Off for a body that runs edge to edge (a floor canvas, a split view
@@ -125,12 +117,6 @@ class MadarPageScaffold extends StatelessWidget {
             actions: actions,
             below: below,
             safeTop: safeTop,
-            leading: spec == null
-                ? MadarHeaderLeading.collapse
-                : MadarHeaderLeading.reserve,
-            glyph: back != null
-                ? null
-                : (glyph ?? MadarPages.tabGlyphOf(context)),
           );
 
     Widget content;

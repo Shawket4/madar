@@ -36,7 +36,6 @@ Widget _page({
   Widget page(BuildContext _) => MadarPageScaffold(
     title: 'Past shifts',
     subtitle: subtitle,
-    glyph: MadarGlyph.clock,
     width: width,
     actions: actions,
     body: const SizedBox.expand(),
@@ -185,15 +184,17 @@ void main() {
         final reading = await titleRect(
           _page(pushed: false, width: MadarContentWidth.reading),
         );
+        const back = Offset(MadarHeaderMetrics.titleInset, 0);
         expect(withSubtitle.topLeft, bare.topLeft);
-        expect(pushed.topLeft, bare.topLeft);
-        expect(pushedSubtitle.topLeft, bare.topLeft);
-        expect(withActions.topLeft, bare.topLeft);
+        expect(pushed.topLeft, bare.topLeft + back);
+        expect(pushedSubtitle.topLeft, pushed.topLeft);
+        expect(withActions.topLeft, pushed.topLeft);
         expect(reading.topLeft, bare.topLeft);
         expect(pushed.height, bare.height);
-        // On the grid: gutter + the reserved leading slot.
+        // A tab page's title sits on the gutter — no page-title icon, no
+        // empty slot; a pushed page's back tile takes the 56 before it.
         final gutter = MadarLayout.fromSize(size).gutter;
-        expect(bare.left, gutter + MadarHeaderMetrics.titleInset);
+        expect(bare.left, gutter);
       });
     }
 
