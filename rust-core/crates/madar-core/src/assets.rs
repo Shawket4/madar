@@ -499,6 +499,10 @@ impl MadarCore {
             p.0 = false;
             p.3 = res.as_ref().err().map(|e| e.to_string());
         }
+        // The menu snapshot resolves pictures from these files; drop it so the
+        // next read sees what this round delivered, and tell the boards.
+        self.invalidate_catalog_cache();
+        self.store.emit_changes([crate::changes::CATALOG]);
         res
     }
 

@@ -773,11 +773,25 @@ impl MadarCore {
     fn catalog_image_urls(&self) -> std::collections::HashSet<String> {
         let mut urls = std::collections::HashSet::new();
         let locale = self.current_locale();
+        // Rows with a content hash get their file from the branch asset bundle
+        // (one tar), so they never cost a per-image request here.
+        let item_hashes = self.synced_image_hashes("menu_item");
+        let bundle_hashes = self.synced_image_hashes("bundle");
         if let Ok(items) = menu::menu_items(&self.store, &locale) {
-            urls.extend(items.into_iter().filter_map(|i| i.image_url));
+            urls.extend(
+                items
+                    .into_iter()
+                    .filter(|i| !item_hashes.contains_key(&i.id))
+                    .filter_map(|i| i.image_url),
+            );
         }
         if let Ok(bundles) = menu::bundles(&self.store, &locale) {
-            urls.extend(bundles.into_iter().filter_map(|b| b.image_url));
+            urls.extend(
+                bundles
+                    .into_iter()
+                    .filter(|b| !bundle_hashes.contains_key(&b.id))
+                    .filter_map(|b| b.image_url),
+            );
         }
         urls.extend(self.org_logo_url());
         urls.retain(|u| !u.is_empty());
@@ -3372,12 +3386,23 @@ impl MadarCore {
         // (same inputs; last write wins).
         // Resolve cached image paths HERE (one pass per snapshot) so the host
         // never does per-cell FFI on the catalog grid.
+        // A picture comes from the synced row's content hash first — the file
+        // the branch's asset bundle (one tar per branch) delivered — and only
+        // then from the legacy per-URL image cache. Reading the legacy cache
+        // alone left every asset-pipeline image (a menu uploaded after the
+        // WebP rework) blank even though its file was on disk.
+        let item_hashes = self.synced_image_hashes("menu_item");
+        let bundle_hashes = self.synced_image_hashes("bundle");
         let mut items = menu::menu_items(&self.store, &locale)?;
         for item in &mut items {
-            item.local_image_path = item
-                .image_url
-                .as_deref()
-                .and_then(|u| self.images.path_if_cached(u));
+            item.local_image_path = item_hashes
+                .get(&item.id)
+                .and_then(|h| self.local_path_for_hash(h.clone()))
+                .or_else(|| {
+                    item.image_url
+                        .as_deref()
+                        .and_then(|u| self.images.path_if_cached(u))
+                });
         }
         for step in items.iter_mut().flat_map(|i| i.recipe_steps.iter_mut()) {
             step.local_animation_path = step
@@ -3388,10 +3413,15 @@ impl MadarCore {
         }
         let mut bundles = menu::bundles(&self.store, &locale)?;
         for bundle in &mut bundles {
-            bundle.local_image_path = bundle
-                .image_url
-                .as_deref()
-                .and_then(|u| self.images.path_if_cached(u));
+            bundle.local_image_path = bundle_hashes
+                .get(&bundle.id)
+                .and_then(|h| self.local_path_for_hash(h.clone()))
+                .or_else(|| {
+                    bundle
+                        .image_url
+                        .as_deref()
+                        .and_then(|u| self.images.path_if_cached(u))
+                });
         }
         let snapshot = Arc::new(CatalogSnapshot {
             categories: menu::categories(&self.store, &locale)?,
@@ -3407,6 +3437,33 @@ impl MadarCore {
 
     /// Drop the parsed snapshot — called after anything that rewrites the kv
     /// catalog mirrors or the on-disk image cache. The next read re-projects.
+    /// `entity id → image_hash` for one synced row type on this device's branch
+    /// (empty before the first snapshot, or when no branch is bound).
+    fn synced_image_hashes(&self, ty: &str) -> std::collections::HashMap<String, String> {
+        let Ok(branch) = self.session_branch_id() else {
+            return Default::default();
+        };
+        self.store
+            .with_conn(|c| {
+                let mut st =
+                    c.prepare("SELECT id, data FROM sync_rows WHERE branch_id=?1 AND type=?2")?;
+                let rows = st
+                    .query_map(rusqlite::params![branch, ty], |r| {
+                        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+                    })?
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(rows)
+            })
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(id, data)| {
+                let v: serde_json::Value = serde_json::from_str(&data).ok()?;
+                let h = v.get("image_hash")?.as_str()?.to_string();
+                (!h.is_empty()).then_some((id, h))
+            })
+            .collect()
+    }
+
     fn invalidate_catalog_cache(&self) {
         *self.catalog_cache.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
@@ -8889,6 +8946,58 @@ mod lifecycle_tests {
             state.as_ref().map(|s| s.snapshot.user_id.as_str()),
         );
         *core.session.write().unwrap_or_else(|e| e.into_inner()) = state;
+    }
+
+    /// An asset-pipeline picture (the menu row has `image_hash`, the file came in
+    /// the branch bundle, `image_url` points at a legacy redirect) shows from the
+    /// bundle's file, and the per-URL image phase does not request it again.
+    #[tokio::test]
+    async fn menu_pictures_come_from_the_asset_bundle_files() {
+        use sha2::Digest;
+        let dir = std::env::temp_dir().join(format!("madar-img-hash-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let core = MadarCore::new(MadarConfig {
+            base_url: "http://127.0.0.1:1".into(),
+            environment: "dev".into(),
+            db_path: dir.join("madar.db").to_string_lossy().into_owned(),
+            locale: "en".into(),
+            app_version: None,
+        })
+        .unwrap();
+        set_session(&core, Some(teller_session("u-1", Some("B"))));
+        let item = "00000000-0000-0000-0000-0000000000a1";
+        core.store
+            .kv_put(
+                menu::K_MENU_ITEMS,
+                &format!(
+                    r#"[{{"id":"{item}","org_id":"00000000-0000-0000-0000-000000000001",
+                    "name":"Latte","name_translations":{{}},"base_price":5000,"is_active":true,
+                    "allowed_addon_ids":[],
+                    "image_url":"http://127.0.0.1:1/uploads/o/menu-items/g.webp"}}]"#
+                ),
+            )
+            .unwrap();
+        let bytes = b"RIFFwebp-bytes";
+        let hash: String = sha2::Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect();
+        core.store
+            .with_conn(|c| {
+                c.execute(
+                    "INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES('menu_item',?1,'B',1,?2)",
+                    rusqlite::params![item, serde_json::json!({ "image_hash": hash }).to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        assert!(assets::save_verified(&core.store, &core.assets_dir(), &hash, assets::EXT_IMAGE, bytes).unwrap());
+
+        let snap = core.catalog().unwrap();
+        let path = snap.items[0].local_image_path.clone().expect("picture from the bundle file");
+        assert!(path.ends_with(&assets::file_name(&hash, assets::EXT_IMAGE)), "{path}");
+        assert!(
+            !core.catalog_image_urls().contains("http://127.0.0.1:1/uploads/o/menu-items/g.webp"),
+            "a row with a content hash costs no per-image request"
+        );
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     fn seed_shift(core: &MadarCore, teller: uuid::Uuid, status: &str) {
