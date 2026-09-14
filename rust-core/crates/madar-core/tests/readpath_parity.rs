@@ -216,8 +216,44 @@ async fn read_latencies(core: &MadarCore, till: &str) -> Vec<(&'static str, f64,
     time!("list_arrivals", core.list_arrivals());
     time!("floor_layout", core.floor_layout());
     time!("list_menu_items", core.list_menu_items());
+    time!("open_bills_notice", core.open_bills_notice().await);
     time!("sync_status", Ok::<_, ()>(core.sync_status()));
+    if let Some(o) = core.list_orders_for_till(till.to_string()).await.ok().and_then(|l| l.into_iter().find(|o| !o.queued)) {
+        time!("order_detail", core.order_detail(o.id.clone()).await);
+        time!("order_receipt_view", core.order_receipt_view(o.id.clone()).await);
+        time!("list_order_refunds", core.list_order_refunds(o.id).await);
+    }
+    if let Some(b) = core.list_open_tickets().await.ok().and_then(|l| l.into_iter().next()) {
+        time!("get_ticket", core.get_ticket(b.id).await);
+    }
     out
+}
+
+/// The online-by-nature reads, timed: (read, milliseconds, served).
+async fn online_only_latencies(core: &MadarCore) -> Vec<(&'static str, f64, bool)> {
+    let mut out = Vec::new();
+    macro_rules! time {
+        ($name:expr, $e:expr) => {{
+            let t0 = Instant::now();
+            let ok = $e.is_ok();
+            out.push(($name, t0.elapsed().as_secs_f64() * 1e3, ok));
+        }};
+    }
+    time!("search_orders", core.search_orders(None, None, None, None, None, 1).await);
+    time!("refresh_till", core.refresh_till().await);
+    time!("check_till_elsewhere", core.check_till_elsewhere().await);
+    time!("loyalty_settings", core.loyalty_settings().await);
+    time!("kitchen_routing_mode", core.kitchen_routing_mode().await);
+    time!("kds_list_stations", core.kds_list_stations().await);
+    time!("delivery_settings", core.delivery_settings().await);
+    time!("order_detail(unseen)", core.order_detail(uuid::Uuid::new_v4().to_string()).await);
+    out
+}
+
+fn table(label: &str, rows: &[(&'static str, f64, bool)]) {
+    for (read, ms, ok) in rows {
+        eprintln!("LATENCY {label:<8} {read:<24} {ms:>9.1} ms  served={ok}");
+    }
 }
 
 async fn seed_delivery_and_booking(fx: &Fixture) {
@@ -409,4 +445,106 @@ async fn parity_fresh_device_past_till_before_and_after_first_snapshot() {
     let bad = verdict("after first snapshot", &fx, &core, &past).await;
     let _ = std::fs::remove_file(&db);
     assert!(bad.is_empty(), "unexplained differences: {bad:#?}");
+}
+
+/// A cold start with the network cut after the first snapshot: every screen's
+/// read answers at once with data, and online the same reads are as fast.
+#[tokio::test]
+#[ignore]
+async fn cold_start_offline_every_screen_loads_at_once() {
+    let fx = fixture(1).await;
+    let teller = fx.tellers[0].1.clone();
+    let proxy = Proxy::start(&fx.base).await;
+    let db = temp_db("cold");
+    seed_delivery_and_booking(&fx).await;
+    let till = {
+        let core = core_at(&proxy.base, &db, &teller, &fx.branch).await;
+        let till = core.open_till(10_000, None).await.unwrap().till.unwrap().id;
+        let cash = method(&core, true).unwrap();
+        for _ in 0..5 {
+            sell(&core, 2, &cash, 1_000_000).await;
+        }
+        core.record_cash_movement(1_000, "float".into(), Some("pay_in".into()), None).await.unwrap();
+        fire(&core, 2).await;
+        converge(&core).await;
+        let sale = core.list_till_orders().await.unwrap().into_iter().find(|o| !o.queued).unwrap();
+        core.refund_order(sale.id.clone(), 100, "cash".into(), "damaged".into(), None).await.unwrap();
+        // The detail screen was opened once while online.
+        core.order_detail(sale.id).await.unwrap();
+        converge(&core).await;
+        till
+    };
+    // Cold start, cable out.
+    proxy.offline();
+    let core = MadarCore::new(madar_core::MadarConfig {
+        base_url: proxy.base.clone(),
+        environment: "dev".into(),
+        db_path: db.clone(),
+        locale: "en".into(),
+        app_version: None,
+    })
+    .unwrap();
+    let s = core
+        .sign_in(madar_core::session::LoginRequest {
+            mode: madar_core::session::LoginMode::Pin,
+            name: Some(teller.clone()),
+            pin: Some("1234".into()),
+            branch_id: Some(fx.branch.clone()),
+            email: None,
+            password: None,
+            org_id: None,
+        })
+        .await
+        .expect("offline sign-in");
+    assert!(!s.online);
+    for _ in 0..3 {
+        core.refresh_connectivity().await;
+    }
+    let offline = read_latencies(&core, &till).await;
+    table("offline", &offline);
+    for (read, ms, ok) in &offline {
+        assert!(ok, "{read} serves offline");
+        assert!(*ms < 1_000.0, "{read} waited {ms} ms offline");
+    }
+    assert!(core.list_till_orders().await.unwrap().len() >= 5, "the sales are there");
+    assert!(!core.list_open_tickets().await.unwrap().is_empty() && !core.kds_list(None).await.unwrap().is_empty());
+    assert!(!core.list_delivery_orders(Some(ACTIVE_DELIVERY.into())).await.unwrap().is_empty());
+    assert!(!core.list_arrivals().unwrap().is_empty() && core.list_till_refunds(till.clone()).await.unwrap().refund_count >= 1);
+    let offline_only = online_only_latencies(&core).await;
+    table("offline", &offline_only);
+    for (read, ms, _) in &offline_only {
+        assert!(*ms < 1_000.0, "{read} waited {ms} ms offline");
+    }
+    let _ = std::fs::remove_file(&db);
+}
+
+/// A link that hangs: no screen read waits longer than the read timeout, and
+/// the local reads answer at once.
+#[tokio::test]
+#[ignore]
+async fn a_hanging_link_holds_no_screen_past_the_read_timeout() {
+    let fx = fixture(1).await;
+    let teller = fx.tellers[0].1.clone();
+    let proxy = Proxy::start(&fx.base).await;
+    let db = temp_db("hang");
+    let core = core_at(&proxy.base, &db, &teller, &fx.branch).await;
+    let till = core.open_till(10_000, None).await.unwrap().till.unwrap().id;
+    let cash = method(&core, true).unwrap();
+    sell(&core, 1, &cash, 1_000_000).await;
+    converge(&core).await;
+    // Online, signed in with a live session: the baseline.
+    table("online", &read_latencies(&core, &till).await);
+    table("online", &online_only_latencies(&core).await);
+    proxy.hanging();
+    assert!(core.sync_status().online, "the device still believes it is online");
+    let local = read_latencies(&core, &till).await;
+    table("hanging", &local);
+    let remote = online_only_latencies(&core).await;
+    table("hanging", &remote);
+    let bound = 5_000.0 + 1_000.0;
+    for (read, ms, _) in local.iter().chain(remote.iter()) {
+        assert!(*ms < bound, "{read} waited {ms} ms on a hanging link");
+    }
+    proxy.online();
+    let _ = std::fs::remove_file(&db);
 }

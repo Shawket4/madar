@@ -25,6 +25,8 @@ pub fn env(k: &str) -> String {
 pub struct Proxy {
     pub base: String,
     pub online: Arc<AtomicBool>,
+    /// A flaky link: connections are accepted and never answered.
+    pub hang: Arc<AtomicBool>,
     pub cut: broadcast::Sender<()>,
 }
 
@@ -34,11 +36,17 @@ impl Proxy {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());
         let online = Arc::new(AtomicBool::new(true));
+        let hang = Arc::new(AtomicBool::new(false));
         let (cut, _) = broadcast::channel::<()>(4);
-        let (on, cut_tx) = (online.clone(), cut.clone());
+        let (on, hung, cut_tx) = (online.clone(), hang.clone(), cut.clone());
         tokio::spawn(async move {
+            let mut held = Vec::new();
             loop {
                 let Ok((mut client, _)) = listener.accept().await else { return };
+                if hung.load(Ordering::SeqCst) {
+                    held.push(client);
+                    continue;
+                }
                 if !on.load(Ordering::SeqCst) {
                     let _ = client.shutdown().await;
                     continue;
@@ -98,7 +106,7 @@ impl Proxy {
                 });
             }
         });
-        Proxy { base, online, cut }
+        Proxy { base, online, hang, cut }
     }
 
     /// Pull the cable: new connections are refused and live ones (the SSE
@@ -110,6 +118,14 @@ impl Proxy {
 
     pub fn online(&self) {
         self.online.store(true, Ordering::SeqCst);
+        self.hang.store(false, Ordering::SeqCst);
+    }
+
+    /// A link that hangs: live sockets drop, new ones are accepted and held
+    /// without a byte in either direction.
+    pub fn hanging(&self) {
+        self.hang.store(true, Ordering::SeqCst);
+        let _ = self.cut.send(());
     }
 }
 
