@@ -124,11 +124,6 @@ pub(crate) fn yymmdd_in(tz: chrono_tz::Tz, rfc3339: &str) -> Option<String> {
     Some(at.with_timezone(&tz).format("%y%m%d").to_string())
 }
 
-/// `YYYY-MM-DD` of a calendar date.
-pub(crate) fn iso_date(d: chrono::NaiveDate) -> String {
-    d.format("%Y-%m-%d").to_string()
-}
-
 fn format_pat_in(tz: chrono_tz::Tz, rfc3339: &str, pat: &str, locale: &str) -> String {
     match chrono::DateTime::parse_from_rfc3339(rfc3339) {
         Ok(d) => strftime_in(&d.with_timezone(&tz), pat, locale),

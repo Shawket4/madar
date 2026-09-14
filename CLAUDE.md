@@ -116,8 +116,15 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
   methods) regenerates `MadarRust/tests/fixtures/till_report_vectors.json`
   (`MADAR_WRITE_TILL_VECTORS=1`) and copies it to
   `rust-core/crates/madar-core/tests/fixtures/`; `ledger::report` must pass it.
-- Read paths default to `shadow` (`readpath.rs`, how to flip to `new`).
-- Real-backend scenarios: `tool/offline_b_backend.sh` (see its header).
+- **The local rows are the only read path.** No screen read waits on the network:
+  it returns what the device holds at once. A till not held completely is filled
+  in the background (`ledger_ops::fill_till_soon`, short timeout) and a table
+  change re-reads the screen; reads that are online by nature (a sale never seen
+  here, search across tills, a points balance) go through `ledger_ops::within`
+  (5 s) and fail offline with a clear error. Never add a blob cache or a
+  server-then-cache read; add the type to the feed.
+- Real-backend scenarios: `tool/offline_b_backend.sh` (see its header);
+  `MADAR_OB_TESTS=readpath_parity` checks every screen read against the server.
 
 ## Floor / tables — shared with the dashboard
 `packages/features/order/lib/src/tables_screen.dart`.
@@ -187,7 +194,7 @@ shows the guest on the pill, and offers *Seat this party* / *No-show* — both
 optimistic-local + queued (`seat_booking` / `no_show_booking` replay ops). Seating
 points the live order at the table under the guest's name; the ticket fired next
 carries `booking_id` and the server links the two. The arrivals sheet lists today's
-active bookings from `cache:bookings:arrivals` (refreshed with the floor).
+active bookings from the synced `booking` rows, with queued seat / no-show answers applied.
 
 Realtime: bookings ride the device's ONE SSE connection (`bookings` topic, waiters and
 tellers); `booking.created` / `booking.arriving` ping through the same alert path as

@@ -1560,27 +1560,6 @@ mod tests {
         store.kv_put(KEY_DEVICE_CODE, "T1").unwrap();
     }
 
-    fn queue_order_for_shift(store: &Store, id: &str, shift: &str) {
-        let req = models::CreateOrderRequest::new(
-            uuid::Uuid::new_v4(),
-            vec![],
-            "Cash".into(),
-            uuid::Uuid::parse_str(shift).unwrap(),
-        );
-        let cmd = CheckoutCommand { request: req, device: None };
-        store
-            .enqueue(&crate::store::NewOutboxOp {
-                id: id.into(),
-                op_type: "create_order".into(),
-                idempotency_key: id.into(),
-                payload: serde_json::to_string(&cmd).unwrap(),
-                event_at: "2026-06-20T12:00:00+00:00".into(),
-                till_id: Some(shift.into()),
-                ..Default::default()
-            })
-            .unwrap();
-    }
-
     #[test]
     fn order_base_defaults_zero_is_monotonic_and_per_shift() {
         let store = Store::open("").unwrap();

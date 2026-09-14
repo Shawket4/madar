@@ -225,6 +225,13 @@ pub(crate) fn till_report(store: &Store, till_id: &str, label: &dyn Fn(&str) -> 
     if !till_complete(store, till_id) {
         return Ok(None);
     }
+    till_report_rows(store, till_id, label)
+}
+
+/// What a till's rows on this device add up to, held completely or not
+/// (`None` when the device has no row for the till at all). For a till not
+/// held completely this is what is known so far, never the server's figure.
+pub(crate) fn till_report_rows(store: &Store, till_id: &str, label: &dyn Fn(&str) -> String) -> CoreResult<Option<TillReportView>> {
     let Some(f) = figures(store, till_id)? else { return Ok(None) };
     let t = &f.till;
     let (first, last, range_code) = order_number_range(store, till_id)?;
@@ -391,9 +398,15 @@ fn refunds_where(conn: &Connection, clause: &str, arg: &str) -> CoreResult<Vec<R
 }
 
 /// Everything given back from a till's drawer.
+fn issued_instant(r: &RefundView) -> i64 {
+    chrono::DateTime::parse_from_rfc3339(&r.issued_at).map(|d| d.timestamp_micros()).unwrap_or(i64::MIN)
+}
+
 pub(crate) fn till_refunds(store: &Store, till_id: &str) -> CoreResult<TillRefundsView> {
     store.with_conn(|c| {
-        let refunds = refunds_where(c, "till_id=?1", till_id)?;
+        let mut refunds = refunds_where(c, "till_id=?1", till_id)?;
+        // Newest first, as the server lists a till's refunds.
+        refunds.sort_by_key(|r| std::cmp::Reverse(issued_instant(r)));
         Ok(TillRefundsView {
             till_id: till_id.to_string(),
             refund_count: refunds.len() as i64,
@@ -422,6 +435,8 @@ pub(crate) fn order_refunds(store: &Store, order_id: &str) -> CoreResult<Option<
         if server != okey {
             refunds.extend(refunds_where(c, "order_id=?1", &okey)?);
         }
+        // Oldest first, as the server lists one sale's refunds.
+        refunds.sort_by_key(issued_instant);
         let refunded: i64 = refunds.iter().map(|r| r.amount_minor).sum();
         let total = i(&v, "total_amount");
         Ok(Some(OrderRefundsView {
@@ -594,6 +609,6 @@ pub(crate) fn stored_till_report(store: &Store, till_id: &str) -> Option<madar_a
         .with_conn(|c| Ok(c.query_row("SELECT raw FROM till_reports WHERE till_id=?1", [till_id], |r| r.get(0)).optional()?))
         .ok()
         .flatten();
-    raw.and_then(|r| serde_json::from_str(&r).ok()).or_else(|| till::cached_report(store, till_id))
+    raw.and_then(|r| serde_json::from_str(&r).ok())
 }
 

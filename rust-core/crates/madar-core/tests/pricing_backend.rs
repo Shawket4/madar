@@ -23,7 +23,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use madar_core::checkout::{CheckoutInput, CheckoutSplit};
-use madar_core::readpath::ReadPathMode;
 use madar_core::session::{LoginMode, LoginRequest};
 use madar_core::{MadarConfig, MadarCore};
 
@@ -156,9 +155,6 @@ async fn core_for(fx: &Fixture, who: &str) -> Arc<MadarCore> {
         .to_string_lossy()
         .into_owned();
     let core = signed_in(&fx.base, &db, who, &fx.branch).await;
-    for area in madar_core::readpath::AREAS {
-        core.set_read_path_mode(area.to_string(), ReadPathMode::New).unwrap();
-    }
     core.refresh_connectivity().await;
     core.refresh_catalog().await.expect("catalog");
     core.sync_full().await.expect("first snapshot");
@@ -378,7 +374,6 @@ async fn a_table_bill_with_a_discount_settles_at_the_due_and_a_partial_refund_mo
         }
     };
     let probe = signed_in(&fx.base, "", &teller, &fx.branch).await;
-    probe.set_read_path_mode("ledger".into(), ReadPathMode::Legacy).unwrap();
     let srv_before = probe_report(probe.clone(), till.clone()).await;
     assert_eq!(
         (srv_before.total_tax_minor, srv_before.total_service_charge_minor),

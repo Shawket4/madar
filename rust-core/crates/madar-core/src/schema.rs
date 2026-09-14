@@ -19,7 +19,7 @@ type Step = fn(&Transaction<'_>) -> CoreResult<()>;
 
 /// The steps, in order. Step N brings the store from `user_version = N-1` to N.
 /// Append only: a shipped step is never edited.
-const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger];
+const STEPS: &[Step] = &[step1_sync_streams, step2_ledger, step3_order_details, step4_backfill_ledger, step5_drop_legacy_read_caches];
 
 /// The schema version this build writes.
 pub(crate) fn latest() -> i64 {
@@ -255,6 +255,68 @@ fn step4_backfill_ledger(tx: &Transaction<'_>) -> CoreResult<()> {
     crate::ledger::migrate::backfill(tx)
 }
 
+/// The blob caches the pre-B read paths kept (server lists written through to
+/// kv so a screen survived offline). Step 4 moved what they knew into the rows;
+/// the local rows are now the only read path, so nothing reads these again.
+/// `cache:kds:lan` (the LAN relay's projection) is live state and stays.
+pub(crate) const LEGACY_READ_CACHES: &[&str] = &[
+    "cache:till_orders:",
+    "cache:shift_orders:",
+    "cache:till_report:",
+    "cache:shift_report:",
+    "cache:cash:",
+    "cache:refunds:",
+    "cache:order:",
+    "cache:tills",
+    "cache:open_tickets",
+    "cache:delivery:",
+    "cache:bookings:arrivals",
+];
+
+/// Delete the legacy read caches. A server Z report cached under the pre-rework
+/// shape is first normalised into `till_reports` (step 4 copied it raw), so a
+/// device updated mid-till keeps its figures. The outbox is not touched.
+fn step5_drop_legacy_read_caches(tx: &Transaction<'_>) -> CoreResult<()> {
+    let mut ids: Vec<String> = {
+        let mut st = tx.prepare(
+            "SELECT k FROM kv WHERE substr(k, 1, 18) = 'cache:till_report:' OR substr(k, 1, 19) = 'cache:shift_report:'",
+        )?;
+        let v = st.query_map([], |r| r.get::<_, String>(0))?.collect::<Result<Vec<_>, _>>()?;
+        v.into_iter()
+            .filter_map(|k| {
+                k.strip_prefix("cache:till_report:").or_else(|| k.strip_prefix("cache:shift_report:")).map(str::to_string)
+            })
+            .collect()
+    };
+    ids.sort();
+    ids.dedup();
+    for id in ids {
+        let raws: Vec<String> = {
+            let mut st = tx.prepare("SELECT v FROM kv WHERE k IN (?1, ?2) ORDER BY k DESC")?;
+            let v = st
+                .query_map([format!("cache:till_report:{id}"), format!("cache:shift_report:{id}")], |r| r.get(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            v
+        };
+        if let Some(report) = raws.iter().find_map(|raw| crate::till::parse_cached_report(raw)) {
+            tx.execute(
+                "INSERT INTO till_reports(till_id, raw, fetched_at) VALUES(?1, ?2, ?3)
+                 ON CONFLICT(till_id) DO UPDATE SET raw=excluded.raw",
+                rusqlite::params![id, serde_json::to_string(&report)?, chrono::Utc::now().timestamp_millis()],
+            )?;
+        }
+    }
+    for prefix in LEGACY_READ_CACHES {
+        tx.execute(
+            "DELETE FROM kv WHERE substr(k, 1, length(?1)) = ?1 AND k <> 'cache:kds:lan'",
+            [prefix],
+        )?;
+    }
+    // Every per-station KDS board cache (`cache:kds:<station>`, `cache:kds:all`).
+    tx.execute("DELETE FROM kv WHERE substr(k, 1, 10) = 'cache:kds:' AND k <> 'cache:kds:lan'", [])?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -318,5 +380,51 @@ mod tests {
         let m = migrate_with(&mut c, &[noop], &mut |_| Ok(())).unwrap();
         assert!(m.future_schema);
         assert_eq!(user_version(&c).unwrap(), 99);
+    }
+
+    /// The legacy read caches go; a pre-rework server report is kept as a row;
+    /// the outbox and the live kv state are untouched.
+    #[test]
+    fn step5_drops_the_legacy_read_caches_and_keeps_the_rest() {
+        let store = crate::store::Store::open("").unwrap();
+        let legacy = r#"[{"shift":{"id":"00000000-0000-0000-0000-0000000000a1","branch_id":"00000000-0000-0000-0000-0000000000b1",
+            "teller_id":"00000000-0000-0000-0000-0000000000c1","teller_name":"Sara","status":"open","opening_cash":500,
+            "opened_at":"2026-09-01T09:00:00Z","opening_cash_was_edited":false},
+            "cash_movements":[],"cash_movements_in":0,"cash_movements_net":0,"cash_movements_out":0,"cash_tips":0,
+            "expected_cash":900,"net_payments":0,"non_cash_tips":0,"payment_summary":[],"printed_at":"2026-09-01T18:00:00Z",
+            "total_payments":0,"total_tips":0,"voided_amount":0,"cash_adjustments":0,"safe_drops":0}]"#;
+        let gone = [
+            "cache:till_orders:T1", "cache:shift_orders:T0", "cache:shift_report:T1", "cache:cash:T1",
+            "cache:refunds:shift:T1", "cache:refunds:order:O1", "cache:order:O1", "cache:tills",
+            "cache:open_tickets", "cache:open_tickets:stale", "cache:kds:all", "cache:kds:st-1",
+            "cache:delivery:all", "cache:delivery:received", "cache:bookings:arrivals",
+        ];
+        for k in gone {
+            store.kv_put(k, if k == "cache:shift_report:T1" { legacy } else { "[]" }).unwrap();
+        }
+        let kept = ["cache:kds:lan", "cache:kds_stations", "cache:loyalty_settings", "floor:tables", "held:mirror"];
+        for k in kept {
+            store.kv_put(k, "[]").unwrap();
+        }
+        store
+            .enqueue(&crate::store::NewOutboxOp {
+                id: "op-1".into(),
+                op_type: "create_order".into(),
+                idempotency_key: "op-1".into(),
+                payload: "{}".into(),
+                event_at: "2026-09-01T10:00:00Z".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        store.with_tx(step5_drop_legacy_read_caches).unwrap();
+        for k in gone {
+            assert!(store.kv_get(k).unwrap().is_none(), "{k} is gone");
+        }
+        for k in kept {
+            assert!(store.kv_get(k).unwrap().is_some(), "{k} stays");
+        }
+        assert_eq!(store.pending().unwrap().len(), 1, "the outbox is intact");
+        let report = crate::ledger::views::stored_till_report(&store, "T1").expect("the report is a row now");
+        assert_eq!(report.expected_cash, 900);
     }
 }

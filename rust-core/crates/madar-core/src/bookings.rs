@@ -7,8 +7,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::CoreResult;
-use crate::store::Store;
 
 /// One booking as the floor staff see it.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -54,31 +52,6 @@ impl From<madar_api::models::BookingView> for BookingView {
     }
 }
 
-/// kv key for today's active bookings (the arrivals list, readable offline).
-pub(crate) const K_ARRIVALS: &str = "cache:bookings:arrivals";
-
-pub(crate) fn load_arrivals(store: &Store) -> CoreResult<Vec<BookingView>> {
-    Ok(store
-        .kv_get(K_ARRIVALS)?
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default())
-}
-
-pub(crate) fn save_arrivals(store: &Store, list: &[BookingView]) -> CoreResult<()> {
-    store.kv_put(K_ARRIVALS, &serde_json::to_string(list)?)?;
-    Ok(())
-}
-
-/// Optimistic status flip in the arrivals cache (the server view lands on the
-/// next pull). A terminal status drops the row from "arrivals".
-pub(crate) fn set_status_local(store: &Store, booking_id: &str, status: &str) -> CoreResult<()> {
-    let mut list = load_arrivals(store)?;
-    if let Some(b) = list.iter_mut().find(|b| b.id == booking_id) {
-        b.status = status.to_string();
-    }
-    list.retain(|b| matches!(b.status.as_str(), "confirmed" | "seated"));
-    save_arrivals(store, &list)
-}
 
 /// Outbox payloads (the `/sync/replay` bodies minus the actor, which the drain adds).
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -90,41 +63,4 @@ pub(crate) struct SeatBookingCommand {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct NoShowBookingCommand {
     pub booking_id: String,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn b(id: &str, status: &str) -> BookingView {
-        BookingView {
-            id: id.into(),
-            status: status.into(),
-            party_size: 2,
-            starts_at: "2026-09-10T16:30:00+00:00".into(),
-            ends_at: "2026-09-10T18:00:00+00:00".into(),
-            held_from: "2026-09-10T16:15:00+00:00".into(),
-            guest_name: "A".into(),
-            guest_phone: "2010".into(),
-            notes: None,
-            table_ids: vec![],
-            table_labels: vec![],
-            needs_table: true,
-            source: "host".into(),
-        }
-    }
-
-    #[test]
-    fn local_status_flip_keeps_active_rows_only() {
-        let store = Store::open("").unwrap();
-        save_arrivals(&store, &[b("1", "confirmed"), b("2", "confirmed")]).unwrap();
-        set_status_local(&store, "1", "seated").unwrap();
-        set_status_local(&store, "2", "no_show").unwrap();
-        let list = load_arrivals(&store).unwrap();
-        assert_eq!(list.len(), 1);
-        assert_eq!(
-            (list[0].id.as_str(), list[0].status.as_str()),
-            ("1", "seated")
-        );
-    }
 }

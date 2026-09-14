@@ -9,7 +9,6 @@ use crate::api::error::MadarError;
 pub use madar_core::timefmt::TimeStyle;
 pub use madar_core::assets::AssetSyncView;
 pub use madar_core::sync_pull::{FreshnessView, SyncStatusView, TillOpenSyncView};
-pub use madar_core::readpath::ReadPathMode;
 
 use crate::frb_generated::StreamSink;
 pub use madar_core::{DiagLogView, OutboxItemView};
@@ -46,16 +45,6 @@ pub struct _SyncStatusView {
     pub blocked: u32,
     /// How far the local data can be trusted (`fresh` / `stale` / `bootstrapping`).
     pub freshness: FreshnessView,
-}
-
-/// Which read a board uses while offline plan B rolls out (`legacy` = the
-/// pre-B server list + cache, `shadow` = legacy served and compared, `new` =
-/// local rows only).
-#[frb(mirror(ReadPathMode))]
-pub enum _ReadPathMode {
-    Legacy,
-    Shadow,
-    New,
 }
 
 /// Freshness of the replicated store (OFFLINE_B_DESIGN §6).
@@ -137,18 +126,6 @@ impl MadarBridge {
         self.inner
             .watch_tables(50, move |batch| sink.add(batch).is_ok())
             .map_err(MadarError::from)
-    }
-
-    /// The read-path mode of an area (`ledger`, `tickets`, `kitchen`, `delivery`, `bookings`).
-    #[frb(sync)]
-    pub fn read_path_mode(&self, area: String) -> ReadPathMode {
-        self.inner.read_path_mode(area)
-    }
-
-    /// Switch an area's read path (the diagnostics toggle).
-    #[frb(sync)]
-    pub fn set_read_path_mode(&self, area: String, mode: ReadPathMode) -> Result<(), MadarError> {
-        self.inner.set_read_path_mode(area, mode).map_err(MadarError::from)
     }
 
     /// Sync health (one cheap local read; always succeeds offline).

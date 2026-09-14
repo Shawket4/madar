@@ -25,54 +25,33 @@ pub(crate) fn device_till_key(user_id: &str) -> String {
 }
 pub(crate) const DEVICE_TILL_PREFIX: &str = "device_till:";
 
-/// kv key holding the last SERVER report seen for a till id, so a close that
-/// happens offline still knows what the till actually took.
-pub(crate) fn report_cache_key(till_id: &str) -> String {
-    format!("cache:till_report:{till_id}")
-}
-/// Pre-rework key for the same cache — read as a fallback.
-fn legacy_report_cache_key(till_id: &str) -> String {
-    format!("cache:shift_report:{till_id}")
-}
 /// kv key holding the server's `CloseTillResponse` once a queued close acks.
 pub(crate) fn close_result_key(till_id: &str) -> String {
     format!("till:close_result:{till_id}")
 }
 
-/// Remember the server's report for a till (read back offline).
-pub(crate) fn cache_report(store: &Store, till_id: &str, report: &models::TillReportResponse) {
-    if let Ok(raw) = serde_json::to_string(report) {
-        let _ = store.kv_put(&report_cache_key(till_id), &raw);
-    }
-}
-
-/// The last server report seen for a till. Reads the current object form, the
-/// one-element list an earlier build wrote under the same key, and — once — the
-/// pre-rework `ShiftReportResponse` (key `shift`, no rework fields), so a device
-/// updated mid-till still closes offline against real figures.
-pub(crate) fn cached_report(store: &Store, till_id: &str) -> Option<models::TillReportResponse> {
-    let parse = |raw: &str| -> Option<models::TillReportResponse> {
-        let v: serde_json::Value = serde_json::from_str(raw).ok()?;
-        let mut v = match v {
-            serde_json::Value::Array(mut a) if !a.is_empty() => a.swap_remove(0),
-            other => other,
-        };
-        let obj = v.as_object_mut()?;
-        if let Some(shift) = obj.remove("shift") {
-            obj.entry("till").or_insert(shift);
-        }
-        if let Some(till) = obj.get_mut("till").and_then(|t| t.as_object_mut()) {
-            till.entry("verification").or_insert_with(|| "legacy".into());
-            till.entry("opened_while_another_open").or_insert(false.into());
-            till.entry("disagreement_count").or_insert(0.into());
-        }
-        obj.entry("reconciliation").or_insert_with(|| serde_json::json!([]));
-        obj.entry("order_number_range").or_insert_with(|| serde_json::json!({}));
-        serde_json::from_value(v).ok()
+/// A server report as an older build cached it in kv: the current object form,
+/// the one-element list an earlier build wrote, or the pre-rework
+/// `ShiftReportResponse` (key `shift`, no rework fields). Read once, by the store
+/// migration that retires those caches (`schema::step5_drop_legacy_read_caches`).
+pub(crate) fn parse_cached_report(raw: &str) -> Option<models::TillReportResponse> {
+    let v: serde_json::Value = serde_json::from_str(raw).ok()?;
+    let mut v = match v {
+        serde_json::Value::Array(mut a) if !a.is_empty() => a.swap_remove(0),
+        other => other,
     };
-    [report_cache_key(till_id), legacy_report_cache_key(till_id)]
-        .iter()
-        .find_map(|k| store.kv_get(k).ok().flatten().and_then(|raw| parse(&raw)))
+    let obj = v.as_object_mut()?;
+    if let Some(shift) = obj.remove("shift") {
+        obj.entry("till").or_insert(shift);
+    }
+    if let Some(till) = obj.get_mut("till").and_then(|t| t.as_object_mut()) {
+        till.entry("verification").or_insert_with(|| "legacy".into());
+        till.entry("opened_while_another_open").or_insert(false.into());
+        till.entry("disagreement_count").or_insert(0.into());
+    }
+    obj.entry("reconciliation").or_insert_with(|| serde_json::json!([]));
+    obj.entry("order_number_range").or_insert_with(|| serde_json::json!({}));
+    serde_json::from_value(v).ok()
 }
 
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
@@ -262,26 +241,6 @@ pub struct CashMovementView {
     pub created_at: String,
 }
 
-pub(crate) fn cash_movement_view(m: &models::CashMovement) -> CashMovementView {
-    CashMovementView {
-        // `client_ref` is the cross-boundary identity: an offline-rung movement
-        // carries it as its outbox id AND sends it; the server echoes it back here.
-        // Use it (not the server id) so `merge_cash_for_view` dedups the still-queued
-        // copy against this synced row — otherwise the drawer double-counts a movement
-        // whose response was lost (the exact case client_ref/idempotency exists for).
-        id: m
-            .client_ref
-            .flatten()
-            .map(|r| r.to_string())
-            .unwrap_or_else(|| m.id.to_string()),
-        kind: crate::till_views::movement_kind(Some(&m.kind), m.amount as i64),
-        amount_minor: m.amount as i64,
-        note: m.note.clone(),
-        moved_by_name: m.moved_by_name.clone(),
-        created_at: m.created_at.to_rfc3339(),
-    }
-}
-
 /// Merge synced server cash movements with the still-queued offline ones, dropping
 /// a queued movement that has ALREADY synced (its `client_ref`, now the view `id`,
 /// identifies a server row). Server first (chronological), then the queued tail.
@@ -349,117 +308,6 @@ pub(crate) fn till_summary_view(s: &TillRecord) -> TillSummaryView {
         opened_while_another_open: s.opened_while_another_open,
         reconciliation_status: s.reconciliation_status.clone(),
     }
-}
-
-/// Shift ids the device has CLOSED OFFLINE — a `close_till` still queued/inflight/
-/// dead in the outbox — each mapped to its locally-declared closing cash + close
-/// time. The past-shifts list overlays these so a shift closed offline reads as
-/// CLOSED, not still-active: the server snapshot the list is projected from keeps
-/// the shift OPEN until the close actually syncs.
-pub(crate) fn queued_close_overlay(
-    store: &Store,
-) -> std::collections::HashMap<String, (Option<String>, i64)> {
-    let mut out = std::collections::HashMap::new();
-    for item in store
-        .list_active_of_types(&["close_till", "close_shift"])
-        .unwrap_or_default()
-    {
-        if let Ok(cmd) = serde_json::from_str::<CloseTillCommand>(&item.payload) {
-            let closed_at = cmd.request.closed_at.flatten().map(|d| d.to_rfc3339());
-            out.insert(
-                cmd.till_id,
-                (closed_at, cmd.request.closing_cash_declared as i64),
-            );
-        }
-    }
-    out
-}
-
-/// Teller `user_id` → display name, from the cached offline-auth bundle — so a
-/// shift reconstructed from the outbox can show WHO opened it, even offline.
-fn teller_names(store: &Store) -> std::collections::HashMap<String, String> {
-    let mut map = std::collections::HashMap::new();
-    if let Ok(Some(raw)) = store.kv_get(crate::session::BUNDLE_KEY) {
-        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
-            if let Some(tellers) = v.get("tellers").and_then(|t| t.as_array()) {
-                for t in tellers {
-                    if let (Some(uid), Some(name)) = (
-                        t.get("user_id").and_then(|x| x.as_str()),
-                        t.get("name").and_then(|x| x.as_str()),
-                    ) {
-                        map.insert(uid.to_string(), name.to_string());
-                    }
-                }
-            }
-        }
-    }
-    map
-}
-
-/// Shifts this device OPENED that aren't on the server yet — reconstructed from the
-/// outbox `open_till` commands — so the past-shifts list is COMPLETE offline, not
-/// just the synced shifts. A shift opened AND closed entirely offline (the normal
-/// offline workflow) is invisible to the server until it syncs, so it must come
-/// from here. Closed state + declared cash come from a matching queued close; the
-/// teller name from the cached bundle. They drop out of here once the open acks
-/// (the queue clears) and the server list carries them instead.
-pub(crate) fn local_tills(store: &Store) -> Vec<TillSummaryView> {
-    let closes = queued_close_overlay(store);
-    let names = teller_names(store);
-    let mut out = Vec::new();
-    for item in store
-        .list_active_of_types(&["open_till", "open_shift"])
-        .unwrap_or_default()
-    {
-        let cmd: OpenTillCommand = match serde_json::from_str(&item.payload) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-        let id = cmd
-            .request
-            .id
-            .flatten()
-            .map(|u| u.to_string())
-            .unwrap_or_else(|| item.id.clone());
-        let opened_at = cmd
-            .request
-            .opened_at
-            .flatten()
-            .map(|d| d.to_rfc3339())
-            .unwrap_or_else(|| item.event_at.clone());
-        let teller = item.user_id.as_deref().and_then(|u| names.get(u).cloned());
-        let (closed_at, declared) = match closes.get(&id) {
-            Some((ca, d)) => (ca.clone(), Some(*d)),
-            None => (None, None),
-        };
-        let is_open = declared.is_none();
-        out.push(TillSummaryView {
-            id,
-            branch_name: None,
-            teller_name: teller,
-            opened_at,
-            closed_at,
-            opening_cash_minor: cmd.request.opening_cash as i64,
-            closing_declared_minor: declared,
-            closing_system_minor: None,
-            discrepancy_minor: None,
-            status: if is_open {
-                "open".into()
-            } else {
-                "closed".into()
-            },
-            is_open,
-            device_code: Some(cmd.device_code.clone()).filter(|c| !c.is_empty()),
-            verification: if cmd.verification.is_empty() {
-                "unverified".into()
-            } else {
-                cmd.verification.clone()
-            },
-            opened_while_another_open: false,
-            reconciliation_status: None,
-        });
-    }
-    out
 }
 
 /// One payment-method line in the shift report.
@@ -628,69 +476,6 @@ pub(crate) fn report_view(
         open_bills_count: report.open_bills_at_close.flatten().map(i64::from),
         opened_while_another_open: shift.opened_while_another_open,
         verification: shift.verification.to_string(),
-    }
-}
-
-/// Offline fallback: expected = opening cash + still-queued cash sales; the
-/// drawer block is reconstructed from the still-queued cash movements.
-pub(crate) fn offline_report_view(
-    opening_cash_minor: i64,
-    queued_cash: i64,
-    movements: Vec<TillReportCashLine>,
-    teller_name: String,
-    opened_at: String,
-    printed_at: String,
-) -> TillReportView {
-    let cash_in: i64 = movements
-        .iter()
-        .filter(|m| m.amount_minor > 0)
-        .map(|m| m.amount_minor)
-        .sum();
-    let cash_out: i64 = movements
-        .iter()
-        .filter(|m| m.amount_minor < 0)
-        .map(|m| -m.amount_minor)
-        .sum();
-    TillReportView {
-        teller_name,
-        opened_at,
-        closed_at: None,
-        printed_at,
-        is_open: true,
-        opening_cash_was_edited: false,
-        opening_cash_original_minor: None,
-        opening_cash_edit_reason: None,
-        closing_cash_declared_minor: None,
-        expected_cash_minor: opening_cash_minor + queued_cash,
-        opening_cash_minor,
-        total_payments_minor: 0,
-        net_payments_minor: 0,
-        voided_amount_minor: 0,
-        // Offline the server's figures are unavailable, and a refund queued
-        // locally has not been priced into anything yet. Zero here is honest:
-        // this fallback reports the drawer, not the books.
-        refunds_issued_minor: 0,
-        refunds_issued_cash_minor: 0,
-        refunds_issued_count: 0,
-        cash_in_refunded_sales_minor: 0,
-        total_tax_minor: 0,
-        total_service_charge_minor: 0,
-        service_charge_waived_count: 0,
-        service_charge_waived_minor: 0,
-        cash_movements_net_minor: cash_in - cash_out,
-        cash_in_minor: cash_in,
-        cash_out_minor: cash_out,
-        payment_lines: vec![],
-        cash_movements: movements,
-        from_server: false,
-        device_code: None,
-        order_number_first: None,
-        order_number_last: None,
-        reconciliation: vec![],
-        old_bills_count: None,
-        open_bills_count: None,
-        opened_while_another_open: false,
-        verification: "unverified".into(),
     }
 }
 
@@ -1150,20 +935,6 @@ pub struct OpenBillsNoticeView {
     pub since: Option<String>,
 }
 
-pub(crate) fn open_bills_notice_view(
-    w: &models::OpenBillsNotice,
-) -> Option<OpenBillsNoticeView> {
-    (w.open_bills_count > 0).then(|| OpenBillsNoticeView {
-        open_bills_count: w.open_bills_count,
-        open_bills_amount_minor: w.open_bills_amount,
-        oldest_opened_at: w.oldest_opened_at.flatten().map(|d| d.to_rfc3339()),
-        old_bills_count: w.old_bills_count,
-        old_bill_hours: i64::from(w.old_bill_hours),
-        seated_tables_count: w.seated_tables_count,
-        since: w.since.flatten().map(|d| d.to_rfc3339()),
-    })
-}
-
 /// A bill as the local mirror knows it: when it opened and what it holds.
 #[derive(Clone, Debug)]
 pub(crate) struct LocalBill {
@@ -1283,68 +1054,6 @@ pub struct BranchOpenTillView {
     pub is_this_device: bool,
     /// `server` | `lan` | `both`.
     pub source: String,
-}
-
-pub(crate) fn preview_methods_from_api(
-    methods: &[models::CloseTillMethod],
-    label: &dyn Fn(&str) -> String,
-) -> Vec<CloseTillMethodView> {
-    methods
-        .iter()
-        .map(|m| CloseTillMethodView {
-            method: m.method.clone(),
-            label: label(&m.method),
-            is_cash: m.is_cash,
-            system_total_minor: m.system_total,
-            order_count: m.order_count,
-        })
-        .collect()
-}
-
-/// The offline preview: every method the report (server snapshot + queued work)
-/// shows as USED, with the cash row always present at the expected drawer cash.
-pub(crate) fn offline_preview_methods(
-    report: &TillReportView,
-    queued_by_method: &[(String, bool, i64, i64)],
-    label: &dyn Fn(&str) -> String,
-) -> Vec<CloseTillMethodView> {
-    let mut rows: Vec<CloseTillMethodView> = Vec::new();
-    let mut add = |method: &str, is_cash: bool, total: i64, count: i64| {
-        if let Some(r) = rows.iter_mut().find(|r| r.method == method) {
-            r.system_total_minor += total;
-            r.order_count += count;
-        } else {
-            rows.push(CloseTillMethodView {
-                method: method.to_string(),
-                label: label(method),
-                is_cash,
-                system_total_minor: total,
-                order_count: count,
-            });
-        }
-    };
-    for p in &report.payment_lines {
-        add(&p.method, p.is_cash, p.total_minor, p.order_count);
-    }
-    for (m, c, t, n) in queued_by_method {
-        add(m, *c, *t, *n);
-    }
-    // The cash row is always present and carries what should be in the drawer.
-    match rows.iter_mut().find(|r| r.is_cash) {
-        Some(cash) => cash.system_total_minor = report.expected_cash_minor,
-        None => rows.insert(
-            0,
-            CloseTillMethodView {
-                method: "Cash".into(),
-                label: label("Cash"),
-                is_cash: true,
-                system_total_minor: report.expected_cash_minor,
-                order_count: 0,
-            },
-        ),
-    }
-    rows.sort_by(|a, b| b.is_cash.cmp(&a.is_cash).then(a.method.cmp(&b.method)));
-    rows
 }
 
 /// Validate + convert the close inputs (non-blocking rules, contract §2.2 T9):
@@ -1477,18 +1186,6 @@ pub(crate) fn last_till_warning(
             open_bills_count,
             open_bills_amount_minor,
             seated_tables_count,
-        }
-    })
-}
-
-pub(crate) fn last_till_warning_from_api(
-    w: &models::LastTillWarning,
-) -> Option<LastTillWarningView> {
-    (w.is_last_open_till && (w.open_bills_count > 0 || w.seated_tables_count > 0)).then(|| {
-        LastTillWarningView {
-            open_bills_count: w.open_bills_count,
-            open_bills_amount_minor: w.open_bills_amount,
-            seated_tables_count: w.seated_tables_count,
         }
     })
 }
@@ -1913,23 +1610,19 @@ mod tests {
     }
 
     #[test]
-    fn cached_report_reads_the_pre_rework_shift_report() {
-        let store = Store::open("").unwrap();
+    fn a_cached_report_parses_the_pre_rework_shift_report() {
         let legacy = r#"[{"shift":{"id":"00000000-0000-0000-0000-0000000000a1","branch_id":"00000000-0000-0000-0000-0000000000b1",
             "teller_id":"00000000-0000-0000-0000-0000000000c1","teller_name":"Sara","status":"open","opening_cash":500,
             "opened_at":"2026-09-01T09:00:00Z","opening_cash_was_edited":false},
             "cash_movements":[],"cash_movements_in":0,"cash_movements_net":0,"cash_movements_out":0,"cash_tips":0,
             "expected_cash":900,"net_payments":0,"non_cash_tips":0,"payment_summary":[],"printed_at":"2026-09-01T18:00:00Z",
             "total_payments":0,"total_tips":0,"voided_amount":0,"cash_adjustments":0,"safe_drops":0}]"#;
-        store.kv_put("cache:shift_report:T1", legacy).unwrap();
-        let r = cached_report(&store, "T1").expect("legacy report read");
+        let r = parse_cached_report(legacy).expect("legacy report read");
         assert_eq!(r.expected_cash, 900);
         assert_eq!(r.till.verification, models::TillVerification::Legacy);
-        // A fresh write takes the current key and wins.
-        let mut fresh = r.clone();
-        fresh.expected_cash = 1200;
-        cache_report(&store, "T1", &fresh);
-        assert_eq!(cached_report(&store, "T1").unwrap().expected_cash, 1200);
+        // The object form a later build wrote parses too.
+        let object = serde_json::to_string(&r).unwrap();
+        assert_eq!(parse_cached_report(&object).unwrap().expected_cash, 900);
     }
 
     #[test]
@@ -1950,18 +1643,6 @@ mod tests {
         assert!(serde_json::to_string(&m).unwrap().contains("\"till_id\""));
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
     #[test]
     fn suggested_opening_cash_roundtrips_and_clamps() {
         let store = Store::open("").unwrap();
@@ -1970,43 +1651,6 @@ mod tests {
         assert_eq!(suggested_opening_cash(&store).unwrap(), 48000);
         cache_suggested_opening_cash(&store, -5).unwrap(); // non-positive clears
         assert_eq!(suggested_opening_cash(&store).unwrap(), 0);
-    }
-
-
-
-    #[test]
-    fn offline_report_view_is_opening_plus_queued() {
-        let moves = vec![
-            TillReportCashLine {
-                amount_minor: 5000,
-                note: "float".into(),
-                moved_by_name: "Mona".into(),
-                created_at: "t".into(),
-            },
-            TillReportCashLine {
-                amount_minor: -1500,
-                note: "supplier".into(),
-                moved_by_name: "Mona".into(),
-                created_at: "t".into(),
-            },
-        ];
-        let v = offline_report_view(
-            50000,
-            2280,
-            moves,
-            "Mona".into(),
-            "2026-06-24T09:00:00+03:00".into(),
-            "2026-06-24T21:00:00+03:00".into(),
-        );
-        assert_eq!(v.expected_cash_minor, 52280);
-        assert_eq!(v.opening_cash_minor, 50000);
-        assert!(!v.from_server);
-        assert!(v.payment_lines.is_empty());
-        // Pay-in / pay-out split derived from the queued movements.
-        assert_eq!(v.cash_in_minor, 5000);
-        assert_eq!(v.cash_out_minor, 1500);
-        assert_eq!(v.cash_movements_net_minor, 3500);
-        assert_eq!(v.cash_movements.len(), 2);
     }
 
     #[test]
@@ -2198,175 +1842,7 @@ mod tests {
 
     // ── offline_report_view: cash split / net / empties / boundaries ──────────
 
-    #[test]
-    fn offline_report_view_empty_movements_is_pure_opening_plus_queued() {
-        let v = offline_report_view(
-            50000,
-            2280,
-            vec![],
-            "Mona".into(),
-            "2026-06-24T09:00:00+03:00".into(),
-            "2026-06-24T21:00:00+03:00".into(),
-        );
-        assert_eq!(v.expected_cash_minor, 52280);
-        assert_eq!(v.opening_cash_minor, 50000);
-        assert_eq!(v.cash_in_minor, 0);
-        assert_eq!(v.cash_out_minor, 0);
-        assert_eq!(v.cash_movements_net_minor, 0);
-        assert!(v.cash_movements.is_empty());
-        assert!(v.payment_lines.is_empty());
-        assert!(!v.from_server);
-        // Sales figures are always zero in the offline fallback.
-        assert_eq!(v.total_payments_minor, 0);
-        assert_eq!(v.net_payments_minor, 0);
-        assert_eq!(v.voided_amount_minor, 0);
-    }
-
-    #[test]
-    fn offline_report_view_zero_amount_movement_counts_as_neither_in_nor_out() {
-        // amount == 0 is excluded from both the >0 and <0 filters (boundary).
-        let moves = vec![TillReportCashLine {
-            amount_minor: 0,
-            note: "noop".into(),
-            moved_by_name: "Mona".into(),
-            created_at: "t".into(),
-        }];
-        let v = offline_report_view(
-            10000,
-            0,
-            moves,
-            "Mona".into(),
-            "2026-06-24T09:00:00+03:00".into(),
-            "2026-06-24T21:00:00+03:00".into(),
-        );
-        assert_eq!(v.cash_in_minor, 0);
-        assert_eq!(v.cash_out_minor, 0);
-        assert_eq!(v.cash_movements_net_minor, 0);
-        assert_eq!(v.cash_movements.len(), 1); // still itemised
-    }
-
-    #[test]
-    fn offline_report_view_only_pay_outs_net_is_negative() {
-        let moves = vec![
-            TillReportCashLine {
-                amount_minor: -2000,
-                note: "supplier".into(),
-                moved_by_name: "Ali".into(),
-                created_at: "t".into(),
-            },
-            TillReportCashLine {
-                amount_minor: -500,
-                note: "tips".into(),
-                moved_by_name: "Ali".into(),
-                created_at: "t".into(),
-            },
-        ];
-        let v = offline_report_view(
-            30000,
-            0,
-            moves,
-            "Mona".into(),
-            "2026-06-24T09:00:00+03:00".into(),
-            "2026-06-24T21:00:00+03:00".into(),
-        );
-        assert_eq!(v.cash_in_minor, 0);
-        assert_eq!(v.cash_out_minor, 2500); // stored as a positive magnitude
-        assert_eq!(v.cash_movements_net_minor, -2500);
-    }
-
-    #[test]
-    fn offline_report_view_preserves_given_movement_order() {
-        // The fallback itemises the movements exactly as handed in (newest-first
-        // is the caller's responsibility) — no reordering.
-        let moves = vec![
-            TillReportCashLine {
-                amount_minor: 100,
-                note: "a".into(),
-                moved_by_name: "X".into(),
-                created_at: "3".into(),
-            },
-            TillReportCashLine {
-                amount_minor: 200,
-                note: "b".into(),
-                moved_by_name: "X".into(),
-                created_at: "2".into(),
-            },
-            TillReportCashLine {
-                amount_minor: 300,
-                note: "c".into(),
-                moved_by_name: "X".into(),
-                created_at: "1".into(),
-            },
-        ];
-        let v = offline_report_view(
-            0,
-            0,
-            moves,
-            "Mona".into(),
-            "2026-06-24T09:00:00+03:00".into(),
-            "2026-06-24T21:00:00+03:00".into(),
-        );
-        assert_eq!(v.cash_movements[0].note, "a");
-        assert_eq!(v.cash_movements[1].note, "b");
-        assert_eq!(v.cash_movements[2].note, "c");
-        assert_eq!(v.cash_in_minor, 600);
-    }
-
     // ── cash_movement_view ────────────────────────────────────────────────────
-
-    #[test]
-    fn cash_movement_view_maps_fields_and_widens_amount() {
-        let m = models::CashMovement {
-            amount: -1500, // i32 → i64
-            note: "supplier".into(),
-            moved_by_name: "Mona".into(),
-            created_at: chrono::DateTime::parse_from_rfc3339("2026-06-20T09:30:00+02:00").unwrap(),
-            ..Default::default()
-        };
-        let v = cash_movement_view(&m);
-        assert_eq!(v.amount_minor, -1500_i64);
-        assert_eq!(v.note, "supplier");
-        assert_eq!(v.moved_by_name, "Mona");
-        // created_at is rendered as an RFC3339 string in the source offset.
-        assert!(v.created_at.starts_with("2026-06-20T09:30:00"));
-        // id comes from the model's uuid (defaulted → all-zero uuid).
-        assert_eq!(v.id, "00000000-0000-0000-0000-000000000000");
-    }
-
-    #[test]
-    fn cash_movement_view_positive_amount_kept() {
-        let m = models::CashMovement {
-            amount: 4200,
-            ..Default::default()
-        };
-        let v = cash_movement_view(&m);
-        assert_eq!(v.amount_minor, 4200);
-    }
-
-    #[test]
-    fn cash_movement_view_prefers_client_ref_as_identity() {
-        // A synced-from-offline movement: the server echoes the client_ref. The view
-        // must adopt it as `id` (the cross-boundary identity), NOT the server uuid, so
-        // the still-queued copy dedups against it (otherwise the drawer double-counts).
-        let cref = uuid::Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap();
-        let server_id = uuid::Uuid::parse_str("99999999-9999-9999-9999-999999999999").unwrap();
-        let m = models::CashMovement {
-            id: server_id,
-            client_ref: Some(Some(cref)),
-            ..Default::default()
-        };
-        assert_eq!(
-            cash_movement_view(&m).id,
-            cref.to_string(),
-            "must use client_ref, not server id"
-        );
-        // A live online-only movement (no client_ref) falls back to the server id.
-        let m2 = models::CashMovement {
-            id: server_id,
-            ..Default::default()
-        };
-        assert_eq!(cash_movement_view(&m2).id, server_id.to_string());
-    }
 
     #[test]
     fn merge_cash_for_view_dedups_synced_movement() {
@@ -2394,17 +1870,7 @@ mod tests {
 
     // ── till_summary_view: Option<Option<T>> flatten ────────────────────────
 
-
-
-
     // ── view_from / current / save / clear / close ───────────────────────────
-
-
-
-
-
-
-
 
     // ── suggested opening cash: clamp boundary ───────────────────────────────
 
@@ -2431,51 +1897,4 @@ mod tests {
 
     // ── reconcile: remaining matrix corners ──────────────────────────────────
 
-
-
-
-
-    // Property-based: the OFFLINE Z-report cash math (expected = opening + queued
-    // cash; cash_in/out split by movement sign) must equal an independent
-    // re-statement for any movement mix — this is the drawer figure a teller
-    // reconciles against when the shift closed with no connectivity.
-    mod cash_proptests {
-        use super::*;
-        use proptest::prelude::*;
-
-        fn movement(amount_minor: i64) -> TillReportCashLine {
-            TillReportCashLine {
-                amount_minor,
-                note: String::new(),
-                moved_by_name: String::new(),
-                created_at: String::new(),
-            }
-        }
-
-        proptest! {
-            #[test]
-            fn offline_report_cash_math(
-                opening in 0i64..10_000_000,
-                queued in 0i64..10_000_000,
-                amounts in prop::collection::vec(-1_000_000i64..1_000_000, 0..30),
-            ) {
-                let movements: Vec<TillReportCashLine> =
-                    amounts.iter().map(|&a| movement(a)).collect();
-                let r = offline_report_view(
-                    opening, queued, movements, "T".into(), "o".into(), "p".into());
-
-                // Expected drawer cash = opening float + still-queued cash sales.
-                prop_assert_eq!(r.expected_cash_minor, opening + queued);
-                // Movements split by sign; both legs non-negative; net is in − out.
-                let exp_in: i64 = amounts.iter().filter(|&&a| a > 0).sum();
-                let exp_out: i64 = amounts.iter().filter(|&&a| a < 0).map(|a| -a).sum();
-                prop_assert_eq!(r.cash_in_minor, exp_in);
-                prop_assert_eq!(r.cash_out_minor, exp_out);
-                prop_assert!(r.cash_in_minor >= 0 && r.cash_out_minor >= 0);
-                prop_assert_eq!(r.cash_movements_net_minor, exp_in - exp_out);
-                prop_assert!(r.is_open);
-                prop_assert!(!r.from_server);
-            }
-        }
-    }
 }
