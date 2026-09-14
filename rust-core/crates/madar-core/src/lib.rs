@@ -1296,7 +1296,7 @@ impl MadarCore {
                     Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
-                    serde_json::json!({ "op": "add_ticket_round", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "request": cmd.request, "origin_device_id": self.lan_device_id() }),
+                    serde_json::json!({ "op": "add_ticket_round", "teller_id": teller_id, "ticket_id": self.server_ticket_id(&cmd.ticket_id), "request": cmd.request, "origin_device_id": self.lan_device_id() }),
                     // A genuine round-retry dedups to 200 server-side (on the round
                     // idempotency key, checked before the conflict gate). So a 409
                     // ("round to a settled/voided ticket") or 404 (ticket never
@@ -1311,7 +1311,7 @@ impl MadarCore {
                     Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
-                    serde_json::json!({ "op": "settle_open_ticket", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "request": cmd.request }),
+                    serde_json::json!({ "op": "settle_open_ticket", "teller_id": teller_id, "ticket_id": self.server_ticket_id(&cmd.ticket_id), "request": cmd.request }),
                     // A genuine settle-retry of an already-settled ticket dedups to
                     // 200 (the existing order, keyed on the ticket id). So the only
                     // 409 ("settle a voided ticket") or 404 (the fire never landed)
@@ -1326,7 +1326,7 @@ impl MadarCore {
                     Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
-                    serde_json::json!({ "op": "void_open_ticket", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "request": cmd.request }),
+                    serde_json::json!({ "op": "void_open_ticket", "teller_id": teller_id, "ticket_id": self.server_ticket_id(&cmd.ticket_id), "request": cmd.request }),
                     Idem::Yes,
                 )
             }
@@ -1341,7 +1341,7 @@ impl MadarCore {
                     Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 (
-                    serde_json::json!({ "op": "void_ticket_line", "teller_id": teller_id, "ticket_id": cmd.ticket_id, "item_id": cmd.item_id, "request": cmd.request }),
+                    serde_json::json!({ "op": "void_ticket_line", "teller_id": teller_id, "ticket_id": self.server_ticket_id(&cmd.ticket_id), "item_id": cmd.item_id, "request": cmd.request }),
                     Idem::Yes,
                 )
             }
@@ -1482,6 +1482,16 @@ impl MadarCore {
         })
     }
 
+    /// The server's id for a bill this device fired (`open_ticket` ack), else the
+    /// id as given (a bill fired elsewhere already carries the server's id).
+    fn server_ticket_id(&self, ticket_id: &str) -> String {
+        self.store
+            .id_map_get("open_ticket", ticket_id)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| ticket_id.to_string())
+    }
+
     /// Send one op; `body_out` receives the backend's JSON answer when there was
     /// one (the entity the op created or changed — folded into the ledger on ack)
     /// and `seq_out` the feed horizon that includes it.
@@ -1599,6 +1609,14 @@ impl MadarCore {
                                 // so without this nothing knows which order the
                                 // money became, and a receipt cannot be printed
                                 // after settling.
+                                // A FIRE is answered with the bill under the
+                                // SERVER's id (the device's id is only its
+                                // idempotency key): remember it, so a round, a
+                                // void or a settle queued against the bill
+                                // before the fire landed names the real one.
+                                if item.op_type == "open_ticket" {
+                                    let _ = self.store.id_map_put("open_ticket", &item.id, id);
+                                }
                                 if item.op_type == "settle_open_ticket" {
                                     let _ = self.store.id_map_put("order", &item.id, id);
                                     self.note_loyalty_refusal(&item.id, &obj);

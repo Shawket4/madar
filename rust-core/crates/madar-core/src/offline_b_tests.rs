@@ -1422,3 +1422,54 @@ async fn a_connectivity_check_pulls_only_on_reconnect() {
     }
     assert_eq!(stub.requests("/sync/pull").len(), 1, "checks while online only drain");
 }
+
+/// A bill fired and settled while offline: the server gives the fire its own
+/// id (the device's id is the idempotency key), and the queued settle — and a
+/// round or void — must name THAT id on replay, or the paid sale dead-letters.
+#[tokio::test]
+async fn a_bill_fired_and_settled_offline_replays_under_the_servers_id() {
+    const SERVER_TICKET: &str = "00000000-0000-0000-0000-00000000f00d";
+    let up = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let link = up.clone();
+    let stub = Stub::start(move |r| {
+        if !link.load(Ordering::SeqCst) {
+            return Some(StubResponse::hangup());
+        }
+        if !r.path.starts_with("/sync/replay") {
+            return None;
+        }
+        let env = r.json();
+        Some(match env["op"].as_str().unwrap_or("") {
+            "fire_open_ticket" => StubResponse::json(200, serde_json::json!({"id": SERVER_TICKET, "status": "open"})),
+            "settle_open_ticket" | "add_ticket_round" | "void_open_ticket" | "void_ticket_line"
+                if env["ticket_id"] != SERVER_TICKET =>
+            {
+                StubResponse::text(404, r#"{"error":"Not found: Open ticket not found"}"#)
+            }
+            "settle_open_ticket" => StubResponse::json(200, serde_json::json!({"id": "00000000-0000-0000-0000-00000000a11d"})),
+            _ => StubResponse::json(200, serde_json::json!({"id": uuid::Uuid::new_v4().to_string()})),
+        })
+    })
+    .await;
+    let core = testkit::online_core(&stub.base, "").await;
+    seed_methods(&core);
+    let till = core.open_till(1_000, None).await.unwrap().till.unwrap();
+    core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 500).unwrap();
+    let fired = core.fire_ticket(None, Some("walk-in".into()), None, None, None).await.unwrap();
+    let settle = core
+        .settle_ticket(fired.ticket_id.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false)
+        .await;
+    assert!(settle.is_ok(), "{settle:?}");
+
+    up.store(true, Ordering::SeqCst);
+    core.set_online(true);
+    for _ in 0..8 {
+        let _ = core.store.clear_network_backoff();
+        let _ = core.drain_outbox().await;
+    }
+    let settles: Vec<_> = stub.requests("/sync/replay").into_iter().filter(|r| r.json()["op"] == "settle_open_ticket").collect();
+    assert!(!settles.is_empty(), "the settle was sent");
+    assert!(settles.iter().all(|r| r.json()["ticket_id"] == SERVER_TICKET), "under the server's id");
+    assert_eq!(core.sync_status().dead_outbox, 0, "nothing dead-letters");
+    assert_eq!(core.sync_status().pending_outbox, 0);
+}

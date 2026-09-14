@@ -277,6 +277,9 @@ async fn an_offline_cold_start_reads_and_acts() {
     let bad = forbidden(&counts);
     assert!(bad.is_empty(), "the offline screens tried the server: {bad:?}");
 
+    for item in core.list_outbox().unwrap_or_default() {
+        eprintln!("QUEUED {} {} {}", item.op_type, item.id, item.status);
+    }
     // Back online: the teller signs in again (an offline unlock holds no token),
     // everything drains and nothing dead-letters.
     proxy.online();
@@ -300,6 +303,12 @@ async fn an_offline_cold_start_reads_and_acts() {
                 tokio::time::sleep(Duration::from_secs(3)).await;
             }
         }
+    }
+    // Anything the server refuses is named before `settle` fails on it.
+    let _ = core.sync_now().await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    for item in core.list_outbox().unwrap_or_default().iter().filter(|i| i.status == "dead") {
+        eprintln!("DEAD {item:?}");
     }
     settle(&core, 180).await;
 }
