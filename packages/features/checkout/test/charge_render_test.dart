@@ -166,6 +166,41 @@ final _ticket = TicketView(
     taxRate: 0.14,
     serviceChargeRate: 0,
     taxInclusive: true,
+    serviceChargeTaxable: true,
+    serviceChargeWaivedMinor: 0,
+  ),
+  openedAt: '2026-09-10T18:30:00Z',
+  queuedOffline: false,
+  lines: [
+    _line('l1', 'latte', 'Latte', 2, 9000, 1),
+    _line('l2', 'espresso', 'Espresso', 1, 3500, 2),
+    _line('l3', 'flat', 'Flat white', 1, 5000, 2),
+  ],
+);
+
+/// The same bill with a 10.00 service charge on it.
+final _serviceTicket = TicketView(
+  id: 'tk-412',
+  ticketRef: 'T-0412',
+  tableId: 't5',
+  status: 'ready',
+  ready: true,
+  customerName: 'Omar',
+  waiterName: 'Sara',
+  guestCount: 4,
+  subtotalMinor: 17500,
+  // Priced by the server, so the hero reads its Total.
+  bill: const TicketBillView(
+    subtotalMinor: 15351,
+    discountMinor: 0,
+    serviceChargeMinor: 1000,
+    taxMinor: 2149,
+    totalMinor: 17500,
+    taxRate: 0.14,
+    serviceChargeRate: 0,
+    taxInclusive: true,
+    serviceChargeTaxable: true,
+    serviceChargeWaivedMinor: 0,
   ),
   openedAt: '2026-09-10T18:30:00Z',
   queuedOffline: false,
@@ -248,6 +283,8 @@ ReceiptView _receipt({required bool queued, int? number}) => ReceiptView(
   queuedOffline: queued,
   createdAt: '2026-09-10T19:45:00Z',
   displayNumber: '',
+  serviceChargeWaivedMinor: 0,
+  taxInclusive: false,
 );
 
 const _session = SessionSnapshot(
@@ -269,8 +306,15 @@ class _FakeBridge implements MadarBridge {
     this.rtl = false,
     this.tillOpen = true,
     this.loyaltyEnabled = true,
+    this.canWaive = false,
     List<PaymentMethodView>? methods,
   }) : methods = methods ?? _methods;
+
+  /// The signed-in user's effective `orders:waive_service` grant.
+  final bool canWaive;
+
+  /// The named arguments of the last `settleTicket`, for what the till sends.
+  Map<Symbol, dynamic>? settled;
 
   /// The branch runs a loyalty programme. Off, every loyalty control leaves
   /// the tender screen.
@@ -427,18 +471,37 @@ class _FakeBridge implements MadarBridge {
           ),
       ];
     }
+    if (name == #canWaiveServiceCharge) return canWaive;
+    if (name == #settleTicket) {
+      settled = a;
+      return Future<String?>.value();
+    }
     if (name == #billWithRewards) {
+      // Rewards first, then the discount on what is left, as the core does;
+      // the waiver takes a 10% service charge off (the fixture bill's charge
+      // sits inside its 17500 for these figures).
       final r = a[#redemptions] as List<CheckoutRedemption>;
-      final off = r.fold(0, (x, p) => x + 4500 * p.units);
+      final covered = r.fold(0, (x, p) => x + 4500 * p.units);
+      final left = 17500 - covered;
+      final dt = a[#discountType] as String?;
+      final dv = a[#discountValue] as double?;
+      final discount = switch (dt) {
+        'percentage' => (left * dv!).round(),
+        'fixed' => dv!.round().clamp(0, left),
+        _ => 0,
+      };
+      final waived = (a[#waiveService] as bool) ? 1000 : 0;
       return TicketBillView(
         subtotalMinor: 15351,
-        discountMinor: 0,
+        discountMinor: discount,
         serviceChargeMinor: 0,
         taxMinor: 2149,
-        totalMinor: 17500 - off,
+        totalMinor: left - discount - waived,
         taxRate: 0.14,
         serviceChargeRate: 0,
         taxInclusive: true,
+        serviceChargeTaxable: true,
+        serviceChargeWaivedMinor: waived,
       );
     }
     if (name == #loyaltyAwardWindowOpen) return true;
@@ -779,6 +842,100 @@ ChargeOutcome _queuedOutcome() => ChargeOutcome(
 
 void main() {
   setUpAll(_loadFonts);
+
+  testWidgets('a discount picked on a BILL moves the due', (tester) async {
+    final bridge = _FakeBridge();
+    await _mount(tester, size: _ipad, bridge: bridge);
+    final host = tester.element(find.byType(_Host));
+    unawaited(
+      showCharge(
+        host,
+        ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+        presentDoneCard: false,
+      ),
+    );
+    await _settle(tester);
+    expect(_state0(tester).dueMinor, 17500);
+
+    // Staff 10%: the hero, the tender and the discount row all move.
+    _session0(tester).setBillDiscount(_discounts.first);
+    await _settle(tester);
+    expect(_state0(tester).dueMinor, 15750);
+    expect(_state0(tester).summary.discountMinor, 1750);
+    expect(find.textContaining('17.50'), findsWidgets);
+
+    // A fixed amount.
+    _session0(tester).setBillDiscount(_discounts[1]);
+    await _settle(tester);
+    expect(_state0(tester).dueMinor, 15500);
+
+    // "No discount" clears it, and the settle is told `none`.
+    _session0(tester).setBillDiscount(null);
+    await _settle(tester);
+    expect(_state0(tester).dueMinor, 17500);
+    expect(_state0(tester).billDiscountCleared, isTrue);
+
+    // A split fills its open leg to the DISCOUNTED due.
+    _session0(tester).setBillDiscount(_discounts.first);
+    await _settle(tester);
+    await tester.tap(find.text('Split'));
+    await _settle(tester);
+    _session0(tester)
+      ..setSplitAmount('cash', 5000)
+      ..fillSplitRest('card');
+    await _settle(tester);
+    final legs = _state0(tester).splitAmounts;
+    expect(legs.values.fold(0, (x, v) => x + v), 15750, reason: '$legs');
+    // Moving the discount re-fills the open leg to the new due.
+    _session0(tester).setBillDiscount(_discounts[1]);
+    await _settle(tester);
+    expect(_state0(tester).splitAmounts.values.fold(0, (x, v) => x + v), 15500);
+    Navigator.of(tester.element(find.byType(ChargeSheet))).pop();
+    await _settle(tester);
+  });
+
+  testWidgets('removing the service charge needs the permission', (
+    tester,
+  ) async {
+    // Without the grant: no row, and the notifier refuses the waiver.
+    await _mount(tester, size: _ipad, bridge: _FakeBridge());
+    var host = tester.element(find.byType(_Host));
+    unawaited(
+      showCharge(
+        host,
+        ChargeTarget.bill(_serviceTicket, tableLabel: 'T5'),
+        presentDoneCard: false,
+      ),
+    );
+    await _settle(tester);
+    expect(find.text(coreWord('checkout.remove_service')), findsNothing);
+    _session0(tester).setWaiveService(waive: true);
+    await _settle(tester);
+    expect(_state0(tester).waiveService, isFalse);
+    Navigator.of(tester.element(find.byType(ChargeSheet))).pop();
+    await _settle(tester);
+
+    // With it: the row offers it, the due drops, the settle carries it.
+    final bridge = _FakeBridge(canWaive: true);
+    await _mount(tester, size: _ipad, bridge: bridge);
+    host = tester.element(find.byType(_Host));
+    unawaited(
+      showCharge(
+        host,
+        ChargeTarget.bill(_serviceTicket, tableLabel: 'T5'),
+        presentDoneCard: false,
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.text(coreWord('checkout.remove_service')));
+    await _settle(tester);
+    expect(_state0(tester).waiveService, isTrue);
+    expect(_state0(tester).dueMinor, 16500);
+    expect(find.text(coreWord('checkout.keep_service')), findsOneWidget);
+    await _session0(tester).chargeExact();
+    await _settle(tester);
+    expect(bridge.settled?[#waiveService], isTrue);
+  });
 
   testWidgets(
     'a bill on an iPad: member attached, a reward ticked, 200 given',

@@ -93,6 +93,8 @@ ReceiptView _receipt() => const ReceiptView(
   createdAt: '2026-09-13T10:05:00Z',
   payments: [],
   displayNumber: '',
+  serviceChargeWaivedMinor: 0,
+  taxInclusive: false,
 );
 
 class _Fake implements MadarBridge {

@@ -62,6 +62,10 @@ class _CoreBridge implements MadarBridge {
       reconciliation: const [],
       verification: 'server',
       openedWhileAnotherOpen: false,
+      serviceChargeWaivedCount: 0,
+      serviceChargeWaivedMinor: 0,
+      totalServiceChargeMinor: 0,
+      totalTaxMinor: 0,
     );
   }
 

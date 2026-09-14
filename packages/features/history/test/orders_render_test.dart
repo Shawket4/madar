@@ -220,6 +220,8 @@ const _receipt1042 = ReceiptView(
   createdAt: '2026-09-12T19:31:00Z',
   payments: [],
   displayNumber: '',
+  serviceChargeWaivedMinor: 0,
+  taxInclusive: false,
 );
 
 /// A bridge that answers what Orders asks, from fixtures. [online] false is

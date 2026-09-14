@@ -122,6 +122,8 @@ final _tickets = <TicketView>[
       taxRate: 0.14,
       serviceChargeRate: 0,
       taxInclusive: false,
+      serviceChargeTaxable: true,
+      serviceChargeWaivedMinor: 0,
     ),
     openedAt: _ago(42),
     queuedOffline: false,

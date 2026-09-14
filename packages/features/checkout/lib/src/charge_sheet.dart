@@ -305,6 +305,7 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
             onCloseTip: notifier.closeTip,
             onTip: notifier.setTip,
             onTipMethod: notifier.setTipMethod,
+            onWaiveService: (waive) => notifier.setWaiveService(waive: waive),
           )
         : null;
     final wide = layout.isTablet;
@@ -720,6 +721,7 @@ class _QuietRows extends StatelessWidget {
     required this.onCloseTip,
     required this.onTip,
     required this.onTipMethod,
+    required this.onWaiveService,
   });
 
   final CheckoutState state;
@@ -734,6 +736,7 @@ class _QuietRows extends StatelessWidget {
   final VoidCallback onCloseTip;
   final ValueChanged<int> onTip;
   final ValueChanged<String> onTipMethod;
+  final ValueChanged<bool> onWaiveService;
 
   @override
   Widget build(BuildContext context) {
@@ -744,19 +747,40 @@ class _QuietRows extends StatelessWidget {
     final rows = <Widget>[];
 
     // Discount — only when the branch has any. Order-level: that is all
-    // the server has. On a bill it is applied at settle, with no preview.
+    // the server has. On a bill too it is priced at once by the core, so the
+    // row states what it takes off, the same figure the settle books.
     if (hasDiscounts) {
       final d = pickedDiscount;
+      final off = s.summary.discountMinor;
       final value = d == null
           ? bridge.tr(key: 'order.no_discount')
-          : s.isBill
-          ? '${discountLabel(d)} · ${tr('charge.applied_at_charge')}'
+          : s.isBill && off > 0
+          ? '${discountLabel(d)} · −${MadarFormat.ltr(Money.format(off))}'
           : discountLabel(d);
       rows.add(
         _QuietRow(
           label: bridge.tr(key: 'order.discount'),
           value: value,
           onTap: onDiscount,
+        ),
+      );
+    }
+
+    // Service charge — a table's bill only, and only for someone whose
+    // effective permissions include `orders:waive_service` (the core reads
+    // them; the role's name is never consulted). Shown while there is a
+    // charge to remove, or once it has been removed so it can be put back.
+    final serviceOnBill = s.summary.serviceChargeMinor > 0 || s.waiveService;
+    if (s.isBill && s.canWaiveService && serviceOnBill) {
+      rows.add(
+        _QuietRow(
+          label: s.waiveService
+              ? bridge.tr(key: 'checkout.service_removed_hint')
+              : bridge.tr(key: 'order.service_charge'),
+          value: s.waiveService
+              ? bridge.tr(key: 'checkout.keep_service')
+              : bridge.tr(key: 'checkout.remove_service'),
+          onTap: () => onWaiveService(!s.waiveService),
         ),
       );
     }

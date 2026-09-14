@@ -151,6 +151,8 @@ void main() {
               taxRate: 0.14,
               serviceChargeRate: 0,
               taxInclusive: false,
+              serviceChargeTaxable: true,
+              serviceChargeWaivedMinor: 0,
             ),
             openedAt: '2026-09-09T19:40:00Z',
             queuedOffline: false,

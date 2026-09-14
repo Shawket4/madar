@@ -1292,6 +1292,9 @@ class OrderNotifier extends Notifier<OrderState> {
         loyaltyRedemptions: loyaltyRedemptions,
         // The floor settles with one method; splitting happens in the drawer.
         splits: const [],
+        // Removing the service charge is the Charge sheet's decision, made by
+        // someone holding `orders:waive_service`; the floor never does it.
+        waiveService: false,
       );
       // The party paid and left their plates: the table needs a bus, and the
       // teller — not the app — decides when it is ready for the next party.

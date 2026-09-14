@@ -26,6 +26,7 @@ class CheckoutSummary {
     this.taxMinor = 0,
     this.serviceChargeMinor = 0,
     this.deliveryFeeMinor = 0,
+    this.serviceChargeWaivedMinor = 0,
   });
 
   final int subtotalMinor;
@@ -34,6 +35,9 @@ class CheckoutSummary {
   final int serviceChargeMinor;
   final int deliveryFeeMinor;
   final int totalMinor;
+
+  /// The service charge the waiver took off this bill (not in the total).
+  final int serviceChargeWaivedMinor;
 }
 
 /// Why the Charge bar is dimmed, if it is. The sheet turns it into words.
@@ -70,6 +74,9 @@ class CheckoutState {
     this.discounts = const [],
     this.cartDiscountId,
     this.billDiscount,
+    this.billDiscountCleared = false,
+    this.waiveService = false,
+    this.canWaiveService = false,
     this.orgLogoPath,
     this.currency = '',
     this.branchName = '',
@@ -126,9 +133,22 @@ class CheckoutState {
   /// The discount the CART carries (the core prices it live).
   final String? cartDiscountId;
 
-  /// The discount picked for a BILL. The server applies it at settle; the
-  /// till has no preview, which is why it is a pick and not a priced total.
+  /// The discount picked for a BILL. The core re-prices the bill under it
+  /// (`billWithRewards`), so the hero, the change and the split legs collect
+  /// exactly what the settle books.
   final DiscountView? billDiscount;
+
+  /// "No discount" picked on a bill: the waiter's discount is cleared (the
+  /// settle sends `none`), rather than inherited.
+  final bool billDiscountCleared;
+
+  /// The service charge is removed from this bill. Only offered when
+  /// [canWaiveService].
+  final bool waiveService;
+
+  /// The signed-in PIN user's effective `orders:waive_service` grant, read
+  /// from the core — never the role's name.
+  final bool canWaiveService;
 
   /// Local file path of the core-cached org logo (offline-safe).
   final String? orgLogoPath;
@@ -139,7 +159,9 @@ class CheckoutState {
   /// subtotal for a bill, the frozen totals for an online order.
   final CheckoutSummary summary;
 
-  /// The session's tax policy, for the wording under the hero.
+  /// The tax policy for the wording under the hero: a bill's own frozen
+  /// figures, the session's for a counter cart (which carries no service
+  /// charge — takeaway).
   final bool taxInclusive;
   final double serviceChargeRate;
   final double taxRate;
@@ -382,6 +404,9 @@ class CheckoutState {
     List<DiscountView>? discounts,
     Object? cartDiscountId = _unset,
     Object? billDiscount = _unset,
+    bool? billDiscountCleared,
+    bool? waiveService,
+    bool? canWaiveService,
     Object? orgLogoPath = _unset,
     String? currency,
     String? branchName,
@@ -426,6 +451,9 @@ class CheckoutState {
       billDiscount: billDiscount == _unset
           ? this.billDiscount
           : billDiscount as DiscountView?,
+      billDiscountCleared: billDiscountCleared ?? this.billDiscountCleared,
+      waiveService: waiveService ?? this.waiveService,
+      canWaiveService: canWaiveService ?? this.canWaiveService,
       orgLogoPath: orgLogoPath == _unset
           ? this.orgLogoPath
           : orgLogoPath as String?,
@@ -524,7 +552,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       tenderedMinor: s.tenderedMinor,
       splits: s.splitLegs,
       duePriced: s.dueIsPriced,
-      addsOnTop: s.serviceChargeRate > 0 || !s.taxInclusive,
+      addsOnTop:
+          (s.serviceChargeRate > 0 && !s.waiveService) || !s.taxInclusive,
     );
     return tender == s.tender ? s : s.copyWith(tender: tender);
   }
@@ -536,56 +565,60 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   CheckoutState _rewarded(CheckoutState s) {
     final scan = s.loyaltyScan;
     final base = s.baseSummary;
-    if (scan == null) {
-      if (s.rewardBoard == null && s.rewardRedemptions.isEmpty) return s;
-      return s.copyWith(
-        rewardBoard: null,
-        rewardRedemptions: const [],
-        summary: base ?? s.summary,
+    final bridge = _bridge;
+    RewardBoardView? board;
+    var redemptions = const <CheckoutRedemption>[];
+    if (scan != null) {
+      board = bridge.rewardBoard(
+        lines: s.rewardLines,
+        scan: scan,
+        picks: s.rewardPicks,
+      );
+      redemptions = bridge.rewardRedemptions(
+        lines: s.rewardLines,
+        picks: board.picks,
       );
     }
-    final bridge = _bridge;
-    final board = bridge.rewardBoard(
-      lines: s.rewardLines,
-      scan: scan,
-      picks: s.rewardPicks,
-    );
-    final redemptions = bridge.rewardRedemptions(
-      lines: s.rewardLines,
-      picks: board.picks,
-    );
     var summary = base ?? s.summary;
-    if (redemptions.isNotEmpty) {
-      switch (s.target) {
-        case CartChargeTarget(:final tableId):
-          final t = _tryCore(
-            () => bridge.cartTotalsWithRewards(
-              tableId: tableId,
-              redemptions: redemptions,
-            ),
-          );
-          if (t != null) summary = _summaryOf(t);
-        case BillChargeTarget(:final ticket):
-          final d = s.billDiscount;
-          final bill = _tryCore(
-            () => bridge.billWithRewards(
-              ticketId: ticket.id,
-              redemptions: redemptions,
-              discountType: d?.dtype,
-              discountValue: d?.value,
-            ),
-          );
-          if (bill != null) {
-            summary = CheckoutSummary(
-              subtotalMinor: bill.subtotalMinor,
-              discountMinor: bill.discountMinor,
-              serviceChargeMinor: bill.serviceChargeMinor,
-              taxMinor: bill.taxMinor,
-              totalMinor: bill.totalMinor,
-            );
-          }
-        default:
-      }
+    switch (s.target) {
+      case CartChargeTarget(:final tableId) when redemptions.isNotEmpty:
+        final t = _tryCore(
+          () => bridge.cartTotalsWithRewards(
+            tableId: tableId,
+            redemptions: redemptions,
+          ),
+        );
+        if (t != null) summary = _summaryOf(t);
+      // A BILL is re-priced by the core whenever anything on it moves the
+      // figure — a reward, a discount picked (or cleared) at the till, or the
+      // service charge removed — rewards first, then the discount, then the
+      // service charge on the remainder, then tax, as the server settles it.
+      // It used to be re-priced only for rewards, so a discount picked on a
+      // table left the due, the change and the split legs on the undiscounted
+      // figure while the server booked the discounted one.
+      case BillChargeTarget(:final ticket)
+          when redemptions.isNotEmpty ||
+              s.billDiscount != null ||
+              s.billDiscountCleared ||
+              s.waiveService:
+        final d = s.billDiscount;
+        final bill = _tryCore(
+          () => bridge.billWithRewards(
+            ticketId: ticket.id,
+            redemptions: redemptions,
+            discountType: d?.dtype ?? (s.billDiscountCleared ? 'none' : null),
+            discountValue: d?.value,
+            waiveService: s.waiveService,
+          ),
+        );
+        if (bill != null) summary = _summaryOfBill(bill);
+      default:
+    }
+    if (scan == null &&
+        s.rewardBoard == null &&
+        s.rewardRedemptions.isEmpty &&
+        identical(summary, s.summary)) {
+      return s;
     }
     return s.copyWith(
       rewardBoard: board,
@@ -593,6 +626,15 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       summary: summary,
     );
   }
+
+  CheckoutSummary _summaryOfBill(TicketBillView bill) => CheckoutSummary(
+    subtotalMinor: bill.subtotalMinor,
+    discountMinor: bill.discountMinor,
+    serviceChargeMinor: bill.serviceChargeMinor,
+    taxMinor: bill.taxMinor,
+    totalMinor: bill.totalMinor,
+    serviceChargeWaivedMinor: bill.serviceChargeWaivedMinor,
+  );
 
   T? _tryCore<T>(T Function() call) {
     try {
@@ -618,8 +660,12 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       currency: session?.currencyCode ?? '',
       branchName: bridge.deviceConfig().branchName ?? '',
       taxInclusive: session?.taxInclusive ?? true,
-      serviceChargeRate: session?.serviceChargeRate ?? 0,
+      // A counter cart is a takeaway: no service charge, whatever the branch
+      // setting (the core prices it at zero). A bill overrides all three with
+      // its own frozen figures in [_startBill].
+      serviceChargeRate: 0,
       taxRate: session?.taxRate ?? 0,
+      canWaiveService: bridge.canWaiveServiceCharge(),
     );
   }
 
@@ -719,15 +765,13 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
               subtotalMinor: ticket.subtotalMinor,
               totalMinor: ticket.subtotalMinor,
             )
-          : CheckoutSummary(
-              subtotalMinor: bill.subtotalMinor,
-              discountMinor: bill.discountMinor,
-              serviceChargeMinor: bill.serviceChargeMinor,
-              taxMinor: bill.taxMinor,
-              totalMinor: bill.totalMinor,
-            ),
+          : _summaryOfBill(bill),
       ticketId: ticket.id,
       loadDiscounts: true,
+      // The wording under the hero reads the BILL's frozen policy, not the
+      // session's: a branch that changed a setting mid-service must not have
+      // the sheet describe a different bill than the one being settled.
+      billPolicy: bill,
     );
   }
 
@@ -754,6 +798,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     /// now, so without these a table order could never redeem.
     String? ticketId,
     bool loadDiscounts = false,
+    TicketBillView? billPolicy,
   }) async {
     final bridge = _bridge;
     final till = _loadTill(session);
@@ -771,6 +816,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     _updateFor(
       session,
       (s) => _withSession(s, bridge).copyWith(
+        taxInclusive: billPolicy?.taxInclusive,
+        serviceChargeRate: billPolicy?.serviceChargeRate,
+        taxRate: billPolicy?.taxRate,
         paymentMethods: methods,
         discounts: discounts,
         loyaltyProgramme: programme,
@@ -894,6 +942,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// split must never ride along with the single payment that replaced it.
   void toggleSplit() {
     _typedLegs.clear();
+    _restLeg = null;
     _update(
       (s) => s.copyWith(
         splitMode: !s.splitMode,
@@ -906,6 +955,11 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// The legs a person has typed into; every other leg is the core's to
   /// fill while it is the only one left open.
   final Set<String> _typedLegs = {};
+
+  /// The leg that holds "the rest" — filled by the core, by auto-fill or
+  /// "Rest here". When the due moves (a discount, the service charge) it is
+  /// the one re-filled, so the legs keep adding up to what the settle books.
+  String? _restLeg;
 
   List<CheckoutSplit> get _allLegs => [
     for (final m in state.paymentMethods)
@@ -930,12 +984,14 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       typedId: id,
     );
     if (fill == null) return;
+    _restLeg = fill.paymentMethodId;
     _setLeg(fill.paymentMethodId, fill.amountMinor);
   }
 
   /// "Rest here": the core's rest for [id]'s leg.
   void fillSplitRest(String id) {
     _typedLegs.add(id);
+    _restLeg = id;
     _setLeg(
       id,
       _bridge.splitRestHere(
@@ -985,11 +1041,41 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     ref.read(shellProvider.notifier).refresh();
   }
 
-  /// Pick the discount for a BILL. Nothing is priced here — the server
-  /// applies it at settle and the hero keeps showing the bill's figure, with
-  /// the row saying "applied at charge" so nobody expects it to move.
-  void setBillDiscount(DiscountView? discount) =>
-      _update((s) => s.copyWith(billDiscount: discount));
+  /// Pick the discount for a BILL — or `null` for "No discount", which clears
+  /// the waiter's too. The core re-prices the bill at once, so the hero, the
+  /// change and the split legs all move to the figure the settle books.
+  void setBillDiscount(DiscountView? discount) {
+    _update(
+      (s) => s.copyWith(
+        billDiscount: discount,
+        billDiscountCleared: discount == null,
+      ),
+    );
+    _refillSplit();
+  }
+
+  /// Remove (or restore) the service charge on this bill. Refused unless the
+  /// signed-in user holds `orders:waive_service`; the server checks it again.
+  void setWaiveService({required bool waive}) {
+    if (waive && !state.canWaiveService) return;
+    _update((s) => s.copyWith(waiveService: waive && s.isBill));
+    _refillSplit();
+  }
+
+  /// The due just moved: the leg the core fills from the rest follows it, so
+  /// a split never stays on the old figure.
+  void _refillSplit() {
+    final rest = _restLeg;
+    if (!state.splitMode || rest == null) return;
+    _setLeg(
+      rest,
+      _bridge.splitRestHere(
+        dueMinor: state.dueMinor,
+        legs: _allLegs,
+        target: rest,
+      ),
+    );
+  }
 
   /// Either kind, for the row: the cart's applied discount or the bill's pick.
   DiscountView? get pickedDiscount {
@@ -1168,8 +1254,9 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       tipMinor: s.tipMinor > 0 ? s.tipMinor : null,
       tipPaymentMethodId: s.tipMinor > 0 ? s.effectiveTipMethodId : null,
       discountId: discount?.id,
-      discountType: discount?.dtype,
+      discountType: discount?.dtype ?? (s.billDiscountCleared ? 'none' : null),
       discountValue: discount?.value,
+      waiveService: s.waiveService,
       loyaltyCustomerId: s.rewardRedemptions.isEmpty
           ? null
           : s.loyaltyMember?.id,

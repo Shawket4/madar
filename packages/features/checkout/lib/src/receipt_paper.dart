@@ -185,8 +185,15 @@ class ReceiptPaper extends ConsumerWidget {
               left: tr('order.service_charge'),
               right: _money(r.serviceChargeMinor),
             ),
+          // Stated in both modes; "included" when it sits inside the prices,
+          // so the lines that add still add up to the total.
           if (r.taxMinor > 0)
-            _MoneyRow(left: tr('order.tax'), right: _money(r.taxMinor)),
+            _MoneyRow(
+              left: r.taxInclusive
+                  ? tr('receipt.vat_included')
+                  : tr('order.tax'),
+              right: _money(r.taxMinor),
+            ),
           if (r.deliveryFeeMinor > 0)
             _MoneyRow(
               left: tr('receipt.delivery_fee'),
@@ -197,6 +204,25 @@ class ReceiptPaper extends ConsumerWidget {
             right: _money(r.totalMinor),
             bold: true,
           ),
+          if (r.taxInclusive)
+            _Mono(
+              tr('receipt.prices_include_vat'),
+              size: _rowSize,
+              align: TextAlign.start,
+            ),
+          if (r.serviceChargeWaivedMinor > 0) ...[
+            _MoneyRow(
+              left: tr('receipt.service_waived'),
+              right: '−${_money(r.serviceChargeWaivedMinor)}',
+              faint: true,
+            ),
+            if (r.serviceChargeWaivedByName != null)
+              _Mono(
+                r.serviceChargeWaivedByName!,
+                size: _rowSize,
+                align: TextAlign.start,
+              ),
+          ],
           if (r.tipMinor > 0)
             _MoneyRow(left: tr('order.tip'), right: _money(r.tipMinor)),
           // A split lists what each method paid. The core reports cash handed
