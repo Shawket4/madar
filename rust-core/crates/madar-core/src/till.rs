@@ -865,25 +865,6 @@ pub(crate) fn clear_till(store: &Store, till_id: &str) -> CoreResult<()> {
     Ok(())
 }
 
-/// Mark the signed-in person's till closed optimistically (no op; the close
-/// verb commits the op and this change together). No-op without one.
-pub(crate) fn close_local(store: &Store) -> CoreResult<()> {
-    if let Some(t) = current_record(store)? {
-        let now = chrono::Utc::now().to_rfc3339();
-        store.with_tx_touch(|tx, touched| {
-            crate::ledger::local::modify(tx, crate::ledger::T_TILL, &t.id, |v| {
-                v["status"] = serde_json::json!("closed");
-                if v.get("closed_at").map(serde_json::Value::is_null).unwrap_or(true) {
-                    v["closed_at"] = serde_json::json!(now);
-                }
-            })?;
-            touched.push(crate::changes::TILLS);
-            Ok(())
-        })?;
-    }
-    Ok(())
-}
-
 /// Every OPEN till this device holds, one per person — the LAN advert.
 pub(crate) fn open_on_device(store: &Store) -> Vec<TillRecord> {
     let mut out: Vec<TillRecord> = store
@@ -1660,8 +1641,28 @@ mod tests {
         assert_eq!(current(&store).unwrap().unwrap().id, "TA");
         set_active_user(&store, Some("UB")).unwrap();
         assert_eq!(current(&store).unwrap().unwrap().id, "TB");
-        // Closing B's till leaves A's open and advertised.
-        close_local(&store).unwrap();
+        // Closing B's till (the close verb's own commit) leaves A's open and advertised.
+        let closing = current(&store).unwrap().unwrap().id;
+        store
+            .with_tx(|tx| {
+                crate::ledger::local::commit_close_till(
+                    tx,
+                    &crate::store::NewOutboxOp {
+                        id: "TB:close".into(),
+                        op_type: "close_till".into(),
+                        idempotency_key: "TB:close".into(),
+                        payload: "{}".into(),
+                        event_at: "2026-09-14T10:00:00Z".into(),
+                        till_id: Some("TB".into()),
+                        entity_type: Some(crate::ledger::T_TILL.into()),
+                        entity_id: Some(closing.clone()),
+                        ..Default::default()
+                    },
+                    "2026-09-14T10:00:00Z",
+                    0,
+                )
+            })
+            .unwrap();
         assert!(!current(&store).unwrap().unwrap().is_open);
         let open: Vec<String> = open_on_device(&store).into_iter().map(|t| t.id).collect();
         assert_eq!(open, vec!["TA".to_string()]);
@@ -2381,7 +2382,7 @@ mod tests {
 
 
 
-    // ── view_from / current / save / clear / close_local ─────────────────────
+    // ── view_from / current / save / clear / close ───────────────────────────
 
 
 

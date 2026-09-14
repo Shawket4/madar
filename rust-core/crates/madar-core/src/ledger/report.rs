@@ -147,8 +147,13 @@ impl Sale {
     }
 }
 
+/// `okey, status, payment_method, total, tip, tip_method, tip_is_cash, srv_seq, acked, live_create`.
+type SaleRow = (String, String, String, i64, i64, Option<String>, Option<i64>, i64, i64, i64);
+/// `ckey, server_id, amount, kind, corrects_id, created_at, raw`.
+type MovementRow = (String, Option<String>, i64, String, Option<String>, String, String);
+
 fn sales(conn: &Connection, till_id: &str) -> CoreResult<Vec<Sale>> {
-    let rows: Vec<(String, String, String, i64, i64, Option<String>, Option<i64>, i64, i64, i64)> = {
+    let rows: Vec<SaleRow> = {
         let mut st = conn.prepare(
             "SELECT o.okey, o.status, o.payment_method, o.total_amount, o.tip_amount, o.tip_payment_method, o.tip_is_cash,
                     o.srv_seq, o.acked,
@@ -195,7 +200,7 @@ fn sales(conn: &Connection, till_id: &str) -> CoreResult<Vec<Sale>> {
 }
 
 fn movements(conn: &Connection, till_id: &str) -> CoreResult<Vec<Movement>> {
-    let rows: Vec<(String, Option<String>, i64, String, Option<String>, String, String)> = {
+    let rows: Vec<MovementRow> = {
         let mut st = conn.prepare(
             "SELECT ckey, server_id, amount, kind, corrects_id, created_at, raw FROM ledger_cash WHERE till_id=?1",
         )?;

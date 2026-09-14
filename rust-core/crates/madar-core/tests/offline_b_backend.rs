@@ -91,7 +91,24 @@ impl Proxy {
                         let _ = sw.shutdown().await;
                     };
                     let down = async move {
-                        let _ = tokio::io::copy(&mut sr, &mut cw).await;
+                        use tokio::io::AsyncReadExt;
+                        let mut buf = vec![0u8; 65536];
+                        loop {
+                            let n = match sr.read(&mut buf).await {
+                                Ok(0) | Err(_) => break,
+                                Ok(n) => n,
+                            };
+                            if std::env::var("MADAR_OB_TRACE").is_ok() {
+                                for line in String::from_utf8_lossy(&buf[..n]).lines() {
+                                    if line.starts_with("HTTP/1.1 ") {
+                                        eprintln!("PROXY <- {line}");
+                                    }
+                                }
+                            }
+                            if cw.write_all(&buf[..n]).await.is_err() {
+                                break;
+                            }
+                        }
                         let _ = cw.shutdown().await;
                     };
                     tokio::select! {
@@ -170,7 +187,7 @@ async fn fixture(tellers: usize) -> Fixture {
     Fixture { base: env("MADAR_OB_BASE"), branch, db, tellers: out }
 }
 
-async fn core_at(base: &str, db_path: &str, teller: &str, branch: &str) -> Arc<MadarCore> {
+async fn signed_in(base: &str, db_path: &str, teller: &str, branch: &str) -> Arc<MadarCore> {
     let core = MadarCore::new(MadarConfig {
         base_url: base.to_string(),
         environment: "dev".into(),
@@ -203,6 +220,11 @@ async fn core_at(base: &str, db_path: &str, teller: &str, branch: &str) -> Arc<M
         }
     };
     assert!(s.online, "the first sign-in reaches the backend");
+    core
+}
+
+async fn core_at(base: &str, db_path: &str, teller: &str, branch: &str) -> Arc<MadarCore> {
+    let core = signed_in(base, db_path, teller, branch).await;
     core.refresh_connectivity().await;
     core.refresh_catalog().await.expect("catalog");
     core.sync_full().await.expect("first snapshot");
@@ -310,7 +332,7 @@ fn figures(r: &TillReportView) -> BTreeMap<String, i64> {
 /// The server's report for a till: a fresh device on the legacy read path
 /// (which asks the server) — independent of anything the device under test holds.
 async fn server_report(fx: &Fixture, teller: &str, till_id: &str) -> TillReportView {
-    let probe = core_at(&fx.base, "", teller, &fx.branch).await;
+    let probe = signed_in(&fx.base, "", teller, &fx.branch).await;
     probe.set_read_path_mode("ledger".into(), ReadPathMode::Legacy).unwrap();
     // The probe shares the teller's pacing bucket with the device under test;
     // a paced read falls back to a local figure, so ask again after a moment.

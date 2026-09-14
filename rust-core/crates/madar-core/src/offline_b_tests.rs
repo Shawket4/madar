@@ -372,6 +372,9 @@ async fn a_paced_drain_never_dead_letters_and_resumes_by_itself() {
     }
     let s = core.sync_status();
     assert_eq!((s.pending_outbox, s.dead_outbox), (0, 0), "{s:?}");
+    let sends = stub.requests("/sync/replay");
+    assert_eq!(sends.len(), 4, "three paced sends, one that landed");
+    assert!(sends.iter().all(|r| r.method == "POST"));
 }
 
 /// Every read-path mode serves; shadow logs the legacy/new difference.
@@ -419,24 +422,30 @@ fn uid(label: &str) -> String {
 async fn the_boards_read_offline_from_the_synced_rows() {
     let core = testkit::offline_core("http://127.0.0.1:1", "").await;
     let now = chrono::Utc::now();
-    let mut bill = madar_api::models::OpenTicketView::default();
-    bill.id = uuid::Uuid::parse_str(&uid("bill-1")).unwrap();
-    bill.status = "open".into();
-    bill.subtotal = 4_200;
-    bill.opened_at = now.fixed_offset();
+    let bill = madar_api::models::OpenTicketView {
+        id: uuid::Uuid::parse_str(&uid("bill-1")).unwrap(),
+        status: "open".into(),
+        subtotal: 4_200,
+        opened_at: now.fixed_offset(),
+        ..Default::default()
+    };
     let mut settled_here = bill.clone();
     settled_here.id = uuid::Uuid::parse_str(&uid("bill-2")).unwrap();
 
     let station = uuid::Uuid::parse_str(&uid("grill")).unwrap();
-    let mut kt = madar_api::models::KitchenTicketView::default();
-    kt.id = uuid::Uuid::parse_str(&uid("kt-1")).unwrap();
-    kt.status = "open".into();
-    kt.created_at = now.fixed_offset();
-    let mut line = madar_api::models::KitchenTicketItemView::default();
-    line.id = uuid::Uuid::parse_str(&uid("kt-1-line")).unwrap();
-    line.station_id = Some(Some(station));
-    line.qty = 1;
-    kt.items = vec![line];
+    let line = madar_api::models::KitchenTicketItemView {
+        id: uuid::Uuid::parse_str(&uid("kt-1-line")).unwrap(),
+        station_id: Some(Some(station)),
+        qty: 1,
+        ..Default::default()
+    };
+    let kt = madar_api::models::KitchenTicketView {
+        id: uuid::Uuid::parse_str(&uid("kt-1")).unwrap(),
+        status: "open".into(),
+        created_at: now.fixed_offset(),
+        items: vec![line],
+        ..Default::default()
+    };
     let mut closed_kt = kt.clone();
     closed_kt.id = uuid::Uuid::parse_str(&uid("kt-2")).unwrap();
     closed_kt.closed_at = Some(Some(now.fixed_offset()));
@@ -587,9 +596,11 @@ async fn a_peers_mirrored_fire_and_settle_overlay_the_bills() {
     seed_rows(&core, &[]);
     let mut sub = core.store.subscribe_changes();
     let ticket = uid("peer-ticket");
-    let mut req = madar_api::models::CreateOpenTicketRequest::default();
-    req.branch_id = uuid::Uuid::parse_str(testkit::BRANCH).unwrap();
-    req.idempotency_key = Some(Some(uuid::Uuid::parse_str(&ticket).unwrap()));
+    let req = madar_api::models::CreateOpenTicketRequest {
+        branch_id: uuid::Uuid::parse_str(testkit::BRANCH).unwrap(),
+        idempotency_key: Some(Some(uuid::Uuid::parse_str(&ticket).unwrap())),
+        ..Default::default()
+    };
     let fire = serde_json::json!({"op": "fire_open_ticket", "teller_id": testkit::TELLER, "request": req});
     crate::mirror_replay_op(&core.store, &fire.to_string());
     let got = sub.next(Duration::from_millis(5)).await.unwrap();
@@ -647,4 +658,24 @@ fn an_other_reason_always_reaches_the_server_with_a_note() {
     assert!(note_for_reason("other", true, None).is_err());
     assert!(note_for_reason("", true, None).is_err());
     assert_eq!(note_for_reason("wrong_order", false, None).unwrap(), None);
+}
+
+/// A close never predates its own open, whatever the corrected clock says (the
+/// server refuses one that does, which dead-lettered a quick close).
+#[tokio::test]
+async fn a_close_never_predates_its_open() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    let till = core.open_till(1_000, None).await.unwrap().till.unwrap();
+    // The offset is re-estimated a minute slow.
+    core.clock_skew_secs.store(-60, Ordering::Relaxed);
+    core.close_till(1_000, None, vec![]).await.unwrap();
+    let payload: String = core
+        .store
+        .with_conn(|c| Ok(c.query_row("SELECT payload FROM outbox WHERE op_type='close_till'", [], |r| r.get(0))?))
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(&payload).unwrap();
+    let closed = chrono::DateTime::parse_from_rfc3339(v["request"]["closed_at"].as_str().unwrap()).unwrap();
+    let opened = chrono::DateTime::parse_from_rfc3339(&till.opened_at).unwrap();
+    assert!(closed >= opened, "closed {closed} before opened {opened}");
 }

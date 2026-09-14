@@ -1110,12 +1110,6 @@ impl MadarCore {
             .collect()
     }
 
-    /// [`Self::send_outbox_item_body`] without the response body.
-    #[cfg(test)]
-    async fn send_outbox_item(&self, item: &store::OutboxItem) -> SendOutcome {
-        self.send_outbox_item_body(item, &mut None).await
-    }
-
     /// Send one op; `body` receives the backend's JSON answer when there was one
     /// (the entity the op created or changed — folded into the ledger on ack).
     async fn send_outbox_item_body(

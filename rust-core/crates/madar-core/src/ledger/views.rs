@@ -546,13 +546,3 @@ pub(crate) fn stored_till_report(store: &Store, till_id: &str) -> Option<madar_a
     raw.and_then(|r| serde_json::from_str(&r).ok()).or_else(|| till::cached_report(store, till_id))
 }
 
-/// Tills of `branch` open by this device's rows, for the LAN / close warnings.
-pub(crate) fn open_tills_by_branch(store: &Store) -> CoreResult<HashMap<String, usize>> {
-    store.with_conn(|c| {
-        let mut st = c.prepare("SELECT branch_id, COUNT(*) FROM ledger_tills WHERE status='open' GROUP BY branch_id")?;
-        let v = st
-            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as usize)))?
-            .collect::<Result<HashMap<_, _>, _>>()?;
-        Ok(v)
-    })
-}

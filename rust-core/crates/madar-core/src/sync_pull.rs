@@ -272,7 +272,9 @@ fn server_checksums(resp: &PullResponse) -> Checksums {
         .collect()
 }
 
-/// Every type the POS syncs (§10.1).
+/// Every type the POS syncs (§10.1). The pull asks for everything and applies
+/// what comes, so only the tests enumerate it.
+#[cfg(test)]
 pub(crate) const ALL_TYPES: &[&str] = &[
     "category", "menu_item", "bundle", "ingredient", "payment_method", "payment_availability",
     "discount", "branch_settings", "device", "teller", "floor_section", "floor_table",

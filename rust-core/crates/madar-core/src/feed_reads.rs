@@ -247,7 +247,7 @@ impl MadarCore {
             .filter_map(delivery_model)
             .filter(|o| wanted.as_ref().is_none_or(|w| w.iter().any(|s| s == &o.status)))
             .collect();
-        rows.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        rows.sort_by_key(|o| std::cmp::Reverse(o.created_at));
         let new: Vec<delivery::DeliveryOrderView> = rows
             .iter()
             .map(|o| self.localize_payment_hint(delivery::order_view(o, &loc, prep)))

@@ -612,7 +612,15 @@ impl MadarCore {
         let t = self.open_till_or_err()?;
         let inputs = till::reconciliation_wire(&reconciliation)?;
         let preview = self.close_till_preview().await.ok();
-        let closed_at = self.corrected_now().fixed_offset();
+        // A close never predates its open. The corrected clock moves in whole
+        // seconds as the server offset is re-estimated, so a till closed moments
+        // after it opened could read earlier than its own open — which the server
+        // refuses (400), dead-lettering the close. Found by the integration run.
+        let closed_at = chrono::DateTime::parse_from_rfc3339(&t.opened_at)
+            .ok()
+            .map(|opened| opened.with_timezone(&chrono::Utc).max(self.corrected_now()))
+            .unwrap_or_else(|| self.corrected_now())
+            .fixed_offset();
         let dev = self.lan_device_id();
         let cash_note = cash_note.filter(|n| !n.trim().is_empty());
         let request = models::CloseTillRequest {

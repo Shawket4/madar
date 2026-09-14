@@ -183,13 +183,3 @@ pub(crate) async fn online_core(base: &str, db_path: &str) -> Arc<MadarCore> {
     core.api.set_bearer(Some("test-token".into()));
     core
 }
-
-/// A throwaway sqlite path under the temp dir.
-pub(crate) fn temp_db(tag: &str) -> String {
-    let p = std::env::temp_dir().join(format!(
-        "madar_tk_{tag}_{}_{}.sqlite",
-        std::process::id(),
-        uuid::Uuid::new_v4().simple()
-    ));
-    p.to_string_lossy().into_owned()
-}
