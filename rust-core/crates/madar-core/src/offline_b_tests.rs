@@ -882,3 +882,39 @@ async fn a_paged_snapshot_sweeps_and_moves_the_cursor_only_after_its_last_page()
     assert_eq!(cursor(&core).as_deref(), Some("90"));
     assert_eq!(stub.requests("/sync/pull").len(), 4);
 }
+
+/// A store written by a newer build opens read-only: its queue and data read
+/// back, every write is refused (nothing this build would write lands in a shape
+/// it does not know), and the freshness says why.
+#[test]
+fn a_store_from_a_newer_build_opens_read_only() {
+    let path = std::env::temp_dir().join(format!("madar_newer_{}.sqlite", uuid::Uuid::new_v4().simple()));
+    let path = path.to_string_lossy().into_owned();
+    {
+        let s = store::Store::open(&path).unwrap();
+        s.kv_put("kept", "yes").unwrap();
+        s.enqueue(&store::NewOutboxOp {
+            id: "op-from-newer".into(),
+            op_type: "create_order".into(),
+            idempotency_key: "k".into(),
+            payload: "{}".into(),
+            event_at: "2026-09-14T10:00:00Z".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        s.with_conn(|c| Ok(c.pragma_update(None, "user_version", crate::schema::latest() + 7)?)).unwrap();
+    }
+    let s = store::Store::open(&path).unwrap();
+    assert!(s.future_schema());
+    assert_eq!(s.kv_get("kept").unwrap().as_deref(), Some("yes"), "reads work");
+    assert_eq!(s.pending_count().unwrap(), 1, "the newer build's queue is intact");
+    assert!(s.kv_put("x", "y").is_err(), "writes are refused");
+    assert!(s.enqueue(&store::NewOutboxOp { id: "mine".into(), op_type: "create_order".into(), idempotency_key: "m".into(),
+        payload: "{}".into(), event_at: "t".into(), ..Default::default() }).is_err());
+    let user_version: i64 = s.with_conn(|c| Ok(c.pragma_query_value(None, "user_version", |r| r.get(0))?)).unwrap();
+    assert_eq!(user_version, crate::schema::latest() + 7, "not migrated backwards");
+    let f = crate::sync_pull::freshness(&s, testkit::BRANCH, false, 0);
+    assert_eq!((f.state.as_str(), f.reason.as_deref(), f.banner.as_deref()), ("stale", Some("newer_build"), Some("sync.store_newer_build")));
+    drop(s);
+    let _ = std::fs::remove_file(&path);
+}

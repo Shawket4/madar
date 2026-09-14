@@ -40,7 +40,8 @@ pub struct FreshnessView {
     /// `fresh` | `stale` | `bootstrapping`.
     pub state: String,
     /// When stale / bootstrapping: `offline` | `auth_expired` | `server_error` |
-    /// `forbidden` | `decode` | `throttled` | `never_synced`.
+    /// `forbidden` | `decode` | `throttled` | `never_synced` | `newer_build`
+    /// (the file was written by a newer app build: read-only until updated).
     pub reason: Option<String>,
     /// Seconds since the last completed pull (`None` = never).
     pub age_secs: Option<u64>,
@@ -54,6 +55,7 @@ fn banner_for(state: &str, reason: Option<&str>) -> Option<String> {
     match (state, reason) {
         ("bootstrapping", _) => Some("sync.freshness_never_synced".into()),
         ("stale", Some("forbidden" | "decode" | "server_error")) => Some("sync.freshness_stale".into()),
+        ("stale", Some("newer_build")) => Some("sync.store_newer_build".into()),
         _ => None,
     }
 }
@@ -139,7 +141,9 @@ pub(crate) fn freshness(store: &Store, branch: &str, realtime_live: bool, now_ms
         }
         .to_string()
     };
-    let (state, reason) = if !complete {
+    let (state, reason) = if store.future_schema() {
+        ("stale", Some("newer_build".to_string()))
+    } else if !complete {
         ("bootstrapping", Some(err_kind.as_deref().map(reason_of).unwrap_or_else(|| "never_synced".into())))
     } else if let Some(k) = err_kind.as_deref() {
         ("stale", Some(reason_of(k)))

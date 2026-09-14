@@ -185,8 +185,8 @@ pub struct Store {
     conn: Mutex<Connection>,
     /// Logical-table change notifications, sent after a write commits.
     changes: crate::changes::TableChanges,
-    /// The file was written by a newer build (`schema::migrate`): the sync
-    /// applier leaves its tables alone.
+    /// The file was written by a newer build: the connection is `query_only`
+    /// (every write fails), and the sync applier does not run.
     future_schema: bool,
 }
 
@@ -220,6 +220,19 @@ impl Store {
         // permanently inflated -wal sidecar next to the database.
         let _ = conn.pragma_update(None, "journal_size_limit", 4 * 1024 * 1024);
         conn.busy_timeout(Duration::from_secs(5))?;
+        // A file written by a NEWER build (design §8 "App upgrade"): open it in
+        // read-only safe mode. No DDL, no migration, no write of any kind — this
+        // build does not know the shape it would be writing — so the queue a
+        // newer build left stays exactly as that build wrote it, reads still
+        // work, and the host is told (freshness reason `newer_build`).
+        if crate::schema::user_version(&conn)? > crate::schema::latest() {
+            conn.pragma_update(None, "query_only", "ON")?;
+            return Ok(Store {
+                conn: Mutex::new(conn),
+                changes: crate::changes::TableChanges::new(),
+                future_schema: true,
+            });
+        }
         conn.execute_batch(SCHEMA)?;
         // Bring older stores up to the current outbox shape (no-op on fresh DBs).
         // MUST run before any index that references the new columns — on an
