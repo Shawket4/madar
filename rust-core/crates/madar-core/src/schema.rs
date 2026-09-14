@@ -416,7 +416,7 @@ mod tests {
                 ..Default::default()
             })
             .unwrap();
-        store.with_tx(|tx| step5_drop_legacy_read_caches(tx)).unwrap();
+        store.with_tx(step5_drop_legacy_read_caches).unwrap();
         for k in gone {
             assert!(store.kv_get(k).unwrap().is_none(), "{k} is gone");
         }

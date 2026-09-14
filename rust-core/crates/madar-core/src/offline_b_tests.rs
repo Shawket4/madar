@@ -1165,21 +1165,35 @@ async fn reads_never_wait_on_a_hanging_link() {
 #[tokio::test]
 async fn a_till_not_held_here_is_filled_in_the_background() {
     const PAST: &str = "00000000-0000-0000-0000-00000000fa57";
-    let mut order = madar_api::models::Order::default();
-    order.id = uuid::Uuid::parse_str("00000000-0000-0000-0000-0000000000e1").unwrap();
-    order.branch_id = uuid::Uuid::parse_str(testkit::BRANCH).unwrap();
-    order.total_amount = 900;
-    order.status = "completed".into();
-    order.payment_method = "cash".into();
-    order.order_ref = Some(Some("REF-past-1".into()));
-    let mut page = madar_api::models::PaginatedOrders::default();
-    (page.data, page.page, page.per_page, page.total, page.total_pages) = (vec![order], 1, 200, 1, 1);
-    let page = serde_json::to_value(&page).unwrap();
-    let mut report = madar_api::models::TillReportResponse::default();
-    report.expected_cash = 1_900;
-    report.till.id = uuid::Uuid::parse_str(PAST).unwrap();
-    report.till.status = madar_api::models::TillStatus::Closed;
-    let report = serde_json::to_value(&report).unwrap();
+    let order = madar_api::models::Order {
+        id: uuid::Uuid::parse_str("00000000-0000-0000-0000-0000000000e1").unwrap(),
+        branch_id: uuid::Uuid::parse_str(testkit::BRANCH).unwrap(),
+        total_amount: 900,
+        status: "completed".into(),
+        payment_method: "cash".into(),
+        order_ref: Some(Some("REF-past-1".into())),
+        ..Default::default()
+    };
+    let page = serde_json::to_value(madar_api::models::PaginatedOrders {
+        data: vec![order],
+        page: 1,
+        per_page: 200,
+        total: 1,
+        total_pages: 1,
+        ..Default::default()
+    })
+    .unwrap();
+    let till = madar_api::models::Till {
+        id: uuid::Uuid::parse_str(PAST).unwrap(),
+        status: madar_api::models::TillStatus::Closed,
+        ..Default::default()
+    };
+    let report = serde_json::to_value(madar_api::models::TillReportResponse {
+        expected_cash: 1_900,
+        till: Box::new(till),
+        ..Default::default()
+    })
+    .unwrap();
     let stub = Stub::start(move |r| {
         if r.path.starts_with("/orders?") && r.path.contains(PAST) {
             Some(StubResponse::json(200, page.clone()))
