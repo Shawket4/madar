@@ -752,6 +752,20 @@ async fn a_close_never_predates_its_open() {
     let closed = chrono::DateTime::parse_from_rfc3339(v["request"]["closed_at"].as_str().unwrap()).unwrap();
     let opened = chrono::DateTime::parse_from_rfc3339(&till.opened_at).unwrap();
     assert!(closed >= opened, "closed {closed} before opened {opened}");
+
+    // At replay the skew is re-estimated again and the till's open has been
+    // confirmed a moment LATER by the server: the close still never predates it.
+    let later = (opened + chrono::Duration::milliseconds(700)).to_rfc3339();
+    core.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET status='acked' WHERE op_type='open_till'", [])?)).unwrap();
+    let mut rec = crate::till::record(&core.store, &till.id).unwrap();
+    rec.opened_at = later.clone();
+    crate::till::update_record(&core.store, &rec).unwrap();
+    core.clock_skew_secs.store(-120, Ordering::Relaxed);
+    let item = core.store.list_active().unwrap().into_iter().find(|i| i.op_type == "close_till").unwrap();
+    let (env, _) = core.replay_envelope(&item).ok().unwrap();
+    let sent = chrono::DateTime::parse_from_rfc3339(env["request"]["closed_at"].as_str().unwrap()).unwrap();
+    let confirmed = chrono::DateTime::parse_from_rfc3339(&later).unwrap();
+    assert!(sent >= confirmed, "replayed close {sent} before the confirmed open {confirmed}");
 }
 
 /// A paged full snapshot: page one brings state and the first ledger rows, the

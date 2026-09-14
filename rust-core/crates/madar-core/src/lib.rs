@@ -1161,6 +1161,30 @@ impl MadarCore {
                     Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
                 rebase_dopt(&mut cmd.request.closed_at, delta);
+                // Re-basing can move a quick close back past its open (the skew
+                // re-estimated between them), and the server refuses a close that
+                // predates the open it holds — dead-lettering the close. Never
+                // before the till's opened_at as this device now knows it (the
+                // server's own, once the open acked).
+                let opened_known = self
+                    .store
+                    .with_conn(|c| ledger::stored(c, ledger::T_TILL, &cmd.till_id))
+                    .ok()
+                    .flatten()
+                    .and_then(|row| {
+                        // The local row, and the server's copy a queued op keeps beside it.
+                        [Some(&row.raw), row.srv_raw.as_ref()]
+                            .into_iter()
+                            .flatten()
+                            .filter_map(|v| v.get("opened_at").and_then(|x| x.as_str()))
+                            .filter_map(|x| chrono::DateTime::parse_from_rfc3339(x).ok())
+                            .max()
+                    });
+                if let (Some(Some(closed)), Some(opened)) = (cmd.request.closed_at, opened_known) {
+                    if closed < opened {
+                        cmd.request.closed_at = Some(Some(opened));
+                    }
+                }
                 // A close queued before the rework carries no reconciliation: send
                 // it as an explicit empty list (every method reads `unreviewed`).
                 if cmd.request.reconciliation.clone().flatten().is_none() {
