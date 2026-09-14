@@ -136,9 +136,10 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
     a loyalty lookup, a table's history, a sale or delivery never seen here, the
     delivery accepting toggle, the routing-mode write, a force close, the manual
     catalogue refresh;
-  - one-off background FILLS of what the feed cannot give yet (a past till not
-    held here, the past-till history backfill, a branch-settings field an older
-    backend omits) — once per session, never repeated on a beat.
+  - background FILLS of what the feed cannot give yet, never on a beat: a past
+    till not held here (filled once, and again only when the feed moves that
+    till), the past-till history backfill (one attempt per session), a
+    branch-settings field an older backend omits (once per session).
   Branch settings the till reads (routing mode, stations, delivery settings, the
   loyalty programme, the tax policy) ride `branch_settings`
   (`branch_reads.rs`; MadarRust `20260917090000_sync_feed_branch_reads.sql`).
