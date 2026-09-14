@@ -22,6 +22,8 @@
 #   MADAR_OB_PERF_BRANCH  branch for --perf (default: the branch with the most sales on an open till)
 #   MADAR_OB_BUILD_DATABASE_URL  migrated DB for the backend build (default :5433/madar)
 #   MADAR_OB_BACKEND_TARGET_DIR  the backend's cargo target dir (default $MADAR_RUST/target)
+#   MADAR_OB_TEST         the ignored integration test to run (default offline_b_backend;
+#                         pricing_backend = the PRICING_TAX_AUDIT scenarios)
 #   CARGO_TARGET_DIR      this repo's cargo target dir, as usual
 # Exit status is the tests' status.
 set -euo pipefail
@@ -91,7 +93,7 @@ echo "==> branch $BRANCH"
 cd "$ROOT/rust-core"
 export MADAR_OB_BASE="http://127.0.0.1:$PORT" MADAR_OB_DB="$DB_URL" MADAR_OB_BRANCH="$BRANCH"
 echo "==> scenarios"
-cargo test -p madar-core --test offline_b_backend -- --ignored --nocapture --test-threads=1
+cargo test -p madar-core --test "${MADAR_OB_TEST:-offline_b_backend}" -- --ignored --nocapture --test-threads=1
 
 if [[ $PERF -eq 1 ]]; then
   PERF_TILL="$(q "SELECT t.id FROM tills t JOIN orders o ON o.till_id = t.id
